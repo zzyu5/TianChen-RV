@@ -1532,6 +1532,108 @@ changes, wrapper-only work, status/report work, and standalone evidence
 packaging are not valid default owners. Use them only when they are the single
 named blocker for the chosen module.
 
+## Wrong Logic Deletion Campaign Gate
+
+This is the highest-priority owner-selection rule. While the live repository
+still contains old logic that conflicts with the final TianChen-RV architecture,
+choose a deletion-only owner. Do not choose a new feature owner, do not extend
+the finite RVV family, do not add helpers, wrappers, compatibility paths,
+descriptor tests, or new architecture implementation, and do not mix deletion
+with rebuild work in the same round.
+
+During the campaign, your `next_prompt` may only ask Codex to delete, remove
+references, delete or rewrite tests that protect old behavior, remove obsolete
+docs/comments, remove old routes/exporters, and remove old descriptor
+dependencies. If removal exposes build or test failures, Codex should report
+the breakage as a missing new-architecture gap and continue deletion/refactor
+in the next round. Codex must not restore the wrong path to make checks pass.
+
+Do not preserve old logic for compatibility. Do not quarantine old logic. Do
+not add wrappers around old logic. Do not turn old logic into legacy mode. If
+it is architecturally wrong, remove it. If removal breaks build/tests, report
+the breakage and continue deletion/refactor in the next round. Do not restore
+the wrong path.
+
+Deletion Campaign objects:
+
+```text
+descriptor-driven computation:
+  lowering_descriptor; descriptor decides microkernel, intrinsic route,
+  artifact route, C generation, route authority, plugin/template/RAG basis,
+  finite descriptor family production paths, i32-vadd-microkernel.v1-style
+  descriptor semantics, RVVBinaryDescriptor, RVVBinaryFamilyRegistry,
+  descriptor-based dispatch, descriptor-to-C exporter.
+
+direct C semantic exporter:
+  any path that bypasses extension family ops / EmitC ops and directly uses
+  metadata, descriptors, selected routes, or family registries to synthesize
+  C compute semantics. Real EmitC module -> C/C++ emitter paths, generated C
+  compile harnesses, artifact readers, and non-semantic helper output may stay.
+
+independent backend/dialect wording:
+  specs, prompts, docs, comments, or tests that describe RVV, IME, TensorExt,
+  Offload, scalar fallback, or future vendor targets as independent backends
+  rather than TCRV extension families.
+
+core extension-specific semantic branch:
+  core orchestration that knows RVV intrinsic names, RVV microkernel semantics,
+  scalar loop semantics, offload runtime call semantics, TensorExt/IME fragment
+  semantics, descriptor family semantics, or if-RVV/if-IME/if-TensorExt compute
+  branches instead of common interfaces, registry, and route abstraction.
+
+Python compiler core:
+  Python implementations of IR semantics, lowering, plugin registry, codegen,
+  route selection, capability model, or compiler-core behavior.
+```
+
+Allowed campaign owners:
+
+```text
+Descriptor Erasure Owner:
+  remove descriptor-driven compute authority, descriptor microkernel selection,
+  descriptor artifact authority, descriptor plugin/template/RAG basis, and
+  descriptor-protecting tests.
+
+Direct C Semantic Exporter Erasure Owner:
+  remove direct C compute-body generation as a semantic path; remaining
+  rendering may only render existing EmitC modules or non-semantic packaging.
+
+Independent Backend/Dialect Cleanup Owner:
+  remove wording and durable prompt/spec/doc/comment/test residue that treats
+  extension families as independent backends or dialect systems.
+
+Core Semantic Branch Erasure Owner:
+  remove extension-specific compute branches from core orchestration; core may
+  organize capability, variants, dispatch/fallback, ABI envelope, registry, and
+  common-interface dispatch only.
+
+Legacy Tests and Artifact Cleanup Owner:
+  remove tests, fixtures, artifacts, and negative tests that protect descriptor
+  routes, direct C semantic exporters, or descriptor-as-legal-input behavior.
+```
+
+Deletion before rebuild is the campaign rule (`deletion before rebuild`).
+Deletion Campaign is not the rebuild phase. Do not ask Codex to implement new
+general RVV lowering, common lower-to-EmitC pass, executable plugin template,
+TensorExt/IME extension, new EmitC route, new capability model features, or new
+performance/evidence matrix until the old wrong logic is deleted.
+
+Exit Deletion Campaign only when live repo evidence shows all conditions below
+are true:
+
+```text
+descriptor is no longer compute semantics;
+direct C exporter is no longer a semantic route;
+core pass code has no extension-specific compute branch;
+specs/prompts/docs do not describe extension families as independent backends;
+legacy tests no longer protect old paths;
+remaining failures are clearly missing new architecture, not old-path compatibility.
+```
+
+After exit, choose a rebuild owner such as Common Extension Interface
+Foundation, Common Lower-To-EmitC Pass, Executable Plugin Construction
+Template, or General RVV Extension Family Rebuild.
+
 ## Structural Migration Review
 
 For migration or refactor tasks, check whether the production/default path
@@ -1546,8 +1648,8 @@ and tests. Do not reward preserving descriptor-driven tests when the active
 task is to remove descriptor authority from the default path.
 
 For RVV migration work, prefer extension family ops as the source of truth,
-common EmitC route usage, production/default path rewiring, and deletion or
-quarantine of obsolete descriptor-driven behavior. Reject rounds that only add
+common EmitC route usage, production/default path rewiring, and deletion of
+obsolete descriptor-driven behavior. Reject rounds that only add
 finite-family coverage, route metadata checks, helper-only tests, smoke tests,
 or ssh evidence as a standalone owner when the missing piece is structural
 migration. Descriptor-driven computation is invalid as long-term architecture.

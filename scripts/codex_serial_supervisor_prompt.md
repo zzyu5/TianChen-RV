@@ -80,6 +80,28 @@ production path in the same round. For current TianChen-RV migration work,
 prefer extension family ops -> common EmitC route -> generated
 intrinsic/runtime C/C++ over descriptor -> direct C exporter.
 
+## Wrong Logic Deletion Campaign
+
+If the Hermes Direction Brief marks the round as part of the Wrong Logic
+Deletion Campaign, write or repair the Trellis PRD as deletion/refactor-only.
+Deletion before rebuild is the campaign rule. Do not add new features, new
+compatibility layers, helper wrappers, descriptor tests, new extension work, or
+replacement architecture in the same round.
+
+Delete or rewrite obsolete code, tests, fixtures, docs, comments, and artifact
+expectations that protect descriptor-driven computation, direct C semantic
+exporters, independent-backend wording, extension-specific core semantic
+branches, or Python compiler-core logic. If deleting wrong logic breaks build
+or tests, record the failure as a missing new-architecture gap; do not restore
+the wrong path to make checks pass.
+
+In the final report for a campaign round, state which old logic was removed,
+what descriptor / direct-exporter / independent-backend / core-branch residue
+still remains, whether any compatibility layer was added and why it does not
+violate the campaign, whether build/tests fail, whether failures are expected
+deletion gaps, and whether the next round should continue deletion or move to
+rebuild.
+
 ## One-Round Trellis Flow
 
 Execute the current task through one coherent Trellis round:

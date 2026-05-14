@@ -256,9 +256,78 @@ Deletion and rewrite are allowed during architecture cleanup. Hermes must not
 reward preserving descriptor-driven tests when the active task is to remove
 descriptor authority from a default path. For RVV migration work, Hermes should
 prefer extension family ops as source of truth, common EmitC route use,
-production/default path rewiring, and deletion or quarantine of obsolete
+production/default path rewiring, and deletion of obsolete
 descriptor-driven behavior over finite-family coverage, route metadata checks,
 helper-only tests, smoke tests, or standalone ssh-evidence rounds.
+
+## Wrong Logic Deletion Campaign
+
+Hermes and Codex must support a Wrong Logic Deletion Campaign mode. This is a
+durable supervision policy, not manual steering and not a separate runner state
+machine.
+
+Hermes enters the campaign whenever live repository evidence shows old logic
+that conflicts with the final TianChen-RV architecture. While the campaign is
+active, Hermes must choose a deletion-only owner. It must not choose feature
+implementation, finite RVV family expansion, helper/wrapper work, compatibility
+preservation, descriptor tests, or "delete and rebuild" mixed work.
+
+The campaign is deletion before rebuild: remove wrong logic before rebuilding
+correct logic. Hermes must not preserve old logic for compatibility, must not
+quarantine old logic, must not wrap old logic, and must not turn old logic into
+a legacy mode. If removal breaks build or tests, Codex records the breakage as
+a missing new-architecture gap and the next round continues deletion or
+refactor. Codex must not restore the wrong path to make checks pass.
+
+Campaign deletion targets are:
+
+- descriptor-driven computation, including `lowering_descriptor`, descriptor
+  microkernel selection, descriptor intrinsic or artifact route authority,
+  descriptor C generation, descriptor-as-plugin/template/RAG basis, finite
+  descriptor family production paths, `i32-vadd-microkernel.v1`-style
+  descriptor semantics, `RVVBinaryDescriptor`, `RVVBinaryFamilyRegistry`,
+  descriptor-based dispatch, and descriptor-to-C exporters;
+- direct C semantic exporters that synthesize compute bodies from metadata,
+  descriptors, selected routes, or family registries instead of consuming
+  extension family ops and EmitC ops;
+- durable wording that describes RVV, IME, TensorExt, Offload, scalar
+  fallback, or future vendor targets as independent backends rather than TCRV
+  extension families;
+- core orchestration branches that know extension-specific compute semantics,
+  including RVV intrinsic names, microkernel descriptor semantics, scalar loop
+  semantics, offload runtime call semantics, TensorExt/IME fragment semantics,
+  or `if RVV` / `if IME` / `if TensorExt` compute branches;
+- Python compiler-core implementations of IR semantics, lowering, plugin
+  registry, codegen, route selection, or capability model behavior.
+
+Allowed campaign owners are:
+
+- Descriptor Erasure Owner;
+- Direct C Semantic Exporter Erasure Owner;
+- Independent Backend/Dialect Cleanup Owner;
+- Core Semantic Branch Erasure Owner;
+- Legacy Tests and Artifact Cleanup Owner.
+
+Deletion Campaign is not the correct-architecture implementation phase.
+Hermes must not ask Codex to implement new general RVV lowering, common
+lower-to-EmitC pass, executable plugin template, TensorExt/IME extension, new
+EmitC route, new capability model features, or new performance/evidence matrix
+while the campaign is active. Codex may record what must later be rebuilt, but
+must not rebuild it in the same campaign round.
+
+Hermes may exit the campaign only when live repository evidence shows:
+
+- descriptor is no longer compute semantics;
+- direct C exporter is no longer a semantic route;
+- core passes no longer contain extension-specific compute branches;
+- specs, prompts, docs, comments, and tests do not describe extension families
+  as independent backends;
+- legacy tests no longer protect old paths;
+- remaining failures are missing new architecture, not old-path compatibility.
+
+Only after that exit may Hermes choose rebuild owners such as Common Extension
+Interface Foundation, Common Lower-To-EmitC Pass, Executable Plugin
+Construction Template, or General RVV Extension Family Rebuild.
 
 Hermes should prefer owners that are large enough to remove a real compiler
 spine bottleneck in one round. A good owner may span several tightly related
