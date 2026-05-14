@@ -307,6 +307,16 @@ Required continuation behavior:
     return continuation
 
 
+def infer_round_index_from_run_dir(run_dir: Path) -> int:
+    match = re.search(r"-r(\d{4})-", run_dir.name)
+    if not match:
+        return 0
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return 0
+
+
 def write_stop_request(path: Path, reason: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -2247,6 +2257,8 @@ def build_loop_subprocess_cmd(args: argparse.Namespace, loop_id: str) -> list[st
         cmd.extend(["--initial-delta", args.initial_delta])
     if args.initial_delta_file:
         cmd.extend(["--initial-delta-file", args.initial_delta_file])
+    if getattr(args, "resume_review_run_dir", ""):
+        cmd.extend(["--resume-review-run-dir", args.resume_review_run_dir])
     if args.model:
         cmd.extend(["--model", args.model])
     if args.profile:
@@ -2386,6 +2398,7 @@ def command_loop(args: argparse.Namespace) -> int:
     prompt_mode = "delta" if delta.strip() else "base"
     rounds_completed = 0
     exit_reason = "max_rounds_reached"
+    ready_for_worker = True
     root.mkdir(parents=True, exist_ok=True)
     write_json(
         active_loop_path,
@@ -2430,7 +2443,158 @@ def command_loop(args: argparse.Namespace) -> int:
     print(loop_dir, flush=True)
 
     try:
-        while args.max_rounds <= 0 or rounds_completed < args.max_rounds:
+        if getattr(args, "resume_review_run_dir", ""):
+            resume_run_dir = Path(args.resume_review_run_dir)
+            if not resume_run_dir.is_absolute():
+                resume_run_dir = (repo / resume_run_dir).resolve()
+            if not resume_run_dir.exists():
+                raise SystemExit(f"resume review run dir does not exist: {resume_run_dir}")
+            if not (resume_run_dir / "review_input.md").exists():
+                raise SystemExit(f"resume review run dir is missing review_input.md: {resume_run_dir}")
+
+            resume_round = infer_round_index_from_run_dir(resume_run_dir)
+            if resume_round <= 0:
+                resume_round = 1
+            append_jsonl(
+                events_path,
+                {
+                    "event": "resume_review_start",
+                    "round": resume_round,
+                    "run_dir": str(resume_run_dir),
+                    "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+                },
+            )
+            try:
+                review = hermes_review(
+                    args,
+                    repo,
+                    resume_run_dir,
+                    loop_dir,
+                    resume_round,
+                    "",
+                    "resume-review",
+                )
+            except Exception as exc:  # noqa: BLE001 - keep loop evidence explicit
+                review = {
+                    "continue": False,
+                    "delta": "",
+                    "next_prompt": "",
+                    "base_prompt_edits": [],
+                    "reason": (
+                        f"Hermes resume review exception: {type(exc).__name__}: {exc}; "
+                        "supervisor stopped instead of launching Codex before review."
+                    ),
+                    "telegram_note": "Hermes resume review raised an exception; supervisor stopped.",
+                    "parse_error": True,
+                }
+            base_prompt_text = read_text(Path(args.base_prompt), max_chars=200000).strip()
+            edited_prompt, prompt_edit_results = apply_prompt_edits(
+                base_prompt_text,
+                review.get("base_prompt_edits", []),
+            )
+            next_prompt = str(review.get("next_prompt") or "").strip()
+            if not next_prompt and prompt_edit_results and any(r.get("applied") for r in prompt_edit_results):
+                next_prompt = edited_prompt
+            if review.get("continue", True) and not next_prompt:
+                review["continue"] = False
+                if review.get("parse_error"):
+                    review["reason"] = (
+                        "Hermes resume review did not provide valid JSON/next_prompt after retry; "
+                        "supervisor stopped instead of using a human-written delta."
+                    )
+                else:
+                    review["reason"] = "Hermes resume review did not provide required non-empty next_prompt Direction Brief."
+            next_prompt_path = loop_dir / f"round_{resume_round:04d}_next_prompt.md"
+            next_prompt_path.write_text(next_prompt + ("\n" if next_prompt else ""), encoding="utf-8")
+            review["prompt_edit_results"] = prompt_edit_results
+            review["next_prompt_path"] = str(next_prompt_path)
+            review["next_prompt_chars"] = len(next_prompt)
+            review_path = loop_dir / f"round_{resume_round:04d}_review.json"
+            write_json(review_path, review)
+            if not review.get("parse_error") and (
+                not review.get("continue", True) or bool(next_prompt)
+            ):
+                review_prompt_path = Path(str(review.get("review_prompt") or ""))
+                if not review_prompt_path.exists():
+                    review_prompt_path = loop_dir / f"round_{resume_round:04d}_hermes_review_prompt.md"
+                review["manual_steering_once_consumption"] = consume_manual_steering_once(
+                    repo,
+                    args,
+                    loop_dir,
+                    resume_round,
+                    review_prompt_path,
+                )
+                write_json(review_path, review)
+            if review.get("hermes_session_id") and not args.hermes_session_id:
+                args.hermes_session_id = str(review.get("hermes_session_id"))
+            write_json(
+                loop_dir / "hermes_session.json",
+                {
+                    "hermes_review_mode": args.hermes_review_mode,
+                    "hermes_session_id": args.hermes_session_id,
+                    "hermes_session_name": args.hermes_session_name,
+                    "updated_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+                },
+            )
+            write_json(
+                active_loop_path,
+                {
+                    "pid": os.getpid(),
+                    "loop_id": loop_id,
+                    "loop_dir": str(loop_dir),
+                    "repo": str(repo),
+                    "latest_run_dir": str(resume_run_dir),
+                    "latest_round": resume_round,
+                    "stop_file": str(stop_file),
+                    "manual_steering_file": str(manual_steering_file),
+                    "manual_steering_once_file": str(manual_steering_once_file),
+                    "hermes_review_mode": args.hermes_review_mode,
+                    "hermes_session_id": args.hermes_session_id,
+                    "hermes_session_name": args.hermes_session_name,
+                    "codex_multi_agent_disabled": True,
+                    "next_prompt_mode": "override" if next_prompt else "delta" if review.get("delta") else "base",
+                    "next_prompt_chars": len(next_prompt),
+                    "updated_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+                },
+            )
+            append_jsonl(
+                events_path,
+                {
+                    "event": "hermes_review_finished",
+                    "round": resume_round,
+                    "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+                    "continue": review.get("continue", True),
+                    "delta": review.get("delta", ""),
+                    "next_prompt_path": str(next_prompt_path),
+                    "next_prompt_chars": len(next_prompt),
+                    "prompt_edit_results": prompt_edit_results,
+                    "reason": review.get("reason", ""),
+                    "telegram_note": review.get("telegram_note", ""),
+                    "hermes_review_mode": review.get("hermes_review_mode", args.hermes_review_mode),
+                    "hermes_session_id": review.get("hermes_session_id", args.hermes_session_id),
+                    "review_path": str(review_path),
+                    "manual_steering_once_consumption": review.get("manual_steering_once_consumption", {}),
+                    "resume_review_run_dir": str(resume_run_dir),
+                },
+            )
+
+            rounds_completed = resume_round
+            if stop_file.exists():
+                exit_reason = f"stop_file_present_after_resume_review_round_{resume_round}"
+                ready_for_worker = False
+            elif not review.get("continue", True):
+                exit_reason = str(review.get("reason") or f"hermes_requested_stop_after_resume_review_round_{resume_round}")
+                ready_for_worker = False
+            elif next_prompt:
+                prompt_override = next_prompt
+                delta = ""
+                prompt_mode = "override"
+            else:
+                prompt_override = ""
+                delta = str(review.get("delta") or "").strip()
+                prompt_mode = "delta" if delta else "base"
+
+        while ready_for_worker and (args.max_rounds <= 0 or rounds_completed < args.max_rounds):
             next_round = rounds_completed + 1
             if stop_file.exists():
                 exit_reason = f"stop_file_present_before_round_{next_round}"
@@ -2740,7 +2904,8 @@ def command_loop(args: argparse.Namespace) -> int:
             if args.sleep_seconds > 0:
                 time.sleep(args.sleep_seconds)
         else:
-            exit_reason = "loop_condition_finished"
+            if ready_for_worker:
+                exit_reason = "loop_condition_finished"
     finally:
         finished = {
             "event": "loop_finished",
@@ -2903,6 +3068,15 @@ def add_loop_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--sleep-seconds", type=float, default=0.0, help="Delay between rounds.")
     parser.add_argument("--initial-delta", default="", help="Optional legacy steering delta for the first round.")
     parser.add_argument("--initial-delta-file", default="", help="Optional file containing a first-round legacy delta.")
+    parser.add_argument(
+        "--resume-review-run-dir",
+        default="",
+        help=(
+            "Run official Hermes review on an existing Codex run directory "
+            "before launching the next worker. Use this to resume from a "
+            "paused post-worker review point without a human-written initial delta."
+        ),
+    )
     add_manual_steering_arg(parser)
     parser.add_argument("--review-no-llm", action="store_true", help="Skip Hermes review and always continue.")
     parser.add_argument("--review-max-chars", type=int, default=30000, help="Max chars included in Hermes review prompt.")

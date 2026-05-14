@@ -30,7 +30,7 @@ The runner must preserve these command surfaces unless a task explicitly authori
 ```bash
 python3 scripts/codex_serial_supervisor.py prompt --repo <repo> --artifact-root <path> --run-id <id>
 python3 scripts/codex_serial_supervisor.py run --repo <repo> --artifact-root <path> --run-id <id> --no-exec
-python3 scripts/codex_serial_supervisor.py loop --repo <repo> --artifact-root <path> [--review-no-llm] [--hermes-review-mode chat|oneshot]
+python3 scripts/codex_serial_supervisor.py loop --repo <repo> --artifact-root <path> [--review-no-llm] [--hermes-review-mode chat|oneshot] [--resume-review-run-dir <run-dir>]
 python3 scripts/codex_serial_supervisor.py status --repo <repo> --artifact-root <path>
 python3 scripts/codex_serial_supervisor.py stop --repo <repo> --artifact-root <path> --reason <text>
 python3 scripts/codex_serial_supervisor.py ask-hermes --repo <repo> --artifact-root <path> --question <text>
@@ -109,6 +109,7 @@ Hermes chat access must avoid concurrent writes to the same session. Official re
 | Durable steering exists | Hermes review prompt must include it as control-plane steering, not repository proof |
 | One-shot steering exists | Hermes review prompt must include it and clear it only after a successful strict-JSON official review |
 | ask-only self-check is requested | runner must not launch Codex or mutate source files |
+| Loop is resumed from an existing Codex run directory | runner must run official Hermes review on that run before launching another Codex worker; it must not require a human-authored initial delta |
 | Codex exits with a transient model/API/stream/network failure | runner may retry the worker once regardless of whether `HEAD` or git status changed; if repository state changed, the retry must be a continuation over the live repo state and previous run artifacts, not a fresh unrelated task |
 | Codex exits with a transient failure after committing and leaving the worktree clean | retry prompt must let Codex verify the landed commit/task state and report completion without creating a duplicate task or commit |
 
