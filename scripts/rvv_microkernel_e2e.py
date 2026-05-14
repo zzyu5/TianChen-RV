@@ -4483,6 +4483,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
     object_sha256 = ""
     header_sha256 = ""
     caller_sha256 = ""
+    caller_text = ""
     object_artifact_evidence: dict[str, Any] | None = None
     direct_helper_routes = direct_helper_routes_for_family(ACTIVE_ARITHMETIC_FAMILY)
     direct_helper_translation_routes = {
@@ -4528,6 +4529,20 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         )
         header_sha256 = sha256_text(header_text)
         direct_helper_artifacts["header"] = relative_to_repo(header_path, root)
+        caller_text = build_external_caller_source(
+            header_function_name,
+            header_path.name,
+            source_flags["runtime_abi_parameters"],
+            source_flags["arithmetic_token"],
+            runtime_counts,
+        )
+        write_generated_text(
+            caller_path, "generated RVV microkernel external caller", caller_text
+        )
+        caller_sha256 = sha256_text(caller_text)
+        direct_helper_artifacts["external_caller"] = relative_to_repo(
+            caller_path, root
+        )
 
     if (
         uses_direct_family_helpers
@@ -4565,18 +4580,6 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         object_sha256 = sha256_file(object_path)
         direct_helper_artifacts["object"] = relative_to_repo(object_path, root)
 
-        caller_text = build_external_caller_source(
-            header_function_name,
-            header_path.name,
-            source_flags["runtime_abi_parameters"],
-            source_flags["arithmetic_token"],
-            runtime_counts,
-        )
-        write_generated_text(
-            caller_path, "generated RVV microkernel external caller", caller_text
-        )
-        caller_sha256 = sha256_text(caller_text)
-
     hashes = {
         "input_sha256": sha256_file(input_path),
         "post_planning_mlir_sha256": sha256_text(post_planning_mlir),
@@ -4592,11 +4595,12 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         ]
     if header_sha256:
         hashes["rvv_microkernel_h_sha256"] = header_sha256
+    if caller_sha256:
+        hashes["rvv_microkernel_external_caller_c_sha256"] = caller_sha256
     if not args.dry_run and not use_harness:
         hashes.update(
             {
                 "rvv_microkernel_o_sha256": object_sha256,
-                "rvv_microkernel_external_caller_c_sha256": caller_sha256,
             }
         )
     manifest_authority_artifact_paths: dict[str, Path] = {}
@@ -4740,9 +4744,9 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         ),
         "claim_scope": (
             (
-                "local dry-run verifies replayed profile facts, compiler-tool handoff, and direct source/header helper export only"
+                "local dry-run verifies replayed profile facts, compiler-tool handoff, direct source/header helper export, and generated external caller construction only"
                 if profile_replay_metadata
-                else "local dry-run verifies compiler-tool handoff plus direct source/header helper export only"
+                else "local dry-run verifies compiler-tool handoff plus direct source/header helper export and generated external caller construction only"
             )
             if args.dry_run and uses_direct_family_helpers
             else (
@@ -4780,6 +4784,22 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         evidence["artifacts"]["rvv_microkernel_h"] = relative_to_repo(
             header_path, root
         )
+    if caller_sha256:
+        evidence["artifacts"]["rvv_microkernel_external_caller_c"] = (
+            relative_to_repo(caller_path, root)
+        )
+        evidence["header_function_name"] = header_function_name
+        evidence["external_caller"] = {
+            "kind": "generated-c-caller",
+            "function": header_function_name,
+            "runtime_abi_signature": source_flags["runtime_abi_parameters"],
+            "success_marker": EXTERNAL_ABI_SUCCESS_MARKER,
+            "arithmetic_check": "lhs "
+            + source_flags["arithmetic_token"]
+            + " rhs",
+            "runtime_element_counts": runtime_counts,
+            "source_only": bool(args.dry_run),
+        }
     if not args.dry_run:
         if use_harness:
             evidence["self_check"] = {
@@ -4793,23 +4813,10 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             evidence["artifacts"].update(
                 {
                     "rvv_microkernel_o": relative_to_repo(object_path, root),
-                    "rvv_microkernel_external_caller_c": relative_to_repo(
-                        caller_path, root
-                    ),
                 }
             )
-            evidence["header_function_name"] = header_function_name
             evidence["local_object_export_clang"] = sanitize_text(local_clang)
-            evidence["external_caller"] = {
-                "kind": "generated-c-caller",
-                "function": header_function_name,
-                "runtime_abi_signature": source_flags["runtime_abi_parameters"],
-                "success_marker": EXTERNAL_ABI_SUCCESS_MARKER,
-                "arithmetic_check": "lhs "
-                + source_flags["arithmetic_token"]
-                + " rhs",
-                "runtime_element_counts": runtime_counts,
-            }
+            evidence["external_caller"]["source_only"] = False
 
     if not args.dry_run:
         try:

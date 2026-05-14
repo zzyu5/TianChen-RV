@@ -1261,6 +1261,64 @@ printed `tcrv_rvv_microkernel_external_abi_ok counts=7,16,23`.
 [OK] Completed and archived; commit pending.
 
 
+## Session 63: RVV generated artifact runtime ABI closure
+
+**Date**: 2026-05-14
+**Task**: RVV generated artifact runtime ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed the direct RVV generated artifact ABI proof path for the selected
+`i32-vadd` and `i32-vsub` microkernel artifacts. Direct helper dry-runs now
+construct a generated external C caller from the exported generated header and
+compiler-emitted runtime ABI signature, while non-dry-run evidence uses that
+same caller to compile, link, and run against both the generated source-built
+object and the generated object artifact on `ssh rvv`.
+
+### Main Changes
+
+- Updated `scripts/rvv_microkernel_e2e.py` so direct helper dry-run mode emits
+  `rvv_microkernel_external_caller.c` whenever the generated direct header is
+  available.
+- Recorded the generated caller path, hash, ABI signature, runtime counts,
+  success marker, and `source_only` dry-run flag in evidence JSON.
+- Extended `test/Scripts/rvv-microkernel-e2e.test` to check direct vadd/vsub
+  generated caller files, arithmetic calls, runtime counts, success markers,
+  caller hashes, and the updated claim scope.
+- Kept descriptor-only compute/config/runtime authority unchanged and
+  quarantined; no core `tcrv.exec` or generic target-export RVV branch was
+  added.
+
+### Testing
+
+- `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- `python3 scripts/rvv_microkernel_e2e.py --dry-run --run-id codex-abi-vadd-dry --overwrite --input test/Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir`
+- `python3 scripts/rvv_microkernel_e2e.py --dry-run --arithmetic-family=i32-vsub --run-id codex-abi-vsub-dry --overwrite`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-microkernel-e2e\\.test'` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-microkernel-bundle-e2e\\.test'` from `build/test`
+- `python3 scripts/rvv_microkernel_e2e.py --run-id codex-abi-vadd-ssh --overwrite --input test/Target/EmissionManifest/emission-manifest-rvv-microkernel.mlir --timeout 120`
+- `python3 scripts/rvv_microkernel_e2e.py --arithmetic-family=i32-vsub --run-id codex-abi-vsub-ssh --overwrite --timeout 120`
+
+Both `ssh rvv` runs returned `status: success` and `ssh_evidence: true`.
+The vadd run used
+`tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice` and
+observed `tcrv_rvv_microkernel_external_abi_ok`; the vsub run used
+`tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice` and observed
+`tcrv_rvv_i32_vsub_microkernel_external_abi_ok`. Both used runtime counts
+`7,16` and compile flags `-O2 -march=rv64gcv -mabi=lp64d`.
+
+### Evidence
+
+- `artifacts/tmp/rvv_microkernel_e2e/codex-abi-vadd-ssh/evidence.json`
+- `artifacts/tmp/rvv_microkernel_e2e/codex-abi-vsub-ssh/evidence.json`
+
+### Status
+
+[OK] Implemented; final diff checks, archive, and commit pending.
+
+
 ## Session 65: RVV EmitC body mapping production route
 
 **Date**: 2026-05-14

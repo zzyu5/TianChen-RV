@@ -30,7 +30,10 @@
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd-frontend/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vsub-frontend/rvv_microkernel.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vmul-frontend/rvv_microkernel.c
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/rvv_microkernel.h
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/rvv_microkernel_external_caller.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub/rvv_microkernel.h
+# RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub/rvv_microkernel_external_caller.c
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/rvv_microkernel.h
 # RUN: test -f %S/../../artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-e2e-i32-vadd-frontend/target_artifact_bundle/artifact-1-runtime-callable-c-header-tcrv-export-rvv-microkernel-header.h
@@ -49,7 +52,10 @@
 # RUN: test ! -f %S/../../rvv_microkernel.c
 # RUN: FileCheck %s --check-prefix=SUMMARY < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/command_summary.json
 # RUN: FileCheck %s --check-prefix=MANIFEST < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/emission_manifest.txt
+# RUN: FileCheck %s --check-prefix=DRY-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/evidence.json
+# RUN: FileCheck %s --check-prefix=DRY-CALLER < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/rvv_microkernel_external_caller.c
 # RUN: FileCheck %s --check-prefix=VSUB-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub/evidence.json
+# RUN: FileCheck %s --check-prefix=VSUB-CALLER < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub/rvv_microkernel_external_caller.c
 # RUN: FileCheck %s --check-prefix=VSUB-M2-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/evidence.json
 # RUN: FileCheck %s --check-prefix=VSUB-M2-SOURCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2/rvv_microkernel.c
 # RUN: FileCheck %s --check-prefix=VMUL-EVIDENCE < %S/../../artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul/evidence.json
@@ -86,7 +92,7 @@
 
 # DRY: "arithmetic_family": "i32-vadd"
 # DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e"
-# DRY: "claim_scope": "local dry-run verifies compiler-tool handoff plus direct source/header helper export only"
+# DRY: "claim_scope": "local dry-run verifies compiler-tool handoff plus direct source/header helper export and generated external caller construction only"
 # DRY: "manifest_handoff": true
 # DRY: "mode": "dry-run"
 # DRY: "source_export_mode": "runtime-callable-library"
@@ -98,7 +104,7 @@
 
 # VSUB-DRY: "arithmetic_family": "i32-vsub"
 # VSUB-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub"
-# VSUB-DRY: "claim_scope": "local dry-run verifies compiler-tool handoff plus direct source/header helper export only"
+# VSUB-DRY: "claim_scope": "local dry-run verifies compiler-tool handoff plus direct source/header helper export and generated external caller construction only"
 # VSUB-DRY: "lmul": "m1"
 # VSUB-DRY: "manifest_handoff": true
 # VSUB-DRY: "mode": "dry-run"
@@ -112,7 +118,7 @@
 
 # VSUB-M2-DRY: "arithmetic_family": "i32-vsub"
 # VSUB-M2-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub-i32m2"
-# VSUB-M2-DRY: "claim_scope": "local dry-run verifies compiler-tool handoff plus direct source/header helper export only"
+# VSUB-M2-DRY: "claim_scope": "local dry-run verifies compiler-tool handoff plus direct source/header helper export and generated external caller construction only"
 # VSUB-M2-DRY: "lmul": "m2"
 # VSUB-M2-DRY: "manifest_handoff": true
 # VSUB-M2-DRY: "mode": "dry-run"
@@ -127,7 +133,7 @@
 
 # VMUL-DRY: "arithmetic_family": "i32-vmul"
 # VMUL-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vmul"
-# VMUL-DRY: "claim_scope": "local dry-run verifies compiler-tool handoff plus direct source/header helper export only"
+# VMUL-DRY: "claim_scope": "local dry-run verifies compiler-tool handoff plus direct source/header helper export and generated external caller construction only"
 # VMUL-DRY: "manifest_handoff": true
 # VMUL-DRY: "mode": "dry-run"
 # VMUL-DRY: "source_export_mode": "runtime-callable-library"
@@ -175,7 +181,7 @@
 
 # I64-DRY: "arithmetic_family": "i64-vadd"
 # I64-DRY: "artifact_dir": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-i64-vadd"
-# I64-DRY: "claim_scope": "local dry-run verifies compiler-tool handoff plus direct source/header helper export only"
+# I64-DRY: "claim_scope": "local dry-run verifies compiler-tool handoff plus direct source/header helper export and generated external caller construction only"
 # I64-DRY: "lmul": "m1"
 # I64-DRY: "manifest_handoff": true
 # I64-DRY: "mode": "dry-run"
@@ -289,12 +295,47 @@
 # HARNESS-EVIDENCE-NOT: live-token
 # HARNESS-EVIDENCE-NOT: hunter2
 
+# DRY-EVIDENCE: "arithmetic_family": "i32-vadd"
+# DRY-EVIDENCE: "rvv_microkernel_external_caller_c"
+# DRY-EVIDENCE: "direct_helper_artifacts"
+# DRY-EVIDENCE: "external_caller": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e/rvv_microkernel_external_caller.c"
+# DRY-EVIDENCE: "external_caller": {
+# DRY-EVIDENCE: "function": "tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice"
+# DRY-EVIDENCE: "kind": "generated-c-caller"
+# DRY-EVIDENCE: "runtime_abi_signature"
+# DRY-EVIDENCE: "runtime_element_counts": [
+# DRY-EVIDENCE-NEXT: 7,
+# DRY-EVIDENCE-NEXT: 16
+# DRY-EVIDENCE: "source_only": true
+# DRY-EVIDENCE: "success_marker": "tcrv_rvv_microkernel_external_abi_ok"
+# DRY-EVIDENCE: "rvv_microkernel_external_caller_c_sha256"
+# DRY-EVIDENCE: "ssh_evidence": false
+# DRY-EVIDENCE-NOT: runtime_success
+# DRY-EVIDENCE-NOT: throughput
+# DRY-EVIDENCE-NOT: latency
+# DRY-EVIDENCE-NOT: live-token
+
+# DRY-CALLER: #include "rvv_microkernel.h"
+# DRY-CALLER: tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice(lhs, rhs, out, runtime_n);
+# DRY-CALLER: if (out[index] != lhs[index] + rhs[index])
+# DRY-CALLER: tcrv_rvv_microkernel_external_abi_ok counts=7,16
+# DRY-CALLER-NOT: lhs[index] - rhs[index]
+# DRY-CALLER-NOT: lhs[index] * rhs[index]
+# DRY-CALLER-NOT: throughput
+# DRY-CALLER-NOT: latency
+
 # VSUB-EVIDENCE: "arithmetic_family": "i32-vsub"
 # VSUB-EVIDENCE: "direct_helper_artifacts"
+# VSUB-EVIDENCE: "external_caller": "artifacts/tmp/rvv_microkernel_e2e/lit-rvv-microkernel-e2e-vsub/rvv_microkernel_external_caller.c"
 # VSUB-EVIDENCE: "direct_helper_routes"
 # VSUB-EVIDENCE: "header": "tcrv-export-rvv-i32-vsub-microkernel-header"
 # VSUB-EVIDENCE: "object": "tcrv-export-rvv-i32-vsub-microkernel-object"
 # VSUB-EVIDENCE: "source": "tcrv-export-rvv-i32-vsub-microkernel-c"
+# VSUB-EVIDENCE: "external_caller": {
+# VSUB-EVIDENCE: "function": "tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice"
+# VSUB-EVIDENCE: "source_only": true
+# VSUB-EVIDENCE: "success_marker": "tcrv_rvv_i32_vsub_microkernel_external_abi_ok"
+# VSUB-EVIDENCE: "rvv_microkernel_external_caller_c_sha256"
 # VSUB-EVIDENCE: "rvv_microkernel_h_sha256"
 # VSUB-EVIDENCE: "emission_kind": "rvv-explicit-i32-vsub-microkernel-c-source"
 # VSUB-EVIDENCE: "lowering_pipeline": "tcrv-export-rvv-i32-vsub-microkernel-c"
@@ -305,6 +346,15 @@
 # VSUB-EVIDENCE-NOT: __riscv_vadd_vv_i32m1
 # VSUB-EVIDENCE-NOT: live-token
 # VSUB-EVIDENCE-NOT: hunter2
+
+# VSUB-CALLER: #include "rvv_microkernel.h"
+# VSUB-CALLER: tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice(lhs, rhs, out, runtime_n);
+# VSUB-CALLER: if (out[index] != lhs[index] - rhs[index])
+# VSUB-CALLER: tcrv_rvv_i32_vsub_microkernel_external_abi_ok counts=7,16
+# VSUB-CALLER-NOT: lhs[index] + rhs[index]
+# VSUB-CALLER-NOT: lhs[index] * rhs[index]
+# VSUB-CALLER-NOT: throughput
+# VSUB-CALLER-NOT: latency
 
 # VSUB-M2-EVIDENCE: "arithmetic_family": "i32-vsub"
 # VSUB-M2-EVIDENCE: "input": "test/Target/RVVMicrokernel/rvv-microkernel-i32m2-family-sub.mlir"
@@ -615,7 +665,7 @@
 
 # PROFILE-REPLAY-DRY: "arithmetic_family": "i64-vadd"
 # PROFILE-REPLAY-DRY: "artifact_dir": "artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-profile-replay"
-# PROFILE-REPLAY-DRY: "claim_scope": "local dry-run verifies replayed profile facts, compiler-tool handoff, and direct source/header helper export only"
+# PROFILE-REPLAY-DRY: "claim_scope": "local dry-run verifies replayed profile facts, compiler-tool handoff, direct source/header helper export, and generated external caller construction only"
 # PROFILE-REPLAY-DRY: "input_source": "rvv_probe_to_mlir.py --emit-target-profile"
 # PROFILE-REPLAY-DRY: "manifest_handoff": true
 # PROFILE-REPLAY-DRY: "mode": "dry-run"
@@ -633,7 +683,7 @@
 
 # PROFILE-VSUB-REPLAY-DRY: "arithmetic_family": "i64-vsub"
 # PROFILE-VSUB-REPLAY-DRY: "artifact_dir": "artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vsub-profile-replay"
-# PROFILE-VSUB-REPLAY-DRY: "claim_scope": "local dry-run verifies replayed profile facts, compiler-tool handoff, and direct source/header helper export only"
+# PROFILE-VSUB-REPLAY-DRY: "claim_scope": "local dry-run verifies replayed profile facts, compiler-tool handoff, direct source/header helper export, and generated external caller construction only"
 # PROFILE-VSUB-REPLAY-DRY: "input_source": "rvv_probe_to_mlir.py --emit-target-profile"
 # PROFILE-VSUB-REPLAY-DRY: "mode": "dry-run"
 # PROFILE-VSUB-REPLAY-DRY: "planned_pipeline": "rvv-probe-profile-replay + tcrv-execution-planning-pipeline"
@@ -649,7 +699,7 @@
 
 # PROFILE-VMUL-REPLAY-DRY: "arithmetic_family": "i64-vmul"
 # PROFILE-VMUL-REPLAY-DRY: "artifact_dir": "artifacts/tmp/rvv_i64_profile_replay_e2e/lit-rvv-microkernel-e2e-i64-vmul-profile-replay"
-# PROFILE-VMUL-REPLAY-DRY: "claim_scope": "local dry-run verifies replayed profile facts, compiler-tool handoff, and direct source/header helper export only"
+# PROFILE-VMUL-REPLAY-DRY: "claim_scope": "local dry-run verifies replayed profile facts, compiler-tool handoff, direct source/header helper export, and generated external caller construction only"
 # PROFILE-VMUL-REPLAY-DRY: "input_source": "rvv_probe_to_mlir.py --emit-target-profile"
 # PROFILE-VMUL-REPLAY-DRY: "mode": "dry-run"
 # PROFILE-VMUL-REPLAY-DRY: "planned_pipeline": "rvv-probe-profile-replay + tcrv-execution-planning-pipeline"
