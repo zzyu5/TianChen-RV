@@ -6,6 +6,7 @@
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-self-check-c | FileCheck %s --check-prefix=HARNESS --implicit-check-not=__riscv_vadd_vv_i32m1 --implicit-check-not="lhs[index] + rhs[index]" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | not tcrv-translate --tcrv-export-rvv-scalar-i32-vmul-dispatch-c 2>&1 | FileCheck %s --check-prefix=ROUTE-MISMATCH --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
 // RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/tcrv_rvv.selected_vector_shape = "i32m1"/s//tcrv_rvv.selected_vector_shape = "i32m2"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-c 2>&1 | FileCheck %s --check-prefix=SHAPE-MISMATCH --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
+// RUN: tcrv-opt %s --tcrv-lower-linalg-i32-binary-to-exec --tcrv-execution-planning-pipeline | sed '0,/selected_binary_source_kind = "frontend-lowering"/s//selected_binary_source_kind = "direct-typed-microkernel-body"/' | not tcrv-translate --tcrv-export-rvv-scalar-i32-vsub-dispatch-c 2>&1 | FileCheck %s --check-prefix=STALE-DISPATCH-SOURCE-ID --implicit-check-not="TianChen-RV RVV+scalar host runtime dispatch C export."
 
 #map = affine_map<(d0) -> (d0)>
 
@@ -170,3 +171,4 @@ module @rvv_scalar_i32_vsub_dispatch_generic_route {
 // ROUTE-MISMATCH-SAME: exact composite target artifact route 'tcrv-export-rvv-scalar-i32-vmul-dispatch-c'
 // ROUTE-MISMATCH-SAME: requires exactly one selected emission-plan candidate group; found none
 // SHAPE-MISMATCH: selected vector-shape id must be 'i32m1'
+// STALE-DISPATCH-SOURCE-ID: selected RVV dispatch candidate @rvv_first_slice selected_plan_metadata 'tcrv_rvv.selected_binary_source_kind' selected binary source kind must be 'direct-typed-microkernel-body'

@@ -1907,6 +1907,111 @@ llvm::Error validateDispatchSelectedPlanMetadata(
   return llvm::Error::success();
 }
 
+bool isRecognizedDispatchSelectedBinarySourceKind(llvm::StringRef value) {
+  return value == "frontend-lowering" ||
+         value == "default-i32-vadd-typed-body-materialization" ||
+         value == "direct-typed-microkernel-body";
+}
+
+llvm::Expected<std::optional<std::string>>
+resolveDispatchVariantSelectedBinarySourceKind(
+    const TargetArtifactCandidate &candidate) {
+  VariantOp variant = findDirectVariant(candidate.kernel,
+                                        candidate.selectedVariant);
+  if (!variant)
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected RVV dispatch case variant @") +
+            candidate.selectedVariant +
+            " must resolve before selected-source identity validation");
+
+  auto attr = variant->getAttrOfType<mlir::StringAttr>(
+      tianchenrv::target::rvv::getRVVSelectedBinarySourceKindMetadataName());
+  if (!attr)
+    return std::optional<std::string>();
+
+  llvm::StringRef sourceKind = attr.getValue().trim();
+  if (sourceKind.empty())
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected RVV dispatch case variant @") +
+            candidate.selectedVariant +
+            " selected binary source kind must be non-empty before "
+            "RVV+scalar dispatch selected-source identity consumption");
+  if (llvm::Error error = validateDispatchRuntimeABIText(
+          candidate.kernel, "selected RVV binary source kind", sourceKind))
+    return std::move(error);
+  if (!isRecognizedDispatchSelectedBinarySourceKind(sourceKind))
+    return makeDispatchError(
+        candidate.kernel,
+        llvm::Twine("selected RVV dispatch case variant @") +
+            candidate.selectedVariant +
+            " has unsupported selected binary source kind '" + sourceKind +
+            "' for RVV+scalar dispatch selected-source identity consumption");
+  return std::optional<std::string>(sourceKind.str());
+}
+
+llvm::Error validateDispatchSelectedSourceIdentityMetadata(
+    const TargetArtifactCandidate &candidate,
+    const tianchenrv::target::rvv::RVVBinarySelectedConfigContract &contract) {
+  llvm::Expected<std::optional<std::string>> variantSourceKind =
+      resolveDispatchVariantSelectedBinarySourceKind(candidate);
+  if (!variantSourceKind)
+    return variantSourceKind.takeError();
+
+  const SelectedPlanMetadataEntry *planSourceKind =
+      findFirstSelectedPlanMetadataEntry(
+          candidate,
+          tianchenrv::target::rvv::
+              getRVVSelectedBinarySourceKindMetadataName());
+  const SelectedPlanMetadataEntry *planMicrokernelOp =
+      findFirstSelectedPlanMetadataEntry(
+          candidate,
+          tianchenrv::target::rvv::
+              getRVVSelectedBinaryMicrokernelOpMetadataName());
+
+  if (!*variantSourceKind && !planSourceKind && !planMicrokernelOp)
+    return llvm::Error::success();
+
+  std::string expectedSourceKind;
+  if (*variantSourceKind) {
+    expectedSourceKind = **variantSourceKind;
+  } else {
+    llvm::Expected<const SelectedPlanMetadataEntry *> sourceKind =
+        findUniqueSelectedPlanMetadataEntry(
+            candidate,
+            tianchenrv::target::rvv::
+                getRVVSelectedBinarySourceKindMetadataName());
+    if (!sourceKind)
+      return sourceKind.takeError();
+    llvm::StringRef value = (*sourceKind)->value;
+    if (llvm::Error error = validateDispatchRuntimeABIText(
+            candidate.kernel, "selected RVV binary source kind", value))
+      return std::move(error);
+    if (!isRecognizedDispatchSelectedBinarySourceKind(value))
+      return makeDispatchError(
+          candidate.kernel,
+          llvm::Twine("selected RVV dispatch candidate @") +
+              candidate.selectedVariant +
+              " selected_plan_metadata '" +
+              tianchenrv::target::rvv::
+                  getRVVSelectedBinarySourceKindMetadataName() +
+              "' has unsupported selected binary source kind '" + value + "'");
+    expectedSourceKind = value.str();
+  }
+
+  llvm::SmallVector<
+      tianchenrv::target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 2>
+      expected;
+  tianchenrv::target::rvv::appendRVVBinarySelectedSourceIdentityMetadata(
+      contract, expectedSourceKind, expected);
+  for (const auto &entry : expected)
+    if (llvm::Error error =
+            validateDispatchSelectedPlanMetadataEntry(candidate, entry))
+      return error;
+  return llvm::Error::success();
+}
+
 llvm::Error validateDispatchDescriptorElementCountMetadata(
     const TargetArtifactCandidate &candidate,
     const tianchenrv::target::rvv::RVVBinarySelectedConfigContract &contract) {
@@ -1988,6 +2093,9 @@ llvm::Error validateDispatchSelectedConfigContractMetadata(
     if (llvm::Error error =
             validateDispatchSelectedPlanMetadataEntry(candidate, entry))
       return error;
+  if (llvm::Error error =
+          validateDispatchSelectedSourceIdentityMetadata(candidate, contract))
+    return error;
   return validateDispatchDescriptorElementCountMetadata(candidate, contract);
 }
 
