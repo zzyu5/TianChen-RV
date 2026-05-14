@@ -11,7 +11,6 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
-#include "TianChenRV/Target/Offload/OffloadRuntimeDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVBinaryRoute.h"
 #include "TianChenRV/Target/RVV/RVVMicrokernel.h"
 #include "TianChenRV/Target/RVV/RVVScalarDispatch.h"
@@ -254,23 +253,6 @@ class DisabledToyTargetExporterPlugin final : public ExtensionPlugin {
 public:
   llvm::StringRef getName() const override {
     return tianchenrv::plugin::toy::getToyExtensionPluginName();
-  }
-
-  llvm::ArrayRef<PluginCapability> getCapabilities() const override {
-    return {};
-  }
-
-  void registerDialects(mlir::DialectRegistry &registry) const override {
-    (void)registry;
-  }
-
-  bool isEnabled() const override { return false; }
-};
-
-class DisabledOffloadTargetExporterPlugin final : public ExtensionPlugin {
-public:
-  llvm::StringRef getName() const override {
-    return tianchenrv::plugin::offload::getOffloadExtensionPluginName();
   }
 
   llvm::ArrayRef<PluginCapability> getCapabilities() const override {
@@ -1841,172 +1823,52 @@ bool expectPluginOwnedToyTargetExporterRegistration() {
   return true;
 }
 
-bool expectPluginOwnedOffloadDescriptorTargetExporterRegistration() {
-  constexpr llvm::StringLiteral descriptorRouteID(
+bool expectOffloadDescriptorTargetExporterDeleted() {
+  constexpr llvm::StringLiteral deletedRouteID(
       "tcrv-export-offload-runtime-descriptor");
 
-  PluginTargetArtifactExporterRegistry pluginExporters;
+  ExtensionPluginRegistry offloadOnlyPlugins;
   if (!expectSuccess(
-          tianchenrv::target::offload::
-              registerOffloadRuntimeDescriptorPluginTargetExporterBundle(
-                  pluginExporters),
-          "register offload plugin-owned target exporter bundle"))
-    return false;
-  if (!expectErrorContains(
-          tianchenrv::target::offload::
-              registerOffloadRuntimeDescriptorPluginTargetExporterBundle(
-                  pluginExporters),
-          "duplicate offload plugin-owned target exporter bundle rejected",
-          {"duplicate plugin-owned target exporter bundle", "offload-plugin"}))
+          tianchenrv::plugin::registerOffloadExtensionPlugin(offloadOnlyPlugins),
+          "register offload extension plugin for deleted target exporter check"))
     return false;
 
-  ExtensionPluginRegistry plugins;
-  if (!expectSuccess(
-          tianchenrv::plugin::registerOffloadExtensionPlugin(plugins),
-          "register offload extension plugin for target exporters"))
-    return false;
-
-  PluginTargetArtifactExporterRegistry emptyPluginExporters;
-  TargetArtifactExporterRegistry missingBundleRegistry;
-  if (!expectSuccess(emptyPluginExporters.registerExportersForEnabledPlugins(
-                         plugins, missingBundleRegistry),
-                     "skip offload exporters when bundle is missing"))
-    return false;
-  if (missingBundleRegistry.lookup(descriptorRouteID)) {
-    llvm::errs() << "missing offload plugin-owned bundle unexpectedly "
-                    "registered descriptor target artifact exporter\n";
-    return false;
-  }
-  if (!expectErrorContains(
-          emptyPluginExporters.registerExportersForPlugin(
-              plugins,
-              tianchenrv::plugin::offload::getOffloadExtensionPluginName(),
-              missingBundleRegistry),
-          "explicit missing offload target exporter bundle registration "
-          "rejected",
-          {"no registered target artifact exporter bundle", "offload-plugin"}))
-    return false;
-
-  TargetArtifactExporterRegistry registry;
-  if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
-                         plugins, registry),
-                     "populate offload descriptor exporter from enabled plugin "
-                     "bundle"))
-    return false;
-  if (registry.size() != 1 || registry.compositeSize() != 0) {
-    llvm::errs() << "offload plugin-owned descriptor bundle expected 1 "
-                    "single route and 0 composite routes, got "
-                 << registry.size() << " and " << registry.compositeSize()
-                 << "\n";
-    return false;
-  }
-
-  if (!expectRoute(registry, descriptorRouteID,
-                   "runtime-offload-handoff-descriptor", "offload-plugin",
-                   "runtime-offload-handoff-descriptor", 4,
-                   /*expectedDirectHelperRoute=*/false, "runtime-offload"))
-    return false;
-  if (!expectRouteRegistrationMetadata(
-          registry, descriptorRouteID,
-          "generic-runtime-offload-c-abi-handoff.v1",
-          "runtime-offload-c-abi-handoff",
-          "generic-runtime-offload-c-abi-handoff.v1",
-          "plugin-owned-runtime-offload-glue-boundary",
-          "runtime_offload_handoff_kind", "runtime-offload",
-          "runtime-offload-handoff", "hardware_execution_claim"))
-    return false;
-  if (!expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(
-          registry, descriptorRouteID))
-    return false;
-  if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
-          registry, descriptorRouteID, "runtime_offload_handoff_kind",
-          "custom-isa"))
-    return false;
-  if (!expectRouteRuntimeABIParameters(
-          registry, descriptorRouteID,
-          getAddRuntimeABIContract().getCallableRoleRequirements()))
-    return false;
-
-  const TargetArtifactExporter *descriptorExporter =
-      registry.lookup(descriptorRouteID);
-  if (!descriptorExporter || !descriptorExporter->getCandidateValidationFn()) {
-    llvm::errs() << "offload plugin-owned descriptor route lacks runtime ABI "
-                    "preflight validator\n";
-    return false;
-  }
-
-  if (!expectErrorContains(
-          pluginExporters.registerExportersForPlugin(
-              plugins,
-              tianchenrv::plugin::offload::getOffloadExtensionPluginName(),
-              registry),
-          "duplicate plugin-owned offload target exporter route rejected",
-          {"duplicate exporter route id", descriptorRouteID}))
-    return false;
-
-  DisabledOffloadTargetExporterPlugin disabledOffload;
-  ExtensionPluginRegistry disabledPlugins;
-  if (!expectSuccess(disabledPlugins.registerPlugin(disabledOffload),
-                     "register disabled offload plugin"))
-    return false;
-
-  TargetArtifactExporterRegistry disabledRegistry;
-  if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
-                         disabledPlugins, disabledRegistry),
-                     "skip target exporters for disabled offload plugin"))
-    return false;
-  if (disabledRegistry.lookup(descriptorRouteID)) {
-    llvm::errs() << "disabled offload plugin unexpectedly registered a "
-                    "descriptor target artifact exporter\n";
-    return false;
-  }
-
-  if (!expectErrorContains(
-          pluginExporters.registerExportersForPlugin(
-              disabledPlugins,
-              tianchenrv::plugin::offload::getOffloadExtensionPluginName(),
-              disabledRegistry),
-          "explicit disabled offload target exporter registration rejected",
-          {"disabled extension plugin", "offload-plugin"}))
-    return false;
-
-  ExtensionPluginRegistry missingPlugins;
-  TargetArtifactExporterRegistry missingRegistry;
-  if (!expectErrorContains(
-          pluginExporters.registerExportersForPlugin(
-              missingPlugins,
-              tianchenrv::plugin::offload::getOffloadExtensionPluginName(),
-              missingRegistry),
-          "explicit missing offload target exporter registration rejected",
-          {"unknown extension plugin", "offload-plugin"}))
-    return false;
-
-  ExtensionPluginRegistry noOffloadPlugins;
-  if (!expectSuccess(tianchenrv::plugin::registerToyExtensionPlugin(
-                         noOffloadPlugins),
-                     "register non-offload Toy plugin for built-in target "
-                     "exporters"))
-    return false;
-
-  TargetArtifactExporterRegistry noOffloadBuiltinRegistry;
+  TargetArtifactExporterRegistry offloadOnlyRegistry;
   if (!expectSuccess(registerBuiltinTargetArtifactExporters(
-                         noOffloadBuiltinRegistry, noOffloadPlugins),
-                     "register built-in target exporters without offload "
-                     "plugin"))
+                         offloadOnlyRegistry, offloadOnlyPlugins),
+                     "register built-in target exporters with offload plugin "
+                     "after descriptor deletion"))
     return false;
-  if (noOffloadBuiltinRegistry.lookup(descriptorRouteID)) {
-    llvm::errs() << "built-in target exporter registration without enabled "
-                    "offload-plugin exposed descriptor route\n";
+  if (offloadOnlyRegistry.lookup(deletedRouteID)) {
+    llvm::errs() << "deleted offload descriptor route was still registered\n";
     return false;
   }
-  if (!noOffloadBuiltinRegistry.lookup("tcrv-export-rvv-smoke-probe-c")) {
+
+  ExtensionPluginRegistry allPlugins;
+  if (!expectSuccess(registerBuiltinExtensionBundlePlugins(allPlugins),
+                     "register built-in extension plugins for deleted offload "
+                     "route check"))
+    return false;
+
+  TargetArtifactExporterRegistry allRegistry;
+  if (!expectSuccess(registerBuiltinTargetArtifactExporters(allRegistry,
+                                                           allPlugins),
+                     "register all built-in target exporters after offload "
+                     "descriptor deletion"))
+    return false;
+  if (allRegistry.lookup(deletedRouteID)) {
+    llvm::errs() << "deleted offload descriptor route was published by the "
+                    "built-in target exporter registry\n";
+    return false;
+  }
+  if (!allRegistry.lookup("tcrv-export-rvv-smoke-probe-c")) {
     llvm::errs() << "non-plugin RVV smoke-probe route should remain in the "
                     "built-in non-plugin target route set\n";
     return false;
   }
-  if (!noOffloadBuiltinRegistry.lookup("none-executable-toy-template-metadata")) {
-    llvm::errs() << "enabled non-offload plugin-owned Toy route should still "
-                    "be registered through the same built-in target boundary\n";
+  if (!allRegistry.lookup("none-executable-toy-template-metadata")) {
+    llvm::errs() << "non-offload plugin-owned Toy route should still be "
+                    "registered through the same built-in target boundary\n";
     return false;
   }
 
@@ -2420,11 +2282,6 @@ bool expectPluginOwnedScalarMicrokernelTargetExporterRegistration() {
   }
   if (!noScalarBuiltinRegistry.lookup("tcrv-export-rvv-smoke-probe-c")) {
     llvm::errs() << "non-plugin RVV smoke-probe route should remain in the "
-                    "built-in non-plugin target route set\n";
-    return false;
-  }
-  if (!noScalarBuiltinRegistry.lookup("tcrv-export-offload-runtime-descriptor")) {
-    llvm::errs() << "non-plugin offload descriptor route should remain in the "
                     "built-in non-plugin target route set\n";
     return false;
   }
@@ -5956,15 +5813,6 @@ bool expectTargetArtifactBundleFileNames() {
     return false;
   }
 
-  TargetArtifactBundleRecord descriptorRecord;
-  descriptorRecord.artifactKind = "runtime-offload-handoff-descriptor";
-  descriptorRecord.routeID = "tcrv-export-offload-runtime-descriptor";
-  if (deriveTargetArtifactBundleFileName(descriptorRecord, /*index=*/3) !=
-      "artifact-3-runtime-offload-handoff-descriptor-tcrv-export-offload-runtime-descriptor.txt") {
-    llvm::errs() << "unexpected descriptor bundle file name\n";
-    return false;
-  }
-
   return true;
 }
 
@@ -6131,11 +5979,9 @@ int main() {
                      "register valid exporter"))
     return 1;
   if (!expectSuccess(registry.registerExporter(TargetArtifactExporter(
-                         "tcrv-test-descriptor-route",
-                         "runtime-offload-handoff-descriptor",
-                         "offload-plugin",
-                         "runtime-offload-handoff-descriptor", noopExporter)),
-                     "register descriptor exporter"))
+                         "tcrv-test-metadata-route", "metadata-diagnostic",
+                         "test-plugin", "test-metadata", noopExporter)),
+                     "register metadata exporter"))
     return 1;
   if (!expectSuccess(registry.registerCompositeExporter(
                          TargetArtifactCompositeExporter(
@@ -6162,16 +6008,14 @@ int main() {
     return 1;
   }
 
-  const TargetArtifactExporter *descriptorExporter =
-      registry.lookup("tcrv-test-descriptor-route");
-  if (!descriptorExporter ||
-      descriptorExporter->getArtifactKind() !=
-          "runtime-offload-handoff-descriptor" ||
-      descriptorExporter->getOriginPlugin() != "offload-plugin" ||
-      descriptorExporter->getEmissionKind() !=
-          "runtime-offload-handoff-descriptor" ||
-      !descriptorExporter->getExportFn()) {
-    llvm::errs() << "lookup returned malformed descriptor exporter metadata\n";
+  const TargetArtifactExporter *metadataExporter =
+      registry.lookup("tcrv-test-metadata-route");
+  if (!metadataExporter ||
+      metadataExporter->getArtifactKind() != "metadata-diagnostic" ||
+      metadataExporter->getOriginPlugin() != "test-plugin" ||
+      metadataExporter->getEmissionKind() != "test-metadata" ||
+      !metadataExporter->getExportFn()) {
+    llvm::errs() << "lookup returned malformed metadata exporter metadata\n";
     return 1;
   }
 
@@ -6279,7 +6123,7 @@ int main() {
     return 1;
   if (!expectPluginOwnedToyTargetExporterRegistration())
     return 1;
-  if (!expectPluginOwnedOffloadDescriptorTargetExporterRegistration())
+  if (!expectOffloadDescriptorTargetExporterDeleted())
     return 1;
   if (!expectPluginOwnedRVVMicrokernelTargetExporterRegistration())
     return 1;
@@ -6310,8 +6154,8 @@ int main() {
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
     return 1;
-  if (builtinRegistry.size() != 17) {
-    llvm::errs() << "expected exactly 17 built-in target artifact routes, got "
+  if (builtinRegistry.size() != 16) {
+    llvm::errs() << "expected exactly 16 built-in target artifact routes, got "
                  << builtinRegistry.size() << "\n";
     return 1;
   }
@@ -6482,12 +6326,6 @@ int main() {
       return 1;
   }
   if (!expectRoute(builtinRegistry,
-                   "tcrv-export-offload-runtime-descriptor",
-                   "runtime-offload-handoff-descriptor", "offload-plugin",
-                   "runtime-offload-handoff-descriptor", 4,
-                   /*expectedDirectHelperRoute=*/false, "runtime-offload"))
-    return 1;
-  if (!expectRoute(builtinRegistry,
                    "none-executable-toy-template-metadata",
                    "metadata-diagnostic", "toy-plugin",
                    "toy-template-metadata-route", 0,
@@ -6542,18 +6380,6 @@ int main() {
       !tensorExtLiteMetadataExporter->getCandidateValidationFn()) {
     llvm::errs() << "TensorExtLite metadata artifact route lacks candidate "
                     "preflight validator\n";
-    return 1;
-  }
-  if (!expectRouteRuntimeABIParameters(
-          builtinRegistry, "tcrv-export-offload-runtime-descriptor",
-          getAddRuntimeABIContract().getCallableRoleRequirements()))
-    return 1;
-  const TargetArtifactExporter *offloadDescriptorExporter =
-      builtinRegistry.lookup("tcrv-export-offload-runtime-descriptor");
-  if (!offloadDescriptorExporter ||
-      !offloadDescriptorExporter->getCandidateValidationFn()) {
-    llvm::errs()
-        << "offload descriptor route lacks runtime ABI preflight validator\n";
     return 1;
   }
   const tianchenrv::support::RuntimeABIDispatchIdentity &dispatchABI =

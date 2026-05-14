@@ -23,7 +23,7 @@ module {
     }
     tcrv_offload.lowering_boundary {
       handoff_kind = "runtime-offload",
-      handoff_reason = "runtime-offload descriptor boundary is compiler handoff metadata only",
+      handoff_reason = "runtime-offload boundary is non-executable compiler metadata only",
       origin = "offload-plugin",
       required_capabilities = [@offload_runtime],
       role = "direct variant",

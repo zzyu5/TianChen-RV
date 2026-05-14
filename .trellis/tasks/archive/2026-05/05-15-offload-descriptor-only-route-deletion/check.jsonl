@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final changes preserve stack and descriptor red lines."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Verify Offload remains runtime-offload metadata without custom ISA/runtime claim."}
+{"file": ".trellis/spec/extension-plugins/offload-runtime-plugin.md", "reason": "Verify stale descriptor-route support language is removed or rewritten."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target/export route contract no longer advertises Offload descriptor output."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify no descriptor-to-C or replacement lowering route was introduced."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify tests align with deletion/fail-closed evidence rather than descriptor artifact acceptance."}

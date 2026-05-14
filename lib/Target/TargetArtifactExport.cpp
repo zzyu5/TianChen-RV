@@ -46,8 +46,6 @@ constexpr llvm::StringLiteral kStandaloneCSourceArtifactKind(
     "standalone-c-source");
 constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
     "riscv-elf-relocatable-object");
-constexpr llvm::StringLiteral kRuntimeOffloadHandoffDescriptorArtifactKind(
-    "runtime-offload-handoff-descriptor");
 constexpr llvm::StringLiteral kTargetSourceFrontDoor(
     "tcrv-export-target-source-artifact");
 constexpr llvm::StringLiteral kTargetArtifactFrontDoor(
@@ -63,7 +61,6 @@ constexpr llvm::StringLiteral kRelocatableObjectEvidenceRole(
 constexpr llvm::StringLiteral kBundleSourceComponentRole("source");
 constexpr llvm::StringLiteral kBundleHeaderComponentRole("header");
 constexpr llvm::StringLiteral kBundleObjectComponentRole("object");
-constexpr llvm::StringLiteral kBundleDescriptorComponentRole("descriptor");
 constexpr llvm::StringLiteral kBundleArtifactComponentRole("artifact");
 constexpr llvm::StringLiteral kTargetArtifactBundleIndexFileName(
     "tianchenrv-target-artifact-bundle.index");
@@ -188,8 +185,6 @@ llvm::StringRef getEvidenceRoleForArtifactKind(llvm::StringRef artifactKind) {
     return kHeaderDeclarationEvidenceRole;
   if (artifactKind == kRiscvELFRelocatableObjectArtifactKind)
     return kRelocatableObjectEvidenceRole;
-  if (artifactKind == kRuntimeOffloadHandoffDescriptorArtifactKind)
-    return kCompilerArtifactEvidenceRole;
   if (isSourceArtifactKind(artifactKind))
     return kCompilerArtifactEvidenceRole;
   return kCompilerArtifactEvidenceRole;
@@ -203,8 +198,6 @@ llvm::StringRef getBundleComponentRoleForArtifactKind(
     return kBundleHeaderComponentRole;
   if (artifactKind == kRiscvELFRelocatableObjectArtifactKind)
     return kBundleObjectComponentRole;
-  if (artifactKind == kRuntimeOffloadHandoffDescriptorArtifactKind)
-    return kBundleDescriptorComponentRole;
   return kBundleArtifactComponentRole;
 }
 
@@ -216,8 +209,6 @@ llvm::StringRef getFileExtensionForArtifactKind(llvm::StringRef artifactKind) {
     return ".h";
   if (artifactKind == kRiscvELFRelocatableObjectArtifactKind)
     return ".o";
-  if (artifactKind == kRuntimeOffloadHandoffDescriptorArtifactKind)
-    return ".txt";
   return ".artifact";
 }
 

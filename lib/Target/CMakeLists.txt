@@ -1,4 +1,3 @@
-add_subdirectory(Offload)
 add_subdirectory(Scalar)
 add_subdirectory(RVV)
 

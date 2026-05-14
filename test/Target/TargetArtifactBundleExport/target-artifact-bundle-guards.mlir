@@ -87,5 +87,5 @@ module @target_artifact_bundle_guard_input {
 
 // AMBIGUOUS: execution plan coherence check failed for kernel @bundle_multiple_standalone_frontdoors
 // AMBIGUOUS-SAME: multiple ambiguous supported artifacts without a registered composite route
-// AMBIGUOUS-SAME: @offload_runtime_first_slice as dispatch case route 'tcrv-export-offload-runtime-descriptor' artifact_kind 'runtime-offload-handoff-descriptor'
+// AMBIGUOUS-SAME: @toy_template_first_slice as dispatch case route 'none-executable-toy-template-metadata' artifact_kind 'metadata-diagnostic'
 // AMBIGUOUS-SAME: @scalar_case_first_slice as dispatch case route 'tcrv-export-scalar-microkernel-c' artifact_kind 'runtime-callable-c-source'

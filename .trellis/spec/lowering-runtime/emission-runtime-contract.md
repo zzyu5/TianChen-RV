@@ -545,12 +545,9 @@ requirement must declare that plugin dependency and is enforced only when the
 dependency is enabled.
 When a registered target artifact route declares required runtime ABI roles or
 a route-local ABI validation callback, this same preflight verifier must reject
-missing or inconsistent compiler-owned ABI contracts before descriptor, source,
-header, object, or bundle materialization. For the offload descriptor route,
-that means malformed or stale `runtime_abi_parameters` fail at the selected
-target-artifact/front-door boundary before descriptor text is emitted, while
-the descriptor exporter keeps its own final validation safety net. RVV and
-scalar callable routes use the same boundary for their compiler-owned
+missing or inconsistent compiler-owned ABI contracts before source, header,
+object, or bundle materialization. RVV and scalar callable routes use this
+boundary for their compiler-owned
 lhs/rhs/out/runtime-element-count role contracts: direct callable source routes
 declare the typed callable role requirements, RVV header/object composite
 helpers preflight the selected RVV callable source candidate through that same
@@ -610,9 +607,6 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   - RVV selected binary microkernel runtime-callable C source routes for the
     finite add/sub/mul i32/i64 families, registered by the `rvv-plugin`
     target-exporter bundle and emitted by RVV target/export code.
-  - Offload runtime handoff descriptor route, registered by the
-    `offload-plugin` target-exporter bundle and emitted by offload
-    target/export code.
   - Scalar selected fallback microkernel runtime-callable C source routes for
     the finite add/sub/mul i32/i64 families, registered by the `scalar-plugin`
     target-exporter bundle and emitted by scalar target/export code.
@@ -688,7 +682,6 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   required enabled extension plugins for composite routes whose selected-plan
   contract spans more than one plugin-owned component. This applies to real
   target-owned RVV selected binary microkernel source/header/object exporters,
-  offload runtime handoff descriptor exporters,
   scalar fallback source/header/object exporters, RVV+scalar dispatch
   source/header/object composite exporters, and metadata-only Toy exporters. A
   single extension plugin may contribute more than one bundle when route groups
@@ -715,16 +708,13 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   -> generic registration failure before target artifact output.
 - Missing built-in route registration in a tool -> route lookup fails closed as
   an unknown target artifact route or no supported artifact route.
-- Offload descriptor selected through source-only command -> source artifact
-  filtering must fail closed without descriptor output.
+- Offload selected without a supported target artifact route -> source/default/
+  bundle artifact front doors fail closed without output.
 - Route spoofing across RVV/scalar/offload origins or artifact kinds -> generic
   exporter metadata validation must fail before target-owned output.
 
 #### 5. Good/Base/Bad Cases
 
-- Good: `tcrv-translate --tcrv-export-target-artifact` creates a registry,
-  calls `registerBuiltinTargetArtifactExporters`, and exports a legal offload
-  descriptor through the offload target-owned exporter.
 - Good: `tcrv-translate --tcrv-export-target-artifact` selects the non-source
   RVV+scalar dispatch runtime-callable library object composite route when the
   selected plan has both supported callable sides and local RVV object
@@ -744,8 +734,8 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   composite source route when the selected plan contains both callable sides.
 - Bad: each generic translate helper manually repeats
   `registerRVVMicrokernelTargetExporters`,
-  `registerScalarMicrokernelTargetExporters`, and
-  `registerOffloadRuntimeDescriptorTargetExporters`; adding a target route then
+  `registerScalarMicrokernelTargetExporters`, and similar target-owned route
+  helpers; adding a target route then
   requires broad hand-editing in generic tool code.
 - Bad: central built-in target exporter composition registers the selected RVV
   binary microkernel routes directly even when `rvv-plugin` is missing or
@@ -760,7 +750,7 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   source export, direct RVV microkernel header export through the generic
   header front door, RVV+scalar composite dispatch source export, RVV+scalar
   composite dispatch object export when local RVV object compilation is
-  available, offload descriptor export, source-only offload rejection, and
+  available, Offload selected-path unsupported artifact rejection, and
   RVV/scalar/offload route spoofing failures.
 - CMake checks must include the built-in Target support library in the tool and
   C++ test link graph.
@@ -773,7 +763,6 @@ Wrong:
 // In each generic translate helper:
 registerRVVMicrokernelTargetExporters(registry);
 registerScalarMicrokernelTargetExporters(registry);
-registerOffloadRuntimeDescriptorTargetExporters(registry);
 ```
 
 Correct:
@@ -902,18 +891,15 @@ target-owned support modules, while the public tool supplies only the generic
 MLIR translate registration and dialect hook.
 
 The artifact-kind aware generic route may also dispatch supported non-source
-artifacts through target-owned exporters. The first such route is the offload
-runtime handoff descriptor, registered by offload target/export code and
-selected by the offload plugin's supported descriptor emission plan. Shared
-generic routing still validates only route id, artifact kind, origin, emission
-kind, selected path, lowering-boundary reference, runtime ABI metadata, and
-required capability refs; offload-specific descriptor content stays in the
-offload target exporter.
+artifacts through target-owned exporters. Shared generic routing still validates
+only route id, artifact kind, origin, emission kind, selected path,
+lowering-boundary reference, runtime ABI metadata, and required capability refs;
+target-specific artifact body content stays in target-owned exporters.
 
 The target artifact bundle export is a directory materialization layer over the
 same registry-derived artifact records that the emission manifest serializes.
 It may iterate `collectTargetArtifactBundleRecords`, call the registered
-source/header/object/descriptor exporter callbacks, and write a deterministic
+source/header/object exporter callbacks, and write a deterministic
 bundle index plus the selected artifact files under an explicit existing output
 directory. The generic bundle layer must not branch on RVV, scalar, IME,
 Sophgo, offload, vendor, target family, dtype, shape, runtime, toolchain, or
@@ -945,10 +931,9 @@ route strings.
 When a selected dispatch has a supported primary non-fallback route plus a
 supported dispatch fallback route and no target-owned composite bundle route
 matches, the bundle layer follows the single-artifact front-door rule and emits
-only the selected non-fallback artifact record. A selected runtime-offload
-descriptor path therefore produces a one-artifact descriptor bundle, while the
-scalar fallback remains selected-path metadata rather than a second descriptor
-bundle artifact.
+only the selected non-fallback artifact record. An Offload selected path with an
+unsupported emission plan produces no bundle artifact and fails closed at the
+front door.
 Dispatch-capable external ABI bundles must additionally expose a typed
 component contract in the compiler-emitted bundle index. For the bounded
 RVV+scalar i32-vadd dispatch bundle, the generated source, generated header,
@@ -1832,9 +1817,9 @@ default API and must occur only after typed selected-path authority has been
 established.
 
 The historical no-argument i32 runtime ABI helper APIs are compatibility
-defaults for existing i32-vadd callers only. Active RVV, scalar, dispatch,
-offload descriptor, and target artifact exporter code that handles a selected
-i32 add/sub/mul family must consume the selected-family-id or generic
+defaults for existing i32-vadd callers only. Active RVV, scalar, dispatch, and
+target artifact exporter code that handles a selected i32 add/sub/mul family
+must consume the selected-family-id or generic
 finite-binary contract APIs directly when it needs ABI shape, ABI identity,
 mem-window specs, runtime-param specs, dispatch guard specs, role binding, or
 callable-plan validation. Adding new production call sites to the no-argument
@@ -2636,59 +2621,35 @@ the claim scope stated explicitly.
 ## Runtime Offload Metadata Boundary
 
 The first runtime-offload plugin slice may return a metadata-only emission
-readiness result and materialize a supported descriptor emission-plan
-diagnostic for a generic runtime ABI handoff artifact:
+readiness result and materialize selected `tcrv_offload.lowering_boundary`
+metadata. After descriptor-route deletion, its emission plan must be
+unsupported:
 
 ```text
-status: supported
-emission kind: runtime-offload-handoff-descriptor
-lowering pipeline: tcrv-export-offload-runtime-descriptor
-runtime ABI: generic-runtime-offload-c-abi-handoff.v1
-runtime ABI kind: runtime-offload-c-abi-handoff
-runtime ABI name: generic-runtime-offload-c-abi-handoff.v1
-runtime glue role: plugin-owned-runtime-offload-glue-boundary
-artifact kind: runtime-offload-handoff-descriptor
+status: unsupported
+runtime ABI kind: unsupported-plugin-runtime-abi
+runtime ABI name: unsupported-emission-runtime-abi
+runtime glue role: no-runtime-glue-unsupported
+diagnostic: runtime-offload has no active executable lowering or target artifact route
 ```
 
-This supported plan means only that the compiler can export a deterministic
-target-owned handoff descriptor for downstream runtime integration. It does not
-emit vendor runtime calls, allocate or copy device buffers, compile accelerator
-kernels, generate objects, link runtime libraries, run hardware, prove
-correctness, or measure performance. The selected
+This unsupported plan means only that the compiler recognized the selected
+Offload metadata boundary and deliberately found no active artifact route. It
+does not emit vendor runtime calls, allocate or copy device buffers, compile
+accelerator kernels, generate objects, link runtime libraries, run hardware,
+prove correctness, or measure performance. The selected
 `tcrv_offload.lowering_boundary` op records the plugin-local runtime-offload
 handoff boundary, but it remains metadata-only and non-executable. Its
 availability depends on explicit `offload.runtime` capability metadata and
 plugin legality; it cannot resurrect unavailable, malformed, illegal, or
 unselected variants.
 
-The descriptor export route must validate that the selected offload path has a
-matching `tcrv_offload.lowering_boundary`, runtime ABI kind/name, required
-capability refs, emission kind, artifact kind, route id, and bounded handoff
-reason. Unsafe strings, URLs, raw credentials, stale selected variants, stale
-lowering boundaries, route spoofing, unknown route ids, and unsupported artifact
-kinds must fail before descriptor output.
-The emitted descriptor should expose a stable schema version, descriptor kind,
-descriptor status, external adapter contract id, lowering-boundary metadata
-status, runtime ABI, runtime-offload handoff kind, artifact component role,
-evidence role, and explicit non-claim metadata stating that no vendor runtime
-call, DMA/buffer management, accelerator kernel, object generation, hardware
-execution, correctness proof, or performance claim was produced. The offload
-emission plan may also carry bounded `selected_plan_metadata` for the
-runtime-offload capability id, handoff kind, and descriptor-only scope; the
-descriptor exporter and bundle index must preserve that metadata when present.
-The descriptor exporter must also require deterministic `runtime_abi_parameters`
-for the selected offload plan and verify them against the IR-backed
-`tcrv.exec.mem_window` and `tcrv.exec.runtime_param` ABI role declarations before
-writing output. The descriptor must serialize role, C name, C type, purpose,
-ownership, source symbol, and buffer-only binding/access/memory-space fields as
-compiler handoff contract metadata. Missing ABI roles, duplicate roles,
-malformed C names or C type spellings, metadata that does not mirror the
-IR-backed ABI plan, missing selected-plan handoff metadata, or descriptor-local
-metadata that embeds sample runtime values or hardware facts must fail closed.
-When the descriptor is emitted through the target artifact bundle route, the
-bundle index must carry the descriptor route, owner/origin, runtime ABI,
-component role, runtime ABI role signature, selected-plan metadata, and handoff
-kind metadata and must remain a build handoff index only.
+Public source/default/header/bundle artifact front doors must ignore unsupported
+Offload emission plans as artifact candidates and fail closed if no other
+supported route exists. Reintroducing a metadata artifact exporter, selected-plan
+export scope, or descriptor-shaped ABI mirror is a descriptor-exit regression
+unless a future spec explicitly rebuilds Offload through the common runtime C ABI
+route.
 
 ## Emission Manifest Export Boundary
 

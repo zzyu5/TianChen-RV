@@ -181,12 +181,13 @@ Use lit/FileCheck for:
   These tests must not claim generic linalg lowering, LLVM/RISC-V lowering,
   runtime success, correctness, or performance.
 - execution-plan/export preflight coherence checks, including legal RVV explicit
-  microkernel, scalar fallback microkernel, and offload descriptor planned paths;
+  microkernel, scalar fallback microkernel, and unsupported Offload selected
+  paths after descriptor deletion;
   existing execution-planning pipeline output followed by the preflight pass;
   and fail-closed diagnostics for stale selected paths, selected origin
   mismatch, lowering-boundary kernel/variant/origin mismatch, emission-plan
-  route/origin mismatch, missing runtime ABI ownership metadata, source versus
-  descriptor artifact route spoofing, stale or mismatched selected RVV capacity
+  route/origin mismatch, missing runtime ABI ownership metadata, stale or
+  mismatched selected RVV capacity
   metadata, unregistered origins, and ambiguous supported artifact candidates.
   Runtime ABI role-contract coverage must include the generic target-artifact
   front-door preflight for direct scalar/RVV callable source routes and the
@@ -295,19 +296,13 @@ Use lit/FileCheck for:
   the generated RISC-V relocatable library object; only real `ssh rvv` run
   evidence may support the bounded external ABI correctness claim, and it is
   not performance or generic lowering evidence.
-- offload runtime descriptor target artifact export through the artifact-kind
-  aware generic route, including selected offload path plus matching
-  `tcrv_offload.lowering_boundary`, runtime ABI kind/name, required capability
-  refs, descriptor route id, non-source artifact kind, descriptor schema
-  version/kind/status, external adapter contract id, explicit non-claim
-  metadata, deterministic ABI role entries for host buffers and runtime
-  scalar/control parameters, deterministic descriptor output, source-only route
-  filtering, a one-artifact offload descriptor bundle index with route/owner/
-  runtime ABI signature/handoff kind metadata, and fail-closed diagnostics for
-  missing boundaries, missing runtime ABI or handoff kind metadata, missing or
-  conflicting ABI roles, stale selected variants, stale lowering boundaries,
-  unknown route ids, unsupported artifact kinds, RVV/scalar/offload route
-  spoofing, URLs, raw credentials, raw logs, and secret-like metadata.
+- Offload selected-path fail-closed coverage after descriptor deletion,
+  including selected Offload path plus matching `tcrv_offload.lowering_boundary`,
+  unsupported emission-plan diagnostics, absence of target artifact route
+  registration, source/default/bundle front doors reporting no supported Offload
+  artifact, and negative route-spoofing coverage proving Offload metadata cannot
+  claim RVV or scalar routes. These tests must not restore descriptor artifacts,
+  selected-plan export scopes, ABI role mirrors, or bundle outputs.
 
 Example test intent:
 

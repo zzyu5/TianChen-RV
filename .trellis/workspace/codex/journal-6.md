@@ -46,6 +46,76 @@ Final session commit recorded in git history for this round.
 - None - task complete
 
 
+## Session 67: Descriptor erasure: Offload descriptor-only route deletion
+
+**Date**: 2026-05-15
+**Task**: Descriptor Erasure Owner: Offload descriptor-only route deletion
+**Branch**: `main`
+
+### Summary
+
+Deleted the Offload runtime descriptor-only target artifact route as a
+deletion-only Wrong Logic Deletion Campaign round. Offload still has
+capability-gated proposal, legality, and selected lowering-boundary metadata,
+but emission planning now fails closed as unsupported until a future Offload
+runtime C ABI route is rebuilt.
+
+### Main Changes
+
+- Created and started Trellis task
+  `05-15-offload-descriptor-only-route-deletion` with deletion-only PRD and
+  spec context.
+- Removed the Offload runtime descriptor exporter header, implementation, CMake
+  target, built-in target exporter bundle hook, and built-in route metadata
+  requirement.
+- Removed active Offload descriptor route/artifact getters and selected-plan
+  metadata from the Offload plugin.
+- Rewrote Offload emission-plan tests to expect unsupported/fail-closed
+  diagnostics with no route id, artifact kind, runtime ABI parameter mirror, or
+  selected-plan export metadata.
+- Deleted descriptor artifact and descriptor bundle lit fixtures/tests that
+  only protected the old route.
+- Rewrote specs so Offload descriptor output is no longer described as active
+  architecture; current Offload artifact/export behavior is unsupported and
+  fail-closed.
+
+### Testing
+
+- [OK] CMake reconfigure/build for `TianChenRVBuiltinTargetArtifactExporters`,
+  `tianchenrv-offload-extension-plugin-test`,
+  `tianchenrv-target-artifact-export-test`, `tcrv-opt`, and `tcrv-translate`.
+- [OK] `build/bin/tianchenrv-offload-extension-plugin-test`.
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`.
+- [OK] Focused lit subset: 7 Offload/planning/export/coherence tests passed.
+- [OK] Directory lit subset: 48 tests across `Target/ArtifactExport`,
+  `Target/TargetArtifactBundleExport`, `Target/EmissionManifest`,
+  `Transforms/ExecutionPlanning`, and `Transforms/ExecutionPlanCoherence`
+  passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`: 226 tests
+  passed.
+- [OK] `git diff --check` and `git diff --cached --check`.
+- [OK] Trellis context validation before finish.
+- [OK] Bounded ref-scan: no remaining `OffloadRuntimeDescriptor`,
+  `registerOffloadRuntimeDescriptor`, `Target/Offload`,
+  `TianChenRVOffloadTarget`, `getOffloadDescriptor`,
+  `runtime_offload_descriptor_scope`, `descriptor-only`, or
+  `runtime-offload-handoff-descriptor` hits under active code/spec/tests.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 66: RVV binary descriptor authority deletion
 
 **Date**: 2026-05-14

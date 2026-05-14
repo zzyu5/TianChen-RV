@@ -24,8 +24,8 @@ The first concrete C++ runtime-offload slice is intentionally bounded. It proves
 plugin identity, explicit capability gating, proposal metadata, legality
 routing, conservative preference metadata, selected lowering-boundary
 materialization, plugin-owned runtime ABI handoff metadata, emission manifest
-serialization, and bounded legacy target-owned descriptor artifact export through the existing
-generic registry and target artifact interfaces.
+serialization, and explicit unsupported emission planning after descriptor
+artifact deletion.
 
 Stable first-slice names:
 
@@ -44,14 +44,13 @@ materialized requires form: requires = [@offload_runtime] for an exact
   `implies` id `offload.runtime`
 runtime ABI handoff id: generic-runtime-offload-c-abi-handoff.v1
 handoff kind: runtime-offload
-legacy descriptor route id: tcrv-export-offload-runtime-descriptor
-descriptor artifact kind: runtime-offload-handoff-descriptor
 ```
 
-The descriptor route is a bounded transition artifact for the current first
-slice. It is not the long-term Offload family architecture; future executable
-offload lowering should follow the common extension family ops -> EmitC ->
-runtime C ABI route.
+The previous descriptor artifact route has been deleted. The current first
+slice may still materialize capability-gated metadata and a selected
+`tcrv_offload.lowering_boundary`, but emission planning must fail closed as
+unsupported until future executable Offload lowering is rebuilt through the
+common extension family ops -> EmitC -> runtime C ABI route.
 
 The first slice may propose `@offload_runtime_first_slice` only when the kernel
 declares an available structured capability provider for id `offload.runtime`.
@@ -84,37 +83,11 @@ remains available, and that the plugin-owned variant metadata matches the
 preserved capability properties. This metadata is compiler handoff metadata
 only; it is not executable runtime glue.
 
-The supported first-slice emission plan must also preserve bounded
-`selected_plan_metadata` for the descriptor handoff. At minimum, it records the
-generic runtime-offload capability id, the selected runtime-offload handoff
-kind, and the descriptor-only evidence scope. Generic target artifact bundle
-export and the offload runtime descriptor exporter may serialize these fields
-as deterministic handoff metadata, but they remain compiler metadata and do not
-claim vendor runtime execution.
-
-The same supported descriptor plan must expose deterministic runtime ABI role
-metadata derived from typed `tcrv.exec.mem_window` host-buffer declarations and
-typed `tcrv.exec.runtime_param` scalar/control declarations. For the current
-bounded descriptor-backed i32 binary callable ABI shape, the descriptor route
-requires the
-`lhs-input-buffer`, `rhs-input-buffer`, `output-buffer`, and
-`runtime-element-count` roles
-to be mirrored as `runtime_abi_parameters` with stable C names, C types, roles,
-and ownership. Descriptor-local metadata may describe the compiler handoff
-contract, binding, access, memory space, and selected plan owner, but it must
-not embed sample runtime values, tensor sizes, RVV guard values, hardware facts,
-or vendor execution data.
-The offload descriptor target exporter must register this required typed role
-contract through the `offload-plugin` plugin-owned target exporter bundle into
-the generic target artifact exporter registry. Central built-in target exporter
-composition may install the active plugin bundle, but must not directly publish
-the offload descriptor route or duplicate descriptor validation. Before
-descriptor text or bundle files are emitted, the generic
-target-artifact/front-door preflight must reject missing roles or metadata that
-no longer mirrors the IR-backed `mem_window` / `runtime_param` ABI plan. The
-offload descriptor exporter still repeats route-local validation as the final
-safety net, but shared target artifact code must not gain offload policy
-branches.
+The first-slice emission plan is currently unsupported. It must not publish
+route ids, artifact kinds, selected-plan export metadata, ABI role mirrors, or
+target exporter bundle contributions. Public artifact and bundle front doors
+therefore fail closed when the selected path is Offload-only. This is an
+intentional deletion gap, not permission to restore a metadata artifact path.
 
 ## Why It Belongs In TianChen-RV
 
@@ -196,21 +169,10 @@ This op is a selected-path handoff boundary. It is not a high-level compute op,
 custom RISC-V ISA op, vendor runtime call, DMA operation, accelerator kernel,
 object-generation step, correctness result, or performance result.
 
-When the selected offload path has this matching lowering boundary and the
-plugin-owned emission plan records the supported descriptor route, the target
-artifact exporter may emit a deterministic text descriptor for runtime-offload
-handoff metadata. The descriptor may contain only sanitized compiler-visible
-fields such as source kernel, selected variant, origin plugin, required
-capability refs, descriptor schema version, descriptor kind/status, adapter
-contract, runtime ABI kind/name, emission kind, artifact kind,
-lowering-boundary op name/status, runtime-offload handoff kind, handoff reason,
-selected-plan handoff metadata, artifact component role/evidence role, and
-explicit non-claim metadata. The generic target artifact bundle exporter may
-materialize the selected non-fallback offload path as one descriptor artifact
-with an index entry carrying route, owner/origin, runtime ABI, selected-plan
-metadata, and handoff kind metadata. It is not runtime execution, vendor
-integration, DMA, object generation, correctness evidence, or performance
-evidence.
+When the selected offload path has this matching lowering boundary, the current
+compiler may report the selected metadata surface and an unsupported emission
+plan. It must not emit a target artifact or bundle record for Offload until a
+future runtime C ABI lowering path is specified and implemented.
 
 Future types may include:
 

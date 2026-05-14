@@ -67,9 +67,6 @@
 # AUTO-DISPATCH-NEXT: {{^}}  // tcrv_emitc.source_op=tcrv.exec.fallback role=dispatch-fallback-call callee=tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice
 # AUTO-DISPATCH-NEXT: {{^}}  tcrv_scalar_i32_vadd_microkernel_pipeline_manifest_scalar_fallback_first_slice([[LHS]], [[RHS]], [[OUT]], [[LEN]]);
 
-# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/offload-descriptor-stale-plan.txt 2>&1 | FileCheck %s --check-prefix=STALE --implicit-check-not="#include <riscv_vector.h>"
-# STALE: stale emission-plan diagnostic is not selected by the current execution plan surface
-
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/unknown-route-id.txt 2>&1 | FileCheck %s --check-prefix=UNKNOWN --implicit-check-not="#include <riscv_vector.h>"
 # UNKNOWN: unknown target artifact export route id 'unknown-target-export-route'
 

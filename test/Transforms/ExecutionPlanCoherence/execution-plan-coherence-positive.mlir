@@ -26,11 +26,10 @@
 // OFFLOAD: tcrv_offload.lowering_boundary
 // OFFLOAD-SAME: selected_variant = @offload_runtime_first_slice
 // OFFLOAD: tcrv.exec.diagnostic
-// OFFLOAD-SAME: artifact_kind = "runtime-offload-handoff-descriptor"
-// OFFLOAD-SAME: lowering_pipeline = "tcrv-export-offload-runtime-descriptor"
+// OFFLOAD-SAME: message = "runtime-offload descriptor artifact export has been deleted; the Offload extension currently has no active executable lowering or target artifact route"
 // OFFLOAD-SAME: origin = "offload-plugin"
-// OFFLOAD-SAME: runtime_abi_name = "generic-runtime-offload-c-abi-handoff.v1"
-// OFFLOAD-SAME: status = "supported"
+// OFFLOAD-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
+// OFFLOAD-SAME: status = "unsupported"
 // OFFLOAD-SAME: target = @offload_runtime_first_slice
 
 // PIPE-LABEL: tcrv.exec.kernel @pipeline_rvv_plus_scalar

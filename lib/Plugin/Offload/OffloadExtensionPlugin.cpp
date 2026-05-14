@@ -1,7 +1,6 @@
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
 
 #include "TianChenRV/Dialect/Offload/IR/OffloadDialect.h"
-#include "TianChenRV/Support/RuntimeABICallablePlan.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -48,20 +47,6 @@ constexpr llvm::StringLiteral kRuntimeABIAttrName("runtime_abi");
 constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
 constexpr llvm::StringLiteral kHandoffReasonAttrName("handoff_reason");
 constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
-constexpr llvm::StringLiteral kOffloadDescriptorRouteID(
-    "tcrv-export-offload-runtime-descriptor");
-constexpr llvm::StringLiteral kOffloadDescriptorEmissionKind(
-    "runtime-offload-handoff-descriptor");
-constexpr llvm::StringLiteral kOffloadDescriptorArtifactKind(
-    "runtime-offload-handoff-descriptor");
-constexpr llvm::StringLiteral kOffloadDescriptorRuntimeGlueRole(
-    "plugin-owned-runtime-offload-glue-boundary");
-constexpr llvm::StringLiteral kSelectedPlanRuntimeCapabilityIDName(
-    "runtime_offload_capability_id");
-constexpr llvm::StringLiteral kSelectedPlanHandoffKindName(
-    "runtime_offload_handoff_kind");
-constexpr llvm::StringLiteral kSelectedPlanDescriptorScopeName(
-    "runtime_offload_descriptor_scope");
 
 struct OffloadRuntimeCapabilityView {
   std::string runtimeABI;
@@ -406,18 +391,6 @@ llvm::StringRef getOffloadFirstSlicePolicy() {
   return kOffloadFirstSlicePolicy;
 }
 
-llvm::StringRef getOffloadDescriptorRouteID() {
-  return kOffloadDescriptorRouteID;
-}
-
-llvm::StringRef getOffloadDescriptorEmissionKind() {
-  return kOffloadDescriptorEmissionKind;
-}
-
-llvm::StringRef getOffloadDescriptorArtifactKind() {
-  return kOffloadDescriptorArtifactKind;
-}
-
 OffloadExtensionPlugin::OffloadExtensionPlugin() {
   capabilities.push_back(PluginCapability(
       kOffloadRuntimeCapabilityID, kOffloadRuntimeCapabilityKind,
@@ -585,49 +558,15 @@ llvm::Error OffloadExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  out = VariantEmissionPlan::getSupported(
+  out = VariantEmissionPlan::getUnsupported(
       kOffloadPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      kOffloadDescriptorEmissionKind, kOffloadDescriptorRouteID,
-      kExpectedRuntimeABI, kOffloadDescriptorArtifactKind,
-      "runtime-offload first slice can export a deterministic compiler "
-      "handoff descriptor for downstream integration only; it does not emit "
-      "vendor runtime calls, generate objects, run hardware, prove "
-      "correctness, or measure performance");
-  out.setRuntimeABIKind("runtime-offload-c-abi-handoff");
-  out.setRuntimeABIName(kExpectedRuntimeABI);
-  out.setRuntimeGlueRole(kOffloadDescriptorRuntimeGlueRole);
-  llvm::Expected<support::I32BinaryCallableABIPlan> callablePlan =
-      support::buildI32BinaryCallableABIPlan(
-          request.getKernel(),
-          support::getI32BinaryRuntimeABIContract("i32-vadd"));
-  if (!callablePlan) {
-    std::string message = llvm::toString(callablePlan.takeError());
-    return makeOffloadPluginError(
-        llvm::Twine("selected runtime-offload descriptor ABI role contract "
-                    "requires direct tcrv.exec.mem_window/"
-                    "tcrv.exec.runtime_param ABI metadata: ") +
-        message);
-  }
-  out.addRuntimeABIParameters(callablePlan->parameters);
+      "runtime-offload descriptor artifact export has been deleted; the "
+      "Offload extension currently has no active executable lowering or target "
+      "artifact route");
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
-  out.addSelectedPlanMetadata(
-      kSelectedPlanRuntimeCapabilityIDName, kOffloadRuntimeCapabilityID,
-      "capability-requirement",
-      "records the generic capability id required by the runtime-offload "
-      "handoff descriptor");
-  out.addSelectedPlanMetadata(
-      kSelectedPlanHandoffKindName, kExpectedHandoffKind,
-      "runtime-offload-handoff",
-      "mirrors the capability handoff_kind property for descriptor and bundle "
-      "validation");
-  out.addSelectedPlanMetadata(
-      kSelectedPlanDescriptorScopeName, "descriptor-only",
-      "evidence-scope",
-      "records that this route exports compiler handoff metadata without "
-      "runtime execution");
   return llvm::Error::success();
 }
 

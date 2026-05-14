@@ -60,30 +60,13 @@ module @offload_manifest_inputs {
 // CHECK: selected_variant: @offload_runtime_first_slice
 // CHECK: role: "direct variant"
 // CHECK: origin: "offload-plugin"
-// CHECK: emission_status: "supported"
-// CHECK: emission_kind: "runtime-offload-handoff-descriptor"
-// CHECK: lowering_pipeline: "tcrv-export-offload-runtime-descriptor"
+// CHECK: emission_status: "unsupported"
 // CHECK: lowering_boundary: "tcrv_offload.lowering_boundary"
-// CHECK: runtime_abi: "generic-runtime-offload-c-abi-handoff.v1"
-// CHECK: runtime_abi_kind: "runtime-offload-c-abi-handoff"
-// CHECK: runtime_abi_name: "generic-runtime-offload-c-abi-handoff.v1"
-// CHECK: runtime_abi_parameters:
-// CHECK: parameter[0]:
-// CHECK: c_name: "lhs"
-// CHECK: role: "lhs-input-buffer"
-// CHECK: parameter[1]:
-// CHECK: c_name: "rhs"
-// CHECK: role: "rhs-input-buffer"
-// CHECK: parameter[2]:
-// CHECK: c_name: "out"
-// CHECK: role: "output-buffer"
-// CHECK: parameter[3]:
-// CHECK: c_name: "n"
-// CHECK: role: "runtime-element-count"
-// CHECK: runtime_glue_role: "plugin-owned-runtime-offload-glue-boundary"
-// CHECK: artifact_kind: "runtime-offload-handoff-descriptor"
+// CHECK: runtime_abi_kind: "unsupported-plugin-runtime-abi"
+// CHECK: runtime_abi_name: "unsupported-emission-runtime-abi"
+// CHECK: runtime_glue_role: "no-runtime-glue-unsupported"
 // CHECK: required_capabilities: [@offload_runtime]
-// CHECK: explanation: "runtime-offload first slice can export a deterministic compiler handoff descriptor
+// CHECK: explanation: "runtime-offload descriptor artifact export has been deleted; the Offload extension currently has no active executable lowering or target artifact route"
 // CHECK: preference:
 // CHECK: available: true
 // CHECK: policy: "prefer runtime-offload metadata handoff only when explicit offload.runtime capability metadata is available"

@@ -7,7 +7,6 @@
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
-#include "TianChenRV/Target/Offload/OffloadRuntimeDescriptor.h"
 #include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
 #include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "TianChenRV/Target/Scalar/ScalarMicrokernel.h"
@@ -83,11 +82,6 @@ llvm::Error registerOffloadExtensionBundle(
                          plugin::registerOffloadExtensionPlugin);
   bundle.addRequiredDialectName("tcrv_offload");
   bundle.addLoweringBoundaryOp("tcrv_offload.lowering_boundary");
-  bundle.setTargetArtifactExporterBundleRegistrationFn(
-      offload::registerOffloadRuntimeDescriptorPluginTargetExporterBundle);
-  bundle.addTargetArtifactRouteMetadataRequirement(
-      plugin::offload::getOffloadDescriptorRouteID(),
-      plugin::offload::getOffloadDescriptorArtifactKind());
   return registry.registerBundle(bundle);
 }
 

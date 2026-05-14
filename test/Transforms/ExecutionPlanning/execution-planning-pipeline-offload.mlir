@@ -81,39 +81,17 @@ module {
     // PIPE-SAME: source_kernel = "pipeline_offload_plus_scalar"
     // PIPE-SAME: status = "metadata-only"
     // PIPE: tcrv.exec.diagnostic
-    // PIPE-SAME: artifact_kind = "runtime-offload-handoff-descriptor"
-    // PIPE-SAME: emission_kind = "runtime-offload-handoff-descriptor"
     // PIPE-SAME: lowering_boundary = "tcrv_offload.lowering_boundary"
-    // PIPE-SAME: lowering_pipeline = "tcrv-export-offload-runtime-descriptor"
+    // PIPE-SAME: message = "runtime-offload descriptor artifact export has been deleted; the Offload extension currently has no active executable lowering or target artifact route"
     // PIPE-SAME: origin = "offload-plugin"
     // PIPE-SAME: plan_kind = "plugin-emission-plan"
     // PIPE-SAME: reason = "emission_plan"
     // PIPE-SAME: required_capabilities = [@offload_runtime]
     // PIPE-SAME: role = "direct variant"
-    // PIPE-SAME: runtime_abi = "generic-runtime-offload-c-abi-handoff.v1"
-    // PIPE-SAME: runtime_abi_kind = "runtime-offload-c-abi-handoff"
-    // PIPE-SAME: runtime_abi_name = "generic-runtime-offload-c-abi-handoff.v1"
-    // PIPE-SAME: runtime_abi_parameters =
-    // PIPE-SAME: c_name = "lhs"
-    // PIPE-SAME: role = "lhs-input-buffer"
-    // PIPE-SAME: c_name = "rhs"
-    // PIPE-SAME: role = "rhs-input-buffer"
-    // PIPE-SAME: c_name = "out"
-    // PIPE-SAME: role = "output-buffer"
-    // PIPE-SAME: c_name = "n"
-    // PIPE-SAME: role = "runtime-element-count"
-    // PIPE-SAME: runtime_glue_role = "plugin-owned-runtime-offload-glue-boundary"
-    // PIPE-SAME: selected_plan_metadata =
-    // PIPE-SAME: name = "runtime_offload_capability_id"
-    // PIPE-SAME: role = "capability-requirement"
-    // PIPE-SAME: value = "offload.runtime"
-    // PIPE-SAME: name = "runtime_offload_handoff_kind"
-    // PIPE-SAME: role = "runtime-offload-handoff"
-    // PIPE-SAME: value = "runtime-offload"
-    // PIPE-SAME: name = "runtime_offload_descriptor_scope"
-    // PIPE-SAME: role = "evidence-scope"
-    // PIPE-SAME: value = "descriptor-only"
-    // PIPE-SAME: status = "supported"
+    // PIPE-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+    // PIPE-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
+    // PIPE-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
+    // PIPE-SAME: status = "unsupported"
     // PIPE-SAME: target = @offload_runtime_first_slice
     // ROUNDTRIP: tcrv_offload.lowering_boundary
     // ROUNDTRIP-SAME: selected_variant = @offload_runtime_first_slice
@@ -194,19 +172,11 @@ module {
     // PIPE-SAME: selected_variant = @offload_runtime_first_slice
     // PIPE-SAME: source_kernel = "pipeline_profile_offload_plus_scalar"
     // PIPE: tcrv.exec.diagnostic
-    // PIPE-SAME: artifact_kind = "runtime-offload-handoff-descriptor"
-    // PIPE-SAME: lowering_pipeline = "tcrv-export-offload-runtime-descriptor"
+    // PIPE-SAME: message = "runtime-offload descriptor artifact export has been deleted; the Offload extension currently has no active executable lowering or target artifact route"
     // PIPE-SAME: reason = "emission_plan"
     // PIPE-SAME: required_capabilities = [@module_offload_scalar_profile]
-    // PIPE-SAME: runtime_abi_parameters =
-    // PIPE-SAME: role = "lhs-input-buffer"
-    // PIPE-SAME: role = "rhs-input-buffer"
-    // PIPE-SAME: role = "output-buffer"
-    // PIPE-SAME: role = "runtime-element-count"
-    // PIPE-SAME: selected_plan_metadata =
-    // PIPE-SAME: name = "runtime_offload_capability_id"
-    // PIPE-SAME: value = "offload.runtime"
-    // PIPE-SAME: status = "supported"
+    // PIPE-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+    // PIPE-SAME: status = "unsupported"
     // PIPE-SAME: target = @offload_runtime_first_slice
 
     // ROUNDTRIP: tcrv_offload.lowering_boundary

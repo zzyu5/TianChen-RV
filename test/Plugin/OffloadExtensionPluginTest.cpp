@@ -603,85 +603,25 @@ module {
           "offload emission plan is plugin-owned"))
     return result;
   if (int result =
-          expect(emissionPlan.isSupported() &&
+          expect(emissionPlan.isUnsupported() &&
                      emissionPlan.getOriginPlugin() ==
                          tianchenrv::plugin::offload::
                              getOffloadExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() ==
                          offloadVariant.getSymName() &&
-                     emissionPlan.getEmissionKind() ==
-                         tianchenrv::plugin::offload::
-                             getOffloadDescriptorEmissionKind() &&
-                     emissionPlan.getLoweringPipeline() ==
-                         tianchenrv::plugin::offload::
-                             getOffloadDescriptorRouteID() &&
-                     emissionPlan.getArtifactKind() ==
-                         tianchenrv::plugin::offload::
-                             getOffloadDescriptorArtifactKind() &&
-                     emissionPlan.getRuntimeABIKind() ==
-                         "runtime-offload-c-abi-handoff" &&
-                     emissionPlan.getRuntimeABIName() ==
-                         tianchenrv::plugin::offload::
-                             getOffloadExpectedRuntimeABI() &&
-                     emissionPlan.getRuntimeGlueRole() ==
-                         "plugin-owned-runtime-offload-glue-boundary" &&
+                     emissionPlan.getLoweringPipeline().empty() &&
+                     emissionPlan.getArtifactKind().empty() &&
+                     emissionPlan.getRuntimeABIParameters().empty() &&
+                     emissionPlan.getSelectedPlanMetadata().empty() &&
+                     emissionPlan.getDiagnostic().contains(
+                         "descriptor artifact export has been deleted") &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::offload::
                              getOffloadRuntimePreferredCapabilitySymbol(),
-                 "offload emission plan records stable handoff metadata"))
-    return result;
-  llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter> abiParameters =
-      emissionPlan.getRuntimeABIParameters();
-  if (int result =
-          expect(abiParameters.size() == 4 &&
-                     abiParameters[0].cName == "lhs" &&
-                     abiParameters[0].role ==
-                         tianchenrv::support::RuntimeABIParameterRole::
-                             LHSInputBuffer &&
-                     abiParameters[1].cName == "rhs" &&
-                     abiParameters[1].role ==
-                         tianchenrv::support::RuntimeABIParameterRole::
-                             RHSInputBuffer &&
-                     abiParameters[2].cName == "out" &&
-                     abiParameters[2].role ==
-                         tianchenrv::support::RuntimeABIParameterRole::
-                             OutputBuffer &&
-                     abiParameters[3].cName == "n" &&
-                     abiParameters[3].role ==
-                         tianchenrv::support::RuntimeABIParameterRole::
-                             RuntimeElementCount,
-                 "offload emission plan records deterministic runtime ABI "
-                 "role parameters"))
-    return result;
-  llvm::ArrayRef<tianchenrv::plugin::VariantSelectedPlanMetadata> metadata =
-      emissionPlan.getSelectedPlanMetadata();
-  if (int result =
-          expect(metadata.size() == 3,
-                 "offload emission plan records selected handoff metadata"))
-    return result;
-  if (int result =
-          expect(metadata[0].name == "runtime_offload_capability_id" &&
-                     llvm::StringRef(metadata[0].value) ==
-                         tianchenrv::plugin::offload::
-                             getOffloadRuntimeCapabilityID() &&
-                     metadata[0].role == "capability-requirement",
-                 "offload selected metadata records runtime capability id"))
-    return result;
-  if (int result =
-          expect(metadata[1].name == "runtime_offload_handoff_kind" &&
-                     llvm::StringRef(metadata[1].value) ==
-                         tianchenrv::plugin::offload::
-                             getOffloadExpectedHandoffKind() &&
-                     metadata[1].role == "runtime-offload-handoff",
-                 "offload selected metadata records handoff kind"))
-    return result;
-  if (int result =
-          expect(metadata[2].name == "runtime_offload_descriptor_scope" &&
-                     metadata[2].value == "descriptor-only" &&
-                     metadata[2].role == "evidence-scope",
-                 "offload selected metadata records descriptor-only scope"))
+                 "offload emission plan fails closed after descriptor route "
+                 "deletion"))
     return result;
 
   if (int result = expectSuccess(
