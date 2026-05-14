@@ -342,6 +342,7 @@ std::string formatRuntimeABIInvocationContractCommentBody(
   llvm::raw_string_ostream stream(body);
   stream << label << ": source=" << contract.sourceOwner
          << ", callable_symbol=" << contract.callableSymbol
+         << ", family=" << contract.familyID
          << ", runtime_abi_kind=" << contract.runtimeABIKind
          << ", runtime_abi_name=" << contract.runtimeABIName;
   if (!contract.runtimeGlueRole.empty())
@@ -372,11 +373,16 @@ buildRuntimeABIInvocationContract(
         "runtime ABI invocation contract requires ordered ABI parameters");
 
   const llvm::StringRef requiredFields[] = {
-      sourceOwner, callableSymbol, runtimeABIKind, runtimeABIName,
-      runtimeElementCountCName, productionOwner};
+      sourceOwner,     callableSymbol,           familyID,
+      runtimeABIKind,  runtimeABIName,           runtimeElementCountCName,
+      productionOwner};
   const llvm::StringLiteral fieldNames[] = {
-      "source",      "callable_symbol", "runtime_abi_kind",
-      "runtime_abi_name", "runtime_element_count_c_name",
+      "source",
+      "callable_symbol",
+      "family",
+      "runtime_abi_kind",
+      "runtime_abi_name",
+      "runtime_element_count_c_name",
       "production_owner"};
   for (auto [field, fieldName] : llvm::zip(requiredFields, fieldNames))
     if (llvm::Error error = requireBoundedInvocationContractText(
@@ -444,6 +450,7 @@ buildRuntimeABIInvocationContract(
   RuntimeABIInvocationContract contract;
   contract.sourceOwner = sourceOwner.str();
   contract.callableSymbol = callableSymbol.str();
+  contract.familyID = familyID.str();
   contract.runtimeABIKind = runtimeABIKind.str();
   contract.runtimeABIName = runtimeABIName.str();
   contract.runtimeGlueRole = runtimeGlueRole.str();

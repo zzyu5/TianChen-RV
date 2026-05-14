@@ -1098,6 +1098,7 @@ def validate_embedded_rvv_artifact_contract(source: str) -> dict[str, Any]:
         "callable_symbol": parse_source_comment(
             source, "rvv_callable_symbol", required=True
         ),
+        "family": selected_family,
         "runtime_abi_kind": parse_source_comment(
             source, "rvv_runtime_abi_kind", required=True
         ),
@@ -1220,6 +1221,7 @@ def validate_dispatch_runtime_abi_invocation_contract(
     expected_contract = {
         "source": "RVVScalarDispatch.cpp",
         "callable_symbol": dispatcher_function,
+        "family": str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]),
         "runtime_abi_kind": str(
             DISPATCH_BUNDLE_ROUTES["source"]["runtime_abi_kind"]
         ),
@@ -4355,8 +4357,8 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_
 /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vadd_self_test(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
 /* dispatch_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=n, c_type=size_t, ownership=target-export-abi-owned */
 /* dispatch_runtime_param[1]: symbol=@abi_dispatch_availability_guard, abi_role=dispatch-availability-guard, c_name=rvv_available, c_type=int, ownership=target-export-abi-owned */
-/* dispatch_runtime_abi_invocation_contract: source=RVVScalarDispatch.cpp, callable_symbol=tcrv_dispatch_i32_vadd_self_test, runtime_abi_kind=rvv-scalar-dispatch-runtime-callable-c-abi, runtime_abi_name=rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1, parameter_count=5, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count->dispatch-availability-guard, runtime_element_count_c_name=n, dispatch_guard_c_name=rvv_available, production_owner=rvv-scalar-dispatch-target */
-/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vadd_microkernel_self_test_rvv_first_slice, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vadd-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vadd-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
+/* dispatch_runtime_abi_invocation_contract: source=RVVScalarDispatch.cpp, callable_symbol=tcrv_dispatch_i32_vadd_self_test, family=i32-vadd, runtime_abi_kind=rvv-scalar-dispatch-runtime-callable-c-abi, runtime_abi_name=rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1, parameter_count=5, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count->dispatch-availability-guard, runtime_element_count_c_name=n, dispatch_guard_c_name=rvv_available, production_owner=rvv-scalar-dispatch-target */
+/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vadd_microkernel_self_test_rvv_first_slice, family=i32-vadd, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vadd-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vadd-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
 /* rvv_microkernel_selected_source_identity: source_kind=frontend-lowering,dtype=i32,family=i32-vadd,operator=add,microkernel_op=tcrv_rvv.i32_vadd_microkernel,emitc_source_op=tcrv_rvv.i32_add,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface */
 """.strip()
     artifact_contract = validate_embedded_rvv_artifact_contract(
@@ -4367,6 +4369,10 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_
         == "rvv-target-export",
         "embedded RVV artifact runtime contract parser failed",
     )
+    assert_self_test(
+        artifact_contract["runtime_abi_invocation_contract"]["family"] == "i32-vadd",
+        "embedded RVV artifact runtime contract lost selected family",
+    )
     dispatch_contract = validate_dispatch_runtime_abi_invocation_contract(
         sample_rvv_contract_source,
         "tcrv_dispatch_i32_vadd_self_test",
@@ -4376,6 +4382,10 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_
         dispatch_contract["contract"]["production_owner"]
         == "rvv-scalar-dispatch-target",
         "dispatch RuntimeABI invocation contract parser failed",
+    )
+    assert_self_test(
+        dispatch_contract["contract"]["family"] == "i32-vadd",
+        "dispatch RuntimeABI invocation contract lost selected family",
     )
     try:
         validate_embedded_rvv_artifact_contract(
@@ -4393,6 +4403,12 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_
     else:
         raise AssertionError("stale embedded RVV runtime ABI contract was accepted")
     for old, new, expected_error, label in (
+        (
+            "callable_symbol=tcrv_dispatch_i32_vadd_self_test, family=i32-vadd",
+            "callable_symbol=tcrv_dispatch_i32_vadd_self_test, family=i32-vmul",
+            "family",
+            "stale dispatch RuntimeABI family",
+        ),
         (
             "runtime_abi_name=rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
             "runtime_abi_name=stale-rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",

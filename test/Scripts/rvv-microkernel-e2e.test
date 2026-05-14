@@ -304,6 +304,7 @@
 # DRY-EVIDENCE: "kind": "generated-c-caller"
 # DRY-EVIDENCE: "runtime_abi_invocation_contract"
 # DRY-EVIDENCE: "callable_symbol": "tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice"
+# DRY-EVIDENCE: "family": "i32-vadd"
 # DRY-EVIDENCE: "ordered_roles": [
 # DRY-EVIDENCE: "lhs-input-buffer"
 # DRY-EVIDENCE: "runtime-element-count"
@@ -348,6 +349,7 @@
 # VSUB-EVIDENCE: "runtime_abi_name": "rvv-i32-vsub-runtime-callable-c-function.v1"
 # VSUB-EVIDENCE: "runtime_abi_invocation_contract"
 # VSUB-EVIDENCE: "callable_symbol": "tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice"
+# VSUB-EVIDENCE: "family": "i32-vsub"
 # VSUB-EVIDENCE: "ordered_roles": [
 # VSUB-EVIDENCE: "lhs-input-buffer"
 # VSUB-EVIDENCE: "runtime-element-count"
@@ -414,6 +416,8 @@
 # VMUL-EVIDENCE: "emission_kind": "rvv-explicit-i32-vmul-microkernel-c-source"
 # VMUL-EVIDENCE: "lowering_pipeline": "tcrv-export-rvv-i32-vmul-microkernel-c"
 # VMUL-EVIDENCE: "runtime_abi_name": "rvv-i32-vmul-runtime-callable-c-function.v1"
+# VMUL-EVIDENCE: "runtime_abi_invocation_contract"
+# VMUL-EVIDENCE: "family": "i32-vmul"
 # VMUL-EVIDENCE: "selected_binary_source_authority": {
 # VMUL-EVIDENCE-DAG: "selected_binary_dtype": "i32"
 # VMUL-EVIDENCE-DAG: "selected_binary_family": "i32-vmul"
@@ -446,6 +450,7 @@
 # I32-VADD-FRONTEND-EVIDENCE: "planned_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
 # I32-VADD-FRONTEND-EVIDENCE: "runtime_abi_invocation_contract"
 # I32-VADD-FRONTEND-EVIDENCE: "callable_symbol": "tcrv_rvv_i32_vadd_microkernel_frontend_i32_vadd_rvv_first_slice"
+# I32-VADD-FRONTEND-EVIDENCE: "family": "i32-vadd"
 # I32-VADD-FRONTEND-EVIDENCE: "production_owner": "rvv-target-export"
 # I32-VADD-FRONTEND-EVIDENCE: "runtime_element_counts": [
 # I32-VADD-FRONTEND-EVIDENCE-NEXT: 7,

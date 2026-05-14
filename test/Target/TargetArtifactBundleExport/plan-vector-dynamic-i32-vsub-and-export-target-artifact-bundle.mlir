@@ -209,6 +209,7 @@ module @plan_vector_dynamic_i32_vsub_bundle_input {
 // SOURCE: /* scalar_callable_symbol: tcrv_scalar_i32_vsub_microkernel_frontend_vector_dynamic_bundle_i32_vsub_scalar_fallback_first_slice */
 // SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
 // SOURCE: /* dispatch_runtime_abi_invocation_contract: source=RVVScalarDispatch.cpp, callable_symbol=tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub
+// SOURCE-SAME: family=i32-vsub
 // SOURCE-SAME: runtime_abi_kind=rvv-scalar-dispatch-runtime-callable-c-abi
 // SOURCE-SAME: runtime_abi_name=rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1
 // SOURCE-SAME: parameter_count=5
@@ -222,6 +223,7 @@ module @plan_vector_dynamic_i32_vsub_bundle_input {
 // SOURCE: /* emitc_body_mapping_source: selected_plan_metadata */
 // SOURCE: /* emitc_body_mapping: route_kind=extension-family-ops-to-emitc-call-opaque, source_authority=mlir-emitc-cpp-emitter, required_header=riscv_vector.h, arithmetic_intrinsic=__riscv_vsub_vv_i32m1 */
 // SOURCE: /* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vsub_microkernel_frontend_vector_dynamic_bundle_i32_vsub_rvv_first_slice
+// SOURCE-SAME: family=i32-vsub
 // SOURCE-SAME: runtime_abi_name=rvv-i32-vsub-runtime-callable-c-function.v1
 // SOURCE-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count
 // SOURCE-SAME: runtime_element_count_c_name=n
@@ -236,6 +238,7 @@ module @plan_vector_dynamic_i32_vsub_bundle_input {
 // HEADER: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vsub.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent */
 // HEADER: /* dispatch_runtime_element_count_source: n is the source scf.for upper bound and runtime AVL; no fixed source-extent trap is emitted before dispatch */
 // HEADER: /* dispatch_runtime_abi_invocation_contract: source=RVVScalarDispatch.cpp, callable_symbol=tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub
+// HEADER-SAME: family=i32-vsub
 // HEADER-SAME: runtime_abi_name=rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1
 // HEADER-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count->dispatch-availability-guard
 // HEADER-SAME: runtime_element_count_c_name=n

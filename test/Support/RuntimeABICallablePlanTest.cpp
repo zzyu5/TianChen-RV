@@ -849,6 +849,10 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
                         "source=RVVMicrokernel.cpp"),
           "direct invocation contract uses RVVMicrokernel label/source"))
     return result;
+  if (int result = expect(llvm::StringRef(directBody)
+                              .contains("family=i32-vsub"),
+                          "direct invocation contract carries selected family"))
+    return result;
   if (int result = expect(
           llvm::StringRef(directBody)
               .contains("ordered_roles=lhs-input-buffer->rhs-input-buffer->"
@@ -859,6 +863,44 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
           llvm::StringRef(directBody)
               .contains("runtime_element_count_c_name=len"),
           "direct invocation contract carries IR-backed runtime length C name"))
+    return result;
+
+  llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract> vmulDirect =
+      buildRuntimeABIInvocationContract(
+          kernel, "i32-vmul", plan->parameters, "RVVMicrokernel.cpp",
+          "tcrv_rvv_i32_vmul_microkernel_abi_kernel_rvv_first_slice",
+          "rvv-runtime-callable-c-abi",
+          "rvv-i32-vmul-runtime-callable-c-function.v1",
+          "runtime-callable-i32-vmul-function", "len",
+          "rvv-target-export");
+  if (!vmulDirect)
+    return fail("valid vmul direct invocation contract failed: " +
+                llvm::toString(vmulDirect.takeError()));
+  std::string vmulDirectBody = formatRuntimeABIInvocationContractCommentBody(
+      "runtime_abi_invocation_contract", *vmulDirect);
+  if (int result =
+          expect(llvm::StringRef(vmulDirectBody).contains("family=i32-vmul"),
+                 "vmul direct invocation contract carries selected family"))
+    return result;
+  if (int result = expect(
+          llvm::StringRef(vmulDirectBody)
+              .contains("runtime_abi_name="
+                        "rvv-i32-vmul-runtime-callable-c-function.v1"),
+          "vmul direct invocation contract carries selected runtime ABI name"))
+    return result;
+
+  llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract>
+      missingFamily = buildRuntimeABIInvocationContract(
+          kernel, "", plan->parameters, "RVVMicrokernel.cpp",
+          "tcrv_rvv_i32_vsub_microkernel_abi_kernel_rvv_first_slice",
+          "rvv-runtime-callable-c-abi",
+          "rvv-i32-vsub-runtime-callable-c-function.v1",
+          "runtime-callable-i32-vsub-function", "len",
+          "rvv-target-export");
+  if (int result = expectErrorContains(
+          missingFamily.takeError(),
+          {"runtime ABI invocation contract field 'family'",
+           "requires non-empty bounded text"}))
     return result;
 
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract>
@@ -910,6 +952,10 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
                 llvm::toString(dispatch.takeError()));
   std::string dispatchBody = formatRuntimeABIInvocationContractCommentBody(
       "dispatch_runtime_abi_invocation_contract", *dispatch);
+  if (int result =
+          expect(llvm::StringRef(dispatchBody).contains("family=i32-vsub"),
+                 "dispatch invocation contract carries selected family"))
+    return result;
   if (int result = expect(
           llvm::StringRef(dispatchBody)
               .contains("ordered_roles=lhs-input-buffer->rhs-input-buffer->"

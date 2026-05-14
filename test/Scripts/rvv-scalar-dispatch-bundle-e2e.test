@@ -178,6 +178,7 @@
 # VEC-VADD-SOURCE-DAG: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_source_op, value=tcrv_rvv.i32_add
 # VEC-VADD-SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
 # VEC-VADD-SOURCE: /* dispatch_runtime_abi_invocation_contract: source=RVVScalarDispatch.cpp, callable_symbol=tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd
+# VEC-VADD-SOURCE-SAME: family=i32-vadd
 # VEC-VADD-SOURCE-SAME: runtime_abi_name=rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1
 # VEC-VADD-SOURCE-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count->dispatch-availability-guard
 # VEC-VADD-SOURCE-SAME: runtime_element_count_c_name=n
@@ -209,6 +210,7 @@
 # VEC-VADD-EVIDENCE-DAG: "guard_c_name": "rvv_available"
 # VEC-VADD-EVIDENCE-DAG: "dispatch_runtime_abi_invocation_contract": {
 # VEC-VADD-EVIDENCE-DAG: "callable_symbol": "tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd"
+# VEC-VADD-EVIDENCE-DAG: "family": "i32-vadd"
 # VEC-VADD-EVIDENCE-DAG: "dispatch_guard_c_name": "rvv_available"
 # VEC-VADD-EVIDENCE-DAG: "production_owner": "rvv-scalar-dispatch-target"
 # VEC-VADD-EVIDENCE-DAG: "pass_fail_result": "pass"
@@ -228,6 +230,7 @@
 # VEC-VSUB-SOURCE-DAG: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_source_op, value=tcrv_rvv.i32_sub
 # VEC-VSUB-SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
 # VEC-VSUB-SOURCE: /* dispatch_runtime_abi_invocation_contract: source=RVVScalarDispatch.cpp, callable_symbol=tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub
+# VEC-VSUB-SOURCE-SAME: family=i32-vsub
 # VEC-VSUB-SOURCE-SAME: runtime_abi_name=rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1
 # VEC-VSUB-SOURCE-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count->dispatch-availability-guard
 # VEC-VSUB-SOURCE-SAME: runtime_element_count_c_name=n
@@ -259,6 +262,7 @@
 # VEC-VSUB-EVIDENCE-DAG: "guard_c_name": "rvv_available"
 # VEC-VSUB-EVIDENCE-DAG: "dispatch_runtime_abi_invocation_contract": {
 # VEC-VSUB-EVIDENCE-DAG: "callable_symbol": "tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub"
+# VEC-VSUB-EVIDENCE-DAG: "family": "i32-vsub"
 # VEC-VSUB-EVIDENCE-DAG: "dispatch_guard_c_name": "rvv_available"
 # VEC-VSUB-EVIDENCE-DAG: "production_owner": "rvv-scalar-dispatch-target"
 # VEC-VSUB-EVIDENCE-DAG: "pass_fail_result": "pass"
@@ -278,6 +282,7 @@
 # VEC-VMUL-SOURCE-DAG: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_source_op, value=tcrv_rvv.i32_mul
 # VEC-VMUL-SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vmul_frontend_vector_dynamic_bundle_i32_vmul(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
 # VEC-VMUL-SOURCE: /* dispatch_runtime_abi_invocation_contract: source=RVVScalarDispatch.cpp, callable_symbol=tcrv_dispatch_i32_vmul_frontend_vector_dynamic_bundle_i32_vmul
+# VEC-VMUL-SOURCE-SAME: family=i32-vmul
 # VEC-VMUL-SOURCE-SAME: runtime_abi_name=rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1
 # VEC-VMUL-SOURCE-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count->dispatch-availability-guard
 # VEC-VMUL-SOURCE-SAME: runtime_element_count_c_name=n
@@ -309,6 +314,7 @@
 # VEC-VMUL-EVIDENCE-DAG: "guard_c_name": "rvv_available"
 # VEC-VMUL-EVIDENCE-DAG: "dispatch_runtime_abi_invocation_contract": {
 # VEC-VMUL-EVIDENCE-DAG: "callable_symbol": "tcrv_dispatch_i32_vmul_frontend_vector_dynamic_bundle_i32_vmul"
+# VEC-VMUL-EVIDENCE-DAG: "family": "i32-vmul"
 # VEC-VMUL-EVIDENCE-DAG: "dispatch_guard_c_name": "rvv_available"
 # VEC-VMUL-EVIDENCE-DAG: "production_owner": "rvv-scalar-dispatch-target"
 # VEC-VMUL-EVIDENCE-DAG: "pass_fail_result": "pass"

@@ -1678,6 +1678,7 @@ def parse_runtime_abi_invocation_contract(
     required = {
         "source",
         "callable_symbol",
+        "family",
         "runtime_abi_kind",
         "runtime_abi_name",
         "runtime_glue_role",
@@ -1713,6 +1714,11 @@ def parse_runtime_abi_invocation_contract(
         raise BridgeError(
             "generated C source runtime_abi_invocation_contract callable_symbol "
             "is not a valid C identifier"
+        )
+    if fields["family"] != str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]):
+        raise BridgeError(
+            "generated C source runtime_abi_invocation_contract family "
+            "does not match the selected arithmetic family"
         )
     if fields["runtime_abi_kind"] != str(ACTIVE_ARITHMETIC_FAMILY["runtime_abi_kind"]):
         raise BridgeError(
@@ -1770,6 +1776,7 @@ def parse_runtime_abi_invocation_contract(
     return {
         "source": fields["source"],
         "callable_symbol": fields["callable_symbol"],
+        "family": fields["family"],
         "runtime_abi_kind": fields["runtime_abi_kind"],
         "runtime_abi_name": fields["runtime_abi_name"],
         "runtime_glue_role": fields["runtime_glue_role"],
@@ -5534,7 +5541,7 @@ kernel @rvv_microkernel_manifest
 /* runtime_abi_parameter[1]: c_name=rhs, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[2]: c_name=out, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
-/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vadd-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vadd-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
+/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice, family=i32-vadd, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vadd-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vadd-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
 #include <riscv_vector.h>
 void f(void) {
   __riscv_vsetvl_e32m1(n - offset);
@@ -5546,6 +5553,10 @@ static int f_self_check_one(size_t runtime_n) { return runtime_n == 0; }
 int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
 """
     source_flags = validate_generated_source(sample_source, require_harness=True)
+    assert_self_test(
+        source_flags["runtime_abi_invocation_contract"]["family"] == "i32-vadd",
+        "runtime ABI invocation contract parser lost selected family",
+    )
     assert_self_test(
         source_flags["dataflow_provenance"]["dataflow_emission_step[2]"]
         == "op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec",
@@ -5580,6 +5591,18 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
         raise AssertionError(
             "generated source without runtime ABI invocation contract was accepted"
         )
+    try:
+        validate_generated_source(
+            sample_source.replace("family=i32-vadd", "family=i32-vmul"),
+            require_harness=True,
+        )
+    except BridgeError as error:
+        assert_self_test(
+            "runtime_abi_invocation_contract family" in str(error),
+            "stale runtime ABI invocation family diagnostic changed",
+        )
+    else:
+        raise AssertionError("stale runtime ABI invocation family was accepted")
     fixed_sample_source = sample_source.replace(
         "/* arithmetic_source: typed op tcrv_rvv.i32_add via generated EmitC "
         "route and IR-backed callable ABI */",
@@ -5694,7 +5717,7 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
 /* runtime_abi_parameter[1]: c_name=rhs, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[2]: c_name=out, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
-/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vsub_microkernel_rvv_sub_kernel_rvv_sub_slice, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vsub-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vsub-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
+/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vsub_microkernel_rvv_sub_kernel_rvv_sub_slice, family=i32-vsub, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vsub-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vsub-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
 #include <riscv_vector.h>
 void f(void) {
   __riscv_vsetvl_e32m1(n - offset);
@@ -5754,7 +5777,7 @@ void f(void) {
 /* runtime_abi_parameter[1]: c_name=rhs, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[2]: c_name=out, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
-/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vsub_microkernel_frontend_i32_vsub_rvv_first_slice, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vsub-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vsub-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
+/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vsub_microkernel_frontend_i32_vsub_rvv_first_slice, family=i32-vsub, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vsub-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vsub-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
 #include <riscv_vector.h>
 void f(void) {
   __riscv_vsetvl_e32m2(n - offset);
@@ -5826,7 +5849,7 @@ void f(void) {
 /* runtime_abi_parameter[1]: c_name=rhs, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[2]: c_name=out, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
-/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vmul_microkernel_rvv_mul_kernel_rvv_mul_slice, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vmul-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vmul-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
+/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vmul_microkernel_rvv_mul_kernel_rvv_mul_slice, family=i32-vmul, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vmul-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vmul-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
 #include <riscv_vector.h>
 void f(void) {
   __riscv_vsetvl_e32m1(n - offset);
@@ -5907,7 +5930,7 @@ void f(void) {
 /* runtime_abi_parameter[1]: c_name=rhs, c_type=const int64_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
-/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i64_vadd_microkernel_rvv_i64_vadd_kernel_rvv_i64_slice, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i64-vadd-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i64-vadd-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
+/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i64_vadd_microkernel_rvv_i64_vadd_kernel_rvv_i64_slice, family=i64-vadd, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i64-vadd-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i64-vadd-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
 #include <riscv_vector.h>
 void f(void) {
   __riscv_vsetvl_e64m1(n - offset);

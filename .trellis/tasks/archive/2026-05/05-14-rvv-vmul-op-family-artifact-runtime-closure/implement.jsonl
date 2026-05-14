@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Project boundary, hardware truth, and compiler stack constraints for this task."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Architecture red lines for unified RISC-V MLIR, RVV hardware evidence, and descriptor quarantine."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin family contract and finite binary family responsibilities."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Extension-family plugin protocol and shared interface boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "EmitC/runtime artifact ownership, route-local preflight, and dispatch invocation contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC route boundary for RVV family ops and rejection of descriptor-only arithmetic authority."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected source-frontdoor and bounded binary frontend generation requirements."}
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-binary-op-family-contract/prd.md", "reason": "Immediate predecessor task establishing vmul source-frontdoor admission and shared binary family contract."}

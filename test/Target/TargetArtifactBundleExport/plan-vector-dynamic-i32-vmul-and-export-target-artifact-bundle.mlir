@@ -164,8 +164,18 @@ module @plan_vector_dynamic_i32_vmul_bundle_input {
 // SOURCE: /* rvv_callable_symbol: tcrv_rvv_i32_vmul_microkernel_frontend_vector_dynamic_bundle_i32_vmul_rvv_first_slice */
 // SOURCE: /* scalar_callable_symbol: tcrv_scalar_i32_vmul_microkernel_frontend_vector_dynamic_bundle_i32_vmul_scalar_fallback_first_slice */
 // SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vmul_frontend_vector_dynamic_bundle_i32_vmul(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
+// SOURCE: /* dispatch_runtime_abi_invocation_contract: source=RVVScalarDispatch.cpp, callable_symbol=tcrv_dispatch_i32_vmul_frontend_vector_dynamic_bundle_i32_vmul
+// SOURCE-SAME: family=i32-vmul
+// SOURCE-SAME: runtime_abi_name=rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1
+// SOURCE-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count->dispatch-availability-guard
+// SOURCE-SAME: dispatch_guard_c_name=rvv_available
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vmul_microkernel */
 // SOURCE: /* arithmetic_family: i32-vmul */
+// SOURCE: /* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vmul_microkernel_frontend_vector_dynamic_bundle_i32_vmul_rvv_first_slice
+// SOURCE-SAME: family=i32-vmul
+// SOURCE-SAME: runtime_abi_name=rvv-i32-vmul-runtime-callable-c-function.v1
+// SOURCE-SAME: runtime_element_count_c_name=n
+// SOURCE-SAME: production_owner=rvv-target-export
 // SOURCE: __riscv_vmul_vv_i32m1
 // SOURCE: tcrv_scalar_i32_mul
 // HEADER: void tcrv_dispatch_i32_vmul_frontend_vector_dynamic_bundle_i32_vmul(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available);

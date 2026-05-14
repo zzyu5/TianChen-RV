@@ -25,6 +25,7 @@ using I32BinaryCallableABIPlan = FiniteBinaryCallableABIPlan;
 struct RuntimeABIInvocationContract {
   std::string sourceOwner;
   std::string callableSymbol;
+  std::string familyID;
   std::string runtimeABIKind;
   std::string runtimeABIName;
   std::string runtimeGlueRole;
