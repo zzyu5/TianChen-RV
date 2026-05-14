@@ -1540,8 +1540,6 @@ llvm::Error validateRVVMicrokernelSelectedSourceIdentityMetadata(
     const RVVMicrokernelRecord &sourceAuthority) {
   if (sourceAuthority.selectedBinarySourceKind.empty())
     return llvm::Error::success();
-  if (sourceAuthority.selectedBinarySourceKind != "frontend-lowering")
-    return llvm::Error::success();
 
   llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 2> expected;
   appendRVVBinarySelectedSourceIdentityMetadata(
@@ -3962,6 +3960,18 @@ void printRuntimeABIInvocationContract(
      << ", production_owner=" << productionOwner << " */\n";
 }
 
+void printSelectedSourceIdentityContract(
+    llvm::raw_ostream &os, const RVVMicrokernelRecord &record) {
+  if (record.selectedBinarySourceKind.empty())
+    return;
+  os << "/* rvv_microkernel_selected_source_identity: "
+     << record.selectedConfigContract
+            .formatDispatchContractSelectedSourceIdentityMetadataValue(
+                record.selectedBinarySourceKind,
+                record.descriptor.getRVVMicrokernelOpName())
+     << " */\n";
+}
+
 void printRecordComment(llvm::raw_ostream &os,
                         const RVVMicrokernelRecord &record,
                         llvm::StringRef functionName,
@@ -3982,6 +3992,7 @@ void printRecordComment(llvm::raw_ostream &os,
   os << "/* dtype: " << record.descriptor.getDTypeID() << " */\n";
   os << "/* " << record.selectedConfigContract.formatSummaryCommentBody()
      << " */\n";
+  printSelectedSourceIdentityContract(os, record);
   os << "/* "
      << record.selectedConfigContract.formatRuntimeVLBoundaryCommentBody()
      << " */\n";
@@ -4244,6 +4255,7 @@ void printMicrokernelHeader(const RVVMicrokernelRecord &record,
   os << "/* dtype: " << record.descriptor.getDTypeID() << " */\n";
   os << "/* " << record.selectedConfigContract.formatSummaryCommentBody()
      << " */\n";
+  printSelectedSourceIdentityContract(os, record);
   os << "/* "
      << record.selectedConfigContract.formatRuntimeVLBoundaryCommentBody()
      << " */\n";
@@ -4744,6 +4756,17 @@ buildRVVMicrokernelSourceRouteMetadata(
       getRVVSelectedVectorSuffixAttrName(), shapeRole);
   metadata.addSelectedPlanMetadataPresenceRequirement(
       getRVVSelectedSetVLSuffixAttrName(), shapeRole);
+
+  if (family.dtype == RVVBinaryDTypeKind::I32 ||
+      family.dtype == RVVBinaryDTypeKind::I64) {
+    llvm::StringRef sourceIdentityRole =
+        getRVVTypedBinarySourceIdentityMetadataRole();
+    metadata.addSelectedPlanMetadataPresenceRequirement(
+        getRVVSelectedBinarySourceKindMetadataName(), sourceIdentityRole);
+    metadata.addSelectedPlanMetadataRequirement(
+        getRVVSelectedBinaryMicrokernelOpMetadataName(),
+        family.microkernelOpName, sourceIdentityRole);
+  }
 
   llvm::StringRef capabilityRole =
       getSelectedRVVVectorShapeCapabilityMetadataRole();

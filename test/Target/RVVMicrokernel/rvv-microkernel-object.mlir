@@ -111,6 +111,7 @@ module @rvv_microkernel_object_input {
 // SOURCE: /* selected_role: direct variant */
 // SOURCE: /* selected_march: rv64gcv */
 // SOURCE: /* selected_mabi: lp64d */
+// SOURCE: /* rvv_microkernel_selected_source_identity: source_kind=default-i32-vadd-typed-body-materialization,dtype=i32,family=i32-vadd,operator=add,microkernel_op=tcrv_rvv.i32_vadd_microkernel,emitc_source_op=tcrv_rvv.i32_add,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface */
 // SOURCE: /* artifact_kind: runtime-callable-c-source */
 // SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 // SOURCE: static void tcrv_rvv_i32_vadd_microkernel_static_object_i32_vadd_rvv_first_slice__tcrv_emitc_body

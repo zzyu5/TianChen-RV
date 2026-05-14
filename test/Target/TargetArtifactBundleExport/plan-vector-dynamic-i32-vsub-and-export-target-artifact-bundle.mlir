@@ -209,6 +209,7 @@ module @plan_vector_dynamic_i32_vsub_bundle_input {
 // SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 // SOURCE: /* arithmetic_family: i32-vsub */
+// SOURCE: /* rvv_microkernel_selected_source_identity: source_kind=frontend-lowering,dtype=i32,family=i32-vsub,operator=subtract,microkernel_op=tcrv_rvv.i32_vsub_microkernel,emitc_source_op=tcrv_rvv.i32_sub,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface */
 // SOURCE: /* emitc_body_mapping_source: selected_plan_metadata */
 // SOURCE: /* emitc_body_mapping: route_kind=extension-family-ops-to-emitc-call-opaque, source_authority=mlir-emitc-cpp-emitter, required_header=riscv_vector.h, arithmetic_intrinsic=__riscv_vsub_vv_i32m1 */
 // SOURCE: __riscv_vsub_vv_i32m1

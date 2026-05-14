@@ -78,7 +78,8 @@ llvm::StringRef getRuntimeElementCountCNameForTest(
 void appendRVVSelectedPlanMetadata(
     TargetArtifactCandidate &candidate,
     const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family,
-    const tianchenrv::target::rvv::RVVVectorShapeConfig &shape) {
+    const tianchenrv::target::rvv::RVVVectorShapeConfig &shape,
+    llvm::StringRef sourceKind = "direct-typed-microkernel-body") {
   llvm::SmallVector<
       tianchenrv::target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 24>
       metadata;
@@ -104,9 +105,12 @@ void appendRVVSelectedPlanMetadata(
     tianchenrv::target::rvv::appendRVVBinaryLegacyDescriptorMirrorMetadata(
         *contract, metadata);
   if (family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
-      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64)
+      family.dtype == tianchenrv::target::rvv::RVVBinaryDTypeKind::I64) {
+    tianchenrv::target::rvv::appendRVVBinarySelectedSourceIdentityMetadata(
+        *contract, sourceKind, metadata);
     tianchenrv::target::rvv::appendRVVBinaryEmitCRouteMetadata(*contract,
                                                               metadata);
+  }
   for (const auto &entry : metadata) {
     candidate.selectedPlanMetadata.push_back(
         {entry.name, entry.value, entry.role, entry.note});

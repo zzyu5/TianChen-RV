@@ -59,12 +59,14 @@ module @target_artifact_bundle_rvv_vsub_test_anchor {
 // INDEX: evidence_role: "relocatable-object"
 
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
+// SOURCE: /* rvv_microkernel_selected_source_identity: source_kind=direct-typed-microkernel-body,dtype=i32,family=i32-vsub,operator=subtract,microkernel_op=tcrv_rvv.i32_vsub_microkernel,emitc_source_op=tcrv_rvv.i32_sub,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface */
 // SOURCE: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
 // SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 // SOURCE: static void tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice__tcrv_emitc_body
 // SOURCE: __riscv_vsub_vv_i32m1
 // SOURCE: void tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice
 
+// HEADER: /* rvv_microkernel_selected_source_identity: source_kind=direct-typed-microkernel-body,dtype=i32,family=i32-vsub,operator=subtract,microkernel_op=tcrv_rvv.i32_vsub_microkernel,emitc_source_op=tcrv_rvv.i32_sub,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface */
 // HEADER: /* emitc_body_mapping_source: selected_plan_metadata */
 // HEADER: /* emitc_body_mapping_status: selected RVV EmitC body mapping was validated before source/header/object artifact export; this header remains declaration-only and carries no intrinsic include. */
 // HEADER: #ifndef TIANCHENRV_RVV_I32_VSUB_MICROKERNEL_EXPORT_I32_VSUB_RVV_SUB_SLICE_H

@@ -229,6 +229,7 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 // SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_required_header, value=riscv_vector.h, role=typed-rvv-emitc-route
 // SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_arithmetic_intrinsic, value=__riscv_vadd_vv_i32m1, role=typed-rvv-emitc-route
 // SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
+// SOURCE: /* rvv_microkernel_selected_source_identity: source_kind=frontend-lowering,dtype=i32,family=i32-vadd,operator=add,microkernel_op=tcrv_rvv.i32_vadd_microkernel,emitc_source_op=tcrv_rvv.i32_add,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface */
 // SOURCE: /* emitc_body_mapping_source: selected_plan_metadata */
 // SOURCE: /* emitc_body_mapping: route_kind=extension-family-ops-to-emitc-call-opaque, source_authority=mlir-emitc-cpp-emitter, required_header=riscv_vector.h, arithmetic_intrinsic=__riscv_vadd_vv_i32m1 */
 // SOURCE: void tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd

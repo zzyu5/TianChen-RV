@@ -81,6 +81,7 @@ module @rvv_microkernel_i32_vsub_export_input {
 // SOURCE: /* selected_march: rv64gcv */
 // SOURCE: /* selected_mabi: lp64d */
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
+// SOURCE: /* rvv_microkernel_selected_source_identity: source_kind=direct-typed-microkernel-body,dtype=i32,family=i32-vsub,operator=subtract,microkernel_op=tcrv_rvv.i32_vsub_microkernel,emitc_source_op=tcrv_rvv.i32_sub,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface */
 // SOURCE: /* active_route: tcrv-export-rvv-i32-vsub-microkernel-c */
 // SOURCE: /* dataflow_body: tcrv_rvv.i32_load -> tcrv_rvv.i32_load -> tcrv_rvv.i32_sub -> tcrv_rvv.i32_store */
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
@@ -110,6 +111,7 @@ module @rvv_microkernel_i32_vsub_export_input {
 // SOURCE: __riscv_vse32_v_i32m1
 // SOURCE: void tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice
 
+// HEADER: /* rvv_microkernel_selected_source_identity: source_kind=direct-typed-microkernel-body,dtype=i32,family=i32-vsub,operator=subtract,microkernel_op=tcrv_rvv.i32_vsub_microkernel,emitc_source_op=tcrv_rvv.i32_sub,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface */
 // HEADER: /* emitc_body_mapping_source: selected_plan_metadata */
 // HEADER: /* emitc_body_mapping_status: selected RVV EmitC body mapping was validated before source/header/object artifact export; this header remains declaration-only and carries no intrinsic include. */
 // HEADER: /* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice

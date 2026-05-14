@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-5.md`
-- **Total Sessions**: 61
+- **Active File**: `journal-6.md`
+- **Total Sessions**: 62
 - **Last Active**: 2026-05-14
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~1971 | Active |
+| `journal-6.md` | ~38 | Active |
+| `journal-5.md` | ~1983 | Archived |
 | `journal-4.md` | ~1979 | Archived |
 | `journal-3.md` | ~1998 | Archived |
 | `journal-2.md` | ~2012 | Archived |
@@ -33,6 +34,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 62 | 2026-05-14 | RVV artifact export source-frontdoor contract | - | `main` |
 | 61 | 2026-05-14 | RVV C++ artifact/runtime production invocation | - | `main` |
 | 60 | 2026-05-14 | RVV source-frontdoor artifact/runtime closure | - | `main` |
 | 59 | 2026-05-14 | RVV selected variant materialization implementation | - | `main` |
