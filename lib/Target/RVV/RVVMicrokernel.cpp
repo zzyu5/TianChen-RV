@@ -3929,35 +3929,26 @@ void printCallableBoundaryMetadata(llvm::raw_ostream &os,
      << " */\n";
 }
 
-std::string formatRuntimeABIOrderedRoles(
-    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
-  std::string roles;
-  llvm::raw_string_ostream stream(roles);
-  for (auto [index, parameter] : llvm::enumerate(parameters)) {
-    if (index != 0)
-      stream << "->";
-    stream << support::stringifyRuntimeABIParameterRole(parameter.role);
-  }
-  stream.flush();
-  return roles;
-}
-
-void printRuntimeABIInvocationContract(
+llvm::Error printRuntimeABIInvocationContract(
     llvm::raw_ostream &os, llvm::StringRef sourceOwner,
     llvm::StringRef callableSymbol, llvm::StringRef runtimeABIKind,
     llvm::StringRef runtimeABIName, llvm::StringRef runtimeGlueRole,
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
-    llvm::StringRef runtimeElementCountCName,
-    llvm::StringRef productionOwner) {
-  os << "/* runtime_abi_invocation_contract: source=" << sourceOwner
-     << ", callable_symbol=" << callableSymbol
-     << ", runtime_abi_kind=" << runtimeABIKind
-     << ", runtime_abi_name=" << runtimeABIName
-     << ", runtime_glue_role=" << runtimeGlueRole
-     << ", parameter_count=" << parameters.size()
-     << ", ordered_roles=" << formatRuntimeABIOrderedRoles(parameters)
-     << ", runtime_element_count_c_name=" << runtimeElementCountCName
-     << ", production_owner=" << productionOwner << " */\n";
+    llvm::StringRef runtimeElementCountCName, llvm::StringRef productionOwner,
+    llvm::StringRef familyID) {
+  llvm::Expected<support::RuntimeABIInvocationContract> contract =
+      support::buildRuntimeABIInvocationContract(
+          /*kernel=*/nullptr, familyID, parameters, sourceOwner,
+          callableSymbol, runtimeABIKind, runtimeABIName, runtimeGlueRole,
+          runtimeElementCountCName, productionOwner);
+  if (!contract)
+    return contract.takeError();
+
+  os << "/* "
+     << support::formatRuntimeABIInvocationContractCommentBody(
+            "runtime_abi_invocation_contract", *contract)
+     << " */\n";
+  return llvm::Error::success();
 }
 
 void printSelectedSourceIdentityContract(
@@ -3972,10 +3963,10 @@ void printSelectedSourceIdentityContract(
      << " */\n";
 }
 
-void printRecordComment(llvm::raw_ostream &os,
-                        const RVVMicrokernelRecord &record,
-                        llvm::StringRef functionName,
-                        const TCRVEmitCLowerableRoute &emitcRoute) {
+llvm::Error printRecordComment(llvm::raw_ostream &os,
+                               const RVVMicrokernelRecord &record,
+                               llvm::StringRef functionName,
+                               const TCRVEmitCLowerableRoute &emitcRoute) {
   os << "/* microkernel function: " << functionName << " */\n";
   os << "/* selected_kernel: @" << record.kernelSymbol << " */\n";
   os << "/* selected_variant: @" << record.variantSymbol << " */\n";
@@ -4107,13 +4098,15 @@ void printRecordComment(llvm::raw_ostream &os,
     support::printRuntimeABIParameterCDeclaration(os, parameter);
   }
   os << ") */\n";
-  printRuntimeABIInvocationContract(
-      os, "RVVMicrokernel.cpp", functionName,
-      record.descriptor.getRVVRuntimeABIKind(),
-      record.descriptor.getRVVRuntimeABIName(),
-      record.descriptor.getRVVRuntimeGlueRole(), record.runtimeABIParameters,
-      record.selectedConfigContract.getRuntimeElementCountCName(),
-      "rvv-target-export");
+  if (llvm::Error error = printRuntimeABIInvocationContract(
+          os, "RVVMicrokernel.cpp", functionName,
+          record.descriptor.getRVVRuntimeABIKind(),
+          record.descriptor.getRVVRuntimeABIName(),
+          record.descriptor.getRVVRuntimeGlueRole(), record.runtimeABIParameters,
+          record.selectedConfigContract.getRuntimeElementCountCName(),
+          "rvv-target-export", record.descriptor.getArithmeticFamilyID()))
+    return error;
+  return llvm::Error::success();
 }
 
 void printMicrokernelPrototype(llvm::raw_ostream &os,
@@ -4230,8 +4223,8 @@ void printMicrokernelSelfCheckHarness(llvm::raw_ostream &os,
   os << "}\n";
 }
 
-void printMicrokernelHeader(const RVVMicrokernelRecord &record,
-                            llvm::raw_ostream &os) {
+llvm::Error printMicrokernelHeader(const RVVMicrokernelRecord &record,
+                                   llvm::raw_ostream &os) {
   std::string includeGuard = makeMicrokernelHeaderIncludeGuard(record);
   std::string functionName = makeMicrokernelFunctionName(record);
 
@@ -4315,13 +4308,14 @@ void printMicrokernelHeader(const RVVMicrokernelRecord &record,
     support::printRuntimeABIParameterCDeclaration(os, parameter);
   }
   os << ") */\n";
-  printRuntimeABIInvocationContract(
-      os, "RVVMicrokernel.cpp", functionName,
-      record.descriptor.getRVVRuntimeABIKind(),
-      record.descriptor.getRVVRuntimeABIName(),
-      record.descriptor.getRVVRuntimeGlueRole(), record.runtimeABIParameters,
-      record.selectedConfigContract.getRuntimeElementCountCName(),
-      "rvv-target-export");
+  if (llvm::Error error = printRuntimeABIInvocationContract(
+          os, "RVVMicrokernel.cpp", functionName,
+          record.descriptor.getRVVRuntimeABIKind(),
+          record.descriptor.getRVVRuntimeABIName(),
+          record.descriptor.getRVVRuntimeGlueRole(), record.runtimeABIParameters,
+          record.selectedConfigContract.getRuntimeElementCountCName(),
+          "rvv-target-export", record.descriptor.getArithmeticFamilyID()))
+    return error;
 
   os << "#ifndef " << includeGuard << "\n";
   os << "#define " << includeGuard << "\n\n";
@@ -4338,6 +4332,7 @@ void printMicrokernelHeader(const RVVMicrokernelRecord &record,
   os << "}\n";
   os << "#endif\n\n";
   os << "#endif /* " << includeGuard << " */\n";
+  return llvm::Error::success();
 }
 
 llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
@@ -4377,7 +4372,9 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
         "rvv evidence; this source is not generic TianChen-RV lowering or "
         "performance evidence. */\n\n";
 
-  printRecordComment(os, record, functionName, emitcRoute);
+  if (llvm::Error error =
+          printRecordComment(os, record, functionName, emitcRoute))
+    return error;
   os << loweredSource->getSource();
   if (includeHarness) {
     os << "#include <stdio.h>\n\n";
@@ -4542,7 +4539,7 @@ void appendMicrokernelObjectEvidenceSection(
   printObjectEvidenceLine(os, "runtime_abi_callable_symbol",
                           makeMicrokernelFunctionName(record));
   printObjectEvidenceLine(os, "runtime_abi_ordered_roles",
-                          formatRuntimeABIOrderedRoles(
+                          support::formatRuntimeABIOrderedRoles(
                               record.runtimeABIParameters));
   printObjectEvidenceLine(
       os, "runtime_abi_production_owner", "rvv-target-export");
@@ -5532,8 +5529,7 @@ llvm::Error exportRVVMicrokernelDirectRoute(
     return llvm::Error::success();
   }
   case RVVMicrokernelDirectRouteKind::Header:
-    printMicrokernelHeader(*record, os);
-    return llvm::Error::success();
+    return printMicrokernelHeader(*record, os);
   case RVVMicrokernelDirectRouteKind::Object: {
     std::string source;
     llvm::raw_string_ostream stream(source);

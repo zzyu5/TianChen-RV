@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV boundaries and source-of-truth"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "RVV evidence claim discipline"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI envelope and compute-boundary review"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected family/config/runtime role review"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "artifact export RuntimeABI handoff review"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC route and descriptor-quarantine review"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required focused validation surface"}
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-runtimeabi-generated-artifact-invocation/prd.md", "reason": "verify implementation against task acceptance criteria"}

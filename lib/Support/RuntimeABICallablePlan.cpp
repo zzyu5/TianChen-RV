@@ -53,6 +53,28 @@ llvm::StringRef getStringAttr(mlir::Operation *op, llvm::StringRef attrName) {
   return attr.getValue();
 }
 
+llvm::Error requireBoundedInvocationContractText(
+    KernelOp kernel, llvm::StringRef familyID, llvm::StringRef fieldName,
+    llvm::StringRef value) {
+  llvm::StringRef trimmed = value.trim();
+  if (trimmed.empty())
+    return makeCallablePlanError(
+        kernel, familyID,
+        llvm::Twine("runtime ABI invocation contract field '") + fieldName +
+            "' requires non-empty bounded text");
+  if (trimmed.size() > 160)
+    return makeCallablePlanError(
+        kernel, familyID,
+        llvm::Twine("runtime ABI invocation contract field '") + fieldName +
+            "' is too long");
+  if (trimmed.contains('\n') || trimmed.contains('\r'))
+    return makeCallablePlanError(
+        kernel, familyID,
+        llvm::Twine("runtime ABI invocation contract field '") + fieldName +
+            "' must be single-line text");
+  return llvm::Error::success();
+}
+
 llvm::Expected<RuntimeABIParameter>
 makeParameterFromMemWindow(KernelOp kernel, MemWindowOp window,
                            RuntimeABIParameterRole expectedRole,
@@ -300,6 +322,137 @@ llvm::Error validateFiniteBinaryCallableABIParameterMirrorFromContract(
 }
 
 } // namespace
+
+std::string
+formatRuntimeABIOrderedRoles(llvm::ArrayRef<RuntimeABIParameter> parameters) {
+  std::string roles;
+  llvm::raw_string_ostream stream(roles);
+  for (auto [index, parameter] : llvm::enumerate(parameters)) {
+    if (index != 0)
+      stream << "->";
+    stream << stringifyRuntimeABIParameterRole(parameter.role);
+  }
+  stream.flush();
+  return roles;
+}
+
+std::string formatRuntimeABIInvocationContractCommentBody(
+    llvm::StringRef label, const RuntimeABIInvocationContract &contract) {
+  std::string body;
+  llvm::raw_string_ostream stream(body);
+  stream << label << ": source=" << contract.sourceOwner
+         << ", callable_symbol=" << contract.callableSymbol
+         << ", runtime_abi_kind=" << contract.runtimeABIKind
+         << ", runtime_abi_name=" << contract.runtimeABIName;
+  if (!contract.runtimeGlueRole.empty())
+    stream << ", runtime_glue_role=" << contract.runtimeGlueRole;
+  stream << ", parameter_count=" << contract.parameters.size()
+         << ", ordered_roles="
+         << formatRuntimeABIOrderedRoles(contract.parameters)
+         << ", runtime_element_count_c_name="
+         << contract.runtimeElementCountCName;
+  if (!contract.dispatchGuardCName.empty())
+    stream << ", dispatch_guard_c_name=" << contract.dispatchGuardCName;
+  stream << ", production_owner=" << contract.productionOwner;
+  stream.flush();
+  return body;
+}
+
+llvm::Expected<RuntimeABIInvocationContract>
+buildRuntimeABIInvocationContract(
+    KernelOp kernel, llvm::StringRef familyID,
+    llvm::ArrayRef<RuntimeABIParameter> parameters,
+    llvm::StringRef sourceOwner, llvm::StringRef callableSymbol,
+    llvm::StringRef runtimeABIKind, llvm::StringRef runtimeABIName,
+    llvm::StringRef runtimeGlueRole, llvm::StringRef runtimeElementCountCName,
+    llvm::StringRef productionOwner, llvm::StringRef dispatchGuardCName) {
+  if (parameters.empty())
+    return makeCallablePlanError(
+        kernel, familyID,
+        "runtime ABI invocation contract requires ordered ABI parameters");
+
+  const llvm::StringRef requiredFields[] = {
+      sourceOwner, callableSymbol, runtimeABIKind, runtimeABIName,
+      runtimeElementCountCName, productionOwner};
+  const llvm::StringLiteral fieldNames[] = {
+      "source",      "callable_symbol", "runtime_abi_kind",
+      "runtime_abi_name", "runtime_element_count_c_name",
+      "production_owner"};
+  for (auto [field, fieldName] : llvm::zip(requiredFields, fieldNames))
+    if (llvm::Error error = requireBoundedInvocationContractText(
+            kernel, familyID, fieldName, field))
+      return std::move(error);
+  if (!runtimeGlueRole.empty())
+    if (llvm::Error error = requireBoundedInvocationContractText(
+            kernel, familyID, "runtime_glue_role", runtimeGlueRole))
+      return std::move(error);
+  if (!dispatchGuardCName.empty())
+    if (llvm::Error error = requireBoundedInvocationContractText(
+            kernel, familyID, "dispatch_guard_c_name", dispatchGuardCName))
+      return std::move(error);
+
+  llvm::Expected<const RuntimeABIParameter *> runtimeCount =
+      findUniqueRuntimeABIParameterByRole(
+          parameters, RuntimeABIParameterRole::RuntimeElementCount,
+          "runtime ABI invocation contract");
+  if (!runtimeCount) {
+    std::string message = llvm::toString(runtimeCount.takeError());
+    return makeCallablePlanError(kernel, familyID, message);
+  }
+  if ((*runtimeCount)->cName != runtimeElementCountCName)
+    return makeCallablePlanError(
+        kernel, familyID,
+        llvm::Twine("runtime ABI invocation contract "
+                    "runtime_element_count_c_name '") +
+            runtimeElementCountCName +
+            "' must match ordered ABI parameter role 'runtime-element-count' "
+            "C name '" +
+            (*runtimeCount)->cName + "'");
+
+  const RuntimeABIParameter *dispatchGuard = nullptr;
+  unsigned dispatchGuardCount = 0;
+  for (const RuntimeABIParameter &parameter : parameters) {
+    if (parameter.role != RuntimeABIParameterRole::DispatchAvailabilityGuard)
+      continue;
+    dispatchGuard = &parameter;
+    ++dispatchGuardCount;
+  }
+  if (dispatchGuardCName.empty()) {
+    if (dispatchGuardCount != 0)
+      return makeCallablePlanError(
+          kernel, familyID,
+          "runtime ABI invocation contract for a direct callable must not "
+          "carry a dispatch-availability-guard ABI parameter");
+  } else {
+    if (dispatchGuardCount != 1)
+      return makeCallablePlanError(
+          kernel, familyID,
+          "runtime ABI invocation contract requires exactly one "
+          "dispatch-availability-guard ABI parameter when "
+          "dispatch_guard_c_name is present");
+    if (dispatchGuard->cName != dispatchGuardCName)
+      return makeCallablePlanError(
+          kernel, familyID,
+          llvm::Twine("runtime ABI invocation contract dispatch_guard_c_name "
+                      "'") +
+              dispatchGuardCName +
+              "' must match ordered ABI parameter role "
+              "'dispatch-availability-guard' C name '" +
+              dispatchGuard->cName + "'");
+  }
+
+  RuntimeABIInvocationContract contract;
+  contract.sourceOwner = sourceOwner.str();
+  contract.callableSymbol = callableSymbol.str();
+  contract.runtimeABIKind = runtimeABIKind.str();
+  contract.runtimeABIName = runtimeABIName.str();
+  contract.runtimeGlueRole = runtimeGlueRole.str();
+  contract.parameters.append(parameters.begin(), parameters.end());
+  contract.runtimeElementCountCName = runtimeElementCountCName.str();
+  contract.dispatchGuardCName = dispatchGuardCName.str();
+  contract.productionOwner = productionOwner.str();
+  return contract;
+}
 
 llvm::Expected<FiniteBinaryCallableABIPlan>
 buildFiniteBinaryCallableABIPlan(

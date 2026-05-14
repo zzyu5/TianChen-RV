@@ -2332,19 +2332,6 @@ llvm::Error requireEmbeddedRVVSourceSnippet(const DispatchPair &pair,
           snippet + "'");
 }
 
-std::string formatEmbeddedRuntimeABIOrderedRoles(
-    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
-  std::string roles;
-  llvm::raw_string_ostream stream(roles);
-  for (auto [index, parameter] : llvm::enumerate(parameters)) {
-    if (index != 0)
-      stream << "->";
-    stream << support::stringifyRuntimeABIParameterRole(parameter.role);
-  }
-  stream.flush();
-  return roles;
-}
-
 llvm::Error validateEmbeddedRVVSourceArtifactContract(
     const DispatchPair &pair, llvm::StringRef rvvSource) {
   llvm::Expected<std::string> selectedSourceIdentity =
@@ -2363,22 +2350,24 @@ llvm::Error validateEmbeddedRVVSourceArtifactContract(
           "RVVMicrokernel exported selected source identity contract"))
     return error;
 
-  std::string invocationContractSnippet;
-  {
-    llvm::raw_string_ostream stream(invocationContractSnippet);
-    stream << "runtime_abi_invocation_contract: source=RVVMicrokernel.cpp"
-           << ", callable_symbol=" << makeRVVFunctionName(pair)
-           << ", runtime_abi_kind=" << pair.rvv.runtimeABIKind
-           << ", runtime_abi_name=" << pair.rvv.runtimeABIName
-           << ", runtime_glue_role=" << pair.rvv.runtimeGlueRole
-           << ", parameter_count=" << pair.rvv.runtimeABIParameters.size()
-           << ", ordered_roles="
-           << formatEmbeddedRuntimeABIOrderedRoles(
-                  pair.rvv.runtimeABIParameters)
-           << ", runtime_element_count_c_name="
-           << pair.selectedConfig.getRuntimeElementCountCName()
-           << ", production_owner=rvv-target-export";
-  }
+  if (!pair.family || !pair.family->rvvFamily)
+    return makeDispatchError(
+        pair.rvv.kernel,
+        "embedded RVV artifact invocation contract validation requires an "
+        "exact selected RVV binary family");
+  llvm::Expected<support::RuntimeABIInvocationContract> invocationContract =
+      support::buildRuntimeABIInvocationContract(
+          pair.rvv.kernel, pair.family->rvvFamily->familyID,
+          pair.rvv.runtimeABIParameters, "RVVMicrokernel.cpp",
+          makeRVVFunctionName(pair), pair.rvv.runtimeABIKind,
+          pair.rvv.runtimeABIName, pair.rvv.runtimeGlueRole,
+          pair.selectedConfig.getRuntimeElementCountCName(),
+          "rvv-target-export");
+  if (!invocationContract)
+    return invocationContract.takeError();
+  std::string invocationContractSnippet =
+      support::formatRuntimeABIInvocationContractCommentBody(
+          "runtime_abi_invocation_contract", *invocationContract);
   if (llvm::Error error = requireEmbeddedRVVSourceSnippet(
           pair, rvvSource, invocationContractSnippet,
           "RVVMicrokernel exported runtime ABI invocation contract"))
@@ -2858,19 +2847,6 @@ void printDispatchRuntimeParamMetadata(
   }
 }
 
-std::string formatDispatchRuntimeABIOrderedRoles(
-    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
-  std::string roles;
-  llvm::raw_string_ostream stream(roles);
-  for (auto [index, parameter] : llvm::enumerate(parameters)) {
-    if (index != 0)
-      stream << "->";
-    stream << support::stringifyRuntimeABIParameterRole(parameter.role);
-  }
-  stream.flush();
-  return roles;
-}
-
 void printDispatchRuntimeCallableABI(
     llvm::raw_ostream &os, llvm::StringRef dispatcherFunctionName,
     llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
@@ -2884,22 +2860,33 @@ void printDispatchRuntimeCallableABI(
   os << ") */\n";
 }
 
-void printDispatchRuntimeABIInvocationContract(
+llvm::Error printDispatchRuntimeABIInvocationContract(
     llvm::raw_ostream &os, const DispatchPair &pair,
     llvm::StringRef dispatcherFunctionName,
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
     llvm::StringRef runtimeElementCountCName,
     llvm::StringRef dispatchGuardCName) {
-  os << "/* dispatch_runtime_abi_invocation_contract: source="
-        "RVVScalarDispatch.cpp, callable_symbol="
-     << dispatcherFunctionName
-     << ", runtime_abi_kind=" << pair.composite.runtimeABIKind
-     << ", runtime_abi_name=" << pair.composite.runtimeABIName
-     << ", parameter_count=" << parameters.size()
-     << ", ordered_roles=" << formatDispatchRuntimeABIOrderedRoles(parameters)
-     << ", runtime_element_count_c_name=" << runtimeElementCountCName
-     << ", dispatch_guard_c_name=" << dispatchGuardCName
-     << ", production_owner=" << kDispatchTargetOwner << " */\n";
+  if (!pair.family || !pair.family->rvvFamily)
+    return makeDispatchError(
+        pair.rvv.kernel,
+        "dispatch runtime ABI invocation contract requires an exact selected "
+        "RVV binary family");
+
+  llvm::Expected<support::RuntimeABIInvocationContract> contract =
+      support::buildRuntimeABIInvocationContract(
+          pair.rvv.kernel, pair.family->rvvFamily->familyID, parameters,
+          "RVVScalarDispatch.cpp", dispatcherFunctionName,
+          pair.composite.runtimeABIKind, pair.composite.runtimeABIName,
+          /*runtimeGlueRole=*/"", runtimeElementCountCName,
+          kDispatchTargetOwner, dispatchGuardCName);
+  if (!contract)
+    return contract.takeError();
+
+  os << "/* "
+     << support::formatRuntimeABIInvocationContractCommentBody(
+            "dispatch_runtime_abi_invocation_contract", *contract)
+     << " */\n";
+  return llvm::Error::success();
 }
 
 llvm::Error buildEmbeddedCallableSources(const DispatchPair &pair,
@@ -3107,10 +3094,11 @@ llvm::Error printDispatchHeader(const DispatchPair &pair,
   }
   printDispatchRuntimeCallableABI(os, dispatcherFunctionName,
                                   pair.abiPlan.parameters);
-  printDispatchRuntimeABIInvocationContract(
-      os, pair, dispatcherFunctionName, pair.abiPlan.parameters,
-      bindings->runtimeElementCount->cName,
-      bindings->dispatchAvailabilityGuard->cName);
+  if (llvm::Error error = printDispatchRuntimeABIInvocationContract(
+          os, pair, dispatcherFunctionName, pair.abiPlan.parameters,
+          bindings->runtimeElementCount->cName,
+          bindings->dispatchAvailabilityGuard->cName))
+    return error;
   os << "#ifndef " << includeGuard << "\n";
   os << "#define " << includeGuard << "\n\n";
   os << "#include <stddef.h>\n";
@@ -3328,10 +3316,11 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
   }
   printDispatchRuntimeCallableABI(os, dispatcherFunctionName,
                                   dispatchParameters);
-  printDispatchRuntimeABIInvocationContract(
-      os, pair, dispatcherFunctionName, dispatchParameters,
-      bindings->runtimeElementCount->cName,
-      bindings->dispatchAvailabilityGuard->cName);
+  if (llvm::Error error = printDispatchRuntimeABIInvocationContract(
+          os, pair, dispatcherFunctionName, dispatchParameters,
+          bindings->runtimeElementCount->cName,
+          bindings->dispatchAvailabilityGuard->cName))
+    return error;
   os << "\n";
 
   os << "/* Embedded selected RVV runtime-callable source artifact. */\n";

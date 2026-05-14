@@ -1995,6 +1995,133 @@ Required tests for changes to this contract:
   RVV+scalar dispatch exports consume the same `tcrv.exec.mem_window` and
   `tcrv.exec.runtime_param` IR-backed ABI plan.
 
+### Scenario: Generated Runtime ABI Invocation Contract
+
+#### 1. Scope / Trigger
+
+This scenario applies when a generated finite binary callable artifact or
+dispatcher prints, embeds, validates, or consumes a
+`runtime_abi_invocation_contract` comment. The contract is the compiler-owned
+callable invocation evidence boundary for generated source/header/object or
+bundle artifacts. It is not a descriptor, runtime log, benchmark result, route
+selection policy, or Python evidence schema.
+
+#### 2. Signatures
+
+```cpp
+struct RuntimeABIInvocationContract {
+  std::string sourceOwner;
+  std::string callableSymbol;
+  std::string runtimeABIKind;
+  std::string runtimeABIName;
+  std::string runtimeGlueRole;
+  llvm::SmallVector<RuntimeABIParameter, 5> parameters;
+  std::string runtimeElementCountCName;
+  std::string dispatchGuardCName;
+  std::string productionOwner;
+};
+
+llvm::Expected<RuntimeABIInvocationContract>
+buildRuntimeABIInvocationContract(
+    tcrv::exec::KernelOp kernel, llvm::StringRef familyID,
+    llvm::ArrayRef<RuntimeABIParameter> parameters,
+    llvm::StringRef sourceOwner, llvm::StringRef callableSymbol,
+    llvm::StringRef runtimeABIKind, llvm::StringRef runtimeABIName,
+    llvm::StringRef runtimeGlueRole,
+    llvm::StringRef runtimeElementCountCName,
+    llvm::StringRef productionOwner,
+    llvm::StringRef dispatchGuardCName = llvm::StringRef());
+
+std::string formatRuntimeABIInvocationContractCommentBody(
+    llvm::StringRef label, const RuntimeABIInvocationContract &contract);
+```
+
+The current labels are `runtime_abi_invocation_contract` for direct generated
+RVV/scalar callable artifacts and
+`dispatch_runtime_abi_invocation_contract` for RVV+scalar dispatcher artifacts.
+
+#### 3. Contracts
+
+- `sourceOwner`, `callableSymbol`, `runtimeABIKind`, `runtimeABIName`,
+  `runtimeElementCountCName`, and `productionOwner` are required bounded
+  single-line fields.
+- `runtimeGlueRole` is required for direct callable artifacts that have a
+  plugin-owned runtime glue role; dispatch contracts may leave it empty.
+- `parameters` are ordered ABI parameters from the IR-backed callable or
+  dispatch ABI plan.
+- `runtimeElementCountCName` must match the unique ordered parameter whose
+  role is `runtime-element-count`.
+- When `dispatchGuardCName` is present, it must match the unique ordered
+  parameter whose role is `dispatch-availability-guard`.
+- When `dispatchGuardCName` is absent, a direct callable invocation contract
+  must not carry a dispatch-availability-guard parameter.
+- The formatter is presentation only. It must not recover family, dtype,
+  intrinsic, runtime length, selected config, or source identity from
+  descriptor strings.
+
+#### 4. Validation & Error Matrix
+
+- Empty ordered parameter list -> fail before artifact contract emission.
+- Missing or duplicate runtime element-count role -> fail before artifact
+  contract emission.
+- `runtimeElementCountCName` stale against the ordered runtime element-count
+  parameter -> fail before artifact contract emission.
+- Dispatch contract with missing or duplicate dispatch guard role -> fail
+  before dispatcher artifact emission.
+- Dispatch contract with stale `dispatchGuardCName` -> fail before dispatcher
+  artifact emission.
+- Direct callable contract that carries a dispatch guard parameter -> fail
+  before direct callable artifact emission.
+- Empty, multiline, or unbounded required text field -> fail before artifact
+  contract emission.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: RVVMicrokernel builds the invocation contract from the selected
+  callable ABI plan and prints the direct
+  `runtime_abi_invocation_contract` with ordered roles
+  `lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count`.
+- Good: RVVScalarDispatch builds the dispatcher invocation contract from the
+  dispatch ABI plan and prints the dispatch guard C name from the same
+  IR-backed runtime param consumed by the generated dispatcher call.
+- Base: evidence scripts parse the generated comments and record them as
+  evidence only.
+- Bad: target code hand-formats an invocation contract from route file names,
+  descriptor element counts, or detached metadata without validating the
+  ordered RuntimeABI plan.
+
+#### 6. Tests Required
+
+- C++ support tests must cover direct callable and dispatch invocation contract
+  construction and formatting.
+- C++ support tests must cover stale runtime element-count C names, direct
+  contracts with dispatch guards, missing dispatch guards, and stale dispatch
+  guard C names.
+- Lit/FileCheck tests for RVVMicrokernel and RVVScalarDispatch must continue
+  checking generated source/header comments and generated callable calls.
+- E2E runner tests may parse generated contracts, but must not implement
+  compiler-side RuntimeABI planning.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```cpp
+os << "runtime_abi_invocation_contract: callable_symbol=" << name
+   << ", ordered_roles=lhs-input-buffer->rhs-input-buffer";
+```
+
+Correct:
+
+```cpp
+auto contract = buildRuntimeABIInvocationContract(
+    kernel, familyID, abiPlan.parameters, "RVVMicrokernel.cpp", name,
+    runtimeABIKind, runtimeABIName, runtimeGlueRole, runtimeCountCName,
+    "rvv-target-export");
+os << formatRuntimeABIInvocationContractCommentBody(
+    "runtime_abi_invocation_contract", *contract);
+```
+
 ## Target-Layer RVV Binary Runtime ABI Contract
 
 The selected RVV binary microkernel route has a target-owned runtime ABI

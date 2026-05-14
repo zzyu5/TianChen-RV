@@ -10,6 +10,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
+#include <string>
+
 namespace tianchenrv::support {
 
 struct FiniteBinaryCallableABIPlan {
@@ -19,6 +21,34 @@ struct FiniteBinaryCallableABIPlan {
 };
 
 using I32BinaryCallableABIPlan = FiniteBinaryCallableABIPlan;
+
+struct RuntimeABIInvocationContract {
+  std::string sourceOwner;
+  std::string callableSymbol;
+  std::string runtimeABIKind;
+  std::string runtimeABIName;
+  std::string runtimeGlueRole;
+  llvm::SmallVector<RuntimeABIParameter, 5> parameters;
+  std::string runtimeElementCountCName;
+  std::string dispatchGuardCName;
+  std::string productionOwner;
+};
+
+std::string
+formatRuntimeABIOrderedRoles(llvm::ArrayRef<RuntimeABIParameter> parameters);
+
+std::string formatRuntimeABIInvocationContractCommentBody(
+    llvm::StringRef label, const RuntimeABIInvocationContract &contract);
+
+llvm::Expected<RuntimeABIInvocationContract>
+buildRuntimeABIInvocationContract(
+    tcrv::exec::KernelOp kernel, llvm::StringRef familyID,
+    llvm::ArrayRef<RuntimeABIParameter> parameters,
+    llvm::StringRef sourceOwner, llvm::StringRef callableSymbol,
+    llvm::StringRef runtimeABIKind, llvm::StringRef runtimeABIName,
+    llvm::StringRef runtimeGlueRole, llvm::StringRef runtimeElementCountCName,
+    llvm::StringRef productionOwner,
+    llvm::StringRef dispatchGuardCName = llvm::StringRef());
 
 // Bounded bridge for the current finite binary callable ABI. It is not a
 // general ABI subsystem.
