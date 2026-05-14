@@ -152,9 +152,9 @@ Rules:
 - for supported `runtime-callable-c-source` paths, carry structured
   `runtime_abi_parameters` metadata for every exported C ABI parameter. Each
   entry records the C parameter name, C type spelling, semantic role, and
-  ownership (`ir-modeled` or `target-export-abi-owned`). For the bounded
-  i32 binary RVV/scalar callable source routes, these entries must be derived
-  from and validated against direct `tcrv.exec.mem_window` /
+  ownership (`ir-modeled` or `target-export-abi-owned`). For any future rebuilt
+  binary RVV/scalar callable source route, these entries must be derived from
+  and validated against direct `tcrv.exec.mem_window` /
   `tcrv.exec.runtime_param` IR boundaries rather than acting as an independent
   parameter truth source. Add/sub/mul ABI identity fields must be derived from
   the selected finite binary runtime ABI contract keyed by selected family id;
@@ -612,70 +612,29 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   its target-support `ExtensionBundle` contribution.
 - The current non-plugin single-candidate route set is empty after direct
   smoke-probe source exporter deletion.
-- The current plugin-owned single-candidate route set includes:
-  - RVV selected binary microkernel runtime-callable C source routes for the
-    finite add/sub/mul i32/i64 families, registered by the `rvv-plugin`
-    target-exporter bundle and emitted by RVV target/export code.
-  - Scalar selected fallback microkernel runtime-callable C source routes for
-    the finite add/sub/mul i32/i64 families, registered by the `scalar-plugin`
-    target-exporter bundle and emitted by scalar target/export code.
-  - Toy metadata diagnostic artifact route, registered by the `toy-plugin`
-    target-exporter bundle and emitted by Toy target/export code.
-- The current plugin-owned single-candidate composite route set includes:
-  - RVV selected binary microkernel runtime-callable C header routes, matched
-    from the same selected callable source candidates and emitted by RVV
-    target/export code as external caller ABI surfaces with artifact kind
-    `runtime-callable-c-header`. Registration must include route-local
-    candidate preflight that validates the matched RVV callable source
-    candidate against the RVV direct callable runtime ABI role contract before
-    header output.
-  - RVV selected binary microkernel runtime-callable RISC-V ELF relocatable
-    library object routes, matched from the same selected callable source
-    candidates and emitted by RVV target/export code without a hidden
-    self-check harness or `main`. Registration must include the same
-    route-local candidate preflight before object compilation.
-- The current plugin-owned single-candidate composite route set also includes:
-  - Scalar selected fallback microkernel runtime-callable C header routes for
-    the finite add/sub/mul i32/i64 families, matched from the same selected
-    scalar callable source candidate and emitted by scalar target/export code.
-    The legacy i32-vadd header route remains
-    `tcrv-export-scalar-microkernel-header`; non-add routes use
-    `tcrv-export-scalar-<family>-microkernel-header`.
-  - Scalar selected fallback microkernel runtime-callable RISC-V ELF
-    relocatable object routes for the same finite families, matched from the
-    same selected scalar callable source candidate and emitted by scalar
-    target/export code. The legacy i32-vadd object route remains
-    `tcrv-export-scalar-microkernel-object`; non-add routes use
-    `tcrv-export-scalar-<family>-microkernel-object`.
-  - Scalar header/object matching must be family-specific: a selected
-    `i32-vadd` scalar source candidate must not satisfy the `i32-vmul` or i64
-    scalar header/object helper routes, and stale ABI family metadata must fail
-    before output.
-- The current plugin-owned multi-candidate composite route set includes:
-  - RVV+scalar explicit finite binary host dispatch runtime-callable C source,
-    matched by target-owned RVV+scalar dispatch exporter code from the selected
-    RVV dispatch-case callable route and scalar dispatch-fallback callable
-    route. These RVV-primary routes are registered by the `rvv-plugin`
-    target-exporter bundle and require an enabled `scalar-plugin`; disabled or
-    missing RVV/scalar plugins must not publish the dispatch route group.
-    Registration must preflight both callable component candidates against
-    their direct route ABI role contracts before deriving the dispatcher ABI.
-  - RVV+scalar explicit finite binary host dispatch runtime-callable RISC-V
-    ELF relocatable library object, matched from the same selected callable
-    candidates and emitted by the target-owned RVV+scalar dispatch exporter
-    code without a hidden self-check harness or `main`. Its registration must
-    include the same callable component candidate preflight.
-  - RVV+scalar explicit finite binary host dispatch runtime-callable C header,
-    matched from the same selected callable candidates and emitted by the
-    target-owned RVV+scalar dispatch exporter code as an external caller ABI
-    surface with artifact kind `runtime-callable-c-header`. Its registration
-    must include the same callable component candidate preflight.
+- The current plugin-owned executable runtime-callable C route set is empty
+  after direct C semantic exporter deletion. RVV selected microkernel
+  source/header/object routes, scalar selected fallback source/header/object
+  routes, and RVV+scalar dispatch source/header/object routes must not be
+  registered as supported target artifact routes.
+- The scalar plugin may still contribute its extension bundle so selected
+  scalar fallback boundaries, dialect ownership, and metadata-only emission
+  planning remain visible, but its target-artifact exporter bundle must not
+  publish `tcrv-export-scalar-*` source/header/object routes or
+  `scalar-*-runtime-callable-c-abi.v1` identities as executable artifact
+  authority.
+- The current plugin-owned supported target artifact routes are metadata-only
+  diagnostic routes, such as Toy, Template, and TensorExtLite metadata
+  artifacts. They must carry explicit non-executable metadata route ids and
+  route-local candidate preflight; they are not scalar/RVV/dispatch executable
+  source, header, object, or bundle routes.
 - The helper may include scalar/offload/Toy/template target headers for
   current legacy bundle composition, but target-support-enabled extensions must
-  activate their route contribution through the plugin/manifest hook. In
-  particular, central built-in code must not include the RVV target-support
-  bundle header, directly call the RVV target-support helper, or iterate RVV
-  direct/RVV+scalar dispatch manifests as central route truth.
+  activate any non-deleted route contribution through the plugin/manifest hook.
+  In particular, central built-in code must not include the RVV target-support
+  bundle header, directly call the RVV target-support helper, iterate RVV
+  direct/RVV+scalar dispatch manifests as central route truth, or keep scalar
+  route strings as compatibility authority.
 - Generic public translate helpers should call this helper once and then call
   `exportTargetSourceArtifact`, `exportTargetArtifact`, or
   `exportTargetHeaderArtifact`.
@@ -689,22 +648,15 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   can contribute their plugin-owned target artifact exporters through the
   generic boundary. A plugin-owned exporter bundle may additionally declare
   required enabled extension plugins for composite routes whose selected-plan
-  contract spans more than one plugin-owned component. This applies to real
-  target-owned RVV selected binary microkernel source/header/object exporters,
-  scalar fallback source/header/object exporters, RVV+scalar dispatch
-  source/header/object composite exporters, and metadata-only Toy exporters. A
-  single extension plugin may contribute more than one bundle when route groups
-  have different dependency requirements, such as scalar standalone routes and
-  RVV-dependent RVV+scalar dispatch routes. Disabled or missing plugins must
-  not silently publish their plugin-owned target routes. Later selected-plan
-  export then fails closed as an unknown or unavailable route/origin instead of
-  falling back to a central extension-specific exporter branch.
-  For the finite RVV binary route set, the RVV extension plugin manifest hook
-  must declare the target-support bundle contribution that delegates RVV direct
-  microkernel route metadata and RVV+scalar dispatch route metadata to RVV
-  target-support bundle code. Central built-in composition may perform generic
-  built-in plugin registration/linkage, but it must not know which
-  RVV-specific target-support helper to call.
+  contract spans more than one plugin-owned component. Current supported
+  contributions are metadata-only diagnostic exporters; deleted RVV, scalar,
+  and dispatch direct C exporters must contribute no route authority. Disabled
+  or missing plugins must not silently publish their plugin-owned target routes.
+  Later selected-plan export then fails closed as an unknown or unavailable
+  route/origin instead of falling back to a central extension-specific exporter
+  branch. Central built-in composition may perform generic built-in plugin
+  registration/linkage, but it must not know which RVV-specific or
+  scalar-specific target-support helper to call.
 
 #### 4. Validation & Error Matrix
 
@@ -724,23 +676,16 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 
 #### 5. Good/Base/Bad Cases
 
-- Good: `tcrv-translate --tcrv-export-target-artifact` selects the non-source
-  RVV+scalar dispatch runtime-callable library object composite route when the
-  selected plan has both supported callable sides and local RVV object
-  compilation support.
-- Good: `tcrv-translate --tcrv-export-target-header-artifact` selects the
-  direct RVV selected binary microkernel runtime-callable C header route from
-  the same selected callable source candidate after enabled `rvv-plugin`
-  exporter-bundle registration, without changing source-only or default object
-  artifact selection.
-- Good: `tcrv-translate --tcrv-export-target-header-artifact` selects the
-  RVV+scalar dispatch runtime-callable C header composite route from the same
-  selected callable sides without changing the source or object front-door
-  selection result.
-- Base: `tcrv-translate --tcrv-export-target-source-artifact` uses the same
-  built-in registry but filters to a legal RVV runtime-callable C source,
-  scalar runtime-callable C source route, or target-owned RVV+scalar dispatch
-  composite source route when the selected plan contains both callable sides.
+- Good: `tcrv-translate --tcrv-export-target-artifact` may select a supported
+  metadata-only diagnostic route when the selected plugin path advertises one
+  through the manifest-owned target exporter bundle.
+- Good: `tcrv-translate --tcrv-export-target-source-artifact`,
+  `--tcrv-export-target-header-artifact`, and the generic object front door fail
+  closed for deleted RVV/scalar/dispatch direct C routes and emit no source,
+  header, object, or bundle bytes.
+- Base: historical `tcrv-export-scalar-*`, RVV direct microkernel, and
+  RVV+scalar dispatch route strings may appear only as negative deleted-route
+  coverage or absence checks, never as supported artifact selection.
 - Bad: each generic translate helper manually repeats
   `registerRVVMicrokernelTargetExporters`,
   `registerScalarMicrokernelTargetExporters`, and similar target-owned route
@@ -753,14 +698,14 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 #### 6. Tests Required
 
 - C++ registry tests must prove the built-in helper registers all current
-  route ids with deterministic generic metadata and rejects duplicate
-  registration.
-- lit/FileCheck route tests must continue to cover RVV source export, scalar
-  source export, direct RVV microkernel header export through the generic
-  header front door, RVV+scalar composite dispatch source export, RVV+scalar
-  composite dispatch object export when local RVV object compilation is
-  available, Offload selected-path unsupported artifact rejection, and
-  RVV/scalar/offload route spoofing failures.
+  metadata-only route ids with deterministic generic metadata, rejects
+  duplicate registration, and does not expose deleted RVV/scalar/dispatch
+  direct C route ids or composite routes.
+- lit/FileCheck route tests must continue to cover generic front-door
+  fail-closed behavior for deleted RVV/scalar/dispatch direct C routes, Offload
+  selected-path unsupported artifact rejection, metadata-only positive routes,
+  and RVV/scalar/offload route spoofing failures that produce no executable
+  artifact.
 - CMake checks must include the built-in Target support library in the tool and
   C++ test link graph.
 

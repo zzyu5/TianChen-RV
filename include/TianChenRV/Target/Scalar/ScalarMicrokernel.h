@@ -14,19 +14,10 @@ class TargetArtifactExporterRegistry;
 class PluginTargetArtifactExporterRegistry;
 } // namespace tianchenrv::target
 
-namespace tianchenrv::target::rvv_scalar {
-struct ScalarBinaryMicrokernelRecord;
-} // namespace tianchenrv::target::rvv_scalar
-
 namespace tianchenrv::target::scalar {
 
 llvm::Error exportScalarMicrokernelC(mlir::ModuleOp module,
                                      llvm::raw_ostream &os);
-
-llvm::Error validateScalarMicrokernelSourceAuthority(
-    mlir::ModuleOp module,
-    const rvv_scalar::ScalarBinaryMicrokernelRecord &family,
-    llvm::StringRef selectedVariant, llvm::StringRef role);
 
 llvm::Error exportScalarMicrokernelHeader(mlir::ModuleOp module,
                                           llvm::raw_ostream &os);

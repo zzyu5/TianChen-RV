@@ -210,21 +210,20 @@ module {
       status = "metadata-only"
     }
     tcrv.exec.diagnostic {
-      artifact_kind = "runtime-callable-c-source",
-      emission_kind = "scalar-explicit-i32-vadd-microkernel-c-source",
+      artifact_kind = "metadata-diagnostic",
+      emission_kind = "portable-scalar-fallback-metadata-route",
       lowering_boundary = "tcrv_scalar.lowering_boundary",
-      lowering_pipeline = "tcrv-export-scalar-microkernel-c",
-      message = "spoofed scalar source route",
+      lowering_pipeline = "none-executable-metadata-only",
+      message = "spoofed scalar metadata route",
       origin = "rvv-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",
       required_capabilities = [@scalar_fallback],
       role = "direct variant",
-      runtime_abi = "scalar-i32-vadd-runtime-callable-c-abi.v1",
-      runtime_abi_kind = "scalar-runtime-callable-c-abi",
-      runtime_abi_name = "scalar-i32-vadd-runtime-callable-c-function.v1",
-      runtime_abi_parameters = [{c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"}, {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"}, {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"}, {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}],
-      runtime_glue_role = "runtime-callable-i32-vadd-fallback-function",
+      runtime_abi = "none-metadata-only",
+      runtime_abi_kind = "host-scalar-fallback-metadata",
+      runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1",
+      runtime_glue_role = "metadata-only-host-fallback-boundary",
       status = "supported",
       target = @scalar_fallback_first_slice
     }

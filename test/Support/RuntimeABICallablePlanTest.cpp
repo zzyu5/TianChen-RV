@@ -413,18 +413,14 @@ int runI32BinaryFamilyContractCoverageTest() {
   struct ExpectedI32Contract {
     llvm::StringRef familyID;
     llvm::StringRef rvvRuntimeABIName;
-    llvm::StringRef scalarRuntimeABIName;
     llvm::StringRef dispatchRuntimeABIName;
   };
   const ExpectedI32Contract families[] = {
       {"i32-vadd", "rvv-i32-vadd-runtime-callable-c-function.v1",
-       "scalar-i32-vadd-runtime-callable-c-function.v1",
        "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"},
       {"i32-vsub", "rvv-i32-vsub-runtime-callable-c-function.v1",
-       "scalar-i32-vsub-runtime-callable-c-function.v1",
        "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1"},
       {"i32-vmul", "rvv-i32-vmul-runtime-callable-c-function.v1",
-       "scalar-i32-vmul-runtime-callable-c-function.v1",
        "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1"},
   };
   llvm::ArrayRef<RuntimeABIParameter> baselineParameters =
@@ -452,11 +448,6 @@ int runI32BinaryFamilyContractCoverageTest() {
             contract.getRVVCallableIdentity().runtimeABIName ==
                 family.rvvRuntimeABIName,
             "RVV callable ABI identity comes from selected family id"))
-      return result;
-    if (int result = expect(
-            contract.getScalarCallableIdentity().runtimeABIName ==
-                family.scalarRuntimeABIName,
-            "scalar callable ABI identity comes from selected family id"))
       return result;
     if (int result =
             expect(contract.getDispatchIdentity().runtimeABIName ==

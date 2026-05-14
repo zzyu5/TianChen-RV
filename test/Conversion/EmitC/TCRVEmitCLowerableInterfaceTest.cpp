@@ -81,7 +81,7 @@ public:
     using tianchenrv::support::RuntimeABIParameterRole;
 
     TCRVEmitCLowerableRoute route(
-        "tcrv-export-rvv-microkernel-c",
+        "test-emitc-rvv-microkernel-route",
         "extension-family-ops-to-emitc-call-opaque");
     route.addHeader("stddef.h");
     route.addHeader("stdint.h");
@@ -228,7 +228,7 @@ makeMinimalMaterializerRoute(llvm::StringRef arithmeticSourceOp,
                              llvm::StringRef sourceOpInterface =
                                  kEmitCLowerableOpInterfaceName) {
   TCRVEmitCLowerableRoute route(
-      "tcrv-export-rvv-microkernel-c",
+      "test-emitc-rvv-family-op-route",
       "extension-family-ops-to-emitc-call-opaque");
   route.addHeader("riscv_vector.h");
   route.addTypeMapping("!tcrv_rvv.vl", "size_t");
@@ -289,7 +289,7 @@ TCRVEmitCLowerableRoute
 makeScalarElementLoopRoute(bool includeRuntimeElementCount = true,
                            bool includeInterfaceProvenance = true) {
   TCRVEmitCLowerableRoute route(
-      "tcrv-export-scalar-microkernel-c",
+      "test-emitc-scalar-element-loop-route",
       "typed-scalar-family-op-to-emitc-call-opaque");
   route.addHeader("stddef.h");
   route.addHeader("stdint.h");
@@ -325,7 +325,7 @@ makeDispatchControlRoute(bool includeDispatchGuard = true,
   using tianchenrv::support::RuntimeABIParameterRole;
 
   TCRVEmitCLowerableRoute route(
-      "tcrv-export-rvv-scalar-i32-vadd-dispatch-c",
+      "test-emitc-rvv-scalar-dispatch-control-route",
       "tcrv-exec-dispatch-control-to-emitc-call-opaque");
   route.addHeader("stddef.h");
   route.addHeader("stdint.h");

@@ -15,29 +15,20 @@
 
 namespace tianchenrv::target::rvv_scalar {
 
-// Scalar route registration/compatibility metadata derived from the finite RVV
-// family table. Production scalar artifacts must establish typed selected-plan
-// authority before consulting this metadata.
+// Scalar typed-family metadata derived from the finite RVV family table. This
+// surface deliberately does not own target artifact route ids, direct C
+// artifact kinds, runtime ABI identities, or runtime glue roles.
 struct ScalarBinaryMicrokernelRecord {
   const rvv::RVVBinaryFamilyRecord *rvvFamily = nullptr;
   std::string microkernelOpName;
   std::string operationNoun;
   std::string functionStem;
   std::string headerGuardStem;
-  std::string descriptor;
-  std::string emissionKind;
-  std::string routeID;
-  std::string headerRouteID;
-  std::string objectRouteID;
-  std::string runtimeABI;
-  std::string runtimeABIKind;
-  std::string runtimeABIName;
-  std::string runtimeGlueRole;
 };
 
-// RVV+scalar dispatch route registration/compatibility metadata. Dispatch
-// source, ABI, component group, and external ABI identity are derived from
-// selected component plans before this metadata may be used for route checks.
+// RVV+scalar dispatch family metadata. Dispatch source, ABI, component group,
+// and external ABI identity are derived from selected component plans before
+// this metadata may be used for dispatch checks.
 struct RVVScalarDispatchFamilyRecord {
   const rvv::RVVBinaryFamilyRecord *rvvFamily = nullptr;
   std::string diagnosticName;
@@ -118,7 +109,7 @@ inline llvm::StringRef getScalarRuntimeControlNameMetadataRole() {
 
 inline llvm::StringRef getScalarRuntimeControlNameMetadataNote() {
   return "runtime ABI/control C name resolved from tcrv.exec runtime boundary "
-         "for the scalar callable source route; not artifact-local component "
+         "for the scalar runtime handoff; not artifact-local component "
          "capacity, a tensor shape, or hardware evidence";
 }
 
@@ -133,61 +124,6 @@ inline std::string makeRegistrationOperationNoun(
     const rvv::RVVBinaryFamilyRecord &family) {
   return (llvm::Twine(family.dtypeID) + " vector-" +
           family.arithmeticVerb)
-      .str();
-}
-
-inline std::string makeScalarRegistrationEmissionKind(
-    const rvv::RVVBinaryFamilyRecord &family) {
-  return (llvm::Twine("scalar-explicit-") + family.familyID +
-          "-microkernel-c-source")
-      .str();
-}
-
-inline std::string makeScalarCompatibilityRouteID(
-    const rvv::RVVBinaryFamilyRecord &family) {
-  if (family.familyID == "i32-vadd")
-    return "tcrv-export-scalar-microkernel-c";
-  return (llvm::Twine("tcrv-export-scalar-") + family.familyID +
-          "-microkernel-c")
-      .str();
-}
-
-inline std::string makeScalarCompatibilityHeaderRouteID(
-    const rvv::RVVBinaryFamilyRecord &family) {
-  if (family.familyID == "i32-vadd")
-    return "tcrv-export-scalar-microkernel-header";
-  return (llvm::Twine("tcrv-export-scalar-") + family.familyID +
-          "-microkernel-header")
-      .str();
-}
-
-inline std::string makeScalarCompatibilityObjectRouteID(
-    const rvv::RVVBinaryFamilyRecord &family) {
-  if (family.familyID == "i32-vadd")
-    return "tcrv-export-scalar-microkernel-object";
-  return (llvm::Twine("tcrv-export-scalar-") + family.familyID +
-          "-microkernel-object")
-      .str();
-}
-
-inline std::string makeScalarCompatibilityRuntimeABI(
-    const rvv::RVVBinaryFamilyRecord &family) {
-  return (llvm::Twine("scalar-") + family.familyID +
-          "-runtime-callable-c-abi.v1")
-      .str();
-}
-
-inline std::string makeScalarCompatibilityRuntimeABIName(
-    const rvv::RVVBinaryFamilyRecord &family) {
-  return (llvm::Twine("scalar-") + family.familyID +
-          "-runtime-callable-c-function.v1")
-      .str();
-}
-
-inline std::string makeScalarCompatibilityRuntimeGlueRole(
-    const rvv::RVVBinaryFamilyRecord &family) {
-  return (llvm::Twine("runtime-callable-") + family.familyID +
-          "-fallback-function")
       .str();
 }
 
@@ -210,15 +146,6 @@ inline RVVScalarBinaryFamilyRecord makeFamilyRegistrationRecord(
   descriptor.scalar.operationNoun = makeRegistrationOperationNoun(family);
   descriptor.scalar.functionStem = family.functionStem.str();
   descriptor.scalar.headerGuardStem = family.headerGuardStem.str();
-  descriptor.scalar.descriptor = family.frontendLowering.str();
-  descriptor.scalar.emissionKind = makeScalarRegistrationEmissionKind(family);
-  descriptor.scalar.routeID = makeScalarCompatibilityRouteID(family);
-  descriptor.scalar.headerRouteID = makeScalarCompatibilityHeaderRouteID(family);
-  descriptor.scalar.objectRouteID = makeScalarCompatibilityObjectRouteID(family);
-  descriptor.scalar.runtimeABI = makeScalarCompatibilityRuntimeABI(family);
-  descriptor.scalar.runtimeABIKind = "scalar-runtime-callable-c-abi";
-  descriptor.scalar.runtimeABIName = makeScalarCompatibilityRuntimeABIName(family);
-  descriptor.scalar.runtimeGlueRole = makeScalarCompatibilityRuntimeGlueRole(family);
 
   descriptor.dispatch.rvvFamily = &family;
   descriptor.dispatch.diagnosticName = family.familyID.str();
@@ -326,16 +253,6 @@ lookupRVVScalarBinaryRegistrationByFrontendLowering(
   for (const RVVScalarBinaryFamilyRecord *descriptor :
        getRVVScalarBinaryRegistrationRecords())
     if (descriptor->frontendLowering == frontendLowering)
-      return descriptor;
-  return nullptr;
-}
-
-inline const RVVScalarBinaryFamilyRecord *
-lookupRVVScalarBinaryRegistrationByScalarRouteID(llvm::StringRef routeID) {
-  routeID = routeID.trim();
-  for (const RVVScalarBinaryFamilyRecord *descriptor :
-       getRVVScalarBinaryRegistrationRecords())
-    if (descriptor->scalar.routeID == routeID)
       return descriptor;
   return nullptr;
 }

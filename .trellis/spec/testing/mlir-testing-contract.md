@@ -142,12 +142,11 @@ Use lit/FileCheck for:
   capability refs, unsupported RVV metadata boundaries, scalar metadata-only
   fallback routes, and malformed plugin-returned metadata rejection.
 - target/export emission handoff manifests, including public tool coverage,
-  deterministic symbol/path ordering, scalar fallback supported C source routes
-  when the finite descriptor materializes a matching
-  `tcrv_scalar.i32_vadd_microkernel`, unsupported/deferred RVV emission
-  metadata, pipeline-to-export coverage, and negative tests proving invalid
-  selected surfaces or malformed runtime ABI ownership metadata produce no
-  manifest.
+  deterministic symbol/path ordering, scalar fallback deleted-route
+  diagnostics when legacy finite microkernel metadata is present,
+  unsupported/deferred RVV emission metadata, pipeline-to-export coverage, and
+  negative tests proving invalid selected surfaces or malformed runtime ABI
+  ownership metadata produce no manifest.
 - deleted RVV smoke-probe C target export coverage, proving
   `--tcrv-export-rvv-smoke-probe-c` is absent or fail-closed, built-in target
   artifact exporters do not publish the smoke route, historical smoke
@@ -187,37 +186,27 @@ Use lit/FileCheck for:
   multiple supported artifacts, and scalar/offload paths not being routed
   through the RVV exporter.
 - target artifact bundle export routing, including an explicit output-directory
-  front door, deterministic source/header/object file names derived from
-  registry artifact route metadata, direct RVV microkernel bundle coverage,
-  RVV+scalar dispatch composite bundle coverage that preserves dispatch route
-  identity, a deterministic bundle index recording file name, artifact kind,
-  route, owner, runtime ABI kind/name, component selected paths, and
-  conservative evidence role, preservation of existing single-artifact
-  source/header/object front doors, explicit dispatch external ABI component
-  metadata (`component_group`, `component_role`, and `external_abi_name`) for
-  RVV+scalar source/header/object bundle records, explicit ordered
-  `runtime_abi_parameter[index]` signature metadata for the dispatch external
-  ABI boundary, generic rejection of incoherent grouped bundle records such as
-  missing source/header/object roles, duplicate component roles, missing
-  external ABI identity, missing runtime ABI signature, duplicate parameter
-  roles, mismatched runtime ABI parameter name/type/ownership, mismatched
-  parameter order, mismatched runtime ABI metadata, or mismatched selected
-  component paths, fail-closed diagnostics for missing or invalid output
-  directories, and fail-closed behavior for unsupported or metadata-only
-  selected paths without a fake complete bundle.
+  front door, deterministic metadata-only file names derived from registry
+  artifact route metadata, deterministic bundle index fields for any current
+  metadata-only route, preservation of existing single-artifact front doors,
+  generic rejection of incoherent grouped bundle records such as missing
+  component roles, missing external ABI identity, missing runtime ABI
+  signature, duplicate parameter roles, mismatched runtime ABI parameter
+  name/type/ownership, mismatched parameter order, mismatched runtime ABI
+  metadata, or mismatched selected component paths, fail-closed diagnostics for
+  missing or invalid output directories, and fail-closed behavior for deleted
+  RVV/scalar/dispatch source/header/object routes or metadata-only selected
+  paths without a fake complete executable bundle.
   Bundle tests must not commit generated binary artifacts or treat object
   creation as link, runtime, correctness, or performance evidence.
 - plan-and-export target artifact bundle front-door coverage through
   `tcrv-translate`, including an input fixture that contains only kernel and
   capability anchors rather than hand-authored selected-path diagnostics,
-  lowering-boundary metadata, or emission-plan diagnostics; successful
-  RVV+scalar dispatch bundle index checks for selected dispatch surface,
-  component_group/component_role/external_abi_name metadata, and ordered
-  runtime_abi_parameter signature fields plus bounded selected-plan metadata
-  self-description when RVV capacity facts are present; and a focused
-  fail-closed negative case proving planning failure does not print bundle
-  completion or emit a complete bundle index. The front door must not first
-  lower marked linalg/vector source into the exec ABI boundary.
+  lowering-boundary metadata, or emission-plan diagnostics; fail-closed
+  deleted-route coverage for RVV/scalar/dispatch executable bundles; and a
+  focused fail-closed negative case proving planning failure does not print
+  bundle completion or emit a complete executable bundle index. The front door
+  must not first lower marked linalg/vector source into the exec ABI boundary.
 - deleted core RVV source-to-exec pass coverage, proving the removed
   `--tcrv-lower-source-rvv-binary-to-exec`,
   `--tcrv-lower-linalg-rvv-binary-to-exec`,
@@ -239,12 +228,11 @@ Use lit/FileCheck for:
   route/origin mismatch, missing runtime ABI ownership metadata, stale or
   mismatched selected RVV capacity
   metadata, unregistered origins, and ambiguous supported artifact candidates.
-  Runtime ABI role-contract coverage must include the generic target-artifact
-  front-door preflight for direct scalar/RVV callable source routes and the
-  route-local composite preflight callbacks for scalar header/object helpers,
-  RVV header/object helpers, and RVV+scalar dispatch source/header/object
-  helpers; malformed component callable ABI role/type/name/ownership metadata
-  must fail before artifact or bundle output.
+  Runtime ABI role-contract coverage must include absence/fail-closed checks
+  for deleted direct scalar/RVV callable source routes and deleted
+  scalar/RVV/dispatch header/object helpers. Any remaining metadata-only
+  route preflight must reject malformed runtime ABI role/type/name/ownership
+  metadata before artifact output.
 - scalar explicit microkernel runtime-callable C target export is currently
   deletion-campaign fail-closed. Tests may still cover dialect parse/verify,
   selected scalar fallback, and matching `tcrv_scalar.lowering_boundary`

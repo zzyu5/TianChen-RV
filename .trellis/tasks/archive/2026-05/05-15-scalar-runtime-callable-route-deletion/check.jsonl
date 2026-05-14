@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants for verification."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check deleted scalar direct C route behavior against target/export contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check stale positive direct-C tests and negative-route evidence."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Check scalar fallback metadata-only and deleted-route boundaries."}

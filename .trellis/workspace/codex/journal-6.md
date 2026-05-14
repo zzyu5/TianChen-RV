@@ -985,3 +985,62 @@ plan.
 
 - Next deletion owner should target scalar compatibility route IDs/runtime ABI
   fields and generic direct source fixture strings.
+
+
+## Session 67: Scalar runtime-callable route deletion
+
+**Date**: 2026-05-15
+**Task**: Scalar runtime-callable route deletion
+**Branch**: `main`
+
+### Summary
+
+Deleted scalar direct runtime-callable C route authority. Scalar family
+metadata no longer owns `tcrv-export-scalar-*` source/header/object route IDs
+or scalar standalone runtime-callable ABI strings, scalar target export is
+fail-closed only, and stale scalar direct artifact fixtures were removed.
+
+### Main Changes
+
+- Created Trellis task `05-15-scalar-runtime-callable-route-deletion`.
+- Removed scalar direct route, header route, object route, runtime ABI, runtime
+  ABI kind/name, and runtime glue role fields/builders from
+  `RVVScalarBinaryFamily.h`.
+- Reduced `ScalarMicrokernel.cpp` to deleted-route source/header/object
+  diagnostics and no-op target exporter registration.
+- Removed scalar standalone callable identities from the runtime ABI contract.
+- Rewrote target artifact tests so remaining `tcrv-export-scalar-*` occurrences
+  are negative registry absence/deleted-route checks, not positive authority.
+- Deleted stale scalar direct artifact fixtures and removed old scalar bundle
+  positive checks.
+- Updated lowering-runtime and MLIR testing specs to state that scalar direct
+  source/header/object routes are deleted and future scalar executable output
+  must use a materialized MLIR EmitC module route.
+
+### Git Commits
+
+(Commit pending at journal write time; final round commit contains this entry.)
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target TianChenRVScalarTarget TianChenRVSupport TianChenRVRVVPlugin tianchenrv-target-artifact-export-test tianchenrv-runtime-abi-callable-plan-test -j2`.
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-runtime-abi-callable-plan-test`
+- [OK] `cmake --build build --target tianchenrv-emitc-lowerable-interface-test -j2`
+- [OK] `./build/bin/tianchenrv-emitc-lowerable-interface-test`
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`: 114/114 passed.
+- [OK] Bounded scalar direct route ref-scan: remaining
+  `tcrv-export-scalar-*` occurrences are PRD/spec negative guidance or C++
+  registry absence checks; remaining `rvv-scalar-*` strings are dispatch ABI
+  identities, not scalar standalone route authority.
+- [OK] `git diff --check`
+- [OK] Trellis validation before finish/archive.
+
+### Status
+
+[OK] **Ready to archive and commit**
+
+### Next Steps
+
+- None - task complete

@@ -20,6 +20,3 @@
 
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/../EmissionManifest/emission-manifest-selected.mlir 2>&1 | FileCheck %s --check-prefix=SCALAR-METADATA --implicit-check-not=tcrv_scalar_i32_add
 # SCALAR-METADATA: requires exactly one supported source artifact emission-plan route; found none
-
-# RUN: not tcrv-translate --tcrv-export-target-source-artifact %S/Inputs/missing-scalar-boundary.txt 2>&1 | FileCheck %s --check-prefix=MISSING-SCALAR-BOUNDARY --implicit-check-not=tcrv_scalar_i32_add
-# MISSING-SCALAR-BOUNDARY: selected path @scalar_fallback_first_slice as direct variant requires one materialized plugin lowering boundary before export preflight

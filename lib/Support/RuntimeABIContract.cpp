@@ -96,7 +96,6 @@ FiniteBinaryRuntimeABIContract::FiniteBinaryRuntimeABIContract(
     const FiniteBinaryRuntimeABIContractSpec &spec)
     : familyID(spec.familyID), callableIdentity(spec.callableIdentity),
       rvvCallableIdentity(spec.rvvCallableIdentity),
-      scalarCallableIdentity(spec.scalarCallableIdentity),
       dispatchIdentity(spec.dispatchIdentity),
       externalABIComponentGroup(spec.externalABIComponentGroup) {
   callableParameters.push_back(makeTargetExportABIParameter(
@@ -221,10 +220,6 @@ const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
            "rvv-runtime-callable-c-abi",
            "rvv-i32-vadd-runtime-callable-c-function.v1",
            "runtime-callable-i32-vadd-function"},
-          {"scalar-i32-vadd-runtime-callable-c-abi.v1",
-           "scalar-runtime-callable-c-abi",
-           "scalar-i32-vadd-runtime-callable-c-function.v1",
-           "runtime-callable-i32-vadd-fallback-function"},
           {"rvv-scalar-dispatch-runtime-callable-c-abi",
            "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"},
           "rvv-i32-vadd-microkernel-external-abi.v1"});
@@ -241,10 +236,6 @@ const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
            "rvv-runtime-callable-c-abi",
            "rvv-i32-vsub-runtime-callable-c-function.v1",
            "runtime-callable-i32-vsub-function"},
-          {"scalar-i32-vsub-runtime-callable-c-abi.v1",
-           "scalar-runtime-callable-c-abi",
-           "scalar-i32-vsub-runtime-callable-c-function.v1",
-           "runtime-callable-i32-vsub-fallback-function"},
           {"rvv-scalar-dispatch-runtime-callable-c-abi",
            "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1"},
           "rvv-i32-vsub-microkernel-external-abi.v1"});
@@ -261,10 +252,6 @@ const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
            "rvv-runtime-callable-c-abi",
            "rvv-i32-vmul-runtime-callable-c-function.v1",
            "runtime-callable-i32-vmul-function"},
-          {"scalar-i32-vmul-runtime-callable-c-abi.v1",
-           "scalar-runtime-callable-c-abi",
-           "scalar-i32-vmul-runtime-callable-c-function.v1",
-           "runtime-callable-i32-vmul-fallback-function"},
           {"rvv-scalar-dispatch-runtime-callable-c-abi",
            "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1"},
           "rvv-i32-vmul-microkernel-external-abi.v1"});
