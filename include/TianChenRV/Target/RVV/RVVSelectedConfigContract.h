@@ -410,6 +410,44 @@ public:
     return text;
   }
 
+  std::string formatDispatchContractSelectedVectorConfigMetadataValue() const {
+    std::string text;
+    llvm::raw_string_ostream stream(text);
+    stream << "shape=" << getShapeID() << ",sew=" << getSEWBits()
+           << ",lmul=" << getLMUL()
+           << ",tail_policy=" << getTailPolicy()
+           << ",mask_policy=" << getMaskPolicy()
+           << ",vector_type=" << getVectorType()
+           << ",vector_suffix=" << getVectorSuffix()
+           << ",setvl_suffix=" << getSetVLSuffix();
+    stream.flush();
+    return text;
+  }
+
+  std::string formatDispatchContractRuntimeVLBoundaryMetadataValue() const {
+    std::string text;
+    llvm::raw_string_ostream stream(text);
+    stream << "runtime_element_count_c_name="
+           << getRuntimeElementCountCName()
+           << ",runtime_avl_source=" << getRuntimeAVLSource()
+           << ",runtime_avl_role=" << getRuntimeAVLRole()
+           << ",runtime_vl_source=" << getRuntimeVLSource()
+           << ",runtime_vl_scope=" << getRuntimeVLScope();
+    stream.flush();
+    return text;
+  }
+
+  std::string formatDispatchContractSelectedSourceIdentityMetadataValue(
+      llvm::StringRef sourceKind, llvm::StringRef microkernelOp) const {
+    std::string text;
+    llvm::raw_string_ostream stream(text);
+    stream << "source_kind=" << sourceKind
+           << ",family=" << getFamilyID()
+           << ",microkernel_op=" << microkernelOp;
+    stream.flush();
+    return text;
+  }
+
 private:
   const RVVBinaryFamilyDescriptor *family = nullptr;
   const RVVVectorShapeConfig *shape = nullptr;

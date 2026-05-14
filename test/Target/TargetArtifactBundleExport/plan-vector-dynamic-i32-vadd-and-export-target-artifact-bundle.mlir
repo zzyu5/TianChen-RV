@@ -15,6 +15,18 @@
 // RUN: rm -rf %t.vector.dynamic.missing_source_identity.bundle && mkdir %t.vector.dynamic.missing_source_identity.bundle
 // RUN: tcrv-opt %s --tcrv-lower-vector-rvv-i32-vadd-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text=sys.stdin.read(); pattern=r"name = \"tcrv_rvv\.selected_binary_source_kind\""; text,count=re.subn(pattern, "name = \"tcrv_rvv.stale_selected_binary_source_kind\"", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vector.dynamic.missing_source_identity.bundle 2>&1 | FileCheck %s --check-prefix=MISSING-SOURCE-ID --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
 // RUN: test ! -f %t.vector.dynamic.missing_source_identity.bundle/tianchenrv-target-artifact-bundle.index
+// RUN: rm -rf %t.vector.dynamic.stale_selected_config.bundle && mkdir %t.vector.dynamic.stale_selected_config.bundle
+// RUN: tcrv-opt %s --tcrv-lower-vector-rvv-i32-vadd-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text=sys.stdin.read(); pattern=r"(\{name = \"tcrv_rvv\.selected_vector_lmul\"[^}]*value = )\"m1\""; text,count=re.subn(pattern, lambda m: m.group(1) + "\"m2\"", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vector.dynamic.stale_selected_config.bundle 2>&1 | FileCheck %s --check-prefix=STALE-SELECTED-CONFIG --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
+// RUN: test ! -f %t.vector.dynamic.stale_selected_config.bundle/tianchenrv-target-artifact-bundle.index
+// RUN: rm -rf %t.vector.dynamic.missing_selected_config.bundle && mkdir %t.vector.dynamic.missing_selected_config.bundle
+// RUN: tcrv-opt %s --tcrv-lower-vector-rvv-i32-vadd-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text=sys.stdin.read(); pattern=r"name = \"tcrv_rvv\.selected_vector_lmul\""; text,count=re.subn(pattern, "name = \"tcrv_rvv.stale_selected_vector_lmul\"", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vector.dynamic.missing_selected_config.bundle 2>&1 | FileCheck %s --check-prefix=MISSING-SELECTED-CONFIG --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
+// RUN: test ! -f %t.vector.dynamic.missing_selected_config.bundle/tianchenrv-target-artifact-bundle.index
+// RUN: rm -rf %t.vector.dynamic.stale_runtime_length.bundle && mkdir %t.vector.dynamic.stale_runtime_length.bundle
+// RUN: tcrv-opt %s --tcrv-lower-vector-rvv-i32-vadd-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text=sys.stdin.read(); pattern=r"(\{name = \"tcrv_rvv\.runtime_avl_source\"[^}]*value = )\"runtime-element-count-abi-parameter\""; text,count=re.subn(pattern, lambda m: m.group(1) + "\"descriptor-element-count\"", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vector.dynamic.stale_runtime_length.bundle 2>&1 | FileCheck %s --check-prefix=STALE-RUNTIME-LENGTH --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
+// RUN: test ! -f %t.vector.dynamic.stale_runtime_length.bundle/tianchenrv-target-artifact-bundle.index
+// RUN: rm -rf %t.vector.dynamic.missing_runtime_length.bundle && mkdir %t.vector.dynamic.missing_runtime_length.bundle
+// RUN: tcrv-opt %s --tcrv-lower-vector-rvv-i32-vadd-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text=sys.stdin.read(); pattern=r"name = \"tcrv_rvv\.runtime_vl_source\""; text,count=re.subn(pattern, "name = \"tcrv_rvv.stale_runtime_vl_source\"", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.vector.dynamic.missing_runtime_length.bundle 2>&1 | FileCheck %s --check-prefix=MISSING-RUNTIME-LENGTH --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
+// RUN: test ! -f %t.vector.dynamic.missing_runtime_length.bundle/tianchenrv-target-artifact-bundle.index
 
 module @plan_vector_dynamic_i32_vadd_bundle_input {
   tcrv.exec.capability @no_rvv_policy {
@@ -187,3 +199,7 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 
 // STALE-SOURCE-ID: selected_plan_metadata 'tcrv_rvv.selected_binary_source_kind' selected binary source kind must be 'frontend-lowering'
 // MISSING-SOURCE-ID: requires selected_plan_metadata 'tcrv_rvv.selected_binary_source_kind'
+// STALE-SELECTED-CONFIG: selected_plan_metadata 'tcrv_rvv.selected_vector_lmul' lmul must be 'm1'
+// MISSING-SELECTED-CONFIG: requires selected_plan_metadata 'tcrv_rvv.selected_vector_lmul'
+// STALE-RUNTIME-LENGTH: selected_plan_metadata 'tcrv_rvv.runtime_avl_source' must use value 'runtime-element-count-abi-parameter'
+// MISSING-RUNTIME-LENGTH: requires selected_plan_metadata 'tcrv_rvv.runtime_vl_source'

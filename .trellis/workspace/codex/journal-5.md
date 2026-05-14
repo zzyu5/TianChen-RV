@@ -1154,3 +1154,56 @@ Implemented op-owned RVV selected source identity on materialized microkernel op
 ### Next Steps
 
 - None - task complete
+
+
+## Session 60: RVV selected variant bundle full-state closure
+
+**Date**: 2026-05-14
+**Task**: RVV selected variant bundle full-state closure
+**Branch**: `main`
+
+### Summary
+
+Closed the compiler-produced `vector-dynamic-i32-vadd` selected bundle route
+around full selected RVV state: source identity, selected vector config, and
+runtime AVL/VL authority now flow into RVV+scalar dispatch bundle metadata
+through `RVVBinarySelectedConfigContract`, and the bundle test now fails closed
+on stale or missing selected config/runtime-length metadata.
+
+### Main Changes
+
+- Reconciled the current HEAD mismatch: HEAD is supervisor-resume commit
+  `29a5903`, while the relevant prior RVV owner commit is `4df5aaa`.
+- Added dispatch-bundle metadata formatting helpers to
+  `RVVBinarySelectedConfigContract` for selected vector config, runtime VL
+  boundary, and selected source identity.
+- Rewired RVV+scalar dispatch bundle metadata construction to use those
+  contract helpers instead of local string assembly.
+- Extended the dynamic vector i32-vadd plan-and-export bundle lit test with
+  fail-closed stale/missing selected LMUL and stale/missing runtime AVL/VL
+  metadata mutations.
+- Confirmed no changes under core `tcrv.exec` dialect sources and no new
+  generic RVV semantic branch.
+
+### Checks
+
+- `cmake --build build --target TianChenRVRVVTarget TianChenRVScalarTarget tcrv-translate tcrv-opt -j2`
+- `cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-binary-planning-test tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-rvv-extension-plugin-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `./build/bin/tianchenrv-rvv-binary-planning-test`
+- `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle.mlir`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/TargetArtifactBundleExport`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/RVVMicrokernel Target/RVVScalarDispatch`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/ArtifactExport Transforms/VectorToExec Transforms/LinalgToExec`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target`
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-14-rvv-selected-variant-bundle-full-state-closure`
+
+No `ssh rvv` evidence was run because generated RVV source/object semantics,
+runtime behavior, correctness, and performance claims were not changed.
+
+### Status
+
+[OK] Implementation checks passed; finish/archive and commit pending.

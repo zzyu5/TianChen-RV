@@ -1459,30 +1459,6 @@ deriveRVVScalarDispatchBundleMetadataFromPair(const DispatchPair &pair) {
   metadata.componentGroup = pair.composite.componentGroup;
   metadata.externalABIName = pair.composite.externalABIName;
   const auto &contract = pair.selectedConfig;
-  std::string vectorConfig;
-  {
-    llvm::raw_string_ostream stream(vectorConfig);
-    stream << "shape=" << contract.getShapeID()
-           << ",sew=" << contract.getSEWBits()
-           << ",lmul=" << contract.getLMUL()
-           << ",tail_policy=" << contract.getTailPolicy()
-           << ",mask_policy=" << contract.getMaskPolicy()
-           << ",vector_type=" << contract.getVectorType()
-           << ",vector_suffix=" << contract.getVectorSuffix()
-           << ",setvl_suffix=" << contract.getSetVLSuffix();
-    stream.flush();
-  }
-  std::string runtimeVLBoundary;
-  {
-    llvm::raw_string_ostream stream(runtimeVLBoundary);
-    stream << "runtime_element_count_c_name="
-           << contract.getRuntimeElementCountCName()
-           << ",runtime_avl_source=" << contract.getRuntimeAVLSource()
-           << ",runtime_avl_role=" << contract.getRuntimeAVLRole()
-           << ",runtime_vl_source=" << contract.getRuntimeVLSource()
-           << ",runtime_vl_scope=" << contract.getRuntimeVLScope();
-    stream.flush();
-  }
   metadata.selectedPlanMetadata.push_back(
       {"tcrv_rvv.dispatch_contract_runtime_element_count_c_name",
        contract.getRuntimeElementCountCName().str(),
@@ -1490,11 +1466,13 @@ deriveRVVScalarDispatchBundleMetadataFromPair(const DispatchPair &pair) {
        kDispatchSelectedConfigMetadataNote.str()});
   metadata.selectedPlanMetadata.push_back(
       {"tcrv_rvv.dispatch_contract_selected_vector_config",
-       std::move(vectorConfig), kDispatchSelectedConfigMetadataRole.str(),
+       contract.formatDispatchContractSelectedVectorConfigMetadataValue(),
+       kDispatchSelectedConfigMetadataRole.str(),
        kDispatchSelectedConfigMetadataNote.str()});
   metadata.selectedPlanMetadata.push_back(
       {"tcrv_rvv.dispatch_contract_runtime_vl_boundary",
-       std::move(runtimeVLBoundary), kDispatchSelectedConfigMetadataRole.str(),
+       contract.formatDispatchContractRuntimeVLBoundaryMetadataValue(),
+       kDispatchSelectedConfigMetadataRole.str(),
        kDispatchSelectedConfigMetadataNote.str()});
   metadata.selectedPlanMetadata.push_back(
       {"tcrv_rvv.dispatch_contract_selected_role",
@@ -1517,17 +1495,11 @@ deriveRVVScalarDispatchBundleMetadataFromPair(const DispatchPair &pair) {
           tianchenrv::target::rvv::
               getRVVSelectedBinaryMicrokernelOpMetadataName());
   if (sourceKind && microkernelOp) {
-    std::string sourceIdentity;
-    {
-      llvm::raw_string_ostream stream(sourceIdentity);
-      stream << "source_kind=" << sourceKind->value
-             << ",family=" << contract.getFamilyID()
-             << ",microkernel_op=" << microkernelOp->value;
-      stream.flush();
-    }
     metadata.selectedPlanMetadata.push_back(
         {"tcrv_rvv.dispatch_contract_selected_source_identity",
-         std::move(sourceIdentity), kDispatchSelectedConfigMetadataRole.str(),
+         contract.formatDispatchContractSelectedSourceIdentityMetadataValue(
+             sourceKind->value, microkernelOp->value),
+         kDispatchSelectedConfigMetadataRole.str(),
          kDispatchSelectedConfigMetadataNote.str()});
   }
   return metadata;
