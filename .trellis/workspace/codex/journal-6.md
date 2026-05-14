@@ -433,3 +433,56 @@ Refreshed current-HEAD vmul generated artifact dispatch closure: no production s
 ### Next Steps
 
 - None - task complete
+
+
+## Session 65: RVV selected config profile contract
+
+**Date**: 2026-05-14
+**Task**: RVV selected config profile contract
+**Branch**: `main`
+
+### Summary
+
+Promoted RVV selected config into a plugin-owned profile consumed by selected emission planning, RVVMicrokernel artifact export, TargetArtifactExport validation, and RVVScalarDispatch for existing i32 vadd/vsub/vmul.
+
+### Main Changes
+
+- Created, completed, and archived Trellis task `05-14-rvv-selected-config-profile-contract`.
+- Added `RVVBinarySelectedConfigProfile` metadata for hardware facts, compile-time variant config, and runtime AVL/VL/source-frontdoor dynamic extent roles.
+- Wired the profile into RVV selected emission planning, RVVMicrokernel source/object evidence, TargetArtifactExport route validation, and RVVScalarDispatch bundle metadata validation.
+- Kept descriptor-local `element_count` quarantined as bounded artifact capacity metadata, not selected config or runtime trip-count authority.
+- Added fail-closed coverage for stale descriptor-only profile variant metadata and missing runtime-role profile metadata before artifact/runtime claims.
+- Extended vadd/vsub/vmul lit checks so selected profile metadata reaches the selected boundary, bundle/export route, generated source comments, and dispatch validation.
+
+### Testing
+
+- [OK] Trellis context validation before finish and after archive.
+- [OK] Focused C++/MLIR build for support, target, RVV/scalar target libraries, RVV plugin, transforms, `tcrv-opt`, `tcrv-translate`, RuntimeABI callable-plan test, target artifact export test, and RVV plugin test.
+- [OK] `tianchenrv-runtime-abi-callable-plan-test`.
+- [OK] `tianchenrv-target-artifact-export-test`.
+- [OK] `tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused lit filter: 22 selected tests passed.
+- [OK] `rvv_microkernel_e2e.py --self-test`.
+- [OK] `rvv_scalar_dispatch_e2e.py --self-test`.
+- [OK] Local RVVMicrokernel generated bundle dry-runs for vector/SCF vadd, vsub, and vmul; vmul source SHA256 `710df3874a679c4307e55f558dda38f0d8c9cafe0b29aa6a6a373220ec7cd035`.
+- [OK] Local RVVScalarDispatch generated bundle dry-runs for vector/SCF vadd, vsub, and vmul; vmul source SHA256 `4422aadeda307d8d0251b81ce74e090021cdf6024181c315568407c0a4af5928`.
+- [OK] `ssh rvv` direct RVVMicrokernel generated vmul run: `selected-config-profile-micro-vmul-ssh-rvv`.
+- [OK] `ssh rvv` RVVScalarDispatch generated vmul run: `selected-config-profile-dispatch-vmul-ssh-rvv`, `ssh_evidence_verified=true`.
+- [OK] Artifact inspection confirmed selected profile metadata in generated bundle source/index and dispatch bundle metadata.
+- [OK] Bounded ref-scan found no new production descriptor-to-C, descriptor-only runtime authority, explicit-only authority, or generic core RVV semantic branch.
+- [OK] `git diff --check`.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -111,6 +111,8 @@ void appendRVVSelectedPlanMetadata(
     tianchenrv::target::rvv::appendRVVBinaryEmitCRouteMetadata(*contract,
                                                               metadata);
   }
+  tianchenrv::target::rvv::appendRVVBinarySelectedConfigProfileMetadata(
+      *contract, metadata);
   for (const auto &entry : metadata) {
     candidate.selectedPlanMetadata.push_back(
         {entry.name, entry.value, entry.role, entry.note});
@@ -472,6 +474,29 @@ bool expectRVVRuntimeLengthContractMetadata() {
                     "selected-config source provenance\n";
     return false;
   }
+  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 3>
+      selectedProfileMetadata;
+  appendRVVBinarySelectedConfigProfileMetadata(*selectedConfig,
+                                               selectedProfileMetadata);
+  if (selectedProfileMetadata.size() != 3 ||
+      selectedProfileMetadata[0].name !=
+          getRVVSelectedConfigProfileHardwareFactsMetadataName() ||
+      selectedProfileMetadata[1].name !=
+          getRVVSelectedConfigProfileVariantConfigMetadataName() ||
+      selectedProfileMetadata[2].name !=
+          getRVVSelectedConfigProfileRuntimeRolesMetadataName() ||
+      selectedProfileMetadata[0].role !=
+          getRVVSelectedConfigProfileMetadataRole() ||
+      !llvm::StringRef(selectedProfileMetadata[0].value)
+           .contains("hw=target-capability-profile") ||
+      !llvm::StringRef(selectedProfileMetadata[1].value)
+           .contains("variant=rvv-plugin-selected-vector-config") ||
+      !llvm::StringRef(selectedProfileMetadata[2].value)
+           .contains("runtime=runtime-abi-ssa-control")) {
+    llvm::errs() << "selected config profile metadata did not separate "
+                    "hardware facts, variant config, and runtime roles\n";
+    return false;
+  }
 
   llvm::Expected<RVVBinarySelectedConfigContract> staleDescriptorAuthority =
       buildRVVBinarySelectedConfigContract(
@@ -751,6 +776,27 @@ bool expectCompositeRouteRegistrationMetadata(
                 getRVVEmitCArithmeticIntrinsicMetadataName(),
             tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
       return false;
+    if (!expectCompositeRouteSelectedPlanPresenceRequirement(
+            registry, route.getRouteID(),
+            tianchenrv::target::rvv::
+                getRVVSelectedConfigProfileHardwareFactsMetadataName(),
+            tianchenrv::target::rvv::
+                getRVVSelectedConfigProfileMetadataRole()))
+      return false;
+    if (!expectCompositeRouteSelectedPlanPresenceRequirement(
+            registry, route.getRouteID(),
+            tianchenrv::target::rvv::
+                getRVVSelectedConfigProfileVariantConfigMetadataName(),
+            tianchenrv::target::rvv::
+                getRVVSelectedConfigProfileMetadataRole()))
+      return false;
+    if (!expectCompositeRouteSelectedPlanPresenceRequirement(
+            registry, route.getRouteID(),
+            tianchenrv::target::rvv::
+                getRVVSelectedConfigProfileRuntimeRolesMetadataName(),
+            tianchenrv::target::rvv::
+                getRVVSelectedConfigProfileMetadataRole()))
+      return false;
   } else if (!expectCompositeRouteSelectedPlanExactRequirement(
                  registry, route.getRouteID(),
                  "tcrv_rvv.selected_lowering_descriptor",
@@ -926,6 +972,27 @@ bool expectRVVSourceRouteRegistrationMetadata(
             tianchenrv::target::rvv::
                 getRVVEmitCArithmeticIntrinsicMetadataName(),
             tianchenrv::target::rvv::getRVVEmitCRouteMetadataRole()))
+      return false;
+    if (!expectRouteSelectedPlanPresenceRequirement(
+            registry, family.routeID,
+            tianchenrv::target::rvv::
+                getRVVSelectedConfigProfileHardwareFactsMetadataName(),
+            tianchenrv::target::rvv::
+                getRVVSelectedConfigProfileMetadataRole()))
+      return false;
+    if (!expectRouteSelectedPlanPresenceRequirement(
+            registry, family.routeID,
+            tianchenrv::target::rvv::
+                getRVVSelectedConfigProfileVariantConfigMetadataName(),
+            tianchenrv::target::rvv::
+                getRVVSelectedConfigProfileMetadataRole()))
+      return false;
+    if (!expectRouteSelectedPlanPresenceRequirement(
+            registry, family.routeID,
+            tianchenrv::target::rvv::
+                getRVVSelectedConfigProfileRuntimeRolesMetadataName(),
+            tianchenrv::target::rvv::
+                getRVVSelectedConfigProfileMetadataRole()))
       return false;
   } else {
     if (!expectRouteSelectedPlanExactRequirement(
@@ -4694,6 +4761,15 @@ bool expectRVVSubSourceRejectsSelectedConfigRuntimeVLMetadataMismatch(
           {"selected_plan_metadata 'tcrv_rvv.runtime_element_count_c_name'",
            "runtime element-count C name must be 'n'"}))
     return false;
+  if (!expectMutatedCandidateRejected(
+          "stale selected config profile variant rejected by vsub direct route",
+          tianchenrv::target::rvv::
+              getRVVSelectedConfigProfileVariantConfigMetadataName(),
+          "variant=descriptor-only",
+          {"selected_plan_metadata "
+           "'tcrv_rvv.selected_config_profile.variant_config'",
+           "selected config profile variant config must be"}))
+    return false;
 
   TargetArtifactCandidate missingAVL =
       makeRVVSubDirectCandidate(tianchenrv::tcrv::exec::KernelOp(),
@@ -4709,6 +4785,27 @@ bool expectRVVSubSourceRejectsSelectedConfigRuntimeVLMetadataMismatch(
           "missing runtime AVL source rejected by vsub direct route",
           {"route id 'tcrv-export-rvv-i32-vsub-microkernel-c'",
            "requires selected_plan_metadata 'tcrv_rvv.runtime_avl_source'"}))
+    return false;
+
+  TargetArtifactCandidate missingProfile =
+      makeRVVSubDirectCandidate(tianchenrv::tcrv::exec::KernelOp(),
+                                "rvv_sub_slice");
+  if (!eraseSelectedPlanMetadataEntry(
+          missingProfile,
+          tianchenrv::target::rvv::
+              getRVVSelectedConfigProfileRuntimeRolesMetadataName())) {
+    llvm::errs() << "test candidate is missing selected config profile "
+                    "runtime roles metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          validateTargetArtifactCandidateAgainstExporter(missingProfile,
+                                                         *exporter),
+          "missing selected config profile runtime roles rejected by vsub "
+          "direct route",
+          {"route id 'tcrv-export-rvv-i32-vsub-microkernel-c'",
+           "requires selected_plan_metadata "
+           "'tcrv_rvv.selected_config_profile.runtime_roles'"}))
     return false;
 
   return true;
@@ -5875,6 +5972,12 @@ bool expectDispatchCompositeBundleMetadataUsesSelectedComponentPlans(
   const SelectedPlanMetadataEntry *descriptorCount =
       findDispatchContractMetadata(
           "tcrv_rvv.dispatch_contract_descriptor_element_count");
+  const SelectedPlanMetadataEntry *profileVariant =
+      findDispatchContractMetadata(
+          "tcrv_rvv.dispatch_contract_selected_config_profile_variant_config");
+  const SelectedPlanMetadataEntry *profileRuntime =
+      findDispatchContractMetadata(
+          "tcrv_rvv.dispatch_contract_selected_config_profile_runtime_roles");
   if (!runtimeCount || runtimeCount->value != "n" ||
       runtimeCount->role != "rvv-dispatch-selected-config-contract" ||
       !vectorConfig || !llvm::StringRef(vectorConfig->value)
@@ -5883,7 +5986,15 @@ bool expectDispatchCompositeBundleMetadataUsesSelectedComponentPlans(
       !selectedRole || selectedRole->value != "dispatch case" ||
       selectedRole->role != "rvv-dispatch-selected-config-contract" ||
       !descriptorCount || descriptorCount->value != "16" ||
-      descriptorCount->role != "rvv-dispatch-selected-config-contract") {
+      descriptorCount->role != "rvv-dispatch-selected-config-contract" ||
+      !profileVariant ||
+      !llvm::StringRef(profileVariant->value)
+           .contains("variant=rvv-plugin-selected-vector-config") ||
+      profileVariant->role != "rvv-dispatch-selected-config-contract" ||
+      !profileRuntime ||
+      !llvm::StringRef(profileRuntime->value)
+           .contains("runtime=runtime-abi-ssa-control") ||
+      profileRuntime->role != "rvv-dispatch-selected-config-contract") {
     llvm::errs() << "dispatch bundle metadata did not preserve consumed RVV "
                     "selected-config/runtime AVL contract fields\n";
     return false;

@@ -125,6 +125,14 @@ module {
 // PIPE: name = "tcrv_rvv.descriptor_element_count"
 // PIPE-SAME: role = "rvv-descriptor-local-component-capacity"
 // PIPE-SAME: value = "16"
+// PIPE: name = "tcrv_rvv.selected_config_profile.hardware_facts"
+// PIPE-SAME: role = "rvv-selected-config-profile"
+// PIPE-SAME: value = "hw=target-capability-profile,shape=i32m1
+// PIPE: name = "tcrv_rvv.selected_config_profile.variant_config"
+// PIPE-SAME: value = "variant=rvv-plugin-selected-vector-config,dtype=i32,family=i32-vadd
+// PIPE: name = "tcrv_rvv.selected_config_profile.runtime_roles"
+// PIPE-SAME: value = "runtime=runtime-abi-ssa-control,n=n
+// PIPE-SAME: dynamic_extent_arg=n
 
 // SOURCE: /* selected_binary_config: {{.*}}descriptor_element_count=16, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent
 // SOURCE: /* selected_runtime_vl_boundary: {{.*}}runtime_avl_source=runtime-element-count-abi-parameter{{.*}}runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent
@@ -140,6 +148,10 @@ module {
 // SOURCE: /* emitc_route_source_ops: tcrv_rvv.setvl tcrv_rvv.with_vl tcrv_rvv.i32_load tcrv_rvv.i32_load tcrv_rvv.i32_add tcrv_rvv.i32_store */
 // SOURCE: /* emitc.call_opaque[0]: __riscv_vsetvl_e32m1 from tcrv_rvv.setvl */
 // SOURCE: /* emitc.call_opaque[3]: __riscv_vadd_vv_i32m1 from tcrv_rvv.i32_add */
+// SOURCE: /* selected_config_profile: hardware_facts={hw=target-capability-profile,shape=i32m1
+// SOURCE-SAME: variant_config={variant=rvv-plugin-selected-vector-config,dtype=i32,family=i32-vadd
+// SOURCE-SAME: runtime_roles={runtime=runtime-abi-ssa-control,n=n
+// SOURCE-SAME: dynamic_extent_arg=n
 // SOURCE: void tcrv_rvv_i32_vadd_microkernel_frontend_vector_dynamic_i32_vadd_rvv_first_slice
 
 // STALE-DESC: legacy RVV binary descriptor mirror 'i32-vsub-microkernel.v1'

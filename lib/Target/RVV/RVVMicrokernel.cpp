@@ -1488,7 +1488,8 @@ llvm::Error validateRVVMicrokernelDescriptorElementCountMetadata(
 
 llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
     const TargetArtifactCandidate &candidate,
-    const RVVBinarySelectedConfigContract &contract) {
+    const RVVBinarySelectedConfigContract &contract,
+    bool includeSelectedConfigProfileMetadata = true) {
   llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 24> expected;
   appendRVVBinarySelectedVectorShapeMetadata(contract, expected);
   appendRVVBinaryRuntimeVLBoundarySelectedPlanMetadata(contract, expected);
@@ -1503,6 +1504,8 @@ llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
   if (contract.getFamily().dtype == RVVBinaryDTypeKind::I32 ||
       contract.getFamily().dtype == RVVBinaryDTypeKind::I64)
     appendRVVBinaryEmitCRouteMetadata(contract, expected);
+  if (includeSelectedConfigProfileMetadata)
+    appendRVVBinarySelectedConfigProfileMetadata(contract, expected);
 
   for (const RVVVectorShapeSelectedPlanMetadataDescriptor &entry : expected)
     if (llvm::Error error =
@@ -1532,7 +1535,9 @@ llvm::Error validateRVVMicrokernelSelectedPlanMetadata(
           *runtimeElementCountCName);
   if (!selectedConfig)
     return selectedConfig.takeError();
-  return validateRVVMicrokernelSelectedPlanMetadata(candidate, *selectedConfig);
+  return validateRVVMicrokernelSelectedPlanMetadata(
+      candidate, *selectedConfig,
+      /*includeSelectedConfigProfileMetadata=*/!candidate.kernel);
 }
 
 llvm::Error validateRVVMicrokernelSelectedSourceIdentityMetadata(
@@ -4057,6 +4062,9 @@ llvm::Error printRecordComment(llvm::raw_ostream &os,
      << record.selectedConfigContract
             .formatSelectedConfigEmissionAuthorityCommentBody()
      << " */\n";
+  os << "/* "
+     << record.selectedConfigContract.formatSelectedConfigProfileCommentBody()
+     << " */\n";
   os << "/* control_plane_config: sew=" << record.controlPlaneSEW
      << ", lmul=" << record.controlPlaneLMUL
      << ", policy=#tcrv_rvv.policy<tail = "
@@ -4511,6 +4519,18 @@ void appendMicrokernelObjectEvidenceSection(
                           record.selectedConfigEmission.vectorSuffix);
   printObjectEvidenceLine(os, "selected_setvl_suffix",
                           record.selectedConfigEmission.setvlSuffix);
+  printObjectEvidenceLine(
+      os, "selected_config_profile_hardware_facts",
+      record.selectedConfigContract
+          .formatSelectedConfigProfileHardwareFactsMetadataValue());
+  printObjectEvidenceLine(
+      os, "selected_config_profile_variant_config",
+      record.selectedConfigContract
+          .formatSelectedConfigProfileVariantConfigMetadataValue());
+  printObjectEvidenceLine(
+      os, "selected_config_profile_runtime_roles",
+      record.selectedConfigContract
+          .formatSelectedConfigProfileRuntimeRolesMetadataValue());
   const RVVRuntimeLengthContract &runtimeLength =
       record.selectedConfigContract.getRuntimeLengthContract();
   printObjectEvidenceLine(os, "runtime_element_count_c_name",
@@ -4764,6 +4784,14 @@ buildRVVMicrokernelSourceRouteMetadata(
         getRVVSelectedBinaryMicrokernelOpMetadataName(),
         family.microkernelOpName, sourceIdentityRole);
   }
+
+  llvm::StringRef profileRole = getRVVSelectedConfigProfileMetadataRole();
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVSelectedConfigProfileHardwareFactsMetadataName(), profileRole);
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVSelectedConfigProfileVariantConfigMetadataName(), profileRole);
+  metadata.addSelectedPlanMetadataPresenceRequirement(
+      getRVVSelectedConfigProfileRuntimeRolesMetadataName(), profileRole);
 
   llvm::StringRef capabilityRole =
       getSelectedRVVVectorShapeCapabilityMetadataRole();

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected config profile separation and RVV-specific runtime evidence expectations."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check that new consumption remains plugin/target-local and avoids generic core RVV branches."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check source-frontdoor and selected variant behavior for bounded binary RVV families."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact export, selected-plan metadata, RuntimeABI, and fail-closed route behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that production emission remains extension ops to common EmitC, not descriptor-to-C."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit, C++ test, build, local generated-artifact, and ssh-rvv evidence coverage."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check hardware facts versus variant config versus runtime control separation."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check extension locality and absence of new core extension-specific orchestration."}

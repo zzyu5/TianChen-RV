@@ -1347,6 +1347,18 @@ void appendSelectedEmitCRouteMetadata(
     metadata.push_back({entry.name, entry.value, entry.role, entry.note});
 }
 
+void appendSelectedConfigProfileMetadata(
+    const target::rvv::RVVBinarySelectedConfigContract &contract,
+    llvm::SmallVectorImpl<VariantSelectedPlanMetadata> &metadata) {
+  llvm::SmallVector<
+      target::rvv::RVVVectorShapeSelectedPlanMetadataDescriptor, 3>
+      profileMetadata;
+  target::rvv::appendRVVBinarySelectedConfigProfileMetadata(contract,
+                                                           profileMetadata);
+  for (const auto &entry : profileMetadata)
+    metadata.push_back({entry.name, entry.value, entry.role, entry.note});
+}
+
 } // namespace
 
 VariantEmissionStatus RVVBinarySelectedEmissionPlan::buildReadinessStatus(
@@ -1451,6 +1463,9 @@ buildRVVBinarySelectedEmissionPlan(const VariantEmissionRequest &request,
       plan.selectedPlan.getSelectedConfig().getContract(), plan.sourceKind,
       plan.selectedPlanMetadata);
   appendSelectedEmitCRouteMetadata(
+      plan.selectedPlan.getSelectedConfig().getContract(),
+      plan.selectedPlanMetadata);
+  appendSelectedConfigProfileMetadata(
       plan.selectedPlan.getSelectedConfig().getContract(),
       plan.selectedPlanMetadata);
   return plan;

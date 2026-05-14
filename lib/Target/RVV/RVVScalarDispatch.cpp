@@ -1511,6 +1511,21 @@ deriveRVVScalarDispatchBundleMetadataFromPair(const DispatchPair &pair) {
        std::to_string(contract.getDescriptorElementCount()),
        kDispatchSelectedConfigMetadataRole.str(),
        kDispatchSelectedConfigMetadataNote.str()});
+  metadata.selectedPlanMetadata.push_back(
+      {"tcrv_rvv.dispatch_contract_selected_config_profile_hardware_facts",
+       contract.formatSelectedConfigProfileHardwareFactsMetadataValue(),
+       kDispatchSelectedConfigMetadataRole.str(),
+       kDispatchSelectedConfigMetadataNote.str()});
+  metadata.selectedPlanMetadata.push_back(
+      {"tcrv_rvv.dispatch_contract_selected_config_profile_variant_config",
+       contract.formatSelectedConfigProfileVariantConfigMetadataValue(),
+       kDispatchSelectedConfigMetadataRole.str(),
+       kDispatchSelectedConfigMetadataNote.str()});
+  metadata.selectedPlanMetadata.push_back(
+      {"tcrv_rvv.dispatch_contract_selected_config_profile_runtime_roles",
+       contract.formatSelectedConfigProfileRuntimeRolesMetadataValue(),
+       kDispatchSelectedConfigMetadataRole.str(),
+       kDispatchSelectedConfigMetadataNote.str()});
   const SelectedPlanMetadataEntry *sourceKind =
       findFirstSelectedPlanMetadataEntry(
           pair.rvv,
@@ -2088,6 +2103,8 @@ llvm::Error validateDispatchSelectedConfigContractMetadata(
           tianchenrv::target::rvv::RVVBinaryDTypeKind::I64)
     tianchenrv::target::rvv::appendRVVBinaryEmitCRouteMetadata(contract,
                                                               expected);
+  tianchenrv::target::rvv::appendRVVBinarySelectedConfigProfileMetadata(
+      contract, expected);
 
   for (const auto &entry : expected)
     if (llvm::Error error =

@@ -188,7 +188,10 @@ module @rvv_runtime_abi_role_binding {
         {name = "tcrv_rvv.emitc_route_kind", value = "extension-family-ops-to-emitc-call-opaque", role = "typed-rvv-emitc-route", note = "RVV plugin-selected extension-family op to common EmitC route mapping consumed before target artifact export; not descriptor-to-C emission"},
         {name = "tcrv_rvv.emitc_source_authority", value = "mlir-emitc-cpp-emitter", role = "typed-rvv-emitc-route", note = "RVV plugin-selected extension-family op to common EmitC route mapping consumed before target artifact export; not descriptor-to-C emission"},
         {name = "tcrv_rvv.emitc_required_header", value = "riscv_vector.h", role = "typed-rvv-emitc-route", note = "RVV plugin-selected extension-family op to common EmitC route mapping consumed before target artifact export; not descriptor-to-C emission"},
-        {name = "tcrv_rvv.emitc_arithmetic_intrinsic", value = "__riscv_vadd_vv_i32m1", role = "typed-rvv-emitc-route", note = "family-owned RVV arithmetic intrinsic selected from typed RVV source op plus selected vector config before target artifact export"}
+        {name = "tcrv_rvv.emitc_arithmetic_intrinsic", value = "__riscv_vadd_vv_i32m1", role = "typed-rvv-emitc-route", note = "family-owned RVV arithmetic intrinsic selected from typed RVV source op plus selected vector config before target artifact export"},
+        {name = "tcrv_rvv.selected_config_profile.hardware_facts", value = "hw=target-capability-profile,shape=i32m1,caps=rvv.i32_m1.sew32|rvv.i32_m1.lmul_m1|rvv.i32_m1.tail_policy.agnostic|rvv.i32_m1.mask_policy.agnostic", role = "rvv-selected-config-profile", note = "plugin-owned RVV selected config profile separating target capability facts, compile-time vector variant config, and runtime AVL/VL roles; not descriptor-owned computation or runtime evidence"},
+        {name = "tcrv_rvv.selected_config_profile.variant_config", value = "variant=rvv-plugin-selected-vector-config,dtype=i32,family=i32-vadd,op=add,shape=i32m1,sew=32,lmul=m1,tail=agnostic,mask=agnostic,vtype=vint32m1_t,vsuffix=i32m1,setvl=e32m1,arith=__riscv_vadd_vv_i32m1", role = "rvv-selected-config-profile", note = "plugin-owned RVV selected config profile separating target capability facts, compile-time vector variant config, and runtime AVL/VL roles; not descriptor-owned computation or runtime evidence"},
+        {name = "tcrv_rvv.selected_config_profile.runtime_roles", value = "runtime=runtime-abi-ssa-control,n=len,avl=runtime-element-count-abi-parameter/runtime-element-count,vl=tcrv_rvv.setvl/tcrv_rvv.with_vl", role = "rvv-selected-config-profile", note = "plugin-owned RVV selected config profile separating target capability facts, compile-time vector variant config, and runtime AVL/VL roles; not descriptor-owned computation or runtime evidence"}
       ],
       severity = "info",
       status = "supported",
@@ -207,6 +210,9 @@ module @rvv_runtime_abi_role_binding {
 // ALT: /* emitc.call_opaque_operand[0][0]: expression=len - offset, c_type=size_t */
 // ALT: /* selected_vector_shape_config: shape=i32m1, sew=32, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1 */
 // ALT: /* selected_config_emission_authority: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, setvl_intrinsic=__riscv_vsetvl_e32m1, load_intrinsic=__riscv_vle32_v_i32m1, arithmetic_intrinsic=__riscv_vadd_vv_i32m1, store_intrinsic=__riscv_vse32_v_i32m1, tail_policy=agnostic, mask_policy=agnostic, source=RVVBinarySelectedConfigContract */
+// ALT: /* selected_config_profile: hardware_facts={hw=target-capability-profile,shape=i32m1
+// ALT-SAME: variant_config={variant=rvv-plugin-selected-vector-config,dtype=i32,family=i32-vadd
+// ALT-SAME: runtime_roles={runtime=runtime-abi-ssa-control,n=len,avl=runtime-element-count-abi-parameter/runtime-element-count,vl=tcrv_rvv.setvl/tcrv_rvv.with_vl}
 // ALT: /* intrinsic_config_source: RVVBinarySelectedConfigContract cross-checked against verified tcrv_rvv.setvl/tcrv_rvv.with_vl SEW/LMUL/policy metadata */
 // ALT: /* callable_abi_source: tcrv.exec.mem_window + tcrv.exec.runtime_param */
 // ALT: /* callable_mem_window[0]: symbol=@abi_lhs_input_buffer, abi_role=lhs-input-buffer, access=read, ownership=target-export-abi-owned, c_type=const int32_t * */

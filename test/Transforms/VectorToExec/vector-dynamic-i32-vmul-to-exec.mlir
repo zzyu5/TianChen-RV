@@ -88,6 +88,14 @@ module {
 // PIPE-SAME: value = "tcrv_rvv.i32_mul"
 // PIPE: name = "tcrv_rvv.emitc_arithmetic_intrinsic"
 // PIPE-SAME: value = "__riscv_vmul_vv_i32m1"
+// PIPE: name = "tcrv_rvv.selected_config_profile.hardware_facts"
+// PIPE-SAME: role = "rvv-selected-config-profile"
+// PIPE-SAME: value = "hw=target-capability-profile,shape=i32m1
+// PIPE: name = "tcrv_rvv.selected_config_profile.variant_config"
+// PIPE-SAME: value = "variant=rvv-plugin-selected-vector-config,dtype=i32,family=i32-vmul
+// PIPE: name = "tcrv_rvv.selected_config_profile.runtime_roles"
+// PIPE-SAME: value = "runtime=runtime-abi-ssa-control,n=n
+// PIPE-SAME: dynamic_extent_arg=n
 
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vmul_microkernel */
 // SOURCE: /* arithmetic_family: i32-vmul */
@@ -104,6 +112,10 @@ module {
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_mul, lhs=lhs_vec, rhs=rhs_vec, result=product_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
 // SOURCE: /* emitc_route_source_ops: tcrv_rvv.setvl tcrv_rvv.with_vl tcrv_rvv.i32_load tcrv_rvv.i32_load tcrv_rvv.i32_mul tcrv_rvv.i32_store */
 // SOURCE: /* emitc.call_opaque[3]: __riscv_vmul_vv_i32m1 from tcrv_rvv.i32_mul */
+// SOURCE: /* selected_config_profile: hardware_facts={hw=target-capability-profile,shape=i32m1
+// SOURCE-SAME: variant_config={variant=rvv-plugin-selected-vector-config,dtype=i32,family=i32-vmul
+// SOURCE-SAME: runtime_roles={runtime=runtime-abi-ssa-control,n=n
+// SOURCE-SAME: dynamic_extent_arg=n
 // SOURCE: void tcrv_rvv_i32_vmul_microkernel_frontend_vector_dynamic_i32_vmul_rvv_first_slice
 
 // STALE-DESC: legacy RVV binary descriptor mirror 'i32-vadd-microkernel.v1'

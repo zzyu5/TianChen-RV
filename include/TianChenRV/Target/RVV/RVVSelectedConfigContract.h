@@ -141,6 +141,28 @@ inline llvm::StringRef getRVVEmitCArithmeticIntrinsicMetadataNote() {
          "op plus selected vector config before target artifact export";
 }
 
+inline llvm::StringRef getRVVSelectedConfigProfileHardwareFactsMetadataName() {
+  return "tcrv_rvv.selected_config_profile.hardware_facts";
+}
+
+inline llvm::StringRef getRVVSelectedConfigProfileVariantConfigMetadataName() {
+  return "tcrv_rvv.selected_config_profile.variant_config";
+}
+
+inline llvm::StringRef getRVVSelectedConfigProfileRuntimeRolesMetadataName() {
+  return "tcrv_rvv.selected_config_profile.runtime_roles";
+}
+
+inline llvm::StringRef getRVVSelectedConfigProfileMetadataRole() {
+  return "rvv-selected-config-profile";
+}
+
+inline llvm::StringRef getRVVSelectedConfigProfileMetadataNote() {
+  return "plugin-owned RVV selected config profile separating target "
+         "capability facts, compile-time vector variant config, and runtime "
+         "AVL/VL roles; not descriptor-owned computation or runtime evidence";
+}
+
 class RVVBinarySelectedConfigContract {
 public:
   RVVBinarySelectedConfigContract() = default;
@@ -361,6 +383,84 @@ public:
     return text;
   }
 
+  std::string formatSelectedConfigProfileHardwareFactsMetadataValue() const {
+    std::string text;
+    llvm::raw_string_ostream stream(text);
+    stream << "hw=target-capability-profile"
+           << ",shape=" << getShapeID() << ",caps=";
+    llvm::SmallVector<llvm::StringRef, 4> capabilityIDs =
+        getSelectedShapeCapabilityIDs();
+    bool first = true;
+    for (llvm::StringRef capabilityID : capabilityIDs) {
+      if (!first)
+        stream << "|";
+      first = false;
+      stream << capabilityID;
+    }
+    stream.flush();
+    return text;
+  }
+
+  std::string formatSelectedConfigProfileVariantConfigMetadataValue() const {
+    std::string text;
+    llvm::raw_string_ostream stream(text);
+    stream << "variant=rvv-plugin-selected-vector-config"
+           << ",dtype=" << getDTypeID() << ",family=" << getFamilyID()
+           << ",op=" << getArithmeticVerb()
+           << ",shape=" << getShapeID() << ",sew=" << getSEWBits()
+           << ",lmul=" << getLMUL()
+           << ",tail=" << getTailPolicy()
+           << ",mask=" << getMaskPolicy()
+           << ",vtype=" << getVectorType()
+           << ",vsuffix=" << getVectorSuffix()
+           << ",setvl=" << getSetVLSuffix()
+           << ",arith=" << getArithmeticIntrinsicName();
+    stream.flush();
+    return text;
+  }
+
+  std::string formatSelectedConfigProfileRuntimeRolesMetadataValue() const {
+    std::string text;
+    llvm::raw_string_ostream stream(text);
+    stream << "runtime=runtime-abi-ssa-control"
+           << ",n="
+           << getRuntimeElementCountCName()
+           << ",avl=" << getRuntimeAVLSource() << "/" << getRuntimeAVLRole()
+           << ",vl=" << getRuntimeVLSource() << "/" << getRuntimeVLScope();
+    if (fixedSourceExtent)
+      stream << ",fixed_extent="
+             << fixedSourceExtent->sourceVectorExtent
+             << ",constraint="
+             << fixedSourceExtent->runtimeElementCountConstraint;
+    if (dynamicRuntimeExtent)
+      stream << ",dynamic_extent_arg="
+             << dynamicRuntimeExtent->runtimeExtentArg
+             << ",loop_step=" << dynamicRuntimeExtent->sourceLoopStep
+             << ",chunk="
+             << dynamicRuntimeExtent->sourceVectorChunkExtent
+             << ",active_lanes=source-frontdoor"
+             << ",tail=runtime-bounded"
+             << ",constraint="
+             << dynamicRuntimeExtent->runtimeElementCountConstraint;
+    stream.flush();
+    return text;
+  }
+
+  std::string formatSelectedConfigProfileCommentBody() const {
+    std::string text;
+    llvm::raw_string_ostream stream(text);
+    stream << "selected_config_profile: hardware_facts={"
+           << formatSelectedConfigProfileHardwareFactsMetadataValue()
+           << "}, variant_config={"
+           << formatSelectedConfigProfileVariantConfigMetadataValue()
+           << "}, runtime_roles={"
+           << formatSelectedConfigProfileRuntimeRolesMetadataValue()
+           << "}, descriptor_element_count=" << getDescriptorElementCount()
+           << ", source=RVVBinarySelectedConfigProfile";
+    stream.flush();
+    return text;
+  }
+
   std::string formatSelectedConfigEmissionAuthorityCommentBody() const {
     std::string text;
     llvm::raw_string_ostream stream(text);
@@ -505,6 +605,30 @@ private:
   std::optional<support::FixedVectorSourceExtentContract> fixedSourceExtent;
   std::optional<support::DynamicVectorRuntimeExtentContract>
       dynamicRuntimeExtent;
+};
+
+struct RVVBinarySelectedConfigProfile {
+  const RVVBinarySelectedConfigContract *contract = nullptr;
+
+  bool isValid() const { return contract && contract->isValid(); }
+
+  std::string formatHardwareFactsMetadataValue() const {
+    return contract
+               ? contract->formatSelectedConfigProfileHardwareFactsMetadataValue()
+               : std::string();
+  }
+
+  std::string formatVariantConfigMetadataValue() const {
+    return contract
+               ? contract->formatSelectedConfigProfileVariantConfigMetadataValue()
+               : std::string();
+  }
+
+  std::string formatRuntimeRolesMetadataValue() const {
+    return contract
+               ? contract->formatSelectedConfigProfileRuntimeRolesMetadataValue()
+               : std::string();
+  }
 };
 
 struct RVVBinarySelectedConfigEmissionView {
@@ -881,6 +1005,23 @@ inline void appendRVVBinaryEmitCRouteMetadata(
                  contract.getArithmeticIntrinsicName(), routeRole,
                  getRVVEmitCArithmeticIntrinsicMetadataNote(),
                  "EmitC arithmetic intrinsic"});
+}
+
+inline void appendRVVBinarySelectedConfigProfileMetadata(
+    const RVVBinarySelectedConfigContract &contract,
+    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
+  RVVBinarySelectedConfigProfile profile{&contract};
+  llvm::StringRef role = getRVVSelectedConfigProfileMetadataRole();
+  llvm::StringRef note = getRVVSelectedConfigProfileMetadataNote();
+  out.push_back({getRVVSelectedConfigProfileHardwareFactsMetadataName(),
+                 profile.formatHardwareFactsMetadataValue(), role, note,
+                 "selected config profile hardware facts"});
+  out.push_back({getRVVSelectedConfigProfileVariantConfigMetadataName(),
+                 profile.formatVariantConfigMetadataValue(), role, note,
+                 "selected config profile variant config"});
+  out.push_back({getRVVSelectedConfigProfileRuntimeRolesMetadataName(),
+                 profile.formatRuntimeRolesMetadataValue(), role, note,
+                 "selected config profile runtime roles"});
 }
 
 inline void appendRVVBinarySelectedSourceIdentityMetadata(

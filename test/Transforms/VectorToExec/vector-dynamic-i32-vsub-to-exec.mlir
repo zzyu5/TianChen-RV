@@ -118,6 +118,14 @@ module {
 // PIPE: name = "tcrv_rvv.descriptor_element_count"
 // PIPE-SAME: role = "rvv-descriptor-local-component-capacity"
 // PIPE-SAME: value = "16"
+// PIPE: name = "tcrv_rvv.selected_config_profile.hardware_facts"
+// PIPE-SAME: role = "rvv-selected-config-profile"
+// PIPE-SAME: value = "hw=target-capability-profile,shape=i32m1
+// PIPE: name = "tcrv_rvv.selected_config_profile.variant_config"
+// PIPE-SAME: value = "variant=rvv-plugin-selected-vector-config,dtype=i32,family=i32-vsub
+// PIPE: name = "tcrv_rvv.selected_config_profile.runtime_roles"
+// PIPE-SAME: value = "runtime=runtime-abi-ssa-control,n=n
+// PIPE-SAME: dynamic_extent_arg=n
 
 // SOURCE: /* executable_microkernel: tcrv_rvv.i32_vsub_microkernel */
 // SOURCE: /* arithmetic_family: i32-vsub */
@@ -140,6 +148,10 @@ module {
 // SOURCE: /* emitc_lowerable_op_interface: TCRVEmitCLowerableOpInterface */
 // SOURCE: /* emitc_route_source_ops: tcrv_rvv.setvl tcrv_rvv.with_vl tcrv_rvv.i32_load tcrv_rvv.i32_load tcrv_rvv.i32_sub tcrv_rvv.i32_store */
 // SOURCE: /* emitc.call_opaque[3]: __riscv_vsub_vv_i32m1 from tcrv_rvv.i32_sub */
+// SOURCE: /* selected_config_profile: hardware_facts={hw=target-capability-profile,shape=i32m1
+// SOURCE-SAME: variant_config={variant=rvv-plugin-selected-vector-config,dtype=i32,family=i32-vsub
+// SOURCE-SAME: runtime_roles={runtime=runtime-abi-ssa-control,n=n
+// SOURCE-SAME: dynamic_extent_arg=n
 // SOURCE: void tcrv_rvv_i32_vsub_microkernel_frontend_vector_dynamic_i32_vsub_rvv_first_slice
 
 // MISSING-SEW: requires selected_plan_metadata 'tcrv_rvv.selected_vector_sew'
