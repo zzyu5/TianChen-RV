@@ -1808,3 +1808,68 @@ EmitC-route, descriptor-quarantine, and runtime ABI contracts.
 ### Status
 
 [OK] Completed and archived; commit pending.
+
+
+## Session 60: RVV source-frontdoor artifact/runtime closure
+
+**Date**: 2026-05-14
+**Task**: RVV source-frontdoor artifact/runtime closure
+**Branch**: `main`
+
+### Summary
+
+Extended RVV dispatch bundle selected source identity with dtype/operator/EmitC provenance for source-frontdoor i32 vadd/vsub, verified focused bundle tests plus local and ssh rvv artifact evidence.
+
+### Main Changes
+
+- Extended
+  `RVVSelectedConfig::formatDispatchContractSelectedSourceIdentityMetadataValue`
+  so RVV+scalar dispatch bundle route claims now include source kind, dtype,
+  finite family, arithmetic operator, selected RVV microkernel op, selected
+  EmitC source op, and `TCRVEmitCLowerableOpInterface`.
+- Updated dynamic vector i32 vadd/vsub TargetArtifactBundleExport checks so
+  generated bundle indexes must publish the complete typed source identity.
+- Kept descriptor-only authority quarantined and did not add core `tcrv.exec`
+  compute semantics, explicit-only frontend flags, or generic core family
+  branches.
+
+### Git Commits
+
+Commit pending in this round.
+
+### Testing
+
+- `cmake --build build --target TianChenRVRVVTarget TianChenRVRVVPlugin tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle.mlir Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle.mlir` from `build/test`
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- Local `rvv_microkernel_e2e.py` plan-and-export dynamic vector source-frontdoor dry-runs for i32-vadd and i32-vsub, runtime counts `7,16,23`.
+- Local `rvv_scalar_dispatch_e2e.py` plan-and-export dispatch bundle dry-runs for i32-vadd and i32-vsub, with generated bundle indexes carrying the new `tcrv_rvv.dispatch_contract_selected_source_identity` values.
+- `ssh rvv` `rvv_microkernel_e2e.py` source-frontdoor bundle runs `codex-source-identity-vsub-ssh` and `codex-source-identity-vadd-ssh`, both `status: success` and `ssh_evidence: true`.
+- Ref-scans for explicit-only route drift, descriptor quarantine, and generic `tcrv.exec` core neutrality.
+- `git diff --check`
+- Trellis task validation before finish.
+
+### Self-Repair
+
+The first scalar-dispatch dry-run used linalg bundle fixtures but asserted
+dynamic-vector selected kernel names. The runner failed closed as expected; the
+commands were rerun with `frontend_bundle_i32_vadd` and
+`frontend_bundle_i32_vsub` and passed.
+
+### Spec Update Judgment
+
+No `.trellis/spec/` update was needed. The round did not add a new dialect op,
+schema field, command signature, plugin protocol, or architecture rule; it
+completed an existing selected-source identity contract at the generated
+artifact/dispatch bundle surface.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

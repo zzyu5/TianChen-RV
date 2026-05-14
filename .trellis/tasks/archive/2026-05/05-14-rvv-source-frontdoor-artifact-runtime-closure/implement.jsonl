@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries and source-of-truth for this task"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Keep RVV as plugin-local extension family and avoid descriptor-driven architecture"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Ensure tcrv.exec remains only the execution envelope"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV finite binary family, selected config, source identity, and descriptor quarantine contract"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Keep common orchestration through plugin/common interfaces rather than family-specific core branches"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Frontend source to exec boundary and selected planning expectations"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Artifact export, runtime ABI, bundle metadata, and fail-closed route preflight rules"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and generated interface provenance expectations"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck, build, runtime evidence, and fail-closed testing requirements"}

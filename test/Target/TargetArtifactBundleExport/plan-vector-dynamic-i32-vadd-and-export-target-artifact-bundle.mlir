@@ -203,7 +203,7 @@ module @plan_vector_dynamic_i32_vadd_bundle_input {
 // INDEX: name: "tcrv_rvv.dispatch_contract_descriptor_element_count"
 // INDEX-NEXT: value: "16"
 // INDEX: name: "tcrv_rvv.dispatch_contract_selected_source_identity"
-// INDEX-NEXT: value: "source_kind=frontend-lowering,family=i32-vadd,microkernel_op=tcrv_rvv.i32_vadd_microkernel"
+// INDEX-NEXT: value: "source_kind=frontend-lowering,dtype=i32,family=i32-vadd,operator=add,microkernel_op=tcrv_rvv.i32_vadd_microkernel,emitc_source_op=tcrv_rvv.i32_add,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface"
 // INDEX: route_claim[4]:
 // INDEX-NEXT: name: "descriptor_compute_authority"
 // INDEX-NEXT: value: "quarantined-by-selected-rvv-scalar-components"

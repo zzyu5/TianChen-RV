@@ -485,8 +485,12 @@ public:
     std::string text;
     llvm::raw_string_ostream stream(text);
     stream << "source_kind=" << sourceKind
+           << ",dtype=" << getDTypeID()
            << ",family=" << getFamilyID()
-           << ",microkernel_op=" << microkernelOp;
+           << ",operator=" << getArithmeticVerb()
+           << ",microkernel_op=" << microkernelOp
+           << ",emitc_source_op=" << getArithmeticOpName()
+           << ",emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface";
     stream.flush();
     return text;
   }
