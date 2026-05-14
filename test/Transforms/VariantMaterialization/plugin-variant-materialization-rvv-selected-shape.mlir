@@ -103,14 +103,12 @@ module {
   // CHECK-SAME: selected_variant = @rvv_first_slice
   // CHECK-SAME: selected_vector_lmul = "m2"
   // CHECK-SAME: selected_vector_shape = "i32m2"
-  // CHECK: tcrv_rvv.i32_vsub_microkernel
+  // CHECK-NOT: tcrv_rvv.i32_vsub_microkernel
+  // CHECK: tcrv.exec.diagnostic
+  // CHECK-SAME: emission_kind = "rvv-unsupported-metadata-boundary"
   // CHECK-SAME: required_capabilities = [@rvv, @rvv_i32_m2_sew32, @rvv_i32_m2_lmul_m2, @rvv_i32_m2_tail_agnostic, @rvv_i32_m2_mask_agnostic]
-  // CHECK-SAME: selected_variant = @rvv_first_slice
-  // CHECK-SAME: selected_vector_shape = "i32m2"
-  // CHECK: tcrv_rvv.setvl
-  // CHECK-SAME: lmul = "m2"
-  // CHECK: tcrv_rvv.i32_sub
-  // CHECK-SAME: !tcrv_rvv.i32m2, !tcrv_rvv.i32m2, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
+  // CHECK-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
+  // CHECK-SAME: status = "unsupported"
 
   // CHECK-LABEL: tcrv.exec.kernel @default_i32m1_without_selector
   tcrv.exec.kernel @default_i32m1_without_selector attributes {
@@ -177,8 +175,9 @@ module {
   // CHECK-SAME: selected_variant = @rvv_first_slice
   // CHECK-SAME: selected_vector_lmul = "m1"
   // CHECK-SAME: selected_vector_shape = "i32m1"
-  // CHECK: tcrv_rvv.i32_vadd_microkernel
-  // CHECK-SAME: selected_vector_shape = "i32m1"
-  // CHECK: tcrv_rvv.setvl
-  // CHECK-SAME: lmul = "m1"
+  // CHECK-NOT: tcrv_rvv.i32_vadd_microkernel
+  // CHECK: tcrv.exec.diagnostic
+  // CHECK-SAME: emission_kind = "rvv-unsupported-metadata-boundary"
+  // CHECK-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
+  // CHECK-SAME: status = "unsupported"
 }

@@ -3,9 +3,6 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVBinarySelectedEmissionPlanning.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
-#include "TianChenRV/Support/RuntimeABIMemWindow.h"
-#include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/RVV/RVVBinaryRoute.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -13,7 +10,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Errc.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -35,24 +31,6 @@ constexpr llvm::StringLiteral kRVVI32M1LanesAttrName(
 constexpr llvm::StringLiteral kRVVBoundaryVLenBBytesAttrName("vlenb_bytes");
 constexpr llvm::StringLiteral kRVVBoundaryI32M1LanesAttrName(
     "base_i32_m1_lanes");
-constexpr llvm::StringLiteral kBoundarySelectedBinarySourceKindAttrName(
-    "selected_binary_source_kind");
-constexpr llvm::StringLiteral kBoundarySelectedBinaryDTypeAttrName(
-    "selected_binary_dtype");
-constexpr llvm::StringLiteral kBoundarySelectedBinaryFamilyAttrName(
-    "selected_binary_family");
-constexpr llvm::StringLiteral kBoundarySelectedBinaryOperatorAttrName(
-    "selected_binary_operator");
-constexpr llvm::StringLiteral kBoundarySelectedBinaryMicrokernelOpAttrName(
-    "selected_binary_microkernel_op");
-constexpr llvm::StringLiteral kBoundaryEmitCSourceOpAttrName(
-    "emitc_source_op");
-constexpr llvm::StringLiteral kBoundaryEmitCLowerableOpInterfaceAttrName(
-    "emitc_lowerable_op_interface");
-constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
-    "TCRVEmitCLowerableOpInterface");
-constexpr llvm::StringLiteral kSelectedMABIPropertyName("selected_mabi");
-constexpr llvm::StringLiteral kSelectedMarchValuePropertyName("value");
 constexpr llvm::StringLiteral kCapabilitySummaryAttrName(
     "capability_summary");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
@@ -67,8 +45,6 @@ constexpr llvm::StringLiteral kUnsupportedReasonAttrName(
     "unsupported_reason");
 constexpr llvm::StringLiteral kUnsupportedStatusValue("unsupported");
 
-using target::rvv::RVVBinaryDTypeKind;
-using target::rvv::RVVBinaryIntrinsicRoute;
 using target::rvv::RVVVectorShapeConfig;
 
 struct RVVCapacityMetadata {
@@ -81,129 +57,6 @@ llvm::Error makeRVVBinarySelectedBoundaryError(llvm::Twine message) {
       llvm::Twine("TianChen-RV RVV extension plugin first slice failed: ") +
           message,
       llvm::errc::invalid_argument);
-}
-
-bool containsForbiddenRVVPropertyText(llvm::StringRef value) {
-  std::string lower = value.lower();
-  llvm::StringRef normalized(lower);
-  return normalized.contains("password") || normalized.contains("passwd") ||
-         normalized.contains("token") || normalized.contains("secret") ||
-         normalized.contains("private key") ||
-         normalized.contains("authorization:") ||
-         normalized.contains("api_key") || normalized.contains("access_key");
-}
-
-bool isSingleBoundedRVVPropertyText(llvm::StringRef value) {
-  if (value.size() > 512)
-    return false;
-
-  for (char character : value) {
-    unsigned char byte = static_cast<unsigned char>(character);
-    if (character == '\n' || character == '\r' || byte == 0)
-      return false;
-    if (byte < 0x20 && character != '\t')
-      return false;
-  }
-  return true;
-}
-
-llvm::Error validateRVVPropertyText(llvm::StringRef context,
-                                    llvm::StringRef propertyName,
-                                    llvm::StringRef value) {
-  if (!isSingleBoundedRVVPropertyText(value))
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine(context) + " property '" + propertyName +
-        "' must be a bounded single-line fact");
-
-  if (containsForbiddenRVVPropertyText(value))
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine(context) + " property '" + propertyName +
-        "' must not contain secret-like or raw-log text");
-
-  return llvm::Error::success();
-}
-
-llvm::Error verifyRequiredMarchAttr(tcrv::exec::VariantOp variant,
-                                    const RVVBinaryCapabilityPropertyView &view) {
-  mlir::Attribute rawRequiredMarch =
-      variant->getAttr(kRVVRequiredMarchAttrName);
-  if (!rawRequiredMarch)
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
-        " requires string 'tcrv_rvv.required_march' metadata");
-
-  auto requiredMarch = llvm::dyn_cast<mlir::StringAttr>(rawRequiredMarch);
-  if (!requiredMarch)
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
-        " 'tcrv_rvv.required_march' metadata must be a string attribute");
-
-  llvm::StringRef requiredMarchValue = requiredMarch.getValue().trim();
-  if (requiredMarchValue.empty())
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
-        " 'tcrv_rvv.required_march' metadata must be non-empty");
-
-  std::string context =
-      (llvm::Twine("variant @") + variant.getSymName() +
-       " attribute 'tcrv_rvv.required_march'")
-          .str();
-  if (llvm::Error error = validateRVVPropertyText(
-          context, kRVVRequiredMarchAttrName, requiredMarchValue))
-    return error;
-
-  if (requiredMarchValue != view.selectedMarch)
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
-        " 'tcrv_rvv.required_march' metadata is not satisfied by preserved "
-        "capability property 'selected_march'");
-
-  return llvm::Error::success();
-}
-
-llvm::Expected<std::optional<std::string>>
-getOptionalSelectedMABI(const support::TargetCapabilitySet &capabilities) {
-  std::optional<std::string> selectedMABI;
-
-  auto mergeMABI = [&](const support::CapabilityDescriptor &capability,
-                       llvm::StringRef propertyName) -> llvm::Error {
-    llvm::StringRef value = capability.getProperty(propertyName).trim();
-    if (value.empty())
-      return llvm::Error::success();
-
-    std::string context =
-        (llvm::Twine("capability id '") + capability.getID() + "'").str();
-    if (llvm::Error error =
-            validateRVVPropertyText(context, propertyName, value))
-      return error;
-
-    if (selectedMABI && *selectedMABI != value)
-      return makeRVVBinarySelectedBoundaryError(
-          "conflicting RVV selected_mabi capability metadata");
-
-    selectedMABI = value.str();
-    return llvm::Error::success();
-  };
-
-  if (const support::CapabilityDescriptor *compileRunCapability =
-          capabilities.lookupByID(getRVVProbeCompileRunCapabilityID())) {
-    if (compileRunCapability->isAvailable()) {
-      if (llvm::Error error =
-              mergeMABI(*compileRunCapability, kSelectedMABIPropertyName))
-        return std::move(error);
-    }
-  }
-
-  if (const support::CapabilityDescriptor *selectedMABICapability =
-          capabilities.lookupByID(getRVVSelectedMABICapabilityID())) {
-    if (selectedMABICapability->isAvailable()) {
-      if (llvm::Error error = mergeMABI(*selectedMABICapability,
-                                        kSelectedMarchValuePropertyName))
-        return std::move(error);
-    }
-  }
-
-  return selectedMABI;
 }
 
 llvm::Expected<std::string>
@@ -291,59 +144,6 @@ llvm::Error copyCapacityMetadataToBoundary(mlir::OperationState &state,
   return llvm::Error::success();
 }
 
-llvm::Expected<std::string>
-getSelectedBinarySourceKindForBoundary(tcrv::exec::VariantOp variant) {
-  auto sourceKind = variant->getAttrOfType<mlir::StringAttr>(
-      getRVVSelectedBinarySourceKindAttrName());
-  if (!sourceKind || sourceKind.getValue().trim().empty())
-    return getRVVDirectTypedMicrokernelBodySourceKind().str();
-
-  llvm::StringRef value = sourceKind.getValue().trim();
-  if (llvm::Error error = validateRVVPropertyText(
-          (llvm::Twine("selected RVV variant @") + variant.getSymName()).str(),
-          getRVVSelectedBinarySourceKindAttrName(), value))
-    return std::move(error);
-
-  if (value != getRVVFrontendLoweringSourceKind() &&
-      value != getRVVDefaultTypedBinarySourceKind() &&
-      value != getRVVDirectTypedMicrokernelBodySourceKind())
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine("selected RVV variant @") + variant.getSymName() +
-        " has unrecognized typed binary source kind '" + value + "'");
-
-  return value.str();
-}
-
-llvm::Error copySelectedBinarySourceIdentityToBoundary(
-    mlir::OperationState &state, tcrv::exec::VariantOp variant,
-    mlir::OpBuilder &builder, const RVVBinarySelectedPlan *selectedPlan) {
-  if (!selectedPlan || !selectedPlan->family)
-    return llvm::Error::success();
-
-  llvm::Expected<std::string> sourceKind =
-      getSelectedBinarySourceKindForBoundary(variant);
-  if (!sourceKind)
-    return sourceKind.takeError();
-
-  state.addAttribute(kBoundarySelectedBinarySourceKindAttrName,
-                     builder.getStringAttr(*sourceKind));
-  state.addAttribute(kBoundarySelectedBinaryDTypeAttrName,
-                     builder.getStringAttr(selectedPlan->getDTypeID()));
-  state.addAttribute(kBoundarySelectedBinaryFamilyAttrName,
-                     builder.getStringAttr(selectedPlan->getFamilyID()));
-  state.addAttribute(
-      kBoundarySelectedBinaryOperatorAttrName,
-      builder.getStringAttr(selectedPlan->family->arithmeticVerb));
-  state.addAttribute(kBoundarySelectedBinaryMicrokernelOpAttrName,
-                     builder.getStringAttr(
-                         selectedPlan->getMicrokernelOpName()));
-  state.addAttribute(kBoundaryEmitCSourceOpAttrName,
-                     builder.getStringAttr(selectedPlan->getArithmeticOpName()));
-  state.addAttribute(kBoundaryEmitCLowerableOpInterfaceAttrName,
-                     builder.getStringAttr(kEmitCLowerableOpInterfaceName));
-  return llvm::Error::success();
-}
-
 llvm::Error validateBoundaryCapacityMetadata(tcrv::exec::VariantOp variant,
                                              mlir::Operation *boundary) {
   llvm::Expected<std::optional<RVVCapacityMetadata>> variantMetadata =
@@ -422,8 +222,7 @@ llvm::Expected<tcrv::rvv::LoweringBoundaryOp> materializeRVVBoundaryOp(
     mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
     tcrv::exec::VariantOp variant, VariantEmissionRole role,
     llvm::StringRef originPlugin, llvm::StringRef capabilitySummary,
-    const RVVVectorShapeConfig &selectedConfig,
-    const RVVBinarySelectedPlan *selectedPlan) {
+    const RVVVectorShapeConfig &selectedConfig) {
   auto requiredCapabilities =
       variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
 
@@ -442,9 +241,6 @@ llvm::Expected<tcrv::rvv::LoweringBoundaryOp> materializeRVVBoundaryOp(
   state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
   addRVVSelectedVectorShapeMetadataToOperationState(
       state, builder.getContext(), selectedConfig);
-  if (llvm::Error error = copySelectedBinarySourceIdentityToBoundary(
-          state, variant, builder, selectedPlan))
-    return std::move(error);
   if (llvm::Error error =
           copyCapacityMetadataToBoundary(state, variant, builder))
     return std::move(error);
@@ -460,55 +256,6 @@ llvm::Expected<tcrv::rvv::LoweringBoundaryOp> materializeRVVBoundaryOp(
 }
 
 } // namespace
-
-llvm::Expected<RVVBinaryMicrokernelMaterializationPlan>
-buildDescriptorlessDefaultTypedMicrokernelMaterializationPlan(
-    tcrv::exec::KernelOp kernel,
-    tcrv::exec::VariantOp variant,
-    const support::TargetCapabilitySet &capabilities,
-    const RVVBinaryCapabilityPropertyView &view) {
-  llvm::Expected<RVVBinaryFamilyPlanningResolution> resolution =
-      resolveRVVBinaryFamilyForProposal(
-          kernel, "descriptorless default RVV typed selected lowering boundary");
-  if (!resolution)
-    return resolution.takeError();
-  bool isTypedDefaultFamily =
-      resolution->family &&
-      (resolution->family->dtype == target::rvv::RVVBinaryDTypeKind::I32 ||
-       resolution->family->dtype == target::rvv::RVVBinaryDTypeKind::I64);
-  if (!isTypedDefaultFamily)
-    return makeRVVBinarySelectedBoundaryError(
-        llvm::Twine("descriptorless default RVV selected lowering boundary "
-                    "requires an i32 or i64 typed family, got '") +
-        (resolution->family ? resolution->family->familyID
-                            : llvm::StringRef("<none>")) +
-        "'");
-
-  llvm::Expected<std::optional<std::string>> selectedMABI =
-      getOptionalSelectedMABI(capabilities);
-  if (!selectedMABI)
-    return selectedMABI.takeError();
-
-  llvm::Expected<RVVBinarySelectedPlan> selectedPlan =
-      buildRVVBinarySelectedPlanFromTypedFamilyVariant(
-          variant, *resolution->family, *view.selectedShape,
-          resolution->family->dtypeID,
-          std::move(*selectedMABI));
-  if (!selectedPlan)
-    return selectedPlan.takeError();
-
-  if (llvm::Error error = verifyRequiredMarchAttr(variant, view))
-    return std::move(error);
-
-  RVVBinaryMicrokernelMaterializationPlan plan;
-  plan.selectedPlan = std::move(*selectedPlan);
-  llvm::Expected<std::string> sourceKind =
-      getSelectedBinarySourceKindForBoundary(variant);
-  if (!sourceKind)
-    return sourceKind.takeError();
-  plan.sourceKind = std::move(*sourceKind);
-  return plan;
-}
 
 llvm::Error materializeRVVBinarySelectedLoweringBoundary(
     const VariantLoweringBoundaryRequest &request,
@@ -557,113 +304,12 @@ llvm::Error materializeRVVBinarySelectedLoweringBoundary(
   if (!capabilitySummary)
     return capabilitySummary.takeError();
 
-  std::optional<RVVBinaryMicrokernelMaterializationPlan> i32MicrokernelPlan;
-  std::optional<RVVBinaryMicrokernelMaterializationPlan> i64MicrokernelPlan;
-  std::optional<RVVBinarySelectedEmissionAttachment>
-      existingSelectedEmissionAttachment;
-  VariantEmissionRequest emissionRequest(
-      variant, kernel, request.getCapabilities(), request.getRole());
-  llvm::Expected<std::optional<RVVBinarySelectedEmissionAttachment>>
-      explicitAttachment =
-          findRVVBinarySelectedEmissionAttachment(emissionRequest,
-                                                 originPlugin);
-  if (!explicitAttachment)
-    return explicitAttachment.takeError();
-  if (*explicitAttachment)
-    existingSelectedEmissionAttachment = std::move(**explicitAttachment);
-
-  bool hasSmokeProbeDescriptor =
-      variant->hasAttr(kRVVSmokeProbeDescriptorAttrName);
-  bool hasDescriptorlessDefaultTyped =
-      !hasSmokeProbeDescriptor && variant->hasAttr(kElementCountAttrName);
-
-  if (!existingSelectedEmissionAttachment && hasDescriptorlessDefaultTyped) {
-    llvm::Expected<RVVBinaryCapabilityPropertyView> propertyView =
-        buildRVVBinaryCapabilityPropertyView(request.getCapabilities(),
-                                            *selectedConfig);
-    if (!propertyView)
-      return propertyView.takeError();
-
-    llvm::Expected<RVVBinaryMicrokernelMaterializationPlan> planned =
-        buildDescriptorlessDefaultTypedMicrokernelMaterializationPlan(
-            kernel, variant, request.getCapabilities(), *propertyView);
-    if (!planned)
-      return planned.takeError();
-    if (planned->selectedPlan.family->dtype == RVVBinaryDTypeKind::I32)
-      i32MicrokernelPlan = std::move(*planned);
-    else
-      i64MicrokernelPlan = std::move(*planned);
-  }
-
-  bool selectedPathHasCallableMicrokernel =
-      i32MicrokernelPlan.has_value() || i64MicrokernelPlan.has_value() ||
-      existingSelectedEmissionAttachment.has_value();
-
-  if (i32MicrokernelPlan || i64MicrokernelPlan)
-    if (llvm::Error error = rejectExistingRVVBinaryMicrokernelForSelectedPath(
-            kernel, variant, request.getRole()))
-      return error;
-
-  std::optional<RVVBinaryIntrinsicRoute> selectedRoute;
-  if (i32MicrokernelPlan) {
-    selectedRoute = i32MicrokernelPlan->selectedPlan.descriptor;
-  } else if (i64MicrokernelPlan) {
-    selectedRoute = i64MicrokernelPlan->selectedPlan.descriptor;
-  } else if (existingSelectedEmissionAttachment) {
-    selectedRoute = existingSelectedEmissionAttachment->selectedPlan.descriptor;
-  }
-
-  if (selectedRoute)
-    if (llvm::Error error = support::ensureRuntimeABIBufferMemWindows(
-            kernel, request.getBuilder(),
-            selectedRoute->getBufferMemWindowSpecs()))
-      return error;
-
-  const RVVBinarySelectedPlan *selectedSourcePlan = nullptr;
-  if (i32MicrokernelPlan)
-    selectedSourcePlan = &i32MicrokernelPlan->selectedPlan;
-  else if (i64MicrokernelPlan)
-    selectedSourcePlan = &i64MicrokernelPlan->selectedPlan;
-  else if (existingSelectedEmissionAttachment)
-    selectedSourcePlan = &existingSelectedEmissionAttachment->selectedPlan;
-
-  if (selectedPathHasCallableMicrokernel) {
-    llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeParamSpecs;
-    if (!selectedRoute)
-      return makeRVVBinarySelectedBoundaryError(
-          "selected RVV callable microkernel requires typed-family "
-          "runtime ABI metadata");
-    auto countSpecs = selectedRoute->getRuntimeElementCountParamSpecs();
-    runtimeParamSpecs.append(countSpecs.begin(), countSpecs.end());
-    if (llvm::Error error =
-            support::ensureRuntimeABIParamsAllowingExistingCNames(
-                kernel, request.getBuilder(), runtimeParamSpecs))
-      return error;
-  }
-
   llvm::Expected<tcrv::rvv::LoweringBoundaryOp> boundary =
       materializeRVVBoundaryOp(request.getBuilder(), kernel, variant,
                                request.getRole(), originPlugin,
-                               *capabilitySummary, **selectedConfig,
-                               selectedSourcePlan);
+                               *capabilitySummary, **selectedConfig);
   if (!boundary)
     return boundary.takeError();
-
-  if (i32MicrokernelPlan)
-    if (llvm::Expected<mlir::Operation *> microkernel =
-            materializeRVVBinaryMicrokernelOp(
-                request.getBuilder(), kernel, variant, request.getRole(),
-                *i32MicrokernelPlan);
-        !microkernel)
-      return microkernel.takeError();
-
-  if (i64MicrokernelPlan)
-    if (llvm::Expected<mlir::Operation *> microkernel =
-            materializeRVVBinaryMicrokernelOp(
-                request.getBuilder(), kernel, variant, request.getRole(),
-                *i64MicrokernelPlan);
-        !microkernel)
-      return microkernel.takeError();
 
   out = VariantLoweringBoundaryResult::getMaterialized(
       originPlugin, kernel.getSymName(), variant.getSymName(),

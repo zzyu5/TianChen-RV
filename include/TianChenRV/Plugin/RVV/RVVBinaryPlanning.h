@@ -96,7 +96,6 @@ struct RVVBinarySelectedConfig {
 };
 
 struct RVVBinarySelectedPlan {
-  target::rvv::RVVBinaryIntrinsicRoute descriptor;
   const target::rvv::RVVBinaryFamilyRecord *family = nullptr;
   RVVBinarySelectedConfig selectedConfig;
   std::int64_t elementCount = 0;

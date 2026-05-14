@@ -1081,15 +1081,15 @@ llvm::StringRef RVVBinarySelectedPlan::getDTypeID() const {
 }
 
 llvm::StringRef RVVBinarySelectedPlan::getMicrokernelOpName() const {
-  return family ? family->microkernelOpName : llvm::StringRef();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinarySelectedPlan::getArithmeticOpName() const {
-  return family ? family->arithmeticOpName : llvm::StringRef();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinarySelectedPlan::getEmissionKind() const {
-  return family ? family->emissionKind : llvm::StringRef();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinarySelectedPlan::getEmissionPath() const {
@@ -1097,27 +1097,27 @@ llvm::StringRef RVVBinarySelectedPlan::getEmissionPath() const {
 }
 
 llvm::StringRef RVVBinarySelectedPlan::getRouteID() const {
-  return descriptor.getRVVRouteID();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinarySelectedPlan::getArtifactKind() const {
-  return getRVVBinaryRuntimeCallableCSourceArtifactKind();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinarySelectedPlan::getRuntimeABI() const {
-  return descriptor.getRVVRuntimeABI();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinarySelectedPlan::getRuntimeABIKind() const {
-  return descriptor.getRVVRuntimeABIKind();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinarySelectedPlan::getRuntimeABIName() const {
-  return descriptor.getRVVRuntimeABIName();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinarySelectedPlan::getRuntimeGlueRole() const {
-  return descriptor.getRVVRuntimeGlueRole();
+  return llvm::StringRef();
 }
 
 llvm::StringRef RVVBinarySelectedPlan::getSupportedMessage() const {
@@ -1125,19 +1125,19 @@ llvm::StringRef RVVBinarySelectedPlan::getSupportedMessage() const {
 }
 
 std::string RVVBinarySelectedPlan::getSetVLIntrinsicName() const {
-  return descriptor.getSetVLIntrinsicName();
+  return std::string();
 }
 
 std::string RVVBinarySelectedPlan::getLoadIntrinsicName() const {
-  return descriptor.getLoadIntrinsicName();
+  return std::string();
 }
 
 std::string RVVBinarySelectedPlan::getArithmeticIntrinsicName() const {
-  return descriptor.getArithmeticIntrinsicName();
+  return std::string();
 }
 
 std::string RVVBinarySelectedPlan::getStoreIntrinsicName() const {
-  return descriptor.getStoreIntrinsicName();
+  return std::string();
 }
 
 llvm::StringRef RVVBinaryProposalPlan::getFamilyID() const {
@@ -1610,7 +1610,6 @@ llvm::Expected<RVVBinarySelectedPlan> buildRVVBinarySelectedPlan(
   RVVBinarySelectedPlan plan;
   plan.family = &family;
   plan.selectedConfig.contract = std::move(*selectedConfig);
-  plan.descriptor = target::rvv::getRVVBinaryIntrinsicRoute(family, shape);
   plan.elementCount = elementCount;
   plan.requiredMarch = trimmedMarch.str();
   plan.selectedMABI = std::move(selectedMABI);

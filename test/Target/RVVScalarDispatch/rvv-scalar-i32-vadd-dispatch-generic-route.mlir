@@ -58,6 +58,9 @@ module {
 // IR-SAME: runtime_guard = @abi_dispatch_availability_guard
 // IR-SAME: runtime_guard_required = true
 // IR: tcrv.exec.fallback @scalar_fallback_first_slice
+// IR: tcrv_rvv.lowering_boundary {
+// IR-SAME: role = "dispatch case"
+// IR-SAME: selected_variant = @rvv_first_slice
 // IR: tcrv.exec.mem_window @abi_lhs_input_buffer
 // IR-SAME: abi_role = "lhs-input-buffer"
 // IR: tcrv.exec.mem_window @abi_rhs_input_buffer
@@ -66,15 +69,14 @@ module {
 // IR-SAME: abi_role = "output-buffer"
 // IR: tcrv.exec.runtime_param @abi_runtime_element_count
 // IR-SAME: abi_role = "runtime-element-count"
-// IR: tcrv_rvv.lowering_boundary
-// IR-SAME: role = "dispatch case"
-// IR-SAME: selected_variant = @rvv_first_slice
 // IR: tcrv_scalar.lowering_boundary
 // IR-SAME: role = "dispatch fallback"
 // IR-SAME: selected_variant = @scalar_fallback_first_slice
 // IR: tcrv.exec.diagnostic
-// IR-SAME: message = "runtime-callable RVV direct C source exporter was deleted; rebuild requires a materialized MLIR EmitC module source route"
+// IR-SAME: emission_kind = "rvv-unsupported-metadata-boundary"
+// IR-SAME: message = "RVV metadata-only first slice has no RVV lowering pipeline, runtime ABI, artifact contract, or executable emission path; this unsupported emission plan is a plugin-owned diagnostic boundary and not RVV hardware/toolchain/runtime/correctness/performance evidence"
 // IR-SAME: role = "dispatch case"
+// IR-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
 // IR-SAME: status = "unsupported"
 // IR-SAME: target = @rvv_first_slice
 // IR: tcrv.exec.diagnostic

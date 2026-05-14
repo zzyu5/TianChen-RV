@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture, stack, and descriptor-erasure invariants."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check no descriptor-driven microkernel/exporter framework remains active in touched path."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check no replacement non-EmitC source route was introduced."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check deleted direct descriptor/source/export routes fail closed."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check descriptor-positive tests are deleted or rewritten to unsupported behavior."}
+{"file": ".trellis/tasks/archive/2026-05/05-15-core-rvv-source-to-exec-erasure/prd.md", "reason": "Check continuity with previous core source-to-exec deletion owner."}

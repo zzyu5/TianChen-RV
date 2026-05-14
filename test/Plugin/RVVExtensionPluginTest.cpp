@@ -1,5 +1,4 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
@@ -46,27 +45,16 @@ using tianchenrv::plugin::VariantLoweringBoundaryResult;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalDecline;
 using tianchenrv::plugin::VariantProposalRequest;
-using tianchenrv::plugin::VariantSelectedPlanMetadata;
 using tianchenrv::plugin::rvv::RVVProbeCapabilityFacts;
-using tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::rvv::I32VAddMicrokernelOp;
-using tianchenrv::tcrv::rvv::I32LoadOp;
-using tianchenrv::tcrv::rvv::I32M2VectorType;
-using tianchenrv::tcrv::rvv::I32SubOp;
 using tianchenrv::tcrv::rvv::I32VMulMicrokernelOp;
 using tianchenrv::tcrv::rvv::I32VSubMicrokernelOp;
-using tianchenrv::tcrv::rvv::I64AddOp;
-using tianchenrv::tcrv::rvv::I64MulOp;
-using tianchenrv::tcrv::rvv::I64LoadOp;
-using tianchenrv::tcrv::rvv::I64M1VectorType;
-using tianchenrv::tcrv::rvv::I64SubOp;
 using tianchenrv::tcrv::rvv::MaskPolicy;
 using tianchenrv::tcrv::rvv::PolicyAttr;
-using tianchenrv::tcrv::rvv::SetVLOp;
 using tianchenrv::tcrv::rvv::TailPolicy;
 using tianchenrv::transforms::VariantSelectionKind;
 using tianchenrv::transforms::VariantSelectionPlan;
@@ -219,20 +207,6 @@ int expectProposalIntegerAttr(const VariantProposal &proposal,
   return expect(attr.getInt() == expectedValue,
                 llvm::Twine("proposal integer attribute ") + attrName +
                     " preserves expected value");
-}
-
-bool hasSelectedPlanMetadata(
-    llvm::ArrayRef<VariantSelectedPlanMetadata> metadata,
-    llvm::StringRef expectedName, llvm::StringRef expectedValue,
-    llvm::StringRef expectedRole = llvm::StringRef()) {
-  for (const VariantSelectedPlanMetadata &entry : metadata) {
-    if (entry.name != expectedName || entry.value != expectedValue)
-      continue;
-    if (!expectedRole.empty() && entry.role != expectedRole)
-      continue;
-    return true;
-  }
-  return false;
 }
 
 mlir::OwningOpRef<mlir::ModuleOp>
@@ -1040,8 +1014,9 @@ module {
       i64Kernel, i64Variant.getSymName(),
       tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord().microkernelOpName);
   if (int result =
-          expect(i64Microkernel,
-                 "profile-derived RVV i64 path materializes i64 vadd op"))
+          expect(!i64Microkernel,
+                 "profile-derived RVV i64 path no longer materializes i64 "
+                 "vadd op from selected descriptor"))
     return result;
 
   VariantEmissionPlan i64Plan;
@@ -1055,15 +1030,15 @@ module {
   if (int result =
           expect(i64Plan.isUnsupported() &&
                      i64Plan.getDiagnostic().contains(
-                         "runtime-callable RVV direct C source exporter was "
-                         "deleted") &&
+                         "RVV metadata-only first slice has no RVV lowering "
+                         "pipeline") &&
                      i64Plan.getRuntimeABIKind() ==
-                         "unsupported-plugin-runtime-abi" &&
+                         "rvv-plugin-deferred-runtime-abi" &&
                      i64Plan.getRuntimeABIName() ==
-                         "unsupported-emission-runtime-abi" &&
+                         "rvv-executable-runtime-abi-deferred" &&
                      i64Plan.getRuntimeGlueRole() ==
-                         "no-runtime-glue-unsupported",
-                 "profile-derived RVV i64 path reaches deleted-route "
+                         "deferred-rvv-runtime-glue",
+                 "profile-derived RVV i64 path reaches metadata-only "
                  "unsupported emission plan"))
     return result;
 
@@ -2066,19 +2041,22 @@ module {
     if (family.arithmetic ==
         tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add) {
       if (int result = expect(
-              findRVVAddMicrokernel(kernel, variant.getSymName()),
-              "registry-backed RVV vadd descriptor materializes vadd op"))
+              !findRVVAddMicrokernel(kernel, variant.getSymName()),
+              "registry-backed RVV vadd descriptor no longer materializes "
+              "vadd op"))
         return result;
     } else if (family.arithmetic ==
                tianchenrv::target::rvv::RVVBinaryArithmeticKind::Sub) {
       if (int result = expect(
-              findRVVSubMicrokernel(kernel, variant.getSymName()),
-              "registry-backed RVV vsub descriptor materializes vsub op"))
+              !findRVVSubMicrokernel(kernel, variant.getSymName()),
+              "registry-backed RVV vsub descriptor no longer materializes "
+              "vsub op"))
         return result;
     } else {
       if (int result = expect(
-              findRVVMulMicrokernel(kernel, variant.getSymName()),
-              "registry-backed RVV vmul descriptor materializes vmul op"))
+              !findRVVMulMicrokernel(kernel, variant.getSymName()),
+              "registry-backed RVV vmul descriptor no longer materializes "
+              "vmul op"))
         return result;
     }
 
@@ -2093,15 +2071,16 @@ module {
     if (int result =
             expect(emissionPlan.isUnsupported() &&
                        emissionPlan.getDiagnostic().contains(
-                           "runtime-callable RVV direct C source exporter was "
-                           "deleted") &&
+                           "RVV metadata-only first slice has no RVV lowering "
+                           "pipeline") &&
                        emissionPlan.getRuntimeABIKind() ==
-                           "unsupported-plugin-runtime-abi" &&
+                           "rvv-plugin-deferred-runtime-abi" &&
                        emissionPlan.getRuntimeABIName() ==
-                           "unsupported-emission-runtime-abi" &&
+                           "rvv-executable-runtime-abi-deferred" &&
                        emissionPlan.getRuntimeGlueRole() ==
-                           "no-runtime-glue-unsupported",
-                   llvm::Twine("RVV emission plan records deleted route for ") +
+                           "deferred-rvv-runtime-glue",
+                   llvm::Twine("RVV emission plan records metadata-only "
+                               "unsupported route for ") +
                        kernelName))
       return result;
 
@@ -2297,31 +2276,10 @@ module {
 
   I32VSubMicrokernelOp microkernel =
       findRVVSubMicrokernel(kernel, variant.getSymName());
-  if (int result = expect(microkernel,
-                          "RVV i32m2 vsub typed body materializes vsub op"))
-    return result;
-
-  SetVLOp setvl;
-  I32LoadOp load;
-  I32SubOp sub;
-  microkernel->walk([&](SetVLOp op) { setvl = op; });
-  microkernel->walk([&](I32LoadOp op) {
-    if (!load)
-      load = op;
-  });
-  microkernel->walk([&](I32SubOp op) { sub = op; });
-
   if (int result =
-          expect(setvl && setvl.getLmul() == "m2",
-                 "RVV i32m2 materialization emits m2 setvl metadata"))
-    return result;
-  if (int result =
-          expect(load && llvm::isa<I32M2VectorType>(load.getLoaded().getType()),
-                 "RVV i32m2 materialization emits i32m2 load type"))
-    return result;
-  if (int result =
-          expect(sub && llvm::isa<I32M2VectorType>(sub.getDifference().getType()),
-                 "RVV i32m2 materialization emits i32m2 arithmetic result"))
+          expect(!microkernel,
+                 "RVV i32m2 selected boundary no longer materializes vsub "
+                 "typed body from selected descriptor"))
     return result;
 
   llvm::Expected<
@@ -2335,95 +2293,9 @@ module {
     return fail(llvm::Twine("build RVV i32m2 selected-emission plan: ") +
                 llvm::toString(selectedEmissionPlan.takeError()));
   if (int result =
-          expect(static_cast<bool>(*selectedEmissionPlan),
-                 "RVV i32m2 selected-emission planner finds callable path"))
-    return result;
-  const auto &plannerI32Plan = **selectedEmissionPlan;
-  if (int result =
-          expect(plannerI32Plan.getFamilyID() == "i32-vsub" &&
-                     plannerI32Plan.getLoweringPipeline() ==
-                         tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord()
-                             .routeID &&
-                     plannerI32Plan.getRuntimeABIName() ==
-                         tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord()
-                             .runtimeABIName,
-                 "RVV i32 selected-emission planner preserves typed route "
-                 "and ABI identity"))
-    return result;
-  if (int result = expect(plannerI32Plan.requiredCapabilitySymbols.size() == 5 &&
-                              plannerI32Plan.requiredCapabilitySymbols[1] ==
-                                  "rvv_i32_m2_sew32",
-                          "RVV i32 selected-emission planner preserves "
-                          "required capability symbols separately"))
-    return result;
-  if (int result = expect(
-          plannerI32Plan.runtimeABIParameters.size() == 4 &&
-              plannerI32Plan.runtimeABIParameters[0].cType ==
-                  "const int32_t *" &&
-              plannerI32Plan.runtimeABIParameters[2].cType == "int32_t *",
-          "RVV i32 selected-emission planner preserves callable ABI "
-          "parameters separately"))
-    return result;
-  if (int result = expect(
-          !plannerI32Plan.selectedPlanMetadata.empty() &&
-              plannerI32Plan.selectedPlanMetadata[0].name ==
-                  "tcrv_rvv.selected_vector_shape" &&
-              plannerI32Plan.selectedPlanMetadata[0].value == "i32m2",
-          "RVV i32 selected-emission planner preserves selected vector-shape "
-          "metadata separately"))
-    return result;
-  if (int result = expect(
-          hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
-                                  "tcrv_rvv.selected_vector_sew_capability",
-                                  "rvv.i32_m2.sew32",
-                                  "selected-rvv-vector-shape-capability") &&
-              hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
-                                      "tcrv_rvv.selected_vector_lmul_capability",
-                                      "rvv.i32_m2.lmul_m2",
-                                      "selected-rvv-vector-shape-capability"),
-          "RVV i32 selected-emission planner exposes selected vector-shape "
-          "capability metadata separately"))
-    return result;
-  if (int result = expect(
-          hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
-                                  "tcrv_rvv.runtime_avl_source",
-                                  "runtime-element-count-abi-parameter",
-                                  "rvv-runtime-vl-avl-boundary") &&
-              hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
-                                      "tcrv_rvv.runtime_vl_source",
-                                      "tcrv_rvv.setvl",
-                                      "rvv-runtime-vl-avl-boundary"),
-          "RVV i32 selected-emission planner exposes runtime AVL/VL "
-          "boundary metadata separately"))
-    return result;
-  if (int result = expect(
-          hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
-                                  "tcrv_rvv.emitc_source_op",
-                                  "tcrv_rvv.i32_sub",
-                                  "typed-rvv-emitc-source-op") &&
-              hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
-                                      "tcrv_rvv.emitc_lowerable_op_interface",
-                                      "TCRVEmitCLowerableOpInterface",
-                                      "typed-rvv-emitc-source-op") &&
-              hasSelectedPlanMetadata(
-                  plannerI32Plan.selectedPlanMetadata,
-                  "tcrv_rvv.emitc_route_kind",
-                  "extension-family-ops-to-emitc-call-opaque",
-                  "typed-rvv-emitc-route") &&
-              hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
-                                      "tcrv_rvv.emitc_source_authority",
-                                      "mlir-emitc-cpp-emitter",
-                                      "typed-rvv-emitc-route") &&
-              hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
-                                      "tcrv_rvv.emitc_required_header",
-                                      "riscv_vector.h",
-                                      "typed-rvv-emitc-route") &&
-              hasSelectedPlanMetadata(plannerI32Plan.selectedPlanMetadata,
-                                      "tcrv_rvv.emitc_arithmetic_intrinsic",
-                                      "__riscv_vsub_vv_i32m2",
-                                      "typed-rvv-emitc-route"),
-          "RVV i32 selected-emission planner records plugin-owned EmitC "
-          "route metadata"))
+          expect(!static_cast<bool>(*selectedEmissionPlan),
+                 "RVV i32m2 selected-emission planner no longer builds "
+                 "callable ABI params from selected descriptor"))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -2436,9 +2308,12 @@ module {
     return result;
   return expect(emissionPlan.isUnsupported() &&
                     emissionPlan.getDiagnostic().contains(
-                        "runtime-callable RVV direct C source exporter was "
-                        "deleted"),
-                "RVV i32m2 emission plan records deleted vsub route");
+                        "RVV metadata-only first slice has no RVV lowering "
+                        "pipeline") &&
+                    emissionPlan.getRuntimeABIKind() ==
+                        "rvv-plugin-deferred-runtime-abi",
+                "RVV i32m2 emission plan records metadata-only unsupported "
+                "route");
 }
 
 int runRVVI64BinaryFamilyProposalMaterializationTest(
@@ -2604,60 +2479,11 @@ module {
   mlir::Operation *microkernel =
       findRVVI64Microkernel(kernel, variant.getSymName(),
                             family.microkernelOpName);
-  if (int result = expect(microkernel,
-                          llvm::Twine("RVV i64 typed body materializes ") +
-                              family.familyID + " op"))
-    return result;
-
-  SetVLOp setvl;
-  I64LoadOp load;
-  mlir::Value arithmeticResult;
-  mlir::Operation *arithmeticOp = nullptr;
-  microkernel->walk([&](SetVLOp op) { setvl = op; });
-  microkernel->walk([&](I64LoadOp op) {
-    if (!load)
-      load = op;
-  });
-  using RVVKind = tianchenrv::target::rvv::RVVBinaryArithmeticKind;
-  switch (family.arithmetic) {
-  case RVVKind::Add:
-    microkernel->walk([&](I64AddOp op) {
-      arithmeticResult = op.getSum();
-      arithmeticOp = op.getOperation();
-    });
-    break;
-  case RVVKind::Sub:
-    microkernel->walk([&](I64SubOp op) {
-      arithmeticResult = op.getDifference();
-      arithmeticOp = op.getOperation();
-    });
-    break;
-  case RVVKind::Mul:
-    microkernel->walk([&](I64MulOp op) {
-      arithmeticResult = op.getProduct();
-      arithmeticOp = op.getOperation();
-    });
-    break;
-  }
-
-  if (int result = expect(setvl && setvl.getSew() == 64 &&
-                              setvl.getLmul() == "m1",
-                          "RVV i64 materialization emits SEW64 m1 setvl"))
-    return result;
   if (int result =
-          expect(load && llvm::isa<I64M1VectorType>(load.getLoaded().getType()),
-                 "RVV i64 materialization emits i64m1 load type"))
-    return result;
-  if (int result =
-          expect(arithmeticResult &&
-                     llvm::isa<I64M1VectorType>(arithmeticResult.getType()),
-                 "RVV i64 materialization emits i64m1 arithmetic result"))
-    return result;
-  if (int result =
-          expect(arithmeticOp &&
-                     llvm::isa<TCRVEmitCLowerableOpInterface>(arithmeticOp),
-                 "RVV i64 arithmetic op implements generated EmitC "
-                 "lowerable op interface"))
+          expect(!microkernel,
+                 llvm::Twine("RVV i64 selected boundary no longer "
+                             "materializes ") +
+                     family.familyID + " typed body from selected descriptor"))
     return result;
 
   llvm::Expected<
@@ -2672,101 +2498,11 @@ module {
                 family.familyID + ": " +
                 llvm::toString(selectedEmissionPlan.takeError()));
   if (int result =
-          expect(static_cast<bool>(*selectedEmissionPlan),
-                 llvm::Twine("RVV i64 selected-emission planner finds ") +
-                     family.familyID + " callable path"))
-    return result;
-  const auto &plannerI64Plan = **selectedEmissionPlan;
-  if (int result =
-          expect(plannerI64Plan.getFamilyID() == family.familyID &&
-                     plannerI64Plan.getLoweringPipeline() == family.routeID &&
-                     plannerI64Plan.getRuntimeABI() == family.runtimeABI &&
-                     plannerI64Plan.getRuntimeABIKind() ==
-                         family.runtimeABIKind &&
-                     plannerI64Plan.getRuntimeABIName() ==
-                         family.runtimeABIName &&
-                     plannerI64Plan.getRuntimeGlueRole() ==
-                         family.runtimeGlueRole,
-                 llvm::Twine("RVV i64 selected-emission planner preserves "
-                             "typed route and ABI for ") +
+          expect(!static_cast<bool>(*selectedEmissionPlan),
+                 llvm::Twine("RVV i64 selected-emission planner no longer "
+                             "builds callable ABI params from selected "
+                             "descriptor for ") +
                      family.familyID))
-    return result;
-  if (int result = expect(plannerI64Plan.requiredCapabilitySymbols.size() == 5 &&
-                              plannerI64Plan.requiredCapabilitySymbols[1] ==
-                                  "rvv_i64_m1_sew64",
-                          "RVV i64 selected-emission planner preserves "
-                          "required capability symbols separately"))
-    return result;
-  if (int result = expect(
-          plannerI64Plan.runtimeABIParameters.size() == 4 &&
-              plannerI64Plan.runtimeABIParameters[0].cType ==
-                  "const int64_t *" &&
-              plannerI64Plan.runtimeABIParameters[2].cType == "int64_t *",
-          "RVV i64 selected-emission planner preserves int64 callable ABI "
-          "parameters separately"))
-    return result;
-  if (int result = expect(
-          !plannerI64Plan.selectedPlanMetadata.empty() &&
-              plannerI64Plan.selectedPlanMetadata[0].name ==
-                  "tcrv_rvv.selected_vector_shape" &&
-              plannerI64Plan.selectedPlanMetadata[0].value == "i64m1",
-          "RVV i64 selected-emission planner preserves selected vector-shape "
-          "metadata separately"))
-    return result;
-  if (int result = expect(
-          hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
-                                  "tcrv_rvv.selected_vector_sew_capability",
-                                  "rvv.i64_m1.sew64",
-                                  "selected-rvv-vector-shape-capability") &&
-              hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
-                                      "tcrv_rvv.selected_vector_lmul_capability",
-                                      "rvv.i64_m1.lmul_m1",
-                                      "selected-rvv-vector-shape-capability"),
-          "RVV i64 selected-emission planner exposes selected vector-shape "
-          "capability metadata separately"))
-    return result;
-  if (int result = expect(
-          hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
-                                  "tcrv_rvv.runtime_avl_source",
-                                  "runtime-element-count-abi-parameter",
-                                  "rvv-runtime-vl-avl-boundary") &&
-              hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
-                                      "tcrv_rvv.runtime_vl_source",
-                                      "tcrv_rvv.setvl",
-                                      "rvv-runtime-vl-avl-boundary"),
-          "RVV i64 selected-emission planner exposes runtime AVL/VL "
-          "boundary metadata separately"))
-    return result;
-  if (int result = expect(
-          hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
-                                  "tcrv_rvv.emitc_source_op",
-                                  family.arithmeticOpName,
-                                  "typed-rvv-emitc-source-op") &&
-              hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
-                                      "tcrv_rvv.emitc_lowerable_op_interface",
-                                      "TCRVEmitCLowerableOpInterface",
-                                      "typed-rvv-emitc-source-op") &&
-              hasSelectedPlanMetadata(
-                  plannerI64Plan.selectedPlanMetadata,
-                  "tcrv_rvv.emitc_route_kind",
-                  "extension-family-ops-to-emitc-call-opaque",
-                  "typed-rvv-emitc-route") &&
-              hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
-                                      "tcrv_rvv.emitc_source_authority",
-                                      "mlir-emitc-cpp-emitter",
-                                      "typed-rvv-emitc-route") &&
-              hasSelectedPlanMetadata(plannerI64Plan.selectedPlanMetadata,
-                                      "tcrv_rvv.emitc_required_header",
-                                      "riscv_vector.h",
-                                      "typed-rvv-emitc-route") &&
-              hasSelectedPlanMetadata(
-                  plannerI64Plan.selectedPlanMetadata,
-                  "tcrv_rvv.emitc_arithmetic_intrinsic",
-                  (llvm::Twine(family.arithmeticIntrinsicPrefix) + "i64m1")
-                      .str(),
-                  "typed-rvv-emitc-route"),
-          "RVV i64 selected-emission planner records typed EmitC route "
-          "metadata without descriptor authority"))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -2779,16 +2515,16 @@ module {
     return result;
   return expect(emissionPlan.isUnsupported() &&
                     emissionPlan.getDiagnostic().contains(
-                        "runtime-callable RVV direct C source exporter was "
-                        "deleted") &&
+                        "RVV metadata-only first slice has no RVV lowering "
+                        "pipeline") &&
                     emissionPlan.getRuntimeABIKind() ==
-                        "unsupported-plugin-runtime-abi" &&
+                        "rvv-plugin-deferred-runtime-abi" &&
                     emissionPlan.getRuntimeABIName() ==
-                        "unsupported-emission-runtime-abi" &&
+                        "rvv-executable-runtime-abi-deferred" &&
                     emissionPlan.getRuntimeGlueRole() ==
-                        "no-runtime-glue-unsupported",
-                "RVV i64 emission plan records deleted route and no runtime "
-                "ABI params");
+                        "deferred-rvv-runtime-glue",
+                "RVV i64 emission plan records metadata-only unsupported route "
+                "and no descriptor ABI params");
 }
 
 int runRVVI64VAddProposalMaterializationTest(mlir::MLIRContext &context) {

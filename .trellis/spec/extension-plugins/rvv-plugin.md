@@ -362,28 +362,17 @@ the RVV id through the C++ `CapabilityDescriptor::satisfiesID("rvv")` relation
 API; it must not require an exact `id = "rvv"` capability when a structured
 provider relation is present.
 
-When the selected `rvv-plugin` path carries the finite descriptor above,
-`RVVExtensionPlugin` owns the lowering-boundary materialization step that
-creates the matching plugin-local direct kernel-child microkernel op:
-`tcrv_rvv.i32_vadd_microkernel` for `i32-vadd-microkernel.v1`, or
-`tcrv_rvv.i32_vsub_microkernel` for `i32-vsub-microkernel.v1`, or
-`tcrv_rvv.i32_vmul_microkernel` for `i32-vmul-microkernel.v1`. The
-materialized op must preserve source kernel, selected
-variant, origin, selected role, required capability refs, required march,
-optional selected mabi, bounded element count, and one structured RVV
-dataflow body. That body has a runtime index block argument for the
-target/export-owned runtime `n`/AVL value, one `tcrv_rvv.setvl`, one matching
-`tcrv_rvv.with_vl`, and a nested finite `tcrv_rvv.i32_load`,
-`tcrv_rvv.i32_load`, one family-selected arithmetic op
-(`tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`, or `tcrv_rvv.i32_mul`), and
-`tcrv_rvv.i32_store`
-dataflow sequence. The load/store ops reference the target/export-owned lhs
-input, rhs input, and output buffer ABI roles consumed by the exporter; the runtime
-element-count role remains a direct `tcrv.exec.runtime_param` ABI boundary in
-the callable plan. If descriptor metadata is missing or
-malformed, required march is missing, the structured body is malformed, or an
-explicit matching microkernel would make the selected path ambiguous, the
-plugin must fail before claiming a supported emission path.
+The former finite descriptor selected microkernel materialization route is
+deleted. A selected `rvv-plugin` path may still materialize
+`tcrv_rvv.lowering_boundary` metadata for selected-path diagnostics, selected
+vector-shape evidence, and capacity metadata, but it must not synthesize a
+plugin-local direct kernel-child `tcrv_rvv.*_microkernel`, `setvl`/`with_vl`,
+load/arithmetic/store body, or callable runtime ABI boundary from finite family
+records, `RVVBinaryIntrinsicRoute`, legacy lowering tokens, route ids, or
+descriptor mirrors. Until the rebuild supplies explicit extension-family IR
+plus a materialized MLIR EmitC module route, RVV microkernel attachments and
+descriptor-derived callable ABI data are fail-closed metadata, not active
+emission authority.
 
 The former microkernel direct C slice is deleted as production authority. If
 the selected `rvv-plugin` path has a matching RVV microkernel attachment,
@@ -1058,27 +1047,29 @@ route before printing RVV intrinsic C/C++.
 
 #### 6. Tests Required
 
-- lit/FileCheck must show auto materialization creates the RVV family body.
-- lit/FileCheck must show generated source includes the EmitC route metadata
-  and the expected RVV intrinsic call.
+- lit/FileCheck or C++ tests must show selected-boundary materialization does
+  not auto-create an RVV family body from descriptor/family records.
+- Tests must show RVV selected emission planning does not build callable ABI
+  parameters or supported source/header/object routes from
+  `selectedPlan.descriptor`.
 - Negative coverage must keep stale body, stale descriptor, missing boundary,
-  and malformed ABI cases fail-closed before source output.
+  and malformed ABI cases fail-closed before source/header/object output.
 
 #### 7. Wrong vs Correct
 
 Wrong:
 
 ```text
-selected descriptor -> direct C string intrinsic emission
+selected descriptor -> generated microkernel body -> direct C/intrinsic source
 ```
 
 Correct:
 
 ```text
-selected descriptor/config metadata
-  -> verified tcrv_rvv family-op body
-  -> RVVEmitCIntrinsicRoute / emitc.call_opaque mapping
-  -> RVV intrinsic C/C++ source
+selected RVV metadata boundary
+  -> unsupported/deleted-route diagnostic
+future rebuild:
+explicit extension-family ops -> materialized MLIR EmitC module -> C/C++
 ```
 
 ## Hart Parallelism

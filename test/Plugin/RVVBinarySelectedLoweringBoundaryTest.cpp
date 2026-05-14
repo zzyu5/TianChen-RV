@@ -4,8 +4,6 @@
 #include "TianChenRV/Plugin/RVV/RVVBinarySelectedLoweringBoundary.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Support/RuntimeABIMemWindow.h"
-#include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/RVV/RVVBinaryFamily.h"
 
 #include "mlir/IR/Attributes.h"
@@ -28,8 +26,6 @@ using tianchenrv::plugin::VariantLoweringBoundaryResult;
 using tianchenrv::plugin::VariantLoweringBoundaryValidationRequest;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::KernelOp;
-using tianchenrv::tcrv::exec::MemWindowOp;
-using tianchenrv::tcrv::exec::RuntimeParamOp;
 using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::rvv::LoweringBoundaryOp;
 
@@ -158,69 +154,6 @@ int expectIntegerAttr(mlir::Operation *op, llvm::StringRef attrName,
   return expect(attr.getInt() == expected,
                 llvm::Twine("integer attribute '") + attrName +
                     "' preserves expected value");
-}
-
-int expectCallableRuntimeABI(KernelOp kernel, llvm::StringRef dtype) {
-  llvm::StringRef inputType =
-      dtype == "i64" ? "const int64_t *" : "const int32_t *";
-  llvm::StringRef outputType = dtype == "i64" ? "int64_t *" : "int32_t *";
-
-  unsigned windows = 0;
-  bool lhs = false;
-  bool rhs = false;
-  bool out = false;
-  unsigned runtimeParams = 0;
-  bool runtimeN = false;
-
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    if (auto window = llvm::dyn_cast<MemWindowOp>(op)) {
-      ++windows;
-      llvm::StringRef role = getStringAttr(window.getOperation(),
-                                           tianchenrv::support::
-                                               kMemWindowABIRoleAttrName);
-      llvm::StringRef cType = getStringAttr(window.getOperation(),
-                                            tianchenrv::support::
-                                                kMemWindowCTypeAttrName);
-      if (role == "lhs-input-buffer" && cType == inputType)
-        lhs = true;
-      if (role == "rhs-input-buffer" && cType == inputType)
-        rhs = true;
-      if (role == "output-buffer" && cType == outputType)
-        out = true;
-      continue;
-    }
-
-    if (auto param = llvm::dyn_cast<RuntimeParamOp>(op)) {
-      ++runtimeParams;
-      runtimeN =
-          getStringAttr(param.getOperation(),
-                        tianchenrv::support::kRuntimeParamABIRoleAttrName) ==
-              "runtime-element-count" &&
-          getStringAttr(param.getOperation(),
-                        tianchenrv::support::kRuntimeParamCNameAttrName) ==
-              "n" &&
-          getStringAttr(param.getOperation(),
-                        tianchenrv::support::kRuntimeParamCTypeAttrName) ==
-              "size_t";
-    }
-  }
-
-  return expect(windows == 3 && lhs && rhs && out && runtimeParams == 1 &&
-                    runtimeN,
-                llvm::Twine("selected lowering-boundary materialization "
-                            "ensures ") +
-                    dtype + " callable mem_window/runtime_param ABI");
-}
-
-bool hasNestedOperation(mlir::Operation *op, llvm::StringRef opName) {
-  bool found = false;
-  if (!op)
-    return found;
-  op->walk([&](mlir::Operation *candidate) {
-    if (candidate->getName().getStringRef() == opName)
-      found = true;
-  });
-  return found;
 }
 
 llvm::Error materializeWithModuleAPI(
@@ -403,17 +336,9 @@ module {
   mlir::Operation *microkernel = findSelectedOpByName(
       kernel, variant.getSymName(),
       tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord().microkernelOpName);
-  if (int status = expect(microkernel,
-                          "i32 selected module materializes vsub microkernel"))
-    return status;
-  if (int status =
-          expectIntegerAttr(microkernel, "element_count", 32))
-    return status;
-  if (int status = expectStringAttr(microkernel, "required_march", "rv64gcv"))
-    return status;
-  if (int status = expectStringAttr(microkernel, "selected_mabi", "lp64d"))
-    return status;
-  if (int status = expectCallableRuntimeABI(kernel, "i32"))
+  if (int status = expect(!microkernel,
+                          "i32 selected boundary no longer materializes vsub "
+                          "microkernel from descriptor/family records"))
     return status;
 
   if (int status = expectSuccess(
@@ -533,40 +458,9 @@ module {
       kernel, variant.getSymName(),
       tianchenrv::target::rvv::getI32VAddFamilyRegistrationRecord().microkernelOpName);
   if (int status =
-          expect(microkernel,
-                 "default descriptorless path materializes typed i32-vadd "
-                 "microkernel before emission/export"))
-    return status;
-  if (int status = expectIntegerAttr(microkernel, "element_count", 16))
-    return status;
-  if (int status = expectStringAttr(microkernel, "required_march", "rv64gcv"))
-    return status;
-  if (int status = expectStringAttr(microkernel, "selected_mabi", "lp64d"))
-    return status;
-  if (int status =
-          expectStringAttr(microkernel, "selected_vector_shape", "i32m1"))
-    return status;
-  if (int status =
-          expectStringAttr(microkernel, "selected_vector_lmul", "m1"))
-    return status;
-  if (int status =
-          expectStringAttr(microkernel, "selected_setvl_suffix", "e32m1"))
-    return status;
-  if (int status =
-          expectStringAttr(microkernel, "role", "direct variant"))
-    return status;
-
-  if (int status =
-          expect(hasNestedOperation(microkernel, "tcrv_rvv.setvl") &&
-                     hasNestedOperation(microkernel, "tcrv_rvv.with_vl") &&
-                     hasNestedOperation(microkernel, "tcrv_rvv.i32_load") &&
-                     hasNestedOperation(microkernel, "tcrv_rvv.i32_add") &&
-                     hasNestedOperation(microkernel, "tcrv_rvv.i32_store"),
-                 "default materialized body carries typed RVV control and "
-                 "i32 add dataflow ops"))
-    return status;
-
-  if (int status = expectCallableRuntimeABI(kernel, "i32"))
+          expect(!microkernel,
+                 "default selected boundary no longer materializes i32-vadd "
+                 "microkernel from selected descriptor"))
     return status;
 
   return expectSuccess(
@@ -708,17 +602,9 @@ module {
   mlir::Operation *microkernel = findSelectedOpByName(
       kernel, variant.getSymName(), family.microkernelOpName);
   if (int status =
-          expect(microkernel,
-                 llvm::Twine("i64 selected module materializes ") +
-                     family.familyID + " microkernel"))
-    return status;
-  if (int status =
-          expectIntegerAttr(microkernel, "element_count", 16))
-    return status;
-  if (int status =
-          expectStringAttr(microkernel, "selected_vector_shape", "i64m1"))
-    return status;
-  if (int status = expectCallableRuntimeABI(kernel, "i64"))
+          expect(!microkernel,
+                 llvm::Twine("i64 selected boundary no longer materializes ") +
+                     family.familyID + " microkernel from selected descriptor"))
     return status;
 
   return expectSuccess(

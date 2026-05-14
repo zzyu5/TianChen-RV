@@ -2,7 +2,6 @@
 #define TIANCHENRV_PLUGIN_RVV_RVVBINARYSELECTEDLOWERINGBOUNDARY_H
 
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Plugin/RVV/RVVBinaryMicrokernelMaterialization.h"
 #include "TianChenRV/Plugin/RVV/RVVBinaryPlanning.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 

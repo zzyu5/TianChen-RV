@@ -152,32 +152,26 @@ Use lit/FileCheck for:
   comments, `riscv_vector.h` use, fail-before-source diagnostics for malformed
   selected RVV metadata, and no manifest/runtime-success/raw-log/performance
   claims.
-- RVV i32 vector-add microkernel materialization and C target export, including
-  dialect parse/verify for `tcrv_rvv.i32_vadd_microkernel`, execution-planning
-  coverage proving the RVV plugin materializes the op and its structured
-  `tcrv_rvv.setvl` / `tcrv_rvv.with_vl` /
-  `tcrv_rvv.i32_load` / `tcrv_rvv.i32_add` / `tcrv_rvv.i32_store` body from
-  the finite selected descriptor without
-  a hand-authored input microkernel, pipeline-to-export
-  coverage, selected kernel/variant/march comments, control/dataflow body
-  consumption comments, `riscv_vector.h` use, a
-  runtime-callable C ABI function with `const int32_t *` inputs, `int32_t *`
-  output, and `size_t` length, RVV i32 load/add/store intrinsics in that
-  function, default library-style source without an embedded `main`, and an
-  explicit self-check harness export that calls the ABI function,
-  fail-before-source diagnostics for missing selected RVV paths,
-  missing/stale boundaries, missing/duplicate microkernel ops, missing or
-  malformed finite descriptor metadata, malformed selected march metadata,
-  malformed structured control/dataflow bodies, exporter-visible
-  setvl/with_vl-policy/dataflow mismatches, and no manifest/runtime-success/
-  raw-log/performance numbers.
+- RVV selected microkernel descriptor materialization is deleted. Tests must
+  assert that selected-boundary materialization does not auto-create
+  `tcrv_rvv.i32_vadd_microkernel` or structured `setvl` / `with_vl` /
+  load/arithmetic/store bodies from finite selected descriptors, and that RVV
+  selected emission planning does not build callable ABI parameters or
+  supported source/header/object routes from descriptor/family records.
+  Dialect parse/verify for hand-authored `tcrv_rvv.*_microkernel` ops may
+  remain only as syntax coverage or fail-closed input coverage until the
+  rebuild supplies explicit extension-family IR plus a materialized MLIR EmitC
+  module route. Tests must expect no generated RVV C source, header, object,
+  self-check harness, runtime-success, raw-log, correctness, or performance
+  claim from descriptor-selected RVV microkernel paths.
 - RVV microkernel emission-plan and emission-manifest handoff,
-  including supported runtime-callable C source export metadata only when a
-  selected RVV path has exactly one matching
-  `tcrv_rvv.i32_vadd_microkernel`, manifest serialization of the bounded
-  handoff fields, stale/duplicate microkernel diagnostics, and tests proving
-  the microkernel attachment is not counted as a duplicate selected lowering
-  boundary.
+  now deletion-campaign fail-closed: selected RVV paths with or without matching
+  `tcrv_rvv.*_microkernel` attachments must not produce supported
+  runtime-callable C source metadata, descriptor-derived ABI parameters, or
+  manifest entries until the Common EmitC rebuild supplies a materialized
+  source authority. Tests should cover unsupported metadata-only diagnostics,
+  stale/duplicate microkernel inputs as deleted-route failures, and the fact
+  that microkernel attachments are not replacement lowering boundaries.
 - generic target source artifact export routing, including post-planning
   selected-path/emission-plan consumption, deterministic agreement with the
   direct RVV microkernel C exporter for the checked-in explicit microkernel

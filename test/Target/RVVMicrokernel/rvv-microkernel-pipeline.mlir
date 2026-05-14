@@ -1,6 +1,5 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=NO-DIRECT-FALLBACK --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="__riscv_"
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | not tcrv-translate --tcrv-export-rvv-microkernel-self-check-c 2>&1 | FileCheck %s --check-prefix=NO-SELF-CHECK --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="int main(void)"
-// RUN: sed '/%lhs = tcrv_rvv.i32_load/s/buffer_role = "lhs-input-buffer"/buffer_role = "output-buffer"/' %s | not tcrv-opt - --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=BAD-DATAFLOW-ROLE --implicit-check-not="__riscv_vle32_v_i32m1"
 
 module @rvv_microkernel_input {
   tcrv.exec.kernel @micro_a {
@@ -74,33 +73,8 @@ module @rvv_microkernel_input {
         fallback_role = "conservative"
       }
     }
-    tcrv_rvv.i32_vadd_microkernel attributes {
-      element_count = 16 : i64,
-      origin = "rvv-plugin",
-      required_capabilities = [@rvv],
-      required_march = "rv64gcv",
-      role = "dispatch case",
-      selected_mabi = "lp64d",
-      selected_variant = @rvv_first_slice,
-      source_kernel = "micro_a"
-    } {
-    ^bb0(%runtime_n: index):
-      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-
-        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-
-        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-
-        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
-      } : !tcrv_rvv.vl
-    }
   }
 }
 
 // NO-DIRECT-FALLBACK: Unknown command line argument '--tcrv-export-rvv-microkernel-c'
 // NO-SELF-CHECK: Unknown command line argument '--tcrv-export-rvv-microkernel-self-check-c'
-
-// BAD-DATAFLOW-ROLE: tcrv_rvv.i32_vadd_microkernel
-// BAD-DATAFLOW-ROLE-SAME: requires first tcrv_rvv.i32_load to reference runtime ABI role 'lhs-input-buffer'

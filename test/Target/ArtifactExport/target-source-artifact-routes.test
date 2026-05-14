@@ -3,8 +3,11 @@
 # RUN: not tcrv-translate --tcrv-export-rvv-microkernel-c %t.rvv-microkernel-post-planning.mlir 2>&1 | FileCheck %s --check-prefix=RVV-DIRECT-ROUTE-DELETED --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="__riscv_"
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %t.rvv-microkernel-post-planning.mlir 2>&1 | FileCheck %s --check-prefix=RVV-GENERIC-DELETED --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="__riscv_"
 
-# RVV-PLAN: message = "runtime-callable RVV direct C source exporter was deleted; rebuild requires a materialized MLIR EmitC module source route"
+# RVV-PLAN: emission_kind = "rvv-unsupported-metadata-boundary"
+# RVV-PLAN-SAME: lowering_pipeline = "rvv-none-executable-unsupported"
+# RVV-PLAN-SAME: message = "RVV metadata-only first slice has no RVV lowering pipeline, runtime ABI, artifact contract, or executable emission path; this unsupported emission plan is a plugin-owned diagnostic boundary and not RVV hardware/toolchain/runtime/correctness/performance evidence"
 # RVV-PLAN-SAME: role = "direct variant"
+# RVV-PLAN-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
 # RVV-PLAN-SAME: status = "unsupported"
 # RVV-PLAN-SAME: target = @rvv_first_slice
 # RVV-DIRECT-ROUTE-DELETED: Unknown command line argument '--tcrv-export-rvv-microkernel-c'

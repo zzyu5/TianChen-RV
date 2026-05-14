@@ -1,6 +1,5 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
-#include "TianChenRV/Plugin/RVV/RVVBinaryMicrokernelMaterialization.h"
 #include "TianChenRV/Plugin/RVV/RVVBinaryPlanning.h"
 
 #include "TianChenRV/Support/CapabilityModel.h"
@@ -180,15 +179,13 @@ int runI32SelectedPlanTest() {
           expect(plan.getFamilyID() == "i32-vsub",
                  "i32 selected plan preserves binary family id"))
     return result;
-  if (int result =
-          expect(plan.getRouteID() ==
-                     "tcrv-export-rvv-i32-vsub-microkernel-c",
-                 "i32 selected plan exposes RVV route id"))
-    return result;
-  if (int result =
-          expect(plan.getRuntimeABI() ==
-                     "rvv-i32-vsub-runtime-callable-c-abi.v1",
-                 "i32 selected plan exposes runtime ABI"))
+  if (int result = expect(plan.getRouteID().empty() &&
+                              plan.getRuntimeABI().empty() &&
+                              plan.getRuntimeABIKind().empty() &&
+                              plan.getRuntimeABIName().empty() &&
+                              plan.getRuntimeGlueRole().empty(),
+                          "i32 selected plan no longer exposes descriptor "
+                          "route or runtime ABI authority"))
     return result;
   if (int result =
           expect(plan.getEmissionPath() ==
@@ -196,8 +193,8 @@ int runI32SelectedPlanTest() {
                  "i32 selected plan exposes readiness emission path"))
     return result;
   if (int result =
-          expect(plan.getArtifactKind() == "runtime-callable-c-source",
-                 "i32 selected plan exposes source artifact kind"))
+          expect(plan.getArtifactKind().empty(),
+                 "i32 selected plan no longer exposes source artifact kind"))
     return result;
   if (int result = expect(
           plan.getSelectedConfig().getContract().getFamilyID() == "i32-vsub" &&
@@ -222,22 +219,11 @@ int runI32SelectedPlanTest() {
               "emission, correctness, or performance evidence",
           "i32 selected plan exposes planner-owned bounded support message"))
     return result;
-  if (int result =
-          expect(plan.getSetVLIntrinsicName() == "__riscv_vsetvl_e32m2",
-                 "i32 selected plan owns setvl intrinsic spelling"))
-    return result;
-  if (int result =
-          expect(plan.getArithmeticIntrinsicName() ==
-                     "__riscv_vsub_vv_i32m2",
-                 "i32 selected plan appends selected vector suffix to RVV "
-                 "arithmetic intrinsic prefix"))
-    return result;
-  if (int result =
-          expect(plan.getLoadIntrinsicName() == "__riscv_vle32_v_i32m2",
-                 "i32 selected plan owns load intrinsic spelling"))
-    return result;
-  return expect(plan.getStoreIntrinsicName() == "__riscv_vse32_v_i32m2",
-                "i32 selected plan owns store intrinsic spelling");
+  return expect(plan.getSetVLIntrinsicName().empty() &&
+                    plan.getArithmeticIntrinsicName().empty() &&
+                    plan.getLoadIntrinsicName().empty() &&
+                    plan.getStoreIntrinsicName().empty(),
+                "i32 selected plan no longer exposes RVV intrinsic spellings");
 }
 
 int runI64SelectedPlanTest() {
@@ -256,50 +242,15 @@ int runI64SelectedPlanTest() {
             expect(plan.getFamilyID() == family.familyID,
                    "i64 selected plan preserves binary family id"))
       return result;
-    if (int result =
-            expect(plan.getRouteID() == family.routeID,
-                   "i64 selected plan exposes family-specific RVV route id"))
-      return result;
     if (int result = expect(
-            plan.getRuntimeABI() == family.runtimeABI &&
-                plan.getRuntimeABIKind() == family.runtimeABIKind &&
-                plan.getRuntimeABIName() == family.runtimeABIName &&
-                plan.getRuntimeGlueRole() == family.runtimeGlueRole,
-            "i64 selected plan exposes selected-plan route-registration runtime ABI mirror"))
+            plan.getRouteID().empty() && plan.getRuntimeABI().empty() &&
+                plan.getRuntimeABIKind().empty() &&
+                plan.getRuntimeABIName().empty() &&
+                plan.getRuntimeGlueRole().empty(),
+            "i64 selected plan no longer exposes descriptor route or "
+            "callable ABI mirrors"))
       return result;
 
-    llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
-        plan.descriptor.getCallableRuntimeABIParameters();
-    using Role = tianchenrv::support::RuntimeABIParameterRole;
-    using Ownership = tianchenrv::support::RuntimeABIParameterOwnership;
-    if (int result = expect(
-            parameters.size() == 4 && parameters[0].cName == "lhs" &&
-                parameters[0].cType == "const int64_t *" &&
-                parameters[0].role == Role::LHSInputBuffer &&
-                parameters[0].ownership == Ownership::TargetExportABIOwned &&
-                parameters[1].cName == "rhs" &&
-                parameters[1].cType == "const int64_t *" &&
-                parameters[1].role == Role::RHSInputBuffer &&
-                parameters[1].ownership == Ownership::TargetExportABIOwned &&
-                parameters[2].cName == "out" &&
-                parameters[2].cType == "int64_t *" &&
-                parameters[2].role == Role::OutputBuffer &&
-                parameters[2].ownership == Ownership::TargetExportABIOwned &&
-                parameters[3].cName == "n" &&
-                parameters[3].cType == "size_t" &&
-                parameters[3].role == Role::RuntimeElementCount &&
-                parameters[3].ownership == Ownership::TargetExportABIOwned,
-            "i64 selected plan exposes selected-plan callable ABI "
-            "parameters"))
-      return result;
-
-    if (int result =
-            expect(plan.getArithmeticIntrinsicName() ==
-                       (llvm::Twine(family.arithmeticIntrinsicPrefix) +
-                        "i64m1")
-                           .str(),
-                   "i64 selected plan owns RVV C intrinsic spelling"))
-      return result;
     if (int result = expect(
             plan.getSelectedConfig().getContract().getFamilyID() ==
                     family.familyID &&
@@ -314,8 +265,11 @@ int runI64SelectedPlanTest() {
                         .getComponentCapacityElementCount() == 16,
             "i64 selected plan owns the i64m1 selected-config contract"))
       return result;
-    return expect(plan.getStoreIntrinsicName() == "__riscv_vse64_v_i64m1",
-                  "i64 selected plan owns store intrinsic spelling");
+    return expect(plan.getSetVLIntrinsicName().empty() &&
+                      plan.getArithmeticIntrinsicName().empty() &&
+                      plan.getLoadIntrinsicName().empty() &&
+                      plan.getStoreIntrinsicName().empty(),
+                  "i64 selected plan no longer exposes RVV intrinsic spellings");
   };
 
   if (int result =
@@ -464,17 +418,10 @@ int runProposalPlanRequirementMetadataTest() {
                  "i64 proposal plan owns i64m1 requirement ids"))
     return result;
 
-  const auto &dispatchFamily =
-      tianchenrv::target::rvv_scalar::getI64VMulFamilyRegistrationRecord().dispatch;
-  if (int result =
-          expect(llvm::StringRef(dispatchFamily.rvvRouteID) ==
-                     i64Plan.selectedPlan.getRouteID(),
-                 "i64-vmul dispatch representative reuses planner RVV route"))
-    return result;
-  if (int result = expect(
-          llvm::StringRef(dispatchFamily.rvvRuntimeABIName) ==
-              i64Plan.selectedPlan.getRuntimeABIName(),
-          "i64-vmul dispatch representative reuses planner RVV ABI name"))
+  if (int result = expect(i64Plan.selectedPlan.getRouteID().empty() &&
+                              i64Plan.selectedPlan.getRuntimeABIName().empty(),
+                          "i64-vmul selected plan no longer mirrors dispatch "
+                          "route or ABI descriptor fields"))
     return result;
 
   llvm::Expected<RVVBinaryProposalPlan> unsupported =
@@ -808,117 +755,6 @@ int runSelectedShapeMetadataTest() {
       "selected vector-shape id must be 'i32m2'");
 }
 
-int runSelectedConfigVLDataflowMaterializationTest() {
-  mlir::DialectRegistry dialectRegistry;
-  tianchenrv::registerAllDialects(dialectRegistry);
-  dialectRegistry.insert<tianchenrv::tcrv::rvv::TCRVRVVDialect>();
-  mlir::MLIRContext context(dialectRegistry);
-  context.loadAllAvailableDialects();
-
-  RVVBinarySelectedPlan i32Plan;
-  if (int result = expectExpectedSuccess(
-          tianchenrv::plugin::rvv::buildRVVBinarySelectedPlan(
-              tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord(),
-              tianchenrv::target::rvv::getI32M2VectorShapeConfig(), 32,
-              "rv64gcv", std::string("lp64d")),
-          i32Plan,
-          "build i32m2 selected plan for VL dataflow materialization"))
-    return result;
-
-  tianchenrv::plugin::rvv::RVVBinaryVLDataflowMaterialization i32Dataflow;
-  if (int result = expectExpectedSuccess(
-          tianchenrv::plugin::rvv::
-              buildRVVBinaryVLDataflowMaterialization(&context, i32Plan),
-          i32Dataflow, "build i32m2 selected-config VL dataflow"))
-    return result;
-  if (int result = expect(
-          i32Dataflow.selectedConfig ==
-              &i32Plan.getSelectedConfig().getContract(),
-          "i32m2 VL dataflow consumes the selected-config contract object"))
-    return result;
-  if (int result = expect(
-          llvm::isa<tianchenrv::tcrv::rvv::I32M2VectorType>(
-              i32Dataflow.vectorType) &&
-              i32Dataflow.microkernelOpName ==
-                  "tcrv_rvv.i32_vsub_microkernel" &&
-              i32Dataflow.loadOpName == "tcrv_rvv.i32_load" &&
-              i32Dataflow.arithmeticOpName == "tcrv_rvv.i32_sub" &&
-              i32Dataflow.storeOpName == "tcrv_rvv.i32_store" &&
-              i32Dataflow.sewBits == 32 && i32Dataflow.lmul == "m2" &&
-              i32Dataflow.vectorSuffix == "i32m2" &&
-              i32Dataflow.setvlSuffix == "e32m2" &&
-              i32Dataflow.componentCapacityElementCount == 32,
-          "i32m2 VL dataflow derives vector type, ops, and config from the "
-          "selected-config contract"))
-    return result;
-
-  RVVBinarySelectedPlan i64Plan;
-  if (int result = expectExpectedSuccess(
-          tianchenrv::plugin::rvv::buildRVVBinarySelectedPlan(
-              tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord(),
-              tianchenrv::target::rvv::getI64M1VectorShapeConfig(), 16,
-              "rv64gcv", std::string("lp64d")),
-          i64Plan,
-          "build i64m1 selected plan for VL dataflow materialization"))
-    return result;
-
-  tianchenrv::plugin::rvv::RVVBinaryVLDataflowMaterialization i64Dataflow;
-  if (int result = expectExpectedSuccess(
-          tianchenrv::plugin::rvv::
-              buildRVVBinaryVLDataflowMaterialization(&context, i64Plan),
-          i64Dataflow, "build i64m1 selected-config VL dataflow"))
-    return result;
-  if (int result = expect(
-          llvm::isa<tianchenrv::tcrv::rvv::I64M1VectorType>(
-              i64Dataflow.vectorType) &&
-              i64Dataflow.microkernelOpName ==
-                  "tcrv_rvv.i64_vmul_microkernel" &&
-              i64Dataflow.loadOpName == "tcrv_rvv.i64_load" &&
-              i64Dataflow.arithmeticOpName == "tcrv_rvv.i64_mul" &&
-              i64Dataflow.storeOpName == "tcrv_rvv.i64_store" &&
-              i64Dataflow.sewBits == 64 && i64Dataflow.lmul == "m1" &&
-              i64Dataflow.vectorSuffix == "i64m1" &&
-              i64Dataflow.setvlSuffix == "e64m1",
-          "i64m1 VL dataflow derives vector type, ops, and config from the "
-          "same selected-config contract path"))
-    return result;
-
-  RVVBinarySelectedPlan staleLegacyMirrorPlan = i32Plan;
-  staleLegacyMirrorPlan.descriptor =
-      tianchenrv::target::rvv::getRVVBinaryIntrinsicRoute(
-          tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord(),
-          tianchenrv::target::rvv::getI32M1VectorShapeConfig());
-  llvm::Expected<tianchenrv::plugin::rvv::
-                     RVVBinaryVLDataflowMaterialization>
-      staleDataflow = tianchenrv::plugin::rvv::
-          buildRVVBinaryVLDataflowMaterialization(&context,
-                                                  staleLegacyMirrorPlan);
-  if (staleDataflow)
-    return fail("expected stale i32m1 legacy mirror versus i32m2 selected-config "
-                "contract to fail");
-  if (int result = expectErrorContains(staleDataflow.takeError(),
-                                       "field 'shape'"))
-    return result;
-
-  RVVBinarySelectedPlan missingContractPlan;
-  missingContractPlan.family =
-      &tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord();
-  missingContractPlan.descriptor =
-      tianchenrv::target::rvv::getRVVBinaryIntrinsicRoute(
-          tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord(),
-          tianchenrv::target::rvv::getI64M1VectorShapeConfig());
-  missingContractPlan.elementCount = 16;
-  llvm::Expected<tianchenrv::plugin::rvv::
-                     RVVBinaryVLDataflowMaterialization>
-      missingDataflow = tianchenrv::plugin::rvv::
-          buildRVVBinaryVLDataflowMaterialization(&context,
-                                                  missingContractPlan);
-  if (missingDataflow)
-    return fail("expected missing selected-config contract to fail");
-  return expectErrorContains(missingDataflow.takeError(),
-                             "requires a finite binary family descriptor");
-}
-
 } // namespace
 
 int main() {
@@ -937,8 +773,6 @@ int main() {
   if (int result = runNegativeSelectedPlanTest())
     return result;
   if (int result = runSelectedShapeMetadataTest())
-    return result;
-  if (int result = runSelectedConfigVLDataflowMaterializationTest())
     return result;
 
   llvm::outs() << "RVV binary planning smoke test passed\n";

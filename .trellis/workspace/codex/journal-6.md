@@ -859,3 +859,69 @@ linalg/vector source semantics and materialize `tcrv.exec`.
 
 - Archive the Trellis task with `--no-commit`, run cached diff/Trellis
   validation, then create one coherent commit.
+
+
+## Session 68: Descriptor Erasure: RVV selected microkernel descriptor materialization deletion
+
+**Date**: 2026-05-15
+**Task**: Descriptor Erasure: RVV selected microkernel descriptor materialization deletion
+**Branch**: `main`
+
+### Summary
+
+Deleted the RVV plugin selected microkernel descriptor materializer and
+fail-closed selected emission planning/body verification so selected RVV
+planning no longer creates RVV microkernel/dataflow ops or callable ABI metadata
+from `selectedPlan.descriptor`.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `05-15-rvv-selected-microkernel-descriptor-materialization-deletion`.
+- Deleted `RVVBinaryMicrokernelMaterialization` header/implementation and
+  removed the RVV plugin CMake source entry.
+- Rewired `RVVBinarySelectedLoweringBoundary` to emit only unsupported
+  metadata-only `tcrv_rvv.lowering_boundary` records, with no auto-generated
+  `tcrv_rvv.*_microkernel`, `setvl`, load/arithmetic/store body, or callable
+  ABI mem-window/param materialization.
+- Replaced selected emission planning with a fail-closed public surface; no
+  selected emission plan/readiness/variant emission plan is built from
+  `selectedPlan.descriptor`.
+- Removed the selected-plan `RVVBinaryIntrinsicRoute descriptor` mirror and
+  made selected-plan route/runtime ABI/intrinsic accessors fail closed.
+- Replaced the RVV binary microkernel body verifier implementation with a
+  fail-closed error instead of descriptor/config-driven body validation.
+- Deleted stale descriptor/body-verifier negative lit tests and rewrote
+  plugin, variant, probe, manifest, dispatch, and artifact-export checks to
+  assert unsupported RVV metadata-only behavior.
+- Updated RVV plugin, emission-runtime, and MLIR testing specs to record the
+  deletion boundary and future extension-family IR + EmitC rebuild requirement.
+
+### Testing
+
+- [OK] `cmake --build build --target TianChenRVRVVPlugin TianChenRVRVVTarget -j2`
+- [OK] `cmake --build build --target tianchenrv-rvv-binary-planning-test tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-binary-planning-test`
+- [OK] `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 125/125 passed.
+- [OK] Bounded ref-scan: no code/test hits for `selectedPlan.descriptor`,
+  `plan.descriptor`, `buildRVVBinaryVLDataflowMaterialization`,
+  `materializeRVVBinaryMicrokernelOp`, or
+  `buildRVVBinaryCallableRuntimeABIParameters`.
+- [OK] Residual scan classified active finite family/route registry and target
+  `RVVMicrokernel.cpp` direct artifact/export code as next deletion owners.
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Trellis validation before finish and after archive.
+
+### Status
+
+[OK] **Archived; commit pending**
+
+### Next Steps
+
+- Continue deletion campaign on remaining target-side finite
+  `RVVBinaryFamilyRecord` / `RVVBinaryIntrinsicRoute` registry and direct
+  `RVVMicrokernel.cpp` artifact/export authority.
