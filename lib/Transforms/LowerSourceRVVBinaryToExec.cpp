@@ -77,10 +77,16 @@ constexpr llvm::StringLiteral kLegacyScalarSelectedLoweringDescriptorAttrName(
 constexpr llvm::StringLiteral kLegacySelectedLoweringDescriptorAttrName(
     "selected_lowering_descriptor");
 
-enum class VectorFrontendAdapterMode {
-  VAddOnly,
-  VSubOnly,
-  ArithmeticFamily,
+enum class VectorFrontendPolicyKind {
+  DefaultSourceFrontdoor,
+  ExplicitI32VAdd,
+  ExplicitI32VSub,
+};
+
+struct VectorFrontendFamilyPolicy {
+  llvm::StringRef diagnosticName;
+  llvm::StringRef requiredFamilyID;
+  bool allowFixedVectorI32VAdd = false;
 };
 
 struct InferredFrontendBinarySource {
@@ -105,6 +111,85 @@ std::string formatSupportedFrontendLowerings() {
 
 std::string formatSupportedDynamicVectorFrontendLowerings() {
   return target::rvv::formatRVVDynamicVectorFrontendLowerings();
+}
+
+std::string formatQuotedAlternatives(llvm::ArrayRef<llvm::StringRef> values) {
+  if (values.empty())
+    return "<none>";
+
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  for (auto [index, value] : llvm::enumerate(values)) {
+    if (index != 0) {
+      if (index + 1 == values.size())
+        stream << " or ";
+      else
+        stream << ", ";
+    }
+    stream << "'" << value << "'";
+  }
+  stream.flush();
+  return text;
+}
+
+std::string formatSupportedDynamicVectorSourceArithmeticOps() {
+  llvm::SmallVector<llvm::StringRef, 4> arithmeticOps;
+  for (const target::rvv::RVVBinaryFamilyDescriptor *family :
+       target::rvv::getRVVBinaryFamilyRegistrationRecords()) {
+    if (target::rvv::isRVVBinaryFamilyAcceptedByDynamicVectorSource(*family))
+      arithmeticOps.push_back(family->sourceArithmeticOpName);
+  }
+  return formatQuotedAlternatives(arithmeticOps);
+}
+
+VectorFrontendFamilyPolicy
+getVectorFrontendFamilyPolicy(VectorFrontendPolicyKind kind) {
+  switch (kind) {
+  case VectorFrontendPolicyKind::DefaultSourceFrontdoor:
+    return VectorFrontendFamilyPolicy{
+        "vector source frontend", /*requiredFamilyID=*/"",
+        /*allowFixedVectorI32VAdd=*/true};
+  case VectorFrontendPolicyKind::ExplicitI32VAdd:
+    return VectorFrontendFamilyPolicy{
+        "vector i32-vadd frontend",
+        target::rvv::getI32VAddFamilyRegistrationRecord().familyID,
+        /*allowFixedVectorI32VAdd=*/true};
+  case VectorFrontendPolicyKind::ExplicitI32VSub:
+    return VectorFrontendFamilyPolicy{
+        "vector i32-vsub frontend",
+        target::rvv::getI32VSubFamilyRegistrationRecord().familyID,
+        /*allowFixedVectorI32VAdd=*/false};
+  }
+  llvm_unreachable("unknown vector frontend policy kind");
+}
+
+bool isI32VAddFamily(const target::rvv::RVVBinaryFamilyDescriptor &family) {
+  return family.familyID ==
+         target::rvv::getI32VAddFamilyRegistrationRecord().familyID;
+}
+
+bool isVectorFrontendFamilyAcceptedByPolicy(
+    const VectorFrontendFamilyPolicy &policy,
+    const target::rvv::RVVBinaryFamilyDescriptor &family) {
+  if (!family.frontendContract)
+    return false;
+  if (!policy.requiredFamilyID.empty() &&
+      family.familyID != policy.requiredFamilyID)
+    return false;
+  if (target::rvv::isRVVBinaryFamilyAcceptedByDynamicVectorSource(family))
+    return true;
+  return policy.allowFixedVectorI32VAdd && isI32VAddFamily(family);
+}
+
+std::string
+formatVectorFrontendPolicyMarkers(const VectorFrontendFamilyPolicy &policy) {
+  llvm::SmallVector<llvm::StringRef, 4> markers;
+  for (const target::rvv::RVVBinaryFamilyDescriptor *family :
+       target::rvv::getRVVBinaryFamilyRegistrationRecords()) {
+    if (isVectorFrontendFamilyAcceptedByPolicy(policy, *family))
+      markers.push_back(family->frontendLowering);
+  }
+  return formatQuotedAlternatives(markers);
 }
 
 mlir::LogicalResult populateI32VectorSourceIdentity(
@@ -785,8 +870,7 @@ mlir::LogicalResult requireVectorI32VAddSourceWrapper(mlir::Operation *funcOp) {
 
 mlir::LogicalResult
 requireDynamicVectorI32BinarySourceWrapper(
-    mlir::Operation *funcOp, VectorFrontendAdapterMode mode,
-    InferredFrontendBinarySource &source) {
+    mlir::Operation *funcOp, InferredFrontendBinarySource &source) {
   if (!isOperationNamed(funcOp, kFuncFuncOpName))
     return funcOp->emitError()
            << "TianChen-RV dynamic vector i32 binary frontend expects a "
@@ -867,7 +951,7 @@ requireDynamicVectorI32BinarySourceWrapper(
   mlir::Operation *paddingConstant = &*loopIt++;
   mlir::Operation *lhsRead = &*loopIt++;
   mlir::Operation *rhsRead = &*loopIt++;
-  mlir::Operation *add = &*loopIt++;
+  mlir::Operation *arithmetic = &*loopIt++;
   mlir::Operation *write = &*loopIt++;
   mlir::Operation *yield = &*loopIt++;
 
@@ -894,27 +978,22 @@ requireDynamicVectorI32BinarySourceWrapper(
 
   const target::rvv::RVVBinaryFamilyDescriptor *family =
       lookupRVVFrontendSourceFamily(support::FiniteBinaryElementKind::I32,
-                                    add);
-  bool isVAddFamily =
-      family && family->familyID ==
-                    target::rvv::getI32VAddFamilyRegistrationRecord().familyID;
+                                    arithmetic);
   bool isAcceptedDynamicVectorFamily =
       family &&
       target::rvv::isRVVBinaryFamilyAcceptedByDynamicVectorSource(*family);
-  if (!family || !isAcceptedDynamicVectorFamily ||
-      (mode == VectorFrontendAdapterMode::VAddOnly && !isVAddFamily))
-    return add->emitError()
+  if (!family || !isAcceptedDynamicVectorFamily)
+    return arithmetic->emitError()
            << "TianChen-RV dynamic vector i32 binary frontend expects "
-           << (mode == VectorFrontendAdapterMode::VAddOnly
-                   ? "arith.addi"
-                   : "arith.addi or arith.subi")
+           << formatSupportedDynamicVectorSourceArithmeticOps()
            << " over the two transfer-read vector values";
   llvm::StringRef arithmeticOpName = family->sourceArithmeticOpName;
-  if (add->getOperand(0) != lhsRead->getResult(0) ||
-      add->getOperand(1) != rhsRead->getResult(0) ||
+  if (arithmetic->getOperand(0) != lhsRead->getResult(0) ||
+      arithmetic->getOperand(1) != rhsRead->getResult(0) ||
       !isRankedVectorWithIntegerElementWidth(
-          add->getResult(0).getType(), kVectorI32VAddSourceElements, 32))
-    return add->emitError()
+          arithmetic->getResult(0).getType(), kVectorI32VAddSourceElements,
+          32))
+    return arithmetic->emitError()
            << "TianChen-RV dynamic vector i32 binary frontend expects "
            << arithmeticOpName
            << " to consume lhs/rhs vector<16xi32> reads and "
@@ -925,7 +1004,7 @@ requireDynamicVectorI32BinarySourceWrapper(
     return write->emitError()
            << "TianChen-RV dynamic vector i32 binary frontend expects "
               "vector.transfer_write of the arithmetic result";
-  if (write->getOperand(0) != add->getResult(0) ||
+  if (write->getOperand(0) != arithmetic->getResult(0) ||
       write->getOperand(1) != body.getArgument(2) ||
       write->getOperand(2) != index)
     return write->emitError()
@@ -945,46 +1024,25 @@ requireDynamicVectorI32BinarySourceWrapper(
            << "TianChen-RV dynamic vector i32 binary frontend expects "
               "func.return without operands";
 
-  return populateI32VectorSourceIdentity(funcOp, add, source);
+  return populateI32VectorSourceIdentity(funcOp, arithmetic, source);
 }
 
-mlir::LogicalResult crossCheckVectorI32VAddMarker(mlir::Operation *funcOp,
-                                                  llvm::StringRef marker) {
+mlir::LogicalResult crossCheckVectorFrontendMarkerPolicy(
+    mlir::Operation *funcOp, llvm::StringRef marker,
+    const VectorFrontendFamilyPolicy &policy) {
   const target::rvv::RVVBinaryFamilyDescriptor *markerFamily =
       target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering(marker);
   if (!markerFamily || !markerFamily->frontendContract)
     return funcOp->emitError()
-           << "TianChen-RV vector i32-vadd frontend expects '"
-           << kFrontendLoweringAttrName << "' to be 'i32-vadd'";
+           << "TianChen-RV " << policy.diagnosticName << " expects '"
+           << kFrontendLoweringAttrName << "' to be "
+           << formatVectorFrontendPolicyMarkers(policy);
 
-  const target::rvv::RVVBinaryFamilyDescriptor &expected =
-      target::rvv::getI32VAddFamilyRegistrationRecord();
-  if (markerFamily->familyID != expected.familyID)
+  if (!isVectorFrontendFamilyAcceptedByPolicy(policy, *markerFamily))
     return funcOp->emitError()
-           << "TianChen-RV vector i32-vadd frontend supports only marker "
-              "'i32-vadd'; marker '"
-           << marker
-           << "' is not accepted because this pass is not a generic vector "
-              "backend";
-
-  return mlir::success();
-}
-
-mlir::LogicalResult crossCheckVectorI32VSubMarker(mlir::Operation *funcOp,
-                                                  llvm::StringRef marker) {
-  const target::rvv::RVVBinaryFamilyDescriptor *markerFamily =
-      target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering(marker);
-  if (!markerFamily || !markerFamily->frontendContract)
-    return funcOp->emitError()
-           << "TianChen-RV vector i32-vsub frontend expects '"
-           << kFrontendLoweringAttrName << "' to be 'i32-vsub'";
-
-  const target::rvv::RVVBinaryFamilyDescriptor &expected =
-      target::rvv::getI32VSubFamilyRegistrationRecord();
-  if (markerFamily->familyID != expected.familyID)
-    return funcOp->emitError()
-           << "TianChen-RV vector i32-vsub frontend supports only marker "
-              "'i32-vsub'; marker '"
+           << "TianChen-RV " << policy.diagnosticName
+           << " supports only marker "
+           << formatVectorFrontendPolicyMarkers(policy) << "; marker '"
            << marker
            << "' is not accepted because this pass is not a generic vector "
               "backend";
@@ -1345,20 +1403,17 @@ mlir::LogicalResult lowerOneMarkedLinalg(mlir::ModuleOp module,
 
 mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
                                              mlir::Operation *funcOp,
-                                             VectorFrontendAdapterMode mode) {
+                                             VectorFrontendPolicyKind kind) {
+  VectorFrontendFamilyPolicy policy = getVectorFrontendFamilyPolicy(kind);
   auto frontendAttr = getStringAttr(funcOp, kFrontendLoweringAttrName);
   if (!frontendAttr)
     return funcOp->emitError()
-           << "TianChen-RV vector i32-vadd frontend expects '"
-           << kFrontendLoweringAttrName << "' to be 'i32-vadd'";
+           << "TianChen-RV " << policy.diagnosticName << " expects '"
+           << kFrontendLoweringAttrName << "' to be "
+           << formatVectorFrontendPolicyMarkers(policy);
 
-  if (mode == VectorFrontendAdapterMode::VAddOnly &&
-      mlir::failed(
-          crossCheckVectorI32VAddMarker(funcOp, frontendAttr.getValue())))
-    return mlir::failure();
-  if (mode == VectorFrontendAdapterMode::VSubOnly &&
-      mlir::failed(
-          crossCheckVectorI32VSubMarker(funcOp, frontendAttr.getValue())))
+  if (mlir::failed(crossCheckVectorFrontendMarkerPolicy(
+          funcOp, frontendAttr.getValue(), policy)))
     return mlir::failure();
   if (mlir::failed(requireNoLegacyDescriptorMetadata(
           funcOp, nullptr, "vector frontend",
@@ -1373,9 +1428,10 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
               "func.func body";
   mlir::Block &body = funcOp->getRegion(0).front();
   if (body.getNumArguments() == 3) {
-    if (mode == VectorFrontendAdapterMode::VSubOnly)
+    if (!policy.allowFixedVectorI32VAdd)
       return funcOp->emitError()
-             << "TianChen-RV vector i32-vsub frontend expects the dynamic "
+             << "TianChen-RV " << policy.diagnosticName
+             << " expects the dynamic "
                 "three-buffer plus runtime %n: index SCF wrapper";
     if (mlir::failed(requireVectorI32VAddSourceWrapper(funcOp)))
       return mlir::failure();
@@ -1386,22 +1442,30 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
       return funcOp->emitError()
              << "TianChen-RV vector i32-vadd frontend registry entry is "
                 "missing its finite frontend contract";
-    if ((mode == VectorFrontendAdapterMode::ArithmeticFamily ||
-         mode == VectorFrontendAdapterMode::VSubOnly) &&
-        mlir::failed(crossCheckVectorFrontendMarker(
+    if (mlir::failed(crossCheckVectorFrontendMarker(
             funcOp, frontendAttr.getValue(), source)))
       return mlir::failure();
     loweringContract =
         support::makeFixedVectorI32VAddSourceFrontendLoweringContract();
   } else if (body.getNumArguments() == 4) {
-    if (mlir::failed(requireDynamicVectorI32BinarySourceWrapper(
-            funcOp, mode, source)))
+    if (mlir::failed(
+            requireDynamicVectorI32BinarySourceWrapper(funcOp, source)))
       return mlir::failure();
-    if ((mode == VectorFrontendAdapterMode::ArithmeticFamily ||
-         mode == VectorFrontendAdapterMode::VSubOnly) &&
-        mlir::failed(crossCheckVectorFrontendMarker(
+    if (mlir::failed(crossCheckVectorFrontendMarker(
             funcOp, frontendAttr.getValue(), source)))
       return mlir::failure();
+    if (!source.family || !source.contract)
+      return funcOp->emitError()
+             << "TianChen-RV " << policy.diagnosticName
+             << " failed to infer a complete registry-backed dynamic vector "
+                "source family";
+    if (!isVectorFrontendFamilyAcceptedByPolicy(policy, *source.family))
+      return funcOp->emitError()
+             << "TianChen-RV " << policy.diagnosticName
+             << " accepts only source families "
+             << formatVectorFrontendPolicyMarkers(policy) << "; source body "
+             << "inferred family '" << source.contract->familyID << "' from "
+             << source.arithmeticOpName;
     loweringContract =
         support::makeDynamicVectorI32SourceFrontendLoweringContract(
             *source.contract);
@@ -1453,7 +1517,7 @@ mlir::LogicalResult lowerMarkedFrontendBinaryLinalgInModule(
 
 mlir::LogicalResult
 lowerMarkedFrontendVectorInModule(mlir::ModuleOp module,
-                                  VectorFrontendAdapterMode mode) {
+                                  VectorFrontendPolicyKind kind) {
   llvm::SmallVector<mlir::Operation *, 4> markedVectorFuncs;
   mlir::WalkResult walkResult = module.walk([&](mlir::Operation *op) {
     if (!isMarkedFrontendBinaryVectorFunc(op))
@@ -1465,7 +1529,7 @@ lowerMarkedFrontendVectorInModule(mlir::ModuleOp module,
     return mlir::failure();
 
   for (mlir::Operation *funcOp : markedVectorFuncs)
-    if (mlir::failed(lowerOneMarkedVectorFunc(module, funcOp, mode)))
+    if (mlir::failed(lowerOneMarkedVectorFunc(module, funcOp, kind)))
       return mlir::failure();
 
   return mlir::success();
@@ -1474,7 +1538,7 @@ lowerMarkedFrontendVectorInModule(mlir::ModuleOp module,
 mlir::LogicalResult lowerMarkedSourceRVVBinaryFrontendsInModule(
     mlir::ModuleOp module) {
   if (mlir::failed(lowerMarkedFrontendVectorInModule(
-          module, VectorFrontendAdapterMode::ArithmeticFamily)))
+          module, VectorFrontendPolicyKind::DefaultSourceFrontdoor)))
     return mlir::failure();
   return lowerMarkedFrontendBinaryLinalgInModule(module);
 }
@@ -1493,7 +1557,7 @@ struct LowerVectorRVVI32VAddToExecPass
           LowerVectorRVVI32VAddToExecPass> {
   void runOnOperation() override {
     if (mlir::failed(lowerMarkedFrontendVectorInModule(
-            getOperation(), VectorFrontendAdapterMode::VAddOnly)))
+            getOperation(), VectorFrontendPolicyKind::ExplicitI32VAdd)))
       signalPassFailure();
   }
 };
@@ -1503,7 +1567,7 @@ struct LowerVectorRVVI32VSubToExecPass
           LowerVectorRVVI32VSubToExecPass> {
   void runOnOperation() override {
     if (mlir::failed(lowerMarkedFrontendVectorInModule(
-            getOperation(), VectorFrontendAdapterMode::VSubOnly)))
+            getOperation(), VectorFrontendPolicyKind::ExplicitI32VSub)))
       signalPassFailure();
   }
 };

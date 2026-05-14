@@ -1261,6 +1261,64 @@ printed `tcrv_rvv_microkernel_external_abi_ok counts=7,16,23`.
 [OK] Completed and archived; commit pending.
 
 
+## Session 68: RVV source-frontdoor op-family artifact parity
+
+**Date**: 2026-05-14
+**Task**: RVV source-frontdoor op-family artifact parity
+**Branch**: `main`
+
+### Summary
+
+Replaced the dynamic MLIR vector source-frontdoor transform's vadd/vsub mode
+split with one registry-backed op-family policy surface. The default
+`--tcrv-lower-source-rvv-binary-to-exec` path and explicit vadd/vsub
+compatibility aliases now filter through the same policy, while the dynamic
+body recognizer still derives computation identity from source vector/arith
+operations and the RVV binary family registry.
+
+### Main Changes
+
+- Added `VectorFrontendFamilyPolicy` in
+  `lib/Transforms/LowerSourceRVVBinaryToExec.cpp` for default source-frontdoor
+  and explicit vadd/vsub compatibility alias restrictions.
+- Removed the transform-local `VectorFrontendAdapterMode` /
+  `VAddOnly` / `VSubOnly` / `ArithmeticFamily` split.
+- Made dynamic vector accepted arithmetic diagnostics derive from the registry
+  backed dynamic vector family set.
+- Added fail-closed coverage rejecting an `i32-vmul` dynamic vector marker/body
+  on the bounded add/sub vector source-frontdoor route.
+- Updated `Passes.td` to document the registry-policy-backed construction
+  surface.
+
+### Testing
+
+- `cmake --build build --target TianChenRVTransforms tcrv-opt -j2`
+- `cmake --build build --target TianChenRVRVVPlugin TianChenRVRVVTarget tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- Focused lit for dynamic vector vadd/vsub positive, explicit alias invalid,
+  shared binary invalid, artifact bundle export, and RVV script bundle tests.
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- Local dry-runs:
+  `codex-family-policy-vector-vadd-dry`,
+  `codex-family-policy-vector-vsub-dry`,
+  `codex-family-policy-vector-vsub-dispatch-dry`.
+- Focused `ssh rvv` evidence:
+  `codex-family-policy-vector-vadd-ssh`, `ssh_evidence=true`,
+  `tcrv_rvv_microkernel_external_abi_ok counts=7,16,23`; and
+  `codex-family-policy-vector-vsub-ssh`, `ssh_evidence=true`,
+  `tcrv_rvv_i32_vsub_microkernel_external_abi_ok counts=7,16,23`.
+- Ref-scans for removed transform mode branches, descriptor-only authority,
+  and generic core family branches.
+- `git diff --check`
+- Trellis validation before finish and after archive.
+
+### Status
+
+[OK] Completed and archived; commit pending.
+
+
 ## Session 63: Bounded MLIR vector to RVV selected route
 
 **Date**: 2026-05-14

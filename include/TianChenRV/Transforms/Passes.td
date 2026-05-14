@@ -25,10 +25,11 @@ def LowerSourceRVVBinaryToExec
 
     This is the default source-frontdoor production path. Dynamic vector
     i32-vadd and i32-vsub share the same source-derived finite family
-    construction surface here; the older linalg and vector pass names remain
-    explicit adapter/compatibility entry points. This pass does not add generic
-    tcrv compute ops, select variants, branch on RVV/scalar/offload/IME, lower
-    to LLVM/RISC-V, emit artifacts, or claim runtime correctness/performance.
+    construction policy, derived from the RVV binary family registry, while the
+    older linalg and vector pass names remain explicit adapter/compatibility
+    entry points. This pass does not add generic tcrv compute ops, select
+    variants, branch on RVV/scalar/offload/IME, lower to LLVM/RISC-V, emit
+    artifacts, or claim runtime correctness/performance.
   }];
   let constructor =
       "::tianchenrv::transforms::createLowerSourceRVVBinaryToExecPass()";
