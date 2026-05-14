@@ -13,10 +13,6 @@ namespace tianchenrv::plugin::rvv {
 llvm::Error verifyRVVBinaryVariantLegality(
     const VariantLegalityRequest &request, llvm::StringRef originPlugin);
 
-llvm::Error verifyRVVBinarySmokeProbeVariantMetadata(
-    tcrv::exec::VariantOp variant,
-    const support::TargetCapabilitySet &capabilities);
-
 } // namespace tianchenrv::plugin::rvv
 
 #endif // TIANCHENRV_PLUGIN_RVV_RVVBINARYVARIANTLEGALITY_H

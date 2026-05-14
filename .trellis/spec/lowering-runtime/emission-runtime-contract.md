@@ -38,14 +38,16 @@ records rather than from a materialized MLIR EmitC module.
 ### 2. Signatures
 
 - Deleted direct translate options:
-  `--tcrv-export-rvv-microkernel-c` and
+  `--tcrv-export-rvv-smoke-probe-c`,
+  `--tcrv-export-rvv-microkernel-c`, and
   `--tcrv-export-rvv-scalar-dispatch-c`.
-- Deleted production route ids include the RVV/scalar microkernel source,
-  header, object, dispatch source/header/object, self-check source/object, and
-  bundle-derived route families.
-- Remaining supported source route exception:
-  `rvv-smoke-probe-standalone-c-source`, because it is a toolchain smoke
-  harness and not kernel semantic source authority.
+- Deleted production route ids include the RVV smoke-probe standalone source,
+  RVV/scalar microkernel source, header, object, dispatch
+  source/header/object, self-check source/object, and bundle-derived route
+  families.
+- There is no remaining standalone direct C source route exception in the
+  built-in target artifact exporter set. Future source output requires a real
+  extension-family IR plus materialized MLIR EmitC module route.
 
 ### 3. Contracts
 
@@ -74,8 +76,8 @@ records rather than from a materialized MLIR EmitC module.
 
 - Good: tests assert unsupported diagnostics and route absence for deleted
   direct C route families.
-- Base: smoke-probe C export remains registered only as standalone toolchain
-  probe evidence.
+- Base: stale smoke-probe descriptor fixtures may remain only as deleted-route
+  negative coverage and must not emit C.
 - Bad: selected metadata, family records, route records, or descriptor mirrors
   synthesize raw C loops, RVV intrinsics, scalar arithmetic bodies, dispatcher
   branches, headers, objects, or bundles.
@@ -226,15 +228,14 @@ Such callbacks may validate generic compiler-owned ABI surfaces such as
 ownership/kind consistency for the selected candidate, but extension-specific
 descriptor body policy remains target/export-local.
 Shared generic routing must not branch on RVV, IME, offload, scalar, vendor,
-dtype, shape, runtime, toolchain, or microarchitecture semantics. The currently
-supported source route is bounded to the RVV standalone smoke-probe C source
-exporter registered by RVV target/export code for an explicitly planned
-smoke-probe path. Runtime-callable RVV microkernel, scalar microkernel, and
-RVV+scalar dispatch C source/object/header composite routes must fail closed
-and must not synthesize compute bodies until the rebuild supplies a materialized
-MLIR EmitC module route. This does not add generic RVV or scalar lowering, full
-runtime ABI integration, object generation, linking, arbitrary source export,
-correctness evidence, or performance evidence.
+dtype, shape, runtime, toolchain, or microarchitecture semantics. The deleted
+RVV standalone smoke-probe C exporter, runtime-callable RVV microkernel, scalar
+microkernel, and RVV+scalar dispatch C source/object/header composite routes
+must fail closed or be absent and must not synthesize compute bodies until the
+rebuild supplies a materialized MLIR EmitC module route. This does not add
+generic RVV or scalar lowering, full runtime ABI integration, object generation,
+linking, arbitrary source export, correctness evidence, or performance
+evidence.
 
 The artifact-kind-aware generic route may also select target-owned bounded
 RISC-V ELF relocatable object exporters for the same validated direct RVV
@@ -609,10 +610,8 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   by delegating to target-owned registration functions or, for route groups
   with an extension plugin manifest hook, by asking that plugin to configure
   its target-support `ExtensionBundle` contribution.
-- The current non-plugin single-candidate route set is:
-  - RVV standalone smoke-probe C source, artifact kind
-    `standalone-c-source`, selected only when a plugin-owned smoke-probe
-    emission plan names `tcrv-export-rvv-smoke-probe-c`.
+- The current non-plugin single-candidate route set is empty after direct
+  smoke-probe source exporter deletion.
 - The current plugin-owned single-candidate route set includes:
   - RVV selected binary microkernel runtime-callable C source routes for the
     finite add/sub/mul i32/i64 families, registered by the `rvv-plugin`
@@ -1385,128 +1384,93 @@ Future supported RVV emission must add plugin-local lowering/runtime work and
 then cite both compiler-generated artifact evidence and separate `ssh rvv`
 hardware/toolchain evidence.
 
-## RVV Smoke-Probe Target Export Boundary
+## Deleted RVV Smoke-Probe Target Export Boundary
 
 ### 1. Scope / Trigger
 
-Trigger: post-planning MLIR contains a selected RVV path and a matching
-plugin-owned `tcrv_rvv.lowering_boundary`, but RVV kernel lowering is still
-unsupported. A target/export tool may emit a deterministic standalone C smoke
-program to exercise the RVV host toolchain and `riscv_vector.h` path.
+Trigger: historical post-planning MLIR contained a selected RVV path and a
+matching plugin-owned `tcrv_rvv.lowering_boundary`, then used a target/export
+tool to emit a deterministic standalone C smoke program with `riscv_vector.h`
+and RVV intrinsics.
 
-This export is hardware/toolchain smoke evidence only. It is not RVV lowering,
-LLVM/RISC-V/RVV IR emission, runtime ABI glue, generated kernel object,
-TianChen-RV kernel correctness, or performance evidence.
+This direct source frontdoor is deleted. RVV hardware/toolchain smoke evidence
+belongs in explicit probe tooling and separate `ssh rvv` artifacts; it must not
+be exposed as a compiler source artifact route.
 
 ### 2. Signatures
 
-Public command:
+Deleted public command:
 
 ```text
 tcrv-translate --tcrv-export-rvv-smoke-probe-c
 ```
 
-C++ entry point:
+Deleted C++ entry point:
 
 ```cpp
 llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
                                  llvm::raw_ostream &os);
 ```
 
-Expected pipeline use:
-
-```bash
-tcrv-opt input.mlir --tcrv-execution-planning-pipeline \
-  | tcrv-translate --tcrv-export-rvv-smoke-probe-c > rvv_smoke_probe.c
-```
-
 ### 3. Contracts
 
-- Input must be real post-planning MLIR with one or more `tcrv.exec.kernel`
-  operations.
-- Each exported selected path must be a selected direct variant or dispatch case
-  whose variant carries `origin = "rvv-plugin"`.
-- The selected variant must require an available `rvv` capability through
-  structured `requires = [@...]` metadata.
-- The selected variant must carry bounded single-line
-  `tcrv_rvv.required_march` metadata containing RVV vector evidence.
-- The kernel capability set must preserve matching selected march metadata
-  through available `rvv.probe.compile_run.selected_march` or
-  `rvv.toolchain.march.value`.
-- A matching direct child `tcrv_rvv.lowering_boundary` must identify the same
-  `source_kernel`, `selected_variant`, `origin`, `role`, `status`, and
-  `required_capabilities`.
-- RVV smoke export must stay under RVV target/plugin-specific code. It must not
-  add RVV branches to core orchestration, generic manifest export, or
-  `tcrv.exec`.
-- Output is deterministic standalone C using `riscv_vector.h` and tiny RVV
-  intrinsics. It may include bounded comments naming selected kernel, variant,
-  role, selected march, optional selected ABI, and required capability refs.
-- Output must not serialize raw probe logs, credentials, absolute build paths,
-  timestamps, benchmark sizes, latency/throughput numbers, manifest success, or
-  runtime-success claims.
+- `tcrv-translate --tcrv-export-rvv-smoke-probe-c` must be absent or fail
+  closed before printing C source.
+- Built-in target artifact exporter registration must not publish
+  `tcrv-export-rvv-smoke-probe-c`, `rvv-smoke-probe-standalone-c-source`, or
+  `standalone-c-source` as a supported RVV source route.
+- `RVVExtensionPlugin` must not turn `tcrv_rvv.smoke_probe_descriptor` into
+  supported emission readiness or a supported emission plan.
+- Historical `tcrv_rvv.smoke_probe_descriptor` metadata may remain parseable
+  only as stale negative input; plugin legality should reject it as a deleted
+  direct source artifact frontdoor.
+- No output may contain `#include <riscv_vector.h>`, `__riscv_` intrinsic
+  compute, probe functions, or a `main` from this compiler frontdoor.
 
 ### 4. Validation & Error Matrix
 
-- No `tcrv.exec.kernel` -> export fails before source output.
-- Missing selected surface -> export fails before source output.
-- Scalar-only, offload-only, or fallback-only selected paths -> export fails as
-  not an RVV smoke-probe input.
-- Selected RVV-like origin other than `rvv-plugin` -> export fails through a
-  bounded unknown-origin diagnostic.
-- Missing, malformed, unavailable, or non-symbol `requires` metadata -> export
-  fails before source output.
-- Selected variant does not require available capability id `rvv` -> export
-  fails.
-- Missing, non-RVV, secret-like, newline-containing, or unbounded
-  `tcrv_rvv.required_march` -> export fails.
-- Missing or mismatched preserved selected march capability metadata -> export
-  fails.
-- Missing, duplicate, stale, role-mismatched, status-mismatched, or
-  required-capability-mismatched `tcrv_rvv.lowering_boundary` -> export fails.
-- Any validation failure must leave stdout without partial C source.
+- Deleted translate option is invoked -> command-line parsing reports an
+  unknown/deleted option and no C source is printed.
+- Generic target source artifact export sees a historical smoke-probe route id
+  -> route lookup or coherence fails closed; no C source is printed.
+- A selected RVV variant carries `tcrv_rvv.smoke_probe_descriptor` -> plugin
+  legality/emission rejects it as deleted-route input rather than reporting a
+  supported standalone source artifact.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: `tcrv-opt --tcrv-execution-planning-pipeline` selects an RVV dispatch
-  case, materializes `tcrv_rvv.lowering_boundary`, preserves
-  `tcrv_rvv.required_march = "rv64gcv"`, and the exporter emits stable C with
-  `#include <riscv_vector.h>`.
-- Base: multiple kernels with selected RVV paths are exported in deterministic
-  symbol order with one bounded probe function per selected RVV path.
-- Bad: an offload dispatch case plus scalar fallback is selected and the RVV
-  smoke exporter silently emits a generic probe. It must fail instead because no
-  selected `rvv-plugin` path exists.
+- Good: lit coverage proves the deleted translate option is absent and emits no
+  C text.
+- Base: selected RVV metadata can still materialize unsupported
+  `tcrv_rvv.lowering_boundary` records for non-executable planning evidence.
+- Bad: selected RVV metadata, smoke descriptor metadata, or route metadata
+  emits standalone C, `riscv_vector.h`, `__riscv_` intrinsics, or a probe
+  `main`.
 
 ### 6. Tests Required
 
-- lit/FileCheck positive coverage for pipeline-to-export C source.
-- Positive checks for deterministic multi-kernel ordering, bounded probe names,
-  `riscv_vector.h`, selected kernel/variant comments, selected march metadata,
-  and absence of manifest/runtime-success/raw-log/performance claims.
-- Negative checks for scalar-only and offload-only selection.
-- Negative checks for stale selected boundary, missing/malformed selected march,
-  secret-like or newline metadata, unknown RVV-like origin, and unavailable RVV
-  requirement.
+- lit/FileCheck deleted-route coverage for the removed translate option and
+  generic source frontdoor route absence.
+- C++ registry coverage proving built-in target artifact exporters no longer
+  publish the smoke-probe route.
+- Plugin legality/emission coverage proving historical smoke descriptor
+  metadata is not a supported artifact source.
 - Full project check must still pass through `check-tianchenrv`.
-- If an RVV runtime/toolchain claim is made, record separate `ssh rvv`
-  compile/run evidence under `artifacts/tmp/...` and state that it proves only
-  the generated smoke program compiled and ran.
 
 ### 7. Wrong vs Correct
 
 Wrong:
 
 ```text
-Generated RVV smoke probe compiled, therefore RVV kernel emission is supported.
+selected RVV metadata -> standalone RVV smoke-probe C source
 ```
 
 Correct:
 
 ```text
-Generated standalone RVV smoke probe C compiled and ran on ssh rvv; RVV kernel
-emission remains unsupported/deferred until plugin-local kernel lowering and
-runtime evidence are implemented.
+selected RVV metadata -> unsupported/deleted-route diagnostic
+future rebuild:
+explicit extension-family ops -> materialized MLIR EmitC module -> artifact
 ```
 
 ## Deleted RVV Direct Microkernel Target Export Boundary

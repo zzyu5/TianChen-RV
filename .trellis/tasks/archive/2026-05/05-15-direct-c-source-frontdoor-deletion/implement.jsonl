@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "global project invariants for deletion-only compiler work"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "descriptor/direct-C exporter framework is outside architecture boundary"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "future legal executable path is extension family ops to EmitC"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "direct C source routes must be deleted or fail-closed until materialized EmitC route exists"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "tests protecting old direct C output must be deleted or rewritten"}
+{"file": ".trellis/tasks/archive/2026-05/05-15-direct-c-source-frontdoor-deletion/prd.md", "reason": "archived task requirements and acceptance criteria"}

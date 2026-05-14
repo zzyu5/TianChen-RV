@@ -1461,9 +1461,9 @@ bool expectOffloadDescriptorTargetExporterDeleted() {
                     "built-in target exporter registry\n";
     return false;
   }
-  if (!allRegistry.lookup("tcrv-export-rvv-smoke-probe-c")) {
-    llvm::errs() << "non-plugin RVV smoke-probe route should remain in the "
-                    "built-in non-plugin target route set\n";
+  if (allRegistry.lookup("tcrv-export-rvv-smoke-probe-c")) {
+    llvm::errs() << "deleted RVV smoke-probe route was published by the "
+                    "built-in target exporter registry\n";
     return false;
   }
   if (!allRegistry.lookup("none-executable-toy-template-metadata")) {
@@ -1567,9 +1567,9 @@ bool expectPluginOwnedRVVMicrokernelTargetExporterRegistration() {
                     "rvv-plugin exposed selected RVV microkernel routes\n";
     return false;
   }
-  if (!noRVVBuiltinRegistry.lookup("tcrv-export-rvv-smoke-probe-c")) {
-    llvm::errs() << "non-plugin RVV smoke-probe route should remain in the "
-                    "built-in non-plugin target route set\n";
+  if (noRVVBuiltinRegistry.lookup("tcrv-export-rvv-smoke-probe-c")) {
+    llvm::errs() << "built-in target exporter registration without enabled "
+                    "rvv-plugin exposed deleted RVV smoke-probe route\n";
     return false;
   }
   if (!noRVVBuiltinRegistry.lookup("none-executable-toy-template-metadata")) {
@@ -1707,9 +1707,9 @@ bool expectPluginOwnedScalarMicrokernelTargetExporterRegistration() {
                     "scalar-plugin exposed scalar microkernel routes\n";
     return false;
   }
-  if (!noScalarBuiltinRegistry.lookup("tcrv-export-rvv-smoke-probe-c")) {
-    llvm::errs() << "non-plugin RVV smoke-probe route should remain in the "
-                    "built-in non-plugin target route set\n";
+  if (noScalarBuiltinRegistry.lookup("tcrv-export-rvv-smoke-probe-c")) {
+    llvm::errs() << "built-in target exporter registration without enabled "
+                    "scalar-plugin exposed deleted RVV smoke-probe route\n";
     return false;
   }
   if (noScalarBuiltinRegistry.lookup("tcrv-export-rvv-microkernel-c")) {
@@ -2519,8 +2519,8 @@ bool expectTargetTranslateRouteRegistryShape() {
     return false;
   }
   if (builtinRoutes.lookup("tcrv-export-rvv-smoke-probe-c")) {
-    llvm::errs() << "RVV smoke-probe legacy helper should remain outside the "
-                    "target translate route-family registry\n";
+    llvm::errs() << "deleted RVV smoke-probe helper should not be registered "
+                    "as a target translate route\n";
     return false;
   }
   if (builtinRoutes.lookup("tcrv-export-rvv-microkernel-self-check-c")) {
@@ -5141,8 +5141,8 @@ int main() {
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
     return 1;
-  if (builtinRegistry.size() != 4) {
-    llvm::errs() << "expected exactly 4 built-in target artifact routes after "
+  if (builtinRegistry.size() != 3) {
+    llvm::errs() << "expected exactly 3 built-in target artifact routes after "
                     "direct C deletion, got "
                  << builtinRegistry.size() << "\n";
     return 1;
@@ -5153,13 +5153,9 @@ int main() {
                  << builtinRegistry.compositeSize() << "\n";
     return 1;
   }
-  if (!expectRoute(builtinRegistry, "tcrv-export-rvv-smoke-probe-c",
-                   "standalone-c-source", "rvv-plugin",
-                   "rvv-smoke-probe-standalone-c-source", 0,
-                   /*expectedDirectHelperRoute=*/true))
-    return 1;
   if (builtinRegistry.lookup("tcrv-export-rvv-microkernel-c") ||
       builtinRegistry.lookup("tcrv-export-rvv-i32-vsub-microkernel-c") ||
+      builtinRegistry.lookup("tcrv-export-rvv-smoke-probe-c") ||
       builtinRegistry.lookup("tcrv-export-scalar-microkernel-c") ||
       builtinRegistry.lookupComposite(
           "tcrv-export-rvv-scalar-i32-vadd-dispatch-c")) {

@@ -418,14 +418,10 @@ int runVariantLegalityModuleTest(mlir::MLIRContext &context) {
            "requires an actual typed tcrv_rvv.*_microkernel body"}))
     return result;
 
-  VariantOp smokeProbe = findVariant(kernel, "smoke_probe");
-  if (int result = expectSuccess(
-          tianchenrv::plugin::rvv::verifyRVVBinarySmokeProbeVariantMetadata(
-              smokeProbe, capabilities),
-          "direct smoke-probe metadata helper accepts bounded descriptor"))
-    return result;
-  if (int result = expectSuccess(verifyVariant("smoke_probe"),
-                                 "direct module accepts smoke-probe variant"))
+  if (int result = expectErrorContains(
+          verifyVariant("smoke_probe"),
+          {"RVV smoke-probe descriptor", "deleted direct source artifact",
+           "materialized MLIR EmitC module"}))
     return result;
 
   if (int result = expectErrorContains(

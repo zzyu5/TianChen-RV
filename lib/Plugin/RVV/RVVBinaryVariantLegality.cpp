@@ -23,8 +23,6 @@ constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
 constexpr llvm::StringLiteral kRVVSmokeProbeDescriptorAttrName(
     "tcrv_rvv.smoke_probe_descriptor");
-constexpr llvm::StringLiteral kRVVSmokeProbeDescriptorValue(
-    "standalone-c-toolchain-smoke-probe.v1");
 constexpr llvm::StringLiteral kRVVVLenBBytesAttrName(
     "tcrv_rvv.vlenb_bytes");
 constexpr llvm::StringLiteral kRVVI32M1LanesAttrName(
@@ -199,41 +197,16 @@ llvm::Error verifyOptionalCapacityAttrs(
   return llvm::Error::success();
 }
 
-llvm::Error verifySmokeProbeDescriptorAttr(tcrv::exec::VariantOp variant) {
-  mlir::Attribute rawDescriptor =
-      variant->getAttr(kRVVSmokeProbeDescriptorAttrName);
-  if (!rawDescriptor)
+llvm::Error rejectDeletedSmokeProbeDescriptorAttr(
+    tcrv::exec::VariantOp variant) {
+  if (!variant->hasAttr(kRVVSmokeProbeDescriptorAttrName))
     return llvm::Error::success();
-
-  auto descriptor = llvm::dyn_cast<mlir::StringAttr>(rawDescriptor);
-  if (!descriptor || descriptor.getValue().trim().empty())
-    return makeRVVBinaryVariantLegalityError(
-        llvm::Twine("RVV smoke-probe descriptor on variant @") +
-        variant.getSymName() + " requires string attribute '" +
-        kRVVSmokeProbeDescriptorAttrName + "'");
-
-  std::string descriptorContext =
-      (llvm::Twine("variant @") + variant.getSymName() +
-       " RVV smoke-probe descriptor")
-          .str();
-  if (llvm::Error error = validateRVVPropertyText(
-          descriptorContext, kRVVSmokeProbeDescriptorAttrName,
-          descriptor.getValue().trim()))
-    return error;
-
-  if (descriptor.getValue().trim() != kRVVSmokeProbeDescriptorValue)
-    return makeRVVBinaryVariantLegalityError(
-        llvm::Twine("RVV smoke-probe descriptor on variant @") +
-        variant.getSymName() + " must be '" + kRVVSmokeProbeDescriptorValue +
-        "'");
-
-  if (!variant->hasAttr(kRVVRequiredMarchAttrName))
-    return makeRVVBinaryVariantLegalityError(
-        llvm::Twine("RVV smoke-probe descriptor on variant @") +
-        variant.getSymName() +
-        " requires string 'tcrv_rvv.required_march' metadata");
-
-  return llvm::Error::success();
+  return makeRVVBinaryVariantLegalityError(
+      llvm::Twine("RVV smoke-probe descriptor on variant @") +
+      variant.getSymName() +
+      " is a deleted direct source artifact frontdoor; standalone RVV C "
+      "smoke-probe export was removed, and future executable output requires "
+      "extension-family IR plus a materialized MLIR EmitC module route");
 }
 
 const RVVBinaryFamilyRecord *
@@ -542,21 +515,6 @@ bool hasFiniteBinaryLegalityMetadata(tcrv::exec::VariantOp variant) {
 
 } // namespace
 
-llvm::Error verifyRVVBinarySmokeProbeVariantMetadata(
-    tcrv::exec::VariantOp variant,
-    const support::TargetCapabilitySet &capabilities) {
-  llvm::Expected<RVVBinaryCapabilityPropertyView> propertyView =
-      buildRVVBinaryCapabilityPropertyView(capabilities);
-  if (!propertyView)
-    return propertyView.takeError();
-
-  if (llvm::Error error = verifySmokeProbeDescriptorAttr(variant))
-    return error;
-  if (llvm::Error error = verifyRequiredMarchAttr(variant, *propertyView))
-    return error;
-  return llvm::Error::success();
-}
-
 llvm::Error verifyRVVBinaryVariantLegality(
     const VariantLegalityRequest &request, llvm::StringRef originPlugin) {
   tcrv::exec::VariantOp variant = request.getVariant();
@@ -629,7 +587,7 @@ llvm::Error verifyRVVBinaryVariantLegality(
     if (variant->hasAttr(kRVVRequiredMarchAttrName))
       if (llvm::Error error = verifyRequiredMarchAttr(variant, *propertyView))
         return error;
-    if (llvm::Error error = verifySmokeProbeDescriptorAttr(variant))
+    if (llvm::Error error = rejectDeletedSmokeProbeDescriptorAttr(variant))
       return error;
     if (llvm::Error error =
             verifyOptionalCapacityAttrs(variant, *propertyView))

@@ -54,10 +54,11 @@ routes after the direct C semantic exporter deletion campaign.
 
 - Good: a lit test proves a selected RVV path materializes typed IR and then
   receives an unsupported emission-plan diagnostic.
-- Base: RVV smoke-probe tests may still check `standalone-c-source` because
-  they are toolchain smoke harness coverage.
+- Base: RVV smoke-probe route tests may remain only as deleted-route coverage
+  proving no C source is emitted.
 - Bad: a test checks `runtime-callable-c-source`, a direct route id, or an
-  `__riscv_` intrinsic as proof that kernel semantic source export succeeded.
+  `__riscv_` intrinsic as proof that kernel semantic source export or
+  smoke-probe source export succeeded.
 
 ### 6. Tests Required
 
@@ -147,11 +148,11 @@ Use lit/FileCheck for:
   metadata, pipeline-to-export coverage, and negative tests proving invalid
   selected surfaces or malformed runtime ABI ownership metadata produce no
   manifest.
-- RVV smoke-probe C target export, including pipeline-to-export coverage,
-  deterministic multi-kernel ordering, selected RVV kernel/variant/march
-  comments, `riscv_vector.h` use, fail-before-source diagnostics for malformed
-  selected RVV metadata, and no manifest/runtime-success/raw-log/performance
-  claims.
+- deleted RVV smoke-probe C target export coverage, proving
+  `--tcrv-export-rvv-smoke-probe-c` is absent or fail-closed, built-in target
+  artifact exporters do not publish the smoke route, historical smoke
+  descriptor metadata is not a supported emission plan, and no
+  `riscv_vector.h` / `__riscv_` C source is emitted.
 - RVV selected microkernel descriptor materialization is deleted. Tests must
   assert that selected-boundary materialization does not auto-create
   `tcrv_rvv.i32_vadd_microkernel` or structured `setvl` / `with_vl` /
@@ -423,12 +424,11 @@ Python tooling and as MLIR pipeline input. Required coverage:
 - helper tests must not use raw credentials, private keys, tokens, unbounded
   command dumps, correctness claims, runtime claims, or performance claims.
 
-If the repository exports generated RVV smoke-probe C from post-planning MLIR,
-local lit tests must cover the exporter without requiring `ssh rvv`. Any remote
-compile/run of that generated source must be reported separately as
-hardware/toolchain evidence only, with bounded sanitized artifacts under
-`artifacts/tmp/...`; it cannot be used as a TianChen-RV kernel correctness,
-supported RVV emission, runtime ABI, or performance result.
+The repository must not export generated RVV smoke-probe C from post-planning
+MLIR. Tests should prove the old command and target artifact route are absent
+or fail-closed and that no `riscv_vector.h` / `__riscv_` source text is printed.
+Any future RVV hardware/toolchain smoke evidence belongs in explicit probe
+tooling, not a compiler source artifact frontdoor.
 
 If the repository exports generated C for an explicit
 `tcrv_rvv.i32_vadd_microkernel`, local lit tests must cover the dialect op and
@@ -540,15 +540,14 @@ RVV runtime-callable C source/header/object/bundle evidence.
 
 - A lit test depends on old direct source/header/object/bundle dry-run output
   -> delete it or rewrite it to fail closed.
-- A helper validates RVV intrinsics in generated direct C source -> delete it
-  unless it is the RVV smoke-probe harness.
+- A helper validates RVV intrinsics in generated direct C source -> delete it.
 
 ### 5. Good/Base/Bad Cases
 
 - Good: fail-closed tests prove the old direct route is unsupported and emits
   no RVV intrinsic body.
-- Base: RVV smoke-probe tests remain allowed as standalone toolchain harness
-  coverage.
+- Base: RVV smoke-probe tests remain allowed only as deleted-route command or
+  route-absence coverage.
 - Bad: a script treats route metadata plus selected-family fields as enough to
   produce executable C evidence.
 

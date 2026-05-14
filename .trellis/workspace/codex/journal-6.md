@@ -925,3 +925,63 @@ from `selectedPlan.descriptor`.
 - Continue deletion campaign on remaining target-side finite
   `RVVBinaryFamilyRecord` / `RVVBinaryIntrinsicRoute` registry and direct
   `RVVMicrokernel.cpp` artifact/export authority.
+
+
+## Session 69: Direct C semantic source frontdoor deletion
+
+**Date**: 2026-05-15
+**Task**: Direct C semantic source frontdoor deletion
+**Branch**: `main`
+
+### Summary
+
+Deleted the active RVV smoke-probe direct C source frontdoor. The public
+`tcrv-export-rvv-smoke-probe-c` translate command is gone, the target-side
+`RVVSmokeProbe` C generator is deleted, built-in target artifact exporters no
+longer publish the smoke route, and RVV plugin smoke descriptors now reject as
+deleted direct source artifact input instead of producing a supported source
+plan.
+
+### Main Changes
+
+- Created Trellis task `05-15-direct-c-source-frontdoor-deletion`.
+- Deleted `include/TianChenRV/Target/RVV/RVVSmokeProbe.h` and
+  `lib/Target/RVV/RVVSmokeProbe.cpp`; removed the source from
+  `TianChenRVRVVTarget`.
+- Removed `tcrv-translate` direct registration for
+  `tcrv-export-rvv-smoke-probe-c`.
+- Removed non-plugin built-in target artifact exporter registration for the RVV
+  smoke-probe standalone C route.
+- Removed RVV plugin supported smoke-probe readiness/plan construction and
+  changed historical `tcrv_rvv.smoke_probe_descriptor` handling to deleted-route
+  rejection.
+- Replaced positive RVV smoke-probe lit coverage with a deleted-route test.
+- Updated target artifact C++ tests and Trellis specs to record the deleted
+  smoke-probe frontdoor boundary.
+- Classified scalar compatibility route IDs/runtime ABI strings and generic
+  direct source fixtures as the next deletion owner; this round did not add
+  scalar registrations or compatibility wrappers.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tcrv-translate TianChenRVRVVTarget TianChenRVRVVPlugin tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-binary-variant-legality-test -j2`.
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`: 114/114 passed.
+- [OK] Bounded active code scan: no smoke-probe command/exporter/route string
+  remains in `tools include lib` except deleted-descriptor legality handling.
+- [OK] Bounded target/tool scan: no `riscv_vector.h` or `__riscv_` source
+  emission text remains under `lib/Target`, target includes, or tools.
+- [OK] `git diff --check`.
+- [OK] Trellis context validation before archive.
+
+### Status
+
+[OK] **Archived and committed**
+
+### Next Steps
+
+- Next deletion owner should target scalar compatibility route IDs/runtime ABI
+  fields and generic direct source fixture strings.

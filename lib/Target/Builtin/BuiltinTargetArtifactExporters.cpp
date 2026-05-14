@@ -7,7 +7,6 @@
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
-#include "TianChenRV/Target/RVV/RVVSmokeProbe.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/Template/TemplateMetadataArtifact.h"
 #include "TianChenRV/Target/TensorExtLite/TensorExtLiteMetadataArtifact.h"
@@ -31,7 +30,8 @@ llvm::Error makeBuiltinExtensionBundleError(llvm::Twine message) {
 
 llvm::Error registerBuiltinNonPluginTargetArtifactExporters(
     TargetArtifactExporterRegistry &registry) {
-  return rvv::registerRVVSmokeProbeTargetExporters(registry);
+  (void)registry;
+  return llvm::Error::success();
 }
 
 llvm::Error registerScalarBuiltinTargetArtifactExporterBundles(

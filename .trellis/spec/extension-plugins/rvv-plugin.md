@@ -86,8 +86,9 @@ typed policy attr name: tcrv_rvv.policy
 typed policy attr value: #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
 property requirement attr name: tcrv_rvv.required_march
 finite element-count attr name: tcrv_rvv.element_count
-smoke-probe descriptor attr name: tcrv_rvv.smoke_probe_descriptor
-smoke-probe descriptor value: standalone-c-toolchain-smoke-probe.v1
+deleted smoke-probe descriptor attr name: tcrv_rvv.smoke_probe_descriptor
+deleted smoke-probe descriptor behavior: rejected as a deleted direct source
+  artifact frontdoor
 optional vlenb attr name: tcrv_rvv.vlenb_bytes
 optional base i32 m1 lane attr name: tcrv_rvv.base_i32_m1_lanes
 selected vector-shape attr names:
@@ -905,33 +906,21 @@ for the selected unsupported boundary. That metadata explains which plugin owns
 the future RVV executable/runtime ABI slice; it is not runtime ABI glue, code
 generation, hardware execution, correctness evidence, or performance evidence.
 
-### Smoke-Probe Target Export
+### Deleted Smoke-Probe Target Export
 
-`tcrv-translate --tcrv-export-rvv-smoke-probe-c` is an RVV-specific target
-export surface for post-planning MLIR. It consumes selected `rvv-plugin`
-metadata, `tcrv_rvv.required_march`, and the matching
-`tcrv_rvv.lowering_boundary` to emit a standalone C program that includes
-`riscv_vector.h` and performs a tiny RVV intrinsic smoke check.
+The former `tcrv-translate --tcrv-export-rvv-smoke-probe-c` target export
+surface is deleted. `RVVExtensionPlugin` must not turn
+`tcrv_rvv.smoke_probe_descriptor` into supported emission readiness, a
+supported emission plan, or a generic target source artifact route. Built-in
+target artifact exporter registration must not publish
+`tcrv-export-rvv-smoke-probe-c`, `rvv-smoke-probe-standalone-c-source`, or a
+RVV `standalone-c-source` route.
 
-The same emitter may be registered as the target-owned standalone C source
-artifact route `tcrv-export-rvv-smoke-probe-c` with emission kind
-`rvv-smoke-probe-standalone-c-source` and artifact kind
-`standalone-c-source`. The generic
-`tcrv-translate --tcrv-export-target-source-artifact` front door may select
-that route only from normal emission-plan and target artifact exporter registry
-metadata; shared generic front-door code must not branch on RVV or target
-profile names to discover the smoke exporter.
-
-This target export does not make ordinary RVV kernel emission supported:
-metadata-only `@rvv_first_slice` paths without the explicit smoke descriptor
-still report unsupported executable emission and a deferred runtime ABI
-boundary. A smoke-descriptor path may report support only for the standalone
-smoke-probe C source artifact route. Successful `ssh rvv` compile/run of the
-generated smoke C only proves the generated smoke program can use the RVV
-toolchain on that host.
-It does not prove TianChen-RV lowered a selected kernel, emitted LLVM/RISC-V/RVV
-IR, generated an object, linked runtime glue, proved kernel correctness, or
-measured performance.
+Historical smoke-probe descriptor metadata may remain only as deleted-route
+negative input. It must be rejected before C source emission and must not print
+`riscv_vector.h`, `__riscv_` intrinsics, probe functions, or a probe `main`.
+RVV hardware/toolchain smoke evidence belongs in explicit probe tooling and
+separate `ssh rvv` artifacts, not in a compiler source artifact frontdoor.
 
 ### I32 Vector-Add Microkernel Materialization And Export
 

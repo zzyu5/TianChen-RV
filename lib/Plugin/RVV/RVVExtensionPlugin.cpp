@@ -36,30 +36,12 @@ constexpr llvm::StringLiteral kRVVFirstSliceVariantName("rvv_first_slice");
 constexpr llvm::StringLiteral kRVVPolicyAttrName("tcrv_rvv.policy");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
-constexpr llvm::StringLiteral kRVVSmokeProbeDescriptorAttrName(
-    "tcrv_rvv.smoke_probe_descriptor");
-constexpr llvm::StringLiteral kRVVSmokeProbeDescriptorValue(
-    "standalone-c-toolchain-smoke-probe.v1");
 constexpr llvm::StringLiteral kRVVElementCountAttrName(
     "tcrv_rvv.element_count");
 constexpr llvm::StringLiteral kRVVVLenBBytesAttrName(
     "tcrv_rvv.vlenb_bytes");
 constexpr llvm::StringLiteral kRVVI32M1LanesAttrName(
     "tcrv_rvv.base_i32_m1_lanes");
-constexpr llvm::StringLiteral kRVVSmokeProbeCapabilityID("rvv.smoke_probe");
-constexpr llvm::StringLiteral kSmokeProbeEmissionPath(
-    "rvv-smoke-probe-standalone-c-source-export");
-constexpr llvm::StringLiteral kSmokeProbeEmissionKind(
-    "rvv-smoke-probe-standalone-c-source");
-constexpr llvm::StringLiteral kSmokeProbeRouteID(
-    "tcrv-export-rvv-smoke-probe-c");
-constexpr llvm::StringLiteral kSmokeProbeRuntimeABI(
-    "rvv-smoke-probe-standalone-c-main.v1");
-constexpr llvm::StringLiteral kSmokeProbeRuntimeABIKind(
-    "rvv-smoke-probe-standalone-c-main");
-constexpr llvm::StringLiteral kSmokeProbeRuntimeGlueRole(
-    "rvv-smoke-probe-standalone-main");
-constexpr llvm::StringLiteral kSmokeProbeArtifactKind("standalone-c-source");
 constexpr llvm::StringLiteral kSelectedRVVCapacityMetadataRole(
     "rvv-base-capacity-fact");
 constexpr llvm::StringLiteral kSelectedRVVCapacityMetadataNote(
@@ -84,11 +66,6 @@ struct RVVCapacityMetadata {
 bool hasAvailableRVVCapability(const VariantProposalRequest &request) {
   return request.getKernel() &&
          request.getCapabilities().isCapabilityAvailableByID(kRVVCapabilityID);
-}
-
-bool hasAvailableRVVSmokeProbeCapability(
-    const support::TargetCapabilitySet &capabilities) {
-  return capabilities.isCapabilityAvailableByID(kRVVSmokeProbeCapabilityID);
 }
 
 mlir::StringAttr getRVVPolicyAttrNameAttr(mlir::MLIRContext *context) {
@@ -224,14 +201,6 @@ buildRVVFirstSliceProposal(const VariantProposalRequest &request) {
                             rvv::getRVVSelectedBinarySourceKindAttrName()),
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             plan->getSourceKind()));
-  if (hasAvailableRVVSmokeProbeCapability(request.getCapabilities())) {
-    proposal.addPluginAttribute(
-        mlir::StringAttr::get(request.getKernel()->getContext(),
-                              kRVVSmokeProbeDescriptorAttrName),
-        mlir::StringAttr::get(request.getKernel()->getContext(),
-                              kRVVSmokeProbeDescriptorValue));
-    return proposal;
-  }
   proposal.addPluginAttribute(
       mlir::StringAttr::get(request.getKernel()->getContext(),
                             kRVVElementCountAttrName),
@@ -451,17 +420,6 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
     return llvm::Error::success();
   }
 
-  if (request.getVariant()->hasAttr(kRVVSmokeProbeDescriptorAttrName)) {
-    if (llvm::Error error =
-            rvv::verifyRVVBinarySmokeProbeVariantMetadata(
-                request.getVariant(), request.getCapabilities()))
-      return error;
-    out = VariantEmissionStatus::getSupported(
-        kRVVPluginName, request.getVariant().getSymName(),
-        kSmokeProbeEmissionPath);
-    return llvm::Error::success();
-  }
-
   out = VariantEmissionStatus::getUnsupported(
       kRVVPluginName, request.getVariant().getSymName(),
       "RVV metadata-only first slice has no RVV lowering, runtime ABI, or "
@@ -492,36 +450,6 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
     return binaryPlan.takeError();
   if (*binaryPlan) {
     out = std::move(**binaryPlan);
-    return llvm::Error::success();
-  }
-
-  if (request.getVariant()->hasAttr(kRVVSmokeProbeDescriptorAttrName)) {
-    if (llvm::Error error =
-            rvv::verifyRVVBinarySmokeProbeVariantMetadata(
-                request.getVariant(), request.getCapabilities()))
-      return error;
-
-    out = VariantEmissionPlan::getSupported(
-        kRVVPluginName, request.getKernel().getSymName(),
-        request.getVariant().getSymName(), request.getRole(),
-        kSmokeProbeEmissionKind, kSmokeProbeRouteID, kSmokeProbeRuntimeABI,
-        kSmokeProbeArtifactKind,
-        "RVV standalone smoke-probe C source export provides a bounded "
-        "toolchain/header smoke program for this selected RVV path; it is not "
-        "generic RVV lowering, runtime ABI glue, kernel correctness evidence, "
-        "or performance evidence");
-    out.setRuntimeABIKind(kSmokeProbeRuntimeABIKind);
-    out.setRuntimeABIName(kSmokeProbeRuntimeABI);
-    out.setRuntimeGlueRole(kSmokeProbeRuntimeGlueRole);
-    if (llvm::Error error =
-            out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
-      return error;
-    if (llvm::Error error = rvv::addRVVSelectedVectorShapeMetadataToPlan(
-            out, request.getVariant(), **selectedConfig))
-      return error;
-    if (llvm::Error error =
-            addSelectedCapacityMetadataToPlan(out, request.getVariant()))
-      return error;
     return llvm::Error::success();
   }
 
