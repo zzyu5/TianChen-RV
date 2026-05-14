@@ -525,6 +525,18 @@ struct RVVBinarySelectedConfigEmissionView {
   }
 };
 
+struct RVVBinaryEmitCBodyMapping {
+  std::string routeKind;
+  std::string sourceAuthority;
+  std::string requiredHeader;
+  std::string arithmeticIntrinsicName;
+
+  bool isValid() const {
+    return !routeKind.empty() && !sourceAuthority.empty() &&
+           !requiredHeader.empty() && !arithmeticIntrinsicName.empty();
+  }
+};
+
 inline llvm::Error makeRVVSelectedConfigContractError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
       llvm::Twine("TianChen-RV RVV selected config contract failed: ") +
@@ -669,6 +681,24 @@ buildRVVBinarySelectedConfigEmissionView(
         "selected config emission view must contain non-empty vector type, "
         "suffix, policy, and intrinsic spelling fields");
   return view;
+}
+
+inline llvm::Expected<RVVBinaryEmitCBodyMapping>
+buildRVVBinaryEmitCBodyMappingFromSelectedConfig(
+    const RVVBinarySelectedConfigContract &contract) {
+  if (llvm::Error error = validateRVVBinarySelectedConfigContract(contract))
+    return std::move(error);
+
+  RVVBinaryEmitCBodyMapping mapping;
+  mapping.routeKind = getRVVEmitCRouteKindMetadataValue().str();
+  mapping.sourceAuthority = getRVVEmitCSourceAuthorityMetadataValue().str();
+  mapping.requiredHeader = getRVVEmitCRequiredHeaderMetadataValue().str();
+  mapping.arithmeticIntrinsicName = contract.getArithmeticIntrinsicName();
+  if (!mapping.isValid())
+    return makeRVVSelectedConfigContractError(
+        "EmitC body mapping requires route kind, source authority, required "
+        "header, and arithmetic intrinsic");
+  return mapping;
 }
 
 inline llvm::Expected<RVVBinarySelectedConfigContract>

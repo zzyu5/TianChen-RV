@@ -7,6 +7,7 @@
 // RUN: tcrv-opt %s --tcrv-lower-vector-rvv-i32-vadd-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import sys; text=sys.stdin.read(); marker="tcrv.exec.runtime_param @abi_runtime_element_count {"; i=text.index(marker); needle=", tcrv_frontend_source_loop_step = 16 : i64"; j=text.index(needle, i); sys.stdout.write(text[:j]+text[j+len(needle):])' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-PARAM-STEP --implicit-check-not="TianChen-RV RVV runtime-callable microkernel C export."
 // RUN: tcrv-opt %s --tcrv-lower-vector-rvv-i32-vadd-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text=sys.stdin.read(); pattern=r"(\{name = \"tcrv_frontend\.active_lane_authority\"[^}]*value = )\"mlir-vector-transfer-tail-active-lanes\""; text,count=re.subn(pattern, lambda m: m.group(1) + "\"stale-active-lanes\"", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ACTIVE-LANES --implicit-check-not="TianChen-RV RVV runtime-callable microkernel C export."
 // RUN: tcrv-opt %s --tcrv-lower-vector-rvv-i32-vadd-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import sys; text=sys.stdin.read(); marker="tcrv.exec.runtime_param @abi_runtime_element_count {"; i=text.index(marker); needle=", tcrv_frontend_active_lane_authority = \"mlir-vector-transfer-tail-active-lanes\""; j=text.index(needle, i); sys.stdout.write(text[:j]+text[j+len(needle):])' | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-ACTIVE-LANES --implicit-check-not="TianChen-RV RVV runtime-callable microkernel C export."
+// RUN: tcrv-opt %s --tcrv-lower-vector-rvv-i32-vadd-to-exec --tcrv-execution-planning-pipeline | python3 -c 'import re, sys; text=sys.stdin.read(); pattern=r"name = \"tcrv_rvv\.emitc_route_kind\""; text,count=re.subn(pattern, "name = \"tcrv_rvv.stale_emitc_route_kind\"", text, count=1); assert count == 1; sys.stdout.write(text)' | not tcrv-translate --tcrv-export-rvv-microkernel-self-check-c 2>&1 | FileCheck %s --check-prefix=MISSING-EMITC-BODY-MAPPING --implicit-check-not="#include <riscv_vector.h>"
 
 module {
   // LOWER-LABEL: tcrv.exec.target @vector_dynamic_frontend_profile
@@ -130,6 +131,8 @@ module {
 // SOURCE: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vadd.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent */
 // SOURCE: /* runtime_element_count_source: n is the source scf.for upper bound and runtime AVL; no fixed source-extent trap is emitted for this dynamic vector route */
 // SOURCE: /* arithmetic_source: typed op tcrv_rvv.i32_add via generated EmitC route and IR-backed callable ABI */
+// SOURCE: /* emitc_body_mapping_source: selected_plan_metadata */
+// SOURCE: /* emitc_body_mapping: route_kind=extension-family-ops-to-emitc-call-opaque, source_authority=mlir-emitc-cpp-emitter, required_header=riscv_vector.h, arithmetic_intrinsic=__riscv_vadd_vv_i32m1 */
 // SOURCE: /* descriptor_mirror_status: optional legacy descriptor metadata is compatibility/diagnostic only after typed RVV body authority; it cannot select emitted compute semantics */
 // SOURCE: /* dataflow_emission_step[2]: op=tcrv_rvv.i32_add, lhs=lhs_vec, rhs=rhs_vec, result=sum_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute */
 // SOURCE: /* emitc_route: tcrv_rvv.family_ops -> emitc.call_opaque -> RVV intrinsic C/C++ */
@@ -150,3 +153,6 @@ module {
 // STALE-ACTIVE-LANES: selected_plan_metadata 'tcrv_frontend.active_lane_authority' frontend active-lane authority must be 'mlir-vector-transfer-tail-active-lanes'
 
 // MISSING-ACTIVE-LANES: dynamic vector runtime extent authority validation failed for kernel @frontend_vector_dynamic_i32_vadd: dynamic vector runtime extent authority requires string attribute 'tcrv_frontend_active_lane_authority' on both kernel and runtime_param
+
+// MISSING-EMITC-BODY-MAPPING: selected RVV EmitC body mapping
+// MISSING-EMITC-BODY-MAPPING-SAME: requires selected_plan_metadata 'tcrv_rvv.emitc_route_kind'

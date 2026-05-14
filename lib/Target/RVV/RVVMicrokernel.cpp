@@ -191,10 +191,13 @@ struct RVVMicrokernelRecord {
   std::optional<std::string> selectedMABI;
   llvm::SmallVector<std::string, 4> requiredCapabilities;
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
+  llvm::SmallVector<SelectedPlanMetadataEntry, 24> selectedPlanMetadata;
   llvm::SmallVector<MemWindowOp, 3> bufferWindows;
   RuntimeParamOp runtimeElementCountParam;
   RVVBinarySelectedConfigContract selectedConfigContract;
   RVVBinarySelectedConfigEmissionView selectedConfigEmission;
+  RVVBinaryEmitCBodyMapping emitcBodyMapping;
+  std::string emitcBodyMappingSource;
   RVVBinaryDataflowEmissionPlan dataflowPlan;
   RVVIntrinsicConfig intrinsicConfig;
   const RVVI32VectorShapeConfig *selectedShape = nullptr;
@@ -668,6 +671,78 @@ llvm::Error collectRuntimeABIParameters(
 
     out.push_back(support::RuntimeABIParameter(cNameValue, cTypeValue,
                                                *parsedRole, *parsedOwnership));
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error collectSelectedPlanMetadataEntries(
+    KernelOp kernel, DiagnosticOp diagnostic,
+    llvm::SmallVectorImpl<SelectedPlanMetadataEntry> &out) {
+  auto metadata = diagnostic->getAttrOfType<mlir::ArrayAttr>(
+      execDiagnostic::kSelectedPlanMetadataAttrName);
+  if (!metadata)
+    return llvm::Error::success();
+
+  llvm::StringSet<> seenNames;
+  for (auto [index, attr] : llvm::enumerate(metadata)) {
+    auto dict = llvm::dyn_cast<mlir::DictionaryAttr>(attr);
+    if (!dict)
+      return makeMicrokernelError(
+          kernel, llvm::Twine("selected_plan_metadata[") +
+                      llvm::Twine(index) + "] must be a dictionary attribute");
+
+    auto name = dict.getAs<mlir::StringAttr>(
+        execDiagnostic::kSelectedPlanMetadataNameAttrName);
+    auto value = dict.getAs<mlir::StringAttr>(
+        execDiagnostic::kSelectedPlanMetadataValueAttrName);
+    auto role = dict.getAs<mlir::StringAttr>(
+        execDiagnostic::kSelectedPlanMetadataRoleAttrName);
+    auto note = dict.getAs<mlir::StringAttr>(
+        execDiagnostic::kSelectedPlanMetadataNoteAttrName);
+    if (!name || name.getValue().trim().empty())
+      return makeMicrokernelError(
+          kernel, llvm::Twine("selected_plan_metadata[") +
+                      llvm::Twine(index) + "] requires non-empty name");
+    if (!value || value.getValue().trim().empty())
+      return makeMicrokernelError(
+          kernel, llvm::Twine("selected_plan_metadata[") +
+                      llvm::Twine(index) + "] requires non-empty value");
+    if (!role || role.getValue().trim().empty())
+      return makeMicrokernelError(
+          kernel, llvm::Twine("selected_plan_metadata[") +
+                      llvm::Twine(index) + "] requires non-empty role");
+    if (!note || note.getValue().trim().empty())
+      return makeMicrokernelError(
+          kernel, llvm::Twine("selected_plan_metadata[") +
+                      llvm::Twine(index) + "] requires non-empty note");
+
+    llvm::StringRef nameValue = name.getValue().trim();
+    llvm::StringRef metadataValue = value.getValue().trim();
+    llvm::StringRef roleValue = role.getValue().trim();
+    llvm::StringRef noteValue = note.getValue().trim();
+    if (!seenNames.insert(nameValue).second)
+      return makeMicrokernelError(
+          kernel, llvm::Twine("duplicate selected_plan_metadata name '") +
+                      nameValue + "'");
+    if (llvm::Error error =
+            validateBoundedText(kernel, "selected plan metadata name",
+                                nameValue))
+      return error;
+    if (llvm::Error error = validateBoundedText(
+            kernel, "selected plan metadata value", metadataValue))
+      return error;
+    if (llvm::Error error =
+            validateBoundedText(kernel, "selected plan metadata role",
+                                roleValue))
+      return error;
+    if (llvm::Error error =
+            validateBoundedText(kernel, "selected plan metadata note",
+                                noteValue))
+      return error;
+
+    out.push_back({nameValue.str(), metadataValue.str(), roleValue.str(),
+                   noteValue.str()});
   }
 
   return llvm::Error::success();
@@ -1477,6 +1552,151 @@ llvm::Error validateRVVMicrokernelSelectedSourceIdentityMetadata(
             validateRVVMicrokernelSelectedPlanMetadataEntry(candidate, entry))
       return error;
   return llvm::Error::success();
+}
+
+llvm::Expected<const SelectedPlanMetadataEntry *>
+findUniqueSelectedPlanMetadataEntryForBodyMapping(
+    KernelOp kernel, llvm::ArrayRef<SelectedPlanMetadataEntry> metadata,
+    llvm::StringRef selectedVariant, llvm::StringRef name) {
+  const SelectedPlanMetadataEntry *match = nullptr;
+  unsigned count = 0;
+  for (const SelectedPlanMetadataEntry &entry : metadata) {
+    if (entry.name == name) {
+      match = &entry;
+      ++count;
+    }
+  }
+
+  if (count == 0)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV EmitC body mapping for @") +
+                    selectedVariant + " requires selected_plan_metadata '" +
+                    name + "'");
+  if (count > 1)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV EmitC body mapping for @") +
+                    selectedVariant +
+                    " has duplicate selected_plan_metadata '" + name + "'");
+  return match;
+}
+
+llvm::Expected<std::string> requireSelectedPlanMetadataValueForBodyMapping(
+    KernelOp kernel, llvm::ArrayRef<SelectedPlanMetadataEntry> metadata,
+    llvm::StringRef selectedVariant, llvm::StringRef name,
+    llvm::StringRef expectedRole, llvm::StringRef expectedNote,
+    std::optional<llvm::StringRef> expectedValue,
+    llvm::StringRef diagnosticSpelling) {
+  llvm::Expected<const SelectedPlanMetadataEntry *> entry =
+      findUniqueSelectedPlanMetadataEntryForBodyMapping(
+          kernel, metadata, selectedVariant, name);
+  if (!entry)
+    return entry.takeError();
+
+  if ((*entry)->role != expectedRole)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV EmitC body mapping for @") +
+                    selectedVariant + " selected_plan_metadata '" + name +
+                    "' role must be '" + expectedRole + "'");
+  if ((*entry)->note != expectedNote)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV EmitC body mapping for @") +
+                    selectedVariant + " selected_plan_metadata '" + name +
+                    "' note must be '" + expectedNote + "'");
+  if (expectedValue && (*entry)->value != *expectedValue)
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV EmitC body mapping for @") +
+                    selectedVariant + " selected_plan_metadata '" + name +
+                    "' " + diagnosticSpelling + " must be '" +
+                    *expectedValue + "'");
+  return (*entry)->value;
+}
+
+llvm::Expected<RVVBinaryEmitCBodyMapping>
+buildRVVEmitCBodyMappingFromSelectedPlanMetadata(
+    KernelOp kernel, llvm::StringRef selectedVariant,
+    const RVVBinarySelectedConfigContract &contract,
+    llvm::ArrayRef<SelectedPlanMetadataEntry> selectedPlanMetadata) {
+  if (selectedPlanMetadata.empty())
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV EmitC body mapping for @") +
+                    selectedVariant +
+                    " requires selected_plan_metadata from the plugin-owned "
+                    "emission plan before production body emission");
+
+  RVVBinaryEmitCBodyMapping mapping;
+  llvm::StringRef routeRole = getRVVEmitCRouteMetadataRole();
+  llvm::StringRef routeNote = getRVVEmitCRouteMetadataNote();
+
+  llvm::Expected<std::string> routeKind =
+      requireSelectedPlanMetadataValueForBodyMapping(
+          kernel, selectedPlanMetadata, selectedVariant,
+          getRVVEmitCRouteKindMetadataName(), routeRole, routeNote,
+          getRVVEmitCRouteKindMetadataValue(), "EmitC route kind");
+  if (!routeKind)
+    return routeKind.takeError();
+  mapping.routeKind = std::move(*routeKind);
+
+  llvm::Expected<std::string> sourceAuthority =
+      requireSelectedPlanMetadataValueForBodyMapping(
+          kernel, selectedPlanMetadata, selectedVariant,
+          getRVVEmitCSourceAuthorityMetadataName(), routeRole, routeNote,
+          getRVVEmitCSourceAuthorityMetadataValue(),
+          "EmitC source authority");
+  if (!sourceAuthority)
+    return sourceAuthority.takeError();
+  mapping.sourceAuthority = std::move(*sourceAuthority);
+
+  llvm::Expected<std::string> requiredHeader =
+      requireSelectedPlanMetadataValueForBodyMapping(
+          kernel, selectedPlanMetadata, selectedVariant,
+          getRVVEmitCRequiredHeaderMetadataName(), routeRole, routeNote,
+          getRVVEmitCRequiredHeaderMetadataValue(), "EmitC required header");
+  if (!requiredHeader)
+    return requiredHeader.takeError();
+  mapping.requiredHeader = std::move(*requiredHeader);
+
+  llvm::Expected<std::string> arithmeticIntrinsic =
+      requireSelectedPlanMetadataValueForBodyMapping(
+          kernel, selectedPlanMetadata, selectedVariant,
+          getRVVEmitCArithmeticIntrinsicMetadataName(), routeRole,
+          getRVVEmitCArithmeticIntrinsicMetadataNote(),
+          contract.getArithmeticIntrinsicName(), "EmitC arithmetic intrinsic");
+  if (!arithmeticIntrinsic)
+    return arithmeticIntrinsic.takeError();
+  mapping.arithmeticIntrinsicName = std::move(*arithmeticIntrinsic);
+
+  if (!mapping.isValid())
+    return makeMicrokernelError(
+        kernel, llvm::Twine("selected RVV EmitC body mapping for @") +
+                    selectedVariant +
+                    " must contain route kind, source authority, required "
+                    "header, and arithmetic intrinsic");
+  return mapping;
+}
+
+llvm::Expected<RVVBinaryEmitCBodyMapping>
+buildRVVEmitCBodyMappingForRecord(KernelOp kernel,
+                                  const RVVMicrokernelRecord &record,
+                                  std::string &mappingSource) {
+  if (!record.selectedPlanMetadata.empty() ||
+      record.selectedBinarySourceKind == "frontend-lowering") {
+    llvm::Expected<RVVBinaryEmitCBodyMapping> mapping =
+        buildRVVEmitCBodyMappingFromSelectedPlanMetadata(
+            kernel, record.variantSymbol, record.selectedConfigContract,
+            record.selectedPlanMetadata);
+    if (!mapping)
+      return mapping.takeError();
+    mappingSource = "selected_plan_metadata";
+    return std::move(*mapping);
+  }
+
+  llvm::Expected<RVVBinaryEmitCBodyMapping> mapping =
+      buildRVVBinaryEmitCBodyMappingFromSelectedConfig(
+          record.selectedConfigContract);
+  if (!mapping)
+    return mapping.takeError();
+  mappingSource = "selected_config_contract_compatibility";
+  return std::move(*mapping);
 }
 
 llvm::Expected<const RVVI32VectorShapeConfig *>
@@ -2425,7 +2645,9 @@ llvm::Error resolveRVVBinaryRuntimeABIParametersForPath(
     const RVVBinaryIntrinsicDescriptor &descriptor,
     llvm::SmallVectorImpl<support::RuntimeABIParameter> &parameters,
     llvm::SmallVectorImpl<MemWindowOp> &bufferWindows,
-    RuntimeParamOp &runtimeElementCountParam) {
+    RuntimeParamOp &runtimeElementCountParam,
+    llvm::SmallVectorImpl<SelectedPlanMetadataEntry> *selectedPlanMetadata =
+        nullptr) {
   if (llvm::Error error = buildRVVBinaryCallableABIPlanFromIR(
           kernel, descriptor, parameters, bufferWindows,
           runtimeElementCountParam))
@@ -2532,6 +2754,12 @@ llvm::Error resolveRVVBinaryRuntimeABIParametersForPath(
           kernel, planParameters, parameters,
           "supported RVV microkernel emission-plan", descriptor))
     return error;
+  if (selectedPlanMetadata) {
+    selectedPlanMetadata->clear();
+    if (llvm::Error error = collectSelectedPlanMetadataEntries(
+            kernel, diagnostic, *selectedPlanMetadata))
+      return error;
+  }
 
   return llvm::Error::success();
 }
@@ -2820,11 +3048,12 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
       return std::move(error);
 
     llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
+    llvm::SmallVector<SelectedPlanMetadataEntry, 24> selectedPlanMetadata;
     llvm::SmallVector<MemWindowOp, 3> bufferWindows;
     RuntimeParamOp runtimeElementCountParam;
     if (llvm::Error error = resolveRVVBinaryRuntimeABIParametersForPath(
             kernel, path, descriptor, runtimeABIParameters, bufferWindows,
-            runtimeElementCountParam))
+            runtimeElementCountParam, &selectedPlanMetadata))
       return std::move(error);
 
     RVVMicrokernelRecord record;
@@ -2838,6 +3067,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
     record.selectedMABI = std::move(selectedMABI);
     record.requiredCapabilities = std::move(requiredCapabilities);
     record.runtimeABIParameters = std::move(runtimeABIParameters);
+    record.selectedPlanMetadata = std::move(selectedPlanMetadata);
     record.bufferWindows = std::move(bufferWindows);
     record.runtimeElementCountParam = runtimeElementCountParam;
     record.dataflowPlan = std::move(dataflowPlan);
@@ -2874,6 +3104,12 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
             kernel, i64Microkernel, record.descriptor,
             record.selectedBinarySourceKind))
       return std::move(error);
+    llvm::Expected<RVVBinaryEmitCBodyMapping> emitcBodyMapping =
+        buildRVVEmitCBodyMappingForRecord(kernel, record,
+                                          record.emitcBodyMappingSource);
+    if (!emitcBodyMapping)
+      return emitcBodyMapping.takeError();
+    record.emitcBodyMapping = std::move(*emitcBodyMapping);
     return record;
   }
 
@@ -2897,11 +3133,12 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
       getI32BinaryIntrinsicDescriptorForMicrokernel(*microkernelFamily,
                                                    **selectedConfig);
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
+  llvm::SmallVector<SelectedPlanMetadataEntry, 24> selectedPlanMetadata;
   llvm::SmallVector<MemWindowOp, 3> bufferWindows;
   RuntimeParamOp runtimeElementCountParam;
   if (llvm::Error error = resolveRVVBinaryRuntimeABIParametersForPath(
           kernel, path, record.descriptor, runtimeABIParameters, bufferWindows,
-          runtimeElementCountParam))
+          runtimeElementCountParam, &selectedPlanMetadata))
     return std::move(error);
   record.activeRouteID =
       getEffectiveRouteID(activeRouteID, *microkernelFamily);
@@ -2913,6 +3150,7 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   record.selectedMABI = std::move(selectedMABI);
   record.requiredCapabilities = std::move(requiredCapabilities);
   record.runtimeABIParameters = std::move(runtimeABIParameters);
+  record.selectedPlanMetadata = std::move(selectedPlanMetadata);
   record.bufferWindows = std::move(bufferWindows);
   record.runtimeElementCountParam = runtimeElementCountParam;
   record.dataflowPlan = std::move(dataflowPlan);
@@ -2947,6 +3185,12 @@ buildMicrokernelRecord(KernelOp kernel, const SelectedPath &path,
   if (llvm::Error error = validateMicrokernelSourceIdentityForRecord(
           kernel, microkernel, record.descriptor, record.selectedBinarySourceKind))
     return std::move(error);
+  llvm::Expected<RVVBinaryEmitCBodyMapping> emitcBodyMapping =
+      buildRVVEmitCBodyMappingForRecord(kernel, record,
+                                        record.emitcBodyMappingSource);
+  if (!emitcBodyMapping)
+    return emitcBodyMapping.takeError();
+  record.emitcBodyMapping = std::move(*emitcBodyMapping);
   return record;
 }
 
@@ -3235,6 +3479,7 @@ getDataflowValueCName(RVVBinaryDataflowValue value,
 llvm::Expected<std::string> getEmitCCallOpaqueCalleeForStep(
     const RVVBinaryDataflowStep &step,
     const RVVBinarySelectedConfigEmissionView &selectedConfigEmission,
+    const RVVBinaryEmitCBodyMapping &emitcBodyMapping,
     const RVVBinaryIntrinsicDescriptor &descriptor) {
   switch (step.kind) {
   case RVVBinaryDataflowStepKind::Load:
@@ -3273,7 +3518,28 @@ llvm::Expected<std::string> getEmitCCallOpaqueCalleeForStep(
           "selected RVV config emission authority arithmetic intrinsic name "
           "must equal the family-owned suffix-free arithmetic prefix plus the "
           "selected vector suffix before EmitC route construction");
-    return selectedConfigEmission.arithmeticIntrinsicName;
+    if (emitcBodyMapping.routeKind != getRVVEmitCRouteKindMetadataValue())
+      return makeModuleMicrokernelError(
+          "selected RVV EmitC body mapping route kind must match the "
+          "plugin-owned selected emission-plan metadata before "
+          "emitc.call_opaque callee selection");
+    if (emitcBodyMapping.sourceAuthority !=
+        getRVVEmitCSourceAuthorityMetadataValue())
+      return makeModuleMicrokernelError(
+          "selected RVV EmitC body mapping source authority must match the "
+          "common EmitC source authority before emitc.call_opaque callee "
+          "selection");
+    if (emitcBodyMapping.requiredHeader !=
+        getRVVEmitCRequiredHeaderMetadataValue())
+      return makeModuleMicrokernelError(
+          "selected RVV EmitC body mapping required header must remain "
+          "riscv_vector.h before RVV intrinsic body emission");
+    if (emitcBodyMapping.arithmeticIntrinsicName != expectedIntrinsic)
+      return makeModuleMicrokernelError(
+          "selected RVV EmitC body mapping arithmetic intrinsic must match "
+          "the typed RVV op-family plus selected vector suffix before "
+          "emitc.call_opaque callee selection");
+    return emitcBodyMapping.arithmeticIntrinsicName;
   }
   case RVVBinaryDataflowStepKind::Store:
     return selectedConfigEmission.storeIntrinsicName;
@@ -3356,11 +3622,13 @@ public:
   RVVBinaryEmitCLowerable(
       const RVVBinaryIntrinsicDescriptor &descriptor,
       const RVVBinarySelectedConfigEmissionView &selectedConfigEmission,
+      const RVVBinaryEmitCBodyMapping &emitcBodyMapping,
       const RVVBinaryDataflowEmissionPlan &dataflowPlan,
       llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
       RVVRuntimeLengthContract runtimeLength, llvm::StringRef loopIndexName)
       : descriptor(descriptor), selectedConfigEmission(selectedConfigEmission),
-        dataflowPlan(dataflowPlan), runtimeLength(std::move(runtimeLength)),
+        emitcBodyMapping(emitcBodyMapping), dataflowPlan(dataflowPlan),
+        runtimeLength(std::move(runtimeLength)),
         loopIndexName(loopIndexName.str()) {
     this->runtimeABIParameters.append(runtimeABIParameters.begin(),
                                       runtimeABIParameters.end());
@@ -3391,11 +3659,10 @@ public:
           runtimeN->cName + "'");
 
     TCRVEmitCLowerableRoute route(
-        descriptor.getRVVRouteID(),
-        "extension-family-ops-to-emitc-call-opaque");
+        descriptor.getRVVRouteID(), emitcBodyMapping.routeKind);
     route.addHeader("stddef.h");
     route.addHeader("stdint.h");
-    route.addHeader("riscv_vector.h");
+    route.addHeader(emitcBodyMapping.requiredHeader);
     route.addTypeMapping("!tcrv_rvv.vl", "size_t");
     route.addTypeMapping(
         (llvm::Twine("!tcrv_rvv.") + descriptor.getShapeID()).str(),
@@ -3420,7 +3687,7 @@ public:
       emitcStep.sourceOp.opInterface = step.sourceOpInterface;
       llvm::Expected<std::string> callee =
           getEmitCCallOpaqueCalleeForStep(step, selectedConfigEmission,
-                                          descriptor);
+                                          emitcBodyMapping, descriptor);
       if (!callee)
         return callee.takeError();
       emitcStep.callee = std::move(*callee);
@@ -3502,6 +3769,7 @@ private:
 
   RVVBinaryIntrinsicDescriptor descriptor;
   RVVBinarySelectedConfigEmissionView selectedConfigEmission;
+  RVVBinaryEmitCBodyMapping emitcBodyMapping;
   RVVBinaryDataflowEmissionPlan dataflowPlan;
   RVVRuntimeLengthContract runtimeLength;
   std::string loopIndexName;
@@ -3511,6 +3779,7 @@ private:
 llvm::Expected<TCRVLowerToEmitCSourceResult> lowerRVVBinaryToEmitCSource(
     const RVVBinaryIntrinsicDescriptor &descriptor,
     const RVVBinarySelectedConfigEmissionView &selectedConfigEmission,
+    const RVVBinaryEmitCBodyMapping &emitcBodyMapping,
     const RVVBinaryDataflowEmissionPlan &dataflowPlan,
     llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
     const RVVRuntimeLengthContract &runtimeLength,
@@ -3518,8 +3787,9 @@ llvm::Expected<TCRVLowerToEmitCSourceResult> lowerRVVBinaryToEmitCSource(
     std::int64_t fixedRuntimeElementCount = 0) {
   constexpr llvm::StringLiteral kLoopIndexName("offset");
   RVVBinaryEmitCLowerable lowerable(descriptor, selectedConfigEmission,
-                                    dataflowPlan, runtimeABIParameters,
-                                    runtimeLength, kLoopIndexName);
+                                    emitcBodyMapping, dataflowPlan,
+                                    runtimeABIParameters, runtimeLength,
+                                    kLoopIndexName);
   TCRVLowerToEmitCSourceOptions options;
   options.sourceAuthorityOptions.functionName = functionName.str();
   options.sourceAuthorityOptions.loopIndexName = kLoopIndexName.str();
@@ -3703,6 +3973,16 @@ void printRecordComment(llvm::raw_ostream &os,
   os << "/* arithmetic_source: typed op "
      << record.descriptor.getRVVOperationName()
      << " via generated EmitC route and IR-backed callable ABI */\n";
+  os << "/* emitc_body_mapping_source: "
+     << record.emitcBodyMappingSource << " */\n";
+  os << "/* emitc_body_mapping: route_kind="
+     << record.emitcBodyMapping.routeKind
+     << ", source_authority="
+     << record.emitcBodyMapping.sourceAuthority
+     << ", required_header="
+     << record.emitcBodyMapping.requiredHeader
+     << ", arithmetic_intrinsic="
+     << record.emitcBodyMapping.arithmeticIntrinsicName << " */\n";
   os << "/* descriptor_mirror_status: optional legacy descriptor metadata is "
         "compatibility/diagnostic only after typed RVV body authority; it "
         "cannot select emitted compute semantics */\n";
@@ -4006,6 +4286,7 @@ llvm::Error printMicrokernelSource(const RVVMicrokernelRecord &record,
   llvm::Expected<TCRVLowerToEmitCSourceResult> loweredSource =
       lowerRVVBinaryToEmitCSource(record.descriptor,
                                   record.selectedConfigEmission,
+                                  record.emitcBodyMapping,
                                   record.dataflowPlan,
                                   record.runtimeABIParameters,
                                   record.selectedConfigContract
@@ -4144,14 +4425,16 @@ void appendMicrokernelObjectEvidenceSection(
                           record.descriptor.getRVVOperationName());
   printObjectEvidenceLine(os, "emitc_lowerable_op_interface",
                           kEmitCLowerableOpInterfaceName);
+  printObjectEvidenceLine(os, "emitc_body_mapping_source",
+                          record.emitcBodyMappingSource);
   printObjectEvidenceLine(os, "emitc_route_kind",
-                          getRVVEmitCRouteKindMetadataValue());
+                          record.emitcBodyMapping.routeKind);
   printObjectEvidenceLine(os, "emitc_source_authority",
-                          getRVVEmitCSourceAuthorityMetadataValue());
+                          record.emitcBodyMapping.sourceAuthority);
   printObjectEvidenceLine(os, "emitc_required_header",
-                          getRVVEmitCRequiredHeaderMetadataValue());
+                          record.emitcBodyMapping.requiredHeader);
   printObjectEvidenceLine(os, "emitc_arithmetic_intrinsic",
-                          record.selectedConfigEmission.arithmeticIntrinsicName);
+                          record.emitcBodyMapping.arithmeticIntrinsicName);
   printObjectEvidenceLine(os, "selected_vector_shape",
                           record.selectedConfigContract.getShapeID());
   printObjectEvidenceLine(

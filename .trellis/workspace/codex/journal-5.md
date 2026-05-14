@@ -1261,6 +1261,57 @@ printed `tcrv_rvv_microkernel_external_abi_ok counts=7,16,23`.
 [OK] Completed and archived; commit pending.
 
 
+## Session 65: RVV EmitC body mapping production route
+
+**Date**: 2026-05-14
+**Task**: RVV EmitC body emission production route
+**Branch**: `main`
+
+### Summary
+
+Promoted selected RVV EmitC metadata for migrated dynamic vector i32 vadd/vsub
+from artifact annotation into the production microkernel body emission path.
+The RVV microkernel source exporter now builds an explicit EmitC body mapping
+from selected plan metadata and passes it into the common EmitC lowerable route
+for header selection and arithmetic `emitc.call_opaque` callee selection.
+
+### Main Changes
+
+- Added `RVVBinaryEmitCBodyMapping` to the selected config contract surface.
+- Collected selected emission-plan metadata while resolving the selected RVV
+  runtime ABI path and made frontend-selected records fail closed when the
+  body mapping metadata is missing or stale.
+- Rewired `RVVBinaryEmitCLowerable` so route kind, required header, and
+  arithmetic intrinsic come from the selected body mapping rather than
+  hard-coded target source strings.
+- Emitted source/object evidence for `emitc_body_mapping_source` and the
+  concrete mapping consumed by the body route.
+- Added vadd/vsub VectorToExec checks proving `selected_plan_metadata` body
+  mapping consumption and fail-closed self-check export mutations.
+
+### Testing
+
+- `cmake --build build --target TianChenRVRVVTarget TianChenRVRVVPlugin tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Transforms/VectorToExec/vector-dynamic-i32-vadd-to-exec.mlir Transforms/VectorToExec/vector-dynamic-i32-vsub-to-exec.mlir` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle.mlir Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle.mlir Scripts/rvv-microkernel-bundle-e2e.test` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/RVVMicrokernel/rvv-microkernel-pipeline.mlir Target/RVVMicrokernel/rvv-microkernel-family-sub.mlir Scripts/rvv-microkernel-e2e.test` from `build/test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-c.mlir Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-generic-route.mlir Scripts/rvv-scalar-dispatch-bundle-e2e.test` from `build/test`
+- Bounded reference scan over touched RVV plugin/target/export files for
+  descriptor/direct-string authority terms.
+- `git diff --check`
+
+No `ssh rvv` evidence was run because valid generated RVV intrinsic behavior
+stayed the same; this round changed production authority consumption, emitted
+comments/object evidence, and fail-closed metadata checks, not runtime
+correctness or performance behavior.
+
+### Status
+
+[OK] Completed locally; archive and commit pending.
+
+
 ## Session 63: RVV selected route default quarantine
 
 **Date**: 2026-05-14
