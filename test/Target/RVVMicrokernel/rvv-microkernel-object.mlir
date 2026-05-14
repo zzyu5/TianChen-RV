@@ -96,6 +96,10 @@ module @rvv_microkernel_object_input {
 // OBJNOTE: runtime_abi_kind=rvv-runtime-callable-c-abi
 // OBJNOTE: runtime_abi_name=rvv-i32-vadd-runtime-callable-c-function.v1
 // OBJNOTE: runtime_glue_role=runtime-callable-i32-vadd-function
+// OBJNOTE: runtime_abi_invocation_contract=production-cpp-ir-backed-callable-abi
+// OBJNOTE: runtime_abi_callable_symbol=tcrv_rvv_i32_vadd_microkernel_static_object_i32_vadd_rvv_first_slice
+// OBJNOTE: runtime_abi_ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count
+// OBJNOTE: runtime_abi_production_owner=rvv-target-export
 // OBJNOTE: descriptor_compute_authority=quarantined-after-typed-rvv-source-authority
 // OBJNOTE: runtime_abi_parameter[0]=c_name=lhs,c_type=const int32_t *,role=lhs-input-buffer,ownership=target-export-abi-owned
 // OBJNOTE: runtime_abi_parameter[1]=c_name=rhs,c_type=const int32_t *,role=rhs-input-buffer,ownership=target-export-abi-owned

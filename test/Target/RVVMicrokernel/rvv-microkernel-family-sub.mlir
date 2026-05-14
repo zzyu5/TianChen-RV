@@ -95,6 +95,10 @@ module @rvv_microkernel_i32_vsub_export_input {
 // SOURCE: /* intrinsic_config: vector_type=vint32m1_t, vector_suffix=i32m1, setvl_suffix=e32m1, tail_policy=agnostic, mask_policy=agnostic */
 // SOURCE: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 // SOURCE: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+// SOURCE: /* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice
+// SOURCE-SAME: runtime_abi_name=rvv-i32-vsub-runtime-callable-c-function.v1
+// SOURCE-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count
+// SOURCE-SAME: production_owner=rvv-target-export
 // SOURCE: #include <riscv_vector.h>
 // SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 // SOURCE: static void tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice__tcrv_emitc_body
@@ -108,6 +112,10 @@ module @rvv_microkernel_i32_vsub_export_input {
 
 // HEADER: /* emitc_body_mapping_source: selected_plan_metadata */
 // HEADER: /* emitc_body_mapping_status: selected RVV EmitC body mapping was validated before source/header/object artifact export; this header remains declaration-only and carries no intrinsic include. */
+// HEADER: /* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice
+// HEADER-SAME: runtime_abi_name=rvv-i32-vsub-runtime-callable-c-function.v1
+// HEADER-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count
+// HEADER-SAME: production_owner=rvv-target-export
 // HEADER: #ifndef TIANCHENRV_RVV_I32_VSUB_MICROKERNEL_EXPORT_I32_VSUB_RVV_SUB_SLICE_H
 // HEADER: #include <stddef.h>
 // HEADER: #include <stdint.h>

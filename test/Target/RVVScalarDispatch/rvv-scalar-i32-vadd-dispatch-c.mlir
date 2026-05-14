@@ -223,7 +223,16 @@ module @rvv_scalar_dispatch_input {
 // HEADER: /* dispatch_runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 // HEADER: /* dispatch_runtime_abi_parameter[4]: c_name=rvv_available, c_type=int, role=dispatch-availability-guard, ownership=target-export-abi-owned */
 // HEADER: dispatch_runtime_callable_abi
+// HEADER: /* dispatch_runtime_abi_invocation_contract: source=RVVScalarDispatch.cpp, callable_symbol=tcrv_dispatch_i32_vadd_dispatch_vadd
+// HEADER-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count->dispatch-availability-guard
+// HEADER-SAME: runtime_element_count_c_name=n
+// HEADER-SAME: dispatch_guard_c_name=rvv_available
+// HEADER-SAME: production_owner=rvv-scalar-dispatch-target
 
+// ABI-HEADER: /* dispatch_runtime_abi_parameter[4]: c_name=rvv_available, c_type=int, role=dispatch-availability-guard, ownership=target-export-abi-owned */
+// ABI-HEADER: /* dispatch_runtime_abi_invocation_contract: source=RVVScalarDispatch.cpp, callable_symbol=tcrv_dispatch_i32_vadd_dispatch_vadd
+// ABI-HEADER-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count->dispatch-availability-guard
+// ABI-HEADER-SAME: production_owner=rvv-scalar-dispatch-target
 // ABI-HEADER: #ifndef TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_DISPATCH_VADD_H
 // ABI-HEADER-NEXT: #define TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_DISPATCH_VADD_H
 // ABI-HEADER: #include <stddef.h>
@@ -237,6 +246,10 @@ module @rvv_scalar_dispatch_input {
 // ABI-HEADER-NEXT: #endif
 // ABI-HEADER: #endif /* TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_DISPATCH_VADD_H */
 
+// GENERIC-ABI-HEADER: /* dispatch_runtime_abi_parameter[4]: c_name=rvv_available, c_type=int, role=dispatch-availability-guard, ownership=target-export-abi-owned */
+// GENERIC-ABI-HEADER: /* dispatch_runtime_abi_invocation_contract: source=RVVScalarDispatch.cpp, callable_symbol=tcrv_dispatch_i32_vadd_dispatch_vadd
+// GENERIC-ABI-HEADER-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count->dispatch-availability-guard
+// GENERIC-ABI-HEADER-SAME: production_owner=rvv-scalar-dispatch-target
 // GENERIC-ABI-HEADER: #ifndef TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_DISPATCH_VADD_H
 // GENERIC-ABI-HEADER-NEXT: #define TIANCHENRV_RVV_SCALAR_I32_VADD_DISPATCH_DISPATCH_VADD_H
 // GENERIC-ABI-HEADER: #include <stddef.h>

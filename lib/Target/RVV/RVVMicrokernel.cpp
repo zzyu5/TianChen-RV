@@ -3931,6 +3931,37 @@ void printCallableBoundaryMetadata(llvm::raw_ostream &os,
      << " */\n";
 }
 
+std::string formatRuntimeABIOrderedRoles(
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+  std::string roles;
+  llvm::raw_string_ostream stream(roles);
+  for (auto [index, parameter] : llvm::enumerate(parameters)) {
+    if (index != 0)
+      stream << "->";
+    stream << support::stringifyRuntimeABIParameterRole(parameter.role);
+  }
+  stream.flush();
+  return roles;
+}
+
+void printRuntimeABIInvocationContract(
+    llvm::raw_ostream &os, llvm::StringRef sourceOwner,
+    llvm::StringRef callableSymbol, llvm::StringRef runtimeABIKind,
+    llvm::StringRef runtimeABIName, llvm::StringRef runtimeGlueRole,
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters,
+    llvm::StringRef runtimeElementCountCName,
+    llvm::StringRef productionOwner) {
+  os << "/* runtime_abi_invocation_contract: source=" << sourceOwner
+     << ", callable_symbol=" << callableSymbol
+     << ", runtime_abi_kind=" << runtimeABIKind
+     << ", runtime_abi_name=" << runtimeABIName
+     << ", runtime_glue_role=" << runtimeGlueRole
+     << ", parameter_count=" << parameters.size()
+     << ", ordered_roles=" << formatRuntimeABIOrderedRoles(parameters)
+     << ", runtime_element_count_c_name=" << runtimeElementCountCName
+     << ", production_owner=" << productionOwner << " */\n";
+}
+
 void printRecordComment(llvm::raw_ostream &os,
                         const RVVMicrokernelRecord &record,
                         llvm::StringRef functionName,
@@ -4065,6 +4096,13 @@ void printRecordComment(llvm::raw_ostream &os,
     support::printRuntimeABIParameterCDeclaration(os, parameter);
   }
   os << ") */\n";
+  printRuntimeABIInvocationContract(
+      os, "RVVMicrokernel.cpp", functionName,
+      record.descriptor.getRVVRuntimeABIKind(),
+      record.descriptor.getRVVRuntimeABIName(),
+      record.descriptor.getRVVRuntimeGlueRole(), record.runtimeABIParameters,
+      record.selectedConfigContract.getRuntimeElementCountCName(),
+      "rvv-target-export");
 }
 
 void printMicrokernelPrototype(llvm::raw_ostream &os,
@@ -4265,6 +4303,13 @@ void printMicrokernelHeader(const RVVMicrokernelRecord &record,
     support::printRuntimeABIParameterCDeclaration(os, parameter);
   }
   os << ") */\n";
+  printRuntimeABIInvocationContract(
+      os, "RVVMicrokernel.cpp", functionName,
+      record.descriptor.getRVVRuntimeABIKind(),
+      record.descriptor.getRVVRuntimeABIName(),
+      record.descriptor.getRVVRuntimeGlueRole(), record.runtimeABIParameters,
+      record.selectedConfigContract.getRuntimeElementCountCName(),
+      "rvv-target-export");
 
   os << "#ifndef " << includeGuard << "\n";
   os << "#define " << includeGuard << "\n\n";
@@ -4480,6 +4525,15 @@ void appendMicrokernelObjectEvidenceSection(
                           record.descriptor.getRVVRuntimeABIName());
   printObjectEvidenceLine(os, "runtime_glue_role",
                           record.descriptor.getRVVRuntimeGlueRole());
+  printObjectEvidenceLine(os, "runtime_abi_invocation_contract",
+                          "production-cpp-ir-backed-callable-abi");
+  printObjectEvidenceLine(os, "runtime_abi_callable_symbol",
+                          makeMicrokernelFunctionName(record));
+  printObjectEvidenceLine(os, "runtime_abi_ordered_roles",
+                          formatRuntimeABIOrderedRoles(
+                              record.runtimeABIParameters));
+  printObjectEvidenceLine(
+      os, "runtime_abi_production_owner", "rvv-target-export");
   printObjectEvidenceLine(
       os, "descriptor_compute_authority",
       "quarantined-after-typed-rvv-source-authority");

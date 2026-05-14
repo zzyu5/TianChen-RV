@@ -274,6 +274,28 @@ llvm::Error validateFiniteBinaryCallableABIParameterMirrorFromContract(
               stringifyRuntimeABIParameterRole(actual.role) + "'");
   }
 
+  if (metadataParameters.size() != irBackedParameters.size())
+    return makeCallablePlanError(
+        kernel, familyID,
+        llvm::Twine(metadataSource) +
+            " must contain exactly the ordered IR-backed callable ABI "
+            "parameters");
+
+  for (std::size_t index = 0; index < irBackedParameters.size(); ++index) {
+    const RuntimeABIParameter &actual = metadataParameters[index];
+    const RuntimeABIParameter &expected = irBackedParameters[index];
+    if (actual.role == expected.role)
+      continue;
+    return makeCallablePlanError(
+        kernel, familyID,
+        llvm::Twine(metadataSource) +
+            " must preserve IR-backed callable ABI parameter order at index " +
+            llvm::Twine(index) + ": expected role '" +
+            stringifyRuntimeABIParameterRole(expected.role) +
+            "' but found role '" +
+            stringifyRuntimeABIParameterRole(actual.role) + "'");
+  }
+
   return llvm::Error::success();
 }
 

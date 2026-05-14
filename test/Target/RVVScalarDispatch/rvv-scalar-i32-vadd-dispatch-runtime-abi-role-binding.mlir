@@ -27,6 +27,10 @@
 // ROLE: /* dispatch_runtime_abi_parameter[3]: c_name=len, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 // ROLE: /* dispatch_runtime_abi_parameter[4]: c_name=rvv_ready, c_type=int, role=dispatch-availability-guard, ownership=target-export-abi-owned */
 // ROLE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vadd_dispatch_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t len, int rvv_ready) */
+// ROLE: /* dispatch_runtime_abi_invocation_contract: source=RVVScalarDispatch.cpp, callable_symbol=tcrv_dispatch_i32_vadd_dispatch_vadd
+// ROLE-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count->dispatch-availability-guard
+// ROLE-SAME: runtime_element_count_c_name=len
+// ROLE-SAME: dispatch_guard_c_name=rvv_ready
 // ROLE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 // ROLE: static void tcrv_rvv_i32_vadd_microkernel_dispatch_vadd_rvv_first_slice__tcrv_emitc_body
 // ROLE: if (

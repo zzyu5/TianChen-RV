@@ -2373,6 +2373,29 @@ llvm::Error validateTargetArtifactCandidateAgainstExporter(
                 "' received unsupported runtime ABI parameter role '" +
                 support::stringifyRuntimeABIParameterRole(actual.role) + "'");
     }
+
+    if (candidate.runtimeABIParameters.size() != expectedParameters.size())
+      return makeArtifactExportError(
+          candidate.kernel,
+          llvm::Twine("route id '") + candidate.routeID +
+              "' runtime ABI parameter signature must contain exactly the "
+              "registered ordered ABI parameters");
+
+    for (std::size_t index = 0; index < expectedParameters.size(); ++index) {
+      const support::RuntimeABIParameter &actual =
+          candidate.runtimeABIParameters[index];
+      const support::RuntimeABIParameter &expected = expectedParameters[index];
+      if (actual.role == expected.role)
+        continue;
+      return makeArtifactExportError(
+          candidate.kernel,
+          llvm::Twine("route id '") + candidate.routeID +
+              "' must preserve runtime ABI parameter order at index " +
+              llvm::Twine(index) + ": expected role '" +
+              support::stringifyRuntimeABIParameterRole(expected.role) +
+              "' but found role '" +
+              support::stringifyRuntimeABIParameterRole(actual.role) + "'");
+    }
   }
 
   if (TargetArtifactCandidateValidationFn validationFn =

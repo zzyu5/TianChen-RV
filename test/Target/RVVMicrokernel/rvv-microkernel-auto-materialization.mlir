@@ -163,6 +163,10 @@ module @rvv_auto_microkernel_input {
 // EXPORT: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 // EXPORT: /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
 // EXPORT: /* runtime_callable_abi: void tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice
+// EXPORT: /* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice
+// EXPORT-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count
+// EXPORT-SAME: runtime_element_count_c_name=n
+// EXPORT-SAME: production_owner=rvv-target-export
 // EXPORT: #include <riscv_vector.h>
 // EXPORT: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
 // EXPORT: static void tcrv_rvv_i32_vadd_microkernel_auto_i32_vadd_rvv_first_slice__tcrv_emitc_body

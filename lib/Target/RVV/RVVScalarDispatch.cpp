@@ -2600,6 +2600,50 @@ void printDispatchRuntimeParamMetadata(
   }
 }
 
+std::string formatDispatchRuntimeABIOrderedRoles(
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+  std::string roles;
+  llvm::raw_string_ostream stream(roles);
+  for (auto [index, parameter] : llvm::enumerate(parameters)) {
+    if (index != 0)
+      stream << "->";
+    stream << support::stringifyRuntimeABIParameterRole(parameter.role);
+  }
+  stream.flush();
+  return roles;
+}
+
+void printDispatchRuntimeCallableABI(
+    llvm::raw_ostream &os, llvm::StringRef dispatcherFunctionName,
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+  os << "/* dispatch_runtime_callable_abi: void " << dispatcherFunctionName
+     << "(";
+  for (auto [index, parameter] : llvm::enumerate(parameters)) {
+    if (index != 0)
+      os << ", ";
+    support::printRuntimeABIParameterCDeclaration(os, parameter);
+  }
+  os << ") */\n";
+}
+
+void printDispatchRuntimeABIInvocationContract(
+    llvm::raw_ostream &os, const DispatchPair &pair,
+    llvm::StringRef dispatcherFunctionName,
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters,
+    llvm::StringRef runtimeElementCountCName,
+    llvm::StringRef dispatchGuardCName) {
+  os << "/* dispatch_runtime_abi_invocation_contract: source="
+        "RVVScalarDispatch.cpp, callable_symbol="
+     << dispatcherFunctionName
+     << ", runtime_abi_kind=" << pair.composite.runtimeABIKind
+     << ", runtime_abi_name=" << pair.composite.runtimeABIName
+     << ", parameter_count=" << parameters.size()
+     << ", ordered_roles=" << formatDispatchRuntimeABIOrderedRoles(parameters)
+     << ", runtime_element_count_c_name=" << runtimeElementCountCName
+     << ", dispatch_guard_c_name=" << dispatchGuardCName
+     << ", production_owner=" << kDispatchTargetOwner << " */\n";
+}
+
 llvm::Error buildEmbeddedCallableSources(const DispatchPair &pair,
                                          std::string &rvvSource,
                                          std::string &scalarSource) {
@@ -2792,6 +2836,21 @@ llvm::Error printDispatchHeader(const DispatchPair &pair,
        << " is the source scf.for upper bound and runtime AVL; no fixed "
           "source-extent trap is emitted before dispatch */\n";
   }
+  for (auto [index, parameter] : llvm::enumerate(pair.abiPlan.parameters)) {
+    os << "/* dispatch_runtime_abi_parameter[" << index
+       << "]: c_name=" << parameter.cName << ", c_type=" << parameter.cType
+       << ", role="
+       << support::stringifyRuntimeABIParameterRole(parameter.role)
+       << ", ownership="
+       << support::stringifyRuntimeABIParameterOwnership(parameter.ownership)
+       << " */\n";
+  }
+  printDispatchRuntimeCallableABI(os, dispatcherFunctionName,
+                                  pair.abiPlan.parameters);
+  printDispatchRuntimeABIInvocationContract(
+      os, pair, dispatcherFunctionName, pair.abiPlan.parameters,
+      bindings->runtimeElementCount->cName,
+      bindings->dispatchAvailabilityGuard->cName);
   os << "#ifndef " << includeGuard << "\n";
   os << "#define " << includeGuard << "\n\n";
   os << "#include <stddef.h>\n";
@@ -3005,14 +3064,13 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
        << support::stringifyRuntimeABIParameterOwnership(parameter.ownership)
        << " */\n";
   }
-  os << "/* dispatch_runtime_callable_abi: void " << dispatcherFunctionName
-     << "(";
-  for (auto [index, parameter] : llvm::enumerate(dispatchParameters)) {
-    if (index != 0)
-      os << ", ";
-    support::printRuntimeABIParameterCDeclaration(os, parameter);
-  }
-  os << ") */\n\n";
+  printDispatchRuntimeCallableABI(os, dispatcherFunctionName,
+                                  dispatchParameters);
+  printDispatchRuntimeABIInvocationContract(
+      os, pair, dispatcherFunctionName, dispatchParameters,
+      bindings->runtimeElementCount->cName,
+      bindings->dispatchAvailabilityGuard->cName);
+  os << "\n";
 
   os << "/* Embedded selected RVV runtime-callable source artifact. */\n";
   os << rvvSource;

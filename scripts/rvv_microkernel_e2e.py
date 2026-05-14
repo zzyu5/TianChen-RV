@@ -1642,6 +1642,144 @@ def validate_runtime_abi_signature(
     return observed
 
 
+def parse_runtime_abi_invocation_contract(
+    source: str,
+    runtime_abi_parameters: list[dict[str, str]],
+    compiler_path_context: dict[str, str],
+) -> dict[str, Any]:
+    raw_contract = parse_source_comment(
+        source, "runtime_abi_invocation_contract", required=True
+    )
+    fields: dict[str, str] = {}
+    for part in raw_contract.split(","):
+        if "=" not in part:
+            raise BridgeError(
+                "generated C source runtime_abi_invocation_contract has "
+                f"malformed field: {part.strip()}"
+            )
+        key, value = part.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key or not value:
+            raise BridgeError(
+                "generated C source runtime_abi_invocation_contract contains "
+                "an empty key or value"
+            )
+        reject_secret_like_text(
+            f"generated C source runtime_abi_invocation_contract {key}", value
+        )
+        if key in fields:
+            raise BridgeError(
+                "generated C source runtime_abi_invocation_contract "
+                f"duplicates field {key}"
+            )
+        fields[key] = value
+
+    required = {
+        "source",
+        "callable_symbol",
+        "runtime_abi_kind",
+        "runtime_abi_name",
+        "runtime_glue_role",
+        "parameter_count",
+        "ordered_roles",
+        "runtime_element_count_c_name",
+        "production_owner",
+    }
+    missing = sorted(required.difference(fields))
+    if missing:
+        raise BridgeError(
+            "generated C source runtime_abi_invocation_contract missing "
+            "fields: "
+            + ", ".join(missing)
+        )
+
+    if fields["source"] != "RVVMicrokernel.cpp":
+        raise BridgeError(
+            "generated C source runtime_abi_invocation_contract source "
+            "must be RVVMicrokernel.cpp"
+        )
+    if fields["production_owner"] != "rvv-target-export":
+        raise BridgeError(
+            "generated C source runtime_abi_invocation_contract production "
+            "owner must be rvv-target-export"
+        )
+    if fields["callable_symbol"] != compiler_path_context["microkernel_function"]:
+        raise BridgeError(
+            "generated C source runtime_abi_invocation_contract callable_symbol "
+            "does not match the compiler-emitted microkernel function"
+        )
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", fields["callable_symbol"]):
+        raise BridgeError(
+            "generated C source runtime_abi_invocation_contract callable_symbol "
+            "is not a valid C identifier"
+        )
+    if fields["runtime_abi_kind"] != str(ACTIVE_ARITHMETIC_FAMILY["runtime_abi_kind"]):
+        raise BridgeError(
+            "generated C source runtime_abi_invocation_contract runtime_abi_kind "
+            "does not match the selected family"
+        )
+    if fields["runtime_abi_name"] != str(ACTIVE_ARITHMETIC_FAMILY["runtime_abi_name"]):
+        raise BridgeError(
+            "generated C source runtime_abi_invocation_contract runtime_abi_name "
+            "does not match the selected family"
+        )
+    if fields["runtime_glue_role"] != str(ACTIVE_ARITHMETIC_FAMILY["runtime_glue_role"]):
+        raise BridgeError(
+            "generated C source runtime_abi_invocation_contract runtime_glue_role "
+            "does not match the selected family"
+        )
+
+    try:
+        parameter_count = int(fields["parameter_count"])
+    except ValueError as exc:
+        raise BridgeError(
+            "generated C source runtime_abi_invocation_contract parameter_count "
+            "must be an integer"
+        ) from exc
+    if parameter_count != len(runtime_abi_parameters):
+        raise BridgeError(
+            "generated C source runtime_abi_invocation_contract parameter_count "
+            "does not match runtime_abi_parameter metadata"
+        )
+
+    observed_roles = fields["ordered_roles"].split("->")
+    expected_roles = [parameter["role"] for parameter in runtime_abi_parameters]
+    if observed_roles != expected_roles:
+        raise BridgeError(
+            "generated C source runtime_abi_invocation_contract ordered_roles "
+            "does not match runtime_abi_parameter order"
+        )
+
+    runtime_names = [
+        parameter["c_name"]
+        for parameter in runtime_abi_parameters
+        if parameter["role"] == "runtime-element-count"
+    ]
+    if len(runtime_names) != 1:
+        raise BridgeError(
+            "generated C source runtime_abi_invocation_contract requires "
+            "exactly one runtime-element-count ABI parameter"
+        )
+    if fields["runtime_element_count_c_name"] != runtime_names[0]:
+        raise BridgeError(
+            "generated C source runtime_abi_invocation_contract runtime "
+            "element-count name does not match runtime_abi_parameter metadata"
+        )
+
+    return {
+        "source": fields["source"],
+        "callable_symbol": fields["callable_symbol"],
+        "runtime_abi_kind": fields["runtime_abi_kind"],
+        "runtime_abi_name": fields["runtime_abi_name"],
+        "runtime_glue_role": fields["runtime_glue_role"],
+        "parameter_count": parameter_count,
+        "ordered_roles": observed_roles,
+        "runtime_element_count_c_name": fields["runtime_element_count_c_name"],
+        "production_owner": fields["production_owner"],
+    }
+
+
 def parse_runtime_length_contract(
     source: str, runtime_abi_parameters: list[dict[str, str]]
 ) -> dict[str, Any]:
@@ -2082,6 +2220,9 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
     runtime_abi_parameters = validate_runtime_abi_signature(
         parse_runtime_abi_parameters_from_source(source), ACTIVE_ARITHMETIC_FAMILY
     )
+    runtime_abi_invocation_contract = parse_runtime_abi_invocation_contract(
+        source, runtime_abi_parameters, compiler_path_context
+    )
     runtime_length_contract = parse_runtime_length_contract(
         source, runtime_abi_parameters
     )
@@ -2112,6 +2253,7 @@ def validate_generated_source(source: str, *, require_harness: bool) -> dict[str
         "dynamic_runtime_extent_contract": dynamic_runtime_extent_contract,
         "runtime_length_contract": runtime_length_contract,
         "runtime_abi_parameters": runtime_abi_parameters,
+        "runtime_abi_invocation_contract": runtime_abi_invocation_contract,
     }
 
 
@@ -2525,6 +2667,12 @@ def validate_generated_object_artifact(
         f"runtime_abi_kind={ACTIVE_ARITHMETIC_FAMILY['runtime_abi_kind']}",
         f"runtime_abi_name={ACTIVE_ARITHMETIC_FAMILY['runtime_abi_name']}",
         f"runtime_glue_role={ACTIVE_ARITHMETIC_FAMILY['runtime_glue_role']}",
+        "runtime_abi_invocation_contract=production-cpp-ir-backed-callable-abi",
+        "runtime_abi_callable_symbol="
+        + str(source_flags["runtime_abi_invocation_contract"]["callable_symbol"]),
+        "runtime_abi_ordered_roles="
+        + "->".join(source_flags["runtime_abi_invocation_contract"]["ordered_roles"]),
+        "runtime_abi_production_owner=rvv-target-export",
         "descriptor_compute_authority=quarantined-after-typed-rvv-source-authority",
     ]
     if str(ACTIVE_ARITHMETIC_FAMILY["diagnostic_name"]) == "i32-vadd":
@@ -4223,6 +4371,9 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "dynamic_runtime_extent_contract"
         ],
         "runtime_abi_signature": source_flags["runtime_abi_parameters"],
+        "runtime_abi_invocation_contract": source_flags[
+            "runtime_abi_invocation_contract"
+        ],
         "arithmetic_token": source_flags["arithmetic_token"],
         "runtime_element_counts": runtime_counts,
         "expected_selected_kernel": expected_selected_kernel,
@@ -4230,6 +4381,9 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "kind": "generated-c-caller",
             "function": header_function_name,
             "runtime_abi_signature": source_flags["runtime_abi_parameters"],
+            "runtime_abi_invocation_contract": source_flags[
+                "runtime_abi_invocation_contract"
+            ],
             "success_marker": EXTERNAL_ABI_SUCCESS_MARKER,
             "arithmetic_check": "lhs "
             + source_flags["arithmetic_token"]
@@ -4718,6 +4872,9 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "dynamic_runtime_extent_contract"
         ],
         "runtime_abi_signature": source_flags["runtime_abi_parameters"],
+        "runtime_abi_invocation_contract": source_flags[
+            "runtime_abi_invocation_contract"
+        ],
         "arithmetic_token": source_flags["arithmetic_token"],
         "runtime_element_counts": runtime_counts,
         "expected_selected_kernel": expected_selected_kernel,
@@ -4793,6 +4950,9 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "kind": "generated-c-caller",
             "function": header_function_name,
             "runtime_abi_signature": source_flags["runtime_abi_parameters"],
+            "runtime_abi_invocation_contract": source_flags[
+                "runtime_abi_invocation_contract"
+            ],
             "success_marker": EXTERNAL_ABI_SUCCESS_MARKER,
             "arithmetic_check": "lhs "
             + source_flags["arithmetic_token"]
@@ -5374,6 +5534,7 @@ kernel @rvv_microkernel_manifest
 /* runtime_abi_parameter[1]: c_name=rhs, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[2]: c_name=out, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vadd-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vadd-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
 #include <riscv_vector.h>
 void f(void) {
   __riscv_vsetvl_e32m1(n - offset);
@@ -5402,6 +5563,23 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
         == "rvv_microkernel_manifest",
         "expected selected-kernel normalization failed",
     )
+    try:
+        validate_generated_source(
+            sample_source.replace(
+                "runtime_abi_invocation_contract:",
+                "stale_runtime_abi_invocation_contract:",
+            ),
+            require_harness=True,
+        )
+    except BridgeError as error:
+        assert_self_test(
+            "missing comment field: runtime_abi_invocation_contract" in str(error),
+            "missing runtime ABI invocation contract diagnostic changed",
+        )
+    else:
+        raise AssertionError(
+            "generated source without runtime ABI invocation contract was accepted"
+        )
     fixed_sample_source = sample_source.replace(
         "/* arithmetic_source: typed op tcrv_rvv.i32_add via generated EmitC "
         "route and IR-backed callable ABI */",
@@ -5516,6 +5694,7 @@ int main(void) { puts("tcrv_rvv_microkernel_ok runtime_counts=7,16"); }
 /* runtime_abi_parameter[1]: c_name=rhs, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[2]: c_name=out, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vsub_microkernel_rvv_sub_kernel_rvv_sub_slice, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vsub-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vsub-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
 #include <riscv_vector.h>
 void f(void) {
   __riscv_vsetvl_e32m1(n - offset);
@@ -5575,6 +5754,7 @@ void f(void) {
 /* runtime_abi_parameter[1]: c_name=rhs, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[2]: c_name=out, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vsub_microkernel_frontend_i32_vsub_rvv_first_slice, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vsub-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vsub-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
 #include <riscv_vector.h>
 void f(void) {
   __riscv_vsetvl_e32m2(n - offset);
@@ -5646,6 +5826,7 @@ void f(void) {
 /* runtime_abi_parameter[1]: c_name=rhs, c_type=const int32_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[2]: c_name=out, c_type=int32_t *, role=output-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vmul_microkernel_rvv_mul_kernel_rvv_mul_slice, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vmul-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vmul-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
 #include <riscv_vector.h>
 void f(void) {
   __riscv_vsetvl_e32m1(n - offset);
@@ -5726,6 +5907,7 @@ void f(void) {
 /* runtime_abi_parameter[1]: c_name=rhs, c_type=const int64_t *, role=rhs-input-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[2]: c_name=out, c_type=int64_t *, role=output-buffer, ownership=target-export-abi-owned */
 /* runtime_abi_parameter[3]: c_name=n, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+/* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i64_vadd_microkernel_rvv_i64_vadd_kernel_rvv_i64_slice, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i64-vadd-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i64-vadd-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
 #include <riscv_vector.h>
 void f(void) {
   __riscv_vsetvl_e64m1(n - offset);

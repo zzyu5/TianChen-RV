@@ -182,7 +182,13 @@ module @rvv_runtime_abi_role_binding {
         {name = "tcrv_rvv.runtime_avl_role", value = "runtime-element-count", role = "rvv-runtime-vl-avl-boundary", note = "runtime AVL enters through the target/export-owned runtime element-count ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by tcrv_rvv.with_vl; neither value is a target capability fact or descriptor-local element_count"},
         {name = "tcrv_rvv.runtime_vl_source", value = "tcrv_rvv.setvl", role = "rvv-runtime-vl-avl-boundary", note = "runtime AVL enters through the target/export-owned runtime element-count ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by tcrv_rvv.with_vl; neither value is a target capability fact or descriptor-local element_count"},
         {name = "tcrv_rvv.runtime_vl_scope", value = "tcrv_rvv.with_vl", role = "rvv-runtime-vl-avl-boundary", note = "runtime AVL enters through the target/export-owned runtime element-count ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by tcrv_rvv.with_vl; neither value is a target capability fact or descriptor-local element_count"},
-        {name = "tcrv_rvv.descriptor_element_count", value = "16", role = "rvv-descriptor-local-component-capacity", note = "bounded descriptor-local component capacity cross-checked after typed selected-plan authority; not legacy descriptor mirror, compute, ABI, source, runtime AVL/VL, hardware capacity, or performance authority"}
+        {name = "tcrv_rvv.descriptor_element_count", value = "16", role = "rvv-descriptor-local-component-capacity", note = "bounded descriptor-local component capacity cross-checked after typed selected-plan authority; not legacy descriptor mirror, compute, ABI, source, runtime AVL/VL, hardware capacity, or performance authority"},
+        {name = "tcrv_rvv.selected_binary_source_kind", value = "direct-typed-microkernel-body", role = "typed-rvv-binary-source-identity", note = "op-owned RVV source identity carried from the selected lowering boundary into selected-plan and artifact-bundle validation; not descriptor-owned computation or runtime evidence"},
+        {name = "tcrv_rvv.selected_binary_microkernel_op", value = "tcrv_rvv.i32_vadd_microkernel", role = "typed-rvv-binary-source-identity", note = "op-owned RVV source identity carried from the selected lowering boundary into selected-plan and artifact-bundle validation; not descriptor-owned computation or runtime evidence"},
+        {name = "tcrv_rvv.emitc_route_kind", value = "extension-family-ops-to-emitc-call-opaque", role = "typed-rvv-emitc-route", note = "RVV plugin-selected extension-family op to common EmitC route mapping consumed before target artifact export; not descriptor-to-C emission"},
+        {name = "tcrv_rvv.emitc_source_authority", value = "mlir-emitc-cpp-emitter", role = "typed-rvv-emitc-route", note = "RVV plugin-selected extension-family op to common EmitC route mapping consumed before target artifact export; not descriptor-to-C emission"},
+        {name = "tcrv_rvv.emitc_required_header", value = "riscv_vector.h", role = "typed-rvv-emitc-route", note = "RVV plugin-selected extension-family op to common EmitC route mapping consumed before target artifact export; not descriptor-to-C emission"},
+        {name = "tcrv_rvv.emitc_arithmetic_intrinsic", value = "__riscv_vadd_vv_i32m1", role = "typed-rvv-emitc-route", note = "family-owned RVV arithmetic intrinsic selected from typed RVV source op plus selected vector config before target artifact export"}
       ],
       severity = "info",
       status = "supported",
@@ -236,6 +242,10 @@ module @rvv_runtime_abi_role_binding {
 // HEADER: /* callable_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=len, c_type=size_t, ownership=target-export-abi-owned */
 // HEADER: /* runtime_abi_parameter[0]: c_name=lhs, c_type=const int32_t *, role=lhs-input-buffer, ownership=target-export-abi-owned */
 // HEADER: /* runtime_abi_parameter[3]: c_name=len, c_type=size_t, role=runtime-element-count, ownership=target-export-abi-owned */
+// HEADER: /* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vadd_microkernel_abi_names_rvv_first_slice
+// HEADER-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count
+// HEADER-SAME: runtime_element_count_c_name=len
+// HEADER-SAME: production_owner=rvv-target-export
 // HEADER: void tcrv_rvv_i32_vadd_microkernel_abi_names_rvv_first_slice(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t len);
 
 // STALE-NAME: runtime ABI callable plan validation failed

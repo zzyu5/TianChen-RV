@@ -302,6 +302,12 @@
 # DRY-EVIDENCE: "external_caller": {
 # DRY-EVIDENCE: "function": "tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice"
 # DRY-EVIDENCE: "kind": "generated-c-caller"
+# DRY-EVIDENCE: "runtime_abi_invocation_contract"
+# DRY-EVIDENCE: "callable_symbol": "tcrv_rvv_i32_vadd_microkernel_rvv_microkernel_manifest_rvv_first_slice"
+# DRY-EVIDENCE: "ordered_roles": [
+# DRY-EVIDENCE: "lhs-input-buffer"
+# DRY-EVIDENCE: "runtime-element-count"
+# DRY-EVIDENCE: "production_owner": "rvv-target-export"
 # DRY-EVIDENCE: "runtime_abi_signature"
 # DRY-EVIDENCE: "runtime_element_counts": [
 # DRY-EVIDENCE-NEXT: 7,
@@ -340,6 +346,12 @@
 # VSUB-EVIDENCE: "emission_kind": "rvv-explicit-i32-vsub-microkernel-c-source"
 # VSUB-EVIDENCE: "lowering_pipeline": "tcrv-export-rvv-i32-vsub-microkernel-c"
 # VSUB-EVIDENCE: "runtime_abi_name": "rvv-i32-vsub-runtime-callable-c-function.v1"
+# VSUB-EVIDENCE: "runtime_abi_invocation_contract"
+# VSUB-EVIDENCE: "callable_symbol": "tcrv_rvv_i32_vsub_microkernel_export_i32_vsub_rvv_sub_slice"
+# VSUB-EVIDENCE: "ordered_roles": [
+# VSUB-EVIDENCE: "lhs-input-buffer"
+# VSUB-EVIDENCE: "runtime-element-count"
+# VSUB-EVIDENCE: "production_owner": "rvv-target-export"
 # VSUB-EVIDENCE: "dataflow_emission_step[2]": "op=tcrv_rvv.i32_sub, lhs=lhs_vec, rhs=rhs_vec, result=difference_vec, interface=TCRVEmitCLowerableOpInterface, source_role=compute"
 # VSUB-EVIDENCE: "dataflow_emission_step[3]": "op=tcrv_rvv.i32_store, role=output-buffer, value=difference_vec"
 # VSUB-EVIDENCE-NOT: rvv-explicit-i32-vadd-microkernel-c-source
@@ -432,6 +444,9 @@
 # I32-VADD-FRONTEND-EVIDENCE: "input": "test/Transforms/LinalgToExec/linalg-i32-vadd-to-exec.mlir"
 # I32-VADD-FRONTEND-EVIDENCE: "input_source": "linalg-frontend"
 # I32-VADD-FRONTEND-EVIDENCE: "planned_pipeline": "tcrv-plan-and-export-target-artifact-bundle"
+# I32-VADD-FRONTEND-EVIDENCE: "runtime_abi_invocation_contract"
+# I32-VADD-FRONTEND-EVIDENCE: "callable_symbol": "tcrv_rvv_i32_vadd_microkernel_frontend_i32_vadd_rvv_first_slice"
+# I32-VADD-FRONTEND-EVIDENCE: "production_owner": "rvv-target-export"
 # I32-VADD-FRONTEND-EVIDENCE: "runtime_element_counts": [
 # I32-VADD-FRONTEND-EVIDENCE-NEXT: 7,
 # I32-VADD-FRONTEND-EVIDENCE-NEXT: 16,
@@ -540,6 +555,9 @@
 # I64-EVIDENCE: "input": "test/Target/RVVMicrokernel/rvv-microkernel-i64-vadd.mlir"
 # I64-EVIDENCE: "no_performance_claim": true
 # I64-EVIDENCE: "repo_commit":
+# I64-EVIDENCE: "runtime_abi_invocation_contract"
+# I64-EVIDENCE: "callable_symbol": "tcrv_rvv_i64_vadd_microkernel_export_i64_vadd_rvv_i64_slice"
+# I64-EVIDENCE: "production_owner": "rvv-target-export"
 # I64-EVIDENCE: "runtime_abi_signature"
 # I64-EVIDENCE: "c_type": "const int64_t *"
 # I64-EVIDENCE: "c_type": "int64_t *"

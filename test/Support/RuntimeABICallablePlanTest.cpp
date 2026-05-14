@@ -712,6 +712,21 @@ int runMirrorValidationTests(mlir::MLIRContext &context) {
            "parameter c_name='len'"}))
     return result;
 
+  llvm::SmallVector<RuntimeABIParameter, 4> reordered(
+      plan->parameters.begin(), plan->parameters.end());
+  RuntimeABIParameter first = reordered[0];
+  reordered[0] = reordered[1];
+  reordered[1] = first;
+  if (int result = expectErrorContains(
+          validateI32BinaryCallableABIParameterMirror(
+              kernel, reordered, plan->parameters, "reordered mirror",
+              "i32-vadd"),
+          {"reordered mirror must preserve IR-backed callable ABI parameter "
+           "order at index 0",
+           "expected role 'lhs-input-buffer'",
+           "found role 'rhs-input-buffer'"}))
+    return result;
+
   return 0;
 }
 

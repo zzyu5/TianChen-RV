@@ -4511,6 +4511,19 @@ bool expectExporterRejectsRuntimeABIContractMismatch(
                      "contract-shaped RVV runtime ABI candidate accepted"))
     return false;
 
+  TargetArtifactCandidate reordered = candidate;
+  RuntimeABIParameter first = reordered.runtimeABIParameters[0];
+  reordered.runtimeABIParameters[0] = reordered.runtimeABIParameters[1];
+  reordered.runtimeABIParameters[1] = first;
+  if (!expectErrorContains(
+          validateTargetArtifactCandidateAgainstExporter(reordered, *exporter),
+          "contract runtime ABI order mismatch rejected by target exporter",
+          {"route id 'tcrv-export-rvv-microkernel-c'",
+           "must preserve runtime ABI parameter order at index 0",
+           "expected role 'lhs-input-buffer'",
+           "found role 'rhs-input-buffer'"}))
+    return false;
+
   candidate.runtimeABIParameters[3].cType = "long";
   return expectErrorContains(
       validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
