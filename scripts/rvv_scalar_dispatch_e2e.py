@@ -1139,6 +1139,123 @@ def validate_embedded_rvv_artifact_contract(source: str) -> dict[str, Any]:
     }
 
 
+def ordered_roles_from_signature(signature: list[dict[str, str]]) -> str:
+    return "->".join(parameter["role"] for parameter in signature)
+
+
+def require_signature_parameter_by_role(
+    signature: list[dict[str, str]], role: str, context: str
+) -> dict[str, str]:
+    matches = [parameter for parameter in signature if parameter.get("role") == role]
+    if len(matches) != 1:
+        raise BridgeError(f"{context} requires exactly one ABI signature role {role}")
+    return matches[0]
+
+
+def parse_dispatch_runtime_callable_symbol(source: str) -> str:
+    abi = parse_source_comment(source, "dispatch_runtime_callable_abi", required=True)
+    match = re.match(r"void\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(", abi)
+    if not match:
+        raise BridgeError(
+            "dispatch_runtime_callable_abi does not expose a dispatcher symbol"
+        )
+    return match.group(1)
+
+
+def validate_dispatch_runtime_abi_invocation_contract(
+    source: str,
+    dispatcher_function: str,
+    signature: list[dict[str, str]],
+) -> dict[str, Any]:
+    reject_secret_like_text("dispatcher function", dispatcher_function)
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", dispatcher_function):
+        raise BridgeError(
+            f"dispatcher function is not a valid C symbol: {dispatcher_function}"
+        )
+
+    runtime_params = parse_dispatch_runtime_param_comments(source)
+    runtime_count_param = find_runtime_param_by_role(
+        runtime_params,
+        "runtime-element-count",
+        "dispatch invocation runtime count evidence",
+    )
+    dispatch_guard_param = find_runtime_param_by_role(
+        runtime_params,
+        "dispatch-availability-guard",
+        "dispatch invocation guard evidence",
+    )
+    runtime_count_signature = require_signature_parameter_by_role(
+        signature,
+        "runtime-element-count",
+        "dispatch invocation ABI signature",
+    )
+    dispatch_guard_signature = require_signature_parameter_by_role(
+        signature,
+        "dispatch-availability-guard",
+        "dispatch invocation ABI signature",
+    )
+
+    runtime_count_c_name = runtime_count_signature["c_name"]
+    dispatch_guard_c_name = dispatch_guard_signature["c_name"]
+    if runtime_count_param["c_name"] != runtime_count_c_name:
+        raise BridgeError(
+            "dispatch invocation runtime-element-count C name does not match "
+            "dispatch_runtime_param metadata"
+        )
+    if dispatch_guard_param["c_name"] != dispatch_guard_c_name:
+        raise BridgeError(
+            "dispatch invocation guard C name does not match dispatch_runtime_param "
+            "metadata"
+        )
+
+    contract = parse_comment_key_values(
+        source, "dispatch_runtime_abi_invocation_contract"
+    )
+    expected_contract = {
+        "source": "RVVScalarDispatch.cpp",
+        "callable_symbol": dispatcher_function,
+        "runtime_abi_kind": str(
+            DISPATCH_BUNDLE_ROUTES["source"]["runtime_abi_kind"]
+        ),
+        "runtime_abi_name": DISPATCH_EXTERNAL_ABI_NAME,
+        "parameter_count": str(len(signature)),
+        "ordered_roles": ordered_roles_from_signature(signature),
+        "runtime_element_count_c_name": runtime_count_c_name,
+        "dispatch_guard_c_name": dispatch_guard_c_name,
+        "production_owner": "rvv-scalar-dispatch-target",
+    }
+    for field, expected in expected_contract.items():
+        if contract.get(field) != expected:
+            raise BridgeError(
+                "dispatch runtime ABI invocation contract "
+                f"{field}={contract.get(field)!r} does not match expected "
+                f"{expected!r}"
+            )
+    if "runtime_glue_role" in contract:
+        raise BridgeError(
+            "dispatch runtime ABI invocation contract must not carry "
+            "runtime_glue_role for the dispatcher wrapper"
+        )
+
+    return {
+        "contract": contract,
+        "dispatcher_function": dispatcher_function,
+        "runtime_abi_signature": signature,
+        "runtime_element_count": {
+            "c_name": runtime_count_c_name,
+            "role": runtime_count_signature["role"],
+            "runtime_param_symbol": runtime_count_param["symbol"],
+        },
+        "dispatch_availability_guard": {
+            "c_name": dispatch_guard_c_name,
+            "role": dispatch_guard_signature["role"],
+            "runtime_param_symbol": dispatch_guard_param["symbol"],
+        },
+        "ordered_roles": expected_contract["ordered_roles"],
+        "production_owner": expected_contract["production_owner"],
+    }
+
+
 def validate_bundle_source_frontdoor_metadata(
     selected_records: dict[str, dict[str, Any]], *, required: bool
 ) -> dict[str, dict[str, str]]:
@@ -3470,6 +3587,9 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
     dispatcher_function = validate_generated_dispatch_header(
         header_text, dispatch_signature
     )
+    dispatch_invocation_contract = validate_dispatch_runtime_abi_invocation_contract(
+        source_text, dispatcher_function, dispatch_signature
+    )
     caller_text = build_dispatch_external_caller_source(
         dispatcher_function,
         str(selected_records["header"]["file_name"]),
@@ -3588,6 +3708,7 @@ def run_bundle_bridge(args: argparse.Namespace) -> dict[str, Any]:
             "runtime_element_count"
         ],
         "dispatch_runtime_params": dispatch_ir_linkage["runtime_params"],
+        "dispatch_runtime_abi_invocation_contract": dispatch_invocation_contract,
         "selected_artifact_paths": {
             "bundle_index": relative_to_repo(index_path, root),
             "source": relative_to_repo(source_path, root),
@@ -3786,6 +3907,11 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
             library_source_text, "dispatch_runtime_callable_abi", required=True
         ),
     }
+    dispatch_invocation_contract = validate_dispatch_runtime_abi_invocation_contract(
+        library_source_text,
+        parse_dispatch_runtime_callable_symbol(library_source_text),
+        active_dispatch_runtime_abi_signature(),
+    )
     library_source_path = artifact_dir / "rvv_scalar_dispatch_library.c"
     write_generated_text(
         library_source_path,
@@ -3958,6 +4084,7 @@ def run_bridge(args: argparse.Namespace) -> dict[str, Any]:
         "embedded_rvv_artifact_contract": library_vector_config[
             "embedded_rvv_artifact_contract"
         ],
+        "dispatch_runtime_abi_invocation_contract": dispatch_invocation_contract,
         "self_check": {
             "branches_exercised": ["rvv_available=0", "rvv_available=1"],
             "runtime_element_counts": [7, 16],
@@ -4219,6 +4346,10 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_
 /* rvv_runtime_abi_name: rvv-i32-vadd-runtime-callable-c-function.v1 */
 /* rvv_runtime_glue_role: runtime-callable-i32-vadd-function */
 /* rvv_callable_symbol: tcrv_rvv_i32_vadd_microkernel_self_test_rvv_first_slice */
+/* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vadd_self_test(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
+/* dispatch_runtime_param[0]: symbol=@abi_runtime_element_count, abi_role=runtime-element-count, c_name=n, c_type=size_t, ownership=target-export-abi-owned */
+/* dispatch_runtime_param[1]: symbol=@abi_dispatch_availability_guard, abi_role=dispatch-availability-guard, c_name=rvv_available, c_type=int, ownership=target-export-abi-owned */
+/* dispatch_runtime_abi_invocation_contract: source=RVVScalarDispatch.cpp, callable_symbol=tcrv_dispatch_i32_vadd_self_test, runtime_abi_kind=rvv-scalar-dispatch-runtime-callable-c-abi, runtime_abi_name=rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1, parameter_count=5, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count->dispatch-availability-guard, runtime_element_count_c_name=n, dispatch_guard_c_name=rvv_available, production_owner=rvv-scalar-dispatch-target */
 /* runtime_abi_invocation_contract: source=RVVMicrokernel.cpp, callable_symbol=tcrv_rvv_i32_vadd_microkernel_self_test_rvv_first_slice, runtime_abi_kind=rvv-runtime-callable-c-abi, runtime_abi_name=rvv-i32-vadd-runtime-callable-c-function.v1, runtime_glue_role=runtime-callable-i32-vadd-function, parameter_count=4, ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count, runtime_element_count_c_name=n, production_owner=rvv-target-export */
 /* rvv_microkernel_selected_source_identity: source_kind=frontend-lowering,dtype=i32,family=i32-vadd,operator=add,microkernel_op=tcrv_rvv.i32_vadd_microkernel,emitc_source_op=tcrv_rvv.i32_add,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface */
 """.strip()
@@ -4229,6 +4360,16 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_
         artifact_contract["runtime_abi_invocation_contract"]["production_owner"]
         == "rvv-target-export",
         "embedded RVV artifact runtime contract parser failed",
+    )
+    dispatch_contract = validate_dispatch_runtime_abi_invocation_contract(
+        sample_rvv_contract_source,
+        "tcrv_dispatch_i32_vadd_self_test",
+        active_dispatch_runtime_abi_signature(),
+    )
+    assert_self_test(
+        dispatch_contract["contract"]["production_owner"]
+        == "rvv-scalar-dispatch-target",
+        "dispatch RuntimeABI invocation contract parser failed",
     )
     try:
         validate_embedded_rvv_artifact_contract(
@@ -4245,6 +4386,39 @@ int main(void) {{ puts("tcrv_rvv_scalar_i32_vadd_dispatch_self_check_ok runtime_
         )
     else:
         raise AssertionError("stale embedded RVV runtime ABI contract was accepted")
+    for old, new, expected_error, label in (
+        (
+            "runtime_abi_name=rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+            "runtime_abi_name=stale-rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
+            "runtime_abi_name",
+            "stale dispatch RuntimeABI name",
+        ),
+        (
+            "runtime_element_count_c_name=n",
+            "runtime_element_count_c_name=len",
+            "runtime_element_count_c_name",
+            "stale dispatch runtime element-count C name",
+        ),
+        (
+            "dispatch_guard_c_name=rvv_available",
+            "dispatch_guard_c_name=rvv_enabled",
+            "dispatch_guard_c_name",
+            "stale dispatch guard C name",
+        ),
+    ):
+        try:
+            validate_dispatch_runtime_abi_invocation_contract(
+                sample_rvv_contract_source.replace(old, new, 1),
+                "tcrv_dispatch_i32_vadd_self_test",
+                active_dispatch_runtime_abi_signature(),
+            )
+        except BridgeError as error:
+            assert_self_test(
+                expected_error in str(error),
+                f"{label} error changed",
+            )
+        else:
+            raise AssertionError(f"{label} was accepted")
 
     compile_command = build_remote_compile_object_command(
         "/tmp/tianchenrv_rvv_scalar_dispatch_e2e_self_test", flags

@@ -1,0 +1,7 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "project spec index"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "hardware truth and architecture boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "runtime emission and artifact route contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused MLIR and e2e evidence contract"}
+{"file": "scripts/rvv_scalar_dispatch_e2e.py", "reason": "generated dispatch artifact e2e route consumer"}
+{"file": "lib/Target/RVV/RVVScalarDispatch.cpp", "reason": "dispatch production RuntimeABI invocation owner"}

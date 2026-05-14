@@ -47,6 +47,62 @@ Final session commit recorded in git history for this round.
 
 ---
 
+## Session 64: RVV generated artifact hardware invocation closure
+
+**Date**: 2026-05-14
+**Task**: RVV generated artifact hardware invocation closure
+**Branch**: `main`
+
+### Summary
+
+Closed the current-head route-consumer proof gap for generated source-frontdoor
+i32 vadd/vsub dispatch artifacts. The production C++ RuntimeABI contract path
+was already present at `8780c6b`; this round made the generated dispatch
+`dispatch_runtime_abi_invocation_contract` first-class e2e evidence and
+revalidated local plus `ssh rvv` source-frontdoor invocation.
+
+### Main Changes
+
+- Updated `rvv_scalar_dispatch_e2e.py` to parse and validate the generated
+  dispatcher's `dispatch_runtime_abi_invocation_contract` against the bundle
+  ABI signature, runtime `n`, `rvv_available` guard, and production owner.
+- Recorded the validated dispatch invocation contract in bundle-mode and
+  direct e2e evidence JSON.
+- Added self-test fail-closed coverage for stale dispatch runtime ABI name,
+  stale runtime element-count C name, and stale dispatch guard C name.
+- Tightened vadd/vsub source-frontdoor bundle FileCheck coverage for generated
+  source/header dispatch invocation contract comments and script evidence.
+
+### Testing
+
+- [OK] Focused CMake build for support, target, RVV/scalar target, `tcrv-opt`,
+  `tcrv-translate`, and focused test binaries.
+- [OK] `tianchenrv-runtime-abi-callable-plan-test`.
+- [OK] `tianchenrv-target-artifact-export-test`.
+- [OK] `tianchenrv-rvv-extension-plugin-test`.
+- [OK] `rvv_scalar_dispatch_e2e.py --self-test`.
+- [OK] `rvv_microkernel_e2e.py --self-test`.
+- [OK] Focused lit for vadd/vsub source-frontdoor bundle artifacts and script
+  e2e (`3/3`).
+- [OK] Focused lit for RuntimeABI callable plan, RVVScalarDispatch, and
+  RVVMicrokernel (`46/46`).
+- [OK] Local source-frontdoor bundle dry-runs:
+  `codex-runtimeabi-current-vadd-local` and
+  `codex-runtimeabi-current-vsub-local`.
+- [OK] `ssh rvv` source-frontdoor i32-vsub bundle invocation:
+  `codex-runtimeabi-current-vsub-ssh`, `ssh_evidence_verified=true`.
+- [OK] `git diff --check` and Trellis validation before finish.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Archive task and commit the coherent route-consumer evidence closure.
+
+---
+
 ## Session 63: RVV exported artifact runtime consumption
 
 **Date**: 2026-05-14

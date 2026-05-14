@@ -169,6 +169,11 @@
 # VEC-VADD-SOURCE-DAG: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.selected_binary_source_kind, value=frontend-lowering, role=typed-rvv-binary-source-identity
 # VEC-VADD-SOURCE-DAG: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_source_op, value=tcrv_rvv.i32_add
 # VEC-VADD-SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
+# VEC-VADD-SOURCE: /* dispatch_runtime_abi_invocation_contract: source=RVVScalarDispatch.cpp, callable_symbol=tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd
+# VEC-VADD-SOURCE-SAME: runtime_abi_name=rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1
+# VEC-VADD-SOURCE-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count->dispatch-availability-guard
+# VEC-VADD-SOURCE-SAME: runtime_element_count_c_name=n
+# VEC-VADD-SOURCE-SAME: dispatch_guard_c_name=rvv_available
 # VEC-VADD-SOURCE: __riscv_vadd_vv_i32m1
 # VEC-VADD-SOURCE: tcrv_scalar_i32_add
 # VEC-VADD-SOURCE: void tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd
@@ -194,6 +199,10 @@
 # VEC-VADD-EVIDENCE-DAG: "dispatch_runtime_element_count": {
 # VEC-VADD-EVIDENCE-DAG: "role": "runtime-element-count"
 # VEC-VADD-EVIDENCE-DAG: "guard_c_name": "rvv_available"
+# VEC-VADD-EVIDENCE-DAG: "dispatch_runtime_abi_invocation_contract": {
+# VEC-VADD-EVIDENCE-DAG: "callable_symbol": "tcrv_dispatch_i32_vadd_frontend_vector_dynamic_bundle_i32_vadd"
+# VEC-VADD-EVIDENCE-DAG: "dispatch_guard_c_name": "rvv_available"
+# VEC-VADD-EVIDENCE-DAG: "production_owner": "rvv-scalar-dispatch-target"
 # VEC-VADD-EVIDENCE-DAG: "pass_fail_result": "pass"
 
 # VEC-VSUB-PLAN-DRY: "arithmetic_family": "i32-vsub"
@@ -210,6 +219,11 @@
 # VEC-VSUB-SOURCE-DAG: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.selected_binary_source_kind, value=frontend-lowering, role=typed-rvv-binary-source-identity
 # VEC-VSUB-SOURCE-DAG: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_source_op, value=tcrv_rvv.i32_sub
 # VEC-VSUB-SOURCE: /* dispatch_runtime_callable_abi: void tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n, int rvv_available) */
+# VEC-VSUB-SOURCE: /* dispatch_runtime_abi_invocation_contract: source=RVVScalarDispatch.cpp, callable_symbol=tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub
+# VEC-VSUB-SOURCE-SAME: runtime_abi_name=rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1
+# VEC-VSUB-SOURCE-SAME: ordered_roles=lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count->dispatch-availability-guard
+# VEC-VSUB-SOURCE-SAME: runtime_element_count_c_name=n
+# VEC-VSUB-SOURCE-SAME: dispatch_guard_c_name=rvv_available
 # VEC-VSUB-SOURCE: __riscv_vsub_vv_i32m1
 # VEC-VSUB-SOURCE: tcrv_scalar_i32_sub
 # VEC-VSUB-SOURCE: void tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub
@@ -235,6 +249,10 @@
 # VEC-VSUB-EVIDENCE-DAG: "dispatch_runtime_element_count": {
 # VEC-VSUB-EVIDENCE-DAG: "role": "runtime-element-count"
 # VEC-VSUB-EVIDENCE-DAG: "guard_c_name": "rvv_available"
+# VEC-VSUB-EVIDENCE-DAG: "dispatch_runtime_abi_invocation_contract": {
+# VEC-VSUB-EVIDENCE-DAG: "callable_symbol": "tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub"
+# VEC-VSUB-EVIDENCE-DAG: "dispatch_guard_c_name": "rvv_available"
+# VEC-VSUB-EVIDENCE-DAG: "production_owner": "rvv-scalar-dispatch-target"
 # VEC-VSUB-EVIDENCE-DAG: "pass_fail_result": "pass"
 
 # I64-VADD-FRONTDOOR-PLAN-DRY: "arithmetic_family": "i64-vadd"
