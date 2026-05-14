@@ -1370,6 +1370,72 @@ correctness or performance behavior.
 [OK] Completed locally; archive and commit pending.
 
 
+## Session 66: RVV op-family runtime ABI dispatch parity
+
+**Date**: 2026-05-14
+**Task**: RVV op-family runtime ABI dispatch parity
+**Branch**: `main`
+
+### Summary
+
+Closed the next vadd/vsub runtime ABI dispatch parity slice. The support-layer
+i32 finite binary runtime ABI helper surface now has selected-family overloads
+for callable parameters, role requirements, mem-window specs, runtime length
+specs, dispatch runtime specs, dispatch ABI parameters, and callable role
+binding. The historical no-argument i32 helpers remain documented as
+compatibility defaults for `i32-vadd` only.
+
+### Main Changes
+
+- Added selected-family helper overloads in
+  `include/TianChenRV/Support/RuntimeABI.h`,
+  `include/TianChenRV/Support/RuntimeABIParam.h`,
+  `include/TianChenRV/Support/RuntimeABIMemWindow.h`, and
+  `lib/Support/RuntimeABIContract.cpp`.
+- Extended `test/Support/RuntimeABICallablePlanTest.cpp` so `i32-vadd`,
+  `i32-vsub`, and `i32-vmul` all prove selected-family helper parity against
+  `I32BinaryRuntimeABIContract`.
+- Updated vsub/vmul target-artifact C++ fixtures to build runtime ABI mirrors
+  from the selected family id rather than the no-argument vadd default.
+- Added
+  `test/Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-runtime-abi-role-binding.mlir`
+  covering positive vsub dispatch ordered ABI roles and fail-closed mutations
+  for missing runtime length role, stale runtime-count metadata, duplicate
+  role, wrong type, wrong ownership, unknown role, guard type mismatch, and
+  detached dispatch ABI metadata.
+- Updated
+  `.trellis/spec/lowering-runtime/emission-runtime-contract.md` with the
+  executable selected-family helper contract and compatibility-wrapper rule.
+
+### Testing
+
+- `cmake --build build --target tianchenrv-runtime-abi-callable-plan-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- `build/bin/tianchenrv-runtime-abi-callable-plan-test`
+- `build/bin/tianchenrv-target-artifact-export-test`
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- `build/bin/tianchenrv-rvv-extension-plugin-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-runtime-abi-role-binding.mlir Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-runtime-abi-role-binding.mlir Target/RVVScalarDispatch/rvv-scalar-i32-vsub-dispatch-generic-route.mlir Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle.mlir Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle.mlir Scripts/rvv-scalar-dispatch-e2e.test Scripts/rvv-scalar-dispatch-bundle-e2e.test` from `build/test`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --self-test`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --input test/Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle.mlir --expect-selected-kernel frontend_vector_dynamic_bundle_i32_vsub --run-id codex-parity-vsub-dynamic-dry --overwrite --timeout 120`
+- `python3 scripts/rvv_scalar_dispatch_e2e.py --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --input test/Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vsub-and-export-target-artifact-bundle.mlir --expect-selected-kernel frontend_vector_dynamic_bundle_i32_vsub --run-id codex-parity-vsub-dynamic-ssh --overwrite --timeout 120 --connect-timeout 10`
+- Bounded support/RVV ref-scan for remaining vadd defaults, descriptor
+  authority, and generic-core RVV branch terms.
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-14-rvv-op-family-runtime-abi-dispatch-parity`
+- `python3 ./.trellis/scripts/task.py finish`
+- `python3 ./.trellis/scripts/task.py archive --no-commit 05-14-rvv-op-family-runtime-abi-dispatch-parity`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-14-rvv-op-family-runtime-abi-dispatch-parity`
+
+The `ssh rvv` dynamic vsub dispatch bundle run returned `status: success`,
+`ssh_evidence: true`, `ssh_evidence_verified: true`, and selected kernel
+`frontend_vector_dynamic_bundle_i32_vsub`. Artifact root:
+`artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/codex-parity-vsub-dynamic-ssh`.
+
+### Status
+
+[OK] Completed and archived; commit pending.
+
+
 ## Session 63: RVV selected route default quarantine
 
 **Date**: 2026-05-14

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check against global project invariants."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Final check that no descriptor-driven compute or generic core RVV branch was introduced."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Final check for tcrv.exec dispatch/runtime boundary correctness."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check for RVV selected family/config/runtime length parity."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Final check for generated artifact/runtime ABI/dispatch evidence."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check for common EmitC route and descriptor quarantine."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check for focused evidence and test scope."}

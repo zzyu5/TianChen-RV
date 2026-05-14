@@ -428,6 +428,8 @@ int runI32BinaryFamilyContractCoverageTest() {
   llvm::ArrayRef<RuntimeABIParameter> baselineParameters =
       getI32BinaryRuntimeABIContract(families[0].familyID)
           .getCallableParameters();
+  using Bindings =
+      tianchenrv::support::I32BinaryCallableRuntimeABIParameterBindings;
   for (const ExpectedI32Contract &family : families) {
     const tianchenrv::support::I32BinaryRuntimeABIContract &contract =
         getI32BinaryRuntimeABIContract(family.familyID);
@@ -463,6 +465,89 @@ int runI32BinaryFamilyContractCoverageTest() {
             runtimeABIParametersEqual(contract.getCallableParameters(),
                                       baselineParameters),
             "i32 add/sub/mul share the callable ABI parameter shape"))
+      return result;
+    llvm::SmallVector<RuntimeABIParameter, 4> helperParameters =
+        tianchenrv::support::getI32BinaryRuntimeABIParameters(family.familyID);
+    if (int result = expect(
+            runtimeABIParametersEqual(helperParameters,
+                                      contract.getCallableParameters()),
+            "selected-family i32 helper returns callable ABI parameters from "
+            "the selected contract"))
+      return result;
+    llvm::SmallVector<RuntimeABIParameter, 4> helperRequirements =
+        tianchenrv::support::getI32BinaryRuntimeABIRoleRequirements(
+            family.familyID);
+    if (int result = expect(
+            runtimeABIParametersEqual(
+                helperRequirements, contract.getCallableRoleRequirements()),
+            "selected-family i32 helper returns role requirements from the "
+            "selected contract"))
+      return result;
+    llvm::SmallVector<tianchenrv::support::RuntimeABIMemWindowSpec, 3>
+        helperWindows =
+            tianchenrv::support::getI32BinaryBufferMemWindowSpecs(
+                family.familyID);
+    if (int result = expect(helperWindows.size() ==
+                                contract.getBufferMemWindowSpecs().size(),
+                            "selected-family i32 helper returns selected "
+                            "contract mem-window specs"))
+      return result;
+    for (auto [helper, expected] :
+         llvm::zip(helperWindows, contract.getBufferMemWindowSpecs())) {
+      if (int result = expect(helper.symbolName == expected.symbolName &&
+                                  helper.role == expected.role &&
+                                  helper.access == expected.access &&
+                                  helper.ownership == expected.ownership &&
+                                  helper.cType == expected.cType,
+                              "selected-family i32 mem-window helper mirrors "
+                              "the selected contract"))
+        return result;
+    }
+    tianchenrv::support::RuntimeABIParamSpec countSpec =
+        tianchenrv::support::
+            getI32BinaryRuntimeElementCountParamSpecForFamily(
+                family.familyID, "len");
+    if (int result = expect(
+            countSpec.cName == "len" &&
+                countSpec.role == RuntimeABIParameterRole::RuntimeElementCount,
+            "selected-family runtime length spec preserves selected C name"))
+      return result;
+    llvm::SmallVector<tianchenrv::support::RuntimeABIParamSpec, 2>
+        dispatchSpecs =
+            tianchenrv::support::
+                getI32BinaryDispatchRuntimeParamSpecsForFamily(
+                    family.familyID, "len", "rvv_ready");
+    if (int result = expect(
+            dispatchSpecs.size() == 2 && dispatchSpecs[0].cName == "len" &&
+                dispatchSpecs[0].role ==
+                    RuntimeABIParameterRole::RuntimeElementCount &&
+                dispatchSpecs[1].cName == "rvv_ready" &&
+                dispatchSpecs[1].role ==
+                    RuntimeABIParameterRole::DispatchAvailabilityGuard,
+            "selected-family dispatch runtime specs preserve selected runtime "
+            "length and guard C names"))
+      return result;
+    llvm::SmallVector<RuntimeABIParameter, 5> dispatchParameters =
+        tianchenrv::support::getI32BinaryDispatchRuntimeABIParameters(
+            family.familyID, "len", "rvv_ready");
+    if (int result = expect(
+            dispatchParameters.size() == 5 &&
+                dispatchParameters[3].cName == "len" &&
+                dispatchParameters[4].cName == "rvv_ready",
+            "selected-family dispatch ABI parameters preserve selected "
+            "runtime length and guard C names"))
+      return result;
+    llvm::Expected<Bindings> bindings =
+        tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
+            helperParameters, family.familyID, family.familyID);
+    if (!bindings)
+      return fail(llvm::Twine("selected-family callable ABI binding failed "
+                              "for ") +
+                  family.familyID + ": " +
+                  llvm::toString(bindings.takeError()));
+    if (int result = expect(bindings->runtimeElementCount->cName == "n",
+                            "selected-family callable ABI binding returns the "
+                            "runtime element-count role"))
       return result;
   }
   return 0;

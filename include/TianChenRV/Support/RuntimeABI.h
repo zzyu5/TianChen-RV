@@ -121,20 +121,41 @@ inline RuntimeABIParameter makeTargetExportABIRoleRequirement(
                              RuntimeABIParameterOwnership::TargetExportABIOwned);
 }
 
+// Compatibility default for historical i32-vadd callers. Production selected
+// routes should pass the selected i32 family id overload below.
 void appendI32BinaryRuntimeABIParameters(
     llvm::SmallVectorImpl<RuntimeABIParameter> &out);
 
 llvm::SmallVector<RuntimeABIParameter, 4>
 getI32BinaryRuntimeABIParameters();
 
+void appendI32BinaryRuntimeABIParameters(
+    llvm::SmallVectorImpl<RuntimeABIParameter> &out,
+    llvm::StringRef familyID);
+
+llvm::SmallVector<RuntimeABIParameter, 4>
+getI32BinaryRuntimeABIParameters(llvm::StringRef familyID);
+
+// Compatibility default for historical i32-vadd callers. Production selected
+// routes should pass the selected i32 family id overload below.
 void appendI32BinaryRuntimeABIRoleRequirements(
     llvm::SmallVectorImpl<RuntimeABIParameter> &out);
 
 llvm::SmallVector<RuntimeABIParameter, 4>
 getI32BinaryRuntimeABIRoleRequirements();
 
+void appendI32BinaryRuntimeABIRoleRequirements(
+    llvm::SmallVectorImpl<RuntimeABIParameter> &out,
+    llvm::StringRef familyID);
+
+llvm::SmallVector<RuntimeABIParameter, 4>
+getI32BinaryRuntimeABIRoleRequirements(llvm::StringRef familyID);
+
 RuntimeABIParameter makeI32BinaryDispatchAvailabilityGuard(
     llvm::StringRef cName = "rvv_available");
+
+RuntimeABIParameter makeI32BinaryDispatchAvailabilityGuardForFamily(
+    llvm::StringRef familyID, llvm::StringRef cName = "rvv_available");
 
 inline void appendI32BinaryDispatchRuntimeABIParameters(
     llvm::SmallVectorImpl<RuntimeABIParameter> &out,
@@ -146,6 +167,11 @@ inline void appendI32BinaryDispatchRuntimeABIParameters(
 
 llvm::SmallVector<RuntimeABIParameter, 5>
 getI32BinaryDispatchRuntimeABIParameters();
+
+llvm::SmallVector<RuntimeABIParameter, 5>
+getI32BinaryDispatchRuntimeABIParameters(
+    llvm::StringRef familyID, llvm::StringRef runtimeCountCName = "n",
+    llvm::StringRef guardCName = "rvv_available");
 
 inline bool runtimeABIParametersEqual(
     llvm::ArrayRef<RuntimeABIParameter> lhs,
@@ -167,6 +193,11 @@ llvm::Expected<const RuntimeABIParameter *> findUniqueRuntimeABIParameterByRole(
 llvm::Expected<I32BinaryCallableRuntimeABIParameterBindings>
 bindI32BinaryCallableRuntimeABIParametersByRole(
     llvm::ArrayRef<RuntimeABIParameter> parameters, llvm::StringRef context);
+
+llvm::Expected<I32BinaryCallableRuntimeABIParameterBindings>
+bindI32BinaryCallableRuntimeABIParametersByRole(
+    llvm::ArrayRef<RuntimeABIParameter> parameters, llvm::StringRef context,
+    llvm::StringRef familyID);
 
 inline void printRuntimeABIParameterCDeclaration(
     llvm::raw_ostream &os, const RuntimeABIParameter &parameter) {

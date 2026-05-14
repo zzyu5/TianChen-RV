@@ -42,19 +42,35 @@ struct RuntimeABIParamSpec {
 RuntimeABIParamSpec getI32BinaryRuntimeElementCountParamSpec(
     llvm::StringRef cName = "n");
 
+RuntimeABIParamSpec getI32BinaryRuntimeElementCountParamSpecForFamily(
+    llvm::StringRef familyID, llvm::StringRef cName = "n");
+
 RuntimeABIParamSpec getDispatchAvailabilityGuardParamSpec(
     llvm::StringRef cName = "rvv_available");
 
 RuntimeABIParamSpec getI32BinaryDispatchAvailabilityGuardParamSpec(
     llvm::StringRef cName = "rvv_available");
 
+RuntimeABIParamSpec
+getI32BinaryDispatchAvailabilityGuardParamSpecForFamily(
+    llvm::StringRef familyID, llvm::StringRef cName = "rvv_available");
+
 llvm::SmallVector<RuntimeABIParamSpec, 1>
 getI32BinaryRuntimeElementCountParamSpecs(llvm::StringRef cName = "n");
+
+llvm::SmallVector<RuntimeABIParamSpec, 1>
+getI32BinaryRuntimeElementCountParamSpecsForFamily(
+    llvm::StringRef familyID, llvm::StringRef cName = "n");
 
 llvm::SmallVector<RuntimeABIParamSpec, 2>
 getI32BinaryDispatchRuntimeParamSpecs(llvm::StringRef runtimeCountCName = "n",
                                       llvm::StringRef guardCName =
                                           "rvv_available");
+
+llvm::SmallVector<RuntimeABIParamSpec, 2>
+getI32BinaryDispatchRuntimeParamSpecsForFamily(
+    llvm::StringRef familyID, llvm::StringRef runtimeCountCName = "n",
+    llvm::StringRef guardCName = "rvv_available");
 
 llvm::Error ensureRuntimeABIParams(
     tcrv::exec::KernelOp kernel, mlir::OpBuilder &builder,

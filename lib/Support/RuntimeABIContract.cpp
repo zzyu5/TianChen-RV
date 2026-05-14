@@ -281,45 +281,82 @@ const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
 
 void appendI32BinaryRuntimeABIParameters(
     llvm::SmallVectorImpl<RuntimeABIParameter> &out) {
+  appendI32BinaryRuntimeABIParameters(out, "i32-vadd");
+}
+
+void appendI32BinaryRuntimeABIParameters(
+    llvm::SmallVectorImpl<RuntimeABIParameter> &out,
+    llvm::StringRef familyID) {
   llvm::ArrayRef<RuntimeABIParameter> parameters =
-      getI32BinaryRuntimeABIContract("i32-vadd")
-          .getCallableParameters();
+      getI32BinaryRuntimeABIContract(familyID).getCallableParameters();
   out.append(parameters.begin(), parameters.end());
 }
 
 llvm::SmallVector<RuntimeABIParameter, 4> getI32BinaryRuntimeABIParameters() {
+  return getI32BinaryRuntimeABIParameters("i32-vadd");
+}
+
+llvm::SmallVector<RuntimeABIParameter, 4>
+getI32BinaryRuntimeABIParameters(llvm::StringRef familyID) {
   llvm::SmallVector<RuntimeABIParameter, 4> parameters;
-  appendI32BinaryRuntimeABIParameters(parameters);
+  appendI32BinaryRuntimeABIParameters(parameters, familyID);
   return parameters;
 }
 
 void appendI32BinaryRuntimeABIRoleRequirements(
     llvm::SmallVectorImpl<RuntimeABIParameter> &out) {
+  appendI32BinaryRuntimeABIRoleRequirements(out, "i32-vadd");
+}
+
+void appendI32BinaryRuntimeABIRoleRequirements(
+    llvm::SmallVectorImpl<RuntimeABIParameter> &out,
+    llvm::StringRef familyID) {
   llvm::ArrayRef<RuntimeABIParameter> parameters =
-      getI32BinaryRuntimeABIContract("i32-vadd")
-          .getCallableRoleRequirements();
+      getI32BinaryRuntimeABIContract(familyID).getCallableRoleRequirements();
   out.append(parameters.begin(), parameters.end());
 }
 
 llvm::SmallVector<RuntimeABIParameter, 4>
 getI32BinaryRuntimeABIRoleRequirements() {
+  return getI32BinaryRuntimeABIRoleRequirements("i32-vadd");
+}
+
+llvm::SmallVector<RuntimeABIParameter, 4>
+getI32BinaryRuntimeABIRoleRequirements(llvm::StringRef familyID) {
   llvm::SmallVector<RuntimeABIParameter, 4> parameters;
-  appendI32BinaryRuntimeABIRoleRequirements(parameters);
+  appendI32BinaryRuntimeABIRoleRequirements(parameters, familyID);
   return parameters;
 }
 
 RuntimeABIParameter
 makeI32BinaryDispatchAvailabilityGuard(llvm::StringRef cName) {
-  return getI32BinaryRuntimeABIContract(
-             "i32-vadd")
+  return makeI32BinaryDispatchAvailabilityGuardForFamily("i32-vadd", cName);
+}
+
+RuntimeABIParameter makeI32BinaryDispatchAvailabilityGuardForFamily(
+    llvm::StringRef familyID, llvm::StringRef cName) {
+  return getI32BinaryRuntimeABIContract(familyID)
       .getDispatchAvailabilityGuardParameter(cName);
 }
 
 llvm::SmallVector<RuntimeABIParameter, 5>
 getI32BinaryDispatchRuntimeABIParameters() {
-  return getI32BinaryRuntimeABIContract(
-             "i32-vadd")
-      .getDispatchRuntimeABIParameters();
+  return getI32BinaryDispatchRuntimeABIParameters("i32-vadd");
+}
+
+llvm::SmallVector<RuntimeABIParameter, 5>
+getI32BinaryDispatchRuntimeABIParameters(llvm::StringRef familyID,
+                                         llvm::StringRef runtimeCountCName,
+                                         llvm::StringRef guardCName) {
+  const I32BinaryRuntimeABIContract &contract =
+      getI32BinaryRuntimeABIContract(familyID);
+  llvm::SmallVector<RuntimeABIParameter, 5> parameters;
+  llvm::SmallVector<RuntimeABIParameter, 4> callable =
+      contract.getCallableParameters(runtimeCountCName);
+  parameters.append(callable.begin(), callable.end());
+  parameters.push_back(
+      contract.getDispatchAvailabilityGuardParameter(guardCName));
+  return parameters;
 }
 
 llvm::Expected<const RuntimeABIParameter *> findUniqueRuntimeABIParameterByRole(
@@ -356,9 +393,17 @@ llvm::Expected<const RuntimeABIParameter *> findUniqueRuntimeABIParameterByRole(
 llvm::Expected<I32BinaryCallableRuntimeABIParameterBindings>
 bindI32BinaryCallableRuntimeABIParametersByRole(
     llvm::ArrayRef<RuntimeABIParameter> parameters, llvm::StringRef context) {
+  return bindI32BinaryCallableRuntimeABIParametersByRole(
+      parameters, context, "i32-vadd");
+}
+
+llvm::Expected<I32BinaryCallableRuntimeABIParameterBindings>
+bindI32BinaryCallableRuntimeABIParametersByRole(
+    llvm::ArrayRef<RuntimeABIParameter> parameters, llvm::StringRef context,
+    llvm::StringRef familyID) {
   using Role = RuntimeABIParameterRole;
-  const I32BinaryRuntimeABIContract &contract = getI32BinaryRuntimeABIContract(
-      "i32-vadd");
+  const I32BinaryRuntimeABIContract &contract =
+      getI32BinaryRuntimeABIContract(familyID);
   I32BinaryCallableRuntimeABIParameterBindings bindings;
 
   llvm::Expected<const RuntimeABIParameter *> lhs =
@@ -403,39 +448,64 @@ bindI32BinaryCallableRuntimeABIParametersByRole(
 
 llvm::SmallVector<RuntimeABIMemWindowSpec, 3>
 getI32BinaryBufferMemWindowSpecs() {
+  return getI32BinaryBufferMemWindowSpecs("i32-vadd");
+}
+
+llvm::SmallVector<RuntimeABIMemWindowSpec, 3>
+getI32BinaryBufferMemWindowSpecs(llvm::StringRef familyID) {
   llvm::ArrayRef<RuntimeABIMemWindowSpec> specs =
-      getI32BinaryRuntimeABIContract("i32-vadd")
-          .getBufferMemWindowSpecs();
+      getI32BinaryRuntimeABIContract(familyID).getBufferMemWindowSpecs();
   return llvm::SmallVector<RuntimeABIMemWindowSpec, 3>(specs.begin(),
                                                        specs.end());
 }
 
 RuntimeABIParamSpec
 getI32BinaryRuntimeElementCountParamSpec(llvm::StringRef cName) {
-  return getI32BinaryRuntimeABIContract(
-             "i32-vadd")
+  return getI32BinaryRuntimeElementCountParamSpecForFamily("i32-vadd", cName);
+}
+
+RuntimeABIParamSpec getI32BinaryRuntimeElementCountParamSpecForFamily(
+    llvm::StringRef familyID, llvm::StringRef cName) {
+  return getI32BinaryRuntimeABIContract(familyID)
       .getRuntimeElementCountParamSpec(cName);
 }
 
 RuntimeABIParamSpec
 getI32BinaryDispatchAvailabilityGuardParamSpec(llvm::StringRef cName) {
-  return getI32BinaryRuntimeABIContract(
-             "i32-vadd")
+  return getI32BinaryDispatchAvailabilityGuardParamSpecForFamily("i32-vadd",
+                                                                 cName);
+}
+
+RuntimeABIParamSpec getI32BinaryDispatchAvailabilityGuardParamSpecForFamily(
+    llvm::StringRef familyID, llvm::StringRef cName) {
+  return getI32BinaryRuntimeABIContract(familyID)
       .getDispatchAvailabilityGuardParamSpec(cName);
 }
 
 llvm::SmallVector<RuntimeABIParamSpec, 1>
 getI32BinaryRuntimeElementCountParamSpecs(llvm::StringRef cName) {
-  return getI32BinaryRuntimeABIContract(
-             "i32-vadd")
+  return getI32BinaryRuntimeElementCountParamSpecsForFamily("i32-vadd", cName);
+}
+
+llvm::SmallVector<RuntimeABIParamSpec, 1>
+getI32BinaryRuntimeElementCountParamSpecsForFamily(llvm::StringRef familyID,
+                                                   llvm::StringRef cName) {
+  return getI32BinaryRuntimeABIContract(familyID)
       .getRuntimeElementCountParamSpecs(cName);
 }
 
 llvm::SmallVector<RuntimeABIParamSpec, 2>
 getI32BinaryDispatchRuntimeParamSpecs(llvm::StringRef runtimeCountCName,
                                       llvm::StringRef guardCName) {
-  return getI32BinaryRuntimeABIContract(
-             "i32-vadd")
+  return getI32BinaryDispatchRuntimeParamSpecsForFamily(
+      "i32-vadd", runtimeCountCName, guardCName);
+}
+
+llvm::SmallVector<RuntimeABIParamSpec, 2>
+getI32BinaryDispatchRuntimeParamSpecsForFamily(
+    llvm::StringRef familyID, llvm::StringRef runtimeCountCName,
+    llvm::StringRef guardCName) {
+  return getI32BinaryRuntimeABIContract(familyID)
       .getDispatchRuntimeParamSpecs(runtimeCountCName, guardCName);
 }
 

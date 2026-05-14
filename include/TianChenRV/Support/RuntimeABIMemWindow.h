@@ -50,6 +50,9 @@ struct RuntimeABIMemWindowSpec {
 llvm::SmallVector<RuntimeABIMemWindowSpec, 3>
 getI32BinaryBufferMemWindowSpecs();
 
+llvm::SmallVector<RuntimeABIMemWindowSpec, 3>
+getI32BinaryBufferMemWindowSpecs(llvm::StringRef familyID);
+
 llvm::Error ensureRuntimeABIBufferMemWindows(
     tcrv::exec::KernelOp kernel, mlir::OpBuilder &builder,
     llvm::ArrayRef<RuntimeABIMemWindowSpec> specs);

@@ -4056,7 +4056,7 @@ TargetArtifactCandidate makeRVVSubDirectCandidate(
   candidate.runtimeABIName = family.runtimeABIName.str();
   candidate.runtimeGlueRole = family.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
-      tianchenrv::support::getI32BinaryRuntimeABIParameters();
+      tianchenrv::support::getI32BinaryRuntimeABIParameters(family.familyID);
   appendRVVSelectedPlanMetadata(candidate, family,
                                 getDefaultRVVSelectedShapeForFamily(family));
   return candidate;
@@ -4080,7 +4080,7 @@ TargetArtifactCandidate makeRVVMulDirectCandidate(
   candidate.runtimeABIName = family.runtimeABIName.str();
   candidate.runtimeGlueRole = family.runtimeGlueRole.str();
   candidate.runtimeABIParameters =
-      tianchenrv::support::getI32BinaryRuntimeABIParameters();
+      tianchenrv::support::getI32BinaryRuntimeABIParameters(family.familyID);
   appendRVVSelectedPlanMetadata(candidate, family,
                                 getDefaultRVVSelectedShapeForFamily(family));
   return candidate;
