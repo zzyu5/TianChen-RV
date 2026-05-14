@@ -133,8 +133,14 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
         "scalar_callable_route": "tcrv-export-scalar-microkernel-c",
         "self_check_route": "--tcrv-export-rvv-scalar-i32-vadd-dispatch-self-check-c",
         "default_input": DEFAULT_INPUT,
+        "i32m2_default_input": Path(
+            "test/Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-i32m2-generic-route.mlir"
+        ),
         "default_plan_and_export_input": Path(
             "test/Target/TargetArtifactBundleExport/plan-linalg-i32-vadd-and-export-target-artifact-bundle.mlir"
+        ),
+        "i32m2_default_plan_and_export_input": Path(
+            "test/Target/TargetArtifactBundleExport/plan-linalg-i32m2-vadd-and-export-target-artifact-bundle.mlir"
         ),
     },
     "i32-vsub": {

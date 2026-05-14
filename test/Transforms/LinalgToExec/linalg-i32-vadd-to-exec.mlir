@@ -243,5 +243,4 @@ module {
 // STALE-CONFIG: selected RVV variant @rvv_first_slice
 // STALE-CONFIG-SAME: selected vector-shape vector suffix must be 'i32m1'
 
-// STALE-AVL: route id 'tcrv-export-rvv-microkernel-c'
-// STALE-AVL-SAME: selected_plan_metadata 'tcrv_rvv.runtime_avl_role' must use value 'runtime-element-count'
+// STALE-AVL: selected_plan_metadata 'tcrv_rvv.runtime_avl_role' must use value 'runtime-element-count'

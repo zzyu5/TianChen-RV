@@ -401,6 +401,22 @@ validateRVVProbeCapabilityFacts(const RVVProbeCapabilityFacts &facts) {
       normalizeFactString(facts.firstSliceMaskPolicy) != "agnostic")
     errors.push_back("first-slice mask policy must be agnostic");
 
+  if (facts.i32M2SEWBits != 32)
+    errors.push_back("i32m2 SEW bits must be 32");
+  validateFactString("i32m2 LMUL", facts.i32M2LMUL, errors, true);
+  if (!facts.i32M2LMUL.empty() && normalizeFactString(facts.i32M2LMUL) != "m2")
+    errors.push_back("i32m2 LMUL must be m2");
+  validateFactString("i32m2 tail policy", facts.i32M2TailPolicy, errors,
+                     true);
+  if (!facts.i32M2TailPolicy.empty() &&
+      normalizeFactString(facts.i32M2TailPolicy) != "agnostic")
+    errors.push_back("i32m2 tail policy must be agnostic");
+  validateFactString("i32m2 mask policy", facts.i32M2MaskPolicy, errors,
+                     true);
+  if (!facts.i32M2MaskPolicy.empty() &&
+      normalizeFactString(facts.i32M2MaskPolicy) != "agnostic")
+    errors.push_back("i32m2 mask policy must be agnostic");
+
   if (facts.i64M1SEWBits != 64)
     errors.push_back("i64m1 SEW bits must be 64");
   validateFactString("i64m1 LMUL", facts.i64M1LMUL, errors, true);
@@ -510,6 +526,26 @@ buildRVVTargetCapabilitiesFromProbeFacts(
           capabilities, getRVVI32M1MaskAgnosticCapabilitySymbol(),
           getRVVI32M1MaskAgnosticCapabilityID(), "isa-vector-config",
           {{"mask_policy", normalizeFactString(facts.firstSliceMaskPolicy)}}))
+    return std::move(error);
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVI32M2SEW32CapabilitySymbol(),
+          getRVVI32M2SEW32CapabilityID(), "isa-vector-config",
+          {{"sew_bits", std::to_string(facts.i32M2SEWBits)}}))
+    return std::move(error);
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVI32M2LMULM2CapabilitySymbol(),
+          getRVVI32M2LMULM2CapabilityID(), "isa-vector-config",
+          {{"lmul", normalizeFactString(facts.i32M2LMUL)}}))
+    return std::move(error);
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVI32M2TailAgnosticCapabilitySymbol(),
+          getRVVI32M2TailAgnosticCapabilityID(), "isa-vector-config",
+          {{"tail_policy", normalizeFactString(facts.i32M2TailPolicy)}}))
+    return std::move(error);
+  if (llvm::Error error = addAvailableCapability(
+          capabilities, getRVVI32M2MaskAgnosticCapabilitySymbol(),
+          getRVVI32M2MaskAgnosticCapabilityID(), "isa-vector-config",
+          {{"mask_policy", normalizeFactString(facts.i32M2MaskPolicy)}}))
     return std::move(error);
   if (llvm::Error error = addAvailableCapability(
           capabilities, getRVVI64M1SEW64CapabilitySymbol(),

@@ -20,6 +20,10 @@ struct RVVProbeCapabilityFacts {
   std::string firstSliceLMUL = "m1";
   std::string firstSliceTailPolicy = "agnostic";
   std::string firstSliceMaskPolicy = "agnostic";
+  std::uint64_t i32M2SEWBits = 32;
+  std::string i32M2LMUL = "m2";
+  std::string i32M2TailPolicy = "agnostic";
+  std::string i32M2MaskPolicy = "agnostic";
   std::uint64_t i64M1SEWBits = 64;
   std::string i64M1LMUL = "m1";
   std::string i64M1TailPolicy = "agnostic";

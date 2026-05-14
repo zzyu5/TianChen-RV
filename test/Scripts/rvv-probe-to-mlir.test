@@ -39,6 +39,15 @@
 # MLIR: tail_policy = "agnostic"
 # MLIR: tcrv.exec.capability @rvv_i32_m1_mask_agnostic
 # MLIR: mask_policy = "agnostic"
+# MLIR: tcrv.exec.capability @rvv_i32_m2_sew32
+# MLIR: id = "rvv.i32_m2.sew32"
+# MLIR: sew_bits = 32 : i64
+# MLIR: tcrv.exec.capability @rvv_i32_m2_lmul_m2
+# MLIR: lmul = "m2"
+# MLIR: tcrv.exec.capability @rvv_i32_m2_tail_agnostic
+# MLIR: tail_policy = "agnostic"
+# MLIR: tcrv.exec.capability @rvv_i32_m2_mask_agnostic
+# MLIR: mask_policy = "agnostic"
 # MLIR: tcrv.exec.capability @rvv_i64_m1_sew64
 # MLIR: id = "rvv.i64_m1.sew64"
 # MLIR: sew_bits = 64 : i64
@@ -66,6 +75,8 @@
 # I64-REPLAY: lmul = "m1"
 # I64-REPLAY-LABEL: tcrv.exec.target @rvv_probe_i64_replay_profile
 # I64-REPLAY: capability_providers = [@rvv, @rvv_hart_count
+# I64-REPLAY-SAME: @rvv_i32_m2_sew32
+# I64-REPLAY-SAME: @rvv_i32_m2_lmul_m2
 # I64-REPLAY-SAME: @rvv_i64_m1_sew64
 # I64-REPLAY-SAME: @rvv_i64_m1_lmul_m1
 # I64-REPLAY-SAME: @rvv_i64_m1_tail_agnostic
@@ -100,6 +111,14 @@
 # PIPE: tcrv.exec.capability @rvv_i32_m1_tail_agnostic
 # PIPE-SAME: tail_policy = "agnostic"
 # PIPE: tcrv.exec.capability @rvv_i32_m1_mask_agnostic
+# PIPE-SAME: mask_policy = "agnostic"
+# PIPE: tcrv.exec.capability @rvv_i32_m2_sew32
+# PIPE-SAME: sew_bits = 32 : i64
+# PIPE: tcrv.exec.capability @rvv_i32_m2_lmul_m2
+# PIPE-SAME: lmul = "m2"
+# PIPE: tcrv.exec.capability @rvv_i32_m2_tail_agnostic
+# PIPE-SAME: tail_policy = "agnostic"
+# PIPE: tcrv.exec.capability @rvv_i32_m2_mask_agnostic
 # PIPE-SAME: mask_policy = "agnostic"
 # PIPE: tcrv.exec.capability @rvv_probe_compile_run
 # PIPE-SAME: selected_march = "rv64gcv"

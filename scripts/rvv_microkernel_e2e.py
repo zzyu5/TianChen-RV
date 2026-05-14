@@ -51,6 +51,9 @@ ARITHMETIC_FAMILY_SPECS: dict[str, dict[str, str | Path]] = {
             "test/Transforms/LinalgToExec/linalg-i32-vadd-to-exec.mlir"
         ),
         "default_vector_shape": "i32m1",
+        "i32m2_default_input": Path(
+            "test/Target/RVVMicrokernel/rvv-microkernel-i32m2-family-add.mlir"
+        ),
         "selected_variant": "rvv_first_slice",
         "microkernel_op_name": "tcrv_rvv.i32_vadd_microkernel",
         "arithmetic_op_name": "tcrv_rvv.i32_add",

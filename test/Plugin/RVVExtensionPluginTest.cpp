@@ -562,7 +562,7 @@ int runRVVCapabilityProfileTest(mlir::MLIRContext &context) {
                 llvm::toString(capabilitiesOrError.takeError()));
 
   TargetCapabilitySet capabilities = std::move(*capabilitiesOrError);
-  if (int result = expect(capabilities.size() == 17,
+  if (int result = expect(capabilities.size() == 21,
                           "RVV probe facts produce deterministic capabilities"))
     return result;
   if (int result = expect(capabilities.isCapabilityAvailableByID("rvv"),
@@ -639,6 +639,42 @@ int runRVVCapabilityProfileTest(mlir::MLIRContext &context) {
                      maskAgnostic->getKind() == "isa-vector-config" &&
                      maskAgnostic->getProperty("mask_policy") == "agnostic",
                  "RVV profile preserves first-slice mask agnostic policy "
+                 "fact"))
+    return result;
+
+  const CapabilityDescriptor *i32M2SEW32 = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVI32M2SEW32CapabilityID());
+  if (int result =
+          expect(i32M2SEW32 && i32M2SEW32->getKind() == "isa-vector-config" &&
+                     i32M2SEW32->getProperty("sew_bits") == "32",
+                 "RVV profile preserves finite i32m2 SEW=32 config fact"))
+    return result;
+  const CapabilityDescriptor *i32M2LMULM2 = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVI32M2LMULM2CapabilityID());
+  if (int result =
+          expect(i32M2LMULM2 &&
+                     i32M2LMULM2->getKind() == "isa-vector-config" &&
+                     i32M2LMULM2->getProperty("lmul") == "m2",
+                 "RVV profile preserves finite i32m2 LMUL=m2 config fact"))
+    return result;
+  const CapabilityDescriptor *i32M2TailAgnostic = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVI32M2TailAgnosticCapabilityID());
+  if (int result =
+          expect(i32M2TailAgnostic &&
+                     i32M2TailAgnostic->getKind() == "isa-vector-config" &&
+                     i32M2TailAgnostic->getProperty("tail_policy") ==
+                         "agnostic",
+                 "RVV profile preserves finite i32m2 tail agnostic policy "
+                 "fact"))
+    return result;
+  const CapabilityDescriptor *i32M2MaskAgnostic = capabilities.lookupByID(
+      tianchenrv::plugin::rvv::getRVVI32M2MaskAgnosticCapabilityID());
+  if (int result =
+          expect(i32M2MaskAgnostic &&
+                     i32M2MaskAgnostic->getKind() == "isa-vector-config" &&
+                     i32M2MaskAgnostic->getProperty("mask_policy") ==
+                         "agnostic",
+                 "RVV profile preserves finite i32m2 mask agnostic policy "
                  "fact"))
     return result;
 
@@ -728,20 +764,32 @@ int runRVVCapabilityProfileTest(mlir::MLIRContext &context) {
                              getRVVI32M1MaskAgnosticCapabilitySymbol() &&
                      orderedCapabilities[8].getSymbolName() ==
                          tianchenrv::plugin::rvv::
-                             getRVVI64M1SEW64CapabilitySymbol() &&
+                             getRVVI32M2SEW32CapabilitySymbol() &&
                      orderedCapabilities[9].getSymbolName() ==
                          tianchenrv::plugin::rvv::
-                             getRVVI64M1LMULM1CapabilitySymbol() &&
+                             getRVVI32M2LMULM2CapabilitySymbol() &&
                      orderedCapabilities[10].getSymbolName() ==
                          tianchenrv::plugin::rvv::
-                             getRVVI64M1TailAgnosticCapabilitySymbol() &&
+                             getRVVI32M2TailAgnosticCapabilitySymbol() &&
                      orderedCapabilities[11].getSymbolName() ==
                          tianchenrv::plugin::rvv::
-                             getRVVI64M1MaskAgnosticCapabilitySymbol() &&
+                             getRVVI32M2MaskAgnosticCapabilitySymbol() &&
                      orderedCapabilities[12].getSymbolName() ==
                          tianchenrv::plugin::rvv::
-                             getRVVClangToolchainCapabilitySymbol() &&
+                             getRVVI64M1SEW64CapabilitySymbol() &&
                      orderedCapabilities[13].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVI64M1LMULM1CapabilitySymbol() &&
+                     orderedCapabilities[14].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVI64M1TailAgnosticCapabilitySymbol() &&
+                     orderedCapabilities[15].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVI64M1MaskAgnosticCapabilitySymbol() &&
+                     orderedCapabilities[16].getSymbolName() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVClangToolchainCapabilitySymbol() &&
+                     orderedCapabilities[17].getSymbolName() ==
                          tianchenrv::plugin::rvv::
                              getRVVCMakeToolchainCapabilitySymbol(),
                  "RVV profile capability ordering is deterministic"))
@@ -827,6 +875,43 @@ module {
     return result;
   if (int result = expectProposalStringAttr(
           proposals[0], "tcrv_rvv.selected_vector_type", "vint32m1_t"))
+    return result;
+
+  TargetCapabilitySet i32M2SelectedCapabilities = capabilities;
+  i32M2SelectedCapabilities.addCapability(CapabilityDescriptor(
+      "rvv_i32_binary_selected_shape",
+      "rvv.i32_binary.selected_vector_shape", "isa-vector-config", "available",
+      tianchenrv::support::CapabilityAvailability::Available,
+      {{"shape", "i32m2"}}));
+  VariantProposalRequest i32M2Request =
+      makeRequest(highLevelOp.getOperation(), kernel, i32M2SelectedCapabilities);
+  llvm::SmallVector<VariantProposal, 1> i32M2Proposals;
+  if (int result = expectSuccess(
+          registry.collectVariantProposals(i32M2Request, i32M2Proposals),
+          "profile-derived finite i32m2 facts feed explicit i32m2 vadd proposal"))
+    return result;
+  if (int result =
+          expect(i32M2Proposals.size() == 1,
+                 "profile-derived explicit i32m2 selector proposes vadd"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          i32M2Proposals[0], "tcrv_rvv.selected_vector_shape", "i32m2"))
+    return result;
+  if (int result = expectProposalStringAttr(
+          i32M2Proposals[0], "tcrv_rvv.selected_vector_lmul", "m2"))
+    return result;
+  if (int result = expect(
+          i32M2Proposals[0].getRequiredCapabilityIDs().size() == 5 &&
+              i32M2Proposals[0].getRequiredCapabilityIDs()[1] ==
+                  "rvv.i32_m2.sew32" &&
+              i32M2Proposals[0].getRequiredCapabilityIDs()[2] ==
+                  "rvv.i32_m2.lmul_m2" &&
+              i32M2Proposals[0].getRequiredCapabilityIDs()[3] ==
+                  "rvv.i32_m2.tail_policy.agnostic" &&
+              i32M2Proposals[0].getRequiredCapabilityIDs()[4] ==
+                  "rvv.i32_m2.mask_policy.agnostic",
+          "profile-derived explicit i32m2 vadd proposal requires m2 config "
+          "capability ids"))
     return result;
 
   mlir::OpBuilder builder(&context);
@@ -1100,6 +1185,13 @@ int runRVVCapabilityProfileRejectionTest() {
   if (int result = expectExpectedErrorContains(
           plugin.buildTargetCapabilitiesFromProbeFacts(facts),
           {"i64m1 SEW", "64"}))
+    return result;
+
+  facts = makeSuccessfulProbeFacts();
+  facts.i32M2LMUL = "m1";
+  if (int result = expectExpectedErrorContains(
+          plugin.buildTargetCapabilitiesFromProbeFacts(facts),
+          {"i32m2 LMUL", "m2"}))
     return result;
 
   facts = makeSuccessfulProbeFacts();

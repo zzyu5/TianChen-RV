@@ -45,6 +45,74 @@ Final session commit recorded in git history for this round.
 
 - None - task complete
 
+
+## Session 66: RVV LMUL m2 selected-config artifact closure
+
+**Date**: 2026-05-14
+**Task**: RVV LMUL m2 selected-config artifact closure
+**Branch**: `main`
+
+### Summary
+
+Carried exactly one non-default LMUL selected-config slice, i32m2 vadd,
+through the plugin-owned selected config profile, RVV materialization/export
+fixtures, RuntimeABI/RVVScalarDispatch e2e mappings, local artifact generation,
+and focused `ssh rvv` compile/link/run evidence.
+
+### Main Changes
+
+- Added finite i32m2 SEW/LMUL/tail/mask profile facts to
+  `RVVProbeCapabilityFacts`, C++ probe-fact validation, and deterministic
+  `TargetCapabilitySet` construction.
+- Extended `rvv_probe_to_mlir.py` replay so sanitized successful RVV probe
+  artifacts emit i32m2 finite config facts without making them runtime
+  AVL/VL authority.
+- Added i32m2 vadd direct RVVMicrokernel, source-frontdoor artifact,
+  RVVScalarDispatch, and target-artifact-bundle fixtures.
+- Added e2e default fixture mappings for i32-vadd + i32m2 in the direct
+  microkernel and RVVScalarDispatch runners.
+- Kept default i32 vadd/vsub/vmul m1 behavior selected when no explicit
+  i32m2 shape selector is present.
+
+### Testing
+
+- [OK] Trellis context validation before finish.
+- [OK] Focused build for support, target, RVV/scalar target libraries,
+  transforms, `tcrv-opt`, `tcrv-translate`, RuntimeABI callable-plan test,
+  target artifact export test, and RVV plugin test.
+- [OK] `tianchenrv-rvv-extension-plugin-test`.
+- [OK] `tianchenrv-runtime-abi-callable-plan-test`.
+- [OK] `tianchenrv-target-artifact-export-test`.
+- [OK] `rvv_probe_to_mlir.py --self-test`.
+- [OK] `rvv_microkernel_e2e.py --self-test`.
+- [OK] `rvv_scalar_dispatch_e2e.py --self-test`.
+- [OK] Focused lit filter: 17 selected tests passed, including default
+  i32 vadd/vsub/vmul regressions and new i32m2 vadd fixtures.
+- [OK] Local dry-run generated i32m2 vadd direct microkernel artifacts:
+  `artifacts/tmp/rvv_microkernel_e2e/codex-rvv-i32m2-vadd-micro-dry`.
+- [OK] Local dry-run generated i32m2 vadd dispatch bundle artifacts:
+  `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/codex-rvv-i32m2-vadd-dispatch-bundle-dry`.
+- [OK] `ssh rvv` direct RVVMicrokernel i32m2 vadd run:
+  `codex-rvv-i32m2-vadd-micro-ssh`, source/object external ABI runs
+  succeeded with `tcrv_rvv_microkernel_external_abi_ok`.
+- [OK] `ssh rvv` RVVScalarDispatch i32m2 vadd bundle run:
+  `codex-rvv-i32m2-vadd-dispatch-bundle-ssh`, source/object bundle callers
+  succeeded with `tcrv_rvv_scalar_i32_vadd_bundle_external_abi_ok`.
+- [OK] Bounded ref-scan found no new production descriptor-to-C path,
+  descriptor-only runtime authority, explicit-only authority, or generic core
+  RVV semantic branch; descriptor hits are negative tests or pre-existing
+  artifact-capacity comments.
+- [OK] `git diff --check`.
+- [OK] `git diff --cached --check`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
 ## Session 64: RVV generated artifact hardware invocation closure
 
 **Date**: 2026-05-14

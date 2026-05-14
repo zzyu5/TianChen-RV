@@ -193,11 +193,19 @@ def validated_capability_facts(artifact: dict[str, Any]) -> dict[str, Any]:
     first_slice_mask_policy = optional_str(
         capability_facts, "first_slice_mask_policy"
     )
+    i32_m2_sew_bits = optional_int(capability_facts, "i32_m2_sew_bits")
+    i32_m2_lmul = optional_str(capability_facts, "i32_m2_lmul")
+    i32_m2_tail_policy = optional_str(capability_facts, "i32_m2_tail_policy")
+    i32_m2_mask_policy = optional_str(capability_facts, "i32_m2_mask_policy")
     if compile_run_succeeded:
         first_slice_sew_bits = first_slice_sew_bits or 32
         first_slice_lmul = first_slice_lmul or "m1"
         first_slice_tail_policy = first_slice_tail_policy or "agnostic"
         first_slice_mask_policy = first_slice_mask_policy or "agnostic"
+        i32_m2_sew_bits = i32_m2_sew_bits or 32
+        i32_m2_lmul = i32_m2_lmul or "m2"
+        i32_m2_tail_policy = i32_m2_tail_policy or "agnostic"
+        i32_m2_mask_policy = i32_m2_mask_policy or "agnostic"
 
     facts = {
         "architecture": optional_str(capability_facts, "architecture"),
@@ -208,6 +216,10 @@ def validated_capability_facts(artifact: dict[str, Any]) -> dict[str, Any]:
         "first_slice_lmul": first_slice_lmul,
         "first_slice_tail_policy": first_slice_tail_policy,
         "first_slice_mask_policy": first_slice_mask_policy,
+        "i32_m2_sew_bits": i32_m2_sew_bits,
+        "i32_m2_lmul": i32_m2_lmul,
+        "i32_m2_tail_policy": i32_m2_tail_policy,
+        "i32_m2_mask_policy": i32_m2_mask_policy,
         "i64_m1_sew_bits": optional_int(capability_facts, "i64_m1_sew_bits"),
         "i64_m1_lmul": optional_str(capability_facts, "i64_m1_lmul"),
         "i64_m1_tail_policy": optional_str(
@@ -415,6 +427,78 @@ def emit_replay_mlir(
             ],
             provider_symbols if emit_target_profile else None,
         )
+    if facts["i32_m2_sew_bits"]:
+        append_capability(
+            lines,
+            "rvv_i32_m2_sew32",
+            [
+                ("id", "rvv.i32_m2.sew32"),
+                ("kind", "isa-vector-config"),
+                (
+                    "status",
+                    status_from_bool(
+                        facts["minimal_rvv_compile_run_succeeded"]
+                        and facts["i32_m2_sew_bits"] == 32
+                    ),
+                ),
+                ("sew_bits", facts["i32_m2_sew_bits"]),
+            ],
+            provider_symbols if emit_target_profile else None,
+        )
+    if facts["i32_m2_lmul"]:
+        append_capability(
+            lines,
+            "rvv_i32_m2_lmul_m2",
+            [
+                ("id", "rvv.i32_m2.lmul_m2"),
+                ("kind", "isa-vector-config"),
+                (
+                    "status",
+                    status_from_bool(
+                        facts["minimal_rvv_compile_run_succeeded"]
+                        and facts["i32_m2_lmul"] == "m2"
+                    ),
+                ),
+                ("lmul", facts["i32_m2_lmul"]),
+            ],
+            provider_symbols if emit_target_profile else None,
+        )
+    if facts["i32_m2_tail_policy"]:
+        append_capability(
+            lines,
+            "rvv_i32_m2_tail_agnostic",
+            [
+                ("id", "rvv.i32_m2.tail_policy.agnostic"),
+                ("kind", "isa-vector-config"),
+                (
+                    "status",
+                    status_from_bool(
+                        facts["minimal_rvv_compile_run_succeeded"]
+                        and facts["i32_m2_tail_policy"] == "agnostic"
+                    ),
+                ),
+                ("tail_policy", facts["i32_m2_tail_policy"]),
+            ],
+            provider_symbols if emit_target_profile else None,
+        )
+    if facts["i32_m2_mask_policy"]:
+        append_capability(
+            lines,
+            "rvv_i32_m2_mask_agnostic",
+            [
+                ("id", "rvv.i32_m2.mask_policy.agnostic"),
+                ("kind", "isa-vector-config"),
+                (
+                    "status",
+                    status_from_bool(
+                        facts["minimal_rvv_compile_run_succeeded"]
+                        and facts["i32_m2_mask_policy"] == "agnostic"
+                    ),
+                ),
+                ("mask_policy", facts["i32_m2_mask_policy"]),
+            ],
+            provider_symbols if emit_target_profile else None,
+        )
     if facts["i64_m1_sew_bits"]:
         append_capability(
             lines,
@@ -600,6 +684,10 @@ def make_artifact(**capability_overrides: Any) -> dict[str, Any]:
         "first_slice_lmul": "m1",
         "first_slice_tail_policy": "agnostic",
         "first_slice_mask_policy": "agnostic",
+        "i32_m2_sew_bits": 32,
+        "i32_m2_lmul": "m2",
+        "i32_m2_tail_policy": "agnostic",
+        "i32_m2_mask_policy": "agnostic",
         "i64_m1_sew_bits": 64,
         "i64_m1_lmul": "m1",
         "i64_m1_tail_policy": "agnostic",
@@ -681,6 +769,18 @@ def run_self_test() -> None:
             and 'tcrv.exec.capability @rvv_i32_m1_mask_agnostic' in mlir
             and 'mask_policy = "agnostic"' in mlir,
             "RVV first-slice config/policy capabilities were not emitted",
+        )
+        assert_self_test(
+            'tcrv.exec.capability @rvv_i32_m2_sew32' in mlir
+            and 'id = "rvv.i32_m2.sew32"' in mlir
+            and "sew_bits = 32 : i64" in mlir
+            and 'tcrv.exec.capability @rvv_i32_m2_lmul_m2' in mlir
+            and 'lmul = "m2"' in mlir
+            and 'tcrv.exec.capability @rvv_i32_m2_tail_agnostic' in mlir
+            and 'tail_policy = "agnostic"' in mlir
+            and 'tcrv.exec.capability @rvv_i32_m2_mask_agnostic' in mlir
+            and 'mask_policy = "agnostic"' in mlir,
+            "RVV i32m2 config/policy capabilities were not emitted",
         )
         assert_self_test(
             'tcrv.exec.capability @rvv_i64_m1_sew64' in mlir
