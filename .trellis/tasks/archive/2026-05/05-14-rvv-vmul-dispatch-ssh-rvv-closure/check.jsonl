@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants for final validation."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "RVV runtime and ssh evidence claim discipline."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV finite binary family and selected config validation criteria."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check that family-specific behavior remains plugin/target-local."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI, artifact export, and callable invocation contract behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated EmitC/intrinsic route evidence for vmul and regressions."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected boundary, dispatch, and route coherence."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused validation command selection and evidence interpretation."}

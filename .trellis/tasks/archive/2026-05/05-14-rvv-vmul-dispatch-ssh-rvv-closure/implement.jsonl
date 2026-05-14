@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries and source-of-truth invariants for this RVV closure task."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "RVV hardware evidence rules and architecture non-goals."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin finite binary family, selected config, and source-frontdoor contracts."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin locality and interface ownership boundaries for family-specific behavior."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI, target artifact, and production emission ownership contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC/intrinsic route constraints for extension-owned lowering."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant generation, selected boundary, and dispatch/selection obligations."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/script/ssh evidence requirements and non-claiming test boundaries."}

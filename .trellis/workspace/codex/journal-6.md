@@ -362,3 +362,74 @@ RVVMicrokernel runner entry, then validated vmul locally and on `ssh rvv`.
 ### Next Steps
 
 - Create one coherent commit.
+
+
+## Session 64: RVV vmul dispatch ssh-rvv closure refresh
+
+**Date**: 2026-05-14
+**Task**: RVV vmul dispatch ssh-rvv closure refresh
+**Branch**: `main`
+
+### Summary
+
+Refreshed current-HEAD vmul generated artifact dispatch closure: no production source gap found, focused build/C++/lit/local bundle evidence passed, and ssh rvv direct microkernel plus RVVScalarDispatch vmul runs succeeded.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `05-14-rvv-vmul-dispatch-ssh-rvv-closure` from the Hermes brief.
+- Reconciled the brief against current HEAD and found no missing production
+  source owner: `RuntimeABICallablePlan`, `RVVScalarDispatch`,
+  `RVVMicrokernel`, `TargetArtifactExport`, the RVV binary family registry,
+  source-frontdoor pass/tool exposure, and the e2e runners already carry
+  `i32-vmul` through the shared vadd/vsub family contracts.
+- Refreshed local generated-artifact bundle evidence for direct
+  RVVMicrokernel and RVVScalarDispatch vmul, plus vadd/vsub regressions.
+- Refreshed focused `ssh rvv` evidence for generated vector/SCF i32-vmul:
+  both direct RVVMicrokernel and RVVScalarDispatch source-built and
+  bundle-object caller runs succeeded.
+- No C++/MLIR/TableGen/CMake/script production source changes were needed in
+  this round; tracked changes are Trellis task/archive and workspace journal
+  records for the current-HEAD validation closure.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] Trellis context validation before and after archive.
+- [OK] Focused build for support, target, RVV/scalar target libraries, RVV
+  plugin, transforms, `tcrv-opt`, `tcrv-translate`, RuntimeABI callable-plan
+  test, target artifact export test, and RVV plugin test.
+- [OK] `tianchenrv-runtime-abi-callable-plan-test`.
+- [OK] `tianchenrv-target-artifact-export-test`.
+- [OK] `tianchenrv-rvv-extension-plugin-test`.
+- [OK] `rvv_microkernel_e2e.py --self-test`.
+- [OK] `rvv_scalar_dispatch_e2e.py --self-test`.
+- [OK] Focused lit filter: 14 selected tests passed.
+- [OK] Local RVVMicrokernel bundle dry-runs for vector/SCF vadd, vsub, and
+  vmul; vmul source SHA256
+  `3120d67ddd9850fbee47d0aafae34c8e30ef5dab0537040bba36176687b4411d`.
+- [OK] Local RVVScalarDispatch bundle dry-runs for vector/SCF vadd, vsub, and
+  vmul; vmul source SHA256
+  `4422aadeda307d8d0251b81ce74e090021cdf6024181c315568407c0a4af5928`.
+- [OK] `ssh rvv` direct RVVMicrokernel generated vmul run:
+  `tcrv_rvv_i32_vmul_microkernel_external_abi_ok counts=7,16,23`.
+- [OK] `ssh rvv` RVVScalarDispatch generated vmul run:
+  `tcrv_rvv_scalar_i32_vmul_bundle_external_abi_ok runtime_counts=7,16 branches=scalar_and_rvv`.
+- [OK] Bounded ref-scan found no new tracked production descriptor-only,
+  descriptor-to-C, explicit-only, stale-vadd-default, or generic core RVV
+  semantic-branch authority.
+- [OK] `git diff --check`.
+- [OK] `git diff --cached --check`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
