@@ -2099,6 +2099,54 @@ llvm::Error validateDispatchSelectedConfigContractMetadata(
   return validateDispatchDescriptorElementCountMetadata(candidate, contract);
 }
 
+llvm::Expected<std::string>
+buildDispatchSelectedSourceIdentityContractSummary(const DispatchPair &pair) {
+  if (!pair.selectedConfig.isValid())
+    return makeDispatchError(
+        pair.rvv.kernel,
+        "RVV+scalar dispatch artifact export requires a validated selected "
+        "config contract before selected-source identity emission");
+
+  llvm::Expected<const SelectedPlanMetadataEntry *> sourceKind =
+      findUniqueSelectedPlanMetadataEntry(
+          pair.rvv,
+          tianchenrv::target::rvv::
+              getRVVSelectedBinarySourceKindMetadataName());
+  if (!sourceKind)
+    return sourceKind.takeError();
+
+  llvm::Expected<const SelectedPlanMetadataEntry *> microkernelOp =
+      findUniqueSelectedPlanMetadataEntry(
+          pair.rvv,
+          tianchenrv::target::rvv::
+              getRVVSelectedBinaryMicrokernelOpMetadataName());
+  if (!microkernelOp)
+    return microkernelOp.takeError();
+
+  if (llvm::Error error =
+          validateDispatchSelectedSourceIdentityMetadata(pair.rvv,
+                                                         pair.selectedConfig))
+    return std::move(error);
+
+  return pair.selectedConfig.formatDispatchContractSelectedSourceIdentityMetadataValue(
+      (*sourceKind)->value, (*microkernelOp)->value);
+}
+
+llvm::Error printDispatchSelectedSourceIdentityContract(
+    llvm::raw_ostream &os, const DispatchPair &pair) {
+  llvm::Expected<std::string> summary =
+      buildDispatchSelectedSourceIdentityContractSummary(pair);
+  if (!summary)
+    return summary.takeError();
+
+  os << "/* dispatch_selected_source_identity: " << *summary << " */\n";
+  os << "/* dispatch_selected_source_identity_authority: "
+        "RVVScalarDispatch.cpp consumed selected RVV source identity from "
+        "selected-plan metadata and the direct selected config before "
+        "dispatch source/header/object artifact export. */\n";
+  return llvm::Error::success();
+}
+
 llvm::Expected<const DispatchRVVVectorShapeConfig *>
 resolveDispatchPairSelectedVectorShape(const DispatchPair &pair) {
   KernelOp kernel = pair.rvv.kernel;
@@ -2924,6 +2972,8 @@ llvm::Error printDispatchHeader(const DispatchPair &pair,
   os << "/* dispatch_manifest_route_id: " << route->routeID << " */\n";
   os << "/* dispatch_manifest_artifact_kind: " << route->artifactKind
      << " */\n";
+  if (llvm::Error error = printDispatchSelectedSourceIdentityContract(os, pair))
+    return error;
   printDispatchSelectedEmitCBodyMappingSummary(os, pair);
   if (pair.selectedConfig.getFixedVectorSourceExtentContract()) {
     const support::FixedVectorSourceExtentContract &sourceExtent =
@@ -3145,6 +3195,8 @@ llvm::Error printDispatchSource(const DispatchPair &pair,
   os << "/* dispatch_manifest_route_id: " << route->routeID << " */\n";
   os << "/* dispatch_manifest_artifact_kind: " << route->artifactKind
      << " */\n";
+  if (llvm::Error error = printDispatchSelectedSourceIdentityContract(os, pair))
+    return error;
   printDispatchSelectedEmitCBodyMappingSummary(os, pair);
   printCandidateMetadata(os, "rvv", pair.rvv);
   printCandidateMetadata(os, "scalar", pair.scalar);

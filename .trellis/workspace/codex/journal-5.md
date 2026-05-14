@@ -1201,11 +1201,23 @@ Implemented op-owned RVV selected source identity on materialized microkernel op
 
 ### Git Commits
 
-(No commits - planning session)
+Final commit is created after this journal entry and includes the session
+record; see `git log -1`.
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] Focused build for transforms, RVV/Scalar target libraries, `tcrv-opt`,
+  `tcrv-translate`, and target/export smoke binaries.
+- [OK] `tianchenrv-target-artifact-export-test` and
+  `tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused lit for dynamic vector vadd/vsub TargetArtifactBundleExport,
+  `Target/RVVScalarDispatch`, `Target/RVVMicrokernel`, and
+  `Scripts/rvv-scalar-dispatch-bundle-e2e.test`.
+- [OK] `rvv_microkernel_e2e.py --self-test` and
+  `rvv_scalar_dispatch_e2e.py --self-test`.
+- [OK] Local vadd/vsub generated dispatch bundle dry-runs.
+- [OK] `ssh rvv` generated dispatch bundle invocation for dynamic vector
+  i32-vsub, `codex-cpp-source-id-vsub-ssh`.
 
 ### Status
 
@@ -1925,6 +1937,42 @@ No `.trellis/spec/` update was needed. The round did not add a new dialect op,
 schema field, command signature, plugin protocol, or architecture rule; it
 completed an existing selected-source identity contract at the generated
 artifact/dispatch bundle surface.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 61: RVV C++ artifact/runtime production invocation
+
+**Date**: 2026-05-14
+**Task**: RVV C++ artifact/runtime production invocation
+**Branch**: `main`
+
+### Summary
+
+Moved dispatch selected-source identity consumption into the C++ RVVScalarDispatch artifact route and verified vadd/vsub generated artifacts plus ssh rvv vsub evidence.
+
+### Main Changes
+
+- Changed `lib/Target/RVV/RVVScalarDispatch.cpp` so generated dispatch source/header/object routes require selected RVV source identity metadata and print `dispatch_selected_source_identity` from the validated selected config contract.
+- Updated dynamic vector i32-vadd and i32-vsub TargetArtifactBundleExport checks so generated dispatch source and header artifacts carry the dispatch-owned source identity contract, not just bundle-index metadata.
+- Validated focused C++ build, target/export smoke tests, RVVScalarDispatch/RVVMicrokernel/script lit, script self-tests, local vadd/vsub generated dispatch bundle dry-runs, and one `ssh rvv` i32-vsub generated dispatch bundle invocation.
+- Spec update judgment: no `.trellis/spec/` change required; this tightened an existing artifact/runtime contract without adding a dialect op, schema field, command signature, plugin protocol, or architecture rule.
+- Commit hash is created after this journal entry so the final report names the authoritative hash.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 

@@ -198,6 +198,7 @@ module @plan_vector_dynamic_i32_vsub_bundle_input {
 // SOURCE-SAME: runtime_element_count_constraint=source-runtime-extent
 // SOURCE: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vsub.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent */
 // SOURCE: /* dispatch_runtime_element_count_source: n is the source scf.for upper bound and runtime AVL; no fixed source-extent trap is emitted before dispatch */
+// SOURCE: /* dispatch_selected_source_identity: source_kind=frontend-lowering,dtype=i32,family=i32-vsub,operator=subtract,microkernel_op=tcrv_rvv.i32_vsub_microkernel,emitc_source_op=tcrv_rvv.i32_sub,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface */
 // SOURCE: /* dispatch_rvv_emitc_body_mapping: route_kind=extension-family-ops-to-emitc-call-opaque, source_authority=mlir-emitc-cpp-emitter, required_header_metadata=validated-selected-plan-entry, arithmetic_intrinsic_metadata=validated-selected-plan-entry, embedded_rvv_body=selected-rvv-source-artifact */
 // SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_route_kind, value=extension-family-ops-to-emitc-call-opaque, role=typed-rvv-emitc-route
 // SOURCE: /* rvv_selected_plan_metadata{{.*}}name=tcrv_rvv.emitc_source_authority, value=mlir-emitc-cpp-emitter, role=typed-rvv-emitc-route
@@ -214,6 +215,7 @@ module @plan_vector_dynamic_i32_vsub_bundle_input {
 // SOURCE: tcrv_scalar_i32_sub
 // SOURCE: void tcrv_dispatch_i32_vsub_frontend_vector_dynamic_bundle_i32_vsub
 
+// HEADER: /* dispatch_selected_source_identity: source_kind=frontend-lowering,dtype=i32,family=i32-vsub,operator=subtract,microkernel_op=tcrv_rvv.i32_vsub_microkernel,emitc_source_op=tcrv_rvv.i32_sub,emitc_lowerable_op_interface=TCRVEmitCLowerableOpInterface */
 // HEADER: /* dispatch_rvv_emitc_body_mapping: route_kind=extension-family-ops-to-emitc-call-opaque, source_authority=mlir-emitc-cpp-emitter, required_header_metadata=validated-selected-plan-entry, arithmetic_intrinsic_metadata=validated-selected-plan-entry, embedded_rvv_body=selected-rvv-source-artifact */
 // HEADER: /* source_frontend_runtime_avl_authority: source_kind=mlir-vector-scf-runtime-i32-vsub.v1, source_authority=source-scf-for-runtime-upper-bound, runtime_extent_arg=n, source_loop_step=16, source_vector_chunk_extent=16, active_lane_authority=mlir-vector-transfer-tail-active-lanes, source_tail_policy=runtime-n-bounded-transfer-tail-padding-and-store, runtime_element_count_constraint=source-runtime-extent */
 // HEADER: /* dispatch_runtime_element_count_source: n is the source scf.for upper bound and runtime AVL; no fixed source-extent trap is emitted before dispatch */

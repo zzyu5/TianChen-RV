@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-cpp-artifact-runtime-production-invocation/prd.md", "reason": "Check implementation against current task acceptance criteria"}
+{"file": ".trellis/spec/index.md", "reason": "Check global TianChen-RV invariants"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check descriptor boundary and ssh rvv claim discipline"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC route and generated interface provenance"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check artifact/bundle/runtime ABI contract compliance"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused MLIR, artifact, and evidence coverage"}
