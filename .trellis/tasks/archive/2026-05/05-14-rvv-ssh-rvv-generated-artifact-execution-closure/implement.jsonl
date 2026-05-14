@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV stack and architecture invariants"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "RVV hardware evidence boundary and non-goals"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI envelope and compute-boundary contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV family, selected config, source identity, and runtime role contract"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin locality and shared-interface boundary"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "bounded source-frontdoor vector/linalg route into execution planning"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "RuntimeABI, target artifact export, and generated invocation handoff contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC route and descriptor-quarantine rules"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/C++/runtime evidence policy"}
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-generated-artifact-hardware-invocation-closure/prd.md", "reason": "adjacent generated artifact invocation evidence closure context"}
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-runtimeabi-generated-artifact-invocation/prd.md", "reason": "RuntimeABI invocation contract implementation context"}

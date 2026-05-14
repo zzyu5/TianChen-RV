@@ -45,8 +45,6 @@ Final session commit recorded in git history for this round.
 
 - None - task complete
 
----
-
 ## Session 64: RVV generated artifact hardware invocation closure
 
 **Date**: 2026-05-14
@@ -154,7 +152,6 @@ contract before dispatch source/header/object export can succeed.
 
 - None - task complete
 
-
 ## Session 63: RVV RuntimeABI generated artifact invocation closure
 
 **Date**: 2026-05-14
@@ -184,3 +181,59 @@ Added support-layer generated RuntimeABI invocation contracts, wired RVVMicroker
 ### Next Steps
 
 - None - task complete
+
+---
+
+## Session 65: RVV ssh-rvv generated artifact execution closure
+
+**Date**: 2026-05-14
+**Task**: RVV ssh-rvv generated artifact execution closure
+**Branch**: `main`
+
+### Summary
+
+Revalidated current HEAD `31f9955` for the generated source-frontdoor i32
+vadd/vsub dispatch artifact path. No compiler/source change was required:
+`RuntimeABICallablePlan`, `RVVMicrokernel`, and `RVVScalarDispatch` already
+own/consume the generated invocation contract. This round refreshed local
+generated bundle evidence for vadd/vsub and closed a fresh `ssh rvv` clang
+compile/link/run leg for generated vsub bundle artifacts.
+
+### Main Changes
+
+- Created Trellis task
+  `.trellis/tasks/05-14-rvv-ssh-rvv-generated-artifact-execution-closure`.
+- Wrote PRD/evidence notes for the current-head route and corrected the stale
+  brief assumption that no ssh evidence existed at this head.
+- No production C++, Python runner, lit test, spec, or compiler source files
+  were changed.
+
+### Testing
+
+- [OK] Focused build for support, target, RVV/scalar target, `tcrv-opt`,
+  `tcrv-translate`, and focused test binaries.
+- [OK] `tianchenrv-runtime-abi-callable-plan-test`.
+- [OK] `tianchenrv-target-artifact-export-test`.
+- [OK] `tianchenrv-rvv-extension-plugin-test`.
+- [OK] `rvv_scalar_dispatch_e2e.py --self-test`.
+- [OK] `rvv_microkernel_e2e.py --self-test`.
+- [OK] Focused lit filter for script bundle e2e, RuntimeABI callable plan,
+  RVVScalarDispatch, RVVMicrokernel, and vector dynamic vadd/vsub bundle
+  export: `49/49` selected tests passed.
+- [OK] Local generated source-frontdoor bundle dry-runs:
+  `codex-sshclosure-vadd-local` and `codex-sshclosure-vsub-local`.
+- [OK] `ssh rvv` generated source-frontdoor i32-vsub bundle invocation:
+  `codex-sshclosure-vsub-ssh`, `ssh_evidence_verified=true`.
+  Remote source-built and bundle-object caller runs both printed
+  `tcrv_rvv_scalar_i32_vsub_bundle_external_abi_ok runtime_counts=7,16 branches=scalar_and_rvv`.
+- [OK] Bounded source diff/ref-scan confirmed no production/source diff under
+  `include`, `lib`, `scripts`, `test`, `tools`, `cmake`, or `CMakeLists.txt`.
+- [OK] `git diff --check` and Trellis validation.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Archive task and commit the evidence closure.

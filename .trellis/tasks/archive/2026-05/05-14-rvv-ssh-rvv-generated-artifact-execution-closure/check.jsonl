@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused MLIR/FileCheck/script/runtime evidence expectations"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "ssh rvv evidence requirement and claim discipline"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "artifact route, RuntimeABI, and dispatch invocation contract checks"}
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-ssh-rvv-generated-artifact-execution-closure/prd.md", "reason": "task acceptance criteria and evidence plan"}
