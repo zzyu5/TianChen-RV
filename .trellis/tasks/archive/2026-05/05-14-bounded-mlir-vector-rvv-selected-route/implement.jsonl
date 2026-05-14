@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "global project invariants and spec layer routing"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "design boundary and RVV hardware evidence rules"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec execution envelope and no-compute-semantics contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin selected family/config/runtime metadata contract"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin interface and target-neutral routing boundaries"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "source frontend to exec boundary and selection pipeline contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "selected emission plan, artifact export, RuntimeABI, and vector source-tail authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "extension family ops to EmitC route contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/FileCheck, artifact, and RVV evidence requirements"}
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-op-family-runtime-abi-dispatch-parity/prd.md", "reason": "previous completed runtime ABI dispatch parity context"}
+{"file": ".trellis/tasks/archive/2026-05/05-14-rvv-runtime-abi-production-invocation/prd.md", "reason": "previous production RuntimeABI invocation context"}

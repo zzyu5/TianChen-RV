@@ -6,6 +6,7 @@
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vmul --run-id lit-rvv-microkernel-plan-bundle-vmul --overwrite | FileCheck %s --check-prefix=VMUL-PLAN-BUNDLE
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --lower-vector-i32-vadd-frontend --expect-selected-kernel=frontend_vector_dynamic_i32_vadd --runtime-count=7 --runtime-count=16 --runtime-count=23 --run-id lit-rvv-microkernel-plan-bundle-vector-dynamic-vadd --overwrite | FileCheck %s --check-prefix=VEC-VADD-BUNDLE
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --lower-vector-i32-vsub-frontend --expect-selected-kernel=frontend_vector_dynamic_i32_vsub --runtime-count=7 --runtime-count=16 --runtime-count=23 --run-id lit-rvv-microkernel-plan-bundle-vector-dynamic-vsub --overwrite | FileCheck %s --check-prefix=VEC-VSUB-BUNDLE
+# RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --arithmetic-family=i32-vsub --lower-vector-i32-vsub-frontend --expect-selected-kernel=frontend_vector_dynamic_i32_vsub --runtime-count=7 --runtime-count=16 --runtime-count=23 --run-id lit-rvv-microkernel-bundle-vector-dynamic-vsub-explicit-pass --overwrite | FileCheck %s --check-prefix=VEC-VSUB-EXPLICIT-BUNDLE
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i64-vmul --expect-selected-kernel=frontend_i64_vmul --run-id lit-rvv-microkernel-plan-bundle-linalg-i64-vmul --overwrite --input %S/../Transforms/LinalgToExec/linalg-i64-vmul-to-rvv-artifact.mlir | FileCheck %s --check-prefix=LINALG-I64-VMUL-BUNDLE
 # RUN: python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --vector-shape=i32m2 --expect-selected-kernel=frontend_i32_vsub --run-id lit-rvv-microkernel-plan-bundle-linalg-vsub-i32m2 --overwrite --input %S/../Transforms/LinalgToExec/linalg-i32-vsub-to-rvv-artifact.mlir | FileCheck %s --check-prefix=LINALG-VSUB-M2-BUNDLE
 # RUN: not python3 %S/../../scripts/rvv_microkernel_e2e.py --dry-run --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --arithmetic-family=i32-vsub --vector-shape=i32m2 --expect-selected-kernel=rvv_sub_kernel --run-id lit-rvv-microkernel-plan-bundle-linalg-vsub-i32m2-mismatch --overwrite --input %S/../Transforms/LinalgToExec/linalg-i32-vsub-to-rvv-artifact.mlir 2>&1 | FileCheck %s --check-prefix=SELECTED-KERNEL-MISMATCH
@@ -115,6 +116,23 @@
 # VEC-VSUB-BUNDLE-NOT: runtime_success
 # VEC-VSUB-BUNDLE-NOT: throughput
 # VEC-VSUB-BUNDLE-NOT: latency
+
+# VEC-VSUB-EXPLICIT-BUNDLE: "arithmetic_family": "i32-vsub"
+# VEC-VSUB-EXPLICIT-BUNDLE: "bundle_export_mode": "target-artifact-bundle"
+# VEC-VSUB-EXPLICIT-BUNDLE: "expected_selected_kernel": "frontend_vector_dynamic_i32_vsub"
+# VEC-VSUB-EXPLICIT-BUNDLE: "input_source": "vector-scf-frontend"
+# VEC-VSUB-EXPLICIT-BUNDLE: "planned_pipeline": "tcrv-lower-vector-rvv-i32-vsub-to-exec + tcrv-execution-planning-pipeline"
+# VEC-VSUB-EXPLICIT-BUNDLE: "runtime_element_counts": [
+# VEC-VSUB-EXPLICIT-BUNDLE-NEXT: 7,
+# VEC-VSUB-EXPLICIT-BUNDLE-NEXT: 16,
+# VEC-VSUB-EXPLICIT-BUNDLE-NEXT: 23
+# VEC-VSUB-EXPLICIT-BUNDLE: "selected_kernel": "frontend_vector_dynamic_i32_vsub"
+# VEC-VSUB-EXPLICIT-BUNDLE: "source_export_route": "tcrv-export-rvv-i32-vsub-microkernel-c"
+# VEC-VSUB-EXPLICIT-BUNDLE: "ssh_evidence": false
+# VEC-VSUB-EXPLICIT-BUNDLE: "status": "success"
+# VEC-VSUB-EXPLICIT-BUNDLE-NOT: runtime_success
+# VEC-VSUB-EXPLICIT-BUNDLE-NOT: throughput
+# VEC-VSUB-EXPLICIT-BUNDLE-NOT: latency
 
 # LINALG-I64-VMUL-BUNDLE: "arithmetic_family": "i64-vmul"
 # LINALG-I64-VMUL-BUNDLE: "artifact_dir": "artifacts/tmp/rvv_microkernel_bundle_e2e/lit-rvv-microkernel-plan-bundle-linalg-i64-vmul"

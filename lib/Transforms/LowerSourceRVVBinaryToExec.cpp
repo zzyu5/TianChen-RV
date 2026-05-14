@@ -35,6 +35,7 @@ namespace tianchenrv::transforms {
 #define GEN_PASS_DEF_LOWERLINALGI32VADDTOEXEC
 #define GEN_PASS_DEF_LOWERSOURCERVVBINARYTOEXEC
 #define GEN_PASS_DEF_LOWERVECTORRVVI32VADDTOEXEC
+#define GEN_PASS_DEF_LOWERVECTORRVVI32VSUBTOEXEC
 #include "TianChenRV/Transforms/Passes.h.inc"
 
 namespace {
@@ -78,6 +79,7 @@ constexpr llvm::StringLiteral kLegacySelectedLoweringDescriptorAttrName(
 
 enum class VectorFrontendAdapterMode {
   VAddOnly,
+  VSubOnly,
   ArithmeticFamily,
 };
 
@@ -968,6 +970,28 @@ mlir::LogicalResult crossCheckVectorI32VAddMarker(mlir::Operation *funcOp,
   return mlir::success();
 }
 
+mlir::LogicalResult crossCheckVectorI32VSubMarker(mlir::Operation *funcOp,
+                                                  llvm::StringRef marker) {
+  const target::rvv::RVVBinaryFamilyDescriptor *markerFamily =
+      target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering(marker);
+  if (!markerFamily || !markerFamily->frontendContract)
+    return funcOp->emitError()
+           << "TianChen-RV vector i32-vsub frontend expects '"
+           << kFrontendLoweringAttrName << "' to be 'i32-vsub'";
+
+  const target::rvv::RVVBinaryFamilyDescriptor &expected =
+      target::rvv::getI32VSubFamilyRegistrationRecord();
+  if (markerFamily->familyID != expected.familyID)
+    return funcOp->emitError()
+           << "TianChen-RV vector i32-vsub frontend supports only marker "
+              "'i32-vsub'; marker '"
+           << marker
+           << "' is not accepted because this pass is not a generic vector "
+              "backend";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult crossCheckVectorFrontendMarker(
     mlir::Operation *funcOp, llvm::StringRef marker,
     const InferredFrontendBinarySource &source) {
@@ -1332,6 +1356,10 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
       mlir::failed(
           crossCheckVectorI32VAddMarker(funcOp, frontendAttr.getValue())))
     return mlir::failure();
+  if (mode == VectorFrontendAdapterMode::VSubOnly &&
+      mlir::failed(
+          crossCheckVectorI32VSubMarker(funcOp, frontendAttr.getValue())))
+    return mlir::failure();
   if (mlir::failed(requireNoLegacyDescriptorMetadata(
           funcOp, nullptr, "vector frontend",
           "source vector/arith body and typed operands")))
@@ -1345,6 +1373,10 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
               "func.func body";
   mlir::Block &body = funcOp->getRegion(0).front();
   if (body.getNumArguments() == 3) {
+    if (mode == VectorFrontendAdapterMode::VSubOnly)
+      return funcOp->emitError()
+             << "TianChen-RV vector i32-vsub frontend expects the dynamic "
+                "three-buffer plus runtime %n: index SCF wrapper";
     if (mlir::failed(requireVectorI32VAddSourceWrapper(funcOp)))
       return mlir::failure();
     source.family = &target::rvv::getI32VAddFamilyRegistrationRecord();
@@ -1354,7 +1386,8 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
       return funcOp->emitError()
              << "TianChen-RV vector i32-vadd frontend registry entry is "
                 "missing its finite frontend contract";
-    if (mode == VectorFrontendAdapterMode::ArithmeticFamily &&
+    if ((mode == VectorFrontendAdapterMode::ArithmeticFamily ||
+         mode == VectorFrontendAdapterMode::VSubOnly) &&
         mlir::failed(crossCheckVectorFrontendMarker(
             funcOp, frontendAttr.getValue(), source)))
       return mlir::failure();
@@ -1364,7 +1397,8 @@ mlir::LogicalResult lowerOneMarkedVectorFunc(mlir::ModuleOp module,
     if (mlir::failed(requireDynamicVectorI32BinarySourceWrapper(
             funcOp, mode, source)))
       return mlir::failure();
-    if (mode == VectorFrontendAdapterMode::ArithmeticFamily &&
+    if ((mode == VectorFrontendAdapterMode::ArithmeticFamily ||
+         mode == VectorFrontendAdapterMode::VSubOnly) &&
         mlir::failed(crossCheckVectorFrontendMarker(
             funcOp, frontendAttr.getValue(), source)))
       return mlir::failure();
@@ -1468,6 +1502,16 @@ struct LowerVectorRVVI32VAddToExecPass
   }
 };
 
+struct LowerVectorRVVI32VSubToExecPass
+    : impl::LowerVectorRVVI32VSubToExecBase<
+          LowerVectorRVVI32VSubToExecPass> {
+  void runOnOperation() override {
+    if (mlir::failed(lowerMarkedFrontendVectorInModule(
+            getOperation(), VectorFrontendAdapterMode::VSubOnly)))
+      signalPassFailure();
+  }
+};
+
 struct LowerLinalgRVVBinaryToExecPass
     : impl::LowerLinalgRVVBinaryToExecBase<LowerLinalgRVVBinaryToExecPass> {
   void runOnOperation() override {
@@ -1500,6 +1544,10 @@ std::unique_ptr<mlir::Pass> createLowerSourceRVVBinaryToExecPass() {
 
 std::unique_ptr<mlir::Pass> createLowerVectorRVVI32VAddToExecPass() {
   return std::make_unique<LowerVectorRVVI32VAddToExecPass>();
+}
+
+std::unique_ptr<mlir::Pass> createLowerVectorRVVI32VSubToExecPass() {
+  return std::make_unique<LowerVectorRVVI32VSubToExecPass>();
 }
 
 std::unique_ptr<mlir::Pass> createLowerLinalgRVVBinaryToExecPass() {

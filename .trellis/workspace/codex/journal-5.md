@@ -1261,6 +1261,73 @@ printed `tcrv_rvv_microkernel_external_abi_ok counts=7,16,23`.
 [OK] Completed and archived; commit pending.
 
 
+## Session 63: Bounded MLIR vector to RVV selected route
+
+**Date**: 2026-05-14
+**Task**: Bounded MLIR vector to RVV selected route
+**Branch**: `main`
+
+### Summary
+
+Closed the explicit VectorToExec i32-vsub front-door gap on top of the
+existing generic source RVV binary owner. The new pass
+`--tcrv-lower-vector-rvv-i32-vsub-to-exec` reuses the same source-frontdoor
+lowering path, accepts only the bounded dynamic vector/SCF vsub route, and now
+fails closed when a vsub marker is paired with an add body.
+
+### Main Changes
+
+- Added the explicit vector i32-vsub pass in `Passes.td`, `Passes.h`,
+  `LowerSourceRVVBinaryToExec.cpp`, and `tcrv-opt`.
+- Added `VSubOnly` validation so explicit vsub rejects fixed vadd and
+  marker/body mismatch before materializing `tcrv.exec`.
+- Updated `rvv_microkernel_e2e.py` so `--lower-vector-i32-vsub-frontend` uses
+  the explicit pass and reports the explicit pipeline label.
+- Extended focused VectorToExec, bundle export, and e2e lit coverage.
+- Updated the lowering-runtime spec to include the explicit i32-vsub vector
+  source-tail authority surface.
+
+### Evidence
+
+- Direct explicit vector vsub bundle:
+  `artifacts/tmp/rvv_microkernel_bundle_e2e/codex-vector-vsub-explicit-ssh`.
+  Remote `ssh rvv` source-linked and bundle-object-linked runs printed
+  `tcrv_rvv_i32_vsub_microkernel_external_abi_ok counts=7,16,23`.
+- RVV+scalar dispatch vector vsub bundle:
+  `artifacts/tmp/tianchenrv-rvv-dispatch-bundle-e2e/codex-vector-vsub-dispatch-ssh`.
+  Remote `ssh rvv` source-linked and bundle-object-linked runs printed
+  `tcrv_rvv_scalar_i32_vsub_bundle_external_abi_ok runtime_counts=7,16 branches=scalar_and_rvv`.
+
+### Checks
+
+- `cmake --build build --target TianChenRVTransforms tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- `cmake --build build --target TianChenRVTransforms tcrv-opt tcrv-translate -j2`
+- `build/bin/tianchenrv-rvv-extension-plugin-test`
+- `build/bin/tianchenrv-target-artifact-export-test`
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- Focused lit from `build/test` for explicit vector vsub, invalid vector
+  source, vector vsub bundle export, and RVV microkernel bundle e2e; 5 passed.
+- Local explicit vector vsub dry-run bundle evidence with runtime counts
+  `7,16,23`.
+- `ssh rvv` direct explicit vector vsub bundle evidence.
+- `ssh rvv` RVV+scalar dispatch vector vsub bundle evidence.
+- Ref-scan for descriptor authority and generic core target-family branches.
+- `git diff --check`
+- Trellis validation for the active task.
+
+### Self-Repair
+
+The first focused lit run caught that vsub-only mode did not cross-check the
+dynamic body family after marker validation. A vsub marker paired with an
+`arith.addi` body could incorrectly lower as vadd. The fix extends
+marker/body cross-checking to `VSubOnly`, and the new invalid test locks this
+case.
+
+### Status
+
+[OK] Implementation and validation complete; archive and commit pending.
+
+
 ## Session 63: RVV generated artifact runtime ABI closure
 
 **Date**: 2026-05-14

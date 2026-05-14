@@ -4084,7 +4084,7 @@ def selected_planning_pipeline(args: argparse.Namespace) -> tuple[str, list[str]
         return (
             "tcrv_opt_vector_i32_vsub_frontend_execution_planning_pipeline",
             [
-                "--tcrv-lower-source-rvv-binary-to-exec",
+                "--tcrv-lower-vector-rvv-i32-vsub-to-exec",
                 "--tcrv-execution-planning-pipeline",
             ],
         )
@@ -4117,7 +4117,7 @@ def selected_planning_pipeline_label(args: argparse.Namespace) -> str:
         )
     if getattr(args, "lower_vector_i32_vsub_frontend", False):
         return (
-            "tcrv-lower-source-rvv-binary-to-exec + "
+            "tcrv-lower-vector-rvv-i32-vsub-to-exec + "
             "tcrv-execution-planning-pipeline"
         )
     return str(ACTIVE_VECTOR_SHAPE["planning_pipeline"])
