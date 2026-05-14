@@ -1207,3 +1207,55 @@ runtime behavior, correctness, and performance claims were not changed.
 ### Status
 
 [OK] Implementation checks passed; finish/archive and commit pending.
+
+
+## Session 61: RVV compiler-produced artifact e2e closure
+
+**Date**: 2026-05-14
+**Task**: RVV compiler-produced artifact e2e closure
+**Branch**: `main`
+
+### Summary
+
+Closed the dynamic vector i32-vadd compiler-produced artifact evidence round:
+the existing production route already reached generated RVV source/header/object
+artifacts through the plan-and-export bundle front door, and this session added
+focused lit coverage for the exact `--lower-vector-i32-vadd-frontend` route.
+The generated bundle was then compiled, linked, and run on `ssh rvv` through the
+external ABI caller with runtime counts `7,16,23`.
+
+### Main Changes
+
+- Added `test/Scripts/rvv-microkernel-bundle-e2e.test` coverage for
+  `rvv_microkernel_e2e.py --lower-vector-i32-vadd-frontend
+  --use-target-artifact-bundle --use-plan-and-export-bundle-front-door`.
+- Created and archived Trellis task
+  `05-14-rvv-compiler-produced-artifact-e2e-closure`.
+- No production C++ change was needed; current HEAD already consumed the
+  selected RVV config/runtime-length contracts and emitted source/header/object
+  artifacts for this migrated vadd slice.
+
+### Testing
+
+- `cmake --build build --target TianChenRVRVVDialect TianChenRVRVVPlugin TianChenRVRVVTarget TianChenRVScalarTarget tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-rvv-binary-planning-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- `./build/bin/tianchenrv-rvv-binary-planning-test`
+- `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- `python3 scripts/rvv_microkernel_e2e.py --self-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/TargetArtifactBundleExport/plan-vector-dynamic-i32-vadd-and-export-target-artifact-bundle.mlir`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/TargetArtifactBundleExport Target/RVVMicrokernel Target/RVVScalarDispatch Target/ArtifactExport Transforms/VectorToExec Transforms/LinalgToExec`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Scripts/rvv-microkernel-bundle-e2e.test`
+- `python3 scripts/rvv_microkernel_e2e.py --arithmetic-family i32-vadd --lower-vector-i32-vadd-frontend --use-target-artifact-bundle --use-plan-and-export-bundle-front-door --expect-selected-kernel frontend_vector_dynamic_i32_vadd --runtime-count 7 --runtime-count 16 --runtime-count 23 --run-id codex-current-ssh --overwrite --timeout 120 --connect-timeout 10`
+- `git diff --check`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-14-05-14-rvv-compiler-produced-artifact-e2e-closure`
+
+### Evidence
+
+`ssh rvv` succeeded on `riscv64` with clang `Ubuntu clang version 18.1.3
+(1ubuntu1)`. Both the source-built object path and generated bundle object path
+printed `tcrv_rvv_microkernel_external_abi_ok counts=7,16,23`.
+
+### Status
+
+[OK] Completed and archived; commit pending.
