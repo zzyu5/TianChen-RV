@@ -1,7 +1,6 @@
 add_mlir_library(TianChenRVRVVPlugin
   RVVCapabilityProfile.cpp
   RVVExtensionPlugin.cpp
-  RVVLoweringBoundary.cpp
 
   DEPENDS
   TianChenRVPassesIncGen

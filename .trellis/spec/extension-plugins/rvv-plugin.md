@@ -721,8 +721,7 @@ The canonical public `tcrv-opt` pass
 lowering-boundary metadata through the generic `ExtensionPluginRegistry`
 interface. RVV implements that plugin hook by creating
 `tcrv_rvv.lowering_boundary` for selected RVV-owned direct variants or dispatch
-cases. The older `--tcrv-materialize-rvv-lowering-boundary` entry remains only a
-compatibility wrapper around the same generic path.
+cases. There is no RVV-specific public wrapper pass for this route.
 
 Rules:
 

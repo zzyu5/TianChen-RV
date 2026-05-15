@@ -118,11 +118,12 @@ Use lit/FileCheck for:
   marker traversal, dispatch case/fallback ordering, and
   `--tcrv-disable-builtin-plugins` negative coverage for empty-registry plugin
   dialect behavior.
-- generic selected lowering-boundary pass routing, RVV lowering-boundary syntax,
-  scalar fallback lowering-boundary syntax, verifier diagnostics, selected
-  dispatch-case materialization, scalar fallback preservation, scalar-only
-  metadata-boundary behavior, missing selected-surface diagnostics, old RVV pass
-  compatibility, and unsupported RVV evidence wording.
+- generic selected lowering-boundary pass routing through
+  `--tcrv-materialize-selected-lowering-boundaries`, RVV lowering-boundary
+  syntax, scalar fallback lowering-boundary syntax, verifier diagnostics,
+  selected dispatch-case materialization, scalar fallback preservation,
+  scalar-only metadata-boundary behavior, missing selected-surface diagnostics,
+  and unsupported RVV evidence wording.
 - public `--tcrv-execution-planning-pipeline` coverage through `tcrv-opt`,
   including deterministic built-in RVV/scalar proposal order, selected
   dispatch/fallback materialization, selected lowering-boundary metadata,

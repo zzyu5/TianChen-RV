@@ -9,10 +9,6 @@ namespace tianchenrv {
 
 namespace plugin {
 class ExtensionPluginRegistry;
-
-namespace rvv {
-std::unique_ptr<::mlir::Pass> createMaterializeRVVLoweringBoundaryPass();
-} // namespace rvv
 } // namespace plugin
 
 namespace target {

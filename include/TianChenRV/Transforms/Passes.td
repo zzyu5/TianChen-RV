@@ -298,28 +298,4 @@ def CheckExecutionPlanCoherence
   ];
 }
 
-def MaterializeRVVLoweringBoundary
-    : Pass<"tcrv-materialize-rvv-lowering-boundary", "::mlir::ModuleOp"> {
-  let summary = "Materialize pre-executable RVV lowering-boundary metadata";
-  let description = [{
-    Compatibility wrapper for the canonical
-    `--tcrv-materialize-selected-lowering-boundaries` pass. It uses the same
-    generic selected-path traversal and ExtensionPluginRegistry
-    lowering-boundary interface; RVV-specific interpretation remains behind the
-    RVV plugin implementation. It does not lower to LLVM/RISC-V, emit RVV
-    intrinsics, create runtime ABI glue, generate objects, run hardware, prove
-    correctness, or claim performance.
-
-    Public tools should construct this pass with a populated
-    ExtensionPluginRegistry. The default constructor owns an empty registry and
-    is useful for negative registration tests.
-  }];
-  let constructor =
-      "::tianchenrv::plugin::rvv::createMaterializeRVVLoweringBoundaryPass()";
-  let dependentDialects = [
-    "::tianchenrv::tcrv::exec::TCRVExecDialect",
-    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
-  ];
-}
-
 #endif // TIANCHENRV_TRANSFORMS_PASSES_TD

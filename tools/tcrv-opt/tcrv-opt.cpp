@@ -1,6 +1,5 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Plugin/RVV/RVVLoweringBoundary.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Transforms/Passes.h"
@@ -73,10 +72,6 @@ void registerTianChenRVOptPasses(
   mlir::registerPass([&plugins, &targetExporters] {
     return tianchenrv::transforms::createCheckExecutionPlanCoherencePass(
         plugins, targetExporters);
-  });
-  mlir::registerPass([&plugins] {
-    return tianchenrv::plugin::rvv::
-        createMaterializeRVVLoweringBoundaryPass(plugins);
   });
   tianchenrv::transforms::registerExecutionPlanningPipeline(plugins,
                                                             targetExporters);

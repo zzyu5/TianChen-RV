@@ -1,5 +1,3 @@
-#include "TianChenRV/Plugin/RVV/RVVLoweringBoundary.h"
-
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/InitTianChenRVDialects.h"
@@ -958,87 +956,6 @@ module {
                 "malformed dispatch references fail before plugin");
 }
 
-int runRVVSpecificWrapperMatchesGenericPathTest() {
-  ExtensionPluginRegistry genericPlugins;
-  if (int result = registerBuiltins(genericPlugins))
-    return result;
-  ExtensionPluginRegistry wrapperPlugins;
-  if (int result = registerBuiltins(wrapperPlugins))
-    return result;
-
-  mlir::DialectRegistry registry;
-  registerDialects(genericPlugins, registry);
-  mlir::MLIRContext context(registry);
-  context.loadAllAvailableDialects();
-
-  constexpr llvm::StringLiteral source = R"mlir(
-module {
-  tcrv.exec.kernel @rvv_wrapper {
-    tcrv.exec.capability @rvv {
-      id = "rvv",
-      kind = "isa-vector",
-      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
-      sew_bits = 32 : i64,
-      lmul = "m1",
-      tail_policy = "agnostic",
-      mask_policy = "agnostic",
-      status = "available"
-    }
-    tcrv.exec.variant @rvv_first_slice attributes {
-      origin = "rvv-plugin",
-      requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.selected_vector_shape = "i32m1",
-      tcrv_rvv.selected_vector_sew = 32 : i64,
-      tcrv_rvv.selected_vector_lmul = "m1",
-      tcrv_rvv.selected_tail_policy = "agnostic",
-      tcrv_rvv.selected_mask_policy = "agnostic",
-      tcrv_rvv.selected_vector_type = "vint32m1_t",
-      tcrv_rvv.selected_vector_suffix = "i32m1",
-      tcrv_rvv.selected_setvl_suffix = "e32m1"
-    } {
-    }
-    tcrv.exec.diagnostic {
-      message = "select RVV first-slice metadata path",
-      reason = "variant-selected",
-      selection_kind = "static-variant",
-      severity = "note",
-      status = "selected",
-      target = @rvv_first_slice
-    }
-  }
-}
-)mlir";
-
-  mlir::OwningOpRef<mlir::ModuleOp> genericModule =
-      parseModule(context, source);
-  mlir::OwningOpRef<mlir::ModuleOp> wrapperModule =
-      parseModule(context, source);
-  if (!genericModule || !wrapperModule)
-    return fail("failed to parse RVV wrapper comparison IR");
-
-  KernelOp genericKernel = findKernel(*genericModule, "rvv_wrapper");
-  KernelOp wrapperKernel = findKernel(*wrapperModule, "rvv_wrapper");
-  if (int result = expectSuccess(
-          tianchenrv::plugin::materializeSelectedLoweringBoundaries(
-              genericKernel, genericPlugins),
-          "materialize generic RVV wrapper comparison path"))
-    return result;
-  if (int result = expectSuccess(
-          tianchenrv::plugin::rvv::materializeRVVLoweringBoundaries(
-              wrapperKernel, wrapperPlugins),
-          "materialize legacy RVV wrapper path"))
-    return result;
-
-  if (int result = expect(countDirectBoundaries(genericKernel) == 1 &&
-                              countDirectBoundaries(wrapperKernel) == 1,
-                          "generic and RVV wrapper produce one boundary"))
-    return result;
-  return expectBoundaryTarget(findDirectBoundary(wrapperKernel),
-                              "rvv_first_slice", "direct variant");
-}
-
 } // namespace
 
 int main() {
@@ -1057,8 +974,6 @@ int main() {
   if (int result = runGenericRegistryOriginAndShapeErrorsTest())
     return result;
   if (int result = runGenericSelectedPathStructuralErrorsTest())
-    return result;
-  if (int result = runRVVSpecificWrapperMatchesGenericPathTest())
     return result;
 
   llvm::outs() << "RVV lowering boundary tests passed\n";

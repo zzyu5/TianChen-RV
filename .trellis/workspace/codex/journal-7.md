@@ -450,3 +450,72 @@ current generic unsupported/no-runtime metadata boundary.
 - Continue deletion-only cleanup for remaining active wrong-logic fixtures, or
   open a separate rebuild task for the existing RVV selected-shape legality
   baseline failures. Do not restore deferred runtime ABI/glue metadata.
+
+
+## Session 82: RVV lowering-boundary compatibility wrapper erasure
+
+**Date**: 2026-05-15
+**Task**: RVV Lowering-Boundary Compatibility Wrapper Erasure
+**Branch**: `main`
+
+### Summary
+
+Erased the RVV-specific public lowering-boundary compatibility wrapper/front
+door while preserving the canonical generic
+`--tcrv-materialize-selected-lowering-boundaries` route and the RVV plugin's
+real `materializeSelectedLoweringBoundary` hook.
+
+### Main Changes
+
+- Deleted `include/TianChenRV/Plugin/RVV/RVVLoweringBoundary.h` and
+  `lib/Plugin/RVV/RVVLoweringBoundary.cpp`.
+- Removed `MaterializeRVVLoweringBoundary` from Passes.td/Passes.h and removed
+  the `tcrv-opt` registration for
+  `--tcrv-materialize-rvv-lowering-boundary`.
+- Removed `RVVLoweringBoundary.cpp` from the RVV plugin CMake library.
+- Deleted `test/Transforms/LoweringBoundary/rvv-lowering-boundary-compat.mlir`.
+- Removed the C++ wrapper-equivalence test while keeping generic
+  selected-boundary and RVV plugin-hook coverage.
+- Updated active specs so selected-boundary materialization is documented only
+  through the generic public pass and registry/plugin interface.
+- Added no replacement wrapper, alias, compatibility route, descriptor route,
+  direct C exporter, runtime ABI, Common EmitC route, or executable RVV
+  lowering.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(rvv): erase lowering-boundary wrapper |
+
+### Testing
+
+- [OK] `ninja -C build tcrv-opt tianchenrv-rvv-lowering-boundary-test`
+- [OK] `build/bin/tianchenrv-rvv-lowering-boundary-test`
+- [OK] `/usr/lib/llvm-20/bin/not build/bin/tcrv-opt test/Transforms/LoweringBoundary/rvv-lowering-boundary-missing-selection.mlir --tcrv-materialize-selected-lowering-boundaries 2>&1 | /usr/lib/llvm-20/bin/FileCheck test/Transforms/LoweringBoundary/rvv-lowering-boundary-missing-selection.mlir`
+- [OK] `build/bin/tcrv-opt --help-hidden 2>&1 | rg -n "tcrv-materialize-rvv-lowering-boundary|tcrv-materialize-selected-lowering-boundaries"` showed only the generic selected-boundary pass.
+- [OK] Focused active-surface wrapper ref scan excluding `artifacts/tmp`,
+  `.trellis/tasks/archive`, `.trellis/workspace`, `.git`, `build`, and
+  artifacts found no active source/spec/test hits; only the current Trellis
+  task PRD/task metadata names the deletion targets.
+- [OK] `git diff --check`
+- [OK] `python3 .trellis/scripts/task.py validate .trellis/tasks/05-15-rvv-lowering-boundary-compatibility-wrapper-erasure`
+- [WARN] `ninja -C build check-tianchenrv` was attempted and failed in 7
+  existing baseline tests outside this owner: `Plugin/plugin-emission-plan.test`,
+  `Scripts/rvv-probe-to-mlir.test`,
+  `Target/TargetArtifactBundleExport/plan-and-export-target-artifact-bundle-no-viable.mlir`,
+  `Transforms/LoweringBoundary/rvv-i32m1-policy-capability-fails.mlir`,
+  `Transforms/LoweringBoundary/rvv-lowering-boundary-malformed.mlir`,
+  `Transforms/PluginVariantLegality/plugin-variant-legality-pass-invalid.mlir`,
+  and `Transforms/PluginVariantLegality/plugin-variant-legality-pass.mlir`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Continue deletion-only cleanup if another active wrong-logic compatibility
+  front door remains. Otherwise, open a separate rebuild task for the existing
+  selected-shape legality/probe-replay baseline failures; do not restore the
+  RVV lowering-boundary wrapper.
