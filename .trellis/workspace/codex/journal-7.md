@@ -243,3 +243,64 @@ artifact kind as a fixture.
 
 - Continue deletion-only cleanup only if another active direct-C/descriptor
   route fixture remains; do not start RVV rebuild from this task.
+
+
+## Session 79: RVV microkernel direct route fixture erasure
+
+**Date**: 2026-05-15
+**Task**: RVV Microkernel Direct Route Fixture Erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted active RVV/scalar/dispatch direct microkernel route-name fixtures
+without adding any replacement emission path. The remaining route-id hits are
+limited to the current Trellis PRD's deletion target list; active source, spec,
+and test surfaces no longer invoke or look up the historical route ids.
+
+### Main Changes
+
+- Removed direct RVV microkernel translate-option invocation from
+  `Target/ArtifactExport/target-source-artifact-routes.test`.
+- Reworked `Target/RVVMicrokernel/rvv-microkernel-pipeline.mlir` to test
+  unsupported lowering-boundary/emission-plan behavior without old direct route
+  options.
+- Removed named absence lookups for historical RVV/scalar/dispatch direct route
+  ids from `TargetArtifactExportTest.cpp`.
+- Updated lowering/runtime and MLIR testing specs to describe deleted route
+  families instead of preserving old route ids as active contracts.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(rvv): erase microkernel direct route fixtures |
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-translate tcrv-opt tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tcrv-translate --help-hidden` has no match for the four
+  historical route ids.
+- [OK] Focused lit filter for `Target/ArtifactExport/target-source-artifact-routes`
+  and `Target/RVVMicrokernel/rvv-microkernel-pipeline`: 2 passed.
+- [OK] Focused lit filter for `Target/ArtifactExport/target-artifact-export-registry`:
+  1 passed.
+- [OK] Focused active ref scan excluding `artifacts/tmp`, `.trellis/tasks`,
+  `.trellis/workspace`, and `.git` found no hits for the four historical route
+  ids.
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-15-rvv-microkernel-direct-route-fixture-erasure`
+- [WARN] Full `cmake --build build --target check-tianchenrv -- -v` ran and
+  failed in 12 existing RVV planning/lowering/script tests outside this task's
+  changed files; this round did not expand scope to repair that unrelated
+  baseline.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Continue deletion-only cleanup if active direct-C route fixtures remain; do
+  not start RVV/Common EmitC rebuild from this deletion task.

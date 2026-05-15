@@ -1,5 +1,4 @@
-// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | not tcrv-translate --tcrv-export-rvv-microkernel-c 2>&1 | FileCheck %s --check-prefix=NO-DIRECT-FALLBACK --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="__riscv_"
-// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | not tcrv-translate --tcrv-export-rvv-microkernel-self-check-c 2>&1 | FileCheck %s --check-prefix=NO-SELF-CHECK --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="int main(void)"
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN --implicit-check-not="status = \"supported\"" --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="__riscv_" --implicit-check-not="int main(void)"
 
 module @rvv_microkernel_input {
   tcrv.exec.kernel @micro_a {
@@ -88,5 +87,13 @@ module @rvv_microkernel_input {
   }
 }
 
-// NO-DIRECT-FALLBACK: Unknown command line argument '--tcrv-export-rvv-microkernel-c'
-// NO-SELF-CHECK: Unknown command line argument '--tcrv-export-rvv-microkernel-self-check-c'
+// PLAN: tcrv_rvv.lowering_boundary
+// PLAN-SAME: origin = "rvv-plugin"
+// PLAN-SAME: role = "dispatch case"
+// PLAN-SAME: status = "unsupported"
+// PLAN: tcrv.exec.diagnostic
+// PLAN-SAME: emission_kind = "rvv-unsupported-metadata-boundary"
+// PLAN-SAME: lowering_pipeline = "rvv-none-executable-unsupported"
+// PLAN-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+// PLAN-SAME: status = "unsupported"
+// PLAN-SAME: target = @rvv_first_slice

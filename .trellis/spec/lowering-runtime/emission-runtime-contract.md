@@ -39,11 +39,9 @@ records rather than from a materialized MLIR EmitC module.
 
 ### 2. Signatures
 
-- Deleted direct translate options include the former RVV standalone
-  smoke-probe source front door plus the RVV microkernel and RVV+scalar
-  dispatch direct C exporters:
-  `--tcrv-export-rvv-microkernel-c` and
-  `--tcrv-export-rvv-scalar-dispatch-c`.
+- Deleted direct translate options include former standalone RVV smoke-probe,
+  RVV microkernel, self-check, scalar microkernel, and RVV+scalar dispatch
+  direct C exporters.
 - Deleted production route ids include the RVV smoke-probe standalone source,
   RVV/scalar microkernel source, header, object, dispatch
   source/header/object, self-check source/object, and bundle-derived route
@@ -381,9 +379,8 @@ route after direct C semantic exporter deletion.
 #### 2. Signatures
 
 - Selected boundary op: `tcrv_rvv.lowering_boundary`.
-- Deleted historical route ids: `tcrv-export-rvv-microkernel-c`,
-  `tcrv-export-rvv-microkernel-header`, and
-  `tcrv-export-rvv-microkernel-object`.
+- Deleted historical route families: RVV direct microkernel source, header,
+  object, self-check, and bundle-style artifact routes.
 
 #### 3. Contracts
 
@@ -1828,11 +1825,9 @@ binary family authority, and it must not synthesize direct RVV source/header/
 object routes.
 
 Direct RVV binary source/header/object route ownership is deleted as production
-route authority. Historical route ids such as
-`tcrv-export-rvv-microkernel-c`, `tcrv-export-rvv-microkernel-header`, and
-`tcrv-export-rvv-microkernel-object` must not be registered as supported target
-artifact exporters until a future EmitC-module source route replaces direct C
-semantic export.
+route authority. Historical RVV direct microkernel route families must not be
+registered as supported target artifact exporters until a future EmitC-module
+source route replaces direct C semantic export.
 
 Required tests for changes to this contract:
 

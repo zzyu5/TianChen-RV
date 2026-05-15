@@ -21,9 +21,8 @@ routes after the direct C semantic exporter deletion campaign.
 
 ### 2. Signatures
 
-- Removed direct options:
-  `--tcrv-export-rvv-microkernel-c` and
-  `--tcrv-export-rvv-scalar-dispatch-c`.
+- Removed direct options include the historical RVV microkernel, self-check,
+  scalar microkernel, and RVV+scalar dispatch direct C exporters.
 - Fail-closed diagnostic text must name the deleted direct C source exporter
   and the missing materialized MLIR EmitC module route.
 - Generic target artifact front doors remain valid test commands, but they

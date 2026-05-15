@@ -665,13 +665,6 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
           "stale-template-zero-core-handoff"))
     return false;
 
-  if (registry.lookup("tcrv-export-scalar-microkernel-c") ||
-      registry.lookupComposite("tcrv-export-rvv-scalar-i32-vadd-dispatch-c")) {
-    llvm::errs() << "bundle frontdoor exposed deleted runtime-callable direct "
-                    "C route metadata\n";
-    return false;
-  }
-
   return true;
 }
 
@@ -1293,12 +1286,6 @@ bool expectTargetTranslateRouteRegistryShape() {
                  << builtinRoutes.size() << "\n";
     return false;
   }
-  if (builtinRoutes.lookup("tcrv-export-rvv-microkernel-self-check-c")) {
-    llvm::errs() << "RVV standalone self-check helper should remain outside "
-                    "the target translate route-family registry\n";
-    return false;
-  }
-
   return expectSuccess(
       registerBuiltinTargetTranslateRoutes(builtinRoutes),
       "repeat built-in target translate route no-op registration");
@@ -2127,14 +2114,6 @@ int main() {
     llvm::errs() << "expected no built-in composite target artifact routes "
                     "after direct C deletion, got "
                  << builtinRegistry.compositeSize() << "\n";
-    return 1;
-  }
-  if (builtinRegistry.lookup("tcrv-export-rvv-microkernel-c") ||
-      builtinRegistry.lookup("tcrv-export-scalar-microkernel-c") ||
-      builtinRegistry.lookupComposite(
-          "tcrv-export-rvv-scalar-i32-vadd-dispatch-c")) {
-    llvm::errs() << "built-in registry still exposes deleted "
-                    "runtime-callable direct C routes\n";
     return 1;
   }
   if (!expectRoute(builtinRegistry,
