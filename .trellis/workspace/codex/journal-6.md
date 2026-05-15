@@ -46,6 +46,71 @@ Final session commit recorded in git history for this round.
 - None - task complete
 
 
+## Session 68: RVV body verifier descriptor deletion
+
+**Date**: 2026-05-15
+**Task**: Descriptor Erasure Owner: RVV body verifier/dataflow descriptor deletion
+**Branch**: `main`
+
+### Summary
+
+Deleted the remaining RVV descriptor/config body-verifier production surface.
+`TianChenRVRVVTarget` no longer builds `RVVBinaryMicrokernelBodyVerifier.cpp`,
+the public verifier header and dataflow/intrinsic-config structs are gone, and
+adjacent selected-config/family wording was narrowed from descriptor authority
+to family record / selected-plan metadata terminology.
+
+### Main Changes
+
+- Created Trellis task `05-15-rvv-body-verifier-descriptor-deletion`.
+- Deleted `include/TianChenRV/Target/RVV/RVVBinaryMicrokernelBodyVerifier.h`.
+- Deleted `lib/Target/RVV/RVVBinaryMicrokernelBodyVerifier.cpp`.
+- Removed the verifier source from `lib/Target/RVV/CMakeLists.txt`.
+- Reworded `RVVSelectedConfigContract.h` invalid-contract diagnostic from
+  "finite binary family descriptor" to "RVV binary family record".
+- Renamed local `RVVBinaryFamily.h` static/loop variables from `descriptor` to
+  `record`.
+
+### Git Commits
+
+(Commit pending at journal write time; final round commit contains this entry.)
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target TianChenRVRVVTarget -j2`.
+- [OK] Focused C++ test build:
+  `cmake --build build --target tianchenrv-rvv-binary-planning-test tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-rvv-binary-variant-legality-test tianchenrv-target-artifact-export-test -j2`.
+- [OK] `./build/bin/tianchenrv-rvv-binary-planning-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- [OK] `./build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused lit:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='(ArtifactExport|RVVMicrokernel)'`
+  from `build/test`, 5/5 selected tests passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`: 114/114 passed.
+- [OK] Bounded verifier/dataflow scan over RVV target/plugin/test paths:
+  no hits for `RVVBinaryMicrokernelBodyVerifier`,
+  `validateRVVBinaryMicrokernelBody`, `RVVBinaryDataflowEmissionPlan`,
+  `RVVBinaryDataflowStep`, `RVVIntrinsicConfig`,
+  `descriptor/config-driven`, `finite binary family descriptor`,
+  `lowering_descriptor`, or `microkernel.v1`.
+- [OK] Remaining RVV target `descriptor` hits are
+  `RVVVectorShapeSelectedPlanMetadataDescriptor` container type names, not
+  body-validation, descriptor-to-C, or compute authority.
+- [OK] `git diff --check`.
+
+### Status
+
+[OK] **Ready to archive and commit**
+
+### Next Steps
+
+- Continue deletion only if another bounded old descriptor/direct-export
+  production surface is identified; this task adds no rebuild path.
+
+
 ## Session 70: RVV direct route fixture/API deletion
 
 **Date**: 2026-05-15

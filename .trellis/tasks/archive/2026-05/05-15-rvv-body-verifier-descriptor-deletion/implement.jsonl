@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV invariants and spec layer routing"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "descriptor-driven microkernel/exporter framework is explicitly invalid"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "future accepted route is extension-family ops through materialized EmitC"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "deleted descriptor/direct-source exporter and emission authority boundaries"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "test ownership for deleted RVV descriptor/direct-source behavior"}
+{"file": ".trellis/tasks/archive/2026-05/05-15-rvv-direct-route-erasure/prd.md", "reason": "previous deletion-campaign state and evidence baseline"}

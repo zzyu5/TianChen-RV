@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV invariants and spec layer routing"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "verify deletion does not reintroduce descriptor-driven architecture"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "confirm no replacement direct route is introduced"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "validate removed descriptor/body-verifier surface against emission boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify stale tests are not preserving old body/source authority"}
+{"file": ".trellis/tasks/archive/2026-05/05-15-rvv-direct-route-erasure/prd.md", "reason": "compare evidence and finish discipline against prior deletion round"}

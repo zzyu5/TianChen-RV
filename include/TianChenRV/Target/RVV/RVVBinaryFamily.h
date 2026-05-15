@@ -54,7 +54,7 @@ struct RVVBinaryFamilyRecord {
 };
 
 inline const RVVBinaryFamilyRecord &getI32VAddFamilyRegistrationRecord() {
-  static const RVVBinaryFamilyRecord descriptor{
+  static const RVVBinaryFamilyRecord record{
       RVVBinaryDTypeKind::I32,
       RVVBinaryArithmeticKind::Add,
       "i32",
@@ -72,11 +72,11 @@ inline const RVVBinaryFamilyRecord &getI32VAddFamilyRegistrationRecord() {
       "const int32_t *",
       "int32_t *",
       &support::getI32VAddFiniteBinaryFrontendContract()};
-  return descriptor;
+  return record;
 }
 
 inline const RVVBinaryFamilyRecord &getI32VSubFamilyRegistrationRecord() {
-  static const RVVBinaryFamilyRecord descriptor{
+  static const RVVBinaryFamilyRecord record{
       RVVBinaryDTypeKind::I32,
       RVVBinaryArithmeticKind::Sub,
       "i32",
@@ -94,11 +94,11 @@ inline const RVVBinaryFamilyRecord &getI32VSubFamilyRegistrationRecord() {
       "const int32_t *",
       "int32_t *",
       &support::getI32VSubFiniteBinaryFrontendContract()};
-  return descriptor;
+  return record;
 }
 
 inline const RVVBinaryFamilyRecord &getI32VMulFamilyRegistrationRecord() {
-  static const RVVBinaryFamilyRecord descriptor{
+  static const RVVBinaryFamilyRecord record{
       RVVBinaryDTypeKind::I32,
       RVVBinaryArithmeticKind::Mul,
       "i32",
@@ -116,11 +116,11 @@ inline const RVVBinaryFamilyRecord &getI32VMulFamilyRegistrationRecord() {
       "const int32_t *",
       "int32_t *",
       &support::getI32VMulFiniteBinaryFrontendContract()};
-  return descriptor;
+  return record;
 }
 
 inline const RVVBinaryFamilyRecord &getI64VAddFamilyRegistrationRecord() {
-  static const RVVBinaryFamilyRecord descriptor{
+  static const RVVBinaryFamilyRecord record{
       RVVBinaryDTypeKind::I64,
       RVVBinaryArithmeticKind::Add,
       "i64",
@@ -138,11 +138,11 @@ inline const RVVBinaryFamilyRecord &getI64VAddFamilyRegistrationRecord() {
       "const int64_t *",
       "int64_t *",
       &support::getI64VAddFiniteBinaryFrontendContract()};
-  return descriptor;
+  return record;
 }
 
 inline const RVVBinaryFamilyRecord &getI64VSubFamilyRegistrationRecord() {
-  static const RVVBinaryFamilyRecord descriptor{
+  static const RVVBinaryFamilyRecord record{
       RVVBinaryDTypeKind::I64,
       RVVBinaryArithmeticKind::Sub,
       "i64",
@@ -160,11 +160,11 @@ inline const RVVBinaryFamilyRecord &getI64VSubFamilyRegistrationRecord() {
       "const int64_t *",
       "int64_t *",
       &support::getI64VSubFiniteBinaryFrontendContract()};
-  return descriptor;
+  return record;
 }
 
 inline const RVVBinaryFamilyRecord &getI64VMulFamilyRegistrationRecord() {
-  static const RVVBinaryFamilyRecord descriptor{
+  static const RVVBinaryFamilyRecord record{
       RVVBinaryDTypeKind::I64,
       RVVBinaryArithmeticKind::Mul,
       "i64",
@@ -182,7 +182,7 @@ inline const RVVBinaryFamilyRecord &getI64VMulFamilyRegistrationRecord() {
       "const int64_t *",
       "int64_t *",
       &support::getI64VMulFiniteBinaryFrontendContract()};
-  return descriptor;
+  return record;
 }
 
 inline llvm::ArrayRef<const RVVBinaryFamilyRecord *>
@@ -197,10 +197,10 @@ getRVVBinaryFamilyRegistrationRecords() {
 inline const RVVBinaryFamilyRecord *
 lookupRVVBinaryFamilyRegistrationByID(llvm::StringRef familyID) {
   familyID = familyID.trim();
-  for (const RVVBinaryFamilyRecord *descriptor :
+  for (const RVVBinaryFamilyRecord *record :
        getRVVBinaryFamilyRegistrationRecords()) {
-    if (descriptor->familyID == familyID)
-      return descriptor;
+    if (record->familyID == familyID)
+      return record;
   }
   return nullptr;
 }
@@ -208,10 +208,10 @@ lookupRVVBinaryFamilyRegistrationByID(llvm::StringRef familyID) {
 inline const RVVBinaryFamilyRecord *
 lookupRVVBinaryFamilyRegistrationByFrontendLowering(llvm::StringRef frontendLowering) {
   frontendLowering = frontendLowering.trim();
-  for (const RVVBinaryFamilyRecord *descriptor :
+  for (const RVVBinaryFamilyRecord *record :
        getRVVBinaryFamilyRegistrationRecords()) {
-    if (descriptor->frontendLowering == frontendLowering)
-      return descriptor;
+    if (record->frontendLowering == frontendLowering)
+      return record;
   }
   return nullptr;
 }
@@ -254,11 +254,11 @@ lookupRVVBinaryFamilyRegistrationByFrontendSource(
   if (!dtype)
     return nullptr;
   sourceArithmeticOpName = sourceArithmeticOpName.trim();
-  for (const RVVBinaryFamilyRecord *descriptor :
+  for (const RVVBinaryFamilyRecord *record :
        getRVVBinaryFamilyRegistrationRecords()) {
-    if (descriptor->dtype == *dtype &&
-        descriptor->sourceArithmeticOpName == sourceArithmeticOpName)
-      return descriptor;
+    if (record->dtype == *dtype &&
+        record->sourceArithmeticOpName == sourceArithmeticOpName)
+      return record;
   }
   return nullptr;
 }
@@ -267,10 +267,10 @@ inline const RVVBinaryFamilyRecord *
 lookupRVVBinaryFamilyRegistrationByRVVOperationName(
     llvm::StringRef rvvOperationName) {
   rvvOperationName = rvvOperationName.trim();
-  for (const RVVBinaryFamilyRecord *descriptor :
+  for (const RVVBinaryFamilyRecord *record :
        getRVVBinaryFamilyRegistrationRecords()) {
-    if (descriptor->arithmeticOpName == rvvOperationName)
-      return descriptor;
+    if (record->arithmeticOpName == rvvOperationName)
+      return record;
   }
   return nullptr;
 }

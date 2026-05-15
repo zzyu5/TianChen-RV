@@ -580,7 +580,7 @@ inline llvm::Error validateRVVBinarySelectedConfigContract(
     const RVVBinarySelectedConfigContract &contract) {
   if (!contract.isValid())
     return makeRVVSelectedConfigContractError(
-        "requires a finite binary family descriptor and selected vector-shape "
+        "requires an RVV binary family record and selected vector-shape "
         "config");
 
   const RVVBinaryFamilyRecord &family = contract.getFamily();
