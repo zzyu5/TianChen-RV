@@ -576,7 +576,15 @@ Added support-layer generated RuntimeABI invocation contracts, wired RVVMicroker
 
 ### Main Changes
 
-(Add details)
+- Rewrote the probe replay public pipeline expectations so no-body RVV replay
+  falls through to scalar fallback or fails closed before artifact export.
+- Converted public positive RVV materialization, selected-shape, dispatch, and
+  variant-selection fixtures to explicit typed `tcrv_rvv.i32_vadd_microkernel`
+  body authority.
+- Updated no-viable artifact/execution-planning diagnostics to assert the
+  explicit typed-body requirement and no-body rebuild gap.
+- Archived the Trellis task with completion evidence and left `.trellis/spec/`
+  unchanged because the existing RVV plugin spec already states the contract.
 
 ### Git Commits
 
@@ -584,7 +592,14 @@ Added support-layer generated RuntimeABI invocation contracts, wired RVVMicroker
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv` on the 10
+  previously failing tests.
+- [OK] `cmake --build build --target tianchenrv-rvv-binary-planning-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-binary-planning-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (114/114)
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-15-no-body-rvv-pipeline-expectation-deletion`
 
 ### Status
 
@@ -1404,6 +1419,39 @@ Deleted the RVV smoke-probe descriptor as an active compiler input and verified 
 
 Completed and archived. Commit hash is produced after this journal entry.
 
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 69: No-body RVV pipeline expectation deletion
+
+**Date**: 2026-05-15
+**Task**: No-body RVV pipeline expectation deletion
+**Branch**: `main`
+
+### Summary
+
+Deleted remaining public pipeline expectations that no-body RVV metadata synthesizes rvv_first_slice; positive RVV fixtures now carry explicit typed body authority; focused ten-test set and full check-tianchenrv pass.
+
+### Main Changes
+
+(Add details)
 
 ### Git Commits
 

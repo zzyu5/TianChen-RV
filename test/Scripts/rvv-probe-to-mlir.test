@@ -3,7 +3,7 @@
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_i64_replay --emit-target-profile | FileCheck %s --check-prefix=I64-REPLAY --implicit-check-not=tcrv_frontend_lowering
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_replay --include-scalar-fallback | tcrv-opt - | FileCheck %s --check-prefix=PARSE
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_replay --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE
-# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_i64_replay --emit-target-profile | tcrv-opt - --tcrv-execution-planning-pipeline | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=I64-SOURCE-DELETED --implicit-check-not=__riscv_vadd_vv_i64 --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_i64_replay --emit-target-profile | not tcrv-opt - --tcrv-execution-planning-pipeline 2>&1 | FileCheck %s --check-prefix=I64-SOURCE-DELETED --implicit-check-not=__riscv_vadd_vv_i64 --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/missing-architecture.json --kernel-name missing_architecture --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/non-riscv64.json --kernel-name non_riscv64 --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/missing-isa-vector-hints.json --kernel-name missing_isa_vector_hints --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
@@ -120,40 +120,38 @@
 # PIPE-SAME: mask_policy = "agnostic"
 # PIPE: tcrv.exec.capability @rvv_probe_compile_run
 # PIPE-SAME: selected_march = "rv64gcv"
-# PIPE: tcrv.exec.variant @rvv_first_slice
-# PIPE-SAME: origin = "rvv-plugin"
-# PIPE-SAME: requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic]
-# PIPE-SAME: tcrv_rvv.base_i32_m1_lanes = 4 : i64
-# PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
-# PIPE-SAME: tcrv_rvv.selected_vector_shape = "i32m1"
-# PIPE-SAME: tcrv_rvv.vlenb_bytes = 16 : i64
+# PIPE-NOT: tcrv.exec.variant @rvv_first_slice
 # PIPE: tcrv.exec.variant @scalar_fallback_first_slice
 # PIPE-SAME: origin = "scalar-plugin"
 # PIPE-SAME: requires = [@scalar_fallback]
 # PIPE-NOT: tcrv.exec.dispatch
 # PIPE: tcrv.exec.diagnostic
-# PIPE-SAME: selection_kind = "static-variant"
-# PIPE-SAME: target = @rvv_first_slice
-# PIPE: tcrv_rvv.lowering_boundary
-# PIPE-SAME: origin = "rvv-plugin"
-# PIPE-SAME: required_capabilities = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic]
+# PIPE-SAME: reason = "variant-selected"
+# PIPE-SAME: selection_kind = "fallback-only"
+# PIPE-SAME: target = @scalar_fallback_first_slice
+# PIPE: tcrv_scalar.lowering_boundary
+# PIPE-SAME: origin = "scalar-plugin"
+# PIPE-SAME: required_capabilities = [@scalar_fallback]
 # PIPE-SAME: role = "direct variant"
-# PIPE-SAME: selected_variant = @rvv_first_slice
+# PIPE-SAME: selected_variant = @scalar_fallback_first_slice
 # PIPE-SAME: source_kernel = "rvv_probe_replay"
-# PIPE-SAME: status = "unsupported"
+# PIPE-SAME: status = "metadata-only"
 # PIPE: tcrv.exec.diagnostic
-# PIPE-SAME: emission_kind = "rvv-unsupported-metadata-boundary"
-# PIPE-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
-# PIPE-SAME: message = "RVV metadata-only first slice has no RVV lowering pipeline, runtime ABI, artifact contract, or executable emission path; this unsupported emission plan is a plugin-owned diagnostic boundary and not RVV hardware/toolchain/runtime/correctness/performance evidence"
+# PIPE-SAME: emission_kind = "portable-scalar-fallback-metadata-route"
+# PIPE-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
+# PIPE-SAME: message = "scalar fallback first slice records a portable fallback metadata route for compiler decisions only; it does not emit objects, link a runtime, run hardware, prove correctness, or measure performance"
 # PIPE-SAME: reason = "emission_plan"
 # PIPE-SAME: role = "direct variant"
-# PIPE-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
-# PIPE-SAME: runtime_abi_name = "rvv-executable-runtime-abi-deferred"
-# PIPE-SAME: runtime_glue_role = "deferred-rvv-runtime-glue"
-# PIPE-SAME: status = "unsupported"
-# PIPE-SAME: target = @rvv_first_slice
+# PIPE-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
+# PIPE-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
+# PIPE-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
+# PIPE-SAME: status = "metadata-only"
+# PIPE-SAME: target = @scalar_fallback_first_slice
+# PIPE-NOT: tcrv_rvv.lowering_boundary
 
-# I64-SOURCE-DELETED: requires exactly one supported source artifact emission-plan route; found none
+# I64-SOURCE-DELETED: error: TianChen-RV plugin variant materialization for kernel @rvv_probe_i64_replay collected no viable plugin proposals
+# I64-SOURCE-DELETED-SAME: requires an explicit typed RVV extension-family body
+# I64-SOURCE-DELETED-SAME: no-body RVV proposal materialization is a rebuild gap
 
 # SCALAR_ONLY-NOT: tcrv.exec.variant @rvv_first_slice
 # SCALAR_ONLY: tcrv.exec.variant @scalar_fallback_first_slice

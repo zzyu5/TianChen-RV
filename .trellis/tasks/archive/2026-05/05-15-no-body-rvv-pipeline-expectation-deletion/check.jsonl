@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify implementation stayed inside the approved C++/MLIR/LLVM stack and deletion-campaign boundary."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check that no descriptor-driven, independent-backend, or high-level compute-IR logic was introduced."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV public-pipeline expectations against explicit typed body authority and no-body fail-closed semantics."}
+{"file": ".trellis/tasks/05-15-no-body-rvv-pipeline-expectation-deletion/prd.md", "reason": "Task-specific requirements, non-goals, acceptance criteria, and focused evidence list."}
