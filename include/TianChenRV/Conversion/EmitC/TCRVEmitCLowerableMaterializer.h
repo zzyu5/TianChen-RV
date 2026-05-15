@@ -10,12 +10,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
-#include <cstdint>
 #include <string>
-
-namespace llvm {
-class raw_ostream;
-} // namespace llvm
 
 namespace tianchenrv::conversion::emitc {
 
@@ -23,17 +18,6 @@ struct TCRVEmitCMaterializationOptions {
   std::string functionName = "tcrv_emitc_route";
   llvm::SmallVector<std::string, 4> implicitValueNames;
   bool verifyModule = true;
-};
-
-struct TCRVEmitCSourceAuthorityOptions {
-  std::string functionName = "tcrv_emitc_route";
-  std::string loopIndexName = "offset";
-  std::string helperFunctionName;
-  std::string dispatchGuardValueName;
-  std::int64_t fixedRuntimeElementCount = 0;
-  bool requireInterfaceBackedCompute = true;
-  bool verifyModule = true;
-  bool declareVariablesAtTop = false;
 };
 
 llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
@@ -44,15 +28,6 @@ materializeTCRVEmitCLowerableRoute(
 llvm::Error verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
     const TCRVEmitCLowerableRoute &route, llvm::StringRef functionName,
     llvm::ArrayRef<llvm::StringRef> implicitValueNames = {});
-
-llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
-materializeTCRVEmitCLowerableRouteSourceAuthority(
-    mlir::MLIRContext &context, const TCRVEmitCLowerableRoute &route,
-    const TCRVEmitCSourceAuthorityOptions &options = {});
-
-llvm::Error emitTCRVEmitCLowerableRouteAsCppSource(
-    const TCRVEmitCLowerableRoute &route, llvm::raw_ostream &os,
-    const TCRVEmitCSourceAuthorityOptions &options = {});
 
 } // namespace tianchenrv::conversion::emitc
 

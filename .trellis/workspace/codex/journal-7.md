@@ -54,3 +54,36 @@ Deleted Support-owned I32/RVV runtime ABI contracts and helpers; rewired tests/s
 ### Next Steps
 
 - None - task complete
+
+
+## Session 77: Delete common EmitC source-authority exporter residue
+
+**Date**: 2026-05-15
+**Task**: Delete common EmitC source-authority exporter residue
+**Branch**: `main`
+
+### Summary
+
+Deleted common Conversion/EmitC C++ source-authority APIs and tests; kept only generic in-memory EmitC materialization; focused build/test/ref-scan passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

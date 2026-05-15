@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-7.md`
-- **Total Sessions**: 76
+- **Total Sessions**: 77
 - **Last Active**: 2026-05-15
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-7.md` | ~38 | Active |
+| `journal-7.md` | ~89 | Active |
 | `journal-6.md` | ~1973 | Archived |
 | `journal-5.md` | ~1983 | Archived |
 | `journal-4.md` | ~1979 | Archived |
@@ -35,6 +35,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 77 | 2026-05-15 | Delete common EmitC source-authority exporter residue | pending | `main` |
 | 76 | 2026-05-15 | Delete support-layer I32 RVV runtime ABI residue | - | `main` |
 | 75 | 2026-05-15 | Delete plugin emission-plan source artifact authority | pending | `main` |
 | 74 | 2026-05-15 | Delete runtime-callable source bundle residue | pending | `main` |

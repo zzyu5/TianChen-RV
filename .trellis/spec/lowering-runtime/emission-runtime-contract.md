@@ -107,6 +107,98 @@ selected route metadata -> unsupported deleted-route diagnostic
 future rebuild -> materialized MLIR EmitC module -> C/C++ emitter
 ```
 
+## Scenario: Common EmitC Source-Authority Exporter Deleted
+
+### 1. Scope / Trigger
+
+This applies to common Conversion/EmitC APIs that previously used
+`TCRVEmitCLowerableRoute` metadata to build C++ source, wrapper functions,
+runtime-control loops, or public source text from shared conversion code.
+
+### 2. Signatures
+
+Deleted public common APIs:
+
+- `TCRVEmitCSourceAuthorityOptions`;
+- `materializeTCRVEmitCLowerableRouteSourceAuthority`;
+- `emitTCRVEmitCLowerableRouteAsCppSource`;
+- `TCRVLowerToEmitCSourceOptions`;
+- `TCRVLowerToEmitCSourceResult`;
+- `lowerTCRVEmitCLowerableToEmitCSource`.
+
+Deleted marker:
+
+```text
+tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
+```
+
+Still-allowed common APIs may verify route shape and materialize an in-memory
+MLIR `emitc` module, such as `materializeTCRVEmitCLowerableRoute` and
+`verifyTCRVEmitCLowerableRouteMaterializesToEmitC`.
+
+### 3. Contracts
+
+- Common route metadata may validate route structure and materialize in-memory
+  MLIR EmitC IR only.
+- Common Conversion/EmitC code must not translate route metadata into C/C++
+  source text, public wrapper function text, runtime loops, dispatch source, or
+  extension intrinsic source.
+- Common tests must not make RVV intrinsic names, `tcrv_rvv.*` op names,
+  runtime-avl-to-vl loops, scalar-loop source output, or public wrapper C text
+  the authority for shared conversion correctness.
+- If a user-facing source bridge is needed after this deletion, that is a
+  future rebuild gap requiring an explicit extension-family IR plus materialized
+  EmitC route contract, not a reason to restore common source-authority APIs.
+
+### 4. Validation & Error Matrix
+
+- Code references a deleted common source-authority symbol -> compile failure;
+  remove the caller or rebuild the feature under a new explicit contract.
+- Common tests assert C/C++ source output from route metadata -> invalid test;
+  rewrite to extension-agnostic in-memory EmitC materialization or delete.
+- Common tests assert RVV intrinsic names or `tcrv_rvv.*` names as shared
+  conversion authority -> invalid test; move such coverage to plugin-local
+  syntax/metadata tests if still relevant.
+- In-memory route materialization sees malformed route metadata -> emit generic
+  materializer diagnostics and no C/C++ source text.
+
+### 5. Good/Base/Bad Cases
+
+- Good: generic route metadata -> in-memory MLIR `emitc.func` plus
+  `emitc.call_opaque` materialization for verification.
+- Base: route provenance comments in in-memory EmitC IR may record generic
+  source-op/interface provenance without claiming source-export authority.
+- Bad: route metadata -> C++ source string, public wrapper, RVV intrinsic source
+  body, runtime-avl-to-vl loop source, scalar-loop source, or dispatch source.
+
+### 6. Tests Required
+
+- Focused C++ common test proving extension-agnostic route construction and
+  in-memory EmitC materialization still work.
+- Ref-scan proving deleted source-authority symbols and marker strings are not
+  present under common Conversion/EmitC code and tests.
+- Focused common EmitC build/test target plus `git diff --check`.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+TCRVEmitCLowerableRoute metadata
+  -> common C++ source emitter
+  -> public wrapper / intrinsic / runtime-loop source authority
+```
+
+Correct:
+
+```text
+TCRVEmitCLowerableRoute metadata
+  -> generic verification
+  -> in-memory MLIR EmitC materialization only
+future rebuild:
+explicit extension-family ops -> materialized MLIR EmitC route -> source contract
+```
+
 ## Emission Readiness First Slice
 
 The first compiler-visible emission slice is a target-neutral readiness check.
