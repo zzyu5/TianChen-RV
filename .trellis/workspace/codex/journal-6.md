@@ -1545,17 +1545,33 @@ Deleted remaining public pipeline expectations that no-body RVV metadata synthes
 
 ### Main Changes
 
-(Add details)
+- Deleted `include/TianChenRV/Target/RVVScalarBinaryFamily.h`.
+- Removed scalar plugin dependence on RVV-derived scalar microkernel family
+  records, selected-binary metadata helpers, and bridge-derived ABI insertion.
+- Rewrote scalar/plugin and target-artifact tests so explicit scalar
+  microkernel IR stays inert and scalar fallback emission remains metadata-only.
+- Updated the scalar fallback plugin spec to match the deletion-campaign
+  contract.
 
 ### Git Commits
 
 | Hash | Message |
 |------|---------|
-| `pending` | (see git log) |
+| `pending` | chore(scalar): erase rvv-scalar finite bridge |
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tianchenrv-scalar-extension-plugin-test tianchenrv-runtime-abi-callable-plan-test tianchenrv-target-artifact-export-test tianchenrv-rvv-binary-planning-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate`
+- [OK] `./build/bin/tianchenrv-scalar-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-runtime-abi-callable-plan-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-binary-planning-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter=scalar-target-source-artifact-routes`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter=rvv-scalar-i32-vadd-dispatch-generic-route`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-15-rvv-scalar-finite-family-bridge-erasure`
 
 ### Status
 
@@ -1654,6 +1670,47 @@ Deleted stale scalar microkernel and RVV+scalar dispatch direct-C route shell AP
 ### Testing
 
 - [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 71: RVV-scalar finite-family bridge erasure
+
+**Date**: 2026-05-15
+**Task**: RVV-scalar finite-family bridge erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the RVV-derived scalar/RVV-scalar bridge header, removed scalar plugin microkernel bridge authority, updated scalar fallback spec, and passed focused bridge-erasure checks.
+
+### Main Changes
+
+- Deleted the active RVV-derived scalar/RVV-scalar finite-family bridge header.
+- Scalar fallback plugin no longer scans explicit typed scalar microkernel ops,
+  no longer returns a special direct-C unsupported microkernel branch, and no
+  longer inserts bridge-derived ABI boundary ops.
+- Scalar fallback spec now says explicit scalar microkernel ops are inert
+  future-route IR for current plugin emission.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(scalar): erase rvv-scalar finite bridge |
+
+### Testing
+
+- [OK] Focused C++ build and smoke tests passed.
+- [OK] Focused scalar artifact-export and RVV-scalar dispatch lit filters passed.
+- [OK] Ref-scan cleared active bridge symbols; only deleted-route absence checks retain `tcrv-export-rvv-scalar`.
+- [OK] Trellis validation passed.
 
 ### Status
 

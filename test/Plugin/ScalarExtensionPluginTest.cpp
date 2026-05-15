@@ -3,7 +3,6 @@
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
 #include "TianChenRV/Transforms/VariantSelection.h"
 
@@ -75,30 +74,6 @@ int expectErrorContains(llvm::Error error,
                   "' but got: " + message);
   }
   return 0;
-}
-
-int expectDeletedScalarDirectCEmissionPlan(
-    const VariantEmissionPlan &emissionPlan, llvm::Twine context) {
-  return expect(emissionPlan.isUnsupported() &&
-                    emissionPlan.getOriginPlugin() ==
-                        tianchenrv::plugin::scalar::
-                            getScalarExtensionPluginName() &&
-                    emissionPlan.getRuntimeABIKind() ==
-                        "unsupported-plugin-runtime-abi" &&
-                    emissionPlan.getRuntimeABIName() ==
-                        "unsupported-emission-runtime-abi" &&
-                    emissionPlan.getRuntimeGlueRole() ==
-                        "no-runtime-glue-unsupported" &&
-                    emissionPlan.getEmissionKind().empty() &&
-                    emissionPlan.getLoweringPipeline().empty() &&
-                    emissionPlan.getRuntimeABI().empty() &&
-                    emissionPlan.getArtifactKind().empty() &&
-                    emissionPlan.getRequiredCapabilitySymbols().empty() &&
-                    emissionPlan.getRuntimeABIParameters().empty() &&
-                    emissionPlan.getSelectedPlanMetadata().empty() &&
-                    emissionPlan.getDiagnostic().contains(
-                        "scalar direct C source exporter was deleted"),
-                context);
 }
 
 int expectScalarMetadataOnlyEmissionPlan(
@@ -720,7 +695,8 @@ module {
   return 0;
 }
 
-int runExplicitTypedMicrokernelPreservationTest(mlir::MLIRContext &context) {
+int runExplicitTypedMicrokernelIsInertForMetadataRouteTest(
+    mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
   tcrv.exec.kernel @explicit_scalar_body attributes {} {
@@ -800,8 +776,20 @@ module {
   }
   if (int result =
           expect(microkernelCount == 1,
-                 "selected boundary preserves one explicit scalar microkernel "
-                 "and does not auto-insert a duplicate"))
+                 "selected boundary leaves the explicit scalar microkernel as "
+                 "inert input IR and does not auto-insert a duplicate"))
+    return result;
+  unsigned runtimeABIOpCount = 0;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    llvm::StringRef opName = op.getName().getStringRef();
+    if (opName == "tcrv.exec.mem_window" ||
+        opName == "tcrv.exec.runtime_param")
+      ++runtimeABIOpCount;
+  }
+  if (int result = expect(
+          runtimeABIOpCount == 0,
+          "scalar boundary materialization no longer inserts bridge-derived "
+          "runtime ABI windows or params"))
     return result;
   if (int result =
           expect(findScalarBoundary(kernel, variant.getSymName()),
@@ -813,13 +801,23 @@ module {
     return result;
 
   VariantEmissionStatus status;
-  if (int result = expectErrorContains(
+  if (int result = expectSuccess(
           registry.checkVariantEmissionReadiness(
               VariantEmissionRequest(variant, kernel, capabilities,
                                      VariantEmissionRole::DirectVariant),
               status),
-          {"reported unsupported emission path",
-           "scalar direct C source exporter was deleted"}))
+          "explicit scalar body readiness remains metadata-only"))
+    return result;
+  if (int result =
+          expect(status.isMetadataOnly() &&
+                     status.getOriginPlugin() ==
+                         tianchenrv::plugin::scalar::
+                             getScalarExtensionPluginName() &&
+                     status.getVariantSymbol() == variant.getSymName() &&
+                     status.getEmissionPath() ==
+                         "portable-scalar-fallback-non-executable-metadata-route",
+                 "explicit scalar body no longer selects a direct-C "
+                 "microkernel readiness branch"))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -830,9 +828,9 @@ module {
               emissionPlan),
           "explicit scalar body emission plan is plugin-owned"))
     return result;
-  if (int result = expectDeletedScalarDirectCEmissionPlan(
+  if (int result = expectScalarMetadataOnlyEmissionPlan(
           emissionPlan,
-          "explicit scalar body emission plan records deleted direct route"))
+          "explicit scalar body emission plan remains scalar metadata-only"))
     return result;
 
   return 0;
@@ -996,7 +994,8 @@ module {
                                          VariantEmissionRole::DirectVariant,
                                          builder),
           boundaryResult),
-      {"scalar element-count metadata", "without an explicit typed scalar",
+      {"scalar element-count metadata",
+       "scalar fallback selected boundaries are metadata-only",
        "metadata alone cannot create tcrv_scalar.lowering_boundary"});
 }
 
@@ -1207,7 +1206,8 @@ int main() {
     return result;
   if (int result = runMaterializationSelectionAndEmissionTest(context))
     return result;
-  if (int result = runExplicitTypedMicrokernelPreservationTest(context))
+  if (int result =
+          runExplicitTypedMicrokernelIsInertForMetadataRouteTest(context))
     return result;
   if (int result = runDeletedFrontendLoweringBoundaryRejectionTest(context))
     return result;

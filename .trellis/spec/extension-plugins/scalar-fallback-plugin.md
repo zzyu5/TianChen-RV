@@ -88,8 +88,7 @@ role, and the core consumes only that generic role.
 
 ## Metadata-Only Emission Boundary
 
-Scalar fallback without a matching executable microkernel attachment is a
-metadata-only route for compiler decisions:
+Scalar fallback is currently a metadata-only route for compiler decisions:
 
 ```text
 readiness status: metadata-only
@@ -104,16 +103,17 @@ artifact kind: metadata-diagnostic
 ```
 
 This metadata-only emission-plan diagnostic records plugin-owned intent only.
-It applies when the selected scalar fallback path has no validated matching
-family-specific `tcrv_scalar.i32_*_microkernel` or
-`tcrv_scalar.i64_*_microkernel`. It does not mean that
+It applies even if a hand-authored scalar microkernel attachment is present in
+the selected kernel. Such attachments remain dialect/future-route IR only; the
+scalar plugin must not interpret them as current callable microkernel family
+authority, direct-C source authority, runtime ABI authority, generated-artifact
+authority, correctness evidence, or performance evidence. It does not mean that
 TianChen-RV emitted LLVM IR, generated an object, linked a runtime, executed a
 scalar kernel, proved correctness, or measured performance.
 It also does not authorize metadata-alone selected lowering-boundary
 materialization: a selected scalar fallback variant carrying only
 `tcrv_scalar.element_count` metadata must fail closed before
-`tcrv_scalar.lowering_boundary` creation unless an explicit typed scalar
-microkernel body is already present for the selected path.
+`tcrv_scalar.lowering_boundary` creation.
 
 ## Selected Lowering Boundary
 
@@ -122,9 +122,9 @@ path. Its first selected-boundary slice validates the selected scalar fallback
 variant through the same plugin-local legality rules, then materializes a
 plugin-local scalar metadata operation. A descriptorless no-body scalar fallback
 path may materialize this metadata-only boundary, but it must not synthesize a
-typed scalar microkernel body. For the bounded finite i32/i64 add/sub/mul
-source slice, typed selected-path compute authority exists only when a matching
-explicit `tcrv_scalar.*_microkernel` direct child is already present.
+typed scalar microkernel body, derive family authority from a typed scalar
+microkernel body, or insert runtime ABI `tcrv.exec.mem_window` /
+`tcrv.exec.runtime_param` operations from scalar/RVV-scalar bridge metadata.
 
 ```mlir
 tcrv_scalar.lowering_boundary {
@@ -164,25 +164,27 @@ any other finite-family microkernel from defaults, RVV-scalar bridge metadata,
 metadata selector. Absence of a body is a metadata-only fallback state, not a
 compute authority.
 
-When a matching explicit scalar microkernel body already exists for the
-selected path, lowering-boundary materialization preserves that typed body and
-validates `tcrv_scalar.element_count` only as bounded selected-path metadata. A
-selected scalar fallback variant carrying only element-count metadata with no
-typed body must fail closed before `tcrv_scalar.lowering_boundary` creation.
+When an explicit scalar microkernel body already exists in the selected kernel,
+lowering-boundary materialization may leave that operation as inert input IR,
+but must not use it to select a finite family, validate selected element-count
+mirrors, synthesize ABI windows/params, or switch emission readiness/planning to
+a direct-C unsupported microkernel branch. A selected scalar fallback variant
+carrying `tcrv_scalar.element_count` metadata still fails closed before
+`tcrv_scalar.lowering_boundary` creation; the metadata alone is not a current
+boundary authority.
 
-Downstream emission planning may consume this boundary as the validated
-selected-path attachment point before materializing either metadata-only
-diagnostics or, when the matching microkernel exists, a supported scalar C
-source-export plan. The lowering boundary itself still records selected-path
-metadata only. It is not LLVM lowering, object generation, linked runtime glue,
-hardware execution, correctness evidence, or performance evidence.
+Downstream emission planning may consume this boundary only to materialize the
+metadata-only diagnostic above. The lowering boundary itself still records
+selected-path metadata only. It is not LLVM lowering, object generation, linked
+runtime glue, hardware execution, correctness evidence, or performance
+evidence.
 
-Real scalar fallback lowering beyond the bounded i32/i64 vector add/sub/mul C
-source microkernel family must be added by later plugin-local lowering slices
-and validated with compiler-generated artifacts and runtime evidence
-appropriate to those paths.
+Real scalar fallback lowering must be added by a later plugin-local rebuild
+slice through extension-family ops and a materialized MLIR EmitC route, then
+validated with compiler-generated artifacts and runtime evidence appropriate to
+that path.
 
-## Explicit I32/I64 Vector Add/Sub/Mul Microkernel Export
+## Explicit I32/I64 Vector Add/Sub/Mul Microkernel Ops
 
 `tcrv_scalar.i32_vadd_microkernel` and
 `tcrv_scalar.i32_vsub_microkernel` and
@@ -190,9 +192,9 @@ appropriate to those paths.
 `tcrv_scalar.i64_vadd_microkernel` and
 `tcrv_scalar.i64_vsub_microkernel` and
 `tcrv_scalar.i64_vmul_microkernel` are scalar extension-dialect typed
-microkernel attachment ops for the bounded i32/i64 add/sub/mul family. Each
-represents exactly one bounded callable body for a selected scalar fallback
-path. The ops are plugin-local under the `tcrv_scalar` dialect and must carry
+microkernel attachment ops for future scalar lowering work. They are not active
+callable bodies for the current scalar fallback plugin. The ops are plugin-local
+under the `tcrv_scalar` dialect and must carry
 only selected-path metadata: source kernel, selected variant, origin, selected
 role, required capability refs, and a tiny element count. They must reject
 generic tensor/tile/benchmark attributes, unbounded or secret-like strings,
@@ -202,7 +204,8 @@ fallback capability refs, and required-capability mismatches.
 Scalar fallback direct runtime-callable C source/header/object routes are
 deleted production routes. A selected scalar fallback path may still materialize
 typed scalar extension ops for future lowering work, but the scalar plugin must
-not advertise selected metadata or family records as supported executable C
-artifacts. Generic target artifact front doors must fail closed for historical
-scalar direct route ids until a rebuilt path materializes a real MLIR EmitC
-module and emits C/C++ through the MLIR emitter.
+not advertise selected metadata, typed scalar ops, or family records as
+supported or specially unsupported executable C artifacts. Generic target
+artifact front doors must fail closed for historical scalar direct route ids
+until a rebuilt path materializes a real MLIR EmitC module and emits C/C++
+through the MLIR emitter.

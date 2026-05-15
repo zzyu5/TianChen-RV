@@ -2,9 +2,9 @@
 # RUN: FileCheck %s --check-prefix=SCALAR-PLAN --implicit-check-not="artifact_kind = \"runtime-callable-c-source\"" --implicit-check-not="status = \"supported\"" < %t.scalar-post-planning.mlir
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %t.scalar-post-planning.mlir 2>&1 | FileCheck %s --check-prefix=SCALAR-GENERIC-DELETED --implicit-check-not="#include <stdint.h>" --implicit-check-not="tcrv_scalar_i32_add"
 
-# SCALAR-PLAN: message = "runtime-callable scalar direct C source exporter was deleted; rebuild requires a materialized MLIR EmitC module source route"
+# SCALAR-PLAN: emission_kind = "portable-scalar-fallback-metadata-route"
 # SCALAR-PLAN-SAME: role = "dispatch fallback"
-# SCALAR-PLAN-SAME: status = "unsupported"
+# SCALAR-PLAN-SAME: status = "metadata-only"
 # SCALAR-PLAN-SAME: target = @scalar_fallback_first_slice
 # SCALAR-GENERIC-DELETED: requires exactly one supported source artifact emission-plan route; found none
 
@@ -12,9 +12,9 @@
 # RUN: FileCheck %s --check-prefix=SCALAR-I64-PLAN --implicit-check-not="artifact_kind = \"runtime-callable-c-source\"" --implicit-check-not="status = \"supported\"" < %t.scalar-i64-vmul-post-planning.mlir
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %t.scalar-i64-vmul-post-planning.mlir 2>&1 | FileCheck %s --check-prefix=SCALAR-I64-GENERIC-DELETED --implicit-check-not="#include <stdint.h>" --implicit-check-not="tcrv_scalar_i64_mul"
 
-# SCALAR-I64-PLAN: message = "runtime-callable scalar direct C source exporter was deleted; rebuild requires a materialized MLIR EmitC module source route"
+# SCALAR-I64-PLAN: emission_kind = "portable-scalar-fallback-metadata-route"
 # SCALAR-I64-PLAN-SAME: role = "direct variant"
-# SCALAR-I64-PLAN-SAME: status = "unsupported"
+# SCALAR-I64-PLAN-SAME: status = "metadata-only"
 # SCALAR-I64-PLAN-SAME: target = @scalar_fallback_first_slice
 # SCALAR-I64-GENERIC-DELETED: requires exactly one supported source artifact emission-plan route; found none
 

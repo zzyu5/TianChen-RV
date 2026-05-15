@@ -14,7 +14,6 @@
 #include "TianChenRV/Target/RVV/RVVBinaryFamily.h"
 #include "TianChenRV/Target/RVV/RVVSelectedConfigContract.h"
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
-#include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
 #include "TianChenRV/Target/Template/TemplateMetadataArtifact.h"
@@ -2048,17 +2047,14 @@ TargetArtifactBundleRecord makeDispatchBundleComponentRecord(
   record.componentVariants.push_back("scalar_fallback_first_slice");
   record.componentRoles.push_back("dispatch case");
   record.componentRoles.push_back("dispatch fallback");
-  record.componentGroup =
-      "rvv-scalar-i32-vadd-dispatch-external-abi.v1";
+  record.componentGroup = "generic-dispatch-bundle-external-abi.v1";
   record.componentRole = componentRole.str();
-  record.externalABIName =
-      "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1";
+  record.externalABIName = "generic-dispatch-runtime-callable-c-function.v1";
   record.artifactKind = artifactKind.str();
   record.routeID = routeID.str();
-  record.owner = "rvv-scalar-dispatch-target";
-  record.runtimeABIKind = "rvv-scalar-dispatch-runtime-callable-c-abi";
-  record.runtimeABIName =
-      "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1";
+  record.owner = "generic-dispatch-target";
+  record.runtimeABIKind = "generic-dispatch-runtime-callable-c-abi";
+  record.runtimeABIName = "generic-dispatch-runtime-callable-c-function.v1";
   llvm::SmallVector<RuntimeABIParameter, 5> parameters =
       getAddRuntimeABIContract().getDispatchRuntimeABIParameters();
   record.runtimeABIParameters.append(parameters.begin(), parameters.end());
@@ -2069,13 +2065,13 @@ bool expectTargetArtifactBundleComponentContractValidation() {
   llvm::SmallVector<TargetArtifactBundleRecord, 3> records;
   records.push_back(makeDispatchBundleComponentRecord(
       "runtime-callable-c-source",
-      "tcrv-export-rvv-scalar-i32-vadd-dispatch-c", "source"));
+      "bundle-test-generic-dispatch-source", "source"));
   records.push_back(makeDispatchBundleComponentRecord(
       "runtime-callable-c-header",
-      "tcrv-export-rvv-scalar-i32-vadd-dispatch-header", "header"));
+      "bundle-test-generic-dispatch-header", "header"));
   records.push_back(makeDispatchBundleComponentRecord(
       "riscv-elf-relocatable-object",
-      "tcrv-export-rvv-scalar-i32-vadd-dispatch-object", "object"));
+      "bundle-test-generic-dispatch-object", "object"));
 
   if (!expectSuccess(validateTargetArtifactBundleComponentContract(records),
                      "dispatch bundle component contract accepted"))

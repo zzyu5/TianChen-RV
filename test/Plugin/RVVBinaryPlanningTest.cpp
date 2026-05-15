@@ -3,7 +3,6 @@
 #include "TianChenRV/Plugin/RVV/RVVBinaryPlanning.h"
 
 #include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -307,20 +306,14 @@ int runEmissionIdentityTest() {
           i64VMulIdentity, "build i64-vmul emission identity"))
     return result;
 
-  const auto &dispatchFamily =
-      tianchenrv::target::rvv_scalar::getI64VMulFamilyRegistrationRecord().dispatch;
   if (int result = expect(i64VMulIdentity.getRouteID().empty(),
                           "i64-vmul emission identity has no selected RVV route id"))
     return result;
   if (int result = expect(i64VMulIdentity.getEmissionKind().empty(),
                           "i64-vmul emission identity has no RVV emission kind"))
     return result;
-  if (int result = expect(i64VMulIdentity.getRuntimeABIName().empty(),
-                          "i64-vmul emission identity has no selected RVV ABI name"))
-    return result;
-  return expect(dispatchFamily.selfCheckSuccessMarker ==
-                    "tcrv_rvv_scalar_i64_vmul_dispatch_self_check_ok",
-                "i64-vmul dispatch diagnostic marker remains target-owned");
+  return expect(i64VMulIdentity.getRuntimeABIName().empty(),
+                "i64-vmul emission identity has no selected RVV ABI name");
 }
 
 int runProposalPlanRequirementMetadataTest() {

@@ -1,17 +1,11 @@
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
-#include "TianChenRV/Support/RuntimeABIMemWindow.h"
-#include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/RVVScalarBinaryFamily.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "llvm/Support/Errc.h"
-#include "llvm/Support/raw_ostream.h"
 
-#include <cstddef>
-#include <cstdint>
 #include <string>
 #include <utility>
 
@@ -32,9 +26,6 @@ constexpr llvm::StringLiteral kFrontendLoweringAttrName(
     "tcrv_frontend_lowering");
 constexpr llvm::StringLiteral kScalarElementCountAttrName(
     "tcrv_scalar.element_count");
-constexpr llvm::StringLiteral kDirectCSourceRouteDeletedReason(
-    "runtime-callable scalar direct C source exporter was deleted; rebuild "
-    "requires a materialized MLIR EmitC module source route");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
@@ -45,58 +36,8 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
     "required_capabilities");
 constexpr llvm::StringLiteral kFallbackReasonAttrName("fallback_reason");
 constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
-constexpr llvm::StringLiteral kElementCountAttrName("element_count");
-
-using ScalarBinaryFamilyRecord =
-    tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyRecord;
-using ScalarBinaryMicrokernelRecord =
-    tianchenrv::target::rvv_scalar::ScalarBinaryMicrokernelRecord;
 
 llvm::Error makeScalarPluginError(llvm::Twine message);
-
-struct ScalarMicrokernelFamilySpec {
-  const ScalarBinaryFamilyRecord *family;
-
-  const ScalarBinaryMicrokernelRecord &getScalar() const {
-    return family->scalar;
-  }
-};
-
-const ScalarMicrokernelFamilySpec &getI32VAddFamilySpec() {
-  static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI32VAddFamilyRegistrationRecord()};
-  return spec;
-}
-
-const ScalarMicrokernelFamilySpec &getI32VSubFamilySpec() {
-  static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI32VSubFamilyRegistrationRecord()};
-  return spec;
-}
-
-const ScalarMicrokernelFamilySpec &getI32VMulFamilySpec() {
-  static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI32VMulFamilyRegistrationRecord()};
-  return spec;
-}
-
-const ScalarMicrokernelFamilySpec &getI64VAddFamilySpec() {
-  static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI64VAddFamilyRegistrationRecord()};
-  return spec;
-}
-
-const ScalarMicrokernelFamilySpec &getI64VSubFamilySpec() {
-  static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI64VSubFamilyRegistrationRecord()};
-  return spec;
-}
-
-const ScalarMicrokernelFamilySpec &getI64VMulFamilySpec() {
-  static const ScalarMicrokernelFamilySpec spec{
-      &tianchenrv::target::rvv_scalar::getI64VMulFamilyRegistrationRecord()};
-  return spec;
-}
 
 bool hasScalarElementCountMetadata(tcrv::exec::VariantOp variant) {
   return variant && variant->hasAttr(kScalarElementCountAttrName);
@@ -141,57 +82,6 @@ llvm::Error rejectDeletedScalarFrontendLoweringAuthority(
       "explicit tcrv_scalar extension-family ops and the common EmitC route");
 }
 
-mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
-  return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
-}
-
-bool containsForbiddenScalarMetadataText(llvm::StringRef value) {
-  std::string lower = value.lower();
-  llvm::StringRef normalized(lower);
-  return normalized.contains("password") || normalized.contains("passwd") ||
-         normalized.contains("token") || normalized.contains("secret") ||
-         normalized.contains("private key") ||
-         normalized.contains("authorization:") ||
-         normalized.contains("api_key") || normalized.contains("access_key");
-}
-
-llvm::Error validateScalarMetadataText(llvm::StringRef context,
-                                       llvm::StringRef attrName,
-                                       llvm::StringRef value) {
-  constexpr std::size_t kMaxTextLength = 512;
-  if (value.empty() || value.size() > kMaxTextLength)
-    return makeScalarPluginError(llvm::Twine(context) + " attribute '" +
-                                 attrName +
-                                 "' must be bounded non-empty single-line "
-                                 "metadata");
-
-  for (char character : value) {
-    unsigned char byte = static_cast<unsigned char>(character);
-    if (character == '\n' || character == '\r' || byte == 0)
-      return makeScalarPluginError(llvm::Twine(context) + " attribute '" +
-                                   attrName +
-                                   "' must be bounded non-empty single-line "
-                                   "metadata");
-    if (byte < 0x20 && character != '\t')
-      return makeScalarPluginError(llvm::Twine(context) + " attribute '" +
-                                   attrName +
-                                   "' must be bounded non-empty single-line "
-                                   "metadata");
-  }
-
-  if (value.contains("/*") || value.contains("*/"))
-    return makeScalarPluginError(llvm::Twine(context) + " attribute '" +
-                                 attrName +
-                                 "' must not contain C comment delimiter text");
-
-  if (containsForbiddenScalarMetadataText(value))
-    return makeScalarPluginError(llvm::Twine(context) + " attribute '" +
-                                 attrName +
-                                 "' must not contain secret-like or raw "
-                                 "credential text");
-  return llvm::Error::success();
-}
-
 llvm::Error validateScalarElementCountMirrorMetadataSyntax(
     tcrv::exec::VariantOp variant) {
   if (mlir::Attribute rawElementCount =
@@ -208,82 +98,6 @@ llvm::Error validateScalarElementCountMirrorMetadataSyntax(
   }
 
   return llvm::Error::success();
-}
-
-llvm::Error validateScalarElementCountMirrorAfterTypedPlan(
-    tcrv::exec::VariantOp variant,
-    const ScalarMicrokernelFamilySpec &typedFamily,
-    std::int64_t typedElementCount) {
-  if (!variant)
-    return makeScalarPluginError(
-        "explicit scalar microkernel emission plan requires selected variant "
-        "metadata for selected element-count validation");
-
-  if (llvm::Error error =
-          validateScalarElementCountMirrorMetadataSyntax(variant))
-    return std::move(error);
-
-  auto elementCountAttr =
-      variant->getAttrOfType<mlir::IntegerAttr>(kScalarElementCountAttrName);
-  if (!elementCountAttr)
-    return llvm::Error::success();
-
-  if (elementCountAttr.getInt() != typedElementCount)
-    return makeScalarPluginError(
-        llvm::Twine("optional selected scalar element_count metadata "
-                    "'tcrv_scalar.element_count' must match typed ") +
-        typedFamily.getScalar().microkernelOpName +
-        " element_count before selected emission planning");
-
-  return llvm::Error::success();
-}
-
-llvm::Error validateMicrokernelEmissionAttr(mlir::Operation *op,
-                                            llvm::StringRef attrName,
-                                            llvm::StringRef expectedValue) {
-  auto attr = getStringAttr(op, attrName);
-  if (!attr || attr.getValue().trim().empty())
-    return makeScalarPluginError(
-        llvm::Twine("explicit scalar microkernel emission plan requires "
-                    "non-empty string attribute '") +
-        attrName + "'");
-  if (llvm::Error error =
-          validateScalarMetadataText("explicit scalar microkernel emission plan",
-                                     attrName, attr.getValue().trim()))
-    return error;
-  if (attr.getValue().trim() != expectedValue)
-    return makeScalarPluginError(
-        llvm::Twine("explicit scalar microkernel emission plan attribute '") +
-        attrName + "' value '" + attr.getValue().trim() +
-        "' does not match expected selected-path value '" + expectedValue +
-        "'");
-  return llvm::Error::success();
-}
-
-bool arrayAttrsEqual(mlir::ArrayAttr lhs, mlir::ArrayAttr rhs) {
-  if (!lhs || !rhs || lhs.size() != rhs.size())
-    return false;
-  for (auto [lhsAttr, rhsAttr] : llvm::zip(lhs, rhs))
-    if (lhsAttr != rhsAttr)
-      return false;
-  return true;
-}
-
-const ScalarMicrokernelFamilySpec *
-getScalarMicrokernelFamilyForOp(mlir::Operation *op) {
-  if (llvm::isa_and_nonnull<tcrv::scalar::I32VAddMicrokernelOp>(op))
-    return &getI32VAddFamilySpec();
-  if (llvm::isa_and_nonnull<tcrv::scalar::I32VSubMicrokernelOp>(op))
-    return &getI32VSubFamilySpec();
-  if (llvm::isa_and_nonnull<tcrv::scalar::I32VMulMicrokernelOp>(op))
-    return &getI32VMulFamilySpec();
-  if (llvm::isa_and_nonnull<tcrv::scalar::I64VAddMicrokernelOp>(op))
-    return &getI64VAddFamilySpec();
-  if (llvm::isa_and_nonnull<tcrv::scalar::I64VSubMicrokernelOp>(op))
-    return &getI64VSubFamilySpec();
-  if (llvm::isa_and_nonnull<tcrv::scalar::I64VMulMicrokernelOp>(op))
-    return &getI64VMulFamilySpec();
-  return nullptr;
 }
 
 llvm::Expected<bool> variantRequiresScalarFallback(
@@ -314,175 +128,6 @@ llvm::Expected<bool> variantRequiresScalarFallback(
   }
 
   return false;
-}
-
-llvm::Error requireMatchingScalarBoundary(
-    const VariantEmissionRequest &request, mlir::ArrayAttr variantRequires) {
-  tcrv::exec::KernelOp kernel = request.getKernel();
-  tcrv::exec::VariantOp variant = request.getVariant();
-  llvm::StringRef expectedRole = stringifyVariantEmissionRole(request.getRole());
-
-  unsigned matches = 0;
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto boundary = llvm::dyn_cast<tcrv::scalar::LoweringBoundaryOp>(op);
-    if (!boundary)
-      continue;
-
-    auto selectedVariant =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
-    auto role = getStringAttr(&op, kRoleAttrName);
-    if (!selectedVariant || !role)
-      return makeScalarPluginError(
-          "explicit scalar microkernel emission plan requires "
-          "tcrv_scalar.lowering_boundary selected_variant and role metadata");
-
-    if (selectedVariant.getValue() != variant.getSymName() ||
-        role.getValue() != expectedRole) {
-      return makeScalarPluginError(
-          llvm::Twine("stale tcrv_scalar.lowering_boundary for @") +
-          selectedVariant.getValue() + " as " + role.getValue() +
-          " is not the selected scalar emission plan path @" +
-          variant.getSymName() + " as " + expectedRole);
-    }
-
-    ++matches;
-
-    if (llvm::Error error =
-            validateMicrokernelEmissionAttr(&op, kSourceKernelAttrName,
-                                            kernel.getSymName()))
-      return error;
-    if (llvm::Error error =
-            validateMicrokernelEmissionAttr(&op, kOriginAttrName,
-                                            kScalarPluginName))
-      return error;
-    if (llvm::Error error =
-            validateMicrokernelEmissionAttr(&op, kRoleAttrName, expectedRole))
-      return error;
-    if (llvm::Error error =
-            validateMicrokernelEmissionAttr(&op, kStatusAttrName,
-                                            kMetadataOnlyStatusValue))
-      return error;
-
-    if (!arrayAttrsEqual(
-            boundary->getAttrOfType<mlir::ArrayAttr>(
-                kRequiredCapabilitiesAttrName),
-            variantRequires))
-      return makeScalarPluginError(
-          "explicit scalar microkernel emission plan requires "
-          "tcrv_scalar.lowering_boundary required_capabilities to match "
-          "selected variant requires metadata");
-  }
-
-  if (matches == 0)
-    return makeScalarPluginError(
-        llvm::Twine("selected scalar emission plan path @") +
-        variant.getSymName() + " as " + expectedRole +
-        " requires exactly one matching tcrv_scalar.lowering_boundary");
-  if (matches > 1)
-    return makeScalarPluginError(
-        llvm::Twine("selected scalar emission plan path @") +
-        variant.getSymName() + " as " + expectedRole +
-        " has duplicate tcrv_scalar.lowering_boundary metadata");
-
-  return llvm::Error::success();
-}
-
-llvm::Expected<const ScalarMicrokernelFamilySpec *>
-findMatchingExplicitMicrokernelFamily(
-    const VariantEmissionRequest &request, bool requireBoundary = true) {
-  tcrv::exec::KernelOp kernel = request.getKernel();
-  tcrv::exec::VariantOp variant = request.getVariant();
-  if (!kernel || !variant || kernel.getBody().empty())
-    return static_cast<const ScalarMicrokernelFamilySpec *>(nullptr);
-
-  llvm::StringRef expectedRole = stringifyVariantEmissionRole(request.getRole());
-  auto variantRequires =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-
-  unsigned matches = 0;
-  const ScalarMicrokernelFamilySpec *matchedFamily = nullptr;
-  std::int64_t matchedElementCount = 0;
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    const ScalarMicrokernelFamilySpec *family =
-        getScalarMicrokernelFamilyForOp(&op);
-    if (!family)
-      continue;
-
-    auto selectedVariant =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
-    auto role = getStringAttr(&op, kRoleAttrName);
-    if (!selectedVariant || !role)
-      return makeScalarPluginError(
-          "explicit scalar microkernel emission plan requires selected_variant "
-          "and role metadata");
-
-    if (selectedVariant.getValue() != variant.getSymName() ||
-        role.getValue() != expectedRole) {
-      return makeScalarPluginError(
-          llvm::Twine("stale ") + family->getScalar().microkernelOpName +
-          " for @" +
-          selectedVariant.getValue() + " as " + role.getValue() +
-          " is not the selected scalar emission plan path @" +
-          variant.getSymName() + " as " + expectedRole);
-    }
-
-    ++matches;
-    matchedFamily = family;
-
-    if (llvm::Error error =
-            validateMicrokernelEmissionAttr(&op, kSourceKernelAttrName,
-                                            kernel.getSymName()))
-      return std::move(error);
-    if (llvm::Error error =
-            validateMicrokernelEmissionAttr(&op, kOriginAttrName,
-                                            kScalarPluginName))
-      return std::move(error);
-    if (llvm::Error error =
-            validateMicrokernelEmissionAttr(&op, kRoleAttrName, expectedRole))
-      return std::move(error);
-
-    if (!variantRequires ||
-        !arrayAttrsEqual(
-            op.getAttrOfType<mlir::ArrayAttr>(
-                kRequiredCapabilitiesAttrName),
-            variantRequires)) {
-      return makeScalarPluginError(
-          llvm::Twine("explicit scalar microkernel emission plan requires ") +
-          family->getScalar().microkernelOpName +
-          " required_capabilities to match selected variant requires metadata");
-    }
-
-    auto elementCount =
-        op.getAttrOfType<mlir::IntegerAttr>(kElementCountAttrName);
-    if (!elementCount || elementCount.getInt() <= 0 ||
-        elementCount.getInt() > 64)
-      return makeScalarPluginError(
-          "explicit scalar microkernel emission plan requires element_count in "
-          "the bounded smoke range [1, 64]");
-    matchedElementCount = elementCount.getInt();
-  }
-
-  if (matches > 1)
-    return makeScalarPluginError(
-        llvm::Twine("selected scalar emission plan path @") +
-        variant.getSymName() + " as " + expectedRole +
-        " has duplicate scalar binary microkernel metadata");
-
-  if (matches == 0)
-    return static_cast<const ScalarMicrokernelFamilySpec *>(nullptr);
-
-  if (llvm::Error error = validateScalarElementCountMirrorAfterTypedPlan(
-          variant, *matchedFamily, matchedElementCount))
-    return std::move(error);
-
-  if (!requireBoundary)
-    return matchedFamily;
-
-  if (llvm::Error error =
-          requireMatchingScalarBoundary(request, variantRequires))
-    return std::move(error);
-
-  return matchedFamily;
 }
 
 tcrv::scalar::LoweringBoundaryOp materializeScalarBoundaryOp(
@@ -690,17 +335,6 @@ llvm::Error ScalarExtensionPlugin::checkVariantEmissionReadiness(
     return makeScalarPluginError(
         "emission readiness requires a materialized tcrv.exec.variant");
 
-  llvm::Expected<const ScalarMicrokernelFamilySpec *> microkernelFamily =
-      findMatchingExplicitMicrokernelFamily(request);
-  if (!microkernelFamily)
-    return microkernelFamily.takeError();
-  if (*microkernelFamily) {
-    out = VariantEmissionStatus::getUnsupported(
-        kScalarPluginName, request.getVariant().getSymName(),
-        kDirectCSourceRouteDeletedReason);
-    return llvm::Error::success();
-  }
-
   out = VariantEmissionStatus::getMetadataOnly(
       kScalarPluginName, request.getVariant().getSymName(),
       "portable-scalar-fallback-non-executable-metadata-route");
@@ -716,18 +350,6 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
   if (!request.getKernel())
     return makeScalarPluginError(
         "emission planning requires an enclosing tcrv.exec.kernel");
-
-  llvm::Expected<const ScalarMicrokernelFamilySpec *> microkernelFamily =
-      findMatchingExplicitMicrokernelFamily(request);
-  if (!microkernelFamily)
-    return microkernelFamily.takeError();
-  if (*microkernelFamily) {
-    out = VariantEmissionPlan::getUnsupported(
-        kScalarPluginName, request.getKernel().getSymName(),
-        request.getVariant().getSymName(), request.getRole(),
-        kDirectCSourceRouteDeletedReason);
-    return llvm::Error::success();
-  }
 
   out = VariantEmissionPlan::getMetadataOnly(
       kScalarPluginName, request.getKernel().getSymName(),
@@ -779,51 +401,15 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
           request.getKernel(), request.getVariant()))
     return error;
 
-  const ScalarMicrokernelFamilySpec *callableMicrokernelFamily = nullptr;
-  bool selectedPathHasCallableMicrokernel = callableMicrokernelFamily != nullptr;
-  if (!selectedPathHasCallableMicrokernel) {
-    VariantEmissionRequest emissionRequest(request.getVariant(),
-                                           request.getKernel(),
-                                           request.getCapabilities(),
-                                           request.getRole());
-    llvm::Expected<const ScalarMicrokernelFamilySpec *> explicitMicrokernel =
-        findMatchingExplicitMicrokernelFamily(emissionRequest,
-                                              /*requireBoundary=*/false);
-    if (!explicitMicrokernel)
-      return explicitMicrokernel.takeError();
-    callableMicrokernelFamily = *explicitMicrokernel;
-    selectedPathHasCallableMicrokernel = callableMicrokernelFamily != nullptr;
-  }
-
-  if (!selectedPathHasCallableMicrokernel &&
-      hasScalarElementCountMetadata(request.getVariant())) {
+  if (hasScalarElementCountMetadata(request.getVariant())) {
     return makeScalarPluginError(
         llvm::Twine("selected scalar fallback variant @") +
         request.getVariant().getSymName() +
         " carries scalar element-count metadata '" +
         kScalarElementCountAttrName +
-        "' without an explicit typed scalar microkernel body; element-count "
-        "metadata alone cannot create tcrv_scalar.lowering_boundary");
-  }
-
-  if (selectedPathHasCallableMicrokernel)
-    if (llvm::Error error = support::ensureRuntimeABIBufferMemWindows(
-            request.getKernel(), request.getBuilder(),
-            tianchenrv::target::rvv_scalar::
-                getRVVScalarBinaryBufferMemWindowSpecs(
-                    *callableMicrokernelFamily->family)))
-      return error;
-
-  if (selectedPathHasCallableMicrokernel) {
-    llvm::SmallVector<support::RuntimeABIParamSpec, 1> runtimeParamSpecs;
-    auto countSpecs = tianchenrv::target::rvv_scalar::
-        getRVVScalarBinaryRuntimeElementCountParamSpecs(
-            *callableMicrokernelFamily->family);
-    runtimeParamSpecs.append(countSpecs.begin(), countSpecs.end());
-    if (llvm::Error error =
-            support::ensureRuntimeABIParamsAllowingExistingCNames(
-                request.getKernel(), request.getBuilder(), runtimeParamSpecs))
-      return error;
+        "' but scalar fallback selected boundaries are metadata-only; "
+        "element-count metadata alone cannot create "
+        "tcrv_scalar.lowering_boundary");
   }
 
   tcrv::scalar::LoweringBoundaryOp boundary = materializeScalarBoundaryOp(
