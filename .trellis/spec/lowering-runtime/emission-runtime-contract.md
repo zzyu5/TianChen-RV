@@ -76,8 +76,8 @@ records rather than from a materialized MLIR EmitC module.
 
 - Good: tests assert unsupported diagnostics and route absence for deleted
   direct C route families.
-- Base: stale smoke-probe descriptor fixtures may remain only as deleted-route
-  negative coverage and must not emit C.
+- Base: stale standalone RVV smoke-probe route fixtures must not remain as
+  active compiler inputs and must not emit C.
 - Bad: selected metadata, family records, route records, or descriptor mirrors
   synthesize raw C loops, RVV intrinsics, scalar arithmetic bodies, dispatcher
   branches, headers, objects, or bundles.
@@ -1365,11 +1365,10 @@ llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
 - Built-in target artifact exporter registration must not publish
   `tcrv-export-rvv-smoke-probe-c`, `rvv-smoke-probe-standalone-c-source`, or
   `standalone-c-source` as a supported RVV source route.
-- `RVVExtensionPlugin` must not turn `tcrv_rvv.smoke_probe_descriptor` into
-  supported emission readiness or a supported emission plan.
-- Historical `tcrv_rvv.smoke_probe_descriptor` metadata may remain parseable
-  only as stale negative input; plugin legality should reject it as a deleted
-  direct source artifact frontdoor.
+- `RVVExtensionPlugin` must not turn plugin-local smoke-probe metadata or route
+  records into supported emission readiness or a supported emission plan.
+- Historical standalone smoke-probe metadata must not remain as active
+  code/spec/test fixtures or plugin special-case legality input.
 - No output may contain `#include <riscv_vector.h>`, `__riscv_` intrinsic
   compute, probe functions, or a `main` from this compiler frontdoor.
 
@@ -1379,9 +1378,9 @@ llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
   unknown/deleted option and no C source is printed.
 - Generic target source artifact export sees a historical smoke-probe route id
   -> route lookup or coherence fails closed; no C source is printed.
-- A selected RVV variant carries `tcrv_rvv.smoke_probe_descriptor` -> plugin
-  legality/emission rejects it as deleted-route input rather than reporting a
-  supported standalone source artifact.
+- A selected RVV variant carries stale standalone smoke-probe route metadata ->
+  plugin legality/emission must not report a supported standalone source
+  artifact.
 
 ### 5. Good/Base/Bad Cases
 
@@ -1389,7 +1388,7 @@ llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
   C text.
 - Base: selected RVV metadata can still materialize unsupported
   `tcrv_rvv.lowering_boundary` records for non-executable planning evidence.
-- Bad: selected RVV metadata, smoke descriptor metadata, or route metadata
+- Bad: selected RVV metadata or stale standalone smoke-probe route metadata
   emits standalone C, `riscv_vector.h`, `__riscv_` intrinsics, or a probe
   `main`.
 
@@ -1399,7 +1398,7 @@ llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
   generic source frontdoor route absence.
 - C++ registry coverage proving built-in target artifact exporters no longer
   publish the smoke-probe route.
-- Plugin legality/emission coverage proving historical smoke descriptor
+- Plugin legality/emission coverage proving historical standalone smoke-probe
   metadata is not a supported artifact source.
 - Full project check must still pass through `check-tianchenrv`.
 

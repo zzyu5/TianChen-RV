@@ -116,21 +116,12 @@ owned and must not restore core transforms that inspect finite RVV
 linalg/vector source bodies or query RVV family records to materialize
 `tcrv.exec`.
 
-The `tcrv-translate --tcrv-export-rvv-smoke-probe-c` tool exports a
-deterministic standalone C RVV hardware/toolchain smoke probe from post-planning
-MLIR that has selected RVV metadata and a matching
-`tcrv_rvv.lowering_boundary`. The generated source uses `riscv_vector.h` and a
-tiny RVV intrinsic load/add/store check so it can be compiled and run on the
-`ssh rvv` host as toolchain evidence. It is not TianChen-RV kernel lowering,
-kernel executable emission, runtime ABI glue, kernel correctness evidence, or
-performance evidence, and it does not change the RVV first-slice unsupported
-emission boundary.
-When a selected RVV path is explicitly planned as a smoke-probe descriptor, the
-same emitter is also reachable through the registry-driven generic
-`tcrv-translate --tcrv-export-target-source-artifact` front door as a
-`standalone-c-source` artifact. That generic route still emits only the bounded
-toolchain smoke program and does not turn the path into kernel lowering,
-runtime integration, correctness evidence, or performance evidence.
+The former RVV standalone smoke-probe compiler front doors are deleted.
+Selected RVV metadata and `tcrv_rvv.lowering_boundary` are not enough to
+synthesize a standalone C harness through `tcrv-translate` or the generic
+target-source artifact route. Explicit RVV hardware/toolchain probes belong in
+separate probe tooling and recorded `ssh rvv` artifacts, not in a compiler
+source artifact front door.
 
 The historical RVV, scalar, and RVV+scalar runtime-callable direct C semantic
 exporters are deleted production routes. Selected metadata, family records,
@@ -139,11 +130,6 @@ kernel C source, headers, objects, self-check sources, or target-artifact
 bundles. The removed direct translate options and generic target-artifact
 front doors fail closed for those deleted route ids until a future rebuild
 materializes a real MLIR EmitC module and emits C/C++ through the MLIR emitter.
-
-This deletion does not change the RVV smoke probe above. The smoke probe remains
-a standalone toolchain harness with artifact kind `standalone-c-source`; it is
-not a kernel semantic export route and does not prove selected-kernel lowering,
-runtime ABI integration, correctness, or performance.
 
 The generic target-artifact front doors remain coherence gates, not alternate
 direct-C backdoors. They may still reject stale RVV/scalar/dispatch

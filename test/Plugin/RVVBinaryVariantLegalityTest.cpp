@@ -326,16 +326,6 @@ module {
     } {
     }
 
-    tcrv.exec.variant @smoke_probe attributes {
-      origin = "rvv-plugin",
-      requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic],
-      policy = "metadata_only_first_slice",
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.smoke_probe_descriptor = "standalone-c-toolchain-smoke-probe.v1"
-    } {
-    }
-
     tcrv.exec.variant @bad_origin attributes {
       origin = "not-rvv-plugin",
       requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic],
@@ -415,12 +405,6 @@ int runVariantLegalityModuleTest(mlir::MLIRContext &context) {
           verifyVariant("i64_direct_source_without_body"),
           {"RVV selected-source metadata", "deleted as RVV finite-family "
                                           "legality authority"}))
-    return result;
-
-  if (int result = expectErrorContains(
-          verifyVariant("smoke_probe"),
-          {"RVV smoke-probe descriptor", "deleted direct source artifact",
-           "materialized MLIR EmitC module"}))
     return result;
 
   if (int result = expectErrorContains(

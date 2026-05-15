@@ -21,8 +21,6 @@ constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRVVPolicyAttrName("tcrv_rvv.policy");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
-constexpr llvm::StringLiteral kRVVSmokeProbeDescriptorAttrName(
-    "tcrv_rvv.smoke_probe_descriptor");
 constexpr llvm::StringLiteral kRVVVLenBBytesAttrName(
     "tcrv_rvv.vlenb_bytes");
 constexpr llvm::StringLiteral kRVVI32M1LanesAttrName(
@@ -192,18 +190,6 @@ llvm::Error verifyOptionalCapacityAttrs(
         "capability facts");
 
   return llvm::Error::success();
-}
-
-llvm::Error rejectDeletedSmokeProbeDescriptorAttr(
-    tcrv::exec::VariantOp variant) {
-  if (!variant->hasAttr(kRVVSmokeProbeDescriptorAttrName))
-    return llvm::Error::success();
-  return makeRVVBinaryVariantLegalityError(
-      llvm::Twine("RVV smoke-probe descriptor on variant @") +
-      variant.getSymName() +
-      " is a deleted direct source artifact frontdoor; standalone RVV C "
-      "smoke-probe export was removed, and future executable output requires "
-      "extension-family IR plus a materialized MLIR EmitC module route");
 }
 
 const RVVBinaryFamilyRecord *
@@ -464,9 +450,7 @@ llvm::Error verifyRVVBinaryVariantLegality(
     return error;
 
   std::optional<RVVFiniteBinaryTypedAuthority> finiteBinaryAuthority;
-  bool hasSmokeProbeDescriptor =
-      variant->hasAttr(kRVVSmokeProbeDescriptorAttrName);
-  if (!hasSmokeProbeDescriptor && hasFiniteBinaryLegalityMetadata(variant)) {
+  if (hasFiniteBinaryLegalityMetadata(variant)) {
     llvm::Expected<RVVFiniteBinaryTypedAuthority> authority =
         resolveFiniteBinaryTypedAuthority(request.getKernel(), variant,
                                           **requiredConfig);
@@ -483,7 +467,6 @@ llvm::Error verifyRVVBinaryVariantLegality(
   }
 
   if (variant->hasAttr(kRVVRequiredMarchAttrName) ||
-      variant->hasAttr(kRVVSmokeProbeDescriptorAttrName) ||
       variant->hasAttr(kRVVVLenBBytesAttrName) ||
       variant->hasAttr(kRVVI32M1LanesAttrName)) {
     llvm::Expected<RVVBinaryCapabilityPropertyView> propertyView =
@@ -495,8 +478,6 @@ llvm::Error verifyRVVBinaryVariantLegality(
     if (variant->hasAttr(kRVVRequiredMarchAttrName))
       if (llvm::Error error = verifyRequiredMarchAttr(variant, *propertyView))
         return error;
-    if (llvm::Error error = rejectDeletedSmokeProbeDescriptorAttr(variant))
-      return error;
     if (llvm::Error error =
             verifyOptionalCapacityAttrs(variant, *propertyView))
       return error;

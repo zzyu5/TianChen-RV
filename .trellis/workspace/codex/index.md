@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-6.md`
-- **Total Sessions**: 67
+- **Total Sessions**: 68
 - **Last Active**: 2026-05-15
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-6.md` | ~1018 | Active |
+| `journal-6.md` | ~1424 | Active |
 | `journal-5.md` | ~1983 | Archived |
 | `journal-4.md` | ~1979 | Archived |
 | `journal-3.md` | ~1998 | Archived |
@@ -34,6 +34,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 68 | 2026-05-15 | RVV smoke-probe descriptor residue deletion | pending | `main` |
 | 67 | 2026-05-15 | Scalar runtime-callable route deletion | this commit | `main` |
 | 66 | 2026-05-15 | Descriptor erasure: lowering descriptor metadata chain deletion | - | `main` |
 | 65 | 2026-05-14 | RVV selected config profile contract | this commit | `main` |

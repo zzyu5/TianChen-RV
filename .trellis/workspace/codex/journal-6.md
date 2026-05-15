@@ -1368,3 +1368,57 @@ direct-C route boundary.
 - Continue deletion only if another owner targets broader historical scalar
   direct-route or dispatch-route spec residue. Do not rebuild scalar EmitC in a
   deletion-only round.
+
+
+## Session 68: RVV smoke-probe descriptor residue deletion
+
+**Date**: 2026-05-15
+**Task**: RVV smoke-probe descriptor residue deletion
+**Branch**: `main`
+
+### Summary
+
+Deleted the RVV smoke-probe descriptor as an active compiler input and verified focused RVV tests plus full check-tianchenrv.
+
+### Main Changes
+
+### Main Changes
+
+- Removed RVV smoke-probe descriptor recognition from variant legality and selected lowering-boundary validation.
+- Removed the standalone smoke-probe descriptor fixture from the RVV binary variant-legality C++ test.
+- Updated README and Trellis specs so the old standalone smoke-probe compiler front doors stay deleted without preserving descriptor fixture or negative-only quarantine.
+
+### Testing
+
+- `git diff --check`
+- `cmake --build build --target tianchenrv-rvv-binary-variant-legality-test tianchenrv-rvv-selected-lowering-boundary-test -j2`
+- `./build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- `cmake --build build --target tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- `./build/bin/tianchenrv-target-artifact-export-test`
+- From `build/test`: `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/RVVSmokeProbe/rvv-smoke-probe-route-deleted.mlir`
+- `cmake --build build --target check-tianchenrv -j2`: 114/114 passed
+- Focused ref-scan over active code/spec/tests/README found no RVV smoke-probe descriptor strings or handling.
+
+### Status
+
+Completed and archived. Commit hash is produced after this journal entry.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

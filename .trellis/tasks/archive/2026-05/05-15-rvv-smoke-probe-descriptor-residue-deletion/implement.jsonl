@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global compiler stack, descriptor-erasure, and unified TCRV boundaries for this deletion round."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Architecture non-goals: no descriptor-driven microkernel/exporter framework and no independent backend framing."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin first-slice boundary and obsolete smoke-probe descriptor text to delete or rewrite."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission route contract that direct descriptor-to-C source export is deleted and future output requires EmitC route rebuild."}
+{"file": ".trellis/tasks/archive/2026-05/05-15-scalar-descriptorless-default-materialization-deletion/prd.md", "reason": "Immediate prior deletion-round context and evidence discipline."}

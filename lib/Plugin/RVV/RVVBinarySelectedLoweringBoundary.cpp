@@ -20,8 +20,6 @@ namespace {
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
 constexpr llvm::StringLiteral kElementCountAttrName("tcrv_rvv.element_count");
-constexpr llvm::StringLiteral kRVVSmokeProbeDescriptorAttrName(
-    "tcrv_rvv.smoke_probe_descriptor");
 constexpr llvm::StringLiteral kRVVRequiredMarchAttrName(
     "tcrv_rvv.required_march");
 constexpr llvm::StringLiteral kRVVVLenBBytesAttrName(
@@ -350,7 +348,6 @@ llvm::Error validateRVVBinarySelectedLoweringBoundary(
       hasAnyRVVSelectedVectorShapeMetadata(
           boundary, getRVVBoundarySelectedVectorShapeMetadataNames());
   bool requiresSelectedLegality =
-      variant->hasAttr(kRVVSmokeProbeDescriptorAttrName) ||
       variant->hasAttr(kRVVRequiredMarchAttrName) || hasCapacityMetadata ||
       hasSelectedShapeMetadata;
   if (!requiresSelectedLegality)

@@ -86,9 +86,6 @@ typed policy attr name: tcrv_rvv.policy
 typed policy attr value: #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
 property requirement attr name: tcrv_rvv.required_march
 finite element-count attr name: tcrv_rvv.element_count
-deleted smoke-probe descriptor attr name: tcrv_rvv.smoke_probe_descriptor
-deleted smoke-probe descriptor behavior: rejected as a deleted direct source
-  artifact frontdoor
 optional vlenb attr name: tcrv_rvv.vlenb_bytes
 optional base i32 m1 lane attr name: tcrv_rvv.base_i32_m1_lanes
 selected vector-shape attr names:
@@ -271,9 +268,10 @@ on the same SEW/LMUL/tail/mask policy ids.
 - `sew_bits != 32`, `lmul != "m1"`, tail policy not `agnostic`, or mask policy
   not `agnostic` -> proposal decline or fatal selected-path legality error
   naming the mismatched property.
-- Selected RVV path with `tcrv_rvv.required_march`, finite lowering descriptor,
-  smoke descriptor, or capacity metadata must re-run RVV plugin legality before
-  selected lowering-boundary or emission artifact success can be reported.
+- Selected RVV path with `tcrv_rvv.required_march`, finite binary metadata,
+  selected vector-shape metadata, or capacity metadata must re-run RVV plugin
+  legality before selected lowering-boundary or emission artifact success can
+  be reported.
 
 ### 5. Good/Base/Bad Cases
 
@@ -346,15 +344,12 @@ tcrv.exec.variant @rvv_first_slice attributes {
 } {}
 ```
 
-When the explicit capability scope also makes plugin-local capability id
-`rvv.smoke_probe` available, the first-slice proposal may choose the
-plugin-local `tcrv_rvv.smoke_probe_descriptor` instead of the finite
-i32 microkernel descriptor. That descriptor selects the standalone
-smoke-probe source artifact route only. It must preserve the same selected
-RVV march/profile validation and lowering-boundary metadata as the direct
-smoke exporter, and it must not materialize an executable RVV microkernel,
-runtime callable ABI parameters, kernel lowering, correctness evidence, or
-performance evidence.
+The former plugin-local standalone smoke-probe source route is deleted.
+Availability of plugin-local smoke-probe capability facts must not select a
+compiler source artifact path, materialize an executable RVV microkernel,
+create runtime callable ABI parameters, claim kernel lowering, or produce
+correctness/performance evidence. RVV hardware/toolchain probe evidence belongs
+in separate probe tooling and recorded `ssh rvv` artifacts.
 
 When a relation-provider capability satisfies id `rvv`, generic variant
 materialization records the provider symbol in `requires`, for example
@@ -764,9 +759,9 @@ Rules:
   validation must reject missing, stale, unpaired, non-integer, ratio-invalid,
   or target-capability-mismatched capacity metadata before emission planning or
   target bundle export can report success.
-- If a selected RVV variant carries `tcrv_rvv.required_march`, a finite
-  lowering descriptor, a smoke descriptor, or first-slice capacity metadata, the
-  RVV boundary hook must re-run RVV plugin legality before materializing a
+- If a selected RVV variant carries `tcrv_rvv.required_march`, finite binary
+  metadata, selected vector-shape metadata, or first-slice capacity metadata,
+  the RVV boundary hook must re-run RVV plugin legality before materializing a
   successful selected boundary. Missing, unavailable, or mismatched
   SEW/LMUL/tail/mask capability evidence must fail there before any source,
   object, or bundle export route can claim support.
@@ -906,21 +901,21 @@ for the selected unsupported boundary. That metadata explains which plugin owns
 the future RVV executable/runtime ABI slice; it is not runtime ABI glue, code
 generation, hardware execution, correctness evidence, or performance evidence.
 
-### Deleted Smoke-Probe Target Export
+### Deleted Standalone Smoke-Probe Target Export
 
 The former `tcrv-translate --tcrv-export-rvv-smoke-probe-c` target export
-surface is deleted. `RVVExtensionPlugin` must not turn
-`tcrv_rvv.smoke_probe_descriptor` into supported emission readiness, a
-supported emission plan, or a generic target source artifact route. Built-in
+surface is deleted. `RVVExtensionPlugin` must not turn plugin-local metadata
+or route records into supported emission readiness, a supported emission plan,
+or a generic target source artifact route for that standalone harness. Built-in
 target artifact exporter registration must not publish
 `tcrv-export-rvv-smoke-probe-c`, `rvv-smoke-probe-standalone-c-source`, or a
 RVV `standalone-c-source` route.
 
-Historical smoke-probe descriptor metadata may remain only as deleted-route
-negative input. It must be rejected before C source emission and must not print
+Historical standalone smoke-probe metadata must not remain as active
+code/spec/test fixtures. The compiler front door must not print
 `riscv_vector.h`, `__riscv_` intrinsics, probe functions, or a probe `main`.
 RVV hardware/toolchain smoke evidence belongs in explicit probe tooling and
-separate `ssh rvv` artifacts, not in a compiler source artifact frontdoor.
+separate `ssh rvv` artifacts.
 
 ### I32 Vector-Add Microkernel Materialization And Export
 
