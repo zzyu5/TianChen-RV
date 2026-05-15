@@ -151,15 +151,12 @@ Rules:
   metadata;
 - carry bounded runtime ABI kind/name metadata and a bounded required runtime
   glue role chosen by the origin plugin;
-- for supported `runtime-callable-c-source` paths, carry structured
-  `runtime_abi_parameters` metadata for every exported C ABI parameter. Each
-  entry records the C parameter name, C type spelling, semantic role, and
-  ownership (`ir-modeled` or `target-export-abi-owned`). For any future rebuilt
-  binary RVV/scalar callable source route, these entries must be derived from
-  and validated against direct `tcrv.exec.mem_window` /
-  `tcrv.exec.runtime_param` IR boundaries rather than acting as an independent
-  parameter truth source. Add/sub/mul ABI identity fields must not be derived
-  from deleted finite RVV family records or selected-binary metadata;
+- reject `runtime-callable-c-source` as the artifact kind for every supported
+  or metadata-only plugin emission plan. Structured runtime ABI parameter
+  metadata must not make a direct C source artifact plan legal. Future source
+  output requires a materialized MLIR EmitC module route with a new explicit
+  source artifact contract; until then source-like mentions may appear only in
+  unsupported deleted-route diagnostics or tests proving absence;
 - for supported and metadata-only paths, carry required capability symbol refs
   that are a safe subset of the selected variant `requires` metadata;
 - for supported paths, require non-empty emission kind, lowering pipeline

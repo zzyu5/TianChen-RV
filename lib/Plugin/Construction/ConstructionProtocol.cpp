@@ -22,6 +22,10 @@ constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
 constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
     "role_specific_interface");
 constexpr llvm::StringLiteral kEmitCCallAttrName("emitc_call");
+constexpr llvm::StringLiteral kRuntimeCallableCSourceArtifactKind(
+    "runtime-callable-c-source");
+constexpr llvm::StringLiteral kStandaloneCSourceArtifactKind(
+    "standalone-c-source");
 
 llvm::Error makeConstructionError(const ValidationSpec &spec,
                                   llvm::Twine message) {
@@ -47,6 +51,11 @@ llvm::Error requireNonEmpty(const ValidationSpec &spec,
                                  llvm::Twine("requires non-empty ") +
                                      fieldName);
   return llvm::Error::success();
+}
+
+bool isDeletedSourceArtifactKind(llvm::StringRef artifactKind) {
+  return artifactKind == kRuntimeCallableCSourceArtifactKind ||
+         artifactKind == kStandaloneCSourceArtifactKind;
 }
 
 const RoleExpectation *findRoleExpectation(const ValidationSpec &spec,
@@ -186,6 +195,14 @@ llvm::Error verifyEmitCMapping(const Manifest &manifest,
     return makeConstructionError(
         spec, llvm::Twine("EmitC route mapping must preserve ") +
                   spec.familyDisplayName + " route metadata");
+
+  if (isDeletedSourceArtifactKind(actual.artifactKind))
+    return makeConstructionError(
+        spec, llvm::Twine("EmitC route mapping uses deleted source artifact "
+                          "kind '") +
+                  actual.artifactKind +
+                  "'; plugin construction routes must use metadata, object, "
+                  "header, or future materialized MLIR EmitC artifacts");
 
   if (llvm::Expected<llvm::StringMap<std::string>> callsByRole =
           parseRoleToCallMapInManifestOrder(spec, actual.roleToCallMap,

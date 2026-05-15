@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-6.md`
-- **Total Sessions**: 72
+- **Total Sessions**: 75
 - **Last Active**: 2026-05-15
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-6.md` | ~1822 | Active |
+| `journal-6.md` | ~1973 | Active |
 | `journal-5.md` | ~1983 | Archived |
 | `journal-4.md` | ~1979 | Archived |
 | `journal-3.md` | ~1998 | Archived |
@@ -34,6 +34,9 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 75 | 2026-05-15 | Delete plugin emission-plan source artifact authority | pending | `main` |
+| 74 | 2026-05-15 | Delete runtime-callable source bundle residue | pending | `main` |
+| 73 | 2026-05-15 | Delete target source artifact front door | pending | `main` |
 | 72 | 2026-05-15 | Erase scalar legacy metadata authority | pending | `main` |
 | 71 | 2026-05-15 | RVV-scalar finite-family bridge erasure | pending | `main` |
 | 70 | 2026-05-15 | Direct C deleted-route shell erasure | pending | `main` |

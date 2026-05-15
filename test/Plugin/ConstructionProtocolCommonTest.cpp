@@ -7,6 +7,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <initializer_list>
 #include <string>
 #include <type_traits>
 
@@ -62,6 +63,21 @@ int expectSuccess(llvm::Error error, llvm::StringRef message) {
     return 0;
   llvm::errs() << message << ": " << llvm::toString(std::move(error)) << "\n";
   return 1;
+}
+
+int expectErrorContains(llvm::Error error,
+                        std::initializer_list<llvm::StringRef> fragments,
+                        llvm::StringRef context) {
+  if (!error)
+    return fail(llvm::Twine(context) + ": expected construction error");
+
+  std::string message = llvm::toString(std::move(error));
+  for (llvm::StringRef fragment : fragments) {
+    if (!llvm::StringRef(message).contains(fragment))
+      return fail(llvm::Twine(context) + ": error text missing '" + fragment +
+                  "': " + message);
+  }
+  return 0;
 }
 
 int expectOutputContains(const GeneratedOutputRoute &route,
@@ -172,6 +188,63 @@ int runTensorExtLiteCommonRouteTest() {
       "TensorExtLite generated output must be emitted by the shared route");
 }
 
+std::string buildInterfaceSummary(const Manifest &manifest) {
+  std::string summary;
+  llvm::raw_string_ostream os(summary);
+  bool first = true;
+  for (const auto &role : manifest.semanticRoles) {
+    if (!first)
+      os << ";";
+    os << role.role << "=" << role.commonInterfaces;
+    first = false;
+  }
+  os.flush();
+  return summary;
+}
+
+int runDeletedSourceArtifactKindConstructionTest() {
+  namespace template_ext = tianchenrv::plugin::template_ext;
+  namespace construction = tianchenrv::plugin::construction;
+
+  const construction::RoleExpectation roleExpectations[] = {
+      {"configure", "TCRVConfigOpInterface", false},
+      {"load", "TCRVMemoryOpInterface", true},
+      {"compute", "TCRVComputeOpInterface", true},
+      {"store", "TCRVMemoryOpInterface", true},
+  };
+  const llvm::StringRef requiredEvidence[] = {"emitc_route_mapping"};
+
+  for (llvm::StringRef artifactKind :
+       {"runtime-callable-c-source", "standalone-c-source"}) {
+    Manifest manifest = template_ext::getTemplateConstructionManifest();
+    construction::EmitCMapping emitcRoute = manifest.emitcRoute;
+    emitcRoute.artifactKind = artifactKind;
+    manifest.emitcRoute = emitcRoute;
+
+    std::string interfaceSummary = buildInterfaceSummary(manifest);
+    construction::ValidationSpec spec{
+        "Template",
+        manifest.protocolVersion,
+        manifest.archetype,
+        manifest.semanticRoleGraph,
+        manifest.family,
+        manifest.emitcRoute,
+        interfaceSummary,
+        "",
+        roleExpectations,
+        requiredEvidence};
+
+    if (int result = expectErrorContains(
+            construction::verifyConstructionManifest(manifest, spec),
+            {"EmitC route mapping uses deleted source artifact kind",
+             artifactKind, "materialized MLIR EmitC"},
+            "deleted source artifact kind construction route"))
+      return result;
+  }
+
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -180,6 +253,8 @@ int main() {
   if (int result = runToyCommonRouteTest())
     return result;
   if (int result = runTensorExtLiteCommonRouteTest())
+    return result;
+  if (int result = runDeletedSourceArtifactKindConstructionTest())
     return result;
   return 0;
 }

@@ -66,6 +66,20 @@ target_link_libraries(tianchenrv-plugin-variant-cost-test
   MLIRSupport
 )
 
+add_executable(tianchenrv-plugin-emission-plan-test
+  Plugin/PluginEmissionPlanTest.cpp
+)
+
+target_link_libraries(tianchenrv-plugin-emission-plan-test
+  PRIVATE
+  TianChenRVInitAll
+  TianChenRVPlugin
+  TianChenRVSupport
+  MLIRIR
+  MLIRParser
+  MLIRSupport
+)
+
 add_executable(tianchenrv-rvv-extension-plugin-test
   Plugin/RVVExtensionPluginTest.cpp
 )

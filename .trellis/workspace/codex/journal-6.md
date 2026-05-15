@@ -1922,3 +1922,52 @@ metadata/header/object only.
 
 - Continue deletion only if another active target/export surface still treats
   selected metadata as C source artifact authority.
+
+
+## Session 75: Delete plugin emission-plan source artifact authority
+
+**Date**: 2026-05-15
+**Task**: Delete plugin emission-plan source artifact authority
+**Branch**: `main`
+
+### Summary
+
+Deleted plugin emission-plan runtime-callable C source authority, added fail-closed plugin and construction-protocol tests, refreshed emission/runtime and plugin-protocol specs, and preserved target artifact fail-closed behavior.
+
+### Main Changes
+
+- Added fail-closed plugin emission-plan validation for deleted source artifact
+  kinds, including `runtime-callable-c-source` and `standalone-c-source`.
+- Removed the old validation behavior where structured runtime ABI parameters
+  made `runtime-callable-c-source` a legal supported/metadata-only plan.
+- Added construction-protocol validation so EmitC route mappings cannot claim
+  deleted direct C source artifact kinds.
+- Added focused plugin and construction-protocol negative tests proving source
+  artifact kinds are rejected.
+- Updated lowering/runtime and plugin-protocol specs to state that runtime ABI
+  metadata cannot legalize direct C source artifact plans.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-plugin-emission-plan-test tianchenrv-construction-protocol-common-test tcrv-translate -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-plugin-emission-plan-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Plugin Target/ArtifactExport` from `artifacts/tmp/tianchenrv-build/test`
+- [OK] Focused ref-scan over plugin headers/source/tests for `runtime-callable-c-source`, `runtime-callable C source`, `source artifact`, `artifact_kind`, and `artifact kind`
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-15-delete-plugin-emission-plan-source-artifact-authority`
+
+### Status
+
+[OK] **Ready to archive and commit**
+
+### Next Steps
+
+- None - task complete

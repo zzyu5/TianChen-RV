@@ -513,6 +513,10 @@ planning after readiness, without generating executable artifacts:
 - require supported and metadata-only plans to carry non-empty generic emission
   kind, lowering pipeline identifier, runtime ABI identifier, artifact kind, and
   explanation;
+- reject `runtime-callable-c-source` as the artifact kind for supported or
+  metadata-only plans. Runtime ABI parameter metadata is bounded plan metadata
+  only; it cannot legalize a direct C source artifact route before a future
+  materialized MLIR EmitC source route rebuild;
 - require unsupported plans to carry a non-empty diagnostic string;
 - require plugin-returned route, ABI, glue-role, diagnostic, and explanation
   text to be bounded single-line metadata, not raw logs, credentials, or

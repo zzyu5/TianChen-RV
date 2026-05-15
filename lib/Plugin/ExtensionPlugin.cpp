@@ -29,6 +29,10 @@ constexpr llvm::StringLiteral kUnsupportedRuntimeABIName(
     "unsupported-emission-runtime-abi");
 constexpr llvm::StringLiteral kUnsupportedRuntimeGlueRole(
     "no-runtime-glue-unsupported");
+constexpr llvm::StringLiteral kRuntimeCallableCSourceArtifactKind(
+    "runtime-callable-c-source");
+constexpr llvm::StringLiteral kStandaloneCSourceArtifactKind(
+    "standalone-c-source");
 
 bool shouldIncludePlugin(const ExtensionPlugin &plugin, bool enabledOnly) {
   return !enabledOnly || plugin.isEnabled();
@@ -93,6 +97,11 @@ bool isBoundedSingleLineEmissionMetadataText(llvm::StringRef value) {
       return false;
   }
   return true;
+}
+
+bool isDeletedSourceArtifactKind(llvm::StringRef artifactKind) {
+  return artifactKind == kRuntimeCallableCSourceArtifactKind ||
+         artifactKind == kStandaloneCSourceArtifactKind;
 }
 
 void setDefaultRuntimeOwnershipMetadata(VariantEmissionPlan &plan,
@@ -1671,14 +1680,23 @@ llvm::Error validateRuntimeABIParameters(
       return error;
   }
 
+  return llvm::Error::success();
+}
+
+llvm::Error validateDeletedSourceArtifactKind(
+    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    VariantEmissionRole role, const ExtensionPlugin &plugin,
+    const VariantEmissionPlan &plan) {
   if ((plan.isSupported() || plan.isMetadataOnly()) &&
-      plan.getArtifactKind() == "runtime-callable-c-source" &&
-      parameters.empty())
+      isDeletedSourceArtifactKind(plan.getArtifactKind()))
     return makeVariantEmissionPlanError(
         variant, kernel, role,
         llvm::Twine("origin plugin '") + plugin.getName() +
-            "' produced invalid emission plan: runtime-callable C source "
-            "artifact requires structured runtime ABI parameters");
+            "' produced invalid emission plan: deleted source artifact kind '" +
+            plan.getArtifactKind() +
+            "' is not legal for supported or metadata-only plugin plans; "
+            "runtime-callable C source output requires a future materialized "
+            "MLIR EmitC route");
 
   return llvm::Error::success();
 }
@@ -1832,6 +1850,9 @@ llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
             "' produced invalid emission plan: runtime ABI metadata requires "
             "non-empty runtime glue role");
 
+  if (llvm::Error error = validateDeletedSourceArtifactKind(
+          variant, kernel, role, plugin, plan))
+    return error;
   if (!plan.isUnsupported())
     if (llvm::Error error = validatePlanRequiredCapabilitySymbols(
             variant, kernel, role, plugin, plan))

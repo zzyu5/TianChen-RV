@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV architecture invariants and descriptor/direct-C deletion boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "check deletion behavior against the emission runtime contract"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "check generic plugin emission-plan validation without extension-specific branches"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "check construction protocol route metadata remains construction evidence only"}
