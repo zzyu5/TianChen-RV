@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check that active fixture expectations remain limited to valid fail-closed and evidence-tooling coverage."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check that no replacement RVV route, wrapper, ABI, source exporter, or rebuild behavior was introduced."}

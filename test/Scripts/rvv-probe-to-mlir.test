@@ -3,7 +3,6 @@
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_i64_replay --emit-target-profile | FileCheck %s --check-prefix=I64-REPLAY --implicit-check-not=tcrv_frontend_lowering
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_replay --include-scalar-fallback | tcrv-opt - | FileCheck %s --check-prefix=PARSE
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_replay --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE
-# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_i64_replay --emit-target-profile | not tcrv-opt - --tcrv-execution-planning-pipeline 2>&1 | FileCheck %s --check-prefix=I64-SOURCE-DELETED --implicit-check-not=__riscv_vadd_vv_i64 --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/missing-architecture.json --kernel-name missing_architecture --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/non-riscv64.json --kernel-name non_riscv64 --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/missing-isa-vector-hints.json --kernel-name missing_isa_vector_hints --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
@@ -148,10 +147,6 @@
 # PIPE-SAME: status = "metadata-only"
 # PIPE-SAME: target = @scalar_fallback_first_slice
 # PIPE-NOT: tcrv_rvv.lowering_boundary
-
-# I64-SOURCE-DELETED: error: TianChen-RV plugin variant materialization for kernel @rvv_probe_i64_replay collected no viable plugin proposals
-# I64-SOURCE-DELETED-SAME: requires an explicit typed RVV extension-family body
-# I64-SOURCE-DELETED-SAME: no-body RVV proposal materialization is a rebuild gap
 
 # SCALAR_ONLY-NOT: tcrv.exec.variant @rvv_first_slice
 # SCALAR_ONLY: tcrv.exec.variant @scalar_fallback_first_slice

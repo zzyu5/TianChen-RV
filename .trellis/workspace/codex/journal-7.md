@@ -519,3 +519,59 @@ real `materializeSelectedLoweringBoundary` hook.
   front door remains. Otherwise, open a separate rebuild task for the existing
   selected-shape legality/probe-replay baseline failures; do not restore the
   RVV lowering-boundary wrapper.
+
+## Session 83: RVV no-body probe/bundle fixture erasure
+
+**Date**: 2026-05-15
+**Task**: RVV no-body probe/bundle fixture erasure
+**Branch**: `main`
+
+### Summary
+
+Removed the stale no-body/source-deleted fixture authority from the two active
+RVV tests called out in the brief. The probe replay test no longer carries the
+`I64-SOURCE-DELETED` negative block, and the no-viable target-artifact-bundle
+test now asserts only the generic no-viable planning failure.
+
+### Main Changes
+
+- Deleted the `I64-SOURCE-DELETED` RUN/check block from
+  `test/Scripts/rvv-probe-to-mlir.test`.
+- Removed the no-body/rebuild-gap wording from
+  `test/Target/TargetArtifactBundleExport/plan-and-export-target-artifact-bundle-no-viable.mlir`.
+- Seeded a deletion-only Trellis task and PRD for the round.
+- Kept generic fail-closed replay, scalar fallback, and bundle-failure coverage
+  in place.
+- Added no replacement route, wrapper, alias, compatibility layer, runtime
+  ABI, direct exporter, or RVV rebuild path.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(rvv): erase no-body probe/bundle fixture authority |
+
+### Testing
+
+- [OK] `ninja -C build tcrv-opt tcrv-translate`
+- [OK] `python3 scripts/rvv_probe_to_mlir.py --self-test | /usr/lib/llvm-20/bin/FileCheck test/Scripts/rvv-probe-to-mlir.test --check-prefix=SELF`
+- [OK] `python3 scripts/rvv_probe_to_mlir.py test/Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_replay --include-scalar-fallback | /usr/lib/llvm-20/bin/FileCheck test/Scripts/rvv-probe-to-mlir.test --check-prefix=MLIR`
+- [OK] `python3 scripts/rvv_probe_to_mlir.py test/Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_i64_replay --emit-target-profile | /usr/lib/llvm-20/bin/FileCheck test/Scripts/rvv-probe-to-mlir.test --check-prefix=I64-REPLAY`
+- [OK] `python3 scripts/rvv_probe_to_mlir.py test/Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_replay --include-scalar-fallback | build/bin/tcrv-opt - | /usr/lib/llvm-20/bin/FileCheck test/Scripts/rvv-probe-to-mlir.test --check-prefix=PARSE`
+- [WARN] `python3 scripts/rvv_probe_to_mlir.py test/Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_replay --include-scalar-fallback | build/bin/tcrv-opt - --tcrv-execution-planning-pipeline | /usr/lib/llvm-20/bin/FileCheck test/Scripts/rvv-probe-to-mlir.test --check-prefix=PIPE` failed on an existing baseline expectation: the current pipeline output still materializes `@rvv_first_slice`, so the retained `PIPE-NOT: tcrv.exec.variant @rvv_first_slice` assertion is stale.
+- [OK] `python3 scripts/rvv_probe_to_mlir.py test/Fixtures/rvv_probe/missing-architecture.json --kernel-name missing_architecture --include-scalar-fallback | build/bin/tcrv-opt - --tcrv-execution-planning-pipeline | /usr/lib/llvm-20/bin/FileCheck test/Scripts/rvv-probe-to-mlir.test --check-prefix=SCALAR_ONLY`
+- [OK] `rm -rf /tmp/no-viable.bundle && mkdir -p /tmp/no-viable.bundle && /usr/lib/llvm-20/bin/not build/bin/tcrv-translate --tcrv-plan-and-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=/tmp/no-viable.bundle test/Target/TargetArtifactBundleExport/plan-and-export-target-artifact-bundle-no-viable.mlir 2>&1 | /usr/lib/llvm-20/bin/FileCheck test/Target/TargetArtifactBundleExport/plan-and-export-target-artifact-bundle-no-viable.mlir`
+- [OK] `test ! -e /tmp/no-viable.bundle/tianchenrv-target-artifact-bundle.index`
+- [OK] `git diff --check`
+- [OK] `python3 .trellis/scripts/task.py validate .trellis/tasks/05-15-rvv-no-body-probe-bundle-fixture-erasure`
+- [WARN] `ninja -C build check-tianchenrv` failed in 6 existing baseline tests outside this deletion scope: `Plugin/plugin-emission-plan.test`, `Scripts/rvv-probe-to-mlir.test`, `Transforms/LoweringBoundary/rvv-i32m1-policy-capability-fails.mlir`, `Transforms/LoweringBoundary/rvv-lowering-boundary-malformed.mlir`, `Transforms/PluginVariantLegality/plugin-variant-legality-pass-invalid.mlir`, and `Transforms/PluginVariantLegality/plugin-variant-legality-pass.mlir`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Keep the RVV probe/bundle fixture erasure deletion-only. If the `PIPE-NOT`
+  and selected-shape legality failures need repair, open a separate rebuild
+  task instead of restoring the deleted no-body contract.

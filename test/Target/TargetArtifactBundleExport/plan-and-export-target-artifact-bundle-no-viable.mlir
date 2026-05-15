@@ -17,7 +17,5 @@ module @plan_and_export_target_artifact_bundle_no_viable_input {
   }
 }
 
-// CHECK: error: TianChen-RV plugin variant materialization for kernel @plan_and_export_no_viable collected no viable plugin proposals; recoverable plugin declines in registration order: rvv-plugin:
-// CHECK-SAME: requires an explicit typed RVV extension-family body
-// CHECK-SAME: no-body RVV proposal materialization is a rebuild gap
+// CHECK: error: TianChen-RV plugin variant materialization for kernel @plan_and_export_no_viable collected no viable plugin proposals
 // CHECK: error: TianChen-RV plan-and-export target artifact bundle failed during execution planning pipeline
