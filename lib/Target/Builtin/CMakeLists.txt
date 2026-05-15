@@ -5,7 +5,6 @@ add_mlir_library(TianChenRVBuiltinTargetArtifactExporters
   LINK_LIBS PUBLIC
   TianChenRVBuiltinPlugins
   TianChenRVRVVTarget
-  TianChenRVScalarTarget
   TianChenRVSupport
   TianChenRVTarget
   TianChenRVTemplateTarget

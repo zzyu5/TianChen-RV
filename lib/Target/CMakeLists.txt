@@ -1,4 +1,3 @@
-add_subdirectory(Scalar)
 add_subdirectory(RVV)
 
 add_mlir_library(TianChenRVTarget

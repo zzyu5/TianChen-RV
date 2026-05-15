@@ -993,7 +993,19 @@ Deleted RVV/scalar lowering_descriptor and selected_lowering_descriptor metadata
 
 ### Main Changes
 
-(Add details)
+- Created and completed Trellis task
+  `05-15-direct-c-deleted-route-shell-erasure` with deletion-only PRD and
+  focused spec context.
+- Deleted scalar microkernel direct source/header/object shell APIs and removed
+  the now-empty `TianChenRVScalarTarget` CMake wiring.
+- Deleted RVV+scalar dispatch target exporter / translate-route shell headers,
+  source, and CMake wiring.
+- Removed target artifact tests that directly called deleted no-op registration
+  APIs, while preserving route-absence checks on the generic built-in registry.
+- Updated lowering-runtime spec wording so remaining dispatch direct-C route
+  mentions are historical/deleted-route guidance, not live artifact contracts.
+- Added no EmitC route, replacement exporter, compatibility wrapper, helper
+  shell, descriptor fallback, runtime evidence, or Python compiler-core logic.
 
 ### Git Commits
 
@@ -1001,7 +1013,23 @@ Deleted RVV/scalar lowering_descriptor and selected_lowering_descriptor metadata
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target
+  tianchenrv-target-artifact-export-test
+  tianchenrv-runtime-abi-callable-plan-test
+  tianchenrv-scalar-extension-plugin-test
+  tianchenrv-rvv-extension-plugin-test tcrv-translate`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-runtime-abi-callable-plan-test`
+- [OK] `./build/bin/tianchenrv-scalar-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused ref-scans for deleted scalar/RVV+scalar direct-C API symbols,
+  route ids, and direct-C wording found no active callable API or registration
+  surface; remaining hits are PRD/spec historical text, generic absence tests,
+  or RVV-scalar ABI helper names.
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-15-direct-c-deleted-route-shell-erasure`
 
 ### Status
 
@@ -1601,3 +1629,36 @@ non-semantic metadata rather than transition architecture or production input.
 - Continue deletion only if another active doc/spec/test wording surface still
   presents descriptor/direct-export/independent-backend paths as valid
   architecture.
+
+
+## Session 70: Direct C deleted-route shell erasure
+
+**Date**: 2026-05-15
+**Task**: Direct C deleted-route shell erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted stale scalar microkernel and RVV+scalar dispatch direct-C route shell APIs, removed their CMake/test registration surfaces, updated deleted-route spec wording, and passed focused target/export checks.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

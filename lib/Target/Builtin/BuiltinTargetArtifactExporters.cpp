@@ -34,12 +34,6 @@ llvm::Error registerBuiltinNonPluginTargetArtifactExporters(
   return llvm::Error::success();
 }
 
-llvm::Error registerScalarBuiltinTargetArtifactExporterBundles(
-    PluginTargetArtifactExporterRegistry &registry) {
-  (void)registry;
-  return llvm::Error::success();
-}
-
 llvm::Expected<const plugin::ExtensionPlugin *>
 registerSingleManifestPlugin(ExtensionPluginRegistrationFn registrationFn,
                              llvm::StringRef bundleID) {
@@ -137,8 +131,6 @@ llvm::Error registerScalarExtensionBundle(ExtensionBundleRegistry &registry) {
                          plugin::registerScalarExtensionPlugin);
   bundle.addRequiredDialectName("tcrv_scalar");
   bundle.addLoweringBoundaryOp("tcrv_scalar.lowering_boundary");
-  bundle.setTargetArtifactExporterBundleRegistrationFn(
-      registerScalarBuiltinTargetArtifactExporterBundles);
   return registry.registerBundle(bundle);
 }
 

@@ -921,7 +921,8 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
           "i32-vsub", "len", "rvv_ready");
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract> dispatch =
       buildRuntimeABIInvocationContract(
-          kernel, "i32-vsub", dispatchParameters, "RVVScalarDispatch.cpp",
+          kernel, "i32-vsub", dispatchParameters,
+          "rvv-scalar-dispatch-runtime-abi-contract",
           "tcrv_dispatch_i32_vsub_abi_kernel",
           "rvv-scalar-dispatch-runtime-callable-c-abi",
           "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1",
@@ -955,7 +956,8 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
 
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract>
       missingGuard = buildRuntimeABIInvocationContract(
-          kernel, "i32-vsub", plan->parameters, "RVVScalarDispatch.cpp",
+          kernel, "i32-vsub", plan->parameters,
+          "rvv-scalar-dispatch-runtime-abi-contract",
           "tcrv_dispatch_i32_vsub_abi_kernel",
           "rvv-scalar-dispatch-runtime-callable-c-abi",
           "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1",
@@ -968,7 +970,8 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
 
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract>
       staleGuard = buildRuntimeABIInvocationContract(
-          kernel, "i32-vsub", dispatchParameters, "RVVScalarDispatch.cpp",
+          kernel, "i32-vsub", dispatchParameters,
+          "rvv-scalar-dispatch-runtime-abi-contract",
           "tcrv_dispatch_i32_vsub_abi_kernel",
           "rvv-scalar-dispatch-runtime-callable-c-abi",
           "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1",

@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and deletion-campaign invariants for direct-C semantic exporter residue."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact/export contract and deleted direct-C route constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary and descriptor-to-C deletion rules."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin boundary and scalar direct route deletion contract."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin boundary and unified extension-family constraints."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-owned registry/interface locality rules for target artifact bundles."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Deleted direct-C exporter test ownership and route absence expectations."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Emission path review checklist for capability-driven boundaries."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review checklist for plugin-local target/export registration changes."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Guardrail against reintroducing compute semantics in core/export shells."}
