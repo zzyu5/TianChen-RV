@@ -63,8 +63,6 @@ constexpr llvm::StringLiteral kBoundarySelectedVectorSuffixAttrName(
     "selected_vector_suffix");
 constexpr llvm::StringLiteral kBoundarySelectedSetVLSuffixAttrName(
     "selected_setvl_suffix");
-constexpr llvm::StringLiteral kSelectedBinarySourceKindAttrName(
-    "tcrv_rvv.selected_binary_source_kind");
 constexpr llvm::StringLiteral kBufferRoleAttrName("buffer_role");
 
 llvm::Error makeRVVBinaryPlanningError(llvm::Twine message) {
@@ -1125,10 +1123,6 @@ getRVVBoundarySelectedVectorShapeMetadataNames() {
       kBoundarySelectedVectorSuffixAttrName,
       kBoundarySelectedSetVLSuffixAttrName};
   return names;
-}
-
-llvm::StringRef getRVVSelectedBinarySourceKindAttrName() {
-  return kSelectedBinarySourceKindAttrName;
 }
 
 llvm::StringRef getRVVBinaryRuntimeCallableCSourceArtifactKind() {

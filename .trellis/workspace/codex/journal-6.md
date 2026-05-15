@@ -46,6 +46,72 @@ Final session commit recorded in git history for this round.
 - None - task complete
 
 
+## Session 70: RVV selected-source metadata quarantine deletion
+
+**Date**: 2026-05-15
+**Task**: RVV selected-source metadata quarantine deletion
+**Branch**: `main`
+
+### Summary
+
+Completed the deletion-only follow-up after `1013d12`: RVV no longer gives
+selected-source/source-kind metadata an active legality, planning, dialect, test,
+or spec role. Typed RVV microkernel structure, selected variant links, and
+selected vector-shape/config checks remain the bounded RVV path.
+
+### Main Changes
+
+- Deleted the RVV planning getter/constant for
+  `tcrv_rvv.selected_binary_source_kind`.
+- Removed the `RVVBinaryVariantLegality` selected-source quarantine branch; RVV
+  selected binary metadata without a real typed RVV body still fails under the
+  generic typed-body-required legality diagnostic.
+- Removed op-owned selected binary source identity fields from
+  `tcrv_rvv.lowering_boundary` and finite RVV microkernel ODS definitions, plus
+  the corresponding RVV dialect verifier logic.
+- Deleted stale selected-source quarantine test fixtures and updated metadata
+  without-body cases to assert the typed-body authority requirement.
+- Updated RVV and lowering-runtime specs so selected-boundary metadata is no
+  longer described as source-kind or route authority.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target TianChenRVRVVDialect TianChenRVRVVPlugin
+  tianchenrv-rvv-binary-variant-legality-test
+  tianchenrv-rvv-selected-lowering-boundary-test
+  tianchenrv-rvv-binary-planning-test
+  tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `./build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- [OK] `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- [OK] `./build/bin/tianchenrv-rvv-binary-planning-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused lit from `build/test`: RVV dialect plus touched RVV
+  materialization/dispatch tests, 14/14 passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`: 114/114
+  passed.
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-15-rvv-selected-source-metadata-quarantine-deletion`
+  passed before archive.
+- [OK] Focused active ref-scan over `lib`, `include`, `test`, and
+  `.trellis/spec` found no remaining matches for
+  `selected_binary_source_kind`, `selected-source`,
+  `stale-selected-source-metadata`, `direct-typed-microkernel-body`,
+  `getRVVSelectedBinarySourceKindAttrName`, or `source-kind`.
+
+### Status
+
+[OK] **Archived and ready to commit**
+
+### Next Steps
+
+- No selected-source/source-kind quarantine residue remains in the active RVV
+  plugin/dialect/test/spec scope. Continue deletion only if a future owner
+  targets a separate metadata family.
+
+
 ## Session 68: RVV body verifier descriptor deletion
 
 **Date**: 2026-05-15

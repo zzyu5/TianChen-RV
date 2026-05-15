@@ -298,32 +298,6 @@ resolveTypedMicrokernelBodyAuthority(tcrv::exec::KernelOp kernel,
   return authority;
 }
 
-llvm::Error rejectDeletedSelectedSourceMetadata(tcrv::exec::VariantOp variant) {
-  auto sourceAttr = variant->getAttrOfType<mlir::StringAttr>(
-      getRVVSelectedBinarySourceKindAttrName());
-  if (!sourceAttr)
-    return llvm::Error::success();
-
-  llvm::StringRef sourceKind = sourceAttr.getValue().trim();
-  std::string context =
-      (llvm::Twine("RVV selected-source metadata on variant @") +
-       variant.getSymName())
-          .str();
-  if (sourceKind.empty())
-    return makeRVVBinaryVariantLegalityError(
-        llvm::Twine(context) + " is deleted and must not be empty");
-  if (llvm::Error error =
-          validateRVVPropertyText(context,
-                                  getRVVSelectedBinarySourceKindAttrName(),
-                                  sourceKind))
-    return error;
-  return makeRVVBinaryVariantLegalityError(
-      llvm::Twine(context) + " source kind '" + sourceKind +
-      "' is deleted as RVV finite-family legality authority; future "
-      "executable RVV output requires explicit extension-family ops plus a "
-      "materialized MLIR EmitC module route");
-}
-
 llvm::Error verifyOptionalSelectedFamilyMetadataAgainstTypedBody(
     tcrv::exec::VariantOp variant,
     const RVVFiniteBinaryTypedAuthority &bodyAuthority,
@@ -385,9 +359,6 @@ resolveFiniteBinaryTypedAuthority(tcrv::exec::KernelOp kernel,
   if (!bodyAuthority)
     return bodyAuthority.takeError();
 
-  if (llvm::Error error = rejectDeletedSelectedSourceMetadata(variant))
-    return std::move(error);
-
   if (bodyAuthority->family) {
     if (llvm::Error error =
             verifyOptionalSelectedFamilyMetadataAgainstTypedBody(
@@ -402,8 +373,7 @@ resolveFiniteBinaryTypedAuthority(tcrv::exec::KernelOp kernel,
 bool hasFiniteBinaryLegalityMetadata(tcrv::exec::VariantOp variant) {
   return variant->hasAttr(kRVVElementCountAttrName) ||
          variant->hasAttr(
-             target::rvv::getRVVSelectedBinaryFamilyMetadataName()) ||
-         variant->hasAttr(getRVVSelectedBinarySourceKindAttrName());
+             target::rvv::getRVVSelectedBinaryFamilyMetadataName());
 }
 
 } // namespace
@@ -460,9 +430,8 @@ llvm::Error verifyRVVBinaryVariantLegality(
       return makeRVVBinaryVariantLegalityError(
           llvm::Twine("materialized RVV variant @") + variant.getSymName() +
           " requires an actual typed RVV extension-family body; selected "
-          "binary metadata, selected-source metadata, element-count metadata, "
-          "or frontend-lowering metadata cannot make a direct RVV binary "
-          "variant legal");
+          "binary metadata, element-count metadata, or frontend-lowering "
+          "metadata cannot make a direct RVV binary variant legal");
     finiteBinaryAuthority = std::move(*authority);
   }
 

@@ -358,91 +358,6 @@ module {
       {"capacity metadata", "does not match"});
 }
 
-int runDeletedSelectedSourceLoweringBoundaryModuleTest(
-    mlir::MLIRContext &context) {
-  constexpr llvm::StringLiteral source = R"mlir(
-module {
-  tcrv.exec.kernel @rvv_stale_selected_source_boundary attributes {} {
-    tcrv.exec.capability @rvv {
-      id = "rvv",
-      kind = "isa-vector",
-      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
-      sew_bits = 32 : i64,
-      lmul = "m1",
-      tail_policy = "agnostic",
-      mask_policy = "agnostic",
-      architecture = "riscv64",
-      isa_vector_hints = "rv64gcv_zvl128b",
-      status = "available"
-    }
-    tcrv.exec.capability @rvv_hart_count {
-      id = "rvv.hart_count",
-      kind = "uarch",
-      count = 64 : i64,
-      status = "available"
-    }
-    tcrv.exec.capability @rvv_probe_compile_run {
-      id = "rvv.probe.compile_run",
-      kind = "toolchain",
-      selected_mabi = "lp64d",
-      selected_march = "rv64gcv",
-      status = "available"
-    }
-    tcrv.exec.capability @rvv_toolchain_march {
-      id = "rvv.toolchain.march",
-      kind = "toolchain",
-      status = "available",
-      value = "rv64gcv"
-    }
-    tcrv.exec.variant @rvv_first_slice attributes {
-      origin = "rvv-plugin",
-      requires = [@rvv],
-      policy = "metadata_only_first_slice",
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.element_count = 16 : i64,
-      tcrv_rvv.selected_binary_dtype = "i32",
-      tcrv_rvv.selected_binary_family = "i32-vadd",
-      tcrv_rvv.selected_binary_operator = "add",
-      tcrv_rvv.selected_binary_source_kind = "stale-selected-source-metadata",
-      tcrv_rvv.selected_vector_shape = "i32m1",
-      tcrv_rvv.selected_vector_sew = 32 : i64,
-      tcrv_rvv.selected_vector_lmul = "m1",
-      tcrv_rvv.selected_tail_policy = "agnostic",
-      tcrv_rvv.selected_mask_policy = "agnostic",
-      tcrv_rvv.selected_vector_type = "vint32m1_t",
-      tcrv_rvv.selected_vector_suffix = "i32m1",
-      tcrv_rvv.selected_setvl_suffix = "e32m1"
-    } {
-    }
-  }
-}
-)mlir";
-
-  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
-  if (!module)
-    return fail("failed to parse stale selected-source boundary module");
-
-  KernelOp kernel = findKernel(*module, "rvv_stale_selected_source_boundary");
-  VariantOp variant = findVariant(kernel, "rvv_first_slice");
-  if (int result =
-          expect(kernel && variant,
-                 "stale selected-source test has kernel/variant"))
-    return result;
-  TargetCapabilitySet capabilities =
-      TargetCapabilitySet::buildFromKernel(kernel);
-  tianchenrv::plugin::rvv::RVVExtensionPlugin plugin;
-  mlir::OpBuilder builder(&context);
-  builder.setInsertionPointToEnd(&kernel.getBody().front());
-
-  VariantLoweringBoundaryResult result;
-  return expectErrorContains(
-      materializeWithModuleAPI(plugin, builder, variant, kernel, capabilities,
-                               result),
-      {"RVV selected-source metadata", "deleted as RVV finite-family legality "
-                                      "authority"});
-}
-
 int runI64SelectedLoweringBoundaryModuleTest(
     mlir::MLIRContext &context,
     const tianchenrv::target::rvv::RVVBinaryFamilyRecord &family) {
@@ -599,9 +514,6 @@ int main() {
   context.loadAllAvailableDialects();
 
   if (int result = runI32SelectedLoweringBoundaryModuleTest(context))
-    return result;
-  if (int result =
-          runDeletedSelectedSourceLoweringBoundaryModuleTest(context))
     return result;
   if (int result = runI64SelectedLoweringBoundaryModuleTest(
           context, tianchenrv::target::rvv::getI64VSubFamilyRegistrationRecord()))

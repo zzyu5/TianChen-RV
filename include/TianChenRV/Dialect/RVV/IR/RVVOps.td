@@ -470,13 +470,6 @@ def LoweringBoundaryOp : TCRVRVV_Op<"lowering_boundary", []> {
     OptionalAttr<StrAttr>:$selected_vector_type,
     OptionalAttr<StrAttr>:$selected_vector_suffix,
     OptionalAttr<StrAttr>:$selected_setvl_suffix,
-    OptionalAttr<StrAttr>:$selected_binary_source_kind,
-    OptionalAttr<StrAttr>:$selected_binary_dtype,
-    OptionalAttr<StrAttr>:$selected_binary_family,
-    OptionalAttr<StrAttr>:$selected_binary_operator,
-    OptionalAttr<StrAttr>:$selected_binary_microkernel_op,
-    OptionalAttr<StrAttr>:$emitc_source_op,
-    OptionalAttr<StrAttr>:$emitc_lowerable_op_interface,
     OptionalAttr<StrAttr>:$capability_summary,
     StrAttr:$unsupported_reason
   );
@@ -523,13 +516,6 @@ def I32VAddMicrokernelOp : TCRVRVV_Op<"i32_vadd_microkernel",
     OptionalAttr<StrAttr>:$selected_vector_type,
     OptionalAttr<StrAttr>:$selected_vector_suffix,
     OptionalAttr<StrAttr>:$selected_setvl_suffix,
-    OptionalAttr<StrAttr>:$selected_binary_source_kind,
-    OptionalAttr<StrAttr>:$selected_binary_dtype,
-    OptionalAttr<StrAttr>:$selected_binary_family,
-    OptionalAttr<StrAttr>:$selected_binary_operator,
-    OptionalAttr<StrAttr>:$selected_binary_microkernel_op,
-    OptionalAttr<StrAttr>:$emitc_source_op,
-    OptionalAttr<StrAttr>:$emitc_lowerable_op_interface,
     OptionalAttr<StrAttr>:$selected_mabi
   );
   let regions = (region SizedRegion<1>:$body);
@@ -577,13 +563,6 @@ def I32VSubMicrokernelOp : TCRVRVV_Op<"i32_vsub_microkernel",
     OptionalAttr<StrAttr>:$selected_vector_type,
     OptionalAttr<StrAttr>:$selected_vector_suffix,
     OptionalAttr<StrAttr>:$selected_setvl_suffix,
-    OptionalAttr<StrAttr>:$selected_binary_source_kind,
-    OptionalAttr<StrAttr>:$selected_binary_dtype,
-    OptionalAttr<StrAttr>:$selected_binary_family,
-    OptionalAttr<StrAttr>:$selected_binary_operator,
-    OptionalAttr<StrAttr>:$selected_binary_microkernel_op,
-    OptionalAttr<StrAttr>:$emitc_source_op,
-    OptionalAttr<StrAttr>:$emitc_lowerable_op_interface,
     OptionalAttr<StrAttr>:$selected_mabi
   );
   let regions = (region SizedRegion<1>:$body);
@@ -631,13 +610,6 @@ def I32VMulMicrokernelOp : TCRVRVV_Op<"i32_vmul_microkernel",
     OptionalAttr<StrAttr>:$selected_vector_type,
     OptionalAttr<StrAttr>:$selected_vector_suffix,
     OptionalAttr<StrAttr>:$selected_setvl_suffix,
-    OptionalAttr<StrAttr>:$selected_binary_source_kind,
-    OptionalAttr<StrAttr>:$selected_binary_dtype,
-    OptionalAttr<StrAttr>:$selected_binary_family,
-    OptionalAttr<StrAttr>:$selected_binary_operator,
-    OptionalAttr<StrAttr>:$selected_binary_microkernel_op,
-    OptionalAttr<StrAttr>:$emitc_source_op,
-    OptionalAttr<StrAttr>:$emitc_lowerable_op_interface,
     OptionalAttr<StrAttr>:$selected_mabi
   );
   let regions = (region SizedRegion<1>:$body);
@@ -681,13 +653,6 @@ def I64VAddMicrokernelOp : TCRVRVV_Op<"i64_vadd_microkernel",
     OptionalAttr<StrAttr>:$selected_vector_type,
     OptionalAttr<StrAttr>:$selected_vector_suffix,
     OptionalAttr<StrAttr>:$selected_setvl_suffix,
-    OptionalAttr<StrAttr>:$selected_binary_source_kind,
-    OptionalAttr<StrAttr>:$selected_binary_dtype,
-    OptionalAttr<StrAttr>:$selected_binary_family,
-    OptionalAttr<StrAttr>:$selected_binary_operator,
-    OptionalAttr<StrAttr>:$selected_binary_microkernel_op,
-    OptionalAttr<StrAttr>:$emitc_source_op,
-    OptionalAttr<StrAttr>:$emitc_lowerable_op_interface,
     OptionalAttr<StrAttr>:$selected_mabi
   );
   let regions = (region SizedRegion<1>:$body);
@@ -730,13 +695,6 @@ def I64VSubMicrokernelOp : TCRVRVV_Op<"i64_vsub_microkernel",
     OptionalAttr<StrAttr>:$selected_vector_type,
     OptionalAttr<StrAttr>:$selected_vector_suffix,
     OptionalAttr<StrAttr>:$selected_setvl_suffix,
-    OptionalAttr<StrAttr>:$selected_binary_source_kind,
-    OptionalAttr<StrAttr>:$selected_binary_dtype,
-    OptionalAttr<StrAttr>:$selected_binary_family,
-    OptionalAttr<StrAttr>:$selected_binary_operator,
-    OptionalAttr<StrAttr>:$selected_binary_microkernel_op,
-    OptionalAttr<StrAttr>:$emitc_source_op,
-    OptionalAttr<StrAttr>:$emitc_lowerable_op_interface,
     OptionalAttr<StrAttr>:$selected_mabi
   );
   let regions = (region SizedRegion<1>:$body);
@@ -779,13 +737,6 @@ def I64VMulMicrokernelOp : TCRVRVV_Op<"i64_vmul_microkernel",
     OptionalAttr<StrAttr>:$selected_vector_type,
     OptionalAttr<StrAttr>:$selected_vector_suffix,
     OptionalAttr<StrAttr>:$selected_setvl_suffix,
-    OptionalAttr<StrAttr>:$selected_binary_source_kind,
-    OptionalAttr<StrAttr>:$selected_binary_dtype,
-    OptionalAttr<StrAttr>:$selected_binary_family,
-    OptionalAttr<StrAttr>:$selected_binary_operator,
-    OptionalAttr<StrAttr>:$selected_binary_microkernel_op,
-    OptionalAttr<StrAttr>:$emitc_source_op,
-    OptionalAttr<StrAttr>:$emitc_lowerable_op_interface,
     OptionalAttr<StrAttr>:$selected_mabi
   );
   let regions = (region SizedRegion<1>:$body);

@@ -29,9 +29,9 @@ enum class RVVBinaryArithmeticKind {
 
 // Finite RVV binary family facts used only after typed RVV extension-family
 // body structure has already selected a bounded family. Frontend-lowering
-// markers, selected-source metadata, route ids, intrinsic spellings, artifact
-// kinds, runtime ABI identity strings, and direct exporter names are
-// intentionally not part of this record.
+// markers, source metadata, route ids, intrinsic spellings, artifact kinds,
+// runtime ABI identity strings, and direct exporter names are intentionally not
+// part of this record.
 struct RVVBinaryFamilyRecord {
   RVVBinaryDTypeKind dtype = RVVBinaryDTypeKind::I32;
   RVVBinaryArithmeticKind arithmetic = RVVBinaryArithmeticKind::Add;

@@ -185,8 +185,6 @@ getRVVVariantSelectedVectorShapeMetadataNames();
 const RVVSelectedVectorShapeMetadataNames &
 getRVVBoundarySelectedVectorShapeMetadataNames();
 
-llvm::StringRef getRVVSelectedBinarySourceKindAttrName();
-
 llvm::StringRef getRVVBinaryRuntimeCallableCSourceArtifactKind();
 
 llvm::Expected<RVVBinaryEmissionIdentity> buildRVVBinaryEmissionIdentity(
