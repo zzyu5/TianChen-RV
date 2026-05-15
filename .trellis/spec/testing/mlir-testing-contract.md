@@ -201,18 +201,12 @@ Use lit/FileCheck for:
   focused fail-closed negative case proving planning failure does not print
   bundle completion or emit a complete executable bundle index. The front door
   must not first lower marked linalg/vector source into the exec ABI boundary.
-- deleted core RVV source-to-exec pass coverage, proving the removed
-  `--tcrv-lower-source-rvv-binary-to-exec`,
-  `--tcrv-lower-linalg-rvv-binary-to-exec`,
-  `--tcrv-lower-linalg-i32-binary-to-exec`,
-  `--tcrv-lower-linalg-i32-vadd-to-exec`,
-  `--tcrv-lower-vector-rvv-i32-vadd-to-exec`,
-  `--tcrv-lower-vector-rvv-i32-vsub-to-exec`, and
-  `--tcrv-lower-vector-rvv-i32-vmul-to-exec` options are absent or fail closed
-  as deleted routes without creating `tcrv.exec.kernel`. Tests that only
-  protected old linalg/vector source lowering success, source-body semantic
-  diagnostics, or compatibility alias delegation should be deleted rather than
-  kept alive as production coverage.
+- deleted core RVV source-to-exec fixture erasure, proving active tests no
+  longer invoke the historical source, linalg RVV, linalg i32 compatibility, or
+  vector i32 arithmetic public options as named absence fixtures. Tests that
+  only protected old linalg/vector source lowering success, source-body semantic
+  diagnostics, compatibility alias delegation, or historical option absence
+  should be deleted rather than kept alive as production coverage.
 - execution-plan/export preflight coherence checks, including legal RVV explicit
   microkernel, scalar fallback metadata-only path, and unsupported Offload
   selected paths after descriptor deletion;

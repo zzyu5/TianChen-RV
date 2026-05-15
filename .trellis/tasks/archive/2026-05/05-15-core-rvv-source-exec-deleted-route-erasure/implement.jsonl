@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and deletion-before-rebuild invariants for this task."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant/frontend boundary rules for deleting core RVV source-to-exec route-name anchors."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Lowering/emission deletion-campaign rules and future plugin/interface-owned source frontend boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "MLIR/lit test ownership rules for deleted route fixtures and current fail-closed coverage."}

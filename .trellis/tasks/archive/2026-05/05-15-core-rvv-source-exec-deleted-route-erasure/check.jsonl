@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that changes preserve global TianChen-RV project boundaries."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check source-to-exec deletion wording remains generic and plugin/interface-owned."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check no lowering/emission rebuild or direct exporter authority is introduced."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check active tests no longer preserve deleted public option names as fixtures."}

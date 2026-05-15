@@ -73,21 +73,10 @@ a core semantic branch. Core transforms must not inspect finite RVV
 add/sub/mul linalg or vector source bodies, consult RVV binary family records,
 or materialize `tcrv.exec` kernels from source arithmetic.
 
-Deleted public pass names:
-
-```text
---tcrv-lower-source-rvv-binary-to-exec
---tcrv-lower-linalg-rvv-binary-to-exec
---tcrv-lower-linalg-i32-binary-to-exec
---tcrv-lower-linalg-i32-vadd-to-exec
---tcrv-lower-vector-rvv-i32-vadd-to-exec
---tcrv-lower-vector-rvv-i32-vsub-to-exec
---tcrv-lower-vector-rvv-i32-vmul-to-exec
-```
-
-The `i32` linalg pass names were compatibility aliases for the same core
-implementation and are deleted with it. They must not remain as wrappers,
-delegating aliases, quarantine modes, or renamed compatibility paths.
+The deleted public option family includes the old source, linalg RVV, linalg
+i32 compatibility, and vector i32 add/sub/mul adapters. Those historical option
+spellings must not remain as wrappers, delegating aliases, quarantine modes,
+renamed compatibility paths, or active negative fixture contracts.
 
 ### 2. Contracts
 
@@ -104,14 +93,15 @@ delegating aliases, quarantine modes, or renamed compatibility paths.
 
 ### 3. Validation & Error Matrix
 
-- Invoking any deleted pass option through `tcrv-opt` must fail as an unknown
-  command-line option or equivalent deleted-route diagnostic.
+- Invoking any deleted source-to-exec option through `tcrv-opt` must fail as an
+  unknown command-line option or equivalent deleted-route diagnostic.
 - `tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` must not run
   source RVV binary lowering before planning/export. It may plan and export
   only from already materialized TianChen-RV execution surfaces.
-- Tests whose only purpose was to prove linalg/vector source lowering success
-  or semantic validation diagnostics must be deleted or rewritten to deleted
-  pass absence/fail-closed checks.
+- Tests whose only purpose was to prove linalg/vector source lowering success,
+  semantic validation diagnostics, compatibility alias delegation, or named
+  deleted-pass absence must be deleted instead of kept alive as production
+  coverage.
 - Deletion gaps in future high-level frontend support must be reported as
   missing rebuild architecture, not patched by restoring the core source pass.
 

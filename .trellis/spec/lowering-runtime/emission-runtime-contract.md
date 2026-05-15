@@ -539,21 +539,16 @@ themselves.
 
 ### 1. Scope / Trigger
 
-The former bounded dynamic vector/SCF i32-vadd, i32-vsub, and i32-vmul source
-front doors are deleted with the core RVV source-to-exec pass family. Core code
-must not parse vector transfer/SCF source shapes, inspect source arithmetic, or
-query the RVV binary family registry to materialize `tcrv.exec`.
+The former bounded dynamic vector/SCF i32 add/sub/mul source front doors are
+deleted with the core RVV source-to-exec pass family. Core code must not parse
+vector transfer/SCF source shapes, inspect source arithmetic, or query the RVV
+binary family registry to materialize `tcrv.exec`.
 
 ### 2. Signatures
 
-Deleted public pass names:
-
-```text
---tcrv-lower-source-rvv-binary-to-exec
---tcrv-lower-vector-rvv-i32-vadd-to-exec
---tcrv-lower-vector-rvv-i32-vsub-to-exec
---tcrv-lower-vector-rvv-i32-vmul-to-exec
-```
+The deleted public option family includes the historical generic source adapter
+and vector i32 arithmetic adapters. Active specs and tests must not preserve
+those option spellings as durable route contracts.
 
 ### 3. Contracts
 
@@ -570,8 +565,9 @@ Deleted public pass names:
 
 ### 4. Tests Required
 
-- lit/FileCheck coverage proving the deleted vector/source pass options are not
-  registered or fail closed without materializing `tcrv.exec`.
+- Current lit/FileCheck coverage should prove fail-closed behavior through the
+  active plugin/interface-owned pipeline surfaces, not by preserving historical
+  vector/source option spellings as named absence fixtures.
 - Delete tests whose only purpose was to validate the old vector source wrapper
   shapes, tail-in-bounds diagnostics, family marker cross-checks, or
   compatibility alias behavior.
@@ -587,10 +583,11 @@ dynamic %n loop + transfer_read/write in_bounds=true
   -> rely on downstream setvl(n) to imply source tail correctness
 ```
 
-Correct:
+Correct future rebuild:
 
 ```text
 dynamic %n loop + MLIR transfer tail semantics
+  -> plugin/interface-owned frontend construction
   -> tcrv.exec runtime_param @abi_runtime_element_count
   -> selected-plan active-lane/source-tail metadata
   -> tcrv_rvv.setvl(n) and generated artifact comments

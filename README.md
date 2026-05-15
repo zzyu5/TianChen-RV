@@ -104,17 +104,16 @@ generate objects, link runtime libraries, run hardware, prove correctness, or
 measure performance.
 
 The former public linalg/vector RVV source-to-exec pass family is deleted as a
-core semantic branch. `tcrv-opt` no longer registers
-`--tcrv-lower-source-rvv-binary-to-exec`,
-`--tcrv-lower-linalg-rvv-binary-to-exec`, the old linalg i32 compatibility
-aliases, or the vector i32 add/sub/mul source adapter aliases. Current planning
-starts from already materialized TianChen-RV execution surfaces such as
-`tcrv.exec.kernel`, capability-provider scope, selected boundaries,
-`tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, and plugin-local extension
-family ops. Any future high-level frontend rebuild must be plugin/interface
-owned and must not restore core transforms that inspect finite RVV
-linalg/vector source bodies or query RVV family records to materialize
-`tcrv.exec`.
+core semantic branch. `tcrv-opt` no longer registers the historical source,
+linalg RVV, linalg i32 compatibility, or vector i32 arithmetic source adapter
+options, and those option spellings are not preserved as active route
+contracts. Current planning starts from already materialized TianChen-RV
+execution surfaces such as `tcrv.exec.kernel`, capability-provider scope,
+selected boundaries, `tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, and
+plugin-local extension family ops. Any future high-level frontend rebuild must
+be plugin/interface owned and must not restore core transforms that inspect
+finite RVV linalg/vector source bodies or query RVV family records to
+materialize `tcrv.exec`.
 
 The former RVV standalone smoke-probe compiler front doors are deleted.
 Selected RVV metadata and `tcrv_rvv.lowering_boundary` are not enough to
