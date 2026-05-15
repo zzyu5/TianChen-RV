@@ -133,7 +133,6 @@ public:
                          TargetArtifactExportFn exportFn,
                          llvm::ArrayRef<support::RuntimeABIParameter>
                              requiredRuntimeABIParameters = {},
-                         bool directHelperRoute = false,
                          llvm::StringRef handoffKind = {},
                          TargetArtifactCandidateValidationFn
                              candidateValidationFn = nullptr,
@@ -146,7 +145,6 @@ public:
   llvm::StringRef getOriginPlugin() const { return originPlugin; }
   llvm::StringRef getEmissionKind() const { return emissionKind; }
   TargetArtifactExportFn getExportFn() const { return exportFn; }
-  bool hasDirectHelperRoute() const { return directHelperRoute; }
   llvm::StringRef getHandoffKind() const { return handoffKind; }
   llvm::StringRef getComponentGroup() const { return componentGroup; }
   llvm::StringRef getExternalABIName() const { return externalABIName; }
@@ -167,7 +165,6 @@ private:
   std::string originPlugin;
   std::string emissionKind;
   TargetArtifactExportFn exportFn = nullptr;
-  bool directHelperRoute = false;
   std::string handoffKind;
   std::string componentGroup;
   std::string externalABIName;
@@ -227,7 +224,6 @@ struct TargetArtifactBundleRecord {
   std::string owner;
   bool genericFrontDoorSelectable = false;
   std::string selectableVia;
-  bool directHelperRoute = false;
   std::string runtimeABI;
   std::string runtimeABIKind;
   std::string runtimeABIName;
@@ -248,7 +244,6 @@ public:
                                   llvm::StringRef owner = {},
                                   llvm::StringRef runtimeABIKind = {},
                                   llvm::StringRef runtimeABIName = {},
-                                  bool directHelperRoute = false,
                                   llvm::StringRef componentGroup = {},
                                   llvm::StringRef externalABIName = {},
                                   TargetArtifactCompositeCandidateValidationFn
@@ -263,7 +258,7 @@ public:
       llvm::StringRef owner, llvm::StringRef runtimeABIKind,
       llvm::StringRef runtimeABIName,
       llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
-      bool directHelperRoute = false, llvm::StringRef componentGroup = {},
+      llvm::StringRef componentGroup = {},
       llvm::StringRef externalABIName = {},
       TargetArtifactCompositeCandidateValidationFn candidateValidationFn =
           nullptr,
@@ -275,7 +270,7 @@ public:
       llvm::StringRef owner, llvm::StringRef runtimeABIKind,
       llvm::StringRef runtimeABIName,
       TargetArtifactCompositeRuntimeABIParametersFn runtimeABIParametersFn,
-      bool directHelperRoute = false, llvm::StringRef componentGroup = {},
+      llvm::StringRef componentGroup = {},
       llvm::StringRef externalABIName = {},
       TargetArtifactCompositeCandidateValidationFn candidateValidationFn =
           nullptr,
@@ -289,7 +284,6 @@ public:
   llvm::StringRef getOwner() const { return owner; }
   llvm::StringRef getRuntimeABIKind() const { return runtimeABIKind; }
   llvm::StringRef getRuntimeABIName() const { return runtimeABIName; }
-  bool hasDirectHelperRoute() const { return directHelperRoute; }
   llvm::StringRef getComponentGroup() const { return componentGroup; }
   llvm::StringRef getExternalABIName() const { return externalABIName; }
   llvm::ArrayRef<support::RuntimeABIParameter>
@@ -318,7 +312,6 @@ private:
   std::string owner;
   std::string runtimeABIKind;
   std::string runtimeABIName;
-  bool directHelperRoute = false;
   std::string componentGroup;
   std::string externalABIName;
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;

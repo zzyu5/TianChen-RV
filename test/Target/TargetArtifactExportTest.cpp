@@ -64,11 +64,6 @@ llvm::Error noopExporter(mlir::ModuleOp, llvm::raw_ostream &) {
   return llvm::Error::success();
 }
 
-llvm::Error sourceMarkerExporter(mlir::ModuleOp, llvm::raw_ostream &os) {
-  os << "source-artifact\n";
-  return llvm::Error::success();
-}
-
 llvm::Error objectMarkerExporter(mlir::ModuleOp, llvm::raw_ostream &os) {
   os << "object-artifact\n";
   return llvm::Error::success();
@@ -107,7 +102,7 @@ llvm::Error registerNoMetadataToyPluginTargetExporterBundle(
 llvm::Error registerNoMetadataToyCompositeTargetExporter(
     TargetArtifactExporterRegistry &registry) {
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-      kBundleTestNoMetadataCompositeRouteID, "runtime-callable-c-source",
+      kBundleTestNoMetadataCompositeRouteID, "riscv-elf-relocatable-object",
       alwaysMatchComposite, noopExporter,
       tianchenrv::plugin::toy::getToyExtensionPluginName()));
 }
@@ -255,7 +250,6 @@ bool expectRoute(const TargetArtifactExporterRegistry &registry,
                  llvm::StringRef originPlugin,
                  llvm::StringRef emissionKind,
                  std::size_t expectedABIParameterCount = 0,
-                 bool expectedDirectHelperRoute = false,
                  llvm::StringRef expectedHandoffKind = {},
                  llvm::StringRef expectedComponentGroup = {},
                  llvm::StringRef expectedExternalABIName = {}) {
@@ -269,7 +263,6 @@ bool expectRoute(const TargetArtifactExporterRegistry &registry,
       exporter->getEmissionKind() != emissionKind || !exporter->getExportFn() ||
       exporter->getRequiredRuntimeABIParameters().size() !=
           expectedABIParameterCount ||
-      exporter->hasDirectHelperRoute() != expectedDirectHelperRoute ||
       exporter->getHandoffKind() != expectedHandoffKind ||
       exporter->getComponentGroup() != expectedComponentGroup ||
       exporter->getExternalABIName() != expectedExternalABIName) {
@@ -438,7 +431,6 @@ bool expectGenericCompositeRouteMetadataPreflightRejectsStaleSelectedPlan() {
                              "riscv-elf-relocatable-object", alwaysMatchComposite,
                              objectMarkerExporter, "test-plugin",
                              /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
-                             /*directHelperRoute=*/false,
                              /*componentGroup=*/{},
                              /*externalABIName=*/{},
                              /*candidateValidationFn=*/nullptr, metadata)),
@@ -641,7 +633,6 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
       "none-executable-toy-template-metadata");
   if (!expectRoute(registry, toyRouteID, "metadata-diagnostic", "toy-plugin",
                    "toy-template-metadata-route", 0,
-                   /*expectedDirectHelperRoute=*/false,
                    "toy-lowering-template"))
     return false;
   if (!expectRouteRegistrationMetadata(
@@ -664,7 +655,6 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   if (!expectRoute(registry, templateRouteID,
                    "template-extension-handoff-manifest", "template-plugin",
                    "template-extension-manifest-route", 0,
-                   /*expectedDirectHelperRoute=*/false,
                    "template-extension-lowering-boundary"))
     return false;
   if (!expectRouteRegistrationMetadata(
@@ -790,7 +780,7 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
     noMetadataCompositeRoute.setTargetArtifactExporterBundleRegistrationFn(
         registerNoMetadataToyCompositePluginTargetExporterBundle);
     noMetadataCompositeRoute.addTargetArtifactRouteMetadataRequirement(
-        kBundleTestNoMetadataCompositeRouteID, "runtime-callable-c-source");
+        kBundleTestNoMetadataCompositeRouteID, "riscv-elf-relocatable-object");
     if (!expectSuccess(bundles.registerBundle(noMetadataCompositeRoute),
                        "register no-metadata-composite-route bundle"))
       return false;
@@ -819,10 +809,10 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
     if (!expectErrorContains(
             registry.registerCompositeExporter(TargetArtifactCompositeExporter(
                 "bundle-test-duplicate-composite-claim",
-                "runtime-callable-c-source", alwaysMatchComposite,
+                "riscv-elf-relocatable-object", alwaysMatchComposite,
                 noopExporter, "toy-plugin",
                 /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
-                /*directHelperRoute=*/false, /*componentGroup=*/{},
+                /*componentGroup=*/{},
                 /*externalABIName=*/{},
                 /*candidateValidationFn=*/nullptr, metadata)),
             "duplicate composite route claim field rejected",
@@ -892,7 +882,6 @@ bool expectPluginOwnedToyTargetExporterRegistration() {
     return false;
   if (!expectRoute(registry, toyRouteID, "metadata-diagnostic", "toy-plugin",
                    "toy-template-metadata-route", 0,
-                   /*expectedDirectHelperRoute=*/false,
                    "toy-lowering-template"))
     return false;
   if (!expectRouteRegistrationMetadata(
@@ -1593,7 +1582,7 @@ module {
       runtime_abi_name = "test-runtime-abi-name",
       runtime_glue_role = "test-runtime-glue",
       required_capabilities = [@test_cap],
-      artifact_kind = "standalone-c-source",
+      artifact_kind = "metadata-diagnostic",
       lowering_boundary = "test.lowering_boundary"
     }
   }
@@ -1609,13 +1598,6 @@ module {
   }
 
   TargetArtifactExporterRegistry registry;
-  if (!expectSuccess(registry.registerCompositeExporter(
-                         TargetArtifactCompositeExporter(
-                             "test-source-composite",
-                             "runtime-callable-c-source",
-                             alwaysMatchComposite, sourceMarkerExporter)),
-                     "register test source composite"))
-    return false;
   if (!expectSuccess(registry.registerCompositeExporter(
                          TargetArtifactCompositeExporter(
                              "test-object-composite",
@@ -1676,22 +1658,22 @@ module {
     }
     tcrv.exec.diagnostic {
       reason = "emission_plan",
-      message = "supported test source route",
+      message = "supported test metadata route",
       severity = "info",
       status = "supported",
       target = @selected,
       origin = "test-plugin",
       role = "direct variant",
       plan_kind = "plugin-emission-plan",
-      emission_kind = "test-source-emission",
-      lowering_pipeline = "bundle-source-route",
+      emission_kind = "test-metadata-emission",
+      lowering_pipeline = "bundle-metadata-route",
       lowering_boundary = "test.lowering_boundary",
       runtime_abi = "bundle-runtime-abi.v1",
       runtime_abi_kind = "bundle-runtime-kind",
       runtime_abi_name = "bundle-runtime-name",
       runtime_glue_role = "bundle-runtime-glue",
       required_capabilities = [@test_cap],
-      artifact_kind = "runtime-callable-c-source"
+      artifact_kind = "metadata-diagnostic"
     }
   }
 }
@@ -1706,10 +1688,9 @@ module {
 
   TargetArtifactExporterRegistry registry;
   if (!expectSuccess(registry.registerExporter(TargetArtifactExporter(
-                         "bundle-source-route", "runtime-callable-c-source",
-                         "test-plugin", "test-source-emission", noopExporter,
-                         {}, /*directHelperRoute=*/true)),
-                     "register source bundle route"))
+                         "bundle-metadata-route", "metadata-diagnostic",
+                         "test-plugin", "test-metadata-emission", noopExporter)),
+                     "register metadata bundle route"))
     return false;
   if (!expectSuccess(registry.registerCompositeExporter(
                          TargetArtifactCompositeExporter(
@@ -1717,8 +1698,7 @@ module {
                              "runtime-callable-c-header",
                              alwaysMatchComposite, noopExporter,
                              "test-target-owner", "bundle-runtime-kind",
-                             "bundle-runtime-name",
-                             /*directHelperRoute=*/true)),
+                             "bundle-runtime-name")),
                      "register header bundle route"))
     return false;
   if (!expectSuccess(registry.registerCompositeExporter(
@@ -1727,8 +1707,7 @@ module {
                              "riscv-elf-relocatable-object",
                              alwaysMatchComposite, noopExporter,
                              "test-target-owner", "bundle-runtime-kind",
-                             "bundle-runtime-name",
-                             /*directHelperRoute=*/true)),
+                             "bundle-runtime-name")),
                      "register object bundle route"))
     return false;
 
@@ -1743,20 +1722,19 @@ module {
     return false;
   }
 
-  const TargetArtifactBundleRecord &sourceRecord = records[0];
-  if (sourceRecord.artifactKind != "runtime-callable-c-source" ||
-      sourceRecord.routeID != "bundle-source-route" ||
-      sourceRecord.componentRole != "source" ||
-      !sourceRecord.componentGroup.empty() ||
-      !sourceRecord.externalABIName.empty() ||
-      sourceRecord.owner != "test-plugin" ||
-      !sourceRecord.selectableVia.empty() ||
-      sourceRecord.genericFrontDoorSelectable ||
-      !sourceRecord.directHelperRoute ||
-      sourceRecord.runtimeABIKind != "bundle-runtime-kind" ||
-      sourceRecord.runtimeABIName != "bundle-runtime-name" ||
-      sourceRecord.evidenceRole != "compiler-artifact") {
-    llvm::errs() << "malformed source artifact bundle record\n";
+  const TargetArtifactBundleRecord &metadataRecord = records[0];
+  if (metadataRecord.artifactKind != "metadata-diagnostic" ||
+      metadataRecord.routeID != "bundle-metadata-route" ||
+      metadataRecord.componentRole != "artifact" ||
+      !metadataRecord.componentGroup.empty() ||
+      !metadataRecord.externalABIName.empty() ||
+      metadataRecord.owner != "test-plugin" ||
+      metadataRecord.selectableVia != "tcrv-export-target-artifact" ||
+      !metadataRecord.genericFrontDoorSelectable ||
+      metadataRecord.runtimeABIKind != "bundle-runtime-kind" ||
+      metadataRecord.runtimeABIName != "bundle-runtime-name" ||
+      metadataRecord.evidenceRole != "compiler-artifact") {
+    llvm::errs() << "malformed metadata artifact bundle record\n";
     return false;
   }
 
@@ -1801,15 +1779,15 @@ module {
 }
 
 bool expectTargetArtifactBundleFileNames() {
-  TargetArtifactBundleRecord sourceRecord;
-  sourceRecord.artifactKind = "runtime-callable-c-source";
-  sourceRecord.routeID = "test-source/route:c";
-  std::string sourceName =
-      deriveTargetArtifactBundleFileName(sourceRecord, /*index=*/7);
-  if (sourceName !=
-      "artifact-7-runtime-callable-c-source-test-source_route_c.c") {
-    llvm::errs() << "unexpected sanitized source bundle file name: "
-                 << sourceName << "\n";
+  TargetArtifactBundleRecord metadataRecord;
+  metadataRecord.artifactKind = "metadata-diagnostic";
+  metadataRecord.routeID = "test-metadata/route";
+  std::string metadataName =
+      deriveTargetArtifactBundleFileName(metadataRecord, /*index=*/7);
+  if (metadataName !=
+      "artifact-7-metadata-diagnostic-test-metadata_route.artifact") {
+    llvm::errs() << "unexpected sanitized metadata bundle file name: "
+                 << metadataName << "\n";
     return false;
   }
 
@@ -1857,10 +1835,7 @@ TargetArtifactBundleRecord makeDispatchBundleComponentRecord(
 }
 
 bool expectTargetArtifactBundleComponentContractValidation() {
-  llvm::SmallVector<TargetArtifactBundleRecord, 3> records;
-  records.push_back(makeDispatchBundleComponentRecord(
-      "runtime-callable-c-source",
-      "bundle-test-generic-dispatch-source", "source"));
+  llvm::SmallVector<TargetArtifactBundleRecord, 2> records;
   records.push_back(makeDispatchBundleComponentRecord(
       "runtime-callable-c-header",
       "bundle-test-generic-dispatch-header", "header"));
@@ -1869,71 +1844,81 @@ bool expectTargetArtifactBundleComponentContractValidation() {
       "bundle-test-generic-dispatch-object", "object"));
 
   if (!expectSuccess(validateTargetArtifactBundleComponentContract(records),
-                     "dispatch bundle component contract accepted"))
+                     "dispatch header/object bundle component contract accepted"))
     return false;
 
-  llvm::SmallVector<TargetArtifactBundleRecord, 3> duplicateRole(records);
-  duplicateRole[2] = records[1];
+  llvm::SmallVector<TargetArtifactBundleRecord, 2> duplicateRole(records);
+  duplicateRole[1] = records[0];
   if (!expectErrorContains(
           validateTargetArtifactBundleComponentContract(duplicateRole),
           "duplicate dispatch bundle component role rejected",
           {"duplicate component_role", "header"}))
     return false;
 
-  llvm::SmallVector<TargetArtifactBundleRecord, 2> missingHeader;
-  missingHeader.push_back(records[0]);
-  missingHeader.push_back(records[2]);
+  llvm::SmallVector<TargetArtifactBundleRecord, 1> missingHeader;
+  missingHeader.push_back(records[1]);
   if (!expectErrorContains(
           validateTargetArtifactBundleComponentContract(missingHeader),
           "missing dispatch bundle header component rejected",
-          {"requires exactly one source, header, and object component_role"}))
+          {"requires exactly one header and object component_role"}))
     return false;
 
-  llvm::SmallVector<TargetArtifactBundleRecord, 3> missingABI(records);
-  missingABI[2].runtimeABIName.clear();
+  llvm::SmallVector<TargetArtifactBundleRecord, 3> deletedSource;
+  deletedSource.append(records.begin(), records.end());
+  deletedSource.push_back(makeDispatchBundleComponentRecord(
+      "runtime-callable-c-source",
+      "bundle-test-generic-dispatch-source", "source"));
+  if (!expectErrorContains(
+          validateTargetArtifactBundleComponentContract(deletedSource),
+          "deleted dispatch bundle source component rejected",
+          {"uses deleted source artifact kind", "runtime-callable-c-source"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 2> missingABI(records);
+  missingABI[1].runtimeABIName.clear();
   if (!expectErrorContains(
           validateTargetArtifactBundleComponentContract(missingABI),
           "missing dispatch bundle object ABI identity rejected",
           {"requires non-empty runtime_abi_name"}))
     return false;
 
-  llvm::SmallVector<TargetArtifactBundleRecord, 3> mismatchedABI(records);
-  mismatchedABI[2].runtimeABIKind = "other-runtime-abi-kind";
+  llvm::SmallVector<TargetArtifactBundleRecord, 2> mismatchedABI(records);
+  mismatchedABI[1].runtimeABIKind = "other-runtime-abi-kind";
   if (!expectErrorContains(
           validateTargetArtifactBundleComponentContract(mismatchedABI),
           "mismatched dispatch bundle runtime ABI kind rejected",
           {"mismatched runtime_abi_kind"}))
     return false;
 
-  llvm::SmallVector<TargetArtifactBundleRecord, 3> mismatchedComponents(records);
-  mismatchedComponents[2].componentRoles[1] = "direct variant";
+  llvm::SmallVector<TargetArtifactBundleRecord, 2> mismatchedComponents(records);
+  mismatchedComponents[1].componentRoles[1] = "direct variant";
   if (!expectErrorContains(
           validateTargetArtifactBundleComponentContract(mismatchedComponents),
           "mismatched dispatch bundle selected component roles rejected",
           {"mismatched selected component roles"}))
     return false;
 
-  llvm::SmallVector<TargetArtifactBundleRecord, 3> missingSignature(records);
-  missingSignature[2].runtimeABIParameters.clear();
+  llvm::SmallVector<TargetArtifactBundleRecord, 2> missingSignature(records);
+  missingSignature[1].runtimeABIParameters.clear();
   if (!expectErrorContains(
           validateTargetArtifactBundleComponentContract(missingSignature),
           "missing dispatch bundle runtime ABI signature rejected",
           {"requires non-empty runtime ABI parameter signature"}))
     return false;
 
-  llvm::SmallVector<TargetArtifactBundleRecord, 3> duplicateParameterRole(
+  llvm::SmallVector<TargetArtifactBundleRecord, 2> duplicateParameterRole(
       records);
-  duplicateParameterRole[2].runtimeABIParameters[4] =
-      duplicateParameterRole[2].runtimeABIParameters[3];
+  duplicateParameterRole[1].runtimeABIParameters[4] =
+      duplicateParameterRole[1].runtimeABIParameters[3];
   if (!expectErrorContains(
           validateTargetArtifactBundleComponentContract(duplicateParameterRole),
           "duplicate dispatch bundle runtime ABI parameter role rejected",
           {"duplicate runtime ABI parameter role", "runtime-element-count"}))
     return false;
 
-  llvm::SmallVector<TargetArtifactBundleRecord, 3> mismatchedParameterType(
+  llvm::SmallVector<TargetArtifactBundleRecord, 2> mismatchedParameterType(
       records);
-  mismatchedParameterType[2].runtimeABIParameters[3].cType = "long";
+  mismatchedParameterType[1].runtimeABIParameters[3].cType = "long";
   if (!expectErrorContains(
           validateTargetArtifactBundleComponentContract(mismatchedParameterType),
           "mismatched dispatch bundle runtime ABI parameter type rejected",
@@ -1941,9 +1926,9 @@ bool expectTargetArtifactBundleComponentContractValidation() {
            "runtime-element-count"}))
     return false;
 
-  llvm::SmallVector<TargetArtifactBundleRecord, 3> mismatchedParameterName(
+  llvm::SmallVector<TargetArtifactBundleRecord, 2> mismatchedParameterName(
       records);
-  mismatchedParameterName[2].runtimeABIParameters[4].cName = "rvv_ready";
+  mismatchedParameterName[1].runtimeABIParameters[4].cName = "rvv_ready";
   if (!expectErrorContains(
           validateTargetArtifactBundleComponentContract(mismatchedParameterName),
           "mismatched dispatch bundle runtime ABI parameter name rejected",
@@ -1951,9 +1936,9 @@ bool expectTargetArtifactBundleComponentContractValidation() {
            "dispatch-availability-guard"}))
     return false;
 
-  llvm::SmallVector<TargetArtifactBundleRecord, 3> mismatchedParameterOwnership(
+  llvm::SmallVector<TargetArtifactBundleRecord, 2> mismatchedParameterOwnership(
       records);
-  mismatchedParameterOwnership[2].runtimeABIParameters[0].ownership =
+  mismatchedParameterOwnership[1].runtimeABIParameters[0].ownership =
       RuntimeABIParameterOwnership::IRModeled;
   if (!expectErrorContains(
           validateTargetArtifactBundleComponentContract(
@@ -1962,10 +1947,10 @@ bool expectTargetArtifactBundleComponentContractValidation() {
           {"mismatched runtime ABI parameter signature", "lhs-input-buffer"}))
     return false;
 
-  llvm::SmallVector<TargetArtifactBundleRecord, 3> mismatchedParameterOrder(
+  llvm::SmallVector<TargetArtifactBundleRecord, 2> mismatchedParameterOrder(
       records);
-  std::swap(mismatchedParameterOrder[2].runtimeABIParameters[0],
-            mismatchedParameterOrder[2].runtimeABIParameters[1]);
+  std::swap(mismatchedParameterOrder[1].runtimeABIParameters[0],
+            mismatchedParameterOrder[1].runtimeABIParameters[1]);
   if (!expectErrorContains(
           validateTargetArtifactBundleComponentContract(mismatchedParameterOrder),
           "mismatched dispatch bundle runtime ABI parameter order rejected",
@@ -1989,8 +1974,8 @@ int main() {
   TargetArtifactExporterRegistry registry;
 
   if (!expectSuccess(registry.registerExporter(TargetArtifactExporter(
-                         "tcrv-test-route", "standalone-c-source",
-                         "test-plugin", "test-source", noopExporter)),
+                         "tcrv-test-route", "riscv-elf-relocatable-object",
+                         "test-plugin", "test-object", noopExporter)),
                      "register valid exporter"))
     return 1;
   if (!expectSuccess(registry.registerExporter(TargetArtifactExporter(
@@ -2001,7 +1986,7 @@ int main() {
   if (!expectSuccess(registry.registerCompositeExporter(
                          TargetArtifactCompositeExporter(
                              "tcrv-test-composite-route",
-                             "runtime-callable-c-source", neverMatchComposite,
+                             "riscv-elf-relocatable-object", neverMatchComposite,
                              noopExporter)),
                      "register valid composite exporter"))
     return 1;
@@ -2011,9 +1996,9 @@ int main() {
     llvm::errs() << "lookup valid exporter failed\n";
     return 1;
   }
-  if (exporter->getArtifactKind() != "standalone-c-source" ||
+  if (exporter->getArtifactKind() != "riscv-elf-relocatable-object" ||
       exporter->getOriginPlugin() != "test-plugin" ||
-      exporter->getEmissionKind() != "test-source" ||
+      exporter->getEmissionKind() != "test-object" ||
       !exporter->getExportFn()) {
     llvm::errs() << "lookup returned malformed exporter metadata\n";
     return 1;
@@ -2035,13 +2020,13 @@ int main() {
   }
 
   if (!expectFailure(registry.registerExporter(TargetArtifactExporter(
-                         "tcrv-test-route", "standalone-c-source",
-                         "test-plugin", "test-source", noopExporter)),
+                         "tcrv-test-route", "riscv-elf-relocatable-object",
+                         "test-plugin", "test-object", noopExporter)),
                      "duplicate route rejected"))
     return 1;
   if (!expectFailure(registry.registerExporter(TargetArtifactExporter(
-                         "", "standalone-c-source", "test-plugin",
-                         "test-source", noopExporter)),
+                         "", "riscv-elf-relocatable-object", "test-plugin",
+                         "test-object", noopExporter)),
                      "empty route rejected"))
     return 1;
   if (!expectFailure(registry.registerExporter(TargetArtifactExporter(
@@ -2050,25 +2035,26 @@ int main() {
                      "empty artifact kind rejected"))
     return 1;
   if (!expectFailure(registry.registerExporter(TargetArtifactExporter(
-                         "missing-callback", "standalone-c-source",
-                         "test-plugin", "test-source", nullptr)),
+                         "missing-callback", "riscv-elf-relocatable-object",
+                         "test-plugin", "test-object", nullptr)),
                      "null callback rejected"))
     return 1;
   if (!expectFailure(registry.registerCompositeExporter(
                          TargetArtifactCompositeExporter(
                              "tcrv-test-composite-route",
-                             "runtime-callable-c-source", neverMatchComposite,
+                             "riscv-elf-relocatable-object", neverMatchComposite,
                              noopExporter)),
                      "duplicate composite route rejected"))
     return 1;
   if (!expectFailure(registry.registerExporter(TargetArtifactExporter(
-                         "tcrv-test-composite-route", "standalone-c-source",
-                         "test-plugin", "test-source", noopExporter)),
+                         "tcrv-test-composite-route",
+                         "riscv-elf-relocatable-object", "test-plugin",
+                         "test-object", noopExporter)),
                      "single route duplicate of composite route rejected"))
     return 1;
   if (!expectFailure(registry.registerCompositeExporter(
                          TargetArtifactCompositeExporter(
-                             "", "runtime-callable-c-source",
+                             "", "riscv-elf-relocatable-object",
                              neverMatchComposite, noopExporter)),
                      "empty composite route rejected"))
     return 1;
@@ -2081,25 +2067,37 @@ int main() {
   if (!expectFailure(registry.registerCompositeExporter(
                          TargetArtifactCompositeExporter(
                              "missing-composite-match",
-                             "runtime-callable-c-source", nullptr,
+                             "riscv-elf-relocatable-object", nullptr,
                              noopExporter)),
                      "null composite match rejected"))
     return 1;
   if (!expectFailure(registry.registerCompositeExporter(
                          TargetArtifactCompositeExporter(
                              "missing-composite-callback",
-                             "runtime-callable-c-source",
+                             "riscv-elf-relocatable-object",
                              neverMatchComposite, nullptr)),
                      "null composite callback rejected"))
     return 1;
 
-  TargetArtifactExporterRegistry compositeSelectionRegistry;
-  if (!expectSuccess(compositeSelectionRegistry.registerCompositeExporter(
-                         TargetArtifactCompositeExporter(
-                             "source-composite", "runtime-callable-c-source",
-                             alwaysMatchComposite, noopExporter)),
-                     "register source composite for selection"))
+  TargetArtifactExporterRegistry sourceResidueRegistry;
+  if (!expectErrorContains(
+          sourceResidueRegistry.registerExporter(TargetArtifactExporter(
+              "deleted-runtime-source", "runtime-callable-c-source",
+              "test-plugin", "test-source", noopExporter)),
+          "deleted runtime-callable source exporter rejected",
+          {"deleted source artifact kind", "runtime-callable-c-source"}))
     return 1;
+  if (!expectErrorContains(
+          sourceResidueRegistry.registerCompositeExporter(
+              TargetArtifactCompositeExporter(
+                  "deleted-runtime-source-composite",
+                  "runtime-callable-c-source", alwaysMatchComposite,
+                  noopExporter)),
+          "deleted runtime-callable source composite rejected",
+          {"deleted source artifact kind", "runtime-callable-c-source"}))
+    return 1;
+
+  TargetArtifactExporterRegistry compositeSelectionRegistry;
   if (!expectSuccess(compositeSelectionRegistry.registerCompositeExporter(
                          TargetArtifactCompositeExporter(
                              "object-composite", "riscv-elf-relocatable-object",
@@ -2176,7 +2174,6 @@ int main() {
                    "none-executable-toy-template-metadata",
                    "metadata-diagnostic", "toy-plugin",
                    "toy-template-metadata-route", 0,
-                   /*expectedDirectHelperRoute=*/false,
                    "toy-lowering-template"))
     return 1;
   const TargetArtifactExporter *toyMetadataExporter =
@@ -2195,7 +2192,7 @@ int main() {
               getTensorExtLiteExtensionPluginName(),
           tianchenrv::plugin::tensorext_lite::
               getTensorExtLiteMetadataEmissionKind(),
-          0, /*expectedDirectHelperRoute=*/false,
+          0,
           tianchenrv::plugin::tensorext_lite::
               getTensorExtLiteExpectedHandoffKind()))
     return 1;

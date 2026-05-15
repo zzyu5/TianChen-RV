@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/index.md", "reason": "Validate final changes against global TianChen-RV architecture invariants."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Validate target artifact export deletion behavior and bundle fail-closed semantics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Validate that updated tests assert deletion/fail-closed behavior rather than direct-C success."}

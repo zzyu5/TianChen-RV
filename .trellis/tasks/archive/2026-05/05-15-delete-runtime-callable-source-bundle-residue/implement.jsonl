@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture invariants and descriptor/direct-C deletion boundary."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Lowering/runtime checklist for avoiding descriptor-to-C emission and keeping EmitC as the future route."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Authoritative target artifact export, bundle, manifest, and deleted direct-C route contract."}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "C++/MLIR/TableGen/CMake implementation stack boundary for compiler code."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing policy for deleted direct C exporter and target artifact bundle/export coverage."}

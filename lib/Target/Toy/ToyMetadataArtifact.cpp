@@ -840,8 +840,7 @@ llvm::Error registerToyMetadataArtifactTargetExporters(
       pluginToy::getToyExtensionPluginName(),
       pluginToy::getToyMetadataEmissionKind(), exportToyMetadataArtifact,
       /*requiredRuntimeABIParameters=*/{},
-      /*directHelperRoute=*/false, pluginToy::getToyExpectedHandoffKind(),
-      validateToyMetadataCandidate,
+      pluginToy::getToyExpectedHandoffKind(), validateToyMetadataCandidate,
       /*componentGroup=*/{}, /*externalABIName=*/{},
       buildToyMetadataArtifactRouteMetadata()));
 }

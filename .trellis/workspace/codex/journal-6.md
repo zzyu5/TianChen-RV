@@ -1872,3 +1872,53 @@ tests/fixtures were rewritten or deleted.
 
 - Continue deletion only if another active target/export surface still presents
   direct C source export as valid architecture.
+
+
+## Session 74: Delete runtime-callable source bundle residue
+
+**Date**: 2026-05-15
+**Task**: Delete runtime-callable source bundle residue
+**Branch**: `main`
+
+### Summary
+
+Removed the remaining target artifact bundle/export residue that preserved
+runtime-callable C source semantics after the generic source front door was
+deleted. Source artifact kinds now fail closed in target artifact exporter
+registration and bundle component validation, while positive bundle coverage is
+metadata/header/object only.
+
+### Main Changes
+
+- Removed `directHelperRoute` from target artifact exporter APIs, bundle records,
+  and emission manifest artifact output.
+- Rejected deleted `runtime-callable-c-source` / `standalone-c-source` artifact
+  kinds when registering target artifact exporters or validating bundle records.
+- Rewrote target artifact bundle discovery, deterministic file-name, and
+  component-contract tests so source appears only in deletion-state negative
+  coverage.
+- Kept the round deletion-only: no replacement EmitC route, source wrapper,
+  compatibility mode, descriptor fallback, or RVV lowering was added.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(target): delete source bundle residue |
+
+### Testing
+
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target TianChenRVBuiltinTargetArtifactExporters tianchenrv-target-artifact-export-test tcrv-translate tcrv-opt -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/ArtifactExport` from `artifacts/tmp/tianchenrv-build/test`
+- [OK] Focused ref-scans for `runtime-callable-c-source`, `directHelperRoute`, source composites, and deleted source-route residue
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Ready to archive and commit**
+
+### Next Steps
+
+- Continue deletion only if another active target/export surface still treats
+  selected metadata as C source artifact authority.

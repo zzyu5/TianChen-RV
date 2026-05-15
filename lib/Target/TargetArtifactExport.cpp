@@ -147,7 +147,7 @@ llvm::Error makeTargetArtifactFrontDoorError(KernelOp kernel,
                                              llvm::errc::invalid_argument);
 }
 
-bool isSourceArtifactKind(llvm::StringRef artifactKind) {
+bool isDeletedSourceArtifactKind(llvm::StringRef artifactKind) {
   return artifactKind == kRuntimeCallableCSourceArtifactKind ||
          artifactKind == kStandaloneCSourceArtifactKind;
 }
@@ -157,7 +157,7 @@ bool isHeaderArtifactKind(llvm::StringRef artifactKind) {
 }
 
 bool isDefaultGenericArtifactKind(llvm::StringRef artifactKind) {
-  return !isSourceArtifactKind(artifactKind) &&
+  return !isDeletedSourceArtifactKind(artifactKind) &&
          !isHeaderArtifactKind(artifactKind);
 }
 
@@ -185,15 +185,11 @@ llvm::StringRef getEvidenceRoleForArtifactKind(llvm::StringRef artifactKind) {
     return kHeaderDeclarationEvidenceRole;
   if (artifactKind == kRiscvELFRelocatableObjectArtifactKind)
     return kRelocatableObjectEvidenceRole;
-  if (isSourceArtifactKind(artifactKind))
-    return kCompilerArtifactEvidenceRole;
   return kCompilerArtifactEvidenceRole;
 }
 
 llvm::StringRef getBundleComponentRoleForArtifactKind(
     llvm::StringRef artifactKind) {
-  if (isSourceArtifactKind(artifactKind))
-    return kBundleSourceComponentRole;
   if (isHeaderArtifactKind(artifactKind))
     return kBundleHeaderComponentRole;
   if (artifactKind == kRiscvELFRelocatableObjectArtifactKind)
@@ -202,9 +198,6 @@ llvm::StringRef getBundleComponentRoleForArtifactKind(
 }
 
 llvm::StringRef getFileExtensionForArtifactKind(llvm::StringRef artifactKind) {
-  if (artifactKind == kRuntimeCallableCSourceArtifactKind ||
-      artifactKind == kStandaloneCSourceArtifactKind)
-    return ".c";
   if (artifactKind == kRuntimeCallableCHeaderArtifactKind)
     return ".h";
   if (artifactKind == kRiscvELFRelocatableObjectArtifactKind)
@@ -1380,7 +1373,6 @@ llvm::Error appendSingleCandidateBundleRecord(
   record.selectableVia =
       getGenericFrontDoorSelector(candidate.artifactKind).str();
   record.genericFrontDoorSelectable = !record.selectableVia.empty();
-  record.directHelperRoute = exporter->hasDirectHelperRoute();
   record.runtimeABI = candidate.runtimeABI;
   record.runtimeABIKind = candidate.runtimeABIKind;
   record.runtimeABIName = candidate.runtimeABIName;
@@ -1458,7 +1450,6 @@ llvm::Error appendCompositeBundleRecords(
     record.selectableVia =
         getGenericFrontDoorSelector(exporter.getArtifactKind()).str();
     record.genericFrontDoorSelectable = !record.selectableVia.empty();
-    record.directHelperRoute = exporter.hasDirectHelperRoute();
     record.runtimeABI = deriveCompositeRuntimeABI(group.candidates);
     record.runtimeABIKind =
         deriveCompositeRuntimeABIKind(group.candidates, exporter);
@@ -1722,6 +1713,12 @@ llvm::Error validateTargetArtifactBundleComponentContract(
     if (record.routeID.empty())
       return makeTargetArtifactBundleExportError(
           "bundle artifact record requires non-empty route");
+    if (isDeletedSourceArtifactKind(record.artifactKind))
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle artifact route '") + record.routeID +
+          "' uses deleted source artifact kind '" + record.artifactKind +
+          "'; runtime-callable C source components require a future "
+          "materialized MLIR EmitC route");
 
     llvm::StringRef expectedComponentRole =
         getBundleComponentRoleForArtifactKind(record.artifactKind);
@@ -1845,12 +1842,17 @@ llvm::Error validateTargetArtifactBundleComponentContract(
 
   for (const auto &entry : groups) {
     const ComponentGroupState &state = entry.getValue();
-    if (!state.artifactComponentRoles.count(kBundleSourceComponentRole) ||
-        !state.artifactComponentRoles.count(kBundleHeaderComponentRole) ||
-        !state.artifactComponentRoles.count(kBundleObjectComponentRole))
+    if (state.artifactComponentRoles.count(kBundleSourceComponentRole))
       return makeTargetArtifactBundleExportError(
           llvm::Twine("bundle component_group '") + entry.getKey() +
-          "' requires exactly one source, header, and object component_role");
+          "' preserves deleted source component_role 'source'");
+    if ((state.artifactComponentRoles.count(kBundleHeaderComponentRole) ||
+         state.artifactComponentRoles.count(kBundleObjectComponentRole)) &&
+        (!state.artifactComponentRoles.count(kBundleHeaderComponentRole) ||
+         !state.artifactComponentRoles.count(kBundleObjectComponentRole)))
+      return makeTargetArtifactBundleExportError(
+          llvm::Twine("bundle component_group '") + entry.getKey() +
+          "' requires exactly one header and object component_role");
   }
 
   return llvm::Error::success();
@@ -2623,14 +2625,14 @@ TargetArtifactExporter::TargetArtifactExporter(
     TargetArtifactExportFn exportFn,
     llvm::ArrayRef<support::RuntimeABIParameter>
         requiredRuntimeABIParameters,
-    bool directHelperRoute, llvm::StringRef handoffKind,
+    llvm::StringRef handoffKind,
     TargetArtifactCandidateValidationFn candidateValidationFn,
     llvm::StringRef componentGroup, llvm::StringRef externalABIName,
     const TargetArtifactRouteMetadata &routeMetadata)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       originPlugin(originPlugin.str()), emissionKind(emissionKind.str()),
-      exportFn(exportFn), directHelperRoute(directHelperRoute),
-      handoffKind(handoffKind.str()), componentGroup(componentGroup.str()),
+      exportFn(exportFn), handoffKind(handoffKind.str()),
+      componentGroup(componentGroup.str()),
       externalABIName(externalABIName.str()),
       candidateValidationFn(candidateValidationFn),
       routeMetadata(routeMetadata) {
@@ -2642,15 +2644,14 @@ TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
     llvm::StringRef routeID, llvm::StringRef artifactKind,
     TargetArtifactCompositeMatchFn matchFn, TargetArtifactExportFn exportFn,
     llvm::StringRef owner, llvm::StringRef runtimeABIKind,
-    llvm::StringRef runtimeABIName, bool directHelperRoute,
-    llvm::StringRef componentGroup, llvm::StringRef externalABIName,
+    llvm::StringRef runtimeABIName, llvm::StringRef componentGroup,
+    llvm::StringRef externalABIName,
     TargetArtifactCompositeCandidateValidationFn candidateValidationFn,
     const TargetArtifactRouteMetadata &routeMetadata,
     TargetArtifactCompositeBundleMetadataFn bundleMetadataFn)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       matchFn(matchFn), exportFn(exportFn), owner(owner.str()),
       runtimeABIKind(runtimeABIKind.str()), runtimeABIName(runtimeABIName.str()),
-      directHelperRoute(directHelperRoute),
       componentGroup(componentGroup.str()),
       externalABIName(externalABIName.str()),
       candidateValidationFn(candidateValidationFn),
@@ -2663,15 +2664,13 @@ TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
     llvm::StringRef owner, llvm::StringRef runtimeABIKind,
     llvm::StringRef runtimeABIName,
     llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
-    bool directHelperRoute, llvm::StringRef componentGroup,
-    llvm::StringRef externalABIName,
+    llvm::StringRef componentGroup, llvm::StringRef externalABIName,
     TargetArtifactCompositeCandidateValidationFn candidateValidationFn,
     const TargetArtifactRouteMetadata &routeMetadata,
     TargetArtifactCompositeBundleMetadataFn bundleMetadataFn)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       matchFn(matchFn), exportFn(exportFn), owner(owner.str()),
       runtimeABIKind(runtimeABIKind.str()), runtimeABIName(runtimeABIName.str()),
-      directHelperRoute(directHelperRoute),
       componentGroup(componentGroup.str()),
       externalABIName(externalABIName.str()),
       candidateValidationFn(candidateValidationFn),
@@ -2687,15 +2686,13 @@ TargetArtifactCompositeExporter::TargetArtifactCompositeExporter(
     llvm::StringRef owner, llvm::StringRef runtimeABIKind,
     llvm::StringRef runtimeABIName,
     TargetArtifactCompositeRuntimeABIParametersFn runtimeABIParametersFn,
-    bool directHelperRoute, llvm::StringRef componentGroup,
-    llvm::StringRef externalABIName,
+    llvm::StringRef componentGroup, llvm::StringRef externalABIName,
     TargetArtifactCompositeCandidateValidationFn candidateValidationFn,
     const TargetArtifactRouteMetadata &routeMetadata,
     TargetArtifactCompositeBundleMetadataFn bundleMetadataFn)
     : routeID(routeID.str()), artifactKind(artifactKind.str()),
       matchFn(matchFn), exportFn(exportFn), owner(owner.str()),
       runtimeABIKind(runtimeABIKind.str()), runtimeABIName(runtimeABIName.str()),
-      directHelperRoute(directHelperRoute),
       componentGroup(componentGroup.str()),
       externalABIName(externalABIName.str()),
       runtimeABIParametersFn(runtimeABIParametersFn),
@@ -2709,6 +2706,12 @@ llvm::Error TargetArtifactExporterRegistry::registerExporter(
     return makeRegistryError("exporter route id must be non-empty");
   if (exporter.getArtifactKind().trim().empty())
     return makeRegistryError("exporter artifact kind must be non-empty");
+  if (isDeletedSourceArtifactKind(exporter.getArtifactKind()))
+    return makeRegistryError(
+        llvm::Twine("exporter route id '") + exporter.getRouteID() +
+        "' uses deleted source artifact kind '" + exporter.getArtifactKind() +
+        "'; target artifact exporters must use object, header, or metadata "
+        "artifacts until a materialized MLIR EmitC route exists");
   if (!exporter.getExportFn())
     return makeRegistryError("exporter callback must be non-null");
   if (llvm::Error error = validateRouteMetadataShape(exporter))
@@ -2737,6 +2740,12 @@ llvm::Error TargetArtifactExporterRegistry::registerCompositeExporter(
   if (exporter.getArtifactKind().trim().empty())
     return makeRegistryError(
         "composite exporter artifact kind must be non-empty");
+  if (isDeletedSourceArtifactKind(exporter.getArtifactKind()))
+    return makeRegistryError(
+        llvm::Twine("composite exporter route id '") + exporter.getRouteID() +
+        "' uses deleted source artifact kind '" + exporter.getArtifactKind() +
+        "'; target artifact exporters must use object, header, or metadata "
+        "artifacts until a materialized MLIR EmitC route exists");
   if (!exporter.getMatchFn())
     return makeRegistryError(
         "composite exporter match callback must be non-null");

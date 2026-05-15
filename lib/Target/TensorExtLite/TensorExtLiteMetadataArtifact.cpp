@@ -840,7 +840,7 @@ llvm::Error registerTensorExtLiteMetadataArtifactTargetExporters(
       pluginTensorExtLite::getTensorExtLiteExtensionPluginName(),
       pluginTensorExtLite::getTensorExtLiteMetadataEmissionKind(), exportTensorExtLiteMetadataArtifact,
       /*requiredRuntimeABIParameters=*/{},
-      /*directHelperRoute=*/false, pluginTensorExtLite::getTensorExtLiteExpectedHandoffKind(),
+      pluginTensorExtLite::getTensorExtLiteExpectedHandoffKind(),
       validateTensorExtLiteMetadataCandidate,
       /*componentGroup=*/{}, /*externalABIName=*/{},
       buildTensorExtLiteMetadataArtifactRouteMetadata()));

@@ -50,9 +50,6 @@ constexpr llvm::StringLiteral kPreferenceExplanationAttrName(
     "preference_explanation");
 constexpr llvm::StringLiteral kPreferenceTieBreakAttrName(
     "preference_tie_break");
-constexpr llvm::StringLiteral kRuntimeCallableCSourceArtifactKind(
-    "runtime-callable-c-source");
-
 struct SelectedPath {
   VariantOp variant;
   mlir::Operation *selector = nullptr;
@@ -460,21 +457,12 @@ llvm::Error collectRequiredCapabilities(
 }
 
 llvm::Error collectRuntimeABIParameters(
-    KernelOp kernel, DiagnosticOp diagnostic, bool requireNonEmpty,
+    KernelOp kernel, DiagnosticOp diagnostic,
     llvm::SmallVectorImpl<support::RuntimeABIParameter> &out) {
   auto parameters = diagnostic->getAttrOfType<mlir::ArrayAttr>(
       execDiagnostic::kRuntimeABIParametersAttrName);
-  if (!parameters) {
-    if (requireNonEmpty)
-      return makeManifestError(
-          kernel, "runtime-callable C source emission-plan diagnostic requires "
-                  "structured runtime_abi_parameters metadata");
+  if (!parameters)
     return llvm::Error::success();
-  }
-  if (requireNonEmpty && parameters.empty())
-    return makeManifestError(
-        kernel, "runtime-callable C source emission-plan diagnostic requires "
-                "non-empty runtime_abi_parameters metadata");
 
   llvm::StringSet<> seenNames;
   llvm::StringSet<> seenRoles;
@@ -845,12 +833,9 @@ llvm::Error buildPathRecord(KernelOp kernel, const SelectedPath &path,
                                     execDiagnostic::kArtifactKindAttrName,
                                     record.artifactKind))
     return error;
-  bool requiresRuntimeABIParameters =
-      record.artifactKind &&
-      *record.artifactKind == kRuntimeCallableCSourceArtifactKind;
-  if (llvm::Error error = collectRuntimeABIParameters(
-          kernel, diagnostic, requiresRuntimeABIParameters,
-          record.runtimeABIParameters))
+  if (llvm::Error error =
+          collectRuntimeABIParameters(kernel, diagnostic,
+                                      record.runtimeABIParameters))
     return error;
 
   if (record.status == execDiagnostic::kEmissionPlanSupportedStatusValue ||
@@ -1207,8 +1192,6 @@ void printTargetArtifactRecords(
     os << indent << "    selectable_via: ";
     printQuoted(os, artifact.selectableVia);
     os << "\n";
-    os << indent << "    direct_helper_route: "
-       << (artifact.directHelperRoute ? "true" : "false") << "\n";
     if (!artifact.runtimeABIKind.empty()) {
       os << indent << "    runtime_abi_kind: ";
       printQuoted(os, artifact.runtimeABIKind);

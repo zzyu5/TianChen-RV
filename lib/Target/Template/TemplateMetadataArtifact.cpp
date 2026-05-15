@@ -850,7 +850,7 @@ llvm::Error registerTemplateMetadataArtifactTargetExporters(
       pluginTemplate::getTemplateExtensionPluginName(),
       pluginTemplate::getTemplateMetadataEmissionKind(), exportTemplateMetadataArtifact,
       /*requiredRuntimeABIParameters=*/{},
-      /*directHelperRoute=*/false, pluginTemplate::getTemplateExpectedHandoffKind(),
+      pluginTemplate::getTemplateExpectedHandoffKind(),
       validateTemplateMetadataCandidate,
       /*componentGroup=*/{}, /*externalABIName=*/{},
       buildTemplateMetadataArtifactRouteMetadata()));
