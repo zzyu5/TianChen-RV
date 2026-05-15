@@ -1008,7 +1008,6 @@ bool expectRVVTargetSupportBundleExtractionRegistration() {
                          tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
                          tianchenrv::plugin::registerRVVExtensionPlugin);
   bundle.addRequiredDialectName("tcrv_rvv");
-  bundle.addLoweringBoundaryOp("tcrv_rvv.lowering_boundary");
   if (!expectSuccess(
           tianchenrv::target::rvv::configureRVVTargetSupportExtensionBundle(
               bundle),
@@ -1020,9 +1019,10 @@ bool expectRVVTargetSupportBundleExtractionRegistration() {
     return false;
   }
   if (bundle.requiresTargetArtifactRouteMetadata() ||
-      !bundle.getTargetArtifactRouteMetadata().empty()) {
-    llvm::errs() << "RVV target-support bundle still owns deleted direct C "
-                    "route metadata requirements\n";
+      !bundle.getTargetArtifactRouteMetadata().empty() ||
+      !bundle.getLoweringBoundaryOps().empty()) {
+    llvm::errs() << "RVV target-support bundle still owns deleted boundary or "
+                    "direct C route metadata requirements\n";
     return false;
   }
 
@@ -1075,8 +1075,7 @@ bool expectRVVPluginManifestTargetSupportActivation() {
           "manifest hook"))
     return false;
   if (!containsString(bundle.getRequiredDialectNames(), "tcrv_rvv") ||
-      !containsString(bundle.getLoweringBoundaryOps(),
-                      "tcrv_rvv.lowering_boundary") ||
+      !bundle.getLoweringBoundaryOps().empty() ||
       !bundle.getTargetArtifactExporterBundleRegistrationFn() ||
       bundle.requiresTargetArtifactRouteMetadata()) {
     llvm::errs() << "RVV plugin manifest hook did not configure the "
@@ -1774,7 +1773,7 @@ TargetArtifactBundleRecord makeDispatchBundleComponentRecord(
     llvm::StringRef artifactKind, llvm::StringRef routeID,
     llvm::StringRef componentRole) {
   TargetArtifactBundleRecord record;
-  record.componentVariants.push_back("rvv_first_slice");
+  record.componentVariants.push_back("rvv_typed_body");
   record.componentVariants.push_back("scalar_fallback_first_slice");
   record.componentRoles.push_back("dispatch case");
   record.componentRoles.push_back("dispatch fallback");

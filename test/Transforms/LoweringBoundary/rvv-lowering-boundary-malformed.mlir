@@ -12,23 +12,23 @@ module {
       mask_policy = "agnostic",
       status = "available"
     }
-    tcrv.exec.variant @rvv_first_slice attributes {
+    tcrv.exec.variant @rvv_deleted_metadata_path attributes {
       origin = "rvv-plugin",
       requires = [@rvv]
     } {
     }
     tcrv.exec.diagnostic {
-      message = "select RVV first-slice metadata path",
+      message = "select deleted RVV metadata path",
       reason = "variant-selected",
       selection_kind = "static-variant",
       severity = "note",
       status = "selected",
-      target = @rvv_first_slice
+      target = @rvv_deleted_metadata_path
     }
   }
 }
 
 // CHECK: TianChen-RV selected lowering-boundary materialization failed
 // CHECK-SAME: origin plugin 'rvv-plugin' failed lowering-boundary materialization
-// CHECK-SAME: selected RVV variant @rvv_first_slice failed plugin legality
-// CHECK: tcrv_rvv.policy
+// CHECK: explicit typed RVV extension-family body
+// CHECK: metadata-only RVV first-slice route has been deleted

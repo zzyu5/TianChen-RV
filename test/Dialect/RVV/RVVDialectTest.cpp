@@ -192,10 +192,9 @@ module {
       kind = "isa-vector",
       status = "available"
     }
-    tcrv.exec.variant @rvv_first_slice attributes {
+    tcrv.exec.variant @rvv_policy_holder attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
-      policy = "metadata_only_first_slice",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
     } {
     }
@@ -207,7 +206,7 @@ module {
   if (!module)
     return fail("failed to parse typed RVV policy attribute IR");
   if (int result = expectRVVPolicyAttr(
-          findVariant(*module, "rvv_first_slice"), TailPolicy::Agnostic,
+          findVariant(*module, "rvv_policy_holder"), TailPolicy::Agnostic,
           MaskPolicy::Agnostic))
     return result;
 
@@ -227,7 +226,7 @@ module {
   if (!reparsed)
     return fail("failed to reparse printed typed RVV policy attribute IR");
   if (int result = expectRVVPolicyAttr(
-          findVariant(*reparsed, "rvv_first_slice"), TailPolicy::Agnostic,
+          findVariant(*reparsed, "rvv_policy_holder"), TailPolicy::Agnostic,
           MaskPolicy::Agnostic))
     return result;
 
@@ -257,10 +256,9 @@ module {
       kind = "isa-vector",
       status = "available"
     }
-    tcrv.exec.variant @rvv_first_slice attributes {
+    tcrv.exec.variant @rvv_explicit_dataflow attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
-      tcrv_rvv.required_march = "rv64gcv",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
     } {
     }
@@ -420,7 +418,7 @@ int runMalformedRVVPolicySyntaxTest() {
 module {
   tcrv.exec.kernel @bad_policy attributes {} {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
-    tcrv.exec.variant @rvv_first_slice attributes {
+    tcrv.exec.variant @rvv_policy_holder attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = invalid, mask = agnostic>

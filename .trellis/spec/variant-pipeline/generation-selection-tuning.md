@@ -195,9 +195,10 @@ module-level capability-provider `tcrv.exec.target` explicitly referenced by
 through an injected `ExtensionPluginRegistry`, checks final selected
 artifact-route metadata through an injected `TargetArtifactExporterRegistry`,
 and materializes only compiler-visible planning metadata, including
-plugin-local selected-boundary ops such as `tcrv_rvv.lowering_boundary` when a
-plugin has an active boundary surface. Scalar fallback currently remains a
-no-boundary generic fallback envelope. In `tcrv-opt`, the tool boundary may inject the
+plugin-local selected-boundary ops only when a plugin has an active boundary
+surface. RVV and scalar fallback currently remain no-boundary/fail-closed
+routes until explicit extension-family IR plus a materialized EmitC route
+exists. In `tcrv-opt`, the tool boundary may inject the
 deterministic built-in plugin registry plus built-in target artifact exporter
 registry; embeddable library builders must remain usable with explicitly
 supplied registries and must not create hidden target-specific global state.

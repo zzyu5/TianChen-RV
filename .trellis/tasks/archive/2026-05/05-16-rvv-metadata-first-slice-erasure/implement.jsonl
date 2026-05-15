@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV boundaries: unified RISC-V MLIR, C++/MLIR stack, no descriptor/direct-C compiler authority"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin boundary and stale first-slice metadata route text to delete or revise"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission/runtime route contract and deleted direct-C/unsupported route discipline"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "variant materialization/selection pipeline and no-body/high-level proposal constraints"}

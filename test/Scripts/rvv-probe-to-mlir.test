@@ -119,36 +119,27 @@
 # PIPE-SAME: mask_policy = "agnostic"
 # PIPE: tcrv.exec.capability @rvv_probe_compile_run
 # PIPE-SAME: selected_march = "rv64gcv"
-# PIPE: tcrv.exec.variant @rvv_first_slice
-# PIPE-SAME: origin = "rvv-plugin"
-# PIPE-SAME: requires = [@rvv
+# PIPE-NOT: origin = "rvv-plugin"
 # PIPE: tcrv.exec.variant @scalar_fallback_first_slice
 # PIPE-SAME: origin = "scalar-plugin"
 # PIPE-SAME: requires = [@scalar_fallback]
 # PIPE-NOT: tcrv.exec.dispatch
 # PIPE: tcrv.exec.diagnostic
 # PIPE-SAME: reason = "variant-selected"
-# PIPE-SAME: selection_kind = "static-variant"
-# PIPE-SAME: target = @rvv_first_slice
-# PIPE: tcrv_rvv.lowering_boundary
-# PIPE-SAME: role = "direct variant"
-# PIPE-SAME: selected_variant = @rvv_first_slice
-# PIPE-SAME: source_kernel = "rvv_probe_replay"
-# PIPE-SAME: status = "unsupported"
+# PIPE-SAME: selection_kind = "fallback-only"
+# PIPE-SAME: target = @scalar_fallback_first_slice
 # PIPE: tcrv.exec.diagnostic
-# PIPE-SAME: emission_kind = "rvv-unsupported-metadata-boundary"
-# PIPE-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
-# PIPE-SAME: message = "RVV first slice has no materialized EmitC lowering, runtime ABI, artifact contract, or executable emission path"
+# PIPE-SAME: emission_kind = "scalar-fallback-unsupported-emission"
+# PIPE-SAME: message = "scalar fallback first slice has no materialized extension-family body, EmitC lowering, runtime ABI, target artifact route, or metadata-only emission route"
 # PIPE-SAME: reason = "emission_plan"
-# PIPE-SAME: role = "direct variant"
 # PIPE-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
 # PIPE-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
 # PIPE-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
 # PIPE-SAME: status = "unsupported"
-# PIPE-SAME: target = @rvv_first_slice
-# PIPE-NOT: tcrv_scalar.lowering_boundary
+# PIPE-SAME: target = @scalar_fallback_first_slice
+# PIPE-NOT: tcrv_rvv.lowering_boundary
 
-# SCALAR_ONLY-NOT: tcrv.exec.variant @rvv_first_slice
+# SCALAR_ONLY-NOT: origin = "rvv-plugin"
 # SCALAR_ONLY: tcrv.exec.variant @scalar_fallback_first_slice
 # SCALAR_ONLY-SAME: origin = "scalar-plugin"
 # SCALAR_ONLY-SAME: requires = [@scalar_fallback]

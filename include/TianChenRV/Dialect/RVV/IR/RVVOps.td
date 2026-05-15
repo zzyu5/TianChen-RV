@@ -430,43 +430,4 @@ def I64StoreOp : TCRVRVV_Op<"i64_store", []> {
   let hasVerifier = 1;
 }
 
-def LoweringBoundaryOp : TCRVRVV_Op<"lowering_boundary", []> {
-  let summary = "pre-executable RVV lowering boundary metadata";
-  let description = [{
-    Records the plugin-owned RVV lowering boundary for a selected RVV
-    tcrv.exec.variant. The op is intentionally pre-executable metadata: it
-    carries source kernel, selected variant, dispatch role, optional capability
-    summary, unsupported status, and diagnostic reason so later RVV lowering
-    slices have a stable plugin-local attachment point.
-
-    This op does not model RVV arithmetic, tensor computation, vector
-    intrinsics, memory effects, LLVM/RISC-V lowering, runtime ABI glue,
-    generated artifacts, hardware execution, correctness, or performance.
-  }];
-
-  let arguments = (ins
-    StrAttr:$source_kernel,
-    FlatSymbolRefAttr:$selected_variant,
-    StrAttr:$origin,
-    StrAttr:$role,
-    StrAttr:$status,
-    ArrayAttr:$required_capabilities,
-    OptionalAttr<I64Attr>:$vlenb_bytes,
-    OptionalAttr<I64Attr>:$base_i32_m1_lanes,
-    OptionalAttr<StrAttr>:$selected_vector_shape,
-    OptionalAttr<I64Attr>:$selected_vector_sew,
-    OptionalAttr<StrAttr>:$selected_vector_lmul,
-    OptionalAttr<StrAttr>:$selected_tail_policy,
-    OptionalAttr<StrAttr>:$selected_mask_policy,
-    OptionalAttr<StrAttr>:$selected_vector_type,
-    OptionalAttr<StrAttr>:$selected_vector_suffix,
-    OptionalAttr<StrAttr>:$selected_setvl_suffix,
-    OptionalAttr<StrAttr>:$capability_summary,
-    StrAttr:$unsupported_reason
-  );
-
-  let assemblyFormat = "attr-dict";
-  let hasVerifier = 1;
-}
-
 #endif // TIANCHENRV_DIALECT_RVV_IR_RVVOPS_TD

@@ -312,16 +312,17 @@ the request origin/kernel/variant/role and return a direct child operation in
 the request kernel. A no-boundary result is valid only for an origin plugin
 whose durable selected-path contract explicitly says no plugin-local boundary
 operation is needed; the current scalar fallback route is such a generic
-fallback envelope and has no scalar plugin-local boundary to materialize.
+fallback envelope, and RVV currently uses fail-closed no-boundary behavior
+until a materialized EmitC route exists.
 
 The generic pass `--tcrv-materialize-selected-lowering-boundaries` traverses
 selected dispatch cases followed by fallback, or a direct selected-path marker
 when no dispatch exists, and delegates each reference to the registry. The pass
 must not branch on RVV, scalar, IME, offload, vendor, runtime, dtype, shape, or
 microarchitecture semantics. Plugin-local implementations decide whether to
-create extension-dialect metadata such as `tcrv_rvv.lowering_boundary`; scalar
-fallback currently reports no boundary for fallback envelope paths and reports
-unsupported for direct scalar selected-boundary materialization.
+create extension-dialect metadata when an active boundary surface exists; RVV
+and scalar fallback currently report no plugin-local boundary for their deleted
+or generic no-boundary routes.
 
 ### EmissionProvider
 

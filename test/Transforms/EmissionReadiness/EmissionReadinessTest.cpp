@@ -1,6 +1,5 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
-#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/EmissionReadiness.h"
 #include "TianChenRV/Transforms/Passes.h"
@@ -583,55 +582,6 @@ int expectSupportedEmissionPlanDiagnostic(DiagnosticOp diagnostic,
                               execDiagnostic::kMessageAttrName)
                     .contains("plugin-owned"),
                 "diagnostic message carries plugin-owned explanation");
-}
-
-int expectUnsupportedEmissionPlanDiagnostic(DiagnosticOp diagnostic,
-                                            llvm::StringRef expectedTarget,
-                                            llvm::StringRef expectedOrigin,
-                                            llvm::StringRef expectedFragment) {
-  if (int result = expect(getTargetAttr(diagnostic) == expectedTarget,
-                          "unsupported diagnostic preserves variant target"))
-    return result;
-  if (int result = expectDiagnosticStringAttr(
-          diagnostic, execDiagnostic::kOriginAttrName, expectedOrigin,
-          "unsupported diagnostic preserves plugin origin"))
-    return result;
-  if (int result = expectDiagnosticStringAttr(
-          diagnostic, execDiagnostic::kStatusAttrName,
-          execDiagnostic::kEmissionPlanUnsupportedStatusValue,
-          "unsupported diagnostic marks unsupported status"))
-    return result;
-  if (int result = expectDiagnosticStringAttr(
-          diagnostic, execDiagnostic::kSeverityAttrName,
-          execDiagnostic::kEmissionPlanUnsupportedSeverityValue,
-          "unsupported diagnostic marks error severity"))
-    return result;
-  if (int result =
-          expect(!getStringAttr(diagnostic.getOperation(),
-                                execDiagnostic::kRuntimeABIKindAttrName)
-                      .empty(),
-                 "unsupported diagnostic carries runtime ABI kind"))
-    return result;
-  if (int result =
-          expect(!getStringAttr(diagnostic.getOperation(),
-                                execDiagnostic::kRuntimeABINameAttrName)
-                      .empty(),
-                 "unsupported diagnostic carries runtime ABI name"))
-    return result;
-  if (int result =
-          expect(!getStringAttr(diagnostic.getOperation(),
-                                execDiagnostic::kRuntimeGlueRoleAttrName)
-                      .empty(),
-                 "unsupported diagnostic carries runtime glue role"))
-    return result;
-  if (int result = expect(diagnostic->hasAttr(
-                              execDiagnostic::kRequiredCapabilitiesAttrName),
-                          "unsupported diagnostic carries capability refs"))
-    return result;
-  return expect(getStringAttr(diagnostic.getOperation(),
-                              execDiagnostic::kMessageAttrName)
-                    .contains(expectedFragment),
-                "unsupported diagnostic carries plugin diagnostic text");
 }
 
 const char *getDirectKernelSource(llvm::StringRef kernelName = "direct") {
@@ -2366,179 +2316,6 @@ int runEmissionPlanStructuralNegativeTests(mlir::MLIRContext &context) {
   return 0;
 }
 
-int runRVVUnsupportedEmissionTest() {
-  mlir::MLIRContext context;
-  mlir::DialectRegistry dialectRegistry;
-  tianchenrv::registerAllDialects(dialectRegistry);
-
-  tianchenrv::plugin::rvv::RVVExtensionPlugin rvvPlugin;
-  rvvPlugin.registerDialects(dialectRegistry);
-  context.appendDialectRegistry(dialectRegistry);
-  context.loadAllAvailableDialects();
-
-  const char *source = R"mlir(
-module {
-  tcrv.exec.kernel @rvv_emission {
-    tcrv.exec.capability @rvv {
-      id = "rvv",
-      kind = "isa-vector",
-      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
-      sew_bits = 32 : i64,
-      lmul = "m1",
-      tail_policy = "agnostic",
-      mask_policy = "agnostic",
-      architecture = "riscv64",
-      isa_vector_hints = "rv64gcv_zvl128b",
-      status = "available"
-    }
-    tcrv.exec.variant @rvv_first_slice attributes {
-      origin = "rvv-plugin",
-      requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.selected_vector_shape = "i32m1",
-      tcrv_rvv.selected_vector_sew = 32 : i64,
-      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m1.sew32",
-      tcrv_rvv.selected_vector_lmul = "m1",
-      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m1.lmul_m1",
-      tcrv_rvv.selected_tail_policy = "agnostic",
-      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m1.tail_policy.agnostic",
-      tcrv_rvv.selected_mask_policy = "agnostic",
-      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m1.mask_policy.agnostic",
-      tcrv_rvv.selected_vector_type = "vint32m1_t",
-      tcrv_rvv.selected_vector_suffix = "i32m1",
-      tcrv_rvv.selected_setvl_suffix = "e32m1"
-    } {
-    }
-  }
-}
-)mlir";
-
-  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
-  if (!module)
-    return fail("failed to parse RVV emission readiness module");
-
-  KernelOp kernel = findKernel(*module, "rvv_emission");
-  VariantOp variant = findDirectVariant(kernel, "rvv_first_slice");
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-
-  VariantEmissionStatus pluginStatus;
-  VariantEmissionRequest request(variant, kernel, capabilities,
-                                 VariantEmissionRole::DirectVariant);
-  if (int result = expectSuccess(
-          rvvPlugin.checkVariantEmissionReadiness(request, pluginStatus),
-          "RVV plugin returns explicit unsupported emission status"))
-    return result;
-  if (int result = expect(pluginStatus.isUnsupported(),
-                          "RVV first slice is unsupported for emission"))
-    return result;
-  if (int result =
-          expect(pluginStatus.getReason().contains(
-                     "no materialized EmitC lowering"),
-                 "RVV unsupported reason names missing lowering boundary"))
-    return result;
-
-  ExtensionPluginRegistry registry;
-  if (int result =
-          expectSuccess(registry.registerPlugin(rvvPlugin),
-                        "register RVV plugin for emission readiness"))
-    return result;
-
-  VariantEmissionStatus registryStatus;
-  if (int result = expectErrorContains(
-          registry.checkVariantEmissionReadiness(request, registryStatus),
-          {"rvv-plugin", "kernel @rvv_emission", "variant @rvv_first_slice",
-           "unsupported emission path",
-           "no materialized EmitC lowering, runtime ABI, or artifact route",
-           "unsupported diagnostic boundary"}))
-    return result;
-
-  VariantEmissionPlan rvvPlan;
-  if (int result = expectSuccess(
-          registry.buildVariantEmissionPlan(request, rvvPlan),
-          "RVV plugin returns explicit unsupported emission plan"))
-    return result;
-  if (int result = expect(rvvPlan.isUnsupported(),
-                          "RVV metadata-only first slice has unsupported "
-                          "emission plan status"))
-    return result;
-  if (int result = expect(rvvPlan.getOriginPlugin() == "rvv-plugin" &&
-                              rvvPlan.getKernelSymbol() == "rvv_emission" &&
-                              rvvPlan.getVariantSymbol() == "rvv_first_slice" &&
-                              rvvPlan.getRole() ==
-                                  VariantEmissionRole::DirectVariant,
-                          "RVV unsupported emission plan carries generic "
-                          "context"))
-    return result;
-  if (int result = expect(rvvPlan.getRuntimeABIKind() ==
-                              "unsupported-plugin-runtime-abi",
-                          "RVV unsupported emission plan carries generic "
-                          "unsupported runtime ABI kind"))
-    return result;
-  if (int result = expect(rvvPlan.getRuntimeABIName() ==
-                              "unsupported-emission-runtime-abi",
-                          "RVV unsupported emission plan carries generic "
-                          "unsupported runtime ABI name"))
-    return result;
-  if (int result =
-          expect(rvvPlan.getRuntimeGlueRole() ==
-                     "no-runtime-glue-unsupported",
-                 "RVV unsupported emission plan carries no-runtime glue role"))
-    return result;
-  if (int result = expect(rvvPlan.getRequiredCapabilitySymbols().size() == 1 &&
-                              rvvPlan.getRequiredCapabilitySymbols().front() ==
-                                  "rvv",
-                          "RVV unsupported emission plan preserves capability "
-                          "refs"))
-    return result;
-  if (int result =
-          expect(rvvPlan.getDiagnostic().contains(
-                     "no materialized EmitC lowering") &&
-                     rvvPlan.getDiagnostic().contains("runtime ABI") &&
-                     rvvPlan.getDiagnostic().contains(
-                         "executable emission path"),
-                 "RVV unsupported emission plan carries structured boundary "
-                 "diagnostic"))
-    return result;
-
-  llvm::SmallVector<VariantEmissionPlan, 1> plans;
-  if (int result = expectSuccess(
-          tianchenrv::transforms::collectKernelEmissionPlans(kernel, plans,
-                                                             registry),
-          "collect RVV unsupported emission plan"))
-    return result;
-  if (int result = expect(plans.size() == 1 && plans[0].isUnsupported(),
-                          "RVV plan collection preserves unsupported plan"))
-    return result;
-
-  if (int result = expectSuccess(
-          tianchenrv::transforms::materializeKernelEmissionPlanDiagnostics(
-              kernel, registry),
-          "materialize RVV unsupported emission plan diagnostic"))
-    return result;
-  llvm::SmallVector<DiagnosticOp, 1> diagnostics =
-      collectDirectEmissionPlanDiagnostics(kernel);
-  if (int result = expect(diagnostics.size() == 1,
-                          "RVV materialization emits one unsupported "
-                          "diagnostic"))
-    return result;
-  if (int result = expectUnsupportedEmissionPlanDiagnostic(
-          diagnostics[0], "rvv_first_slice", "rvv-plugin",
-          "no materialized EmitC lowering"))
-    return result;
-  if (int result =
-          expect(getStringAttr(diagnostics[0].getOperation(),
-                               execDiagnostic::kMessageAttrName)
-                         .contains("artifact contract") &&
-                     getStringAttr(diagnostics[0].getOperation(),
-                                   execDiagnostic::kMessageAttrName)
-                         .contains("executable emission path"),
-                 "RVV unsupported diagnostic names absent executable path"))
-    return result;
-
-  return 0;
-}
-
 } // namespace
 
 int main() {
@@ -2577,9 +2354,6 @@ int main() {
     return result;
   if (int result = runEmissionPlanStructuralNegativeTests(context))
     return result;
-  if (int result = runRVVUnsupportedEmissionTest())
-    return result;
-
   llvm::outs() << "emission readiness tests passed\n";
   return 0;
 }

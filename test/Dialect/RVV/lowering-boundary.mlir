@@ -1,159 +1,26 @@
-// RUN: tcrv-opt %s --split-input-file --verify-diagnostics | FileCheck %s
+// RUN: not tcrv-opt %s 2>&1 | FileCheck %s
 
 module {
-  // CHECK-LABEL: tcrv.exec.kernel @rvv_boundary_valid
-  tcrv.exec.kernel @rvv_boundary_valid {
+  tcrv.exec.kernel @rvv_boundary_deleted {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
-      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
-      sew_bits = 32 : i64,
-      lmul = "m1",
-      tail_policy = "agnostic",
-      mask_policy = "agnostic",
       status = "available"
     }
-    tcrv.exec.variant @rvv_first_slice attributes {
+    tcrv.exec.variant @rvv_typed_body attributes {
       origin = "rvv-plugin",
-      requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+      requires = [@rvv]
     } {
     }
-    // CHECK: tcrv_rvv.lowering_boundary
-    // CHECK-SAME: capability_summary = "rvv"
-    // CHECK-SAME: origin = "rvv-plugin"
-    // CHECK-SAME: required_capabilities = [@rvv]
-    // CHECK-SAME: role = "dispatch case"
-    // CHECK-SAME: selected_variant = @rvv_first_slice
-    // CHECK-SAME: source_kernel = "rvv_boundary_valid"
-    // CHECK-SAME: status = "unsupported"
-    tcrv_rvv.lowering_boundary {
-      capability_summary = "rvv",
-      origin = "rvv-plugin",
-      required_capabilities = [@rvv],
-      role = "dispatch case",
-      selected_variant = @rvv_first_slice,
-      source_kernel = "rvv_boundary_valid",
-      status = "unsupported",
-      unsupported_reason = "unsupported RVV pre-executable boundary metadata only"
-    }
-  }
-}
-
-// -----
-
-module {
-  tcrv.exec.kernel @rvv_boundary_empty_source {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
-    tcrv.exec.variant @rvv_first_slice attributes {
-      origin = "rvv-plugin",
-      requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
-    } {
-    }
-    // expected-error@+1 {{requires non-empty string attribute 'source_kernel'}}
+    // CHECK: custom op 'tcrv_rvv.lowering_boundary' is unknown
     tcrv_rvv.lowering_boundary {
       origin = "rvv-plugin",
       required_capabilities = [@rvv],
       role = "direct variant",
-      selected_variant = @rvv_first_slice,
-      source_kernel = "",
+      selected_variant = @rvv_typed_body,
+      source_kernel = "rvv_boundary_deleted",
       status = "unsupported",
-      unsupported_reason = "unsupported RVV pre-executable boundary metadata only"
-    }
-  }
-}
-
-// -----
-
-module {
-  tcrv.exec.kernel @rvv_boundary_missing_role {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
-    tcrv.exec.variant @rvv_first_slice attributes {
-      origin = "rvv-plugin",
-      requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
-    } {
-    }
-    // expected-error@+1 {{requires attribute 'role'}}
-    tcrv_rvv.lowering_boundary {
-      origin = "rvv-plugin",
-      required_capabilities = [@rvv],
-      selected_variant = @rvv_first_slice,
-      source_kernel = "rvv_boundary_missing_role",
-      status = "unsupported",
-      unsupported_reason = "unsupported RVV pre-executable boundary metadata only"
-    }
-  }
-}
-
-// -----
-
-module {
-  tcrv.exec.kernel @rvv_boundary_supported_status {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
-    tcrv.exec.variant @rvv_first_slice attributes {
-      origin = "rvv-plugin",
-      requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
-    } {
-    }
-    // expected-error@+1 {{status must be 'unsupported'}}
-    tcrv_rvv.lowering_boundary {
-      origin = "rvv-plugin",
-      required_capabilities = [@rvv],
-      role = "direct variant",
-      selected_variant = @rvv_first_slice,
-      source_kernel = "rvv_boundary_supported_status",
-      status = "supported",
-      unsupported_reason = "unsupported RVV pre-executable boundary metadata only"
-    }
-  }
-}
-
-// -----
-
-module {
-  tcrv.exec.kernel @rvv_boundary_missing_status {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
-    tcrv.exec.variant @rvv_first_slice attributes {
-      origin = "rvv-plugin",
-      requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
-    } {
-    }
-    // expected-error@+1 {{requires attribute 'status'}}
-    tcrv_rvv.lowering_boundary {
-      origin = "rvv-plugin",
-      required_capabilities = [@rvv],
-      role = "direct variant",
-      selected_variant = @rvv_first_slice,
-      source_kernel = "rvv_boundary_missing_status",
-      unsupported_reason = "unsupported RVV pre-executable boundary metadata only"
-    }
-  }
-}
-
-// -----
-
-module {
-  tcrv.exec.kernel @rvv_boundary_executable_claim {
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector"}
-    tcrv.exec.variant @rvv_first_slice attributes {
-      origin = "rvv-plugin",
-      requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
-    } {
-    }
-    // expected-error@+1 {{unsupported_reason must not claim executable RVV emission}}
-    tcrv_rvv.lowering_boundary {
-      origin = "rvv-plugin",
-      required_capabilities = [@rvv],
-      role = "direct variant",
-      selected_variant = @rvv_first_slice,
-      source_kernel = "rvv_boundary_executable_claim",
-      status = "unsupported",
-      unsupported_reason = "executable emission supported by RVV first slice"
+      unsupported_reason = "deleted RVV metadata boundary"
     }
   }
 }

@@ -1110,27 +1110,25 @@ module {
       kind = "fallback",
       status = "available"
     }
-    tcrv.exec.variant @rvv_first_slice attributes {
+    tcrv.exec.variant @rvv_typed_body attributes {
       condition = "rvv_capability_properties_available",
       guard = "plugin_local_rvv_property_evidence",
       origin = "rvv-plugin",
-      policy = "metadata_only_first_slice",
       requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.selected_vector_shape = "i32m1",
-      tcrv_rvv.selected_vector_sew = 32 : i64,
-      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m1.sew32",
-      tcrv_rvv.selected_vector_lmul = "m1",
-      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m1.lmul_m1",
-      tcrv_rvv.selected_tail_policy = "agnostic",
-      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m1.tail_policy.agnostic",
-      tcrv_rvv.selected_mask_policy = "agnostic",
-      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m1.mask_policy.agnostic",
-      tcrv_rvv.selected_vector_type = "vint32m1_t",
-      tcrv_rvv.selected_vector_suffix = "i32m1",
-      tcrv_rvv.selected_setvl_suffix = "e32m1"
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
     } {
+      %runtime_n = "builtin.unrealized_conversion_cast"() : () -> index
+      %vl = tcrv_rvv.setvl %runtime_n {
+        lmul = "m1",
+        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+        sew = 32 : i64
+      } : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {
+        lmul = "m1",
+        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+        sew = 32 : i64
+      } {
+      } : !tcrv_rvv.vl
     }
   }
 
@@ -1167,27 +1165,25 @@ module {
       selected_march = "rv64gcv",
       status = "available"
     }
-    tcrv.exec.variant @rvv_first_slice attributes {
+    tcrv.exec.variant @rvv_typed_body attributes {
       condition = "rvv_capability_properties_available",
       guard = "plugin_local_rvv_property_evidence",
       origin = "rvv-plugin",
-      policy = "metadata_only_first_slice",
       requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.selected_vector_shape = "i32m1",
-      tcrv_rvv.selected_vector_sew = 32 : i64,
-      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m1.sew32",
-      tcrv_rvv.selected_vector_lmul = "m1",
-      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m1.lmul_m1",
-      tcrv_rvv.selected_tail_policy = "agnostic",
-      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m1.tail_policy.agnostic",
-      tcrv_rvv.selected_mask_policy = "agnostic",
-      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m1.mask_policy.agnostic",
-      tcrv_rvv.selected_vector_type = "vint32m1_t",
-      tcrv_rvv.selected_vector_suffix = "i32m1",
-      tcrv_rvv.selected_setvl_suffix = "e32m1"
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
     } {
+      %runtime_n = "builtin.unrealized_conversion_cast"() : () -> index
+      %vl = tcrv_rvv.setvl %runtime_n {
+        lmul = "m1",
+        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+        sew = 32 : i64
+      } : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {
+        lmul = "m1",
+        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+        sew = 32 : i64
+      } {
+      } : !tcrv_rvv.vl
     }
   }
 }
@@ -1230,8 +1226,7 @@ module {
                  "RVV body authority is already explicit"))
     return result;
 
-  VariantOp rvvVariant = findDirectVariant(
-      rvvScalarKernel, tianchenrv::plugin::rvv::getRVVFirstSliceVariantName());
+  VariantOp rvvVariant = findDirectVariant(rvvScalarKernel, "rvv_typed_body");
   VariantOp scalarVariant =
       findDirectVariant(rvvScalarKernel,
                         tianchenrv::plugin::scalar::
@@ -1341,8 +1336,7 @@ module {
   KernelOp rvvOnlyKernel = findKernel(*module, "rvv_only");
   TargetCapabilitySet rvvOnlyCapabilities =
       TargetCapabilitySet::buildFromKernel(rvvOnlyKernel);
-  VariantOp rvvOnlyVariant = findDirectVariant(
-      rvvOnlyKernel, tianchenrv::plugin::rvv::getRVVFirstSliceVariantName());
+  VariantOp rvvOnlyVariant = findDirectVariant(rvvOnlyKernel, "rvv_typed_body");
   if (int result =
           expect(rvvOnlyVariant,
                  "RVV-only typed body keeps one explicit RVV variant without "

@@ -264,24 +264,6 @@ target_link_libraries(tianchenrv-emission-readiness-test
   MLIRSupport
 )
 
-add_executable(tianchenrv-rvv-lowering-boundary-test
-  Transforms/LoweringBoundary/RVVLoweringBoundaryTest.cpp
-)
-
-target_link_libraries(tianchenrv-rvv-lowering-boundary-test
-  PRIVATE
-  TianChenRVInitAll
-  TianChenRVBuiltinPlugins
-  TianChenRVPlugin
-  TianChenRVRVVPlugin
-  TianChenRVScalarPlugin
-  TianChenRVSupport
-  MLIRIR
-  MLIRParser
-  MLIRPass
-  MLIRSupport
-)
-
 add_executable(tianchenrv-variant-selection-test
   Transforms/VariantSelection/VariantSelectionTest.cpp
 )
@@ -371,7 +353,6 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tianchenrv-offload-extension-plugin-test
   tianchenrv-rvv-dialect-test
   tianchenrv-rvv-extension-plugin-test
-  tianchenrv-rvv-lowering-boundary-test
   tianchenrv-runtime-abi-callable-plan-test
   tianchenrv-scalar-extension-plugin-test
   tianchenrv-target-artifact-export-test

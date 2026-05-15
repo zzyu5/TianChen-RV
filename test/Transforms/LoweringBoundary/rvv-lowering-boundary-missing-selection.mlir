@@ -12,7 +12,7 @@ module {
       mask_policy = "agnostic",
       status = "available"
     }
-    tcrv.exec.variant @rvv_first_slice attributes {
+    tcrv.exec.variant @rvv_unselected_explicit_placeholder attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>

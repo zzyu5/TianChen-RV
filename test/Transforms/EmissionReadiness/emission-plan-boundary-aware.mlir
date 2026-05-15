@@ -25,7 +25,7 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{selected path @rvv_first_slice as direct variant requires one materialized plugin lowering boundary before emission planning}}
+  // expected-error@+1 {{selected path @rvv_deleted_metadata_path as direct variant requires one materialized plugin lowering boundary before emission planning}}
   tcrv.exec.kernel @missing_rvv_boundary {
     tcrv.exec.capability @rvv {
       id = "rvv",
@@ -37,17 +37,17 @@ module {
       mask_policy = "agnostic",
       status = "available"
     }
-    tcrv.exec.variant @rvv_first_slice attributes {
+    tcrv.exec.variant @rvv_deleted_metadata_path attributes {
       origin = "rvv-plugin",
       requires = [@rvv]
     } {
     }
     tcrv.exec.diagnostic {
-      message = "selected RVV metadata path",
+      message = "selected deleted RVV metadata path",
       reason = "variant-selected",
       selection_kind = "static-variant",
       status = "selected",
-      target = @rvv_first_slice
+      target = @rvv_deleted_metadata_path
     }
   }
 }

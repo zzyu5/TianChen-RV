@@ -377,7 +377,8 @@ route after direct C semantic exporter deletion.
 
 #### 2. Signatures
 
-- Selected boundary op: `tcrv_rvv.lowering_boundary`.
+- Deleted selected-boundary surface: the former RVV plugin-local selected
+  lowering-boundary op.
 - Deleted historical route families: RVV direct microkernel source, header,
   object, self-check, and bundle-style artifact routes.
 
@@ -404,8 +405,8 @@ route after direct C semantic exporter deletion.
 
 #### 5. Good/Base/Bad Cases
 
-- Good: pipeline-materialized RVV selected boundary is metadata-only and
-  produces unsupported/deleted-route diagnostics without a materialized
+- Good: RVV selected-path handling produces no plugin-local boundary, no
+  emission plan, and fail-closed diagnostics without a materialized
   `tcrv_rvv.*_microkernel` body or callable ABI.
 - Base: direct hand-authored RVV microkernel fixtures may remain parseable only
   for syntax or fail-closed negative coverage.
@@ -1009,15 +1010,14 @@ source/header/object/self-check route ids are absent from active target
 artifact exporter registration and absent from built-in translate route
 registration. Tests must not protect no-op route-shell registration APIs.
 
-## Selected Lowering Boundary First Slice
+## Deleted RVV Selected Lowering Boundary Route
 
-Before executable lowering exists, the compiler may materialize selected-path
-lowering-boundary metadata through the generic extension plugin registry. RVV is
-the first plugin that creates a plugin-local `tcrv_rvv.lowering_boundary`
-operation for selected RVV direct variants or dispatch cases. Scalar fallback
-currently remains a no-boundary generic fallback envelope and has no scalar
-plugin-local selected-boundary operation. RVV boundary structures are attachment
-points for future lowering work, not executable lowering products.
+The compiler may materialize selected-path lowering-boundary metadata through
+the generic extension plugin registry only when a plugin has an active boundary
+surface. RVV no longer has an active plugin-local selected-boundary operation:
+selected RVV direct variants or dispatch cases return fail-closed no-boundary
+behavior until explicit extension-family IR plus a materialized EmitC route
+exists. Scalar fallback remains a no-boundary generic fallback envelope.
 
 Rules:
 
@@ -1029,11 +1029,10 @@ Rules:
 - scalar or other fallback references remain selected `tcrv.exec` metadata and
   are routed through their generic fallback envelope; scalar fallback must not
   receive RVV ops and must not synthesize a scalar plugin-local boundary;
-- RVV boundary ops must carry `status = "unsupported"` and a non-empty
-  unsupported reason;
-- RVV boundary ops must carry the generic selected-boundary contract fields
-  needed by downstream emission planning: `source_kernel`, `selected_variant`,
-  `origin`, `role`, `status`, and `required_capabilities`;
+- RVV must not materialize an unsupported boundary placeholder;
+- downstream emission planning must treat a selected RVV path without a future
+  materialized EmitC route as fail-closed, not as a metadata-only artifact
+  candidate;
 - the bounded scalar source slice has no active typed scalar microkernel
   authority; historical scalar microkernel syntax must fail closed and scalar
   fallback must not synthesize a microkernel from descriptorless no-body state,
@@ -1234,19 +1233,13 @@ capabilities; generic emission/export code must not turn it into runtime ABI,
 shape, VL/AVL, or performance evidence.
 
 The current public `tcrv-opt` built-in registry includes the RVV first-slice
-plugin. Therefore an `origin = "rvv-plugin"` selected path can materialize an
-unsupported plugin-owned emission-plan diagnostic instead of a generic
-unregistered-origin failure. This remains compiler metadata only and must not be
-reported as RVV lowering, runtime, correctness, or performance evidence. The
-tool-level `--tcrv-disable-builtin-plugins` option preserves an explicit
-empty-registry surface for negative parser/diagnostic tests.
-
-The `tcrv_rvv.lowering_boundary` first slice is one step more concrete than an
-emission-plan diagnostic because it is an RVV extension-dialect op, but it is
-still pre-executable and unsupported. It is valid evidence that selected-path
-metadata reached a plugin-local RVV boundary. It is not evidence that the
-compiler emitted LLVM/RISC-V/RVV IR, assembled an object, linked runtime glue,
-ran hardware, proved correctness, or measured performance.
+plugin. Therefore an `origin = "rvv-plugin"` selected path can route through
+RVV plugin diagnostics instead of a generic unregistered-origin failure. RVV
+emission planning still fails closed until explicit extension-family IR plus a
+materialized EmitC route exists; no unsupported metadata route may be promoted
+to runtime ABI, artifact, correctness, or performance evidence. The tool-level
+`--tcrv-disable-builtin-plugins` option preserves an explicit empty-registry
+surface for negative parser/diagnostic tests.
 
 ## RVV Probe Evidence Boundary
 
@@ -1273,9 +1266,9 @@ hardware/toolchain evidence.
 ### 1. Scope / Trigger
 
 Trigger: historical post-planning MLIR contained a selected RVV path and a
-matching plugin-owned `tcrv_rvv.lowering_boundary`, then used a target/export
-tool to emit a deterministic standalone C smoke program with `riscv_vector.h`
-and RVV intrinsics.
+matching plugin-owned selected-boundary metadata route, then used a
+target/export tool to emit a deterministic standalone C smoke program with
+`riscv_vector.h` and RVV intrinsics.
 
 This direct source frontdoor is deleted. RVV hardware/toolchain smoke evidence
 belongs in explicit probe tooling and separate `ssh rvv` artifacts; it must not
@@ -1318,8 +1311,9 @@ llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
 
 - Good: lit coverage proves selected RVV metadata remains unsupported and emits
   no C text.
-- Base: selected RVV metadata can still materialize unsupported
-  `tcrv_rvv.lowering_boundary` records for non-executable planning evidence.
+- Base: selected RVV metadata now reaches no-boundary/fail-closed diagnostics
+  and does not materialize plugin-local boundary records for non-executable
+  planning evidence.
 - Bad: selected RVV metadata or stale standalone smoke-probe route metadata
   emits standalone C, `riscv_vector.h`, `__riscv_` intrinsics, or a probe
   `main`.
@@ -1393,9 +1387,8 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   to materialize a wrapper, callable ABI, generated C source, correctness
   coverage, performance, or broad
   microarchitecture semantics.
-- A matching direct child `tcrv_rvv.lowering_boundary` must identify the same
-  source kernel, selected variant, origin, role, status, and required
-  capability refs.
+- The deleted RVV selected-boundary route must not be required or accepted as
+  source/export authority for the selected path.
 - Deleted direct child `tcrv_rvv.*_microkernel` wrappers are no longer
   parseable active RVV dialect inputs. Historical references to those wrappers
   are fail-closed deleted-route evidence only and must not be treated as
@@ -1415,8 +1408,8 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
 
 - Missing selected RVV path, scalar-only path, offload-only path, or
   fallback-only path -> export fails before source output.
-- Missing, duplicate, stale, role-mismatched, status-mismatched, or
-  required-capability-mismatched `tcrv_rvv.lowering_boundary` -> export fails.
+- Missing future EmitC route authority, stale selected-boundary metadata, or
+  mismatched selected-path metadata -> export fails.
 - Deleted RVV wrapper references, missing or stale selected-path metadata,
   malformed structured control/dataflow body, setvl/with_vl policy mismatch,
   or missing future EmitC route authority -> deleted-route/fail-closed

@@ -29,10 +29,7 @@ using tianchenrv::plugin::PluginCapability;
 using tianchenrv::plugin::VariantEmissionPlan;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
-using tianchenrv::plugin::VariantEmissionStatus;
 using tianchenrv::plugin::VariantLegalityRequest;
-using tianchenrv::plugin::VariantLoweringBoundaryRequest;
-using tianchenrv::plugin::VariantLoweringBoundaryResult;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalDecline;
 using tianchenrv::plugin::VariantProposalRequest;
@@ -102,48 +99,6 @@ VariantOp findVariant(KernelOp kernel, llvm::StringRef name) {
 
 mlir::func::FuncOp findHighLevelPlaceholder(mlir::ModuleOp module) {
   return module.lookupSymbol<mlir::func::FuncOp>("high_level_placeholder");
-}
-
-mlir::Attribute findProposalAttribute(const VariantProposal &proposal,
-                                      llvm::StringRef attrName) {
-  for (mlir::NamedAttribute attribute : proposal.getPluginAttributes()) {
-    if (attribute.getName().getValue() == attrName)
-      return attribute.getValue();
-  }
-  return {};
-}
-
-int expectProposalStringAttr(const VariantProposal &proposal,
-                             llvm::StringRef attrName,
-                             llvm::StringRef expectedValue) {
-  auto attr = llvm::dyn_cast_if_present<mlir::StringAttr>(
-      findProposalAttribute(proposal, attrName));
-  if (int result = expect(static_cast<bool>(attr),
-                          llvm::Twine("proposal carries ") + attrName))
-    return result;
-  return expect(attr.getValue() == expectedValue,
-                llvm::Twine("proposal preserves ") + attrName);
-}
-
-int expectProposalIntegerAttr(const VariantProposal &proposal,
-                              llvm::StringRef attrName,
-                              std::int64_t expectedValue) {
-  auto attr = llvm::dyn_cast_if_present<mlir::IntegerAttr>(
-      findProposalAttribute(proposal, attrName));
-  if (int result = expect(static_cast<bool>(attr),
-                          llvm::Twine("proposal carries ") + attrName))
-    return result;
-  return expect(attr.getInt() == expectedValue,
-                llvm::Twine("proposal preserves ") + attrName);
-}
-
-bool proposalHasSelectedBinaryMetadata(const VariantProposal &proposal) {
-  for (mlir::NamedAttribute attribute : proposal.getPluginAttributes()) {
-    llvm::StringRef name = attribute.getName().getValue();
-    if (name.contains("selected") && name.contains("_binary"))
-      return true;
-  }
-  return false;
 }
 
 RVVProbeCapabilityFacts makeSuccessfulProbeFacts() {
@@ -279,33 +234,36 @@ module {
                           "RVV plugin proposes nothing without rvv"))
     return result;
 
-  KernelOp missingHart = findKernel(*module, "missing_hart_count");
-  TargetCapabilitySet hartCapabilities =
-      TargetCapabilitySet::buildFromKernel(missingHart);
+  KernelOp availableRVVNoBody = findKernel(*module, "missing_hart_count");
+  TargetCapabilitySet availableRVVCapabilities =
+      TargetCapabilitySet::buildFromKernel(availableRVVNoBody);
   llvm::SmallVector<VariantProposalDecline, 1> declines;
   if (int result = expectSuccess(
           registry.collectVariantProposals(
-              VariantProposalRequest(highLevel.getOperation(), missingHart,
-                                     hartCapabilities),
+              VariantProposalRequest(highLevel.getOperation(),
+                                     availableRVVNoBody,
+                                     availableRVVCapabilities),
               proposals, &declines),
-          "collect missing hart-count RVV proposal decline"))
+          "collect deleted RVV no-body proposal decline"))
     return result;
   if (int result = expect(proposals.empty() && !declines.empty(),
-                          "missing hart count is a recoverable RVV decline"))
+                          "available RVV no-body input is a recoverable RVV "
+                          "decline"))
     return result;
   return expect(llvm::StringRef(declines.front().getReason())
-                    .contains("rvv.hart_count"),
-                "decline reason names the missing bounded capability");
+                    .contains("metadata-only first-slice proposal route was "
+                              "deleted"),
+                "decline reason explains deleted no-body proposal route");
 }
 
-int runProposalMaterializationAndBoundaryTest(mlir::MLIRContext &context) {
+int runDeletedProposalAndRouteTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
   func.func @high_level_placeholder() {
     return
   }
 
-  tcrv.exec.kernel @rvv_metadata_only {
+  tcrv.exec.kernel @rvv_no_body_capability_only {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -349,136 +307,93 @@ module {
       status = "available"
     }
   }
+
+  tcrv.exec.kernel @rvv_stale_metadata_variant {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.variant @rvv_deleted_metadata_path attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      policy = "deleted_metadata_route"
+    } {
+    }
+  }
 }
 )mlir";
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
-    return fail("failed to parse RVV proposal module");
-  KernelOp kernel = findKernel(*module, "rvv_metadata_only");
+    return fail("failed to parse deleted RVV route module");
+  KernelOp kernel = findKernel(*module, "rvv_no_body_capability_only");
   mlir::func::FuncOp highLevel = findHighLevelPlaceholder(*module);
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
 
   ExtensionPluginRegistry registry;
   if (int result =
           expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
-                        "register RVV plugin for proposal test"))
+                        "register RVV plugin for deleted route test"))
     return result;
 
   VariantProposalRequest request(highLevel.getOperation(), kernel, capabilities);
   llvm::SmallVector<VariantProposal, 1> proposals;
-  if (int result = expectSuccess(registry.collectVariantProposals(
-                                     request, proposals),
-                                 "collect RVV proposal"))
-    return result;
-  if (int result = expect(proposals.size() == 1,
-                          "RVV capability facts produce one proposal"))
-    return result;
-  if (int result = expect(!proposalHasSelectedBinaryMetadata(proposals[0]),
-                          "RVV proposal carries no selected-binary metadata"))
+  llvm::SmallVector<VariantProposalDecline, 1> declines;
+  if (int result = expectSuccess(
+          registry.collectVariantProposals(request, proposals, &declines),
+          "collect deleted RVV proposal surface"))
     return result;
   if (int result =
-          expect(proposals[0].getRequiredCapabilityIDs().size() == 5,
-                 "RVV proposal requires rvv plus selected vector-shape ids"))
+          expect(proposals.empty(), "RVV no-body capability produces no proposal"))
     return result;
   if (int result =
-          expectProposalStringAttr(proposals[0], "tcrv_rvv.required_march",
-                                   "rv64gcv"))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposals[0], "tcrv_rvv.selected_vector_shape", "i32m1"))
-    return result;
-  if (int result = expectProposalIntegerAttr(
-          proposals[0], "tcrv_rvv.selected_vector_sew", 32))
-    return result;
-  if (int result = expectProposalIntegerAttr(
-          proposals[0], "tcrv_rvv.vlenb_bytes", 16))
+          expect(!declines.empty() &&
+                     llvm::StringRef(declines.front().getReason())
+                         .contains("metadata-only first-slice proposal route "
+                                   "was deleted"),
+                 "RVV decline explains deleted metadata-only proposal route"))
     return result;
 
   mlir::OpBuilder builder(module->getContext());
   llvm::SmallVector<VariantOp, 1> materialized;
-  if (int result = expectSuccess(
-          tianchenrv::transforms::materializeVariantProposals(
-              builder, request, proposals, &materialized),
-          "materialize RVV proposal"))
-    return result;
-  if (int result = expect(materialized.size() == 1,
-                          "one RVV variant was materialized"))
-    return result;
-  VariantOp variant = materialized.front();
-
   if (int result =
-          expectSuccess(registry.verifyVariantLegality(
-                            VariantLegalityRequest(variant, kernel,
-                                                   capabilities)),
-                        "verify RVV metadata-only variant legality"))
+          expectErrorContains(
+              tianchenrv::transforms::collectAndMaterializeVariantProposals(
+                  builder, registry, request, &materialized),
+              {"no viable plugin proposals", "metadata-only first-slice "
+                                             "proposal route was deleted"}))
     return result;
 
-  VariantEmissionStatus readiness;
+  KernelOp staleKernel = findKernel(*module, "rvv_stale_metadata_variant");
+  TargetCapabilitySet staleCapabilities =
+      TargetCapabilitySet::buildFromKernel(staleKernel);
+  VariantOp staleVariant = findVariant(staleKernel, "rvv_deleted_metadata_path");
+  if (int result =
+          expectErrorContains(
+              registry.verifyVariantLegality(VariantLegalityRequest(
+                  staleVariant, staleKernel, staleCapabilities)),
+              {"explicit typed RVV extension-family body",
+               "metadata-only RVV first-slice route has been deleted"}))
+    return result;
+  VariantEmissionPlan stalePlan;
   if (int result = expectErrorContains(
-          registry.checkVariantEmissionReadiness(
-              VariantEmissionRequest(variant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
-              readiness),
-          {"unsupported emission path", "no materialized EmitC lowering"}))
-    return result;
-
-  VariantEmissionPlan plan;
-  if (int result = expectSuccess(
           registry.buildVariantEmissionPlan(
-              VariantEmissionRequest(variant, kernel, capabilities,
+              VariantEmissionRequest(staleVariant, staleKernel,
+                                     staleCapabilities,
                                      VariantEmissionRole::DirectVariant),
-              plan),
-          "build RVV emission plan"))
-    return result;
-  if (int result = expect(plan.isUnsupported(),
-                          "RVV emission plan is unsupported"))
-    return result;
-  if (int result = expect(plan.getRuntimeABIKind() ==
-                              "unsupported-plugin-runtime-abi",
-                          "RVV emission plan has unsupported ABI kind"))
-    return result;
-  for (const auto &metadata : plan.getSelectedPlanMetadata()) {
-    llvm::StringRef name(metadata.name);
-    if (name.contains("selected") && name.contains("_binary"))
-      return fail("RVV emission plan retained selected-binary metadata");
-  }
-
-  VariantLoweringBoundaryResult boundaryResult;
-  builder.setInsertionPointToEnd(&kernel.getBody().front());
-  if (int result = expectSuccess(
-          registry.materializeSelectedLoweringBoundary(
-              VariantLoweringBoundaryRequest(
-                  variant, kernel, capabilities,
-                  VariantEmissionRole::DirectVariant, builder),
-              boundaryResult),
-          "materialize RVV unsupported lowering boundary"))
-    return result;
-  if (int result = expect(boundaryResult.isMaterialized(),
-                          "RVV lowering boundary materializes metadata op"))
-    return result;
-  auto boundary = llvm::dyn_cast<tianchenrv::tcrv::rvv::LoweringBoundaryOp>(
-      boundaryResult.getMaterializedOperation());
-  if (int result = expect(static_cast<bool>(boundary),
-                          "RVV boundary is tcrv_rvv.lowering_boundary"))
-    return result;
-  if (int result =
-          expectSuccess(registry.validateSelectedLoweringBoundary(
-                            tianchenrv::plugin::
-                                VariantLoweringBoundaryValidationRequest(
-                                    variant, kernel, capabilities,
-                                    VariantEmissionRole::DirectVariant,
-                                    boundary.getOperation())),
-                        "validate RVV lowering boundary"))
+              stalePlan),
+          {"explicit typed RVV extension-family body",
+           "metadata-only RVV first-slice route has been deleted"}))
     return result;
 
   return 0;
 }
 
-int runPolicyLegalityRejectionTest(mlir::MLIRContext &context) {
+int runMetadataVariantLegalityRejectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @bad_policy {
+  tcrv.exec.kernel @stale_metadata_variant {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -491,11 +406,10 @@ module {
       mask_policy = "agnostic",
       status = "available"
     }
-    tcrv.exec.variant @rvv_first_slice attributes {
+    tcrv.exec.variant @rvv_deleted_metadata_path attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
       tcrv_rvv.policy = "not_a_typed_policy",
-      tcrv_rvv.required_march = "rv64gcv",
       tcrv_rvv.selected_vector_shape = "i32m1",
       tcrv_rvv.selected_vector_sew = 32 : i64,
       tcrv_rvv.selected_vector_lmul = "m1",
@@ -512,15 +426,16 @@ module {
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
-    return fail("failed to parse RVV policy rejection module");
-  KernelOp kernel = findKernel(*module, "bad_policy");
-  VariantOp variant = findVariant(kernel, "rvv_first_slice");
+    return fail("failed to parse RVV metadata rejection module");
+  KernelOp kernel = findKernel(*module, "stale_metadata_variant");
+  VariantOp variant = findVariant(kernel, "rvv_deleted_metadata_path");
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
   tianchenrv::plugin::rvv::RVVExtensionPlugin plugin;
   return expectErrorContains(
       plugin.verifyVariantLegality(
           VariantLegalityRequest(variant, kernel, capabilities)),
-      {"tcrv_rvv.policy", "requires typed"});
+      {"explicit typed RVV extension-family body",
+       "metadata-only RVV first-slice route has been deleted"});
 }
 
 } // namespace
@@ -537,9 +452,9 @@ int main() {
     return result;
   if (int result = runMissingAndDeclineProposalTest(context))
     return result;
-  if (int result = runProposalMaterializationAndBoundaryTest(context))
+  if (int result = runDeletedProposalAndRouteTest(context))
     return result;
-  if (int result = runPolicyLegalityRejectionTest(context))
+  if (int result = runMetadataVariantLegalityRejectionTest(context))
     return result;
 
   llvm::outs() << "RVV extension plugin smoke test passed\n";

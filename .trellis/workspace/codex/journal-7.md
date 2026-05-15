@@ -653,3 +653,34 @@ runtime ABI, metadata artifact route, or scalar bundle boundary surface.
   stale tests.
 - If desired, open a separate RVV baseline repair task for the 3 stale
   selected-shape/policy legality expectations left by `check-tianchenrv`.
+
+
+## Session 81: RVV metadata-only first-slice route erasure
+
+**Date**: 2026-05-16
+**Task**: RVV metadata-only first-slice route erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the active RVV no-body metadata first-slice proposal, boundary, and unsupported emission-plan authority; updated RVV/plugin/runtime specs and tests; check-tianchenrv passed 89/89.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

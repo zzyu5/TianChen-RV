@@ -31,14 +31,21 @@ RVV plugin provides:
 
 It does not define high-level matmul semantics, generic tensor/tile IR, IME internals, offload internals, or custom ISA internals.
 
-## First C++ Plugin Slice
+## Current C++ Plugin Slice
 
-The first concrete C++ RVV slice is intentionally narrower than the full RVV
-plugin above. It proves plugin identity, capability participation, proposal
-metadata, materialization, legality routing, and selection consumption through
-`ExtensionPluginRegistry`.
+The current concrete C++ RVV slice is intentionally narrower than the full RVV
+plugin above. It proves plugin identity, capability participation, typed RVV
+dialect registration, explicit typed-variant legality routing, and selection
+preference through `ExtensionPluginRegistry`.
 
-Stable first-slice names:
+The deleted metadata-only proposal route is not active compiler authority:
+bare high-level/no-body RVV capability evidence must not produce an RVV
+proposal, selected variant, lowering boundary, emission plan, runtime ABI,
+artifact route, or route metadata. A selected RVV variant is legal only when it
+already contains explicit typed `tcrv_rvv` extension-family IR. That typed IR
+is still non-executable until a future EmitC/runtime route is implemented.
+
+Stable current names:
 
 ```text
 plugin name: rvv-plugin
@@ -46,21 +53,17 @@ plugin version: 0.1.0
 plugin capability id: rvv
 plugin capability kind: isa-vector
 preferred kernel capability symbol: @rvv
-first-slice proposal / variant symbol: @rvv_first_slice
 variant origin: rvv-plugin
-required capability ids:
+finite capability ids:
   rvv
   rvv.i32_m1.sew32
   rvv.i32_m1.lmul_m1
   rvv.i32_m1.tail_policy.agnostic
   rvv.i32_m1.mask_policy.agnostic
-finite i32m2 capability ids:
   rvv.i32_m2.sew32
   rvv.i32_m2.lmul_m2
   rvv.i32_m2.tail_policy.agnostic
   rvv.i32_m2.mask_policy.agnostic
-finite i64m1 capability ids consumed by plugin-local profile/replay and i64
-binary family routes:
   rvv.i64_m1.sew64
   rvv.i64_m1.lmul_m1
   rvv.i64_m1.tail_policy.agnostic
@@ -69,7 +72,7 @@ optional finite i32 binary selected vector-shape selector capability id:
   rvv.i32_binary.selected_vector_shape
 selector property:
   shape = "i32m1" | "i32m2"
-preferred first-slice config symbols:
+preferred finite config symbols:
   @rvv_i32_m1_sew32
   @rvv_i32_m1_lmul_m1
   @rvv_i32_m1_tail_agnostic
@@ -78,13 +81,11 @@ preferred first-slice config symbols:
   @rvv_i32_m2_lmul_m2
   @rvv_i32_m2_tail_agnostic
   @rvv_i32_m2_mask_agnostic
-materialized requires form: requires may be [@rvv] only when @rvv is a
-  relation-provider for rvv plus exactly one finite config shape above
-  (i32m1 or i32m2); otherwise the variant must require the exact provider
-  symbols for rvv plus each selected config/policy id
+explicit typed variant form: a hand-authored or future materialized RVV variant
+  must contain real `tcrv_rvv` ops in its body before RVV plugin legality or
+  selection preference can accept it
 typed policy attr name: tcrv_rvv.policy
 typed policy attr value: #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
-property requirement attr name: tcrv_rvv.required_march
 deleted legacy element-count attr name: tcrv_rvv.element_count
 optional vlenb attr name: tcrv_rvv.vlenb_bytes
 optional base i32 m1 lane attr name: tcrv_rvv.base_i32_m1_lanes
@@ -99,116 +100,21 @@ selected vector-shape attr names:
   tcrv_rvv.selected_setvl_suffix
 ```
 
-The first-slice RVV plugin may propose `@rvv_first_slice` only when the request
-contains a real high-level MLIR operation, a `tcrv.exec.kernel`, and a
-`TargetCapabilitySet` where capability id `rvv` is available either as an exact
-capability id or through a structured relation-provider capability whose
-`provides` or `implies` list satisfies id `rvv`. The satisfying capability must
-also carry the preserved RVV capability properties that provide bounded
-plugin-local evidence.
+RVV capability facts remain profile/replay inputs. They may be validated and
+replayed into `TargetCapabilitySet`, but they do not authorize a compiler route
+unless an explicit typed RVV variant body already exists. Proposal collection
+for a no-body RVV-capable kernel records a recoverable decline and produces no
+RVV proposal. Materialized RVV variant legality is strict: the variant must be
+owned by `origin = "rvv-plugin"` and contain real `tcrv_rvv` operations in its
+body. Metadata-only RVV attributes, finite capability facts, selected vector
+shape facts, or profile evidence alone are not sufficient.
 
-The plugin-local profile/replay contract may additionally surface the finite
-i64m1 capability ids above as structured capability facts for i64 add/sub/mul
-family routes. These facts remain capability/profile inputs, not runtime SSA
-values, selected vector shape metadata, or descriptor-local element counts.
-
-The current minimal proposal gate is:
-
-- capability id `rvv` has bounded `architecture` and `isa_vector_hints`
-  properties, and `isa_vector_hints` contains RVV vector evidence;
-- capability id `rvv.hart_count` is available and has a positive integer
-  `count` property;
-- exactly one finite i32 config shape is selected by structured target
-  capability facts. If an available provider satisfies capability id
-  `rvv.i32_binary.selected_vector_shape`, its bounded string property `shape`
-  must be exactly `i32m1` or `i32m2`; the plugin then validates only that
-  selected shape's finite config/policy capability ids and must not silently
-  fall back to another shape when the requested shape is incomplete. If no
-  selector capability is present, the bounded default remains availability
-  based and chooses the first valid finite config shape in deterministic order,
-  preserving existing `i32m1` fixtures before trying `i32m2`. The finite shapes
-  are either the m1 shape
-  (`rvv.i32_m1.sew32`, `rvv.i32_m1.lmul_m1`,
-  `rvv.i32_m1.tail_policy.agnostic`,
-  `rvv.i32_m1.mask_policy.agnostic`) or the m2 shape
-  (`rvv.i32_m2.sew32`, `rvv.i32_m2.lmul_m2`,
-  `rvv.i32_m2.tail_policy.agnostic`,
-  `rvv.i32_m2.mask_policy.agnostic`);
-- the selected shape's SEW capability is available and has integer property
-  `sew_bits = 32`;
-- the selected shape's LMUL capability is available and has string property
-  `lmul = "m1"` or `lmul = "m2"` according to the selected shape;
-- the selected shape's tail-policy capability is available and has string
-  property `tail_policy = "agnostic"`;
-- the selected shape's mask-policy capability is available and has string
-  property `mask_policy = "agnostic"`;
-- when capability ids `rvv.vlenb_bytes` and `rvv.i32_m1_lane_count` are
-  available, either as exact capability providers or through the explicit
-  kernel capability-provider relation scope such as a module-level
-  `target = @profile`, they must appear as a pair, preserve positive integer
-  `bytes`/`lanes` properties, and satisfy `lanes = bytes / 4` for the current
-  i32 m1 baseline capacity fact; an m2 selected config still preserves this
-  target/profile fact as m1 lanes and derives m2 intrinsic spelling from
-  selected LMUL metadata, not from a new runtime shape claim;
-- capability id `rvv.probe.compile_run` is available, either as an exact
-  capability provider or through the explicit kernel capability-provider
-  relation scope such as a module-level `target = @profile`, and has a bounded
-  `selected_march` property containing RVV vector evidence;
-- if capability id `rvv.toolchain.march` is present and available, either as an
-  exact capability provider or through the same explicit relation scope, its
-  `value` property must agree with `rvv.probe.compile_run.selected_march`;
-- all consumed property text must be bounded, single-line, and free of
-  secret-like/raw-log text.
-
-If the `rvv` capability id or any required first-slice config/policy capability
-id is not satisfied by an exact or relation-provider capability, or if a
-satisfying capability is generically unavailable (`status = "disabled"`,
-`"missing"`, or `"unavailable"`), the plugin proposes no variant. If the
-required RVV property evidence is missing, malformed, secret-like, internally
-conflicting, or mismatched with the bounded i32/m1/agnostic policy slice,
-proposal collection records a recoverable RVV plugin decline diagnostic and
-produces no RVV proposal, rather than synthesizing a partial variant or
-aborting later plugins.
-The diagnostic must name bounded property/capability evidence categories and
-must not echo raw property values or secret-like text. Materialized RVV variant
-legality remains strict: malformed explicit RVV metadata such as
-`tcrv_rvv.required_march` is still fatal in legality and selected-boundary APIs.
-
-The first slice carries generic decision metadata (`condition`, `guard`, and
-`policy`), one typed non-compute RVV policy attribute
-(`tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>`), a
-  plugin-owned `tcrv_rvv.required_march` string attribute derived from the
-validated `rvv.probe.compile_run.selected_march` property, optional
-capability-derived `tcrv_rvv.vlenb_bytes` and
-`tcrv_rvv.base_i32_m1_lanes` integer attributes when structured vlenb/lane
-capabilities are available, a complete selected vector-shape metadata group,
-and no executable RVV family/body authority.
-The selected vector-shape group records the
-plugin/target-owned compile-time choice: shape id, SEW, LMUL, tail policy,
-mask policy, C vector type, intrinsic suffix, setvl suffix, and the backing
-capability ids through selected-plan metadata and generated source comments.
-It is required to match exactly one finite config shape and is distinct from
-base i32 M1 lane capacity. The RVV plugin must not create any binary-family
-proposal from a no-body `tcrv.exec.kernel`, from deleted
-`tcrv_frontend_lowering` metadata, from finite-family registry metadata, or
-from hand-authored microkernel names alone. Kernel-based executable planning
-requires a future explicit extension-family op contract and a materialized
-EmitC route before selecting family, dtype, route metadata, callable ABI,
-artifact kind, or emitted body. Until that rebuild lands, direct RVV variants
-remain explicitly unsupported metadata; they may carry selected vector-shape
-and capacity facts, but they must not select a binary family, microkernel
-route, runtime ABI, artifact route, or generated body.
-The generic string policy remains the input for core selection/dispatch. The
-typed policy, required march, optional capacity metadata, selected vector-shape
-metadata, and selected vector-shape capability mirrors are default plugin-local
-metadata preserved by the generic proposal/materialization path and validated
-by `RVVExtensionPlugin` when present on a materialized variant.
-Descriptor mirror metadata is not a production authority and is not emitted or
-consumed by typed RVV proposal planning. These fields are
-compiler-visible metadata for the existing
-generic materialization, legality, capability, and selection helpers. They are
-not generic tensor semantics, arbitrary RVV lowering, runtime correctness
-evidence, or performance evidence.
+The RVV plugin must not create any binary-family proposal from a no-body
+`tcrv.exec.kernel`, from deleted frontend metadata, from finite-family registry
+metadata, or from hand-authored microkernel names alone. Kernel-based
+executable planning requires a future explicit extension-family op contract
+and a materialized EmitC route before selecting family, dtype, route metadata,
+callable ABI, artifact kind, or emitted body.
 
 ## Scenario: Capability-Backed RVV i32m1 Config Policy Slice
 
@@ -247,43 +153,38 @@ on the same SEW/LMUL/tail/mask policy ids.
 
 ### 4. Validation & Error Matrix
 
-- Missing `rvv` provider -> plugin decline during proposal; fatal legality
-  error for an explicit selected RVV variant.
-- Missing first-slice config/policy provider in a materialized `requires` list
-  -> fatal legality error naming the missing capability id.
-- Disabled/unavailable first-slice config/policy provider -> proposal decline
-  or fatal selected-path legality error naming the unavailable capability id.
-- `sew_bits != 32`, `lmul != "m1"`, tail policy not `agnostic`, or mask policy
-  not `agnostic` -> proposal decline or fatal selected-path legality error
-  naming the mismatched property.
-- Selected RVV path with `tcrv_rvv.required_march`, finite binary metadata,
-  selected vector-shape metadata, or capacity metadata must re-run RVV plugin
-  legality before selected lowering-boundary or emission artifact success can
-  be reported.
+- Missing `rvv` provider -> plugin decline during proposal collection.
+- Bare RVV capability evidence without an explicit typed RVV variant body ->
+  no RVV proposal and no selected RVV route.
+- Explicit selected RVV variant without `origin = "rvv-plugin"` -> fatal
+  legality error.
+- Explicit selected RVV variant without `tcrv_rvv` ops in its body -> fatal
+  legality error.
+- Capability/profile facts may still be validated for replay and typed-body
+  checks, but they must not create proposal, boundary, emission-plan, runtime
+  ABI, artifact, or route metadata authority by themselves.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: a probe-derived profile emits separate config providers and a
-  materialized variant requires all five ids explicitly.
-- Base: a hand-authored fixture keeps `requires = [@rvv]` only when `@rvv`
-  structurally `provides` all four first-slice config/policy ids in addition
-  to exact id `rvv`.
-- Bad: `@rvv` is available but the selected variant does not require
-  `rvv.i32_m1.lmul_m1`, or the only tail-policy provider is
-  `status = "disabled"`.
+- Good: a hand-authored or future materialized variant contains real
+  `tcrv_rvv.setvl` / `tcrv_rvv.with_vl` control-plane IR in the variant body
+  and is owned by `origin = "rvv-plugin"`.
+- Base: probe-derived capability facts are replayed as bounded capabilities
+  but produce no RVV variant unless explicit typed RVV IR is present.
+- Bad: `@rvv` is available but the kernel has no explicit typed RVV body; this
+  must remain no-proposal/no-boundary/no-emission.
 
 ### 6. Tests Required
 
-- RVV plugin unit/lit tests must assert proposal `requiredCapabilityIDs`
-  contain all five ids in deterministic order.
-- Legality tests must cover missing requirement, disabled provider, and
-  mismatched property for the first-slice config/policy ids.
-- Lowering-boundary or emission-readiness tests must show a selected RVV path
-  fails closed before source/object/bundle output when required first-slice
-  config/policy capability evidence is absent or unavailable.
-- Probe and probe-to-MLIR self-tests must assert replayed capability facts
-  preserve the four first-slice config/policy facts without moving legality
-  into Python.
+- RVV plugin unit/lit tests must assert no-body RVV capability input produces
+  no RVV proposal.
+- Legality tests must reject stale metadata-only RVV variants that do not
+  contain explicit typed `tcrv_rvv` ops.
+- Lowering-boundary, emission-readiness, manifest, target export, and probe
+  replay tests must not require RVV boundary, runtime ABI, artifact, or route
+  metadata from bare capability evidence.
+- Probe and probe-to-MLIR self-tests may assert replayed capability facts are
+  preserved, but legality remains in C++ and no compiler route is synthesized.
 
 ### 7. Wrong vs Correct
 
@@ -292,7 +193,7 @@ Wrong:
 ```mlir
 tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector",
                            status = "available"}
-tcrv.exec.variant @rvv_first_slice attributes {
+tcrv.exec.variant @rvv_stale_metadata attributes {
   origin = "rvv-plugin",
   requires = [@rvv],
   tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
@@ -314,22 +215,48 @@ tcrv.exec.capability @rvv {
   mask_policy = "agnostic",
   status = "available"
 }
-tcrv.exec.variant @rvv_first_slice attributes {
+tcrv.exec.variant @rvv_explicit_body attributes {
   origin = "rvv-plugin",
   requires = [@rvv],
   tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
-} {}
+} {
+  %n = "builtin.unrealized_conversion_cast"() : () -> index
+  %vl = tcrv_rvv.setvl %n {
+    lmul = "m1",
+    policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+    sew = 32 : i64
+  } : index -> !tcrv_rvv.vl
+  tcrv_rvv.with_vl %vl attributes {
+    lmul = "m1",
+    policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+    sew = 32 : i64
+  } {
+  } : !tcrv_rvv.vl
+}
 ```
 
 Correct for a replay/profile fixture:
 
 ```mlir
-tcrv.exec.variant @rvv_first_slice attributes {
+tcrv.exec.variant @rvv_explicit_profile_body attributes {
   origin = "rvv-plugin",
   requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1,
               @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic],
   tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
-} {}
+} {
+  %n = "builtin.unrealized_conversion_cast"() : () -> index
+  %vl = tcrv_rvv.setvl %n {
+    lmul = "m1",
+    policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+    sew = 32 : i64
+  } : index -> !tcrv_rvv.vl
+  tcrv_rvv.with_vl %vl attributes {
+    lmul = "m1",
+    policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+    sew = 32 : i64
+  } {
+  } : !tcrv_rvv.vl
+}
 ```
 
 The former plugin-local standalone smoke-probe source route is deleted.
@@ -347,10 +274,9 @@ API; it must not require an exact `id = "rvv"` capability when a structured
 provider relation is present.
 
 The former finite descriptor selected microkernel materialization route is
-deleted. A selected `rvv-plugin` path may still materialize
-`tcrv_rvv.lowering_boundary` metadata for selected-path diagnostics, selected
-vector-shape evidence, and capacity metadata, but it must not synthesize a
-plugin-local direct kernel-child `tcrv_rvv.*_microkernel`, `setvl`/`with_vl`,
+deleted. A selected `rvv-plugin` path must not materialize plugin-owned
+selected-boundary metadata or synthesize a plugin-local direct kernel-child
+`tcrv_rvv.*_microkernel`, `setvl`/`with_vl`,
 load/arithmetic/store body, or callable runtime ABI boundary from finite family
 records, legacy route helpers, lowering tokens, route ids, or descriptor
 mirrors. Until the rebuild supplies explicit extension-family IR plus a
@@ -483,9 +409,9 @@ agnostic|undisturbed>`, the bounded runtime AVL-to-VL control-plane operation
 `tcrv_rvv.setvl`, the bounded VL scope region operation `tcrv_rvv.with_vl`,
 the finite `tcrv_rvv.i32_load`, `tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`,
 `tcrv_rvv.i32_mul`, and `tcrv_rvv.i32_store` ops nested under that scope for
-non-executable i32 dataflow modeling, the corresponding bounded i64 dataflow
-ops, and the pre-executable
-`tcrv_rvv.lowering_boundary` operation. The setvl op
+non-executable i32 dataflow modeling, and the corresponding bounded i64
+dataflow ops. The previous plugin-local selected lowering-boundary operation
+is deleted as active compiler authority. The setvl op
 consumes a runtime AVL SSA value, produces a `!tcrv_rvv.vl` token, and carries
 only bounded first-slice compile-time config metadata: SEW 32, LMUL m1 or m2,
 and the finite policy attribute. The with_vl op consumes one `!tcrv_rvv.vl` value and
@@ -496,12 +422,9 @@ i32 add/sub/mul dataflow body carries finite runtime ABI role references on
 the explicit lhs load, rhs load, and output store operations; concrete C
 parameter names are not resolved into executable artifacts until a future
 EmitC route rebuild provides the required ABI boundary. It is not a generic
-vector memory model. The
-boundary
-op records selected RVV source/variant/role/status metadata for a future
-lowering attachment point. These surfaces are not generic RVV arithmetic,
-generic memory operations, LLVM/RISC-V lowering, full runtime ABI glue,
-hardware execution, correctness evidence, or performance evidence. `tcrv_rvv`
+vector memory model. These surfaces are not generic RVV arithmetic, generic
+memory operations, LLVM/RISC-V lowering, full runtime ABI glue, hardware
+execution, correctness evidence, or performance evidence. `tcrv_rvv`
 is the concrete MLIR dialect namespace because MLIR dialect namespaces cannot
 contain `.` characters; the architectural extension family remains `tcrv.rvv`.
 
@@ -594,21 +517,6 @@ tcrv_rvv.with_vl %vl attributes {
 } : !tcrv_rvv.vl
 ```
 
-Current first-slice lowering boundary op:
-
-```mlir
-tcrv_rvv.lowering_boundary {
-  source_kernel = "kernel_symbol",
-  selected_variant = @rvv_first_slice,
-  origin = "rvv-plugin",
-  role = "dispatch case",
-  status = "unsupported",
-  required_capabilities = [@rvv],
-  capability_summary = "rvv",
-  unsupported_reason = "RVV lowering boundary is pre-executable metadata only"
-}
-```
-
 The type is a non-compute vector-length token used by the bounded setvl and
 with_vl surfaces and parser/printer ownership tests. The policy attribute is
 finite non-compute metadata for proposal preservation, setvl/with_vl
@@ -621,19 +529,10 @@ is the bounded structural companion to setvl: it consumes one runtime VL SSA
 token, owns one single-block region with no region arguments, may repeat only
 the same bounded SEW/LMUL/policy config, and rejects VLEN/vlenb,
 `element_count`, `required_march`, `required_capabilities`, and raw capability
-facts. The lowering-boundary op is a direct child of a `tcrv.exec.kernel`,
-references a direct sibling selected RVV
-`tcrv.exec.variant`, and only admits `status = "unsupported"` plus direct
-variant or dispatch-case roles. It also carries generic selected-boundary
-contract metadata (`origin = "rvv-plugin"` and `required_capabilities`
-matching the selected variant requirement references) so target-neutral
-emission planning can validate the boundary before materializing diagnostics.
-The lowering boundary no longer carries op-owned source or direct route
-identity fields. The former typed RVV microkernel wrappers are deleted as
-structural authority; future executable emission must be rebuilt through
-explicit extension-family IR plus a materialized MLIR EmitC module route. The
-boundary does not become a descriptor owner, executable lowering, runtime ABI
-implementation, hardware execution, correctness proof, or performance claim.
+facts. The former selected-boundary op and typed RVV microkernel wrappers are
+deleted as structural authority; future executable emission must be rebuilt
+through explicit extension-family IR plus a materialized MLIR EmitC module
+route.
 These surfaces are not vector registers, masks, memory operations, RVV
 intrinsics, LLVM/RISC-V lowering, runtime ABI, executable emission, correctness
 evidence, or performance evidence.
@@ -649,13 +548,6 @@ RVV work must keep these parameter layers distinct:
   i32 M1 capacity implied by vlenb, even when the selected vector shape is
   i32m2. It is not selected m1 config metadata and is not a per-variant runtime
   value.
-- Selected RVV lowering-boundary capacity metadata, when present, is a
-  plugin-owned copy of selected variant metadata on `tcrv_rvv.lowering_boundary`
-  using `vlenb_bytes` and `base_i32_m1_lanes`. The pair must be integer,
-  present together, positive, ratio-valid for base i32 M1 lanes, and validated
-  against both the selected variant and the preserved target capability facts
-  by the RVV plugin. It is diagnostic selected-plan metadata, not runtime IR,
-  selected vector shape, AVL, VL, runtime `n`, or performance evidence.
 - SEW, LMUL, tail policy, and mask policy are compile-time variant config
   selected or proposed by the RVV plugin and checked against target
   capabilities. The current non-executable bounded RVV dataflow slice admits only SEW 32 with
@@ -671,9 +563,9 @@ RVV work must keep these parameter layers distinct:
   sufficient as standalone hardware facts without the surrounding
   RVV/profile/toolchain evidence.
 - The selected vector-shape config is the target-owned serialization of that
-  compile-time choice. Materialized RVV variants, `tcrv_rvv.lowering_boundary`,
-  selected-plan metadata, and any future generated RVV C source comments must
-  agree on `selected_vector_shape`,
+  compile-time choice. Materialized explicit RVV variants, selected-plan
+  metadata, and any future generated RVV C source comments must agree on
+  `selected_vector_shape`,
   `selected_vector_sew`, `selected_vector_lmul`, `selected_tail_policy`,
   `selected_mask_policy`, `selected_vector_type`,
   `selected_vector_suffix`, and `selected_setvl_suffix`. If any selected-shape
@@ -714,42 +606,28 @@ self-description. Those entries must be generated from validated selected
 variant metadata and must not become runtime ABI parameters, generated control
 values, runtime shapes, or performance claims.
 
-## First Lowering Boundary Slice
+## Deleted Selected Lowering Boundary Route
 
 The canonical public `tcrv-opt` pass
-`--tcrv-materialize-selected-lowering-boundaries` materializes selected-path
-lowering-boundary metadata through the generic `ExtensionPluginRegistry`
-interface. RVV implements that plugin hook by creating
-`tcrv_rvv.lowering_boundary` for selected RVV-owned direct variants or dispatch
-cases. There is no RVV-specific public wrapper pass for this route.
+`--tcrv-materialize-selected-lowering-boundaries` still routes through the
+generic `ExtensionPluginRegistry` interface. RVV now implements that hook as
+fail-closed no-boundary behavior for selected RVV-owned direct variants or
+dispatch cases. There is no RVV-specific public wrapper pass for this route.
 
 Rules:
 
 - RVV-specific interpretation stays in the RVV plugin/dialect implementation.
 - The generic pass routes dispatch fallback references through their generic
-  fallback envelope; the RVV first slice returns no boundary for fallback role,
-  and scalar fallback currently has no scalar plugin-local selected-boundary
-  operation to materialize.
+  fallback envelope; RVV returns no boundary for direct, dispatch, and fallback
+  roles until a future materialized EmitC lowering route exists.
 - Kernels without a dispatch or direct selected-path diagnostic are diagnosed
   before any plugin lowering-boundary hook is invoked.
-- The boundary op remains `status = "unsupported"` until a later RVV lowering
-  and runtime slice adds executable evidence.
-- If a selected RVV variant carries capacity metadata, the RVV boundary hook
-  must copy that metadata into the plugin-local boundary and plugin-local
-  validation must reject missing, stale, unpaired, non-integer, ratio-invalid,
-  or target-capability-mismatched capacity metadata before emission planning or
-  target bundle export can report success.
-- If a selected RVV variant carries `tcrv_rvv.required_march`, finite binary
-  metadata, selected vector-shape metadata, or first-slice capacity metadata,
-  the RVV boundary hook must re-run RVV plugin legality before materializing a
-  successful selected boundary. Missing, unavailable, or mismatched
-  SEW/LMUL/tail/mask capability evidence must fail there before any source,
-  object, or bundle export route can claim support.
-- RVV target exporters must not consume lowering-boundary route identity fields
+- The old boundary op must not be materialized as an unsupported placeholder.
+- RVV target exporters must not consume selected-boundary route identity fields
   as artifact authority. Executable emission requires a rebuilt
-  extension-family op -> MLIR EmitC module route, not boundary metadata.
-- The boundary is a compiler structure/evidence boundary only; it must not be
-  reported as hardware execution, correctness, or performance evidence.
+  extension-family op -> MLIR EmitC module route.
+- No RVV boundary result may be reported as hardware execution, correctness, or
+  performance evidence.
 
 ## Future Dialect Surface
 
@@ -848,36 +726,31 @@ record is returned.
 
 ## Emission Paths
 
-Current first slice:
+Current slice:
 
 ```text
-rvv-plugin @rvv_first_slice -> unsupported emission readiness
-reason: metadata/control-plane only; no materialized EmitC lowering/runtime/executable path
-emission plan status: unsupported
-runtime ABI kind: unsupported-plugin-runtime-abi
-runtime ABI name: unsupported-emission-runtime-abi
-runtime glue role: no-runtime-glue-unsupported
-required capabilities: selected variant required capability refs
+rvv-plugin explicit typed RVV variant -> readiness unsupported
+rvv-plugin explicit typed RVV variant -> emission plan fail-closed
+bare RVV capability/no-body input -> no RVV proposal and no RVV route
 ```
 
-This unsupported readiness result is required. It is not a failure of the
-architecture and is not RVV hardware, toolchain, runtime, correctness, or
-performance evidence.
+The unsupported readiness result records that no materialized EmitC lowering,
+runtime, or executable path exists yet. It must not be upgraded into an
+emission plan, runtime ABI, artifact route, hardware execution, correctness
+result, or performance evidence.
 
 Public `tcrv-opt` registers the built-in RVV plugin at the tool boundary, so
 materialized variants with `origin = "rvv-plugin"` can route through
-`RVVExtensionPlugin` for emission-readiness and emission-plan diagnostics. The
-result remains explicitly unsupported metadata: the plugin reports no RVV
-lowering pipeline, runtime ABI, artifact contract, executable emission path,
-hardware execution, correctness result, or performance result. Unknown origins
-must still fail through the generic unregistered-origin registry diagnostic.
+`RVVExtensionPlugin` for emission-readiness diagnostics. Emission planning
+fails closed until a materialized EmitC route exists. Unknown origins must
+still fail through the generic unregistered-origin registry diagnostic.
 Tests that need the historical empty-registry parser surface should pass
 `--tcrv-disable-builtin-plugins`.
 
-The RVV emission plan returns generic unsupported runtime metadata for the
-selected unsupported boundary. That metadata records the absence of a supported
-runtime ABI/glue contract; it is not runtime ABI glue, code generation,
-hardware execution, correctness evidence, or performance evidence.
+The RVV emission-plan hook must not return generic unsupported runtime
+metadata for a deleted selected-boundary route. Absence of supported runtime
+ABI/glue remains a diagnostic, not code generation, hardware execution,
+correctness evidence, or performance evidence.
 
 ### Deleted Standalone Smoke-Probe Target Export
 
@@ -894,14 +767,12 @@ code/spec/test fixtures. The compiler front door must not print
 RVV hardware/toolchain smoke evidence belongs in explicit probe tooling and
 separate `ssh rvv` artifacts.
 
-### RVV Unsupported Boundary And Future EmitC Route
+### Deleted RVV Boundary And Future EmitC Route
 
-The current selected RVV plugin path is metadata-only and fail-closed for
-execution. It may materialize one `tcrv_rvv.lowering_boundary` with selected
-vector-shape, capacity, capability, selected-variant, role, and unsupported
-reason metadata. It must not auto-create RVV microkernel bodies, callable ABI
-parameters, source/header/object artifacts, self-check helpers, or intrinsic
-C/C++ output.
+The current selected RVV plugin path is non-executable and fail-closed for
+emission. It must not materialize selected-boundary metadata, RVV microkernel
+bodies, callable ABI parameters, source/header/object artifacts, self-check
+helpers, or intrinsic C/C++ output.
 
 The intended rebuild route is:
 

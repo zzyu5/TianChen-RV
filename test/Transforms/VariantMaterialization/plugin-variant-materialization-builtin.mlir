@@ -32,16 +32,11 @@ module {
 // -----
 
 module {
-  // MAT-LABEL: tcrv.exec.kernel @deterministic_builtin_order
-  tcrv.exec.kernel @deterministic_builtin_order {
+  // MAT-LABEL: tcrv.exec.kernel @rvv_capability_with_scalar_fallback
+  tcrv.exec.kernel @rvv_capability_with_scalar_fallback {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
-      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
-      sew_bits = 32 : i64,
-      lmul = "m1",
-      tail_policy = "agnostic",
-      mask_policy = "agnostic",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
@@ -58,319 +53,25 @@ module {
       selected_march = "rv64gcv",
       status = "available"
     }
-    tcrv.exec.capability @rvv_toolchain_march {
-      id = "rvv.toolchain.march",
-      kind = "toolchain",
-      status = "available",
-      value = "rv64gcv"
-    }
     tcrv.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
       status = "available"
     }
-    tcrv.exec.variant @rvv_first_slice attributes {
-      condition = "rvv_capability_properties_available",
-      guard = "plugin_local_rvv_property_evidence",
-      origin = "rvv-plugin",
-      policy = "metadata_only_first_slice",
-      requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.selected_vector_shape = "i32m1",
-      tcrv_rvv.selected_vector_sew = 32 : i64,
-      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m1.sew32",
-      tcrv_rvv.selected_vector_lmul = "m1",
-      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m1.lmul_m1",
-      tcrv_rvv.selected_tail_policy = "agnostic",
-      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m1.tail_policy.agnostic",
-      tcrv_rvv.selected_mask_policy = "agnostic",
-      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m1.mask_policy.agnostic",
-      tcrv_rvv.selected_vector_type = "vint32m1_t",
-      tcrv_rvv.selected_vector_suffix = "i32m1",
-      tcrv_rvv.selected_setvl_suffix = "e32m1"
-    } {
-    }
-    // MAT: tcrv.exec.variant @rvv_first_slice
-    // MAT-SAME: condition = "rvv_capability_properties_available"
-    // MAT-SAME: guard = "plugin_local_rvv_property_evidence"
-    // MAT-SAME: origin = "rvv-plugin"
-    // MAT-SAME: policy = "metadata_only_first_slice"
-    // MAT-SAME: requires = [@rvv]
-    // MAT-SAME: tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
-    // MAT-SAME: tcrv_rvv.required_march = "rv64gcv"
-    // MAT: tcrv.exec.variant @scalar_fallback_first_slice
-    // MAT-SAME: fallback_role = "conservative"
-    // MAT-SAME: origin = "scalar-plugin"
-    // MAT-SAME: policy = "portable_scalar_fallback_first_slice"
-    // MAT-SAME: requires = [@scalar_fallback]
-
-    // PIPE-LABEL: tcrv.exec.kernel @deterministic_builtin_order
-    // PIPE: tcrv.exec.variant @rvv_first_slice
-    // PIPE: tcrv.exec.variant @scalar_fallback_first_slice
-    // PIPE-NOT: tcrv.exec.dispatch
-    // PIPE: tcrv.exec.diagnostic
-    // PIPE-SAME: reason = "variant-selected"
-    // PIPE-SAME: selection_kind = "static-variant"
-    // PIPE-SAME: target = @rvv_first_slice
-    // PIPE-NOT: runtime_guard
-
-    // RERUN-LABEL: tcrv.exec.kernel @deterministic_builtin_order
-    // RERUN-COUNT-1: tcrv.exec.variant @rvv_first_slice
-    // RERUN-NOT: tcrv.exec.variant @rvv_first_slice
-    // RERUN-COUNT-1: tcrv.exec.variant @scalar_fallback_first_slice
-    // RERUN-NOT: tcrv.exec.variant @scalar_fallback_first_slice
-  }
-}
-
-// -----
-
-module {
-  // MAT-LABEL: tcrv.exec.kernel @rvv_profile_provides_rvv
-  tcrv.exec.kernel @rvv_profile_provides_rvv {
-    tcrv.exec.target @rvv_profile {
-      id = "rvv.profile.rv64gcv",
-      kind = "profile",
-      provides = ["rvv", "rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
-      sew_bits = 32 : i64,
-      lmul = "m1",
-      tail_policy = "agnostic",
-      mask_policy = "agnostic",
-      architecture = "riscv64",
-      isa_vector_hints = "rv64gcv_zvl128b",
-      status = "available"
-    }
-    tcrv.exec.capability @rvv_hart_count {
-      id = "rvv.hart_count",
-      kind = "uarch",
-      count = 64 : i64,
-      status = "available"
-    }
-    tcrv.exec.capability @rvv_probe_compile_run {
-      id = "rvv.probe.compile_run",
-      kind = "toolchain",
-      selected_march = "rv64gcv",
-      status = "available"
-    }
-    tcrv.exec.capability @rvv_toolchain_march {
-      id = "rvv.toolchain.march",
-      kind = "toolchain",
-      status = "available",
-      value = "rv64gcv"
-    }
-    tcrv.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
-    tcrv.exec.variant @rvv_first_slice attributes {
-      condition = "rvv_capability_properties_available",
-      guard = "plugin_local_rvv_property_evidence",
-      origin = "rvv-plugin",
-      policy = "metadata_only_first_slice",
-      requires = [@rvv_profile],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.selected_vector_shape = "i32m1",
-      tcrv_rvv.selected_vector_sew = 32 : i64,
-      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m1.sew32",
-      tcrv_rvv.selected_vector_lmul = "m1",
-      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m1.lmul_m1",
-      tcrv_rvv.selected_tail_policy = "agnostic",
-      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m1.tail_policy.agnostic",
-      tcrv_rvv.selected_mask_policy = "agnostic",
-      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m1.mask_policy.agnostic",
-      tcrv_rvv.selected_vector_type = "vint32m1_t",
-      tcrv_rvv.selected_vector_suffix = "i32m1",
-      tcrv_rvv.selected_setvl_suffix = "e32m1"
-    } {
-    }
-    // MAT: tcrv.exec.target @rvv_profile
-    // MAT-SAME: provides = ["rvv", "rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"]
-    // MAT: tcrv.exec.variant @rvv_first_slice
-    // MAT-SAME: origin = "rvv-plugin"
-    // MAT-SAME: requires = [@rvv_profile]
-    // MAT-SAME: tcrv_rvv.required_march = "rv64gcv"
-    // MAT: tcrv.exec.variant @scalar_fallback_first_slice
-    // MAT-SAME: requires = [@scalar_fallback]
-
-    // PIPE-LABEL: tcrv.exec.kernel @rvv_profile_provides_rvv
-    // PIPE: tcrv.exec.variant @rvv_first_slice
-    // PIPE-SAME: requires = [@rvv_profile]
-    // PIPE-NOT: tcrv.exec.dispatch
-    // PIPE: tcrv.exec.diagnostic
-    // PIPE-SAME: reason = "variant-selected"
-    // PIPE-SAME: selection_kind = "static-variant"
-    // PIPE-SAME: target = @rvv_first_slice
-    // PIPE-NOT: runtime_guard
-
-    // RERUN-LABEL: tcrv.exec.kernel @rvv_profile_provides_rvv
-    // RERUN-COUNT-1: tcrv.exec.variant @rvv_first_slice
-    // RERUN-NOT: tcrv.exec.variant @rvv_first_slice
-    // RERUN-COUNT-1: tcrv.exec.variant @scalar_fallback_first_slice
-    // RERUN-NOT: tcrv.exec.variant @scalar_fallback_first_slice
-  }
-}
-
-// -----
-
-module {
-  tcrv.exec.target @module_rvv_profile {
-    id = "rvv.profile.module",
-    kind = "profile",
-    provides = ["rvv", "rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
-    sew_bits = 32 : i64,
-    lmul = "m1",
-    tail_policy = "agnostic",
-    mask_policy = "agnostic",
-    architecture = "riscv64",
-    isa_vector_hints = "rv64gcv_zvl128b",
-    status = "available"
-  }
-
-  // MAT-LABEL: tcrv.exec.kernel @module_rvv_profile_provides_rvv
-  // MAT-SAME: target = @module_rvv_profile
-  tcrv.exec.kernel @module_rvv_profile_provides_rvv attributes {target = @module_rvv_profile} {
-    tcrv.exec.capability @rvv_hart_count {
-      id = "rvv.hart_count",
-      kind = "uarch",
-      count = 64 : i64,
-      status = "available"
-    }
-    tcrv.exec.capability @rvv_probe_compile_run {
-      id = "rvv.probe.compile_run",
-      kind = "toolchain",
-      selected_march = "rv64gcv",
-      status = "available"
-    }
-    tcrv.exec.capability @rvv_toolchain_march {
-      id = "rvv.toolchain.march",
-      kind = "toolchain",
-      status = "available",
-      value = "rv64gcv"
-    }
-    tcrv.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
-    tcrv.exec.variant @rvv_first_slice attributes {
-      condition = "rvv_capability_properties_available",
-      guard = "plugin_local_rvv_property_evidence",
-      origin = "rvv-plugin",
-      policy = "metadata_only_first_slice",
-      requires = [@module_rvv_profile],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.selected_vector_shape = "i32m1",
-      tcrv_rvv.selected_vector_sew = 32 : i64,
-      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m1.sew32",
-      tcrv_rvv.selected_vector_lmul = "m1",
-      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m1.lmul_m1",
-      tcrv_rvv.selected_tail_policy = "agnostic",
-      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m1.tail_policy.agnostic",
-      tcrv_rvv.selected_mask_policy = "agnostic",
-      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m1.mask_policy.agnostic",
-      tcrv_rvv.selected_vector_type = "vint32m1_t",
-      tcrv_rvv.selected_vector_suffix = "i32m1",
-      tcrv_rvv.selected_setvl_suffix = "e32m1"
-    } {
-    }
-    // MAT: tcrv.exec.variant @rvv_first_slice
-    // MAT-SAME: origin = "rvv-plugin"
-    // MAT-SAME: requires = [@module_rvv_profile]
-    // MAT-SAME: tcrv_rvv.required_march = "rv64gcv"
-    // MAT: tcrv.exec.variant @scalar_fallback_first_slice
-    // MAT-SAME: requires = [@scalar_fallback]
-
-    // PIPE-LABEL: tcrv.exec.kernel @module_rvv_profile_provides_rvv
-    // PIPE-SAME: target = @module_rvv_profile
-    // PIPE: tcrv.exec.variant @rvv_first_slice
-    // PIPE-SAME: requires = [@module_rvv_profile]
-    // PIPE-NOT: tcrv.exec.dispatch
-    // PIPE: tcrv.exec.diagnostic
-    // PIPE-SAME: reason = "variant-selected"
-    // PIPE-SAME: selection_kind = "static-variant"
-    // PIPE-SAME: target = @rvv_first_slice
-
-    // RERUN-LABEL: tcrv.exec.kernel @module_rvv_profile_provides_rvv
-    // RERUN-COUNT-1: tcrv.exec.variant @rvv_first_slice
-    // RERUN-NOT: tcrv.exec.variant @rvv_first_slice
-    // RERUN-COUNT-1: tcrv.exec.variant @scalar_fallback_first_slice
-    // RERUN-NOT: tcrv.exec.variant @scalar_fallback_first_slice
-  }
-}
-
-// -----
-
-module {
-  // MAT-LABEL: tcrv.exec.kernel @scalar_independent_from_unavailable_rvv
-  tcrv.exec.kernel @scalar_independent_from_unavailable_rvv {
-    tcrv.exec.capability @rvv {
-      id = "rvv",
-      kind = "isa-vector",
-      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
-      sew_bits = 32 : i64,
-      lmul = "m1",
-      tail_policy = "agnostic",
-      mask_policy = "agnostic",
-      status = "missing"
-    }
-    tcrv.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
-    // MAT-NOT: tcrv.exec.variant @rvv_first_slice
+    // MAT-NOT: origin = "rvv-plugin"
     // MAT: tcrv.exec.variant @scalar_fallback_first_slice
     // MAT-SAME: origin = "scalar-plugin"
     // MAT-SAME: requires = [@scalar_fallback]
 
-    // PIPE-LABEL: tcrv.exec.kernel @scalar_independent_from_unavailable_rvv
-    // PIPE-NOT: tcrv.exec.variant @rvv_first_slice
+    // PIPE-LABEL: tcrv.exec.kernel @rvv_capability_with_scalar_fallback
+    // PIPE-NOT: origin = "rvv-plugin"
     // PIPE: tcrv.exec.variant @scalar_fallback_first_slice
+    // PIPE: tcrv.exec.diagnostic
+    // PIPE-SAME: selection_kind = "fallback-only"
+    // PIPE-SAME: target = @scalar_fallback_first_slice
 
-    // RERUN-LABEL: tcrv.exec.kernel @scalar_independent_from_unavailable_rvv
-    // RERUN-NOT: tcrv.exec.variant @rvv_first_slice
-    // RERUN-COUNT-1: tcrv.exec.variant @scalar_fallback_first_slice
-    // RERUN-NOT: tcrv.exec.variant @scalar_fallback_first_slice
-  }
-}
-
-// -----
-
-module {
-  // MAT-LABEL: tcrv.exec.kernel @scalar_preserved_after_malformed_rvv_properties
-  tcrv.exec.kernel @scalar_preserved_after_malformed_rvv_properties {
-    tcrv.exec.capability @rvv {
-      id = "rvv",
-      kind = "isa-vector",
-      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
-      sew_bits = 32 : i64,
-      lmul = "m1",
-      tail_policy = "agnostic",
-      mask_policy = "agnostic",
-      architecture = "riscv64",
-      status = "available"
-    }
-    tcrv.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
-    // MAT-NOT: tcrv.exec.variant @rvv_first_slice
-    // MAT: tcrv.exec.variant @scalar_fallback_first_slice
-    // MAT-SAME: fallback_role = "conservative"
-    // MAT-SAME: origin = "scalar-plugin"
-    // MAT-SAME: policy = "portable_scalar_fallback_first_slice"
-    // MAT-SAME: requires = [@scalar_fallback]
-
-    // PIPE-LABEL: tcrv.exec.kernel @scalar_preserved_after_malformed_rvv_properties
-    // PIPE-NOT: tcrv.exec.variant @rvv_first_slice
-    // PIPE: tcrv.exec.variant @scalar_fallback_first_slice
-
-    // RERUN-LABEL: tcrv.exec.kernel @scalar_preserved_after_malformed_rvv_properties
-    // RERUN-NOT: tcrv.exec.variant @rvv_first_slice
+    // RERUN-LABEL: tcrv.exec.kernel @rvv_capability_with_scalar_fallback
+    // RERUN-NOT: origin = "rvv-plugin"
     // RERUN-COUNT-1: tcrv.exec.variant @scalar_fallback_first_slice
     // RERUN-NOT: tcrv.exec.variant @scalar_fallback_first_slice
   }
