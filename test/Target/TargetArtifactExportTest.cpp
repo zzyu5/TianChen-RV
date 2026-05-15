@@ -1293,11 +1293,6 @@ bool expectTargetTranslateRouteRegistryShape() {
                  << builtinRoutes.size() << "\n";
     return false;
   }
-  if (builtinRoutes.lookup("tcrv-export-rvv-smoke-probe-c")) {
-    llvm::errs() << "deleted RVV smoke-probe helper should not be registered "
-                    "as a target translate route\n";
-    return false;
-  }
   if (builtinRoutes.lookup("tcrv-export-rvv-microkernel-self-check-c")) {
     llvm::errs() << "RVV standalone self-check helper should remain outside "
                     "the target translate route-family registry\n";
@@ -2135,7 +2130,6 @@ int main() {
     return 1;
   }
   if (builtinRegistry.lookup("tcrv-export-rvv-microkernel-c") ||
-      builtinRegistry.lookup("tcrv-export-rvv-smoke-probe-c") ||
       builtinRegistry.lookup("tcrv-export-scalar-microkernel-c") ||
       builtinRegistry.lookupComposite(
           "tcrv-export-rvv-scalar-i32-vadd-dispatch-c")) {

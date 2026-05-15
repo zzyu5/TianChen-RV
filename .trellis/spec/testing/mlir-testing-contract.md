@@ -54,8 +54,9 @@ routes after the direct C semantic exporter deletion campaign.
 
 - Good: a lit test proves a selected RVV path materializes typed IR and then
   receives an unsupported emission-plan diagnostic.
-- Base: RVV smoke-probe route tests may remain only as deleted-route coverage
-  proving no C source is emitted.
+- Base: RVV smoke-probe tests may remain only when they exercise selected RVV
+  metadata through current unsupported emission-plan diagnostics without naming
+  a deleted direct-C route fixture.
 - Bad: a test checks `runtime-callable-c-source`, a direct route id, or an
   `__riscv_` intrinsic as proof that kernel semantic source export or
   smoke-probe source export succeeded.
@@ -147,10 +148,9 @@ Use lit/FileCheck for:
   unsupported/deferred RVV emission metadata, pipeline-to-export coverage, and
   negative tests proving invalid selected surfaces or malformed runtime ABI
   ownership metadata produce no manifest.
-- deleted RVV smoke-probe C target export coverage, proving
-  `--tcrv-export-rvv-smoke-probe-c` is absent or fail-closed, built-in target
-  artifact exporters do not publish the smoke route, historical smoke
-  descriptor metadata is not a supported emission plan, and no
+- deleted RVV smoke-probe C target export coverage, proving built-in target
+  artifact exporters only expose the current allowed route set, historical
+  smoke descriptor metadata is not a supported emission plan, and no
   `riscv_vector.h` / `__riscv_` C source is emitted.
 - RVV selected microkernel descriptor materialization is deleted. Tests must
   assert that selected-boundary materialization does not auto-create deleted
@@ -408,8 +408,9 @@ Python tooling and as MLIR pipeline input. Required coverage:
   command dumps, correctness claims, runtime claims, or performance claims.
 
 The repository must not export generated RVV smoke-probe C from post-planning
-MLIR. Tests should prove the old command and target artifact route are absent
-or fail-closed and that no `riscv_vector.h` / `__riscv_` source text is printed.
+MLIR. Tests should prove current unsupported RVV emission-plan diagnostics and
+target artifact route shape without preserving the old command or route-name
+fixtures, and no `riscv_vector.h` / `__riscv_` source text may be printed.
 Any future RVV hardware/toolchain smoke evidence belongs in explicit probe
 tooling, not a compiler source artifact frontdoor.
 
@@ -525,8 +526,8 @@ RVV runtime-callable C source/header/object/bundle evidence.
 
 - Good: fail-closed tests prove the old direct route is unsupported and emits
   no RVV intrinsic body.
-- Base: RVV smoke-probe tests remain allowed only as deleted-route command or
-  route-absence coverage.
+- Base: RVV smoke-probe tests remain allowed only as current unsupported RVV
+  emission-plan coverage without deleted direct-C route-name fixtures.
 - Bad: a script treats route metadata plus selected-family fields as enough to
   produce executable C evidence.
 

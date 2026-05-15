@@ -190,3 +190,56 @@ Deleted common Conversion/EmitC C++ source-authority APIs and tests; kept only g
 ### Next Steps
 
 - None - task complete
+
+
+## Session 78: RVV smoke-probe route fixture erasure
+
+**Date**: 2026-05-15
+**Task**: RVV Smoke-Probe Route Fixture Erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the active RVV smoke-probe direct-C route fixture surface without adding
+a replacement RVV emission path. The old standalone smoke-probe CLI/route name
+is no longer invoked or looked up by active tests, and active specs now describe
+the deletion boundary without preserving the old route id or standalone source
+artifact kind as a fixture.
+
+### Main Changes
+
+- Removed `test/Target/RVVSmokeProbe/rvv-smoke-probe-route-deleted.mlir`.
+- Reworked `TargetArtifactExportTest.cpp` registry coverage to assert current
+  route registry shape without a smoke-probe route-name lookup.
+- Updated emission/runtime, RVV plugin, and MLIR testing specs to stop naming
+  the old smoke-probe route id or RVV standalone source route fixture.
+- Confirmed no new RVV emission, source route, wrapper, alias, compatibility
+  path, or probe-export replacement was added.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(rvv): erase smoke-probe route fixtures |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tcrv-translate --help-hidden` with no match for the deleted
+  smoke-probe route option
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/ArtifactExport/target-artifact-export-registry.test Target/ArtifactExport/target-source-artifact-routes.test` from `build/test`
+- [OK] Focused active ref scan over `.trellis/spec`, `test`, `lib`, `include`,
+  `tools`, and `CMakeLists.txt` returned no deleted smoke-probe route-name or
+  standalone source route fixture hits.
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-15-rvv-smoke-probe-route-fixture-erasure`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Continue deletion-only cleanup only if another active direct-C/descriptor
+  route fixture remains; do not start RVV rebuild from this task.

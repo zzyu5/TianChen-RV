@@ -881,13 +881,12 @@ generation, hardware execution, correctness evidence, or performance evidence.
 
 ### Deleted Standalone Smoke-Probe Target Export
 
-The former `tcrv-translate --tcrv-export-rvv-smoke-probe-c` target export
-surface is deleted. `RVVExtensionPlugin` must not turn plugin-local metadata
-or route records into supported emission readiness, a supported emission plan,
-or a generic target source artifact route for that standalone harness. Built-in
-target artifact exporter registration must not publish
-`tcrv-export-rvv-smoke-probe-c`, `rvv-smoke-probe-standalone-c-source`, or a
-RVV `standalone-c-source` route.
+The former standalone smoke-probe target export surface is deleted.
+`RVVExtensionPlugin` must not turn plugin-local metadata or route records into
+supported emission readiness, a supported emission plan, or a generic target
+source artifact route for that standalone harness. Built-in target artifact
+exporter registration must not publish the former smoke-probe route identity or
+any standalone direct C source artifact kind as a supported RVV source route.
 
 Historical standalone smoke-probe metadata must not remain as active
 code/spec/test fixtures. The compiler front door must not print

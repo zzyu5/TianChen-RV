@@ -39,9 +39,10 @@ records rather than from a materialized MLIR EmitC module.
 
 ### 2. Signatures
 
-- Deleted direct translate options:
-  `--tcrv-export-rvv-smoke-probe-c`,
-  `--tcrv-export-rvv-microkernel-c`, and
+- Deleted direct translate options include the former RVV standalone
+  smoke-probe source front door plus the RVV microkernel and RVV+scalar
+  dispatch direct C exporters:
+  `--tcrv-export-rvv-microkernel-c` and
   `--tcrv-export-rvv-scalar-dispatch-c`.
 - Deleted production route ids include the RVV smoke-probe standalone source,
   RVV/scalar microkernel source, header, object, dispatch
@@ -1296,12 +1297,6 @@ be exposed as a compiler source artifact route.
 
 ### 2. Signatures
 
-Deleted public command:
-
-```text
-tcrv-translate --tcrv-export-rvv-smoke-probe-c
-```
-
 Deleted C++ entry point:
 
 ```cpp
@@ -1311,11 +1306,11 @@ llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
 
 ### 3. Contracts
 
-- `tcrv-translate --tcrv-export-rvv-smoke-probe-c` must be absent or fail
-  closed before printing C source.
-- Built-in target artifact exporter registration must not publish
-  `tcrv-export-rvv-smoke-probe-c`, `rvv-smoke-probe-standalone-c-source`, or
-  `standalone-c-source` as a supported RVV source route.
+- The former standalone smoke-probe source front door must be absent before
+  printing C source.
+- Built-in target artifact exporter registration must not publish the former
+  smoke-probe route identity or any standalone direct C source artifact kind as
+  a supported RVV source route.
 - `RVVExtensionPlugin` must not turn plugin-local smoke-probe metadata or route
   records into supported emission readiness or a supported emission plan.
 - Historical standalone smoke-probe metadata must not remain as active
@@ -1325,20 +1320,18 @@ llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
 
 ### 4. Validation & Error Matrix
 
-- Deleted translate option is invoked -> command-line parsing reports an
-  unknown/deleted option and no C source is printed.
-- Generic target artifact export sees a historical smoke-probe source route id
+- Generic target artifact export sees a stale smoke-probe source route identity
   -> the generic source-only front door is absent and no C source is printed;
-  exact-route lookup or coherence must still fail closed if a stale source route
-  id is invoked through a target-owned helper.
+  coherence must still fail closed if stale source-route metadata reaches a
+  target-owned helper.
 - A selected RVV variant carries stale standalone smoke-probe route metadata ->
   plugin legality/emission must not report a supported standalone source
   artifact.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: lit coverage proves the deleted translate option is absent and emits no
-  C text.
+- Good: lit coverage proves selected RVV metadata remains unsupported and emits
+  no C text.
 - Base: selected RVV metadata can still materialize unsupported
   `tcrv_rvv.lowering_boundary` records for non-executable planning evidence.
 - Bad: selected RVV metadata or stale standalone smoke-probe route metadata
@@ -1347,10 +1340,10 @@ llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
 
 ### 6. Tests Required
 
-- lit/FileCheck deleted-route coverage for the removed translate option and
-  generic source frontdoor route absence.
-- C++ registry coverage proving built-in target artifact exporters no longer
-  publish the smoke-probe route.
+- lit/FileCheck deleted-route coverage for generic source frontdoor route
+  absence.
+- C++ registry coverage proving built-in target artifact exporters only expose
+  the current allowed route set.
 - Plugin legality/emission coverage proving historical standalone smoke-probe
   metadata is not a supported artifact source.
 - Full project check must still pass through `check-tianchenrv`.
@@ -1447,7 +1440,7 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
 - Missing or mismatched preserved selected march capability metadata -> export
   fails.
 - Any validation failure must leave stdout without partial C source and must not
-  fall back to `--tcrv-export-rvv-smoke-probe-c`.
+  fall back to a legacy standalone smoke-probe source front door.
 
 ### 5. Evidence Interpretation
 
