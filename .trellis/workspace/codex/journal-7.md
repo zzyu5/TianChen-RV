@@ -304,3 +304,78 @@ and test surfaces no longer invoke or look up the historical route ids.
 
 - Continue deletion-only cleanup if active direct-C route fixtures remain; do
   not start RVV/Common EmitC rebuild from this deletion task.
+
+
+## Session 80: Scalar deleted microkernel fixture erasure
+
+**Date**: 2026-05-15
+**Task**: Scalar Deleted Microkernel Fixture Erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted active scalar deleted-microkernel fixture authority without adding a
+replacement scalar execution path. The scalar fallback surface remains
+metadata-only, and active tests/spec/docs no longer preserve exact historical
+finite-family scalar microkernel op names as route anchors.
+
+### Main Changes
+
+- Removed `test/Dialect/Scalar/deleted-microkernel.mlir`.
+- Removed `hasDeletedScalarMicrokernelOp` and the C++ assertions that scanned
+  live scalar plugin IR for deleted `_microkernel` op-name absence.
+- Kept scalar plugin coverage on positive metadata-only behavior through
+  selected `tcrv_scalar.lowering_boundary`, legality, cost, readiness, and
+  emission-plan checks.
+- Updated scalar fallback and emission-runtime specs to describe deleted
+  finite-family scalar microkernel syntax generically instead of listing exact
+  historical op spellings.
+- Updated README scalar fallback wording so it no longer treats an explicit
+  scalar microkernel body as current attachment authority.
+- Confirmed no replacement op, alias, wrapper, compatibility path, direct C
+  exporter, descriptor path, route id, runtime lowering, or rebuild
+  implementation was added.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(scalar): erase deleted microkernel fixtures |
+
+### Testing
+
+- [OK] `ninja -C build tcrv-opt tianchenrv-scalar-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-scalar-extension-plugin-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Plugin/scalar-extension-plugin.test Dialect/Scalar` from `build/test`
+- [OK] Focused active ref scan excluding `.trellis/tasks`, `.trellis/workspace`,
+  `.git`, `build`, and artifacts returned no hits for the exact deleted scalar
+  microkernel op names, `hasDeletedScalarMicrokernelOp`, or
+  `deleted-microkernel.mlir`.
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-15-scalar-deleted-microkernel-fixture-erasure`
+- [WARN] `ninja -C build check-tianchenrv -- -v` was an invalid invocation in
+  this build because `-v` was parsed as a target.
+- [WARN] `cmake --build build --target check-tianchenrv -- -v` ran and failed
+  in the existing 12 RVV planning/lowering/script tests outside this task's
+  changed scalar surface: `Plugin/plugin-emission-plan.test`,
+  `Scripts/rvv-probe-to-mlir.test`,
+  `Target/TargetArtifactBundleExport/plan-and-export-target-artifact-bundle-no-viable.mlir`,
+  `Transforms/EmissionReadiness/emission-readiness-rvv-builtin.mlir`,
+  `Transforms/EmissionReadiness/emission-readiness.test`,
+  `Transforms/EmissionReadiness/materialize-emission-plans-rvv-builtin.mlir`,
+  `Transforms/ExecutionPlanCoherence/rvv-capacity-stale-boundary-fails.mlir`,
+  `Transforms/LoweringBoundary/rvv-i32m1-policy-capability-fails.mlir`,
+  `Transforms/LoweringBoundary/rvv-lowering-boundary-compat.mlir`,
+  `Transforms/LoweringBoundary/rvv-lowering-boundary-malformed.mlir`,
+  `Transforms/PluginVariantLegality/plugin-variant-legality-pass-invalid.mlir`,
+  and `Transforms/PluginVariantLegality/plugin-variant-legality-pass.mlir`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Continue deletion-only cleanup if another active deleted scalar/direct-C
+  route fixture remains; otherwise the next phase should be an explicit rebuild
+  task rather than restoring scalar microkernel syntax.

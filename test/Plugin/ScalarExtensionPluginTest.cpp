@@ -155,25 +155,6 @@ LoweringBoundaryOp findScalarBoundary(KernelOp kernel,
   return result;
 }
 
-bool hasDeletedScalarMicrokernelOp(KernelOp kernel,
-                                   llvm::StringRef selectedVariantSymbol) {
-  if (!kernel || kernel.getBody().empty())
-    return false;
-
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    llvm::StringRef opName = op.getName().getStringRef();
-    if (!opName.starts_with("tcrv_scalar.") ||
-        !opName.contains("_microkernel"))
-      continue;
-
-    auto selectedVariant =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
-      return true;
-  }
-  return false;
-}
-
 int runRegistrationAndCapabilityMetadataTest() {
   ExtensionPluginRegistry registry;
   if (int result =
@@ -554,11 +535,6 @@ module {
                           "scalar boundary preserves capability references"))
     return result;
   if (int result =
-          expect(!hasDeletedScalarMicrokernelOp(kernel, variant.getSymName()),
-                 "descriptorless scalar fallback no longer materializes a "
-                 "deleted microkernel op from absent body state"))
-    return result;
-  if (int result =
           expect(mlir::succeeded(mlir::verify(*module)),
                  "scalar metadata boundary module verifies after materialization"))
     return result;
@@ -744,12 +720,6 @@ module {
   if (int result =
           expect(findScalarBoundary(kernel, scalarVariant.getSymName()),
                  "RVV decline does not block scalar boundary materialization"))
-    return result;
-  if (int result =
-          expect(!hasDeletedScalarMicrokernelOp(kernel,
-                                                scalarVariant.getSymName()),
-                 "RVV decline scalar fallback does not synthesize a "
-                 "deleted descriptorless default microkernel"))
     return result;
   if (int result =
           expect(mlir::succeeded(mlir::verify(*module)),

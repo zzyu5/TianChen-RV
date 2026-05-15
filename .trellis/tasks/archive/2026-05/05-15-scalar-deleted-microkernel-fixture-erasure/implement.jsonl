@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and deletion-campaign stack boundaries."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback metadata-only plugin contract and obsolete scalar microkernel text scope."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Deleted direct C exporter and future EmitC route boundary for scalar artifacts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing policy for deleted scalar microkernel fixtures and metadata-only scalar fallback coverage."}

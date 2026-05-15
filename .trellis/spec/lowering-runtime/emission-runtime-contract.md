@@ -1039,11 +1039,11 @@ Rules:
   `required_capabilities`;
 - scalar fallback boundary ops must carry `status = "metadata-only"` and
   selected variant, origin, role, and required capability reference metadata;
-- the bounded scalar i32/i64 add/sub/mul source slice has no active typed
-  scalar microkernel authority; deleted `tcrv_scalar.*_microkernel` syntax
-  must fail closed and scalar plugin-local boundary materialization must not
-  synthesize a microkernel from descriptorless no-body state, kernel frontend
-  markers, bridge metadata, or a default family;
+- the bounded scalar source slice has no active typed scalar microkernel
+  authority; historical scalar microkernel syntax must fail closed and scalar
+  plugin-local boundary materialization must not synthesize a microkernel from
+  descriptorless no-body state, kernel frontend markers, bridge metadata, or a
+  default family;
 - deleted scalar element-count metadata is not selected-boundary authority:
   scalar plugin-local boundary materialization is authorized by selected variant
   origin, `requires`, and available capability facts, not by scalar element
@@ -1533,10 +1533,9 @@ Contracts:
 - A matching direct child `tcrv_scalar.lowering_boundary` must identify the
   same source kernel, selected variant, origin, role, metadata-only status, and
   required capability refs.
-- Deleted `tcrv_scalar.i32_vadd_microkernel` / `i32_vsub_microkernel` /
-  `i32_vmul_microkernel` syntax must not be accepted as active route authority;
-  if any historical fixture still contains that syntax, it must fail closed
-  before source output.
+- Deleted finite-family scalar microkernel syntax must not be accepted as
+  active route authority; if any historical fixture still contains that syntax,
+  it must fail closed before source output.
 - Output must be no executable portable C source, no header, and no object.
 - Historical selected metadata may remain parseable only as fail-closed input
   for deleted-route diagnostics.

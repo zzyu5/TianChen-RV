@@ -222,13 +222,12 @@ metadata-only readiness/plan diagnostics by default. It does not add a new
 high-level compute op, generic scalar lowering, runtime ABI integration, object
 generation, correctness evidence, or performance evidence.
 
-For bounded scalar add/sub/mul slices, the scalar plugin no longer treats a
-descriptor string, default family table, or frontend marker as compute
-authority. A selected scalar path can preserve `tcrv_scalar.element_count` only
-as bounded selected-path metadata, and a typed scalar microkernel attachment is
-valid only when an explicit `tcrv_scalar.*_microkernel` body is already present
-on the selected path. The element count is not tensor shape, AVL, vl, runtime
-loop trip count, correctness coverage, or performance evidence.
+The scalar plugin no longer treats a descriptor string, default family table, or
+frontend marker as compute authority. A selected scalar path can preserve
+`tcrv_scalar.element_count` only as bounded selected-path metadata; there is no
+current typed scalar microkernel attachment authority. The element count is not
+tensor shape, AVL, vl, runtime loop trip count, correctness coverage, or
+performance evidence.
 
 The scalar fallback plugin also owns the concrete `tcrv_scalar` MLIR namespace.
 Its first operation, `tcrv_scalar.lowering_boundary`, records selected fallback

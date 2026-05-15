@@ -144,11 +144,10 @@ variant's required capability symbol references. It must not materialize
 cause a missing-plugin diagnostic when selected as a fallback-only or dispatch
 fallback path.
 
-The scalar plugin must not create `tcrv_scalar.i32_vadd_microkernel` or any
-other finite-family scalar microkernel from defaults, RVV-scalar bridge
-metadata, hand-authored deleted-op syntax, or any equivalent metadata
-selector. Absence of a body is a metadata-only fallback state, not a compute
-authority.
+The scalar plugin must not create any finite-family scalar microkernel from
+defaults, RVV-scalar bridge metadata, hand-authored deleted-op syntax, or any
+equivalent metadata selector. Absence of a body is a metadata-only fallback
+state, not a compute authority.
 
 Downstream emission planning may consume this boundary only to materialize the
 metadata-only diagnostic above. The lowering boundary itself still records
@@ -161,18 +160,13 @@ slice through extension-family ops and a materialized MLIR EmitC route, then
 validated with compiler-generated artifacts and runtime evidence appropriate to
 that path.
 
-## Deleted I32/I64 Vector Add/Sub/Mul Microkernel Ops
+## Deleted Finite-Family Scalar Microkernel Ops
 
-`tcrv_scalar.i32_vadd_microkernel`,
-`tcrv_scalar.i32_vsub_microkernel`,
-`tcrv_scalar.i32_vmul_microkernel`,
-`tcrv_scalar.i64_vadd_microkernel`,
-`tcrv_scalar.i64_vsub_microkernel`, and
-`tcrv_scalar.i64_vmul_microkernel` are deleted scalar extension-dialect
-microkernel source-export surfaces. They must not remain as active dialect ops,
-EmitC-lowerable ops, inert future-route IR, selected-boundary authority,
-runtime ABI authority, generated-artifact authority, correctness evidence, or
-performance evidence.
+Historical scalar extension-dialect microkernel source-export surfaces are
+deleted. Their old finite dtype/arithmetic spelling set must not remain as
+active dialect ops, EmitC-lowerable ops, inert future-route IR,
+selected-boundary authority, runtime ABI authority, generated-artifact
+authority, correctness evidence, or performance evidence.
 
 Scalar fallback direct runtime-callable C source/header/object routes are
 deleted production routes. Generic target artifact front doors must fail closed
