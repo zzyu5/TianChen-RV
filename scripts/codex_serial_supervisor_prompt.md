@@ -102,6 +102,26 @@ violate the campaign, whether build/tests fail, whether failures are expected
 deletion gaps, and whether the next round should continue deletion or move to
 rebuild.
 
+## Grill Consensus And Mature Path Steering
+
+Human grill/consensus notes under `artifacts/` are control-plane interpretation
+notes. They may help understand human intent, but they are not source of truth,
+acceptance evidence, Trellis task state, or replacement specification. Durable
+rules from those notes must be promoted into `.trellis/spec/` or this canonical
+prompt before they steer future rounds.
+
+During the Wrong Logic Deletion Campaign, maturity discussion does not authorize
+rebuild work. "RVV is the first executable plugin path" means the first rebuild
+proof after deletion should be RVV; it does not permit new RVV emission,
+high-level frontend lowering, new artifact routes, or executable plugin
+templates while old descriptor/direct-C/core-branch authority remains.
+
+After campaign exit, the mature route is explicit extension-family ops ->
+materialized common EmitC module -> MLIR C/C++ emitter -> intrinsic/vendor
+runtime ABI -> target export validation/packaging -> ssh rvv evidence for RVV.
+This is a route order, not a new state machine, bundle index, artifact ledger,
+or checkpoint protocol.
+
 ## One-Round Trellis Flow
 
 Execute the current task through one coherent Trellis round:

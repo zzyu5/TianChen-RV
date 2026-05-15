@@ -58,6 +58,12 @@ plugin integration may proceed from hand-written TianChen-RV MLIR while a
 frontend owner later introduces `linalg` tests that feed those same backend
 surfaces.
 
+Future high-level frontend work is semantic-preserving conversion, not semantic
+recognition. It maps semantics already expressed by the source dialect into
+TianChen-RV execution surfaces; it must not infer computation from route ids,
+descriptors, artifact names, old microkernel family metadata, or other deleted
+source-authority residue.
+
 ## Deleted Core RVV Source Frontend Slice
 
 ### 1. Scope / Trigger

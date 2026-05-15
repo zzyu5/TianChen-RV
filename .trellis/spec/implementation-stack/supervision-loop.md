@@ -329,6 +329,38 @@ Only after that exit may Hermes choose rebuild owners such as Common Extension
 Interface Foundation, Common Lower-To-EmitC Pass, Executable Plugin
 Construction Template, or General RVV Extension Family Rebuild.
 
+### Grill Consensus And Mature Path Steering
+
+Human grill/consensus notes under `artifacts/` are control-plane interpretation
+notes. They may help Hermes understand human intent, but they are not source of
+truth, acceptance evidence, Trellis task state, or replacement specification.
+Durable rules from those notes must be promoted into `.trellis/spec/` or the
+canonical supervisor prompt before they steer future rounds.
+
+A maturity-path note such as "RVV is the first executable plugin path" does not
+exit the deletion campaign. While live evidence still shows old authority,
+Hermes must still choose a deletion-only owner. It must not interpret maturity
+discussion as permission to implement RVV emission, high-level frontend lowering,
+new artifact routes, or a new executable plugin template before the campaign
+exit criteria are met.
+
+After campaign exit, the intended mature route is:
+
+```text
+explicit extension-family ops
+-> materialized common EmitC module
+-> MLIR C/C++ emitter
+-> intrinsic/vendor runtime ABI
+-> target export validation and packaging
+-> ssh rvv evidence for the RVV plugin path
+```
+
+This is a route order, not a new state machine, bundle index, artifact ledger,
+or checkpoint protocol. Target export validates and packages supported emitted
+artifacts; it must not synthesize compute semantics. One-shot steering may name
+the next bounded owner, but it must not create durable architecture outside the
+specs and committed prompt.
+
 Hermes should prefer owners that are large enough to remove a real compiler
 spine bottleneck in one round. A good owner may span several tightly related
 surfaces, such as ODS/verifier/materialization/exporter/tests, when those
