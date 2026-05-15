@@ -118,9 +118,9 @@ materialize `tcrv.exec`.
 The former RVV standalone smoke-probe compiler front doors are deleted.
 Selected RVV metadata and `tcrv_rvv.lowering_boundary` are not enough to
 synthesize a standalone C harness through `tcrv-translate`; the generic
-target-source artifact front door is deleted. Explicit RVV hardware/toolchain
-probes belong in separate probe tooling and recorded `ssh rvv` artifacts, not
-in a compiler source artifact front door.
+source-only artifact export entrypoint is deleted. Explicit RVV
+hardware/toolchain probes belong in separate probe tooling and recorded
+`ssh rvv` artifacts, not in a compiler source-artifact entrypoint.
 
 The historical RVV, scalar, and RVV+scalar runtime-callable direct C semantic
 exporters are deleted production routes. Selected metadata, family records,

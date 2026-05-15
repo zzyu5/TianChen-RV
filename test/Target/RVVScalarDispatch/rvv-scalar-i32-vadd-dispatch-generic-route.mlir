@@ -1,5 +1,4 @@
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=IR
-// RUN: not tcrv-translate --tcrv-export-target-source-artifact %s 2>&1 | FileCheck %s --check-prefix=SOURCE-FRONT-DOOR-DELETED --implicit-check-not="__riscv" --implicit-check-not="tcrv_scalar_i32_add"
 // RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=GENERIC-HDR-DELETED --implicit-check-not="__riscv" --implicit-check-not="out[index]"
 
 module {
@@ -101,5 +100,4 @@ module {
 // IR-SAME: status = "metadata-only"
 // IR-SAME: target = @scalar_fallback_first_slice
 
-// SOURCE-FRONT-DOOR-DELETED: Unknown command line argument '--tcrv-export-target-source-artifact'
 // GENERIC-HDR-DELETED: requires exactly one supported header artifact emission-plan route; found none

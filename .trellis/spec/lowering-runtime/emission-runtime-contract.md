@@ -340,12 +340,11 @@ runtime-callable C header route may be selected through the generic
 `runtime-callable-c-header`. Header selection is source-like only for its
 external C caller surface: it must not make
 `--tcrv-export-target-artifact` choose the header instead of a matching
-library-object route. The generic source-only front door
-`--tcrv-export-target-source-artifact` is deleted; source artifacts are not
-generic-front-door selectable until a future materialized EmitC route rebuild
-defines a new contract. The object and header routes are still bounded target
-artifacts; they do not link, run hardware, perform automatic probing, prove
-correctness, or measure performance.
+library-object route. The generic source-only front door is deleted; source
+artifacts are not generic-front-door selectable until a future materialized
+EmitC route rebuild defines a new contract. The object and header routes are
+still bounded target artifacts; they do not link, run hardware, perform
+automatic probing, prove correctness, or measure performance.
 The direct RVV microkernel library-object source may embed a bounded read-only
 artifact evidence section in the produced object, such as
 `.rodata.tianchenrv.rvv_artifact`, derived from the same selected source
@@ -599,12 +598,11 @@ Before a module is handed to a generic target artifact export route, the public
 `tcrv-translate --tcrv-export-target-artifact` and
 `tcrv-translate --tcrv-export-target-header-artifact` front doors must run the
 target-neutral preflight verifier to check that all compiler-visible handoff
-metadata still describes the same selected execution path. The deleted
-`tcrv-translate --tcrv-export-target-source-artifact` front door must fail at
-command-line registration instead of running export preflight. This check is a
-metadata coherence gate only. It must not export artifacts, lower to
-LLVM/RISC-V, emit extension instructions, create runtime ABI glue, run hardware,
-or claim correctness or performance.
+metadata still describes the same selected execution path. The deleted generic
+source-only front door must fail at command-line registration instead of
+running export preflight. This check is a metadata coherence gate only. It must
+not export artifacts, lower to LLVM/RISC-V, emit extension instructions, create
+runtime ABI glue, run hardware, or claim correctness or performance.
 
 The verifier must fail closed when selected-path, dispatch/fallback,
 lowering-boundary, runtime ABI ownership, emission-plan, and artifact route
@@ -759,7 +757,7 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 - Good: `tcrv-translate --tcrv-export-target-artifact` may select a supported
   metadata-only diagnostic route when the selected plugin path advertises one
   through the manifest-owned target exporter bundle.
-- Good: `tcrv-translate --tcrv-export-target-source-artifact` is absent, while
+- Good: the generic source-only front door is absent, while
   `--tcrv-export-target-header-artifact` and the generic object front door fail
   closed for deleted RVV/scalar/dispatch direct C routes and emit no source,
   header, object, or bundle bytes.

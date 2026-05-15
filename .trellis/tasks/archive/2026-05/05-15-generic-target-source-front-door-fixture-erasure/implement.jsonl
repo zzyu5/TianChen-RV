@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler boundary and deletion-campaign invariants."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact/export front-door and source-route deletion contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "MLIR/lit/FileCheck coverage policy for deleted direct C/source exporters."}
