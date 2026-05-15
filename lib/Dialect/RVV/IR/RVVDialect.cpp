@@ -7,14 +7,11 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/ErrorHandling.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <cctype>
 #include <optional>
 
 using namespace tianchenrv::tcrv::rvv;
@@ -71,7 +68,6 @@ constexpr llvm::StringLiteral kLMULAttrName("lmul");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kRequiredMarchAttrName("required_march");
-constexpr llvm::StringLiteral kSelectedMABIAttrName("selected_mabi");
 constexpr llvm::StringLiteral kBufferRoleAttrName("buffer_role");
 constexpr llvm::StringLiteral kVLenAttrName("vlen");
 constexpr llvm::StringLiteral kVLenBAttrName("vlenb");
@@ -89,7 +85,6 @@ constexpr llvm::StringLiteral kHartCountAttrName("hart_count");
 constexpr llvm::StringLiteral kSelectedMarchAttrName("selected_march");
 constexpr llvm::StringLiteral kCapabilityFactsAttrName("capability_facts");
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
-constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
 constexpr llvm::StringLiteral kUnsupportedStatusValue("unsupported");
 constexpr llvm::StringLiteral kDirectVariantRoleValue("direct variant");
 constexpr llvm::StringLiteral kDispatchCaseRoleValue("dispatch case");
@@ -127,29 +122,6 @@ bool containsForbiddenMetadataText(llvm::StringRef text) {
          lower.contains("private key") ||
          lower.contains("authorization:") || lower.contains("api_key") ||
          lower.contains("access_key");
-}
-
-bool hasRVVVectorHint(llvm::StringRef hints) {
-  std::string lower = hints.lower();
-  llvm::StringRef normalized(lower);
-  if (normalized.contains("zve") || normalized.contains("zvl") ||
-      normalized.contains("zvfh") || normalized.contains("gcv"))
-    return true;
-
-  std::size_t position = lower.find("rv64");
-  while (position != std::string::npos) {
-    std::size_t end = position;
-    while (end < lower.size()) {
-      unsigned char byte = static_cast<unsigned char>(lower[end]);
-      if (!std::isalnum(byte) && lower[end] != '_' && lower[end] != '-')
-        break;
-      ++end;
-    }
-    if (llvm::StringRef(lower).slice(position, end).drop_front(4).contains("v"))
-      return true;
-    position = lower.find("rv64", position + 4);
-  }
-  return false;
 }
 
 bool isAllowedLoweringBoundaryRole(llvm::StringRef role) {
@@ -199,23 +171,6 @@ bool arrayAttrsEqual(mlir::ArrayAttr lhs, mlir::ArrayAttr rhs) {
       return false;
   }
   return true;
-}
-
-bool isAllowedMicrokernelAttr(llvm::StringRef name) {
-  return name == kSourceKernelAttrName || name == kSelectedVariantAttrName ||
-         name == kOriginAttrName || name == kRoleAttrName ||
-         name == kElementCountAttrName ||
-         name == kRequiredCapabilitiesAttrName ||
-         name == kRequiredMarchAttrName ||
-         name == kSelectedVectorShapeAttrName ||
-         name == kSelectedVectorSEWAttrName ||
-         name == kSelectedVectorLMULAttrName ||
-         name == kSelectedTailPolicyAttrName ||
-         name == kSelectedMaskPolicyAttrName ||
-         name == kSelectedVectorTypeAttrName ||
-         name == kSelectedVectorSuffixAttrName ||
-         name == kSelectedSetVLSuffixAttrName ||
-         name == kSelectedMABIAttrName;
 }
 
 bool isAllowedSetVLAttr(llvm::StringRef name) {
@@ -392,13 +347,34 @@ mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
   if (!withVL)
     return mlir::success();
 
+  auto expectedSEW =
+      withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  if (!expectedSEW)
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
+              "metadata for bounded RVV i32 dataflow";
+  if (expectedSEW.getInt() != 32)
+    return op->emitOpError()
+           << "requires " << role
+           << " type to agree with enclosing tcrv_rvv.with_vl SEW32 "
+              "metadata";
+
   auto expectedLMUL =
       withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
-  if (expectedLMUL && expectedLMUL.getValue() != valueLMUL)
+  if (!expectedLMUL)
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit LMUL "
+              "metadata for bounded RVV i32 dataflow";
+  if (expectedLMUL.getValue() != valueLMUL)
     return op->emitOpError()
            << "requires " << role << " type " << value.getType()
            << " to agree with enclosing tcrv_rvv.with_vl LMUL metadata '"
            << expectedLMUL.getValue() << "'";
+
+  if (!withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for bounded RVV i32 dataflow";
 
   return mlir::success();
 }
@@ -417,7 +393,11 @@ mlir::LogicalResult verifyI64VectorTypeForWithVL(mlir::Operation *op,
 
   auto expectedSEW =
       withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
-  if (expectedSEW && expectedSEW.getInt() != 64)
+  if (!expectedSEW)
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
+              "metadata for bounded RVV i64 dataflow";
+  if (expectedSEW.getInt() != 64)
     return op->emitOpError()
            << "requires " << role
            << " type !tcrv_rvv.i64m1 to agree with enclosing "
@@ -426,534 +406,46 @@ mlir::LogicalResult verifyI64VectorTypeForWithVL(mlir::Operation *op,
 
   auto expectedLMUL =
       withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
-  if (expectedLMUL && expectedLMUL.getValue() != valueLMUL)
+  if (!expectedLMUL)
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit LMUL "
+              "metadata for bounded RVV i64 dataflow";
+  if (expectedLMUL.getValue() != valueLMUL)
     return op->emitOpError()
            << "requires " << role << " type " << value.getType()
            << " to agree with enclosing tcrv_rvv.with_vl LMUL metadata '"
            << expectedLMUL.getValue() << "'";
 
+  if (!withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for bounded RVV i64 dataflow";
+
   return mlir::success();
 }
 
-enum class I32MicrokernelArithmetic {
-  Add,
-  Sub,
-  Mul,
-};
-
-struct I32MicrokernelFamilySpec {
-  I32MicrokernelArithmetic arithmetic;
-  llvm::StringRef familyID;
-  llvm::StringRef microkernelOpName;
-  llvm::StringRef arithmeticOpName;
-  llvm::StringRef arithmeticVerb;
-  llvm::StringRef resultNoun;
-};
-
-const I32MicrokernelFamilySpec &
-getI32MicrokernelFamilySpec(I32MicrokernelArithmetic arithmetic) {
-  static const I32MicrokernelFamilySpec addSpec{
-      I32MicrokernelArithmetic::Add, "i32-vadd",
-      "tcrv_rvv.i32_vadd_microkernel",
-      "tcrv_rvv.i32_add", "add", "sum"};
-  static const I32MicrokernelFamilySpec subSpec{
-      I32MicrokernelArithmetic::Sub, "i32-vsub",
-      "tcrv_rvv.i32_vsub_microkernel",
-      "tcrv_rvv.i32_sub", "subtract", "difference"};
-  static const I32MicrokernelFamilySpec mulSpec{
-      I32MicrokernelArithmetic::Mul, "i32-vmul",
-      "tcrv_rvv.i32_vmul_microkernel",
-      "tcrv_rvv.i32_mul", "multiply", "product"};
-  switch (arithmetic) {
-  case I32MicrokernelArithmetic::Add:
-    return addSpec;
-  case I32MicrokernelArithmetic::Sub:
-    return subSpec;
-  case I32MicrokernelArithmetic::Mul:
-    return mulSpec;
-  }
-  llvm_unreachable("unknown RVV i32 microkernel arithmetic");
-}
-
-std::optional<I32MicrokernelArithmetic>
-getEnclosingI32MicrokernelArithmetic(mlir::Operation *op) {
-  if (op->getParentOfType<I32VAddMicrokernelOp>())
-    return I32MicrokernelArithmetic::Add;
-  if (op->getParentOfType<I32VSubMicrokernelOp>())
-    return I32MicrokernelArithmetic::Sub;
-  if (op->getParentOfType<I32VMulMicrokernelOp>())
-    return I32MicrokernelArithmetic::Mul;
-  return std::nullopt;
-}
-
-enum class I64MicrokernelArithmetic {
-  Add,
-  Sub,
-  Mul,
-};
-
-struct I64MicrokernelFamilySpec {
-  I64MicrokernelArithmetic arithmetic;
-  llvm::StringRef familyID;
-  llvm::StringRef microkernelOpName;
-  llvm::StringRef arithmeticOpName;
-  llvm::StringRef arithmeticVerb;
-};
-
-const I64MicrokernelFamilySpec &
-getI64MicrokernelFamilySpec(I64MicrokernelArithmetic arithmetic) {
-  static const I64MicrokernelFamilySpec addSpec{
-      I64MicrokernelArithmetic::Add, "i64-vadd",
-      "tcrv_rvv.i64_vadd_microkernel",
-      "tcrv_rvv.i64_add", "add"};
-  static const I64MicrokernelFamilySpec subSpec{
-      I64MicrokernelArithmetic::Sub, "i64-vsub",
-      "tcrv_rvv.i64_vsub_microkernel",
-      "tcrv_rvv.i64_sub", "subtract"};
-  static const I64MicrokernelFamilySpec mulSpec{
-      I64MicrokernelArithmetic::Mul, "i64-vmul",
-      "tcrv_rvv.i64_vmul_microkernel",
-      "tcrv_rvv.i64_mul", "multiply"};
-  switch (arithmetic) {
-  case I64MicrokernelArithmetic::Add:
-    return addSpec;
-  case I64MicrokernelArithmetic::Sub:
-    return subSpec;
-  case I64MicrokernelArithmetic::Mul:
-    return mulSpec;
-  }
-  llvm_unreachable("unknown RVV i64 microkernel arithmetic");
-}
-
-std::optional<I64MicrokernelArithmetic>
-getEnclosingI64MicrokernelArithmetic(mlir::Operation *op) {
-  if (op->getParentOfType<I64VAddMicrokernelOp>())
-    return I64MicrokernelArithmetic::Add;
-  if (op->getParentOfType<I64VSubMicrokernelOp>())
-    return I64MicrokernelArithmetic::Sub;
-  if (op->getParentOfType<I64VMulMicrokernelOp>())
-    return I64MicrokernelArithmetic::Mul;
-  return std::nullopt;
-}
-
-mlir::LogicalResult verifyNestedI64DataflowOp(
-    mlir::Operation *op,
-    std::optional<I64MicrokernelArithmetic> requiredArithmetic =
-        std::nullopt) {
-  if (!llvm::isa_and_nonnull<WithVLOp>(op->getParentOp()))
+mlir::FailureOr<WithVLOp> verifyNestedDataflowOp(mlir::Operation *op) {
+  auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
+  if (!withVL)
     return op->emitOpError()
            << "must be nested directly in a tcrv_rvv.with_vl body";
-  std::optional<I64MicrokernelArithmetic> enclosingArithmetic =
-      getEnclosingI64MicrokernelArithmetic(op);
-  if (!enclosingArithmetic)
-    return op->emitOpError()
-           << "must be nested under tcrv_rvv.i64_vadd_microkernel, "
-              "tcrv_rvv.i64_vsub_microkernel, or "
-              "tcrv_rvv.i64_vmul_microkernel; it is a finite i64 microkernel "
-              "dataflow op, not a standalone RVV compute op";
-  if (requiredArithmetic && *requiredArithmetic != *enclosingArithmetic) {
-    const I64MicrokernelFamilySpec &requiredSpec =
-        getI64MicrokernelFamilySpec(*requiredArithmetic);
-    return op->emitOpError()
-           << "must be nested under " << requiredSpec.microkernelOpName
-           << "; the bounded RVV i64 family keeps arithmetic semantics tied "
-              "to the enclosing microkernel op";
-  }
-  if (op->getNumRegions() != 0)
-    return op->emitOpError() << "does not own regions";
-  return mlir::success();
-}
-
-mlir::LogicalResult verifyNestedI32DataflowOp(
-    mlir::Operation *op,
-    std::optional<I32MicrokernelArithmetic> requiredArithmetic =
-        std::nullopt) {
-  if (!llvm::isa_and_nonnull<WithVLOp>(op->getParentOp()))
-    return op->emitOpError()
-           << "must be nested directly in a tcrv_rvv.with_vl body";
-  std::optional<I32MicrokernelArithmetic> enclosingArithmetic =
-      getEnclosingI32MicrokernelArithmetic(op);
-  if (!enclosingArithmetic)
-    return op->emitOpError()
-           << "must be nested under tcrv_rvv.i32_vadd_microkernel, "
-              "tcrv_rvv.i32_vsub_microkernel, or "
-              "tcrv_rvv.i32_vmul_microkernel; it is a finite microkernel "
-              "dataflow op, not a standalone RVV compute op";
-  if (requiredArithmetic && *requiredArithmetic != *enclosingArithmetic) {
-    const I32MicrokernelFamilySpec &requiredSpec =
-        getI32MicrokernelFamilySpec(*requiredArithmetic);
-    return op->emitOpError()
-           << "must be nested under " << requiredSpec.microkernelOpName
-           << "; the bounded RVV i32 family keeps arithmetic semantics tied "
-              "to the enclosing microkernel op";
-  }
 
   if (op->getNumRegions() != 0)
     return op->emitOpError() << "does not own regions";
 
-  return mlir::success();
+  return withVL;
 }
 
-bool matchArithmeticOp(mlir::Operation *op,
-                       I32MicrokernelArithmetic arithmetic,
-                       mlir::Value &lhs, mlir::Value &rhs, mlir::Value &vl,
-                       mlir::Value &result) {
-  switch (arithmetic) {
-  case I32MicrokernelArithmetic::Add:
-    if (auto add = llvm::dyn_cast<I32AddOp>(op)) {
-      lhs = add.getLhs();
-      rhs = add.getRhs();
-      vl = add.getVl();
-      result = add.getSum();
-      return true;
-    }
-    return false;
-  case I32MicrokernelArithmetic::Sub:
-    if (auto sub = llvm::dyn_cast<I32SubOp>(op)) {
-      lhs = sub.getLhs();
-      rhs = sub.getRhs();
-      vl = sub.getVl();
-      result = sub.getDifference();
-      return true;
-    }
-    return false;
-  case I32MicrokernelArithmetic::Mul:
-    if (auto mul = llvm::dyn_cast<I32MulOp>(op)) {
-      lhs = mul.getLhs();
-      rhs = mul.getRhs();
-      vl = mul.getVl();
-      result = mul.getProduct();
-      return true;
-    }
-    return false;
-  }
-  llvm_unreachable("unknown RVV i32 microkernel arithmetic");
-}
+mlir::LogicalResult verifyDataflowVLOperandMatchesWithVL(mlir::Operation *op,
+                                                         mlir::Value vl) {
+  auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
+  if (!withVL)
+    return mlir::success();
 
-bool matchI64ArithmeticOp(mlir::Operation *op,
-                          I64MicrokernelArithmetic arithmetic,
-                          mlir::Value &lhs, mlir::Value &rhs, mlir::Value &vl,
-                          mlir::Value &result) {
-  switch (arithmetic) {
-  case I64MicrokernelArithmetic::Add:
-    if (auto add = llvm::dyn_cast<I64AddOp>(op)) {
-      lhs = add.getLhs();
-      rhs = add.getRhs();
-      vl = add.getVl();
-      result = add.getSum();
-      return true;
-    }
-    return false;
-  case I64MicrokernelArithmetic::Sub:
-    if (auto sub = llvm::dyn_cast<I64SubOp>(op)) {
-      lhs = sub.getLhs();
-      rhs = sub.getRhs();
-      vl = sub.getVl();
-      result = sub.getDifference();
-      return true;
-    }
-    return false;
-  case I64MicrokernelArithmetic::Mul:
-    if (auto mul = llvm::dyn_cast<I64MulOp>(op)) {
-      lhs = mul.getLhs();
-      rhs = mul.getRhs();
-      vl = mul.getVl();
-      result = mul.getProduct();
-      return true;
-    }
-    return false;
-  }
-  llvm_unreachable("unknown RVV i64 microkernel arithmetic");
-}
-
-mlir::LogicalResult
-verifyMicrokernelStructuredControlPlane(
-    mlir::Operation *microkernel,
-    const I32MicrokernelFamilySpec &family) {
-  mlir::Region &body = microkernel->getRegion(0);
-  if (body.empty() || !llvm::hasSingleElement(body))
-    return microkernel->emitOpError()
-           << "requires exactly one structured RVV control-plane body block";
-
-  mlir::Block &block = body.front();
-  if (block.getNumArguments() != 1)
-    return microkernel->emitOpError()
-           << "requires structured control-plane body to have exactly one "
-              "runtime index block argument for target/export-owned n/AVL";
-  if (!block.getArgument(0).getType().isIndex())
-    return microkernel->emitOpError()
-           << "requires structured control-plane body argument to have index "
-              "type for runtime n/AVL";
-
-  SetVLOp setvl;
-  WithVLOp withVL;
-  unsigned setvlCount = 0;
-  unsigned withVLCount = 0;
-  for (mlir::Operation &bodyOp : block) {
-    if (auto candidate = llvm::dyn_cast<SetVLOp>(bodyOp)) {
-      setvl = candidate;
-      ++setvlCount;
-      continue;
-    }
-    if (auto candidate = llvm::dyn_cast<WithVLOp>(bodyOp)) {
-      withVL = candidate;
-      ++withVLCount;
-      continue;
-    }
-    return microkernel->emitOpError()
-           << "structured control-plane body accepts only "
-              "tcrv_rvv.setvl and tcrv_rvv.with_vl direct operations; "
-              "unexpected operation '"
-           << bodyOp.getName().getStringRef() << "'";
-  }
-
-  if (setvlCount != 1)
-    return microkernel->emitOpError()
-           << "requires exactly one tcrv_rvv.setvl in the structured "
-              "control-plane body";
-  if (withVLCount != 1)
-    return microkernel->emitOpError()
-           << "requires exactly one tcrv_rvv.with_vl in the structured "
-              "control-plane body";
-
-  if (setvl.getAvl() != block.getArgument(0))
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.setvl AVL operand to be the runtime index "
-              "body argument, not artifact-local component capacity or a "
-              "constant";
-  if (withVL.getVl() != setvl.getVl())
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.with_vl to consume the !tcrv_rvv.vl token "
-              "produced by the body tcrv_rvv.setvl";
-
-  if (!withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName) ||
-      !withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName) ||
-      !withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName)) {
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.with_vl to carry explicit SEW/LMUL/policy "
-              "control metadata so emission can consume the structured body";
-  }
-
-  mlir::Region &withVLBody = withVL.getBody();
-  if (withVLBody.empty() || !llvm::hasSingleElement(withVLBody))
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.with_vl to own one body block";
-  if (withVLBody.front().getNumArguments() != 0)
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.with_vl body to have no block arguments; "
-              "runtime n/AVL/VL is carried by the enclosing control-plane "
-              "surface";
-
-  llvm::SmallVector<mlir::Operation *, 4> ops;
-  for (mlir::Operation &withVLOp : withVLBody.front())
-    ops.push_back(&withVLOp);
-  if (ops.size() != 4)
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.with_vl body to contain exactly the finite "
-              "tcrv_rvv.i32_load, tcrv_rvv.i32_load, "
-           << family.arithmeticOpName << ", "
-              "tcrv_rvv.i32_store dataflow sequence";
-
-  auto lhsLoad = llvm::dyn_cast<I32LoadOp>(ops[0]);
-  auto rhsLoad = llvm::dyn_cast<I32LoadOp>(ops[1]);
-  auto store = llvm::dyn_cast<I32StoreOp>(ops[3]);
-  mlir::Value arithmeticLHS;
-  mlir::Value arithmeticRHS;
-  mlir::Value arithmeticVL;
-  mlir::Value arithmeticResult;
-  bool hasArithmetic =
-      matchArithmeticOp(ops[2], family.arithmetic, arithmeticLHS,
-                        arithmeticRHS, arithmeticVL, arithmeticResult);
-  if (!lhsLoad || !rhsLoad || !hasArithmetic || !store)
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.with_vl body to contain exactly the finite "
-              "tcrv_rvv.i32_load, tcrv_rvv.i32_load, "
-           << family.arithmeticOpName << ", "
-              "tcrv_rvv.i32_store dataflow sequence";
-
-  if (lhsLoad.getVl() != withVL.getVl() || rhsLoad.getVl() != withVL.getVl() ||
-      arithmeticVL != withVL.getVl() || store.getVl() != withVL.getVl())
-    return microkernel->emitOpError()
-           << "requires every finite RVV i32 dataflow op to consume the "
-              "!tcrv_rvv.vl token owned by the surrounding tcrv_rvv.with_vl";
-
-  auto lhsRole = lhsLoad->getAttrOfType<mlir::StringAttr>(kBufferRoleAttrName);
-  auto rhsRole = rhsLoad->getAttrOfType<mlir::StringAttr>(kBufferRoleAttrName);
-  auto outRole = store->getAttrOfType<mlir::StringAttr>(kBufferRoleAttrName);
-  if (!lhsRole || lhsRole.getValue() !=
-                      tianchenrv::support::stringifyRuntimeABIParameterRole(
-                          tianchenrv::support::RuntimeABIParameterRole::
-                              LHSInputBuffer))
-    return microkernel->emitOpError()
-           << "requires first tcrv_rvv.i32_load to reference runtime ABI role "
-              "'lhs-input-buffer'";
-  if (!rhsRole || rhsRole.getValue() !=
-                      tianchenrv::support::stringifyRuntimeABIParameterRole(
-                          tianchenrv::support::RuntimeABIParameterRole::
-                              RHSInputBuffer))
-    return microkernel->emitOpError()
-           << "requires second tcrv_rvv.i32_load to reference runtime ABI role "
-              "'rhs-input-buffer'";
-  if (!outRole || outRole.getValue() !=
-                      tianchenrv::support::stringifyRuntimeABIParameterRole(
-                          tianchenrv::support::RuntimeABIParameterRole::
-                              OutputBuffer))
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.i32_store to reference runtime ABI role "
-              "'output-buffer'";
-
-  if (arithmeticLHS != lhsLoad.getLoaded() ||
-      arithmeticRHS != rhsLoad.getLoaded() ||
-      store.getValue() != arithmeticResult)
-    return microkernel->emitOpError()
-           << "requires finite RVV i32 dataflow SSA chain "
-              "lhs-load,rhs-load -> "
-           << family.arithmeticVerb << " -> store";
-
-  return mlir::success();
-}
-
-mlir::LogicalResult verifyI64MicrokernelStructuredControlPlane(
-    mlir::Operation *microkernel, const I64MicrokernelFamilySpec &family) {
-  mlir::Region &body = microkernel->getRegion(0);
-  if (body.empty() || !llvm::hasSingleElement(body))
-    return microkernel->emitOpError()
-           << "requires exactly one structured RVV control-plane body block";
-
-  mlir::Block &block = body.front();
-  if (block.getNumArguments() != 1)
-    return microkernel->emitOpError()
-           << "requires structured control-plane body to have exactly one "
-              "runtime index block argument for target/export-owned n/AVL";
-  if (!block.getArgument(0).getType().isIndex())
-    return microkernel->emitOpError()
-           << "requires structured control-plane body argument to have index "
-              "type for runtime n/AVL";
-
-  SetVLOp setvl;
-  WithVLOp withVL;
-  unsigned setvlCount = 0;
-  unsigned withVLCount = 0;
-  for (mlir::Operation &bodyOp : block) {
-    if (auto candidate = llvm::dyn_cast<SetVLOp>(bodyOp)) {
-      setvl = candidate;
-      ++setvlCount;
-      continue;
-    }
-    if (auto candidate = llvm::dyn_cast<WithVLOp>(bodyOp)) {
-      withVL = candidate;
-      ++withVLCount;
-      continue;
-    }
-    return microkernel->emitOpError()
-           << "structured control-plane body accepts only "
-              "tcrv_rvv.setvl and tcrv_rvv.with_vl direct operations; "
-              "unexpected operation '"
-           << bodyOp.getName().getStringRef() << "'";
-  }
-
-  if (setvlCount != 1 || withVLCount != 1)
-    return microkernel->emitOpError()
-           << "requires exactly one tcrv_rvv.setvl and exactly one "
-              "tcrv_rvv.with_vl in the structured control-plane body";
-  if (setvl.getAvl() != block.getArgument(0))
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.setvl AVL operand to be the runtime index "
-              "body argument, not artifact-local component capacity or a "
-              "constant";
-  if (withVL.getVl() != setvl.getVl())
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.with_vl to consume the !tcrv_rvv.vl token "
-              "produced by the body tcrv_rvv.setvl";
-
-  auto withVLSew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
-  auto withVLLMUL = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
-  if (!withVLSew || !withVLLMUL ||
-      !withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName)) {
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.with_vl to carry explicit SEW/LMUL/policy "
-              "control metadata so emission can consume the structured body";
-  }
-  if (setvl.getSew() != 64 || setvl.getLmul() != "m1" ||
-      withVLSew.getInt() != 64 || withVLLMUL.getValue() != "m1")
-    return microkernel->emitOpError()
-           << "requires finite RVV i64 control-plane config SEW64/LMUL m1";
-
-  mlir::Region &withVLBody = withVL.getBody();
-  if (withVLBody.empty() || !llvm::hasSingleElement(withVLBody))
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.with_vl to own one body block";
-  if (withVLBody.front().getNumArguments() != 0)
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.with_vl body to have no block arguments; "
-              "runtime n/AVL/VL is carried by the enclosing control-plane "
-              "surface";
-
-  llvm::SmallVector<mlir::Operation *, 4> ops;
-  for (mlir::Operation &withVLOp : withVLBody.front())
-    ops.push_back(&withVLOp);
-  if (ops.size() != 4)
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.with_vl body to contain exactly the finite "
-              "tcrv_rvv.i64_load, tcrv_rvv.i64_load, "
-           << family.arithmeticOpName << ", "
-              "tcrv_rvv.i64_store dataflow sequence";
-
-  auto lhsLoad = llvm::dyn_cast<I64LoadOp>(ops[0]);
-  auto rhsLoad = llvm::dyn_cast<I64LoadOp>(ops[1]);
-  mlir::Value arithmeticLHS;
-  mlir::Value arithmeticRHS;
-  mlir::Value arithmeticVL;
-  mlir::Value arithmeticResult;
-  bool hasArithmetic = matchI64ArithmeticOp(ops[2], family.arithmetic,
-                                            arithmeticLHS, arithmeticRHS,
-                                            arithmeticVL, arithmeticResult);
-  auto store = llvm::dyn_cast<I64StoreOp>(ops[3]);
-  if (!lhsLoad || !rhsLoad || !hasArithmetic || !store)
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.with_vl body to contain exactly the finite "
-              "tcrv_rvv.i64_load, tcrv_rvv.i64_load, "
-           << family.arithmeticOpName << ", "
-              "tcrv_rvv.i64_store dataflow sequence";
-
-  if (lhsLoad.getVl() != withVL.getVl() || rhsLoad.getVl() != withVL.getVl() ||
-      arithmeticVL != withVL.getVl() || store.getVl() != withVL.getVl())
-    return microkernel->emitOpError()
-           << "requires every finite RVV i64 dataflow op to consume the "
-              "!tcrv_rvv.vl token owned by the surrounding tcrv_rvv.with_vl";
-
-  auto lhsRole = lhsLoad->getAttrOfType<mlir::StringAttr>(kBufferRoleAttrName);
-  auto rhsRole = rhsLoad->getAttrOfType<mlir::StringAttr>(kBufferRoleAttrName);
-  auto outRole = store->getAttrOfType<mlir::StringAttr>(kBufferRoleAttrName);
-  if (!lhsRole || lhsRole.getValue() !=
-                      tianchenrv::support::stringifyRuntimeABIParameterRole(
-                          tianchenrv::support::RuntimeABIParameterRole::
-                              LHSInputBuffer))
-    return microkernel->emitOpError()
-           << "requires first tcrv_rvv.i64_load to reference runtime ABI role "
-              "'lhs-input-buffer'";
-  if (!rhsRole || rhsRole.getValue() !=
-                      tianchenrv::support::stringifyRuntimeABIParameterRole(
-                          tianchenrv::support::RuntimeABIParameterRole::
-                              RHSInputBuffer))
-    return microkernel->emitOpError()
-           << "requires second tcrv_rvv.i64_load to reference runtime ABI role "
-              "'rhs-input-buffer'";
-  if (!outRole || outRole.getValue() !=
-                      tianchenrv::support::stringifyRuntimeABIParameterRole(
-                          tianchenrv::support::RuntimeABIParameterRole::
-                              OutputBuffer))
-    return microkernel->emitOpError()
-           << "requires tcrv_rvv.i64_store to reference runtime ABI role "
-              "'output-buffer'";
-
-  if (arithmeticLHS != lhsLoad.getLoaded() ||
-      arithmeticRHS != rhsLoad.getLoaded() ||
-      store.getValue() != arithmeticResult)
-    return microkernel->emitOpError()
-           << "requires finite RVV i64 dataflow SSA chain "
-              "lhs-load,rhs-load -> "
-           << family.arithmeticVerb << " -> store";
+  if (vl != withVL.getVl())
+    return op->emitOpError()
+           << "requires RVV dataflow op to consume the !tcrv_rvv.vl token "
+              "owned by the surrounding tcrv_rvv.with_vl";
 
   return mlir::success();
 }
@@ -1118,7 +610,9 @@ mlir::LogicalResult I32LoadOp::verify() {
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
-  if (mlir::failed(verifyNestedI32DataflowOp(op)))
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
   if (mlir::failed(
           verifyI32VectorTypeForWithVL(op, getLoaded(), "result")))
@@ -1171,8 +665,9 @@ mlir::LogicalResult I32AddOp::verify() {
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
-  if (mlir::failed(verifyNestedI32DataflowOp(
-          op, I32MicrokernelArithmetic::Add)))
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
   if (mlir::failed(verifyI32VectorTypeForWithVL(op, getLhs(), "lhs")))
     return mlir::failure();
@@ -1217,8 +712,9 @@ mlir::LogicalResult I32SubOp::verify() {
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
-  if (mlir::failed(verifyNestedI32DataflowOp(
-          op, I32MicrokernelArithmetic::Sub)))
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
   if (mlir::failed(verifyI32VectorTypeForWithVL(op, getLhs(), "lhs")))
     return mlir::failure();
@@ -1263,8 +759,9 @@ mlir::LogicalResult I32MulOp::verify() {
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
-  if (mlir::failed(verifyNestedI32DataflowOp(
-          op, I32MicrokernelArithmetic::Mul)))
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
   if (mlir::failed(verifyI32VectorTypeForWithVL(op, getLhs(), "lhs")))
     return mlir::failure();
@@ -1300,7 +797,9 @@ mlir::LogicalResult I32StoreOp::verify() {
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
-  if (mlir::failed(verifyNestedI32DataflowOp(op)))
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
   if (mlir::failed(verifyI32VectorTypeForWithVL(op, getValue(), "stored value")))
     return mlir::failure();
@@ -1342,7 +841,9 @@ mlir::LogicalResult I64LoadOp::verify() {
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError()
            << "requires runtime VL operand to have !tcrv_rvv.vl type";
-  if (mlir::failed(verifyNestedI64DataflowOp(op)))
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
   if (mlir::failed(
           verifyI64VectorTypeForWithVL(op, getLoaded(), "result")))
@@ -1391,8 +892,9 @@ mlir::LogicalResult I64AddOp::verify() {
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError()
            << "requires runtime VL operand to have !tcrv_rvv.vl type";
-  if (mlir::failed(
-          verifyNestedI64DataflowOp(op, I64MicrokernelArithmetic::Add)))
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
   if (mlir::failed(verifyI64VectorTypeForWithVL(op, getLhs(), "lhs")))
     return mlir::failure();
@@ -1436,8 +938,9 @@ mlir::LogicalResult I64SubOp::verify() {
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError()
            << "requires runtime VL operand to have !tcrv_rvv.vl type";
-  if (mlir::failed(
-          verifyNestedI64DataflowOp(op, I64MicrokernelArithmetic::Sub)))
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
   if (mlir::failed(verifyI64VectorTypeForWithVL(op, getLhs(), "lhs")))
     return mlir::failure();
@@ -1481,8 +984,9 @@ mlir::LogicalResult I64MulOp::verify() {
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError()
            << "requires runtime VL operand to have !tcrv_rvv.vl type";
-  if (mlir::failed(
-          verifyNestedI64DataflowOp(op, I64MicrokernelArithmetic::Mul)))
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
   if (mlir::failed(verifyI64VectorTypeForWithVL(op, getLhs(), "lhs")))
     return mlir::failure();
@@ -1518,7 +1022,9 @@ mlir::LogicalResult I64StoreOp::verify() {
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError()
            << "requires runtime VL operand to have !tcrv_rvv.vl type";
-  if (mlir::failed(verifyNestedI64DataflowOp(op)))
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
   if (mlir::failed(verifyI64VectorTypeForWithVL(op, getValue(), "stored value")))
     return mlir::failure();
@@ -1687,427 +1193,6 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
   }
 
   return mlir::success();
-}
-
-mlir::LogicalResult
-verifyI32MicrokernelOp(mlir::Operation *op,
-                       const I32MicrokernelFamilySpec &family) {
-  auto emitOpError = [&]() { return op->emitOpError(); };
-
-  for (mlir::NamedAttribute attr : op->getAttrs()) {
-    if (!isAllowedMicrokernelAttr(attr.getName().getValue()))
-      return emitOpError()
-             << "does not accept generic tensor/tile/benchmark or unknown "
-                "attribute '"
-             << attr.getName()
-             << "'; this op is exactly a bounded RVV i32 vector-"
-             << family.arithmeticVerb << " microkernel";
-  }
-
-  if (hasMissingOrEmptyStringAttr(op, kSourceKernelAttrName))
-    return emitOpError()
-           << "requires non-empty string attribute '" << kSourceKernelAttrName
-           << "'";
-  if (hasMissingOrEmptyStringAttr(op, kOriginAttrName))
-    return emitOpError()
-           << "requires non-empty string attribute '" << kOriginAttrName
-           << "'";
-  if (hasMissingOrEmptyStringAttr(op, kRoleAttrName))
-    return emitOpError()
-           << "requires non-empty string attribute '" << kRoleAttrName << "'";
-  if (hasMissingOrEmptyStringAttr(op, kRequiredMarchAttrName))
-    return emitOpError()
-           << "requires non-empty string attribute '" << kRequiredMarchAttrName
-           << "'";
-  if (hasPresentButEmptyStringAttr(op, kSelectedMABIAttrName))
-    return emitOpError()
-           << "requires non-empty string attribute '" << kSelectedMABIAttrName
-           << "' when present";
-
-  for (llvm::StringRef attrName :
-       {kSourceKernelAttrName, kOriginAttrName, kRoleAttrName,
-        kRequiredMarchAttrName, kSelectedMABIAttrName}) {
-    if (auto attr = op->getAttrOfType<mlir::StringAttr>(attrName))
-      if (mlir::failed(
-              verifyBoundedMetadata(op, attrName, attr.getValue().trim())))
-        return mlir::failure();
-  }
-
-  auto origin = op->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
-  if (origin.getValue() != kRVVPluginName)
-    return emitOpError()
-           << "origin must be '" << kRVVPluginName
-           << "' because this executable microkernel is RVV plugin-local";
-
-  auto role = op->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
-  if (!isAllowedLoweringBoundaryRole(role.getValue()))
-    return emitOpError()
-           << "role must be '" << kDirectVariantRoleValue << "' or '"
-           << kDispatchCaseRoleValue
-           << "'; dispatch fallback executable RVV microkernels are not "
-              "admitted by this first slice";
-
-  auto elementCount =
-      op->getAttrOfType<mlir::IntegerAttr>(kElementCountAttrName);
-  if (!elementCount)
-    return emitOpError()
-           << "requires integer attribute '" << kElementCountAttrName << "'";
-  int64_t count = elementCount.getInt();
-  if (count <= 0 || count > 64)
-    return emitOpError()
-           << "element_count must be in the bounded smoke range [1, 64]";
-
-  auto requiredMarch =
-      op->getAttrOfType<mlir::StringAttr>(kRequiredMarchAttrName);
-  if (!hasRVVVectorHint(requiredMarch.getValue()))
-    return emitOpError()
-           << "required_march must contain RVV vector evidence";
-
-  auto selectedVariant =
-      op->getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
-  if (!selectedVariant || selectedVariant.getValue().trim().empty())
-    return emitOpError()
-           << "requires non-empty variant symbol reference attribute '"
-           << kSelectedVariantAttrName << "'";
-
-  auto requiredCapabilities =
-      op->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
-  if (!requiredCapabilities || requiredCapabilities.empty())
-    return emitOpError()
-           << "requires non-empty array attribute '"
-           << kRequiredCapabilitiesAttrName
-           << "' containing capability symbol references";
-
-  auto kernel = op->getParentOfType<tianchenrv::tcrv::exec::KernelOp>();
-  if (!kernel)
-    return emitOpError() << "must be nested directly in a tcrv.exec.kernel";
-  if (op->getParentOp() != kernel.getOperation())
-    return emitOpError()
-           << "must be a direct child of the enclosing tcrv.exec.kernel";
-
-  auto sourceKernel =
-      op->getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
-  if (sourceKernel.getValue() != kernel.getSymName())
-    return emitOpError()
-           << "source_kernel must match enclosing tcrv.exec.kernel symbol @"
-           << kernel.getSymName();
-
-  if (kernel.getBody().empty())
-    return emitOpError()
-           << "requires enclosing tcrv.exec.kernel to have a body block";
-
-  llvm::Expected<tianchenrv::support::TargetCapabilitySet>
-      capabilitiesOrError =
-          tianchenrv::support::TargetCapabilitySet::buildFromKernelChecked(
-              kernel);
-  if (!capabilitiesOrError) {
-    std::string message = llvm::toString(capabilitiesOrError.takeError());
-    return emitOpError() << message;
-  }
-  const tianchenrv::support::TargetCapabilitySet &capabilities =
-      *capabilitiesOrError;
-
-  tianchenrv::tcrv::exec::VariantOp resolvedVariant;
-  for (mlir::Operation &sibling : kernel.getBody().front()) {
-    auto variant =
-        llvm::dyn_cast<tianchenrv::tcrv::exec::VariantOp>(sibling);
-    if (variant && variant.getSymName() == selectedVariant.getValue()) {
-      resolvedVariant = variant;
-      break;
-    }
-  }
-  if (!resolvedVariant)
-    return emitOpError()
-           << "selected_variant @" << selectedVariant.getValue()
-           << " must resolve to a direct sibling tcrv.exec.variant in the "
-              "enclosing tcrv.exec.kernel";
-
-  auto variantOrigin =
-      resolvedVariant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
-  if (!variantOrigin || variantOrigin.getValue() != kRVVPluginName)
-    return emitOpError()
-           << "selected_variant must be owned by origin '" << kRVVPluginName
-           << "'";
-
-  auto variantRequiredMarch =
-      resolvedVariant->getAttrOfType<mlir::StringAttr>(
-          kRVVVariantRequiredMarchAttrName);
-  if (!variantRequiredMarch || variantRequiredMarch.getValue().trim().empty())
-    return emitOpError()
-           << "selected_variant requires non-empty string metadata '"
-           << kRVVVariantRequiredMarchAttrName << "'";
-  if (variantRequiredMarch.getValue().trim() != requiredMarch.getValue().trim())
-    return emitOpError()
-           << "required_march must match selected variant '"
-           << kRVVVariantRequiredMarchAttrName << "' metadata";
-
-  auto variantRequires =
-      resolvedVariant->getAttrOfType<mlir::ArrayAttr>("requires");
-  if (!arrayAttrsEqual(requiredCapabilities, variantRequires))
-    return emitOpError()
-           << "required_capabilities must match selected variant requires "
-              "metadata";
-
-  bool requiresRVV = false;
-  for (mlir::Attribute requiredCapability : requiredCapabilities) {
-    auto symbolRef =
-        llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
-    if (!symbolRef)
-      return emitOpError()
-             << "attribute '" << kRequiredCapabilitiesAttrName
-             << "' must contain only capability symbol references";
-
-    const tianchenrv::support::CapabilityDescriptor *capability =
-        capabilities.lookupBySymbolName(symbolRef.getValue());
-    if (!capability)
-      return emitOpError()
-             << "requires unknown capability @" << symbolRef.getValue()
-             << " in enclosing tcrv.exec.kernel";
-
-    if (!capability->isAvailable())
-      return emitOpError()
-             << "requires unavailable capability @" << symbolRef.getValue();
-
-    if (capability->satisfiesID(kRVVCapabilityID))
-      requiresRVV = true;
-  }
-
-  if (!requiresRVV)
-    return emitOpError()
-           << "required_capabilities must include capability id 'rvv'";
-
-  if (mlir::failed(verifyMicrokernelStructuredControlPlane(op, family)))
-    return mlir::failure();
-
-  return mlir::success();
-}
-
-mlir::LogicalResult verifyI64MicrokernelOp(
-    mlir::Operation *op, const I64MicrokernelFamilySpec &family) {
-  auto emitOpError = [&]() { return op->emitOpError(); };
-
-  for (mlir::NamedAttribute attr : op->getAttrs()) {
-    if (!isAllowedMicrokernelAttr(attr.getName().getValue()))
-      return emitOpError()
-             << "does not accept generic tensor/tile/benchmark or unknown "
-                "attribute '"
-             << attr.getName()
-             << "'; this op is exactly a bounded RVV i64 vector "
-             << family.arithmeticVerb << " microkernel";
-  }
-
-  if (hasMissingOrEmptyStringAttr(op, kSourceKernelAttrName))
-    return emitOpError()
-           << "requires non-empty string attribute '" << kSourceKernelAttrName
-           << "'";
-  if (hasMissingOrEmptyStringAttr(op, kOriginAttrName))
-    return emitOpError()
-           << "requires non-empty string attribute '" << kOriginAttrName
-           << "'";
-  if (hasMissingOrEmptyStringAttr(op, kRoleAttrName))
-    return emitOpError()
-           << "requires non-empty string attribute '" << kRoleAttrName << "'";
-  if (hasMissingOrEmptyStringAttr(op, kRequiredMarchAttrName))
-    return emitOpError()
-           << "requires non-empty string attribute '" << kRequiredMarchAttrName
-           << "'";
-  if (hasPresentButEmptyStringAttr(op, kSelectedMABIAttrName))
-    return emitOpError()
-           << "requires non-empty string attribute '" << kSelectedMABIAttrName
-           << "' when present";
-
-  for (llvm::StringRef attrName :
-       {kSourceKernelAttrName, kOriginAttrName, kRoleAttrName,
-        kRequiredMarchAttrName, kSelectedMABIAttrName}) {
-    if (auto attr = op->getAttrOfType<mlir::StringAttr>(attrName))
-      if (mlir::failed(
-              verifyBoundedMetadata(op, attrName, attr.getValue().trim())))
-        return mlir::failure();
-  }
-
-  auto origin = op->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
-  if (origin.getValue() != kRVVPluginName)
-    return emitOpError()
-           << "origin must be '" << kRVVPluginName
-           << "' because this executable microkernel is RVV plugin-local";
-
-  auto role = op->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
-  if (!isAllowedLoweringBoundaryRole(role.getValue()))
-    return emitOpError()
-           << "role must be '" << kDirectVariantRoleValue << "' or '"
-           << kDispatchCaseRoleValue
-           << "'; dispatch fallback executable RVV microkernels are not "
-              "admitted by this first slice";
-
-  auto elementCount =
-      op->getAttrOfType<mlir::IntegerAttr>(kElementCountAttrName);
-  if (!elementCount)
-    return emitOpError()
-           << "requires integer attribute '" << kElementCountAttrName << "'";
-  int64_t count = elementCount.getInt();
-  if (count <= 0 || count > 64)
-    return emitOpError()
-           << "element_count must be in the bounded smoke range [1, 64]";
-
-  auto requiredMarch =
-      op->getAttrOfType<mlir::StringAttr>(kRequiredMarchAttrName);
-  if (!hasRVVVectorHint(requiredMarch.getValue()))
-    return emitOpError()
-           << "required_march must contain RVV vector evidence";
-
-  auto selectedVariant =
-      op->getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
-  if (!selectedVariant || selectedVariant.getValue().trim().empty())
-    return emitOpError()
-           << "requires non-empty variant symbol reference attribute '"
-           << kSelectedVariantAttrName << "'";
-
-  auto requiredCapabilities =
-      op->getAttrOfType<mlir::ArrayAttr>(kRequiredCapabilitiesAttrName);
-  if (!requiredCapabilities || requiredCapabilities.empty())
-    return emitOpError()
-           << "requires non-empty array attribute '"
-           << kRequiredCapabilitiesAttrName
-           << "' containing capability symbol references";
-
-  auto kernel = op->getParentOfType<tianchenrv::tcrv::exec::KernelOp>();
-  if (!kernel)
-    return emitOpError() << "must be nested directly in a tcrv.exec.kernel";
-  if (op->getParentOp() != kernel.getOperation())
-    return emitOpError()
-           << "must be a direct child of the enclosing tcrv.exec.kernel";
-
-  auto sourceKernel =
-      op->getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
-  if (sourceKernel.getValue() != kernel.getSymName())
-    return emitOpError()
-           << "source_kernel must match enclosing tcrv.exec.kernel symbol @"
-           << kernel.getSymName();
-
-  if (kernel.getBody().empty())
-    return emitOpError()
-           << "requires enclosing tcrv.exec.kernel to have a body block";
-
-  llvm::Expected<tianchenrv::support::TargetCapabilitySet>
-      capabilitiesOrError =
-          tianchenrv::support::TargetCapabilitySet::buildFromKernelChecked(
-              kernel);
-  if (!capabilitiesOrError) {
-    std::string message = llvm::toString(capabilitiesOrError.takeError());
-    return emitOpError() << message;
-  }
-  const tianchenrv::support::TargetCapabilitySet &capabilities =
-      *capabilitiesOrError;
-
-  tianchenrv::tcrv::exec::VariantOp resolvedVariant;
-  for (mlir::Operation &sibling : kernel.getBody().front()) {
-    auto variant =
-        llvm::dyn_cast<tianchenrv::tcrv::exec::VariantOp>(sibling);
-    if (variant && variant.getSymName() == selectedVariant.getValue()) {
-      resolvedVariant = variant;
-      break;
-    }
-  }
-  if (!resolvedVariant)
-    return emitOpError()
-           << "selected_variant @" << selectedVariant.getValue()
-           << " must resolve to a direct sibling tcrv.exec.variant in the "
-              "enclosing tcrv.exec.kernel";
-
-  auto variantOrigin =
-      resolvedVariant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
-  if (!variantOrigin || variantOrigin.getValue() != kRVVPluginName)
-    return emitOpError()
-           << "selected_variant must be owned by origin '" << kRVVPluginName
-           << "'";
-
-  auto variantRequiredMarch =
-      resolvedVariant->getAttrOfType<mlir::StringAttr>(
-          kRVVVariantRequiredMarchAttrName);
-  if (!variantRequiredMarch || variantRequiredMarch.getValue().trim().empty())
-    return emitOpError()
-           << "selected_variant requires non-empty string metadata '"
-           << kRVVVariantRequiredMarchAttrName << "'";
-  if (variantRequiredMarch.getValue().trim() != requiredMarch.getValue().trim())
-    return emitOpError()
-           << "required_march must match selected variant '"
-           << kRVVVariantRequiredMarchAttrName << "' metadata";
-
-  auto variantRequires =
-      resolvedVariant->getAttrOfType<mlir::ArrayAttr>("requires");
-  if (!arrayAttrsEqual(requiredCapabilities, variantRequires))
-    return emitOpError()
-           << "required_capabilities must match selected variant requires "
-              "metadata";
-
-  bool requiresRVV = false;
-  for (mlir::Attribute requiredCapability : requiredCapabilities) {
-    auto symbolRef =
-        llvm::dyn_cast<mlir::FlatSymbolRefAttr>(requiredCapability);
-    if (!symbolRef)
-      return emitOpError()
-             << "attribute '" << kRequiredCapabilitiesAttrName
-             << "' must contain only capability symbol references";
-
-    const tianchenrv::support::CapabilityDescriptor *capability =
-        capabilities.lookupBySymbolName(symbolRef.getValue());
-    if (!capability)
-      return emitOpError()
-             << "requires unknown capability @" << symbolRef.getValue()
-             << " in enclosing tcrv.exec.kernel";
-
-    if (!capability->isAvailable())
-      return emitOpError()
-             << "requires unavailable capability @" << symbolRef.getValue();
-
-    if (capability->satisfiesID(kRVVCapabilityID))
-      requiresRVV = true;
-  }
-
-  if (!requiresRVV)
-    return emitOpError()
-           << "required_capabilities must include capability id 'rvv'";
-
-  if (mlir::failed(verifyI64MicrokernelStructuredControlPlane(op, family)))
-    return mlir::failure();
-
-  return mlir::success();
-}
-
-mlir::LogicalResult I32VAddMicrokernelOp::verify() {
-  return verifyI32MicrokernelOp(
-      getOperation(),
-      getI32MicrokernelFamilySpec(I32MicrokernelArithmetic::Add));
-}
-
-mlir::LogicalResult I32VSubMicrokernelOp::verify() {
-  return verifyI32MicrokernelOp(
-      getOperation(),
-      getI32MicrokernelFamilySpec(I32MicrokernelArithmetic::Sub));
-}
-
-mlir::LogicalResult I32VMulMicrokernelOp::verify() {
-  return verifyI32MicrokernelOp(
-      getOperation(),
-      getI32MicrokernelFamilySpec(I32MicrokernelArithmetic::Mul));
-}
-
-mlir::LogicalResult I64VAddMicrokernelOp::verify() {
-  return verifyI64MicrokernelOp(
-      getOperation(),
-      getI64MicrokernelFamilySpec(I64MicrokernelArithmetic::Add));
-}
-
-mlir::LogicalResult I64VSubMicrokernelOp::verify() {
-  return verifyI64MicrokernelOp(
-      getOperation(),
-      getI64MicrokernelFamilySpec(I64MicrokernelArithmetic::Sub));
-}
-
-mlir::LogicalResult I64VMulMicrokernelOp::verify() {
-  return verifyI64MicrokernelOp(
-      getOperation(),
-      getI64MicrokernelFamilySpec(I64MicrokernelArithmetic::Mul));
 }
 
 void TCRVRVVDialect::initialize() {

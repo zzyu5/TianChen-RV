@@ -1284,8 +1284,8 @@ explicit extension-family ops -> materialized MLIR EmitC module -> artifact
 ### 1. Scope / Trigger
 
 Trigger: historical post-planning MLIR would previously have selected an RVV
-path and a bounded RVV microkernel attachment, then exported executable C
-directly from selected metadata and target records.
+path and a bounded RVV wrapper attachment, then exported executable C directly
+from selected metadata and target records.
 
 This boundary is deleted. RVV direct microkernel source/header/object and
 self-check exports must fail closed until a future route materializes a real
@@ -1317,18 +1317,19 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   enclosing kernel capability set must preserve matching selected march metadata
   through exact providers or explicit relation-provider target profile scope
   for `rvv.probe.compile_run.selected_march` or `rvv.toolchain.march.value`.
-- If the selected variant carries bounded `tcrv_rvv.element_count`, that field
-  is metadata-only diagnostic input. It must not ask the RVV plugin to
-  materialize a microkernel, callable ABI, generated C source, correctness
+- If the selected variant carries legacy bounded `tcrv_rvv.element_count`,
+  that field is metadata-only diagnostic input. It must not ask the RVV plugin
+  to materialize a wrapper, callable ABI, generated C source, correctness
   coverage, performance, or broad
   microarchitecture semantics.
 - A matching direct child `tcrv_rvv.lowering_boundary` must identify the same
   source kernel, selected variant, origin, role, status, and required
   capability refs.
-- A matching direct child `tcrv_rvv.i32_vadd_microkernel`, if present in a
-  historical fixture, is fail-closed input. It must not be treated as selected
-  compute truth, descriptor/config validation authority, or a source of
-  callable ABI parameters.
+- Deleted direct child `tcrv_rvv.*_microkernel` wrappers are no longer
+  parseable active RVV dialect inputs. Historical references to those wrappers
+  are fail-closed deleted-route evidence only and must not be treated as
+  selected compute truth, descriptor/config validation authority, or a source
+  of callable ABI parameters.
 - RVV selected emission planning must not resolve lhs-input-buffer,
   rhs-input-buffer, output-buffer, or runtime-element-count ABI parameters from
   `selectedPlan.descriptor` or finite family records.
@@ -1345,12 +1346,10 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   fallback-only path -> export fails before source output.
 - Missing, duplicate, stale, role-mismatched, status-mismatched, or
   required-capability-mismatched `tcrv_rvv.lowering_boundary` -> export fails.
-- Missing, duplicate, stale, selected-variant-mismatched,
-  required-capability-mismatched, invalid-element-count, malformed-march,
+- Deleted RVV wrapper references, missing or stale selected-path metadata,
   malformed structured control/dataflow body, setvl/with_vl policy mismatch,
-  missing or mismatched finite RVV i32 load/add/store sequence, or secret-like
-  `tcrv_rvv.i32_vadd_microkernel` -> deleted-route/fail-closed behavior; no
-  source/header/object bytes are emitted.
+  or missing future EmitC route authority -> deleted-route/fail-closed
+  behavior; no source/header/object bytes are emitted.
 - Missing, unavailable, non-symbol, non-RVV, or unknown selected variant
   requirements -> export fails.
 - Missing or mismatched preserved selected march capability metadata -> export

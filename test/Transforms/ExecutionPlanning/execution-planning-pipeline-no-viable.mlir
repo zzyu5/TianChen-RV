@@ -16,5 +16,4 @@ module {
 }
 
 // CHECK: error: TianChen-RV plugin variant materialization for kernel @pipeline_no_viable_after_rvv_decline collected no viable plugin proposals; recoverable plugin declines in registration order: rvv-plugin:
-// CHECK-SAME: requires an explicit typed RVV extension-family body
-// CHECK-SAME: no-body RVV proposal materialization is a rebuild gap
+// CHECK-SAME: RVV capability requires bounded 'architecture' capability property

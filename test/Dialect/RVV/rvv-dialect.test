@@ -1,5 +1,5 @@
 # RUN: tianchenrv-rvv-dialect-test | FileCheck %s
 
 # CHECK: RVV typed policy attribute round trip preserved
-# CHECK: RVV i32 vector-add microkernel round trip preserved
+# CHECK: RVV i32 vector-add dataflow round trip preserved
 # CHECK: RVV dialect registration smoke test passed

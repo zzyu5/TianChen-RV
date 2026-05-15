@@ -1776,3 +1776,10 @@ Deleted the RVV-derived scalar/RVV-scalar bridge header, removed scalar plugin m
 ### Next Steps
 
 - None - task complete
+## 2026-05-15 - RVV executable microkernel dialect erasure
+
+- Task: `.trellis/tasks/05-15-rvv-executable-microkernel-dialect-erasure` / `RVV executable microkernel dialect erasure`.
+- Deleted the active RVV dialect executable wrapper ops `I32VAddMicrokernelOp`, `I32VSubMicrokernelOp`, `I32VMulMicrokernelOp`, `I64VAddMicrokernelOp`, `I64VSubMicrokernelOp`, and `I64VMulMicrokernelOp` from `RVVOps.td`.
+- Removed RVV microkernel family specs and wrapper-name verifier authority from `RVVDialect.cpp`; surviving dataflow ops are now bounded under direct `tcrv_rvv.with_vl` control and matching `vl` token checks.
+- Replaced RVV dialect wrapper tests with `test/Dialect/RVV/dataflow.mlir`; rewrote/deleted focused RVV wrapper attachments in VariantMaterialization, VariantSelection, ExecutionPlanning, RVVScalarDispatch, ArtifactExport, and EmissionManifest fixtures.
+- Validation: focused C++ targets and tests passed; focused lit over `Dialect/RVV`, `Target/RVVMicrokernel`, `Transforms/VariantMaterialization`, `Transforms/VariantSelection`, `Transforms/ExecutionPlanning`, `Target/RVVScalarDispatch`, `Target/ArtifactExport`, and `Target/EmissionManifest` passed 38/38; Trellis validation and `git diff --check` passed.

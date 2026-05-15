@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin boundary and deleted executable route rules"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime deleted direct C and metadata-only route contract"}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Primary RVV ODS surface to delete wrapper ops from"}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Primary RVV verifier implementation to remove microkernel family authority from"}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "change": "Deleted six RVV executable microkernel wrapper ops and kept only non-executable control, lowering-boundary, and bounded dataflow surfaces."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "change": "Removed RVV microkernel family specs and wrapper-name verifier authority; rewired surviving dataflow verifiers to require direct tcrv_rvv.with_vl nesting and matching vl tokens."}
+{"file": "test/Dialect/RVV", "type": "directory", "change": "Deleted wrapper-op lit fixtures and replaced them with dataflow coverage for i32m1, i32m2, i64, nesting, vl-token, config, and element_count rejection."}
+{"file": "test/Transforms", "type": "directory", "change": "Removed hand-authored tcrv_rvv.*_microkernel attachments and repaired focused selected-metadata fixtures to match the remaining unsupported metadata boundary contract."}
+{"file": "test/Target", "type": "directory", "change": "Removed hand-authored tcrv_rvv.*_microkernel attachments and repaired focused target fixtures to match the remaining unsupported metadata boundary contract."}

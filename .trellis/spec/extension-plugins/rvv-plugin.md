@@ -85,7 +85,7 @@ materialized requires form: requires may be [@rvv] only when @rvv is a
 typed policy attr name: tcrv_rvv.policy
 typed policy attr value: #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
 property requirement attr name: tcrv_rvv.required_march
-finite element-count attr name: tcrv_rvv.element_count
+deleted legacy element-count attr name: tcrv_rvv.element_count
 optional vlenb attr name: tcrv_rvv.vlenb_bytes
 optional base i32 m1 lane attr name: tcrv_rvv.base_i32_m1_lanes
 selected vector-shape attr names:
@@ -242,8 +242,8 @@ on the same SEW/LMUL/tail/mask policy ids.
   `mask_policy = "agnostic"`.
 - Runtime `n`, AVL, VL, and dispatch guard values remain runtime SSA/control
   or ABI values. They must not be encoded as these compile-time config
-  capability facts. Descriptor-local `tcrv_rvv.element_count` remains a bounded
-  artifact descriptor, not a runtime trip count.
+  capability facts. Deleted descriptor-local `tcrv_rvv.element_count` metadata
+  must not be reintroduced as a runtime trip count or artifact descriptor.
 
 ### 4. Validation & Error Matrix
 
@@ -354,17 +354,17 @@ plugin-local direct kernel-child `tcrv_rvv.*_microkernel`, `setvl`/`with_vl`,
 load/arithmetic/store body, or callable runtime ABI boundary from finite family
 records, legacy route helpers, lowering tokens, route ids, or descriptor
 mirrors. Until the rebuild supplies explicit extension-family IR plus a
-materialized MLIR EmitC module route, RVV microkernel attachments and
-descriptor-derived callable ABI data are fail-closed metadata, not active
-emission authority.
+materialized MLIR EmitC module route, deleted RVV wrapper attachments and
+descriptor-derived callable ABI data are fail-closed historical inputs, not
+active emission authority.
 
 The former microkernel direct C slice is deleted as production authority. If
-the selected `rvv-plugin` path has a matching RVV microkernel attachment,
-`RVVExtensionPlugin` must report an unsupported emission plan for
-runtime-callable source until the rebuild provides a materialized MLIR EmitC
-module route. Target/export code must not synthesize RVV compute C bodies from
-selected metadata, family records, route records, or attached microkernel
-records. RVV source/object/header routes must fail closed instead of producing
+the selected `rvv-plugin` path reaches emission planning, `RVVExtensionPlugin`
+must report an unsupported emission plan for runtime-callable source until the
+rebuild provides a materialized MLIR EmitC module route. Target/export code
+must not synthesize RVV compute C bodies from selected metadata, family
+records, route records, or deleted wrapper records. RVV source/object/header
+routes must fail closed instead of producing
 `riscv_vector.h` intrinsic source, relocatable objects, or self-check harnesses
 from the old direct printer path.
 
@@ -474,8 +474,8 @@ RVV plugin path. The default `registerAllDialects` path remains core-only; RVV
 dialect availability is proven by populating an `ExtensionPluginRegistry` with
 the RVV plugin and calling `registerPluginDialects`.
 
-The first RVV dialect slice started as metadata/control-plane only and now has
-bounded i32 add/sub/mul dataflow exceptions for the finite microkernel export. It
+The current RVV dialect slice is metadata/control-plane plus bounded explicit
+dataflow only; the former executable microkernel wrapper ops are deleted. It
 introduces the vector-length token type `!tcrv_rvv.vl`, the finite policy
 attribute
 `#tcrv_rvv.policy<tail = agnostic|undisturbed, mask =
@@ -483,7 +483,8 @@ agnostic|undisturbed>`, the bounded runtime AVL-to-VL control-plane operation
 `tcrv_rvv.setvl`, the bounded VL scope region operation `tcrv_rvv.with_vl`,
 the finite `tcrv_rvv.i32_load`, `tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`,
 `tcrv_rvv.i32_mul`, and `tcrv_rvv.i32_store` ops nested under that scope for
-the current i32 add/sub/mul export routes, and the pre-executable
+non-executable i32 dataflow modeling, the corresponding bounded i64 dataflow
+ops, and the pre-executable
 `tcrv_rvv.lowering_boundary` operation. The setvl op
 consumes a runtime AVL SSA value, produces a `!tcrv_rvv.vl` token, and carries
 only bounded first-slice compile-time config metadata: SEW 32, LMUL m1 or m2,
@@ -493,8 +494,9 @@ duplicated SEW/LMUL/policy metadata is limited to the same bounded first-slice
 config and must agree with the visible defining setvl when present. The bounded
 i32 add/sub/mul dataflow body carries finite runtime ABI role references on
 the explicit lhs load, rhs load, and output store operations; concrete C
-parameter names are resolved from runtime ABI metadata by the target exporter
-when that metadata is present. It is not a generic vector memory model. The
+parameter names are not resolved into executable artifacts until a future
+EmitC route rebuild provides the required ABI boundary. It is not a generic
+vector memory model. The
 boundary
 op records selected RVV source/variant/role/status metadata for a future
 lowering attachment point. These surfaces are not generic RVV arithmetic,
@@ -627,12 +629,11 @@ contract metadata (`origin = "rvv-plugin"` and `required_capabilities`
 matching the selected variant requirement references) so target-neutral
 emission planning can validate the boundary before materializing diagnostics.
 The lowering boundary no longer carries op-owned source or direct route
-identity fields. Typed RVV microkernel bodies remain the structural authority
-for bounded family selection, and future executable emission must be rebuilt
-through explicit extension-family IR plus a materialized MLIR EmitC module
-route. The boundary does not become a descriptor owner, executable lowering,
-runtime ABI implementation, hardware execution, correctness proof, or
-performance claim.
+identity fields. The former typed RVV microkernel wrappers are deleted as
+structural authority; future executable emission must be rebuilt through
+explicit extension-family IR plus a materialized MLIR EmitC module route. The
+boundary does not become a descriptor owner, executable lowering, runtime ABI
+implementation, hardware execution, correctness proof, or performance claim.
 These surfaces are not vector registers, masks, memory operations, RVV
 intrinsics, LLVM/RISC-V lowering, runtime ABI, executable emission, correctness
 evidence, or performance evidence.
@@ -657,7 +658,7 @@ RVV work must keep these parameter layers distinct:
   selected vector shape, AVL, VL, runtime `n`, or performance evidence.
 - SEW, LMUL, tail policy, and mask policy are compile-time variant config
   selected or proposed by the RVV plugin and checked against target
-  capabilities. The current executable first slice admits only SEW 32 with
+  capabilities. The current non-executable bounded RVV dataflow slice admits only SEW 32 with
   LMUL m1 or m2, tail agnostic, and mask agnostic. The m1 shape is backed by
   `rvv.i32_m1.sew32`, `rvv.i32_m1.lmul_m1`,
   `rvv.i32_m1.tail_policy.agnostic`, and
@@ -665,14 +666,14 @@ RVV work must keep these parameter layers distinct:
   `rvv.i32_m2.sew32`, `rvv.i32_m2.lmul_m2`,
   `rvv.i32_m2.tail_policy.agnostic`, and
   `rvv.i32_m2.mask_policy.agnostic`. A selected variant must require exactly
-  one shape, and the target exporter must reject selected capability/body LMUL
-  mismatches before artifact bytes are emitted. These config ids are not
+  one shape, and future EmitC/export routes must reject selected capability/body
+  LMUL mismatches before artifact bytes are emitted. These config ids are not
   sufficient as standalone hardware facts without the surrounding
   RVV/profile/toolchain evidence.
 - The selected vector-shape config is the target-owned serialization of that
   compile-time choice. Materialized RVV variants, `tcrv_rvv.lowering_boundary`,
-  the i32 add/sub/mul microkernel ops, selected-plan metadata, and generated
-  RVV C source comments must agree on `selected_vector_shape`,
+  selected-plan metadata, and any future generated RVV C source comments must
+  agree on `selected_vector_shape`,
   `selected_vector_sew`, `selected_vector_lmul`, `selected_tail_policy`,
   `selected_mask_policy`, `selected_vector_type`,
   `selected_vector_suffix`, and `selected_setvl_suffix`. If any selected-shape
@@ -691,10 +692,10 @@ RVV work must keep these parameter layers distinct:
   models vl only when it consumes a real `!tcrv_rvv.vl` SSA operand. It must not
   imply that AVL or vl is IR-modeled unless a real op attribute, SSA value,
   region argument, or ABI parameter exists.
-- `tcrv_rvv.element_count` is legacy bounded selected-path metadata when it
-  appears on RVV first-slice surfaces. It does not describe a valid descriptor,
-  emitted source slice, production input, high-level MLIR tensor shape, global
-  problem size, AVL, or vl.
+- `tcrv_rvv.element_count` is deleted legacy selected-path metadata for RVV.
+  Active RVV dialect ops must reject local `element_count` attributes; the
+  value does not describe a valid descriptor, emitted source slice, production
+  input, high-level MLIR tensor shape, global problem size, AVL, or vl.
 - `tcrv_rvv.required_march` string matching is a bounded plugin-owned
   compatibility bridge for the current first slice. Do not expand dependence on
   `required_march` string comparisons when structured capabilities or
@@ -968,8 +969,9 @@ route before printing RVV intrinsic C/C++.
 - Good: future rebuilt i32 add emits `tcrv_rvv.i32_add`, the route records
   `emitc.call_opaque` for `__riscv_vadd_vv_i32m1`, and generated C calls that
   intrinsic.
-- Base: a hand-authored bounded RVV microkernel with the same verified body can
-  use the same route after selected-path and ABI preflight pass.
+- Base: a hand-authored bounded RVV explicit dataflow body with the same
+  verified `setvl` / `with_vl` / load-arithmetic-store sequence can use the
+  same route after selected-path and ABI preflight pass.
 - Bad: stale descriptor mirror metadata says i32 add but the body contains
   `tcrv_rvv.i32_sub`; export must fail instead of printing vadd C from the
   metadata.

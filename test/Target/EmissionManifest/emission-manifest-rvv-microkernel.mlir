@@ -46,7 +46,15 @@ module @rvv_microkernel_manifest_input {
       policy = "metadata_only_first_slice",
       requires = [@rvv],
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv"
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
     } {
     }
     tcrv.exec.diagnostic {
@@ -63,9 +71,9 @@ module @rvv_microkernel_manifest_input {
 
 // DELETED: emission_kind = "rvv-unsupported-metadata-boundary"
 // DELETED-SAME: lowering_pipeline = "rvv-none-executable-unsupported"
-// DELETED-SAME: message = "RVV metadata-only first slice has no RVV lowering pipeline, runtime ABI, artifact contract, or executable emission path; this unsupported emission plan is a plugin-owned diagnostic boundary and not RVV hardware/toolchain/runtime/correctness/performance evidence"
+// DELETED-SAME: message = "RVV first slice has no materialized EmitC lowering, runtime ABI, artifact contract, or executable emission path"
 // DELETED-SAME: reason = "emission_plan"
-// DELETED-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
-// DELETED-SAME: runtime_abi_name = "rvv-executable-runtime-abi-deferred"
-// DELETED-SAME: runtime_glue_role = "deferred-rvv-runtime-glue"
+// DELETED-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+// DELETED-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
+// DELETED-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
 // DELETED-SAME: status = "unsupported"

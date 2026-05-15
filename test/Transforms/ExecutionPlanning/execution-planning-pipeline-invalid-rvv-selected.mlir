@@ -44,7 +44,15 @@ module {
       policy = "metadata_only_first_slice",
       requires = [@rvv],
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gc"
+      tcrv_rvv.required_march = "rv64gc",
+      tcrv_rvv.selected_vector_shape = "i32m4",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
     } {
     }
   }
@@ -52,6 +60,6 @@ module {
 
 // CHECK: error: TianChen-RV variant legality verification failed for variant @rvv_bad_selected in kernel @pipeline_invalid_selected_rvv_metadata
 // CHECK-SAME: origin plugin 'rvv-plugin' rejected variant
-// CHECK: 'tcrv_rvv.required_march' metadata is not satisfied by preserved capability property 'selected_march'
+// CHECK: materialized RVV variant selected vector-shape must be i32m1 or i32m2
 // CHECK-NOT: TianChen-RV variant selection failed
 // CHECK-NOT: selected lowering-boundary materialization

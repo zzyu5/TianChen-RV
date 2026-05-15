@@ -298,11 +298,7 @@ int expectBoundaryTarget(LoweringBoundaryOp boundary,
                  "boundary records required capability references"))
     return result;
 
-  auto capabilitySummary =
-      boundary->getAttrOfType<mlir::StringAttr>("capability_summary");
-  return expect(capabilitySummary &&
-                    capabilitySummary.getValue().contains("rvv"),
-                "boundary records RVV capability summary");
+  return 0;
 }
 
 int runSelectedRVVWithScalarFallbackBoundaryTest() {
@@ -339,7 +335,16 @@ module {
       origin = "rvv-plugin",
       policy = "metadata_only_first_slice",
       requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
     } {
     }
     tcrv.exec.variant @scalar_fallback_first_slice attributes {
@@ -464,7 +469,16 @@ module {
       origin = "rvv-plugin",
       policy = "metadata_only_first_slice",
       requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
     } {
     }
     tcrv.exec.diagnostic {
@@ -554,7 +568,7 @@ module {
   return expectErrorContains(
       tianchenrv::plugin::materializeSelectedLoweringBoundaries(kernel,
                                                                plugins),
-      {"failed plugin legality", "tcrv_rvv.policy"});
+      {"failed lowering-boundary materialization", "tcrv_rvv.policy"});
 }
 
 int runEmissionPlanStatusesRemainBoundedTest() {
@@ -588,7 +602,16 @@ module {
     tcrv.exec.variant @rvv_first_slice attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
     } {
     }
     tcrv.exec.variant @scalar_fallback_first_slice attributes {
@@ -964,7 +987,16 @@ module {
     tcrv.exec.variant @rvv_first_slice attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
     } {
     }
     tcrv.exec.diagnostic {

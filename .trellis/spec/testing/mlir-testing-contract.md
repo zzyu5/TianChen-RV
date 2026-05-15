@@ -153,33 +153,28 @@ Use lit/FileCheck for:
   descriptor metadata is not a supported emission plan, and no
   `riscv_vector.h` / `__riscv_` C source is emitted.
 - RVV selected microkernel descriptor materialization is deleted. Tests must
-  assert that selected-boundary materialization does not auto-create
-  `tcrv_rvv.i32_vadd_microkernel` or structured `setvl` / `with_vl` /
+  assert that selected-boundary materialization does not auto-create deleted
+  RVV wrapper ops or structured `setvl` / `with_vl` /
   load/arithmetic/store bodies from finite selected descriptor residue, and
   that RVV selected emission planning does not build callable ABI parameters or
   supported source/header/object routes from descriptor/family records.
-  Dialect parse/verify for hand-authored `tcrv_rvv.*_microkernel` ops may
-  remain only as syntax coverage or fail-closed input coverage until the
-  rebuild supplies explicit extension-family IR plus a materialized MLIR EmitC
-  module route. Tests must expect no generated RVV C source, header, object,
-  self-check harness, runtime-success, raw-log, correctness, or performance
-  claim from descriptor-selected legacy RVV microkernel paths.
-- RVV microkernel emission-plan and emission-manifest handoff,
-  now deletion-campaign fail-closed: selected RVV paths with or without matching
-  `tcrv_rvv.*_microkernel` attachments must not produce supported
-  runtime-callable C source metadata, descriptor-derived ABI parameters, or
-  manifest entries until the Common EmitC rebuild supplies a materialized
-  source authority. Tests should cover unsupported metadata-only diagnostics,
-  stale/duplicate microkernel inputs as deleted-route failures, and the fact
-  that microkernel attachments are not replacement lowering boundaries.
+  Dialect parse/verify coverage must target the surviving explicit
+  `setvl` / `with_vl` / dataflow ops; hand-authored
+  `tcrv_rvv.*_microkernel` wrapper syntax is no longer active coverage.
+  Tests must expect no generated RVV C source, header, object, self-check
+  harness, runtime-success, raw-log, correctness, or performance claim from
+  descriptor-selected legacy RVV microkernel paths.
+- RVV microkernel emission-plan and emission-manifest handoff is
+  deletion-campaign fail-closed: selected RVV metadata paths must not produce
+  supported runtime-callable C source metadata, descriptor-derived ABI
+  parameters, or manifest entries until the Common EmitC rebuild supplies a
+  materialized source authority. Tests should cover unsupported metadata-only
+  diagnostics, stale deleted-route inputs, and the fact that deleted wrapper
+  attachments are not replacement lowering boundaries.
 - generic target source artifact export routing, including post-planning
-  selected-path/emission-plan consumption, deterministic agreement with the
-  direct RVV microkernel C exporter for the checked-in explicit microkernel
-  fixture, generic route coverage for the target-owned RVV+scalar dispatch
-  composite exporter when a planned selected dispatch has both callable sides,
-  and generic target artifact coverage for the target-owned direct RVV
-  microkernel object exporter when a direct selected RVV path has one supported
-  callable side,
+  selected-path/emission-plan consumption, metadata-only fail-closed coverage
+  for deleted RVV direct artifact routes, and generic route coverage for
+  non-RVV supported metadata artifact paths,
   fail-closed diagnostics for unsupported metadata-only paths, missing
   plan/route metadata, unknown route ids, unsupported artifact kinds, stale
   selected paths, missing lowering boundaries, missing microkernels, ambiguous
@@ -419,17 +414,13 @@ or fail-closed and that no `riscv_vector.h` / `__riscv_` source text is printed.
 Any future RVV hardware/toolchain smoke evidence belongs in explicit probe
 tooling, not a compiler source artifact frontdoor.
 
-If the repository exports generated C for an explicit
-`tcrv_rvv.i32_vadd_microkernel`, local lit tests must cover the dialect op and
-exporter without requiring `ssh rvv`, including the runtime-callable C ABI
-function, absence of an embedded `main` in the default source artifact, and the
-explicit harness call into that function when using the harness export. Any
-remote compile/run of the harness source must be reported separately as bounded
-microkernel correctness evidence only for that explicit source, selected flags,
-and generated runtime `n` cases. It must not be reported as generic TianChen-RV
-lowering correctness, arbitrary RVV emission support, full runtime integration,
-or performance
-evidence.
+If a future rebuild exports generated C for explicit RVV extension-family
+dataflow, local lit tests must cover the source IR, materialized EmitC route,
+and exporter without requiring `ssh rvv`. Any remote compile/run of the source
+must be reported separately as bounded route evidence only for that explicit
+source, selected flags, and generated runtime `n` cases. It must not be
+reported as generic TianChen-RV lowering correctness, arbitrary RVV emission
+support, full runtime integration, or performance evidence.
 
 If the repository exports a generated RVV+scalar dispatch self-check C harness,
 local lit tests must cover the harness structure without requiring `ssh rvv`.

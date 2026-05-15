@@ -16,7 +16,7 @@ using tianchenrv::plugin::ExtensionPlugin;
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
 using tianchenrv::tcrv::exec::VariantOp;
-using tianchenrv::tcrv::rvv::I32VAddMicrokernelOp;
+using tianchenrv::tcrv::rvv::I32AddOp;
 using tianchenrv::tcrv::rvv::MaskPolicy;
 using tianchenrv::tcrv::rvv::PolicyAttr;
 using tianchenrv::tcrv::rvv::TCRVRVVDialect;
@@ -235,11 +235,11 @@ module {
   return 0;
 }
 
-int runI32VAddMicrokernelRoundTripTest() {
+int runI32DataflowRoundTripTest() {
   ExtensionPluginRegistry plugins;
   if (int result = expectSuccess(
           tianchenrv::plugin::registerRVVExtensionPlugin(plugins),
-          "register RVV plugin for microkernel round trip"))
+          "register RVV plugin for dataflow round trip"))
     return result;
 
   mlir::DialectRegistry dialectRegistry;
@@ -251,7 +251,7 @@ int runI32VAddMicrokernelRoundTripTest() {
 
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @microkernel_roundtrip attributes {} {
+  tcrv.exec.kernel @dataflow_roundtrip attributes {} {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -264,64 +264,40 @@ module {
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
     } {
     }
-    tcrv_rvv.i32_vadd_microkernel attributes {
-      element_count = 16 : i64,
-      origin = "rvv-plugin",
-      required_capabilities = [@rvv],
-      required_march = "rv64gcv",
-      role = "direct variant",
-      selected_variant = @rvv_first_slice,
-      source_kernel = "microkernel_roundtrip"
+    %runtime_n = "builtin.unrealized_conversion_cast"() : () -> index
+    %vl = tcrv_rvv.setvl %runtime_n {
+      lmul = "m1",
+      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      sew = 32 : i64
+    } : index -> !tcrv_rvv.vl
+    tcrv_rvv.with_vl %vl attributes {
+      lmul = "m1",
+      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      sew = 32 : i64
     } {
-    ^bb0(%runtime_n: index):
-      %vl = tcrv_rvv.setvl %runtime_n {
-        lmul = "m1",
-        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-        sew = 32 : i64
-      } : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {
-        lmul = "m1",
-        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-        sew = 32 : i64
-      } {
-        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
-      } : !tcrv_rvv.vl
-    }
+      %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+      %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+      %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+      tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
+    } : !tcrv_rvv.vl
   }
 }
 )mlir";
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
-    return fail("failed to parse RVV i32 vector-add microkernel op");
+    return fail("failed to parse RVV i32 vector-add dataflow ops");
 
-  I32VAddMicrokernelOp microkernel;
-  module->walk([&](I32VAddMicrokernelOp candidate) {
-    microkernel = candidate;
-  });
+  I32AddOp add;
+  module->walk([&](I32AddOp candidate) { add = candidate; });
   if (int result =
-          expect(static_cast<bool>(microkernel),
-                 "module contains tcrv_rvv.i32_vadd_microkernel"))
-    return result;
-
-  auto elementCount =
-      microkernel->getAttrOfType<mlir::IntegerAttr>("element_count");
-  if (int result = expect(elementCount && elementCount.getInt() == 16,
-                          "microkernel element_count is preserved"))
+          expect(static_cast<bool>(add), "module contains tcrv_rvv.i32_add"))
     return result;
 
   std::string printedStorage;
   llvm::raw_string_ostream printedStream(printedStorage);
   module->print(printedStream);
   printedStream.flush();
-  if (int result =
-          expect(llvm::StringRef(printedStorage)
-                     .contains("tcrv_rvv.i32_vadd_microkernel"),
-                 "printed module preserves RVV microkernel op"))
-    return result;
   if (int result =
           expect(llvm::StringRef(printedStorage).contains("tcrv_rvv.setvl") &&
                      llvm::StringRef(printedStorage)
@@ -332,23 +308,21 @@ module {
                          .contains("tcrv_rvv.i32_add") &&
                      llvm::StringRef(printedStorage)
                          .contains("tcrv_rvv.i32_store"),
-                 "printed module preserves structured RVV dataflow body"))
+                 "printed module preserves explicit RVV dataflow body"))
     return result;
 
   mlir::OwningOpRef<mlir::ModuleOp> reparsed =
       parseModule(context, printedStorage);
   if (!reparsed)
-    return fail("failed to reparse printed RVV microkernel module");
+    return fail("failed to reparse printed RVV dataflow module");
 
-  I32VAddMicrokernelOp reparsedMicrokernel;
-  reparsed->walk([&](I32VAddMicrokernelOp candidate) {
-    reparsedMicrokernel = candidate;
-  });
-  if (int result = expect(static_cast<bool>(reparsedMicrokernel),
-                          "reparsed module preserves RVV microkernel op"))
+  I32AddOp reparsedAdd;
+  reparsed->walk([&](I32AddOp candidate) { reparsedAdd = candidate; });
+  if (int result = expect(static_cast<bool>(reparsedAdd),
+                          "reparsed module preserves RVV dataflow op"))
     return result;
 
-  llvm::outs() << "RVV i32 vector-add microkernel round trip preserved\n";
+  llvm::outs() << "RVV i32 vector-add dataflow round trip preserved\n";
   return 0;
 }
 
@@ -468,7 +442,7 @@ int main() {
     return result;
   if (int result = runPolicyAttributeRoundTripTest())
     return result;
-  if (int result = runI32VAddMicrokernelRoundTripTest())
+  if (int result = runI32DataflowRoundTripTest())
     return result;
   if (int result = runDefaultCoreDoesNotRegisterRVVDialectTest())
     return result;

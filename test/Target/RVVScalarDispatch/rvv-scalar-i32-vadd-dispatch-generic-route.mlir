@@ -67,32 +67,6 @@ module {
       tcrv_rvv.selected_setvl_suffix = "e32m1"
     } {
     }
-    tcrv_rvv.i32_vadd_microkernel attributes {
-      element_count = 16 : i64,
-      origin = "rvv-plugin",
-      required_capabilities = [@rvv],
-      required_march = "rv64gcv",
-      role = "direct variant",
-      selected_variant = @rvv_first_slice,
-      selected_vector_shape = "i32m1",
-      selected_vector_sew = 32 : i64,
-      selected_vector_lmul = "m1",
-      selected_tail_policy = "agnostic",
-      selected_mask_policy = "agnostic",
-      selected_vector_type = "vint32m1_t",
-      selected_vector_suffix = "i32m1",
-      selected_setvl_suffix = "e32m1",
-      source_kernel = "conflict_planned_dispatch"
-    } {
-    ^bb0(%runtime_n: index):
-      %vl = tcrv_rvv.setvl %runtime_n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        tcrv_rvv.i32_store %sum, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
-      } : !tcrv_rvv.vl
-    }
   }
 }
 
