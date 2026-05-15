@@ -22,10 +22,6 @@ constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
 constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
     "role_specific_interface");
 constexpr llvm::StringLiteral kEmitCCallAttrName("emitc_call");
-constexpr llvm::StringLiteral kRuntimeCallableCSourceArtifactKind(
-    "runtime-callable-c-source");
-constexpr llvm::StringLiteral kStandaloneCSourceArtifactKind(
-    "standalone-c-source");
 
 llvm::Error makeConstructionError(const ValidationSpec &spec,
                                   llvm::Twine message) {
@@ -53,9 +49,25 @@ llvm::Error requireNonEmpty(const ValidationSpec &spec,
   return llvm::Error::success();
 }
 
-bool isDeletedSourceArtifactKind(llvm::StringRef artifactKind) {
-  return artifactKind == kRuntimeCallableCSourceArtifactKind ||
-         artifactKind == kStandaloneCSourceArtifactKind;
+bool hasArtifactKindToken(llvm::StringRef artifactKind,
+                          llvm::StringRef token) {
+  std::string lowered = artifactKind.lower();
+  std::string currentToken;
+  for (char character : lowered) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (std::isalnum(byte)) {
+      currentToken.push_back(character);
+      continue;
+    }
+    if (llvm::StringRef(currentToken) == token)
+      return true;
+    currentToken.clear();
+  }
+  return llvm::StringRef(currentToken) == token;
+}
+
+bool isSourceArtifactKind(llvm::StringRef artifactKind) {
+  return hasArtifactKindToken(artifactKind, "source");
 }
 
 const RoleExpectation *findRoleExpectation(const ValidationSpec &spec,
@@ -196,13 +208,14 @@ llvm::Error verifyEmitCMapping(const Manifest &manifest,
         spec, llvm::Twine("EmitC route mapping must preserve ") +
                   spec.familyDisplayName + " route metadata");
 
-  if (isDeletedSourceArtifactKind(actual.artifactKind))
+  if (isSourceArtifactKind(actual.artifactKind))
     return makeConstructionError(
-        spec, llvm::Twine("EmitC route mapping uses deleted source artifact "
-                          "kind '") +
+        spec, llvm::Twine("EmitC route mapping uses unsupported source "
+                          "artifact kind '") +
                   actual.artifactKind +
-                  "'; plugin construction routes must use metadata, object, "
-                  "header, or future materialized MLIR EmitC artifacts");
+                  "'; plugin construction routes must use current metadata, "
+                  "object, or header artifacts until a materialized MLIR "
+                  "EmitC source route exists");
 
   if (llvm::Expected<llvm::StringMap<std::string>> callsByRole =
           parseRoleToCallMapInManifestOrder(spec, actual.roleToCallMap,

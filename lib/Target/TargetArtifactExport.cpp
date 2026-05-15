@@ -38,12 +38,8 @@ constexpr llvm::StringLiteral kSymbolNameAttrName("sym_name");
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
 constexpr llvm::StringLiteral kDispatchCaseRole("dispatch case");
 constexpr llvm::StringLiteral kDispatchFallbackRole("dispatch fallback");
-constexpr llvm::StringLiteral kRuntimeCallableCSourceArtifactKind(
-    "runtime-callable-c-source");
 constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
     "runtime-callable-c-header");
-constexpr llvm::StringLiteral kStandaloneCSourceArtifactKind(
-    "standalone-c-source");
 constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
     "riscv-elf-relocatable-object");
 constexpr llvm::StringLiteral kTargetArtifactFrontDoor(
@@ -147,9 +143,25 @@ llvm::Error makeTargetArtifactFrontDoorError(KernelOp kernel,
                                              llvm::errc::invalid_argument);
 }
 
-bool isDeletedSourceArtifactKind(llvm::StringRef artifactKind) {
-  return artifactKind == kRuntimeCallableCSourceArtifactKind ||
-         artifactKind == kStandaloneCSourceArtifactKind;
+bool hasArtifactKindToken(llvm::StringRef artifactKind,
+                          llvm::StringRef token) {
+  std::string lowered = artifactKind.lower();
+  std::string currentToken;
+  for (char character : lowered) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (std::isalnum(byte)) {
+      currentToken.push_back(character);
+      continue;
+    }
+    if (llvm::StringRef(currentToken) == token)
+      return true;
+    currentToken.clear();
+  }
+  return llvm::StringRef(currentToken) == token;
+}
+
+bool isSourceArtifactKind(llvm::StringRef artifactKind) {
+  return hasArtifactKindToken(artifactKind, "source");
 }
 
 bool isHeaderArtifactKind(llvm::StringRef artifactKind) {
@@ -157,7 +169,7 @@ bool isHeaderArtifactKind(llvm::StringRef artifactKind) {
 }
 
 bool isDefaultGenericArtifactKind(llvm::StringRef artifactKind) {
-  return !isDeletedSourceArtifactKind(artifactKind) &&
+  return !isSourceArtifactKind(artifactKind) &&
          !isHeaderArtifactKind(artifactKind);
 }
 
@@ -1713,12 +1725,12 @@ llvm::Error validateTargetArtifactBundleComponentContract(
     if (record.routeID.empty())
       return makeTargetArtifactBundleExportError(
           "bundle artifact record requires non-empty route");
-    if (isDeletedSourceArtifactKind(record.artifactKind))
+    if (isSourceArtifactKind(record.artifactKind))
       return makeTargetArtifactBundleExportError(
           llvm::Twine("bundle artifact route '") + record.routeID +
-          "' uses deleted source artifact kind '" + record.artifactKind +
-          "'; runtime-callable C source components require a future "
-          "materialized MLIR EmitC route");
+          "' uses source artifact kind '" + record.artifactKind +
+          "'; source components require a future materialized MLIR EmitC "
+          "route");
 
     llvm::StringRef expectedComponentRole =
         getBundleComponentRoleForArtifactKind(record.artifactKind);
@@ -2706,12 +2718,12 @@ llvm::Error TargetArtifactExporterRegistry::registerExporter(
     return makeRegistryError("exporter route id must be non-empty");
   if (exporter.getArtifactKind().trim().empty())
     return makeRegistryError("exporter artifact kind must be non-empty");
-  if (isDeletedSourceArtifactKind(exporter.getArtifactKind()))
+  if (isSourceArtifactKind(exporter.getArtifactKind()))
     return makeRegistryError(
         llvm::Twine("exporter route id '") + exporter.getRouteID() +
-        "' uses deleted source artifact kind '" + exporter.getArtifactKind() +
+        "' uses source artifact kind '" + exporter.getArtifactKind() +
         "'; target artifact exporters must use object, header, or metadata "
-        "artifacts until a materialized MLIR EmitC route exists");
+        "artifacts until a materialized MLIR EmitC source route exists");
   if (!exporter.getExportFn())
     return makeRegistryError("exporter callback must be non-null");
   if (llvm::Error error = validateRouteMetadataShape(exporter))
@@ -2740,12 +2752,12 @@ llvm::Error TargetArtifactExporterRegistry::registerCompositeExporter(
   if (exporter.getArtifactKind().trim().empty())
     return makeRegistryError(
         "composite exporter artifact kind must be non-empty");
-  if (isDeletedSourceArtifactKind(exporter.getArtifactKind()))
+  if (isSourceArtifactKind(exporter.getArtifactKind()))
     return makeRegistryError(
         llvm::Twine("composite exporter route id '") + exporter.getRouteID() +
-        "' uses deleted source artifact kind '" + exporter.getArtifactKind() +
+        "' uses source artifact kind '" + exporter.getArtifactKind() +
         "'; target artifact exporters must use object, header, or metadata "
-        "artifacts until a materialized MLIR EmitC route exists");
+        "artifacts until a materialized MLIR EmitC source route exists");
   if (!exporter.getMatchFn())
     return makeRegistryError(
         "composite exporter match callback must be non-null");

@@ -1,5 +1,5 @@
 # RUN: tcrv-opt %S/../EmissionManifest/emission-manifest-rvv-microkernel.mlir --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans > %t.rvv-microkernel-post-planning.mlir
-# RUN: FileCheck %s --check-prefix=RVV-PLAN --implicit-check-not="artifact_kind = \"runtime-callable-c-source\"" --implicit-check-not="status = \"supported\"" < %t.rvv-microkernel-post-planning.mlir
+# RUN: FileCheck %s --check-prefix=RVV-PLAN --implicit-check-not="status = \"supported\"" < %t.rvv-microkernel-post-planning.mlir
 # RUN: not tcrv-translate --tcrv-export-rvv-microkernel-c %t.rvv-microkernel-post-planning.mlir 2>&1 | FileCheck %s --check-prefix=RVV-DIRECT-ROUTE-DELETED --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="__riscv_"
 # RUN: not tcrv-translate --tcrv-export-target-source-artifact %t.rvv-microkernel-post-planning.mlir 2>&1 | FileCheck %s --check-prefix=GENERIC-SOURCE-FRONT-DOOR-DELETED --implicit-check-not="#include <riscv_vector.h>" --implicit-check-not="__riscv_"
 

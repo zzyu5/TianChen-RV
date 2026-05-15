@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that final changes respect global stack and architecture invariants."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check deletion does not introduce descriptor-driven or independent backend semantics."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check remaining emission/runtime validation does not preserve direct-C source authority."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin/core boundary remains interface-driven and generic."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests no longer protect deleted direct-C artifact route names."}

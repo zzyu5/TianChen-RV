@@ -202,7 +202,7 @@ std::string buildInterfaceSummary(const Manifest &manifest) {
   return summary;
 }
 
-int runDeletedSourceArtifactKindConstructionTest() {
+int runSourceArtifactKindConstructionTest() {
   namespace template_ext = tianchenrv::plugin::template_ext;
   namespace construction = tianchenrv::plugin::construction;
 
@@ -214,8 +214,7 @@ int runDeletedSourceArtifactKindConstructionTest() {
   };
   const llvm::StringRef requiredEvidence[] = {"emitc_route_mapping"};
 
-  for (llvm::StringRef artifactKind :
-       {"runtime-callable-c-source", "standalone-c-source"}) {
+  for (llvm::StringRef artifactKind : {"future-emitc-source-artifact"}) {
     Manifest manifest = template_ext::getTemplateConstructionManifest();
     construction::EmitCMapping emitcRoute = manifest.emitcRoute;
     emitcRoute.artifactKind = artifactKind;
@@ -236,9 +235,9 @@ int runDeletedSourceArtifactKindConstructionTest() {
 
     if (int result = expectErrorContains(
             construction::verifyConstructionManifest(manifest, spec),
-            {"EmitC route mapping uses deleted source artifact kind",
-             artifactKind, "materialized MLIR EmitC"},
-            "deleted source artifact kind construction route"))
+            {"EmitC route mapping uses unsupported source artifact kind",
+             artifactKind, "materialized MLIR EmitC source route"},
+            "source artifact kind construction route"))
       return result;
   }
 
@@ -254,7 +253,7 @@ int main() {
     return result;
   if (int result = runTensorExtLiteCommonRouteTest())
     return result;
-  if (int result = runDeletedSourceArtifactKindConstructionTest())
+  if (int result = runSourceArtifactKindConstructionTest())
     return result;
   return 0;
 }

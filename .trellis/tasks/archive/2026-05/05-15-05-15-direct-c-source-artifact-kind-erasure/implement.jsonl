@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants: C++/MLIR stack, unified TCRV RISC-V MLIR, descriptor/direct-C deletion targets, and current lowering route."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Architecture boundary for deletion-only work: no descriptor-driven exporter framework, no independent backend branches, no hardware claims without ssh rvv evidence."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime contract for deleted direct C semantic exporters and future materialized MLIR EmitC route authority."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry/interface locality rules for extension-owned emission metadata and generic core orchestration."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing rules for deleted direct-C exporter coverage and focused MLIR/C++/lit evidence."}

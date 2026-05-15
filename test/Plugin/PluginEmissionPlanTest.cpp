@@ -58,23 +58,24 @@ public:
       out = VariantEmissionPlan::getSupported(
           name, request.getKernel().getSymName(),
           request.getVariant().getSymName(), request.getRole(),
-          "deleted-direct-c-source", "deleted-direct-c-source-route",
-          "deleted-direct-c-source-abi.v1", "runtime-callable-c-source",
-          "negative test plan that must not validate as source output");
+          "future-emitc-source-probe", "future-emitc-source-route",
+          "future-emitc-source-abi.v1", "future-emitc-source-artifact",
+          "source artifact plan that must fail closed without materialized "
+          "EmitC");
       break;
     case SourcePlanStatus::MetadataOnly:
       out = VariantEmissionPlan::getMetadataOnly(
           name, request.getKernel().getSymName(),
           request.getVariant().getSymName(), request.getRole(),
-          "deleted-direct-c-source", "deleted-direct-c-source-route",
-          "deleted-direct-c-source-abi.v1", "runtime-callable-c-source",
-          "negative test metadata plan that must not validate as source "
-          "output");
+          "future-emitc-source-probe", "future-emitc-source-route",
+          "future-emitc-source-abi.v1", "future-emitc-source-artifact",
+          "source artifact metadata plan that must fail closed without "
+          "materialized EmitC");
       break;
     }
 
     out.setRuntimeABIKind("plugin-owned-runtime-abi");
-    out.setRuntimeABIName("deleted-direct-c-source-abi.v1");
+    out.setRuntimeABIName("future-emitc-source-abi.v1");
     out.setRuntimeGlueRole("plugin-owned-runtime-glue");
     out.addRuntimeABIParameter(RuntimeABIParameter(
         "lhs", "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer,
@@ -193,9 +194,9 @@ module {
                                    VariantEmissionRole::DirectVariant);
     if (int result = expectErrorContains(
             registry.buildVariantEmissionPlan(request, plan),
-            {"produced invalid emission plan", "deleted source artifact kind",
-             "runtime-callable-c-source",
-             "materialized MLIR EmitC route"}))
+            {"produced invalid emission plan", "source artifact kind",
+             "future-emitc-source-artifact",
+             "materialized MLIR EmitC source route"}))
       return result;
   }
 

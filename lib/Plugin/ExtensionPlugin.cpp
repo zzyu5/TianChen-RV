@@ -29,10 +29,6 @@ constexpr llvm::StringLiteral kUnsupportedRuntimeABIName(
     "unsupported-emission-runtime-abi");
 constexpr llvm::StringLiteral kUnsupportedRuntimeGlueRole(
     "no-runtime-glue-unsupported");
-constexpr llvm::StringLiteral kRuntimeCallableCSourceArtifactKind(
-    "runtime-callable-c-source");
-constexpr llvm::StringLiteral kStandaloneCSourceArtifactKind(
-    "standalone-c-source");
 
 bool shouldIncludePlugin(const ExtensionPlugin &plugin, bool enabledOnly) {
   return !enabledOnly || plugin.isEnabled();
@@ -99,9 +95,25 @@ bool isBoundedSingleLineEmissionMetadataText(llvm::StringRef value) {
   return true;
 }
 
-bool isDeletedSourceArtifactKind(llvm::StringRef artifactKind) {
-  return artifactKind == kRuntimeCallableCSourceArtifactKind ||
-         artifactKind == kStandaloneCSourceArtifactKind;
+bool hasArtifactKindToken(llvm::StringRef artifactKind,
+                          llvm::StringRef token) {
+  std::string lowered = artifactKind.lower();
+  std::string currentToken;
+  for (char character : lowered) {
+    unsigned char byte = static_cast<unsigned char>(character);
+    if (std::isalnum(byte)) {
+      currentToken.push_back(character);
+      continue;
+    }
+    if (llvm::StringRef(currentToken) == token)
+      return true;
+    currentToken.clear();
+  }
+  return llvm::StringRef(currentToken) == token;
+}
+
+bool isSourceArtifactKind(llvm::StringRef artifactKind) {
+  return hasArtifactKindToken(artifactKind, "source");
 }
 
 void setDefaultRuntimeOwnershipMetadata(VariantEmissionPlan &plan,
@@ -1683,20 +1695,19 @@ llvm::Error validateRuntimeABIParameters(
   return llvm::Error::success();
 }
 
-llvm::Error validateDeletedSourceArtifactKind(
+llvm::Error validateCurrentArtifactKindShape(
     tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
     VariantEmissionRole role, const ExtensionPlugin &plugin,
     const VariantEmissionPlan &plan) {
   if ((plan.isSupported() || plan.isMetadataOnly()) &&
-      isDeletedSourceArtifactKind(plan.getArtifactKind()))
+      isSourceArtifactKind(plan.getArtifactKind()))
     return makeVariantEmissionPlanError(
         variant, kernel, role,
         llvm::Twine("origin plugin '") + plugin.getName() +
-            "' produced invalid emission plan: deleted source artifact kind '" +
+            "' produced invalid emission plan: source artifact kind '" +
             plan.getArtifactKind() +
-            "' is not legal for supported or metadata-only plugin plans; "
-            "runtime-callable C source output requires a future materialized "
-            "MLIR EmitC route");
+            "' is not legal for supported or metadata-only plugin plans until "
+            "a materialized MLIR EmitC source route exists");
 
   return llvm::Error::success();
 }
@@ -1850,7 +1861,7 @@ llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
             "' produced invalid emission plan: runtime ABI metadata requires "
             "non-empty runtime glue role");
 
-  if (llvm::Error error = validateDeletedSourceArtifactKind(
+  if (llvm::Error error = validateCurrentArtifactKindShape(
           variant, kernel, role, plugin, plan))
     return error;
   if (!plan.isUnsupported())

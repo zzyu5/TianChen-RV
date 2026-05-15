@@ -56,6 +56,59 @@ Deleted Support-owned I32/RVV runtime ABI contracts and helpers; rewired tests/s
 - None - task complete
 
 
+## Session 78: Direct-C source artifact kind erasure
+
+**Date**: 2026-05-15
+**Task**: Direct-C Source Artifact Kind Erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the remaining active `runtime-callable-c-source` /
+`standalone-c-source` route-kind authority from plugin construction,
+plugin emission-plan validation, target artifact export, and directly
+protecting tests. Validation now fail-closes on generic source artifact-kind
+shape without preserving the old direct-C route IDs as code branches or
+fixtures.
+
+### Main Changes
+
+- Removed old-name-specific source artifact-kind constants and predicates from
+  `lib/Plugin/Construction`, `lib/Plugin`, and `lib/Target`.
+- Replaced old route-kind rejection with generic source-token artifact-kind
+  fail-closed validation.
+- Rewrote focused construction, emission-plan, target export, and lit tests to
+  use generic source artifact fail-closed probes instead of deleted direct-C
+  route names.
+- Kept current metadata/header/object route behavior intact; no compatibility
+  layer or new source route was added.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(target): erase direct-c source artifact kinds |
+
+### Testing
+
+- [OK] `cmake --build artifacts/tmp/tianchenrv-build --target tianchenrv-construction-protocol-common-test tianchenrv-plugin-emission-plan-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-plugin-emission-plan-test`
+- [OK] `artifacts/tmp/tianchenrv-build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/ArtifactExport/target-source-artifact-routes.test` from `artifacts/tmp/tianchenrv-build/test`
+- [OK] `rg -n "runtime-callable-c-source|standalone-c-source|deleted source artifact kind" lib/Plugin lib/Target test/Plugin test/Target` returned no matches
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-15-05-15-direct-c-source-artifact-kind-erasure`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 77: Delete common EmitC source-authority exporter residue
 
 **Date**: 2026-05-15

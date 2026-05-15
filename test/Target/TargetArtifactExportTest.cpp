@@ -1844,15 +1844,16 @@ bool expectTargetArtifactBundleComponentContractValidation() {
           {"requires exactly one header and object component_role"}))
     return false;
 
-  llvm::SmallVector<TargetArtifactBundleRecord, 3> deletedSource;
-  deletedSource.append(records.begin(), records.end());
-  deletedSource.push_back(makeDispatchBundleComponentRecord(
-      "runtime-callable-c-source",
-      "bundle-test-generic-dispatch-source", "source"));
+  llvm::SmallVector<TargetArtifactBundleRecord, 3> sourceArtifact;
+  sourceArtifact.append(records.begin(), records.end());
+  sourceArtifact.push_back(makeDispatchBundleComponentRecord(
+      "future-emitc-source-artifact", "bundle-test-generic-dispatch-source",
+      "source"));
   if (!expectErrorContains(
-          validateTargetArtifactBundleComponentContract(deletedSource),
-          "deleted dispatch bundle source component rejected",
-          {"uses deleted source artifact kind", "runtime-callable-c-source"}))
+          validateTargetArtifactBundleComponentContract(sourceArtifact),
+          "source artifact dispatch bundle component rejected",
+          {"uses source artifact kind", "future-emitc-source-artifact",
+           "materialized MLIR EmitC"}))
     return false;
 
   llvm::SmallVector<TargetArtifactBundleRecord, 2> missingABI(records);
@@ -2060,22 +2061,24 @@ int main() {
                      "null composite callback rejected"))
     return 1;
 
-  TargetArtifactExporterRegistry sourceResidueRegistry;
+  TargetArtifactExporterRegistry sourceArtifactRegistry;
   if (!expectErrorContains(
-          sourceResidueRegistry.registerExporter(TargetArtifactExporter(
-              "deleted-runtime-source", "runtime-callable-c-source",
+          sourceArtifactRegistry.registerExporter(TargetArtifactExporter(
+              "future-source-artifact-route", "future-emitc-source-artifact",
               "test-plugin", "test-source", noopExporter)),
-          "deleted runtime-callable source exporter rejected",
-          {"deleted source artifact kind", "runtime-callable-c-source"}))
+          "source artifact exporter rejected",
+          {"source artifact kind", "future-emitc-source-artifact",
+           "materialized MLIR EmitC source route"}))
     return 1;
   if (!expectErrorContains(
-          sourceResidueRegistry.registerCompositeExporter(
+          sourceArtifactRegistry.registerCompositeExporter(
               TargetArtifactCompositeExporter(
-                  "deleted-runtime-source-composite",
-                  "runtime-callable-c-source", alwaysMatchComposite,
+                  "future-source-artifact-composite",
+                  "future-emitc-source-artifact", alwaysMatchComposite,
                   noopExporter)),
-          "deleted runtime-callable source composite rejected",
-          {"deleted source artifact kind", "runtime-callable-c-source"}))
+          "source artifact composite rejected",
+          {"source artifact kind", "future-emitc-source-artifact",
+           "materialized MLIR EmitC source route"}))
     return 1;
 
   TargetArtifactExporterRegistry compositeSelectionRegistry;
