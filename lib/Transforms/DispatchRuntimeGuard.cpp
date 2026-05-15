@@ -211,7 +211,7 @@ llvm::Error ensureDispatchAvailabilityGuardParam(KernelOp kernel,
                                                  mlir::OpBuilder &builder,
                                                  RuntimeParamOp &out) {
   support::RuntimeABIParamSpec spec =
-      support::getDispatchAvailabilityGuardParamSpec();
+      support::getDispatchAvailabilityGuardParamSpec("dispatch_available");
   llvm::SmallVector<support::RuntimeABIParamSpec, 1> specs;
   specs.push_back(spec);
 

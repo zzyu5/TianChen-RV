@@ -72,7 +72,7 @@ module {
 
 // IR: tcrv.exec.runtime_param @abi_dispatch_availability_guard
 // IR-SAME: abi_role = "dispatch-availability-guard"
-// IR-SAME: c_name = "rvv_available"
+// IR-SAME: c_name = "dispatch_available"
 // IR-SAME: c_type = "int"
 // IR: tcrv.exec.dispatch
 // IR: tcrv.exec.case @rvv_first_slice

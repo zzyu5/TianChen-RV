@@ -37,27 +37,18 @@ namespace {
 using tianchenrv::plugin::ExtensionPlugin;
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
-using tianchenrv::support::I32BinaryRuntimeABIContract;
-using tianchenrv::support::I32BinaryCallableRuntimeABIParameterBindings;
+using tianchenrv::support::FiniteBinaryCallableRuntimeABIParameterBindings;
+using tianchenrv::support::FiniteBinaryRuntimeABIContract;
+using tianchenrv::support::FiniteBinaryRuntimeABIContractSpec;
 using tianchenrv::support::RuntimeABIParameter;
 using tianchenrv::support::RuntimeABIParameterOwnership;
 using tianchenrv::support::RuntimeABIParameterRole;
 
-const I32BinaryRuntimeABIContract &
-getRuntimeABIContract(llvm::StringRef familyID) {
-  return tianchenrv::support::getI32BinaryRuntimeABIContract(familyID);
-}
-
-const I32BinaryRuntimeABIContract &getAddRuntimeABIContract() {
-  return getRuntimeABIContract("i32-vadd");
-}
-
-const I32BinaryRuntimeABIContract &getSubRuntimeABIContract() {
-  return getRuntimeABIContract("i32-vsub");
-}
-
-const I32BinaryRuntimeABIContract &getMulRuntimeABIContract() {
-  return getRuntimeABIContract("i32-vmul");
+const FiniteBinaryRuntimeABIContract &getPluginI32RuntimeABIContract() {
+  static const FiniteBinaryRuntimeABIContract contract(
+      FiniteBinaryRuntimeABIContractSpec{"plugin-owned-i32-binary",
+                                         "const int32_t *", "int32_t *"});
+  return contract;
 }
 
 llvm::Error noopExporter(mlir::ModuleOp, llvm::raw_ostream &) {
@@ -1142,24 +1133,14 @@ bool expectParameter(const RuntimeABIParameter &parameter,
   return false;
 }
 
-bool expectRuntimeABIDispatchIdentity(
-    const tianchenrv::support::RuntimeABIDispatchIdentity &identity,
-    llvm::StringRef runtimeABIKind, llvm::StringRef runtimeABIName,
-    llvm::StringRef context) {
-  if (identity.runtimeABIKind == runtimeABIKind &&
-      identity.runtimeABIName == runtimeABIName)
-    return true;
-  llvm::errs() << context
-               << ": finite dispatch ABI identity mismatch\n";
-  return false;
-}
-
-bool expectI32BinaryRuntimeABIContractShape() {
-  const I32BinaryRuntimeABIContract &contract = getAddRuntimeABIContract();
+bool expectFiniteBinaryRuntimeABIContractShape() {
+  const FiniteBinaryRuntimeABIContract &contract =
+      getPluginI32RuntimeABIContract();
   llvm::ArrayRef<RuntimeABIParameter> callable =
       contract.getCallableParameters();
   if (callable.size() != 4) {
-    llvm::errs() << "i32 binary ABI contract expected 4 callable parameters\n";
+    llvm::errs() << "finite binary ABI contract expected 4 callable "
+                    "parameters\n";
     return false;
   }
 
@@ -1199,7 +1180,8 @@ bool expectI32BinaryRuntimeABIContractShape() {
       windows[0].role != RuntimeABIParameterRole::LHSInputBuffer ||
       windows[1].role != RuntimeABIParameterRole::RHSInputBuffer ||
       windows[2].role != RuntimeABIParameterRole::OutputBuffer) {
-    llvm::errs() << "i32 binary ABI contract buffer mem-window order changed\n";
+    llvm::errs() << "finite binary ABI contract buffer mem-window order "
+                    "changed\n";
     return false;
   }
 
@@ -1207,38 +1189,23 @@ bool expectI32BinaryRuntimeABIContractShape() {
       contract.getRuntimeElementCountParamSpec();
   if (count.role != RuntimeABIParameterRole::RuntimeElementCount ||
       count.cName != "n" || count.cType != "size_t") {
-    llvm::errs() << "i32 binary ABI contract runtime count spec malformed\n";
+    llvm::errs() << "finite binary ABI contract runtime count spec "
+                    "malformed\n";
     return false;
   }
 
   llvm::SmallVector<RuntimeABIParameter, 5> dispatch =
-      contract.getDispatchRuntimeABIParameters();
+      contract.getDispatchRuntimeABIParameters("len", "dispatch_available");
+  llvm::SmallVector<RuntimeABIParameter, 4> dispatchCallable =
+      contract.getCallableParameters("len");
   llvm::ArrayRef<RuntimeABIParameter> dispatchRef(dispatch);
   if (dispatch.size() != 5 ||
-      !expectRuntimeABIParametersEqual(dispatchRef.take_front(4), callable,
+      !expectRuntimeABIParametersEqual(dispatchRef.take_front(4),
+                                       dispatchCallable,
                                        "dispatch callable prefix") ||
-      !expectParameter(dispatch[4], "rvv_available", "int",
+      !expectParameter(dispatch[4], "dispatch_available", "int",
                        RuntimeABIParameterRole::DispatchAvailabilityGuard,
                        owned, "dispatch availability guard"))
-    return false;
-
-  const I32BinaryRuntimeABIContract &subContract = getSubRuntimeABIContract();
-  const I32BinaryRuntimeABIContract &mulContract = getMulRuntimeABIContract();
-  if (!expectRuntimeABIDispatchIdentity(
-          contract.getDispatchIdentity(),
-          "rvv-scalar-dispatch-runtime-callable-c-abi",
-          "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1",
-          "dispatch i32-vadd ABI") ||
-      !expectRuntimeABIDispatchIdentity(
-          subContract.getDispatchIdentity(),
-          "rvv-scalar-dispatch-runtime-callable-c-abi",
-          "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1",
-          "dispatch i32-vsub ABI") ||
-      !expectRuntimeABIDispatchIdentity(
-          mulContract.getDispatchIdentity(),
-          "rvv-scalar-dispatch-runtime-callable-c-abi",
-          "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1",
-          "dispatch i32-vmul ABI"))
     return false;
 
   return true;
@@ -1358,8 +1325,8 @@ bool expectRuntimeABIParameterRoleLookup() {
       RuntimeABIParameterOwnership::TargetExportABIOwned;
   llvm::SmallVector<RuntimeABIParameter, 5> parameters;
   parameters.push_back(RuntimeABIParameter(
-      "rvv_ready", "int", RuntimeABIParameterRole::DispatchAvailabilityGuard,
-      owned));
+      "dispatch_ready", "int",
+      RuntimeABIParameterRole::DispatchAvailabilityGuard, owned));
   parameters.push_back(RuntimeABIParameter(
       "runtime_n", "size_t", RuntimeABIParameterRole::RuntimeElementCount,
       owned));
@@ -1394,7 +1361,7 @@ bool expectRuntimeABIParameterRoleLookup() {
     llvm::errs() << llvm::toString(guard.takeError()) << "\n";
     return false;
   }
-  if ((*guard)->cName != "rvv_ready") {
+  if ((*guard)->cName != "dispatch_ready") {
     llvm::errs() << "role lookup returned the wrong dispatch guard parameter\n";
     return false;
   }
@@ -1416,7 +1383,7 @@ bool expectRuntimeABIParameterRoleLookup() {
   llvm::SmallVector<RuntimeABIParameter, 6> duplicateGuard;
   duplicateGuard.append(parameters.begin(), parameters.end());
   duplicateGuard.push_back(RuntimeABIParameter(
-      "rvv_available", "int",
+      "dispatch_available", "int",
       RuntimeABIParameterRole::DispatchAvailabilityGuard, owned));
   llvm::Expected<const RuntimeABIParameter *> duplicate =
       tianchenrv::support::findUniqueRuntimeABIParameterByRole(
@@ -1433,7 +1400,7 @@ bool expectRuntimeABIParameterRoleLookup() {
 }
 
 bool expectDirectCallableRuntimeABIBindingFailure(
-    llvm::Expected<I32BinaryCallableRuntimeABIParameterBindings> bindings,
+    llvm::Expected<FiniteBinaryCallableRuntimeABIParameterBindings> bindings,
     llvm::StringRef context,
     std::initializer_list<llvm::StringRef> fragments) {
   if (bindings) {
@@ -1444,6 +1411,8 @@ bool expectDirectCallableRuntimeABIBindingFailure(
 }
 
 bool expectDirectCallableRuntimeABIBinding() {
+  const FiniteBinaryRuntimeABIContract &contract =
+      getPluginI32RuntimeABIContract();
   constexpr RuntimeABIParameterOwnership owned =
       RuntimeABIParameterOwnership::TargetExportABIOwned;
   llvm::SmallVector<RuntimeABIParameter, 4> reordered;
@@ -1459,9 +1428,11 @@ bool expectDirectCallableRuntimeABIBinding() {
       "right", "const int32_t *", RuntimeABIParameterRole::RHSInputBuffer,
       owned));
 
-  llvm::Expected<I32BinaryCallableRuntimeABIParameterBindings> bindings =
-      tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
-          reordered, "reordered direct callable ABI parameter test");
+  llvm::Expected<FiniteBinaryCallableRuntimeABIParameterBindings> bindings =
+      tianchenrv::support::
+          bindFiniteBinaryCallableRuntimeABIParametersByRole(
+              reordered, "reordered direct callable ABI parameter test",
+              contract);
   if (!bindings) {
     llvm::errs() << llvm::toString(bindings.takeError()) << "\n";
     return false;
@@ -1478,8 +1449,9 @@ bool expectDirectCallableRuntimeABIBinding() {
   emptyName.append(reordered.begin(), reordered.end());
   emptyName[2].cName.clear();
   if (!expectDirectCallableRuntimeABIBindingFailure(
-          tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
-              emptyName, "empty direct callable C name test"),
+          tianchenrv::support::
+              bindFiniteBinaryCallableRuntimeABIParametersByRole(
+                  emptyName, "empty direct callable C name test", contract),
           "empty direct callable C name rejected",
           {"runtime ABI callable parameter role binding failed",
            "empty direct callable C name test", "lhs-input-buffer",
@@ -1490,8 +1462,10 @@ bool expectDirectCallableRuntimeABIBinding() {
   wrongType.append(reordered.begin(), reordered.end());
   wrongType[0].cType = "uint64_t";
   if (!expectDirectCallableRuntimeABIBindingFailure(
-          tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
-              wrongType, "wrong direct callable runtime count type test"),
+          tianchenrv::support::
+              bindFiniteBinaryCallableRuntimeABIParametersByRole(
+                  wrongType, "wrong direct callable runtime count type test",
+                  contract),
           "wrong direct callable runtime count type rejected",
           {"runtime ABI callable parameter role binding failed",
            "wrong direct callable runtime count type test",
@@ -1502,8 +1476,10 @@ bool expectDirectCallableRuntimeABIBinding() {
   wrongOwnership.append(reordered.begin(), reordered.end());
   wrongOwnership[1].ownership = RuntimeABIParameterOwnership::IRModeled;
   if (!expectDirectCallableRuntimeABIBindingFailure(
-          tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
-              wrongOwnership, "wrong direct callable output ownership test"),
+          tianchenrv::support::
+              bindFiniteBinaryCallableRuntimeABIParametersByRole(
+                  wrongOwnership, "wrong direct callable output ownership test",
+                  contract),
           "wrong direct callable output ownership rejected",
           {"runtime ABI callable parameter role binding failed",
            "wrong direct callable output ownership test", "output-buffer",
@@ -1513,8 +1489,10 @@ bool expectDirectCallableRuntimeABIBinding() {
   llvm::SmallVector<RuntimeABIParameter, 3> missingRHS;
   missingRHS.append(reordered.begin(), reordered.end() - 1);
   if (!expectDirectCallableRuntimeABIBindingFailure(
-          tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
-              missingRHS, "missing direct callable rhs role test"),
+          tianchenrv::support::
+              bindFiniteBinaryCallableRuntimeABIParametersByRole(
+                  missingRHS, "missing direct callable rhs role test",
+                  contract),
           "missing direct callable rhs role rejected",
           {"runtime ABI callable parameter role binding failed",
            "missing direct callable rhs role test", "rhs-input-buffer",
@@ -1527,8 +1505,10 @@ bool expectDirectCallableRuntimeABIBinding() {
       "also_left", "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer,
       owned));
   if (!expectDirectCallableRuntimeABIBindingFailure(
-          tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
-              duplicateLHS, "duplicate direct callable lhs role test"),
+          tianchenrv::support::
+              bindFiniteBinaryCallableRuntimeABIParametersByRole(
+                  duplicateLHS, "duplicate direct callable lhs role test",
+                  contract),
           "duplicate direct callable lhs role rejected",
           {"runtime ABI callable parameter role binding failed",
            "duplicate direct callable lhs role test", "lhs-input-buffer",
@@ -1538,12 +1518,12 @@ bool expectDirectCallableRuntimeABIBinding() {
   llvm::SmallVector<RuntimeABIParameter, 5> directWithDispatchGuard;
   directWithDispatchGuard.append(reordered.begin(), reordered.end());
   directWithDispatchGuard.push_back(RuntimeABIParameter(
-      "rvv_available", "int",
+      "dispatch_available", "int",
       RuntimeABIParameterRole::DispatchAvailabilityGuard, owned));
   return expectDirectCallableRuntimeABIBindingFailure(
-      tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
+      tianchenrv::support::bindFiniteBinaryCallableRuntimeABIParametersByRole(
           directWithDispatchGuard,
-          "direct callable rejects dispatch guard role test"),
+          "direct callable rejects dispatch guard role test", contract),
       "direct callable dispatch guard role rejected",
       {"runtime ABI callable parameter role binding failed",
        "direct callable rejects dispatch guard role test",
@@ -1829,7 +1809,8 @@ TargetArtifactBundleRecord makeDispatchBundleComponentRecord(
   record.runtimeABIKind = "generic-dispatch-runtime-callable-c-abi";
   record.runtimeABIName = "generic-dispatch-runtime-callable-c-function.v1";
   llvm::SmallVector<RuntimeABIParameter, 5> parameters =
-      getAddRuntimeABIContract().getDispatchRuntimeABIParameters();
+      getPluginI32RuntimeABIContract().getDispatchRuntimeABIParameters(
+          "n", "dispatch_available");
   record.runtimeABIParameters.append(parameters.begin(), parameters.end());
   return record;
 }
@@ -1928,7 +1909,7 @@ bool expectTargetArtifactBundleComponentContractValidation() {
 
   llvm::SmallVector<TargetArtifactBundleRecord, 2> mismatchedParameterName(
       records);
-  mismatchedParameterName[1].runtimeABIParameters[4].cName = "rvv_ready";
+  mismatchedParameterName[1].runtimeABIParameters[4].cName = "other_ready";
   if (!expectErrorContains(
           validateTargetArtifactBundleComponentContract(mismatchedParameterName),
           "mismatched dispatch bundle runtime ABI parameter name rejected",
@@ -2141,7 +2122,7 @@ int main() {
   if (!expectSuccess(registerBuiltinTargetArtifactExporters(builtinRegistry),
                      "register built-in target artifact exporters"))
     return 1;
-  if (!expectI32BinaryRuntimeABIContractShape())
+  if (!expectFiniteBinaryRuntimeABIContractShape())
     return 1;
   if (!expectTargetTranslateRouteRegistryShape())
     return 1;

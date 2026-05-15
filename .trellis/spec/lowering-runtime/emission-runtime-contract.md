@@ -403,8 +403,8 @@ preserve parameter layering:
   arithmetic intrinsic name by appending the selected vector-shape suffix after
   selected-shape validation;
 - runtime SSA values / runtime control values such as AVL, vl, pointer
-  arguments, length `n`, `rvv_available`, and dispatch guards may be emitted
-  only as real IR/control fields or generated ABI parameters;
+  arguments, length `n`, and dispatch guards may be emitted only as real
+  IR/control fields or generated ABI parameters;
 - generated ABI parameters must state whether they are actually IR-modeled or
   target/export ABI-owned. The current bounded i32 binary RVV and scalar source
   exports pass `lhs`, `rhs`, `out`, and runtime `n` as C ABI parameters, but the
@@ -412,8 +412,8 @@ preserve parameter layering:
   lhs/rhs/out buffer meanings and real direct `tcrv.exec.runtime_param` IR for
   runtime-element-count. Candidate/emission-plan parameter metadata may only
   mirror that IR-backed plan, while runtime ABI strings and glue roles come
-  from the selected finite binary runtime ABI contract. Runtime `n` remains a
-  runtime ABI/control value, not descriptor-local element count;
+  from plugin/target-owned route construction. Runtime `n` remains a runtime
+  ABI/control value, not descriptor-local element count;
 - emission-plan-backed RVV+scalar dispatch export must resolve callable
   parameters from the same IR-backed callable ABI plan for both the selected RVV
   candidate and the selected scalar fallback candidate. The bounded dispatch
@@ -424,10 +424,9 @@ preserve parameter layering:
   `runtime_guard_required = true` and has a `runtime_guard` symbol reference to
   direct `tcrv.exec.runtime_param` IR. Detached role lookup, printable
   condition/guard/policy strings, or stale dispatch metadata must not become
-  the executable branch-control source. The
-  default guard C name is `rvv_available`; an explicit runtime_param may use
-  another valid C name without changing callable role order, adding the guard to
-  callable microkernel signatures, or introducing automatic hardware probing;
+  the executable branch-control source. The guard C name must be explicit and
+  caller-owned; changing it must not change callable role order, add the guard
+  to callable microkernel signatures, or introduce automatic hardware probing;
 - legacy bounded values such as `tcrv_rvv.element_count` or the deleted scalar
   element-count marker describe historical selected-path metadata at most. An
   extension plugin may choose bounded diagnostic sample sizes from validated
@@ -438,12 +437,13 @@ preserve parameter layering:
   deleted element-count marker as active legality or boundary authority.
 
 Generated C may contain target-owned local variables such as a local `vl`
-computed by RVV intrinsics or ABI parameters such as `n` and `rvv_available`.
-That does not imply those values were modeled in MLIR unless the input IR has
-the corresponding attribute, type, SSA value, region argument, or ABI/control
-surface. The current bounded `tcrv_rvv.setvl` and `tcrv_rvv.with_vl` surfaces
-model only runtime AVL/VL control-plane IR when they appear in the input. They
-are not emitted runtime ABI evidence by themselves.
+computed by RVV intrinsics or ABI parameters such as `n` and an explicit
+dispatch guard C name. That does not imply those values were modeled in MLIR
+unless the input IR has the corresponding attribute, type, SSA value, region
+argument, or ABI/control surface. The current bounded `tcrv_rvv.setvl` and
+`tcrv_rvv.with_vl` surfaces model only runtime AVL/VL control-plane IR when
+they appear in the input. They are not emitted runtime ABI evidence by
+themselves.
 
 ## Scenario: Deleted Dynamic Vector Source Front Door
 
@@ -1469,125 +1469,63 @@ ambiguous multiple supported artifacts must fail before source output.
 
 ## Support-Layer Finite Binary Runtime ABI Contract
 
-The current bounded finite binary executable slice must have one compiler-owned
-C++ runtime ABI contract shape in the support layer. The stable support-layer
-planning entry points are descriptorless:
+The support layer may keep C++ helpers for extension-agnostic finite-binary
+runtime ABI shape validation. These helpers are descriptorless and do not own
+selected route identity:
 
 ```cpp
 llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
 tianchenrv::support::buildFiniteBinaryCallableABIPlan(
     tcrv::exec::KernelOp kernel,
     const tianchenrv::support::FiniteBinaryRuntimeABIContract &contract);
-
-const tianchenrv::support::I32BinaryRuntimeABIContract &
-tianchenrv::support::getI32BinaryRuntimeABIContract(llvm::StringRef familyID);
 ```
 
-The contract owns only reusable runtime ABI metadata for the bounded i32 binary
-callable shape and selected-family identity fields:
+`FiniteBinaryRuntimeABIContract` owns only reusable ABI shape primitives:
 
-- ordered callable C parameters:
-  `const int32_t *lhs`, `const int32_t *rhs`, `int32_t *out`, `size_t n`;
+- ordered callable C parameter roles for lhs/rhs/out/runtime element count;
 - callable role requirements used by target artifact route validation;
 - `tcrv.exec.mem_window` specs for lhs/rhs/out buffer roles;
-- `tcrv.exec.runtime_param` specs for runtime element count and the optional
-  dispatch availability guard;
-- stable runtime ABI identity strings for the selected add/sub/mul RVV
-  callable, scalar callable, and RVV+scalar dispatch callable surfaces, keyed by
-  the selected family id such as `i32-vadd`, `i32-vsub`, or `i32-vmul`.
+- `tcrv.exec.runtime_param` specs for runtime element count and an explicitly
+  named dispatch availability guard.
 
-Support headers for callable planning must not import RVV, scalar, or i32
-descriptor/registration headers. Target-owned RVV, scalar, dispatch, and
-offload code may adapt their selected typed family/registration records into a
-`FiniteBinaryRuntimeABIContract`, but that adaptation is outside the Support
-default API and must occur only after typed selected-path authority has been
-established.
+It must not own runtime ABI kind/name strings, runtime glue role strings,
+target artifact route ids, artifact kinds, source/header/object selection
+policy, bundle metadata, descriptor-local metadata, evidence paths, ssh facts,
+target capabilities, selected march/mabi, or performance/correctness claims.
+It also must not publish static selected-family contracts for RVV/scalar
+families.
 
-The historical no-argument i32 runtime ABI helper APIs are compatibility
-defaults for existing i32-vadd callers only. Active RVV, scalar, dispatch, and
-target artifact exporter code that handles a selected i32 add/sub/mul family
-must consume the selected-family-id or generic
-finite-binary contract APIs directly when it needs ABI shape, ABI identity,
-mem-window specs, runtime-param specs, dispatch guard specs, role binding, or
-callable-plan validation. Adding new production call sites to the no-argument
-i32-vadd defaults, or adding descriptor-shaped Support overloads, is a
-descriptor-exit regression unless a future spec explicitly re-establishes such
-an API for a non-compatibility purpose.
-
-### Scenario: Selected-Family i32 Runtime ABI Helper Surface
+### Scenario: Explicit Finite-Binary ABI Shape Primitive
 
 #### 1. Scope / Trigger
 
-- Trigger: support-layer runtime ABI helpers are used by target/export tests or
-  production-adjacent validation code for selected `i32-vadd`, `i32-vsub`, or
-  `i32-vmul` routes.
-- This surface exists only for the bounded finite i32 binary callable ABI
-  shape. It is not a generic tensor ABI system and not descriptor-owned
-  computation/config/runtime authority.
+- Trigger: plugin/target-owned code needs to validate that selected runtime ABI
+  parameter metadata mirrors real `tcrv.exec.mem_window` and
+  `tcrv.exec.runtime_param` IR.
+- The caller must provide the `FiniteBinaryRuntimeABIContract`; Support must not
+  infer one from RVV, scalar, dtype, arithmetic family, route id, or descriptor
+  metadata.
 
-#### 2. Signatures
+#### 2. Contracts
 
-```cpp
-void appendI32BinaryRuntimeABIParameters(
-    llvm::SmallVectorImpl<RuntimeABIParameter> &out,
-    llvm::StringRef familyID);
-llvm::SmallVector<RuntimeABIParameter, 4>
-getI32BinaryRuntimeABIParameters(llvm::StringRef familyID);
+- The caller-owned contract may name a family identifier for diagnostics only;
+  Support must not interpret it as a selected RVV/scalar route.
+- Runtime element-count and dispatch guard C names are explicit caller-selected
+  ABI spellings, not Support defaults, descriptor element counts, or compile-time
+  vector shape facts.
+- Support must not provide `I32BinaryRuntimeABIContract`,
+  `getI32BinaryRuntimeABIContract`, selected-family i32 helper overloads, or
+  no-argument defaults equivalent to an i32 family.
+- Support must not publish `rvv_available` as a default dispatch guard C name.
+  A transform or plugin that needs a guard name must pass one explicitly.
+- Runtime ABI identity strings for RVV, scalar, dispatch, offload, or future
+  families must come from the owning plugin/target route construction, not from
+  Support.
 
-void appendI32BinaryRuntimeABIRoleRequirements(
-    llvm::SmallVectorImpl<RuntimeABIParameter> &out,
-    llvm::StringRef familyID);
-llvm::SmallVector<RuntimeABIParameter, 4>
-getI32BinaryRuntimeABIRoleRequirements(llvm::StringRef familyID);
+#### 3. Validation & Error Matrix
 
-RuntimeABIParameter makeI32BinaryDispatchAvailabilityGuardForFamily(
-    llvm::StringRef familyID, llvm::StringRef cName = "rvv_available");
-
-llvm::SmallVector<RuntimeABIParameter, 5>
-getI32BinaryDispatchRuntimeABIParameters(
-    llvm::StringRef familyID, llvm::StringRef runtimeCountCName = "n",
-    llvm::StringRef guardCName = "rvv_available");
-
-llvm::Expected<I32BinaryCallableRuntimeABIParameterBindings>
-bindI32BinaryCallableRuntimeABIParametersByRole(
-    llvm::ArrayRef<RuntimeABIParameter> parameters, llvm::StringRef context,
-    llvm::StringRef familyID);
-
-llvm::SmallVector<RuntimeABIMemWindowSpec, 3>
-getI32BinaryBufferMemWindowSpecs(llvm::StringRef familyID);
-
-RuntimeABIParamSpec getI32BinaryRuntimeElementCountParamSpecForFamily(
-    llvm::StringRef familyID, llvm::StringRef cName = "n");
-llvm::SmallVector<RuntimeABIParamSpec, 1>
-getI32BinaryRuntimeElementCountParamSpecsForFamily(
-    llvm::StringRef familyID, llvm::StringRef cName = "n");
-llvm::SmallVector<RuntimeABIParamSpec, 2>
-getI32BinaryDispatchRuntimeParamSpecsForFamily(
-    llvm::StringRef familyID, llvm::StringRef runtimeCountCName = "n",
-    llvm::StringRef guardCName = "rvv_available");
-```
-
-The no-argument overloads of these same i32 helper concepts, where present,
-remain explicit compatibility defaults equivalent to `familyID = "i32-vadd"`.
-
-#### 3. Contracts
-
-- `familyID` must name a supported selected i32 binary family:
-  `i32-vadd`, `i32-vsub`, or `i32-vmul`.
-- Callable ABI shape is shared across those i32 families:
-  `lhs`, `rhs`, `out`, and runtime element count, with roles preserved in that
-  order.
-- Runtime element-count and dispatch guard C names are caller-selected ABI
-  spellings, not descriptor element counts or compile-time vector shape facts.
-- Runtime ABI identity strings still come from
-  `getI32BinaryRuntimeABIContract(familyID)`.
-- Support-layer helpers must not depend on RVV, scalar, or descriptor target
-  registration headers.
-
-#### 4. Validation & Error Matrix
-
-- Unknown `familyID` -> fail closed at contract lookup; callers must not
-  silently fall back to `i32-vadd`.
+- Missing plugin/target ABI construction -> fail closed as a missing
+  plugin-owned ABI construction gap; do not recreate Support defaults.
 - Missing callable role -> role binding fails before export or invocation.
 - Duplicate callable role -> role binding fails before export or invocation.
 - Wrong C type or ownership for any callable role -> role binding fails before
@@ -1597,50 +1535,44 @@ remain explicit compatibility defaults equivalent to `familyID = "i32-vadd"`.
 - Stale selected runtime-count metadata that disagrees with the IR-backed ABI
   plan -> target/export validation fails.
 
-#### 5. Good/Base/Bad Cases
+#### 4. Good/Base/Bad Cases
 
-- Good: vsub target/export validation calls the selected-family helper with
-  `familyID = "i32-vsub"` and receives the same callable parameter shape plus
-  vsub runtime ABI identities.
-- Base: legacy vadd compatibility code calls the no-argument helper and is
-  documented as receiving the `i32-vadd` contract.
-- Bad: a vsub candidate obtains runtime ABI parameters through an implicit
-  vadd default, then relies on route metadata to reinterpret them as vsub.
+- Good: a plugin-owned route constructs an explicit finite-binary contract and
+  passes explicit runtime-count and dispatch-guard C names into Support
+  validation.
+- Base: a missing plugin-owned ABI route remains unsupported/fail-closed.
+- Bad: Support publishes selected RVV/scalar i32 family contracts, dispatch C
+  function names, or `rvv_available` defaults.
 
-#### 6. Tests Required
+#### 5. Tests Required
 
-- C++ support tests must prove each selected i32 family helper mirrors the
-  selected `I32BinaryRuntimeABIContract`.
-- Target artifact tests must construct vsub/vmul candidates through
-  selected-family helper overloads where support-layer helper data is needed.
-- Lit/FileCheck scalar-dispatch tests must cover positive vsub ordered ABI
-  roles and fail-closed vsub mutations for missing runtime length role, stale
-  runtime-count metadata, duplicate role, wrong type, wrong ownership, unknown
-  role, guard type mismatch, and detached dispatch ABI metadata.
+- C++ Support tests must prove finite-binary shape primitives validate explicit
+  caller-owned contracts without hard-coded RVV/scalar selected-family identity.
+- Target artifact tests must not assert RVV/scalar dispatch C function identity
+  strings as Support-owned contract output.
+- Focused scans must show the deleted Support I32 helper surface remains absent.
 
-#### 7. Wrong vs Correct
+#### 6. Wrong vs Correct
 
 Wrong:
 
 ```cpp
-candidate.runtimeABIParameters =
-    tianchenrv::support::getI32BinaryRuntimeABIParameters();
+const auto &contract =
+    tianchenrv::support::getI32BinaryRuntimeABIContract("i32-vsub");
 ```
 
 Correct:
 
 ```cpp
-candidate.runtimeABIParameters =
-    tianchenrv::support::getI32BinaryRuntimeABIParameters(family.familyID);
+auto contract = pluginRoute.buildFiniteBinaryRuntimeABIContract();
+auto plan = tianchenrv::support::buildFiniteBinaryCallableABIPlan(kernel,
+                                                                  contract);
 ```
 
-The contract must not own target artifact route ids, artifact kinds, source vs
-header vs object selection policy, bundle metadata, descriptor-local metadata,
-evidence paths, ssh facts, target capabilities, selected march/mabi, or
-performance/correctness claims. It also must not turn runtime SSA/control values
-into compile-time facts: the dispatch availability guard remains a
-`tcrv.exec.runtime_param` role and the selected dispatch case must still link to
-that guard through typed `runtime_guard_required = true` plus `runtime_guard`.
+The contract also must not turn runtime SSA/control values into compile-time
+facts: the dispatch availability guard remains a `tcrv.exec.runtime_param` role
+and the selected dispatch case must still link to that guard through typed
+`runtime_guard_required = true` plus `runtime_guard`.
 
 Compiler-owned dispatch runtime-guard materialization happens in the transform
 layer before selected lowering-boundary and emission-plan materialization. The

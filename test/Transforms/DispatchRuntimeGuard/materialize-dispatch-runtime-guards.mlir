@@ -41,7 +41,7 @@ module {
 
     // GUARD: tcrv.exec.runtime_param @abi_dispatch_availability_guard
     // GUARD-SAME: abi_role = "dispatch-availability-guard"
-    // GUARD-SAME: c_name = "rvv_available"
+    // GUARD-SAME: c_name = "dispatch_available"
     // GUARD-SAME: c_type = "int"
     // GUARD-SAME: ownership = "target-export-abi-owned"
     // GUARD-SAME: purpose = "runtime-abi-scalar"

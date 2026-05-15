@@ -20,16 +20,15 @@
 
 using tianchenrv::support::RuntimeABIParameter;
 using tianchenrv::support::RuntimeABIParameterRole;
+using tianchenrv::support::FiniteBinaryCallableRuntimeABIParameterBindings;
 using tianchenrv::support::FiniteBinaryRuntimeABIContract;
 using tianchenrv::support::FiniteBinaryRuntimeABIContractSpec;
 using tianchenrv::support::buildFiniteBinaryCallableABIPlan;
-using tianchenrv::support::buildI32BinaryCallableABIPlan;
 using tianchenrv::support::buildRuntimeABIInvocationContract;
+using tianchenrv::support::bindFiniteBinaryCallableRuntimeABIParametersByRole;
 using tianchenrv::support::formatRuntimeABIInvocationContractCommentBody;
-using tianchenrv::support::getI32BinaryRuntimeABIContract;
 using tianchenrv::support::runtimeABIParametersEqual;
 using tianchenrv::support::validateFiniteBinaryCallableABIParameterMirror;
-using tianchenrv::support::validateI32BinaryCallableABIParameterMirror;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::MemWindowOp;
 using tianchenrv::tcrv::exec::RuntimeParamOp;
@@ -39,21 +38,28 @@ namespace {
 const FiniteBinaryRuntimeABIContract &getI64AddRuntimeABIContract() {
   static const FiniteBinaryRuntimeABIContract contract(
       FiniteBinaryRuntimeABIContractSpec{"i64-vadd", "const int64_t *",
-                                         "int64_t *", {}, {}, {}});
+                                         "int64_t *"});
   return contract;
 }
 
 const FiniteBinaryRuntimeABIContract &getI64SubRuntimeABIContract() {
   static const FiniteBinaryRuntimeABIContract contract(
       FiniteBinaryRuntimeABIContractSpec{"i64-vsub", "const int64_t *",
-                                         "int64_t *", {}, {}, {}});
+                                         "int64_t *"});
   return contract;
 }
 
 const FiniteBinaryRuntimeABIContract &getI64MulRuntimeABIContract() {
   static const FiniteBinaryRuntimeABIContract contract(
       FiniteBinaryRuntimeABIContractSpec{"i64-vmul", "const int64_t *",
-                                         "int64_t *", {}, {}, {}});
+                                         "int64_t *"});
+  return contract;
+}
+
+const FiniteBinaryRuntimeABIContract &getPluginI32RuntimeABIContract() {
+  static const FiniteBinaryRuntimeABIContract contract(
+      FiniteBinaryRuntimeABIContractSpec{"plugin-owned-i32-binary",
+                                         "const int32_t *", "int32_t *"});
   return contract;
 }
 
@@ -366,15 +372,15 @@ module {
 }
 )mlir";
 
-llvm::Expected<tianchenrv::support::I32BinaryCallableABIPlan>
+llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
 buildPlan(mlir::MLIRContext &context, llvm::StringRef source) {
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
     return llvm::make_error<llvm::StringError>("failed to parse test module",
                                                llvm::inconvertibleErrorCode());
   KernelOp kernel = findKernel(*module, "abi_kernel");
-  return buildI32BinaryCallableABIPlan(
-      kernel, getI32BinaryRuntimeABIContract("i32-vsub"));
+  return buildFiniteBinaryCallableABIPlan(kernel,
+                                          getPluginI32RuntimeABIContract());
 }
 
 llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
@@ -389,7 +395,7 @@ buildFinitePlan(mlir::MLIRContext &context, llvm::StringRef source,
 }
 
 int runValidPlanTest(mlir::MLIRContext &context) {
-  llvm::Expected<tianchenrv::support::I32BinaryCallableABIPlan> plan =
+  llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan> plan =
       buildPlan(context, kValidI32CallableABI);
   if (!plan)
     return fail("valid i32 callable ABI plan failed: " +
@@ -419,140 +425,89 @@ int runValidPlanTest(mlir::MLIRContext &context) {
     return result;
 
   return expectSuccess(
-      validateI32BinaryCallableABIParameterMirror(
+      validateFiniteBinaryCallableABIParameterMirror(
           findKernel(*parseModule(context, kValidI32CallableABI), "abi_kernel"),
-          plan->parameters, plan->parameters, "valid mirror", "i32-vsub"),
+          plan->parameters, plan->parameters, "valid mirror",
+          getPluginI32RuntimeABIContract()),
       "valid runtime ABI mirror");
 }
 
-int runI32BinaryFamilyContractCoverageTest() {
-  struct ExpectedI32Contract {
-    llvm::StringRef familyID;
-    llvm::StringRef dispatchRuntimeABIName;
-  };
-  const ExpectedI32Contract families[] = {
-      {"i32-vadd",
-       "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"},
-      {"i32-vsub",
-       "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1"},
-      {"i32-vmul",
-       "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1"},
-  };
-  llvm::ArrayRef<RuntimeABIParameter> baselineParameters =
-      getI32BinaryRuntimeABIContract(families[0].familyID)
-          .getCallableParameters();
-  using Bindings =
-      tianchenrv::support::I32BinaryCallableRuntimeABIParameterBindings;
-  for (const ExpectedI32Contract &family : families) {
-    const tianchenrv::support::I32BinaryRuntimeABIContract &contract =
-        getI32BinaryRuntimeABIContract(family.familyID);
-    if (int result = expect(contract.getFamilyID() == family.familyID,
-                            "i32 binary runtime ABI contract is keyed by "
-                            "selected family id, not a descriptor record"))
-      return result;
-    if (int result = expect(contract.getCallableParameters().size() == 4,
-                            "i32 binary contract has four callable params"))
-      return result;
-    if (int result = expect(contract.getCallableRoleRequirements().size() == 4,
-                            "i32 binary contract has four role requirements"))
-      return result;
-    if (int result = expect(contract.getBufferMemWindowSpecs().size() == 3,
-                            "i32 binary contract has three mem windows"))
-      return result;
-    if (int result =
-            expect(contract.getDispatchIdentity().runtimeABIName ==
-                       family.dispatchRuntimeABIName,
-                   "dispatch ABI identity comes from selected family id"))
-      return result;
-    if (int result = expect(
-            runtimeABIParametersEqual(contract.getCallableParameters(),
-                                      baselineParameters),
-            "i32 add/sub/mul share the callable ABI parameter shape"))
-      return result;
-    llvm::SmallVector<RuntimeABIParameter, 4> helperParameters =
-        tianchenrv::support::getI32BinaryRuntimeABIParameters(family.familyID);
-    if (int result = expect(
-            runtimeABIParametersEqual(helperParameters,
-                                      contract.getCallableParameters()),
-            "selected-family i32 helper returns callable ABI parameters from "
-            "the selected contract"))
-      return result;
-    llvm::SmallVector<RuntimeABIParameter, 4> helperRequirements =
-        tianchenrv::support::getI32BinaryRuntimeABIRoleRequirements(
-            family.familyID);
-    if (int result = expect(
-            runtimeABIParametersEqual(
-                helperRequirements, contract.getCallableRoleRequirements()),
-            "selected-family i32 helper returns role requirements from the "
-            "selected contract"))
-      return result;
-    llvm::SmallVector<tianchenrv::support::RuntimeABIMemWindowSpec, 3>
-        helperWindows =
-            tianchenrv::support::getI32BinaryBufferMemWindowSpecs(
-                family.familyID);
-    if (int result = expect(helperWindows.size() ==
-                                contract.getBufferMemWindowSpecs().size(),
-                            "selected-family i32 helper returns selected "
-                            "contract mem-window specs"))
-      return result;
-    for (auto [helper, expected] :
-         llvm::zip(helperWindows, contract.getBufferMemWindowSpecs())) {
-      if (int result = expect(helper.symbolName == expected.symbolName &&
-                                  helper.role == expected.role &&
-                                  helper.access == expected.access &&
-                                  helper.ownership == expected.ownership &&
-                                  helper.cType == expected.cType,
-                              "selected-family i32 mem-window helper mirrors "
-                              "the selected contract"))
-        return result;
-    }
-    tianchenrv::support::RuntimeABIParamSpec countSpec =
-        tianchenrv::support::
-            getI32BinaryRuntimeElementCountParamSpecForFamily(
-                family.familyID, "len");
-    if (int result = expect(
-            countSpec.cName == "len" &&
-                countSpec.role == RuntimeABIParameterRole::RuntimeElementCount,
-            "selected-family runtime length spec preserves selected C name"))
-      return result;
-    llvm::SmallVector<tianchenrv::support::RuntimeABIParamSpec, 2>
-        dispatchSpecs =
-            tianchenrv::support::
-                getI32BinaryDispatchRuntimeParamSpecsForFamily(
-                    family.familyID, "len", "rvv_ready");
-    if (int result = expect(
-            dispatchSpecs.size() == 2 && dispatchSpecs[0].cName == "len" &&
-                dispatchSpecs[0].role ==
-                    RuntimeABIParameterRole::RuntimeElementCount &&
-                dispatchSpecs[1].cName == "rvv_ready" &&
-                dispatchSpecs[1].role ==
-                    RuntimeABIParameterRole::DispatchAvailabilityGuard,
-            "selected-family dispatch runtime specs preserve selected runtime "
-            "length and guard C names"))
-      return result;
-    llvm::SmallVector<RuntimeABIParameter, 5> dispatchParameters =
-        tianchenrv::support::getI32BinaryDispatchRuntimeABIParameters(
-            family.familyID, "len", "rvv_ready");
-    if (int result = expect(
-            dispatchParameters.size() == 5 &&
-                dispatchParameters[3].cName == "len" &&
-                dispatchParameters[4].cName == "rvv_ready",
-            "selected-family dispatch ABI parameters preserve selected "
-            "runtime length and guard C names"))
-      return result;
-    llvm::Expected<Bindings> bindings =
-        tianchenrv::support::bindI32BinaryCallableRuntimeABIParametersByRole(
-            helperParameters, family.familyID, family.familyID);
-    if (!bindings)
-      return fail(llvm::Twine("selected-family callable ABI binding failed "
-                              "for ") +
-                  family.familyID + ": " +
-                  llvm::toString(bindings.takeError()));
-    if (int result = expect(bindings->runtimeElementCount->cName == "n",
-                            "selected-family callable ABI binding returns the "
-                            "runtime element-count role"))
-      return result;
-  }
+int runFiniteBinaryContractPrimitiveCoverageTest() {
+  const FiniteBinaryRuntimeABIContract &contract =
+      getPluginI32RuntimeABIContract();
+  if (int result = expect(contract.getFamilyID() == "plugin-owned-i32-binary",
+                          "finite binary contract carries caller-owned family "
+                          "identifier"))
+    return result;
+  if (int result = expect(contract.getCallableParameters().size() == 4,
+                          "finite binary contract has four callable params"))
+    return result;
+  if (int result =
+          expect(contract.getCallableRoleRequirements().size() == 4,
+                 "finite binary contract has four role requirements"))
+    return result;
+  if (int result = expect(contract.getBufferMemWindowSpecs().size() == 3,
+                          "finite binary contract has three mem windows"))
+    return result;
+
+  llvm::SmallVector<RuntimeABIParameter, 4> renamedCallable =
+      contract.getCallableParameters("len");
+  if (int result = expect(
+          renamedCallable.size() == 4 && renamedCallable[3].cName == "len" &&
+              renamedCallable[3].role ==
+                  RuntimeABIParameterRole::RuntimeElementCount,
+          "finite binary callable parameters preserve explicit runtime length "
+          "C name"))
+    return result;
+  if (int result = expect(
+          runtimeABIParametersEqual(contract.getCallableParameters(),
+                                    getPluginI32RuntimeABIContract()
+                                        .getCallableParameters()),
+          "finite binary contract exposes stable callable ABI parameter shape"))
+    return result;
+
+  tianchenrv::support::RuntimeABIParamSpec countSpec =
+      contract.getRuntimeElementCountParamSpec("len");
+  if (int result = expect(
+          countSpec.cName == "len" &&
+              countSpec.role == RuntimeABIParameterRole::RuntimeElementCount,
+          "finite binary runtime length spec preserves explicit C name"))
+    return result;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParamSpec, 2>
+      dispatchSpecs =
+          contract.getDispatchRuntimeParamSpecs("len", "dispatch_ready");
+  if (int result = expect(
+          dispatchSpecs.size() == 2 && dispatchSpecs[0].cName == "len" &&
+              dispatchSpecs[0].role ==
+                  RuntimeABIParameterRole::RuntimeElementCount &&
+              dispatchSpecs[1].cName == "dispatch_ready" &&
+              dispatchSpecs[1].role ==
+                  RuntimeABIParameterRole::DispatchAvailabilityGuard,
+          "finite binary dispatch runtime specs preserve explicit runtime "
+          "length and guard C names"))
+    return result;
+  llvm::SmallVector<RuntimeABIParameter, 5> dispatchParameters =
+      contract.getDispatchRuntimeABIParameters("len", "dispatch_ready");
+  if (int result = expect(
+          dispatchParameters.size() == 5 &&
+              dispatchParameters[3].cName == "len" &&
+              dispatchParameters[4].cName == "dispatch_ready",
+          "finite binary dispatch ABI parameters preserve explicit runtime "
+          "length and guard C names"))
+    return result;
+
+  llvm::Expected<FiniteBinaryCallableRuntimeABIParameterBindings> bindings =
+      bindFiniteBinaryCallableRuntimeABIParametersByRole(
+          contract.getCallableParameters(), "finite binary primitive coverage",
+          contract);
+  if (!bindings)
+    return fail(llvm::Twine("finite binary callable ABI binding failed: ") +
+                llvm::toString(bindings.takeError()));
+  if (int result = expect(bindings->runtimeElementCount->cName == "n",
+                          "finite binary callable ABI binding returns the "
+                          "runtime element-count role"))
+    return result;
+
   return 0;
 }
 
@@ -588,8 +543,8 @@ int runValidI64FamilyPlanTests(mlir::MLIRContext &context) {
 }
 
 int runMalformedIRTests(mlir::MLIRContext &context) {
-  llvm::Expected<tianchenrv::support::I32BinaryCallableABIPlan> missingWindow =
-      buildPlan(context, kMissingMemWindow);
+  llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
+      missingWindow = buildPlan(context, kMissingMemWindow);
   if (int result = expectErrorContains(
           missingWindow.takeError(),
           {"runtime ABI mem_window validation failed",
@@ -604,9 +559,9 @@ int runMalformedIRTests(mlir::MLIRContext &context) {
   KernelOp duplicateWindowKernel =
       findKernel(*duplicateWindowModule, "abi_kernel");
   addDuplicateLHSWindow(duplicateWindowKernel);
-  llvm::Expected<tianchenrv::support::I32BinaryCallableABIPlan>
-      duplicateWindow = buildI32BinaryCallableABIPlan(
-          duplicateWindowKernel, getI32BinaryRuntimeABIContract("i32-vsub"));
+  llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
+      duplicateWindow = buildFiniteBinaryCallableABIPlan(
+          duplicateWindowKernel, getPluginI32RuntimeABIContract());
   if (int result = expectErrorContains(
           duplicateWindow.takeError(),
           {"runtime ABI mem_window validation failed",
@@ -622,9 +577,9 @@ int runMalformedIRTests(mlir::MLIRContext &context) {
   KernelOp duplicateRuntimeKernel =
       findKernel(*duplicateRuntimeModule, "abi_kernel");
   addDuplicateRuntimeParam(duplicateRuntimeKernel);
-  llvm::Expected<tianchenrv::support::I32BinaryCallableABIPlan>
-      duplicateRuntime = buildI32BinaryCallableABIPlan(
-          duplicateRuntimeKernel, getI32BinaryRuntimeABIContract("i32-vsub"));
+  llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
+      duplicateRuntime = buildFiniteBinaryCallableABIPlan(
+          duplicateRuntimeKernel, getPluginI32RuntimeABIContract());
   if (int result = expectErrorContains(
           duplicateRuntime.takeError(),
           {"runtime ABI runtime_param validation failed",
@@ -633,7 +588,7 @@ int runMalformedIRTests(mlir::MLIRContext &context) {
            "found duplicate runtime params"}))
     return result;
 
-  llvm::Expected<tianchenrv::support::I32BinaryCallableABIPlan> staleType =
+  llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan> staleType =
       buildPlan(context, kStaleRuntimeType);
   if (int result = expectErrorContains(
           staleType.takeError(),
@@ -647,7 +602,7 @@ int runMalformedIRTests(mlir::MLIRContext &context) {
       "      ownership = \"target-export-abi-owned\",",
       "      c_type = \"size_t\",\n"
       "      ownership = \"ir-modeled\",");
-  llvm::Expected<tianchenrv::support::I32BinaryCallableABIPlan>
+  llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
       staleOwnership = buildPlan(context, staleRuntimeOwnership);
   if (int result = expectErrorContains(
           staleOwnership.takeError(),
@@ -758,9 +713,10 @@ int runMirrorValidationTests(mlir::MLIRContext &context) {
   if (!module)
     return fail("failed to parse mirror validation module");
   KernelOp kernel = findKernel(*module, "abi_kernel");
-  llvm::Expected<tianchenrv::support::I32BinaryCallableABIPlan> plan =
-      buildI32BinaryCallableABIPlan(
-          kernel, getI32BinaryRuntimeABIContract("i32-vadd"));
+  const FiniteBinaryRuntimeABIContract &contract =
+      getPluginI32RuntimeABIContract();
+  llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan> plan =
+      buildFiniteBinaryCallableABIPlan(kernel, contract);
   if (!plan)
     return fail("failed to build mirror validation plan: " +
                 llvm::toString(plan.takeError()));
@@ -768,9 +724,9 @@ int runMirrorValidationTests(mlir::MLIRContext &context) {
   llvm::SmallVector<RuntimeABIParameter, 4> missingRuntime(
       plan->parameters.begin(), plan->parameters.end() - 1);
   if (int result = expectErrorContains(
-          validateI32BinaryCallableABIParameterMirror(
+          validateFiniteBinaryCallableABIParameterMirror(
               kernel, missingRuntime, plan->parameters, "missing mirror",
-              "i32-vadd"),
+              contract),
           {"missing mirror requires runtime ABI parameter role "
            "'runtime-element-count'"}))
     return result;
@@ -779,9 +735,9 @@ int runMirrorValidationTests(mlir::MLIRContext &context) {
       plan->parameters.begin(), plan->parameters.end());
   duplicateRole.push_back(plan->parameters.front());
   if (int result = expectErrorContains(
-          validateI32BinaryCallableABIParameterMirror(
+          validateFiniteBinaryCallableABIParameterMirror(
               kernel, duplicateRole, plan->parameters, "duplicate mirror",
-              "i32-vadd"),
+              contract),
           {"duplicate mirror contains duplicate runtime ABI parameter role "
            "'lhs-input-buffer'"}))
     return result;
@@ -790,9 +746,9 @@ int runMirrorValidationTests(mlir::MLIRContext &context) {
       plan->parameters.begin(), plan->parameters.end());
   staleRuntimeName[3].cName = "n";
   if (int result = expectErrorContains(
-          validateI32BinaryCallableABIParameterMirror(
+          validateFiniteBinaryCallableABIParameterMirror(
               kernel, staleRuntimeName, plan->parameters, "stale mirror",
-              "i32-vadd"),
+              contract),
           {"stale mirror runtime ABI parameter role "
            "'runtime-element-count' must mirror IR-backed callable ABI "
            "parameter c_name='len'"}))
@@ -804,9 +760,9 @@ int runMirrorValidationTests(mlir::MLIRContext &context) {
   reordered[0] = reordered[1];
   reordered[1] = first;
   if (int result = expectErrorContains(
-          validateI32BinaryCallableABIParameterMirror(
+          validateFiniteBinaryCallableABIParameterMirror(
               kernel, reordered, plan->parameters, "reordered mirror",
-              "i32-vadd"),
+              contract),
           {"reordered mirror must preserve IR-backed callable ABI parameter "
            "order at index 0",
            "expected role 'lhs-input-buffer'",
@@ -822,34 +778,35 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
   if (!module)
     return fail("failed to parse invocation contract module");
   KernelOp kernel = findKernel(*module, "abi_kernel");
-  llvm::Expected<tianchenrv::support::I32BinaryCallableABIPlan> plan =
-      buildI32BinaryCallableABIPlan(
-          kernel, getI32BinaryRuntimeABIContract("i32-vsub"));
+  const FiniteBinaryRuntimeABIContract &contract =
+      getPluginI32RuntimeABIContract();
+  llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan> plan =
+      buildFiniteBinaryCallableABIPlan(kernel, contract);
   if (!plan)
-    return fail("failed to build invocation contract plan: " +
+    return fail(llvm::Twine("failed to build invocation contract plan: ") +
                 llvm::toString(plan.takeError()));
 
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract> direct =
       buildRuntimeABIInvocationContract(
-          kernel, "i32-vsub", plan->parameters, "rvv-direct-route-deleted",
-          "tcrv_rvv_i32_vsub_microkernel_abi_kernel_rvv_first_slice",
-          "unsupported-rvv-direct-runtime-abi",
-          "unsupported-rvv-direct-runtime-function",
-          "no-rvv-direct-runtime-glue", "len", "rvv-target-export");
+          kernel, contract.getFamilyID(), plan->parameters,
+          "plugin-direct-invocation-contract", "plugin_direct_callable",
+          "plugin-direct-runtime-abi-kind", "plugin.direct.runtime.fn",
+          "plugin-direct-runtime-glue", "len", "plugin-target-export");
   if (!direct)
-    return fail("valid direct invocation contract failed: " +
+    return fail(llvm::Twine("valid direct invocation contract failed: ") +
                 llvm::toString(direct.takeError()));
   std::string directBody = formatRuntimeABIInvocationContractCommentBody(
       "runtime_abi_invocation_contract", *direct);
   if (int result = expect(
           llvm::StringRef(directBody)
               .contains("runtime_abi_invocation_contract: "
-                        "source=rvv-direct-route-deleted"),
-          "direct invocation contract records deleted-route source label"))
+                        "source=plugin-direct-invocation-contract"),
+          "direct invocation contract records caller-owned source label"))
     return result;
   if (int result = expect(llvm::StringRef(directBody)
-                              .contains("family=i32-vsub"),
-                          "direct invocation contract carries selected family"))
+                              .contains("family=plugin-owned-i32-binary"),
+                          "direct invocation contract carries caller-owned "
+                          "family identifier"))
     return result;
   if (int result = expect(
           llvm::StringRef(directBody)
@@ -863,36 +820,12 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
           "direct invocation contract carries IR-backed runtime length C name"))
     return result;
 
-  llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract> vmulDirect =
-      buildRuntimeABIInvocationContract(
-          kernel, "i32-vmul", plan->parameters, "rvv-direct-route-deleted",
-          "tcrv_rvv_i32_vmul_microkernel_abi_kernel_rvv_first_slice",
-          "unsupported-rvv-direct-runtime-abi",
-          "unsupported-rvv-direct-runtime-function",
-          "no-rvv-direct-runtime-glue", "len", "rvv-target-export");
-  if (!vmulDirect)
-    return fail("valid vmul direct invocation contract failed: " +
-                llvm::toString(vmulDirect.takeError()));
-  std::string vmulDirectBody = formatRuntimeABIInvocationContractCommentBody(
-      "runtime_abi_invocation_contract", *vmulDirect);
-  if (int result =
-          expect(llvm::StringRef(vmulDirectBody).contains("family=i32-vmul"),
-                 "vmul direct invocation contract carries selected family"))
-    return result;
-  if (int result = expect(
-          llvm::StringRef(vmulDirectBody)
-              .contains("runtime_abi_name="
-                        "unsupported-rvv-direct-runtime-function"),
-          "vmul direct invocation contract carries deleted-route ABI marker"))
-    return result;
-
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract>
       missingFamily = buildRuntimeABIInvocationContract(
-          kernel, "", plan->parameters, "rvv-direct-route-deleted",
-          "tcrv_rvv_i32_vsub_microkernel_abi_kernel_rvv_first_slice",
-          "unsupported-rvv-direct-runtime-abi",
-          "unsupported-rvv-direct-runtime-function",
-          "no-rvv-direct-runtime-glue", "len", "rvv-target-export");
+          kernel, "", plan->parameters, "plugin-direct-invocation-contract",
+          "plugin_direct_callable", "plugin-direct-runtime-abi-kind",
+          "plugin.direct.runtime.fn", "plugin-direct-runtime-glue", "len",
+          "plugin-target-export");
   if (int result = expectErrorContains(
           missingFamily.takeError(),
           {"runtime ABI invocation contract field 'family'",
@@ -901,11 +834,10 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
 
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract>
       staleRuntimeName = buildRuntimeABIInvocationContract(
-          kernel, "i32-vsub", plan->parameters, "rvv-direct-route-deleted",
-          "tcrv_rvv_i32_vsub_microkernel_abi_kernel_rvv_first_slice",
-          "unsupported-rvv-direct-runtime-abi",
-          "unsupported-rvv-direct-runtime-function",
-          "no-rvv-direct-runtime-glue", "n", "rvv-target-export");
+          kernel, contract.getFamilyID(), plan->parameters,
+          "plugin-direct-invocation-contract", "plugin_direct_callable",
+          "plugin-direct-runtime-abi-kind", "plugin.direct.runtime.fn",
+          "plugin-direct-runtime-glue", "n", "plugin-target-export");
   if (int result = expectErrorContains(
           staleRuntimeName.takeError(),
           {"runtime ABI invocation contract runtime_element_count_c_name 'n'",
@@ -916,40 +848,36 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
   llvm::SmallVector<RuntimeABIParameter, 5> directWithGuard(
       plan->parameters.begin(), plan->parameters.end());
   directWithGuard.push_back(
-      tianchenrv::support::makeI32BinaryDispatchAvailabilityGuardForFamily(
-          "i32-vsub", "rvv_ready"));
+      contract.getDispatchAvailabilityGuardParameter("dispatch_ready"));
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract>
       directGuard = buildRuntimeABIInvocationContract(
-          kernel, "i32-vsub", directWithGuard, "rvv-direct-route-deleted",
-          "tcrv_rvv_i32_vsub_microkernel_abi_kernel_rvv_first_slice",
-          "unsupported-rvv-direct-runtime-abi",
-          "unsupported-rvv-direct-runtime-function",
-          "no-rvv-direct-runtime-glue", "len", "rvv-target-export");
+          kernel, contract.getFamilyID(), directWithGuard,
+          "plugin-direct-invocation-contract", "plugin_direct_callable",
+          "plugin-direct-runtime-abi-kind", "plugin.direct.runtime.fn",
+          "plugin-direct-runtime-glue", "len", "plugin-target-export");
   if (int result = expectErrorContains(
           directGuard.takeError(),
           {"direct callable must not carry a dispatch-availability-guard"}))
     return result;
 
   llvm::SmallVector<RuntimeABIParameter, 5> dispatchParameters =
-      tianchenrv::support::getI32BinaryDispatchRuntimeABIParameters(
-          "i32-vsub", "len", "rvv_ready");
+      contract.getDispatchRuntimeABIParameters("len", "dispatch_ready");
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract> dispatch =
       buildRuntimeABIInvocationContract(
-          kernel, "i32-vsub", dispatchParameters,
-          "rvv-scalar-dispatch-runtime-abi-contract",
-          "tcrv_dispatch_i32_vsub_abi_kernel",
-          "rvv-scalar-dispatch-runtime-callable-c-abi",
-          "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1",
-          /*runtimeGlueRole=*/"", "len", "rvv-scalar-dispatch-target",
-          "rvv_ready");
+          kernel, contract.getFamilyID(), dispatchParameters,
+          "plugin-dispatch-runtime-abi-contract", "plugin_dispatch_callable",
+          "plugin-dispatch-runtime-abi-kind", "plugin.dispatch.runtime.fn",
+          /*runtimeGlueRole=*/"", "len", "plugin-dispatch-target",
+          "dispatch_ready");
   if (!dispatch)
-    return fail("valid dispatch invocation contract failed: " +
+    return fail(llvm::Twine("valid dispatch invocation contract failed: ") +
                 llvm::toString(dispatch.takeError()));
   std::string dispatchBody = formatRuntimeABIInvocationContractCommentBody(
       "dispatch_runtime_abi_invocation_contract", *dispatch);
-  if (int result =
-          expect(llvm::StringRef(dispatchBody).contains("family=i32-vsub"),
-                 "dispatch invocation contract carries selected family"))
+  if (int result = expect(
+          llvm::StringRef(dispatchBody)
+              .contains("family=plugin-owned-i32-binary"),
+          "dispatch invocation contract carries caller-owned family identifier"))
     return result;
   if (int result = expect(
           llvm::StringRef(dispatchBody)
@@ -960,7 +888,7 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
     return result;
   if (int result = expect(
           llvm::StringRef(dispatchBody)
-              .contains("dispatch_guard_c_name=rvv_ready"),
+              .contains("dispatch_guard_c_name=dispatch_ready"),
           "dispatch invocation contract carries dispatch guard C name"))
     return result;
   if (int result = expect(
@@ -970,13 +898,11 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
 
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract>
       missingGuard = buildRuntimeABIInvocationContract(
-          kernel, "i32-vsub", plan->parameters,
-          "rvv-scalar-dispatch-runtime-abi-contract",
-          "tcrv_dispatch_i32_vsub_abi_kernel",
-          "rvv-scalar-dispatch-runtime-callable-c-abi",
-          "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1",
-          /*runtimeGlueRole=*/"", "len", "rvv-scalar-dispatch-target",
-          "rvv_ready");
+          kernel, contract.getFamilyID(), plan->parameters,
+          "plugin-dispatch-runtime-abi-contract", "plugin_dispatch_callable",
+          "plugin-dispatch-runtime-abi-kind", "plugin.dispatch.runtime.fn",
+          /*runtimeGlueRole=*/"", "len", "plugin-dispatch-target",
+          "dispatch_ready");
   if (int result = expectErrorContains(
           missingGuard.takeError(),
           {"requires exactly one dispatch-availability-guard ABI parameter"}))
@@ -984,18 +910,16 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
 
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract>
       staleGuard = buildRuntimeABIInvocationContract(
-          kernel, "i32-vsub", dispatchParameters,
-          "rvv-scalar-dispatch-runtime-abi-contract",
-          "tcrv_dispatch_i32_vsub_abi_kernel",
-          "rvv-scalar-dispatch-runtime-callable-c-abi",
-          "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1",
-          /*runtimeGlueRole=*/"", "len", "rvv-scalar-dispatch-target",
-          "rvv_available");
+          kernel, contract.getFamilyID(), dispatchParameters,
+          "plugin-dispatch-runtime-abi-contract", "plugin_dispatch_callable",
+          "plugin-dispatch-runtime-abi-kind", "plugin.dispatch.runtime.fn",
+          /*runtimeGlueRole=*/"", "len", "plugin-dispatch-target",
+          "other_dispatch_ready");
   if (int result = expectErrorContains(
           staleGuard.takeError(),
-          {"dispatch_guard_c_name 'rvv_available'",
+          {"dispatch_guard_c_name 'other_dispatch_ready'",
            "must match ordered ABI parameter role "
-           "'dispatch-availability-guard' C name 'rvv_ready'"}))
+           "'dispatch-availability-guard' C name 'dispatch_ready'"}))
     return result;
 
   return 0;
@@ -1061,7 +985,7 @@ int main() {
 
   if (int result = runValidPlanTest(context))
     return result;
-  if (int result = runI32BinaryFamilyContractCoverageTest())
+  if (int result = runFiniteBinaryContractPrimitiveCoverageTest())
     return result;
   if (int result = runValidI64FamilyPlanTests(context))
     return result;

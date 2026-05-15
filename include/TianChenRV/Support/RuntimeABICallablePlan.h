@@ -20,8 +20,6 @@ struct FiniteBinaryCallableABIPlan {
   tcrv::exec::RuntimeParamOp runtimeElementCountParam;
 };
 
-using I32BinaryCallableABIPlan = FiniteBinaryCallableABIPlan;
-
 struct RuntimeABIInvocationContract {
   std::string sourceOwner;
   std::string callableSymbol;
@@ -64,25 +62,6 @@ llvm::Error validateFiniteBinaryCallableABIParameterMirror(
     llvm::ArrayRef<RuntimeABIParameter> irBackedParameters,
     llvm::StringRef metadataSource,
     const FiniteBinaryRuntimeABIContract &contract);
-
-// Compatibility wrappers for the current i32 binary callable ABI.
-llvm::Expected<I32BinaryCallableABIPlan>
-buildI32BinaryCallableABIPlan(tcrv::exec::KernelOp kernel,
-                              const I32BinaryRuntimeABIContract &contract);
-
-llvm::Error validateI32BinaryCallableABIParameterMirror(
-    tcrv::exec::KernelOp kernel,
-    llvm::ArrayRef<RuntimeABIParameter> metadataParameters,
-    llvm::ArrayRef<RuntimeABIParameter> irBackedParameters,
-    llvm::StringRef metadataSource,
-    const I32BinaryRuntimeABIContract &contract);
-
-llvm::Error validateI32BinaryCallableABIParameterMirror(
-    tcrv::exec::KernelOp kernel,
-    llvm::ArrayRef<RuntimeABIParameter> metadataParameters,
-    llvm::ArrayRef<RuntimeABIParameter> irBackedParameters,
-    llvm::StringRef metadataSource,
-    llvm::StringRef familyID);
 
 } // namespace tianchenrv::support
 
