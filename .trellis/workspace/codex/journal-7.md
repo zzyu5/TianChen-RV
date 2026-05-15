@@ -109,6 +109,56 @@ fixtures.
 - None - task complete
 
 
+## Session 79: Offload descriptor route residue erasure
+
+**Date**: 2026-05-15
+**Task**: Offload Descriptor Route Residue Erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the remaining active Offload descriptor-route identity from the
+unsupported emission-plan diagnostic and directly protecting tests. Offload
+still fails closed as metadata-only with no executable lowering or target
+artifact route, but active code/tests no longer preserve the old descriptor
+artifact export wording or `tcrv-export-offload-runtime-descriptor` route id.
+
+### Main Changes
+
+- Replaced the Offload unsupported emission-plan message with descriptor-free
+  no-executable-route wording.
+- Updated Offload plugin, execution-planning, and emission-manifest tests to
+  assert the current unsupported message.
+- Replaced the deleted Offload descriptor route-id fixture in the target
+  artifact export test with a route-id-free assertion that Offload contributes
+  no target artifact exporters.
+- Kept unrelated plugin-owned Toy metadata route registration coverage intact.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(offload): erase descriptor route residue |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-15-offload-descriptor-route-residue-erasure`
+- [OK] `cmake --build build --target tianchenrv-offload-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-offload-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Transforms/ExecutionPlanning/execution-planning-pipeline-offload.mlir Target/EmissionManifest/emission-manifest-offload-pipeline.mlir` from `build/test`
+- [OK] Focused active ref-scans for deleted Offload descriptor wording and route id returned no matches in `lib`, `test`, and active specs.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 77: Delete common EmitC source-authority exporter residue
 
 **Date**: 2026-05-15

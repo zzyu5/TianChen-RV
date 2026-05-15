@@ -66,7 +66,7 @@ module @offload_manifest_inputs {
 // CHECK: runtime_abi_name: "unsupported-emission-runtime-abi"
 // CHECK: runtime_glue_role: "no-runtime-glue-unsupported"
 // CHECK: required_capabilities: [@offload_runtime]
-// CHECK: explanation: "runtime-offload descriptor artifact export has been deleted; the Offload extension currently has no active executable lowering or target artifact route"
+// CHECK: explanation: "the Offload extension currently has no active executable lowering or target artifact route"
 // CHECK: preference:
 // CHECK: available: true
 // CHECK: policy: "prefer runtime-offload metadata handoff only when explicit offload.runtime capability metadata is available"

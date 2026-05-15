@@ -943,49 +943,38 @@ bool expectPluginOwnedToyTargetExporterRegistration() {
   return true;
 }
 
-bool expectOffloadDescriptorTargetExporterDeleted() {
-  constexpr llvm::StringLiteral deletedRouteID(
-      "tcrv-export-offload-runtime-descriptor");
-
+bool expectOffloadTargetArtifactExportersAbsent() {
   ExtensionPluginRegistry offloadOnlyPlugins;
   if (!expectSuccess(
           tianchenrv::plugin::registerOffloadExtensionPlugin(offloadOnlyPlugins),
-          "register offload extension plugin for deleted target exporter check"))
+          "register offload extension plugin for target exporter absence check"))
     return false;
 
   TargetArtifactExporterRegistry offloadOnlyRegistry;
   if (!expectSuccess(registerBuiltinTargetArtifactExporters(
                          offloadOnlyRegistry, offloadOnlyPlugins),
                      "register built-in target exporters with offload plugin "
-                     "after descriptor deletion"))
+                     "after executable route erasure"))
     return false;
-  if (offloadOnlyRegistry.lookup(deletedRouteID)) {
-    llvm::errs() << "deleted offload descriptor route was still registered\n";
+  if (offloadOnlyRegistry.size() != 0 ||
+      offloadOnlyRegistry.compositeSize() != 0) {
+    llvm::errs() << "Offload plugin unexpectedly contributed target artifact "
+                    "exporters without an executable lowering route\n";
     return false;
   }
 
   ExtensionPluginRegistry allPlugins;
   if (!expectSuccess(registerBuiltinExtensionBundlePlugins(allPlugins),
-                     "register built-in extension plugins for deleted offload "
-                     "route check"))
+                     "register built-in extension plugins for offload target "
+                     "exporter absence check"))
     return false;
 
   TargetArtifactExporterRegistry allRegistry;
   if (!expectSuccess(registerBuiltinTargetArtifactExporters(allRegistry,
                                                            allPlugins),
                      "register all built-in target exporters after offload "
-                     "descriptor deletion"))
+                     "executable route erasure"))
     return false;
-  if (allRegistry.lookup(deletedRouteID)) {
-    llvm::errs() << "deleted offload descriptor route was published by the "
-                    "built-in target exporter registry\n";
-    return false;
-  }
-  if (allRegistry.lookup("tcrv-export-rvv-smoke-probe-c")) {
-    llvm::errs() << "deleted RVV smoke-probe route was published by the "
-                    "built-in target exporter registry\n";
-    return false;
-  }
   if (!allRegistry.lookup("none-executable-toy-template-metadata")) {
     llvm::errs() << "non-offload plugin-owned Toy route should still be "
                     "registered through the same built-in target boundary\n";
@@ -2114,7 +2103,7 @@ int main() {
     return 1;
   if (!expectPluginOwnedToyTargetExporterRegistration())
     return 1;
-  if (!expectOffloadDescriptorTargetExporterDeleted())
+  if (!expectOffloadTargetArtifactExportersAbsent())
     return 1;
   if (!expectRVVTargetSupportBundleExtractionRegistration())
     return 1;

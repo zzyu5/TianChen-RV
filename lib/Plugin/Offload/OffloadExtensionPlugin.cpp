@@ -561,9 +561,8 @@ llvm::Error OffloadExtensionPlugin::buildVariantEmissionPlan(
   out = VariantEmissionPlan::getUnsupported(
       kOffloadPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      "runtime-offload descriptor artifact export has been deleted; the "
-      "Offload extension currently has no active executable lowering or target "
-      "artifact route");
+      "the Offload extension currently has no active executable lowering or "
+      "target artifact route");
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;

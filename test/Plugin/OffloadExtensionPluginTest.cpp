@@ -615,13 +615,14 @@ module {
                      emissionPlan.getRuntimeABIParameters().empty() &&
                      emissionPlan.getSelectedPlanMetadata().empty() &&
                      emissionPlan.getDiagnostic().contains(
-                         "descriptor artifact export has been deleted") &&
+                         "no active executable lowering or target artifact "
+                         "route") &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::offload::
                              getOffloadRuntimePreferredCapabilitySymbol(),
-                 "offload emission plan fails closed after descriptor route "
-                 "deletion"))
+                 "offload emission plan fails closed without executable target "
+                 "route"))
     return result;
 
   if (int result = expectSuccess(

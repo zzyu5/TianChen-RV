@@ -82,7 +82,7 @@ module {
     // PIPE-SAME: status = "metadata-only"
     // PIPE: tcrv.exec.diagnostic
     // PIPE-SAME: lowering_boundary = "tcrv_offload.lowering_boundary"
-    // PIPE-SAME: message = "runtime-offload descriptor artifact export has been deleted; the Offload extension currently has no active executable lowering or target artifact route"
+    // PIPE-SAME: message = "the Offload extension currently has no active executable lowering or target artifact route"
     // PIPE-SAME: origin = "offload-plugin"
     // PIPE-SAME: plan_kind = "plugin-emission-plan"
     // PIPE-SAME: reason = "emission_plan"
@@ -172,7 +172,7 @@ module {
     // PIPE-SAME: selected_variant = @offload_runtime_first_slice
     // PIPE-SAME: source_kernel = "pipeline_profile_offload_plus_scalar"
     // PIPE: tcrv.exec.diagnostic
-    // PIPE-SAME: message = "runtime-offload descriptor artifact export has been deleted; the Offload extension currently has no active executable lowering or target artifact route"
+    // PIPE-SAME: message = "the Offload extension currently has no active executable lowering or target artifact route"
     // PIPE-SAME: reason = "emission_plan"
     // PIPE-SAME: required_capabilities = [@module_offload_scalar_profile]
     // PIPE-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
