@@ -33,7 +33,7 @@ module {
     } {
     }
     tcrv.exec.diagnostic {
-      message = "selected RVV microkernel path",
+      message = "selected test artifact path",
       reason = "variant-selected",
       selection_kind = "static-variant",
       status = "selected",
@@ -72,7 +72,7 @@ module {
     }
     tcrv.exec.diagnostic {
       artifact_kind = "runtime-callable-c-source",
-      emission_kind = "rvv-explicit-i32-vadd-microkernel-c-source",
+      emission_kind = "test-runtime-callable-source",
       lowering_boundary = "tcrv_rvv.lowering_boundary",
       lowering_pipeline = "unknown-target-export-route",
       message = "supported route with unknown exporter id",
@@ -81,11 +81,11 @@ module {
       reason = "emission_plan",
       required_capabilities = [@rvv],
       role = "direct variant",
-      runtime_abi = "rvv-i32-vadd-runtime-callable-c-abi.v1",
-      runtime_abi_kind = "rvv-runtime-callable-c-abi",
-      runtime_abi_name = "rvv-i32-vadd-runtime-callable-c-function.v1",
+      runtime_abi = "test-runtime-callable-abi.v1",
+      runtime_abi_kind = "test-runtime-callable-abi-kind",
+      runtime_abi_name = "test-runtime-callable-function.v1",
       runtime_abi_parameters = [{c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"}, {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"}, {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"}, {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}],
-      runtime_glue_role = "runtime-callable-i32-vadd-function",
+      runtime_glue_role = "test-runtime-callable-function",
       status = "supported",
       target = @rvv_first_slice
     }

@@ -95,7 +95,6 @@ bindOneI32BinaryCallableParameterByRole(
 FiniteBinaryRuntimeABIContract::FiniteBinaryRuntimeABIContract(
     const FiniteBinaryRuntimeABIContractSpec &spec)
     : familyID(spec.familyID), callableIdentity(spec.callableIdentity),
-      rvvCallableIdentity(spec.rvvCallableIdentity),
       dispatchIdentity(spec.dispatchIdentity),
       externalABIComponentGroup(spec.externalABIComponentGroup) {
   callableParameters.push_back(makeTargetExportABIParameter(
@@ -212,14 +211,7 @@ const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
           "i32-vadd",
           "const int32_t *",
           "int32_t *",
-          {"rvv-i32-vadd-runtime-callable-c-abi.v1",
-           "rvv-runtime-callable-c-abi",
-           "rvv-i32-vadd-runtime-callable-c-function.v1",
-           "runtime-callable-i32-vadd-function"},
-          {"rvv-i32-vadd-runtime-callable-c-abi.v1",
-           "rvv-runtime-callable-c-abi",
-           "rvv-i32-vadd-runtime-callable-c-function.v1",
-           "runtime-callable-i32-vadd-function"},
+          {},
           {"rvv-scalar-dispatch-runtime-callable-c-abi",
            "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"},
           "rvv-i32-vadd-microkernel-external-abi.v1"});
@@ -228,14 +220,7 @@ const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
           "i32-vsub",
           "const int32_t *",
           "int32_t *",
-          {"rvv-i32-vsub-runtime-callable-c-abi.v1",
-           "rvv-runtime-callable-c-abi",
-           "rvv-i32-vsub-runtime-callable-c-function.v1",
-           "runtime-callable-i32-vsub-function"},
-          {"rvv-i32-vsub-runtime-callable-c-abi.v1",
-           "rvv-runtime-callable-c-abi",
-           "rvv-i32-vsub-runtime-callable-c-function.v1",
-           "runtime-callable-i32-vsub-function"},
+          {},
           {"rvv-scalar-dispatch-runtime-callable-c-abi",
            "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1"},
           "rvv-i32-vsub-microkernel-external-abi.v1"});
@@ -244,14 +229,7 @@ const I32BinaryRuntimeABIContract &getI32BinaryRuntimeABIContract(
           "i32-vmul",
           "const int32_t *",
           "int32_t *",
-          {"rvv-i32-vmul-runtime-callable-c-abi.v1",
-           "rvv-runtime-callable-c-abi",
-           "rvv-i32-vmul-runtime-callable-c-function.v1",
-           "runtime-callable-i32-vmul-function"},
-          {"rvv-i32-vmul-runtime-callable-c-abi.v1",
-           "rvv-runtime-callable-c-abi",
-           "rvv-i32-vmul-runtime-callable-c-function.v1",
-           "runtime-callable-i32-vmul-function"},
+          {},
           {"rvv-scalar-dispatch-runtime-callable-c-abi",
            "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1"},
           "rvv-i32-vmul-microkernel-external-abi.v1"});

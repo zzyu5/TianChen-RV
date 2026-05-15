@@ -412,15 +412,14 @@ int runValidPlanTest(mlir::MLIRContext &context) {
 int runI32BinaryFamilyContractCoverageTest() {
   struct ExpectedI32Contract {
     llvm::StringRef familyID;
-    llvm::StringRef rvvRuntimeABIName;
     llvm::StringRef dispatchRuntimeABIName;
   };
   const ExpectedI32Contract families[] = {
-      {"i32-vadd", "rvv-i32-vadd-runtime-callable-c-function.v1",
+      {"i32-vadd",
        "rvv-scalar-i32-vadd-dispatch-runtime-callable-c-function.v1"},
-      {"i32-vsub", "rvv-i32-vsub-runtime-callable-c-function.v1",
+      {"i32-vsub",
        "rvv-scalar-i32-vsub-dispatch-runtime-callable-c-function.v1"},
-      {"i32-vmul", "rvv-i32-vmul-runtime-callable-c-function.v1",
+      {"i32-vmul",
        "rvv-scalar-i32-vmul-dispatch-runtime-callable-c-function.v1"},
   };
   llvm::ArrayRef<RuntimeABIParameter> baselineParameters =
@@ -443,11 +442,6 @@ int runI32BinaryFamilyContractCoverageTest() {
       return result;
     if (int result = expect(contract.getBufferMemWindowSpecs().size() == 3,
                             "i32 binary contract has three mem windows"))
-      return result;
-    if (int result = expect(
-            contract.getRVVCallableIdentity().runtimeABIName ==
-                family.rvvRuntimeABIName,
-            "RVV callable ABI identity comes from selected family id"))
       return result;
     if (int result =
             expect(contract.getDispatchIdentity().runtimeABIName ==
@@ -823,12 +817,11 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
 
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract> direct =
       buildRuntimeABIInvocationContract(
-          kernel, "i32-vsub", plan->parameters, "RVVMicrokernel.cpp",
+          kernel, "i32-vsub", plan->parameters, "rvv-direct-route-deleted",
           "tcrv_rvv_i32_vsub_microkernel_abi_kernel_rvv_first_slice",
-          "rvv-runtime-callable-c-abi",
-          "rvv-i32-vsub-runtime-callable-c-function.v1",
-          "runtime-callable-i32-vsub-function", "len",
-          "rvv-target-export");
+          "unsupported-rvv-direct-runtime-abi",
+          "unsupported-rvv-direct-runtime-function",
+          "no-rvv-direct-runtime-glue", "len", "rvv-target-export");
   if (!direct)
     return fail("valid direct invocation contract failed: " +
                 llvm::toString(direct.takeError()));
@@ -837,8 +830,8 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
   if (int result = expect(
           llvm::StringRef(directBody)
               .contains("runtime_abi_invocation_contract: "
-                        "source=RVVMicrokernel.cpp"),
-          "direct invocation contract uses RVVMicrokernel label/source"))
+                        "source=rvv-direct-route-deleted"),
+          "direct invocation contract records deleted-route source label"))
     return result;
   if (int result = expect(llvm::StringRef(directBody)
                               .contains("family=i32-vsub"),
@@ -858,12 +851,11 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
 
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract> vmulDirect =
       buildRuntimeABIInvocationContract(
-          kernel, "i32-vmul", plan->parameters, "RVVMicrokernel.cpp",
+          kernel, "i32-vmul", plan->parameters, "rvv-direct-route-deleted",
           "tcrv_rvv_i32_vmul_microkernel_abi_kernel_rvv_first_slice",
-          "rvv-runtime-callable-c-abi",
-          "rvv-i32-vmul-runtime-callable-c-function.v1",
-          "runtime-callable-i32-vmul-function", "len",
-          "rvv-target-export");
+          "unsupported-rvv-direct-runtime-abi",
+          "unsupported-rvv-direct-runtime-function",
+          "no-rvv-direct-runtime-glue", "len", "rvv-target-export");
   if (!vmulDirect)
     return fail("valid vmul direct invocation contract failed: " +
                 llvm::toString(vmulDirect.takeError()));
@@ -876,18 +868,17 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
   if (int result = expect(
           llvm::StringRef(vmulDirectBody)
               .contains("runtime_abi_name="
-                        "rvv-i32-vmul-runtime-callable-c-function.v1"),
-          "vmul direct invocation contract carries selected runtime ABI name"))
+                        "unsupported-rvv-direct-runtime-function"),
+          "vmul direct invocation contract carries deleted-route ABI marker"))
     return result;
 
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract>
       missingFamily = buildRuntimeABIInvocationContract(
-          kernel, "", plan->parameters, "RVVMicrokernel.cpp",
+          kernel, "", plan->parameters, "rvv-direct-route-deleted",
           "tcrv_rvv_i32_vsub_microkernel_abi_kernel_rvv_first_slice",
-          "rvv-runtime-callable-c-abi",
-          "rvv-i32-vsub-runtime-callable-c-function.v1",
-          "runtime-callable-i32-vsub-function", "len",
-          "rvv-target-export");
+          "unsupported-rvv-direct-runtime-abi",
+          "unsupported-rvv-direct-runtime-function",
+          "no-rvv-direct-runtime-glue", "len", "rvv-target-export");
   if (int result = expectErrorContains(
           missingFamily.takeError(),
           {"runtime ABI invocation contract field 'family'",
@@ -896,12 +887,11 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
 
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract>
       staleRuntimeName = buildRuntimeABIInvocationContract(
-          kernel, "i32-vsub", plan->parameters, "RVVMicrokernel.cpp",
+          kernel, "i32-vsub", plan->parameters, "rvv-direct-route-deleted",
           "tcrv_rvv_i32_vsub_microkernel_abi_kernel_rvv_first_slice",
-          "rvv-runtime-callable-c-abi",
-          "rvv-i32-vsub-runtime-callable-c-function.v1",
-          "runtime-callable-i32-vsub-function", "n",
-          "rvv-target-export");
+          "unsupported-rvv-direct-runtime-abi",
+          "unsupported-rvv-direct-runtime-function",
+          "no-rvv-direct-runtime-glue", "n", "rvv-target-export");
   if (int result = expectErrorContains(
           staleRuntimeName.takeError(),
           {"runtime ABI invocation contract runtime_element_count_c_name 'n'",
@@ -916,12 +906,11 @@ int runInvocationContractTests(mlir::MLIRContext &context) {
           "i32-vsub", "rvv_ready"));
   llvm::Expected<tianchenrv::support::RuntimeABIInvocationContract>
       directGuard = buildRuntimeABIInvocationContract(
-          kernel, "i32-vsub", directWithGuard, "RVVMicrokernel.cpp",
+          kernel, "i32-vsub", directWithGuard, "rvv-direct-route-deleted",
           "tcrv_rvv_i32_vsub_microkernel_abi_kernel_rvv_first_slice",
-          "rvv-runtime-callable-c-abi",
-          "rvv-i32-vsub-runtime-callable-c-function.v1",
-          "runtime-callable-i32-vsub-function", "len",
-          "rvv-target-export");
+          "unsupported-rvv-direct-runtime-abi",
+          "unsupported-rvv-direct-runtime-function",
+          "no-rvv-direct-runtime-glue", "len", "rvv-target-export");
   if (int result = expectErrorContains(
           directGuard.takeError(),
           {"direct callable must not carry a dispatch-availability-guard"}))

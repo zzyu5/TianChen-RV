@@ -1,6 +1,5 @@
 add_mlir_library(TianChenRVRVVTarget
   RVVBinaryMicrokernelBodyVerifier.cpp
-  RVVMicrokernel.cpp
   RVVScalarDispatch.cpp
   RVVTargetSupportBundle.cpp
 

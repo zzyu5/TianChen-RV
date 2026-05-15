@@ -28,7 +28,6 @@ struct FiniteBinaryRuntimeABIContractSpec {
   llvm::StringRef constInputPointerCType;
   llvm::StringRef outputPointerCType;
   RuntimeABICallableIdentity callableIdentity;
-  RuntimeABICallableIdentity rvvCallableIdentity;
   RuntimeABIDispatchIdentity dispatchIdentity;
   llvm::StringRef externalABIComponentGroup;
 };
@@ -96,10 +95,6 @@ public:
   llvm::StringRef
   getCallableBufferCName(RuntimeABIParameterRole role) const;
 
-  const RuntimeABICallableIdentity &getRVVCallableIdentity() const {
-    return rvvCallableIdentity;
-  }
-
   const RuntimeABIDispatchIdentity &getDispatchIdentity() const {
     return dispatchIdentity;
   }
@@ -113,7 +108,6 @@ private:
   llvm::SmallVector<RuntimeABIParameter, 4> callableRoleRequirements;
   llvm::SmallVector<RuntimeABIMemWindowSpec, 3> bufferMemWindowSpecs;
   RuntimeABICallableIdentity callableIdentity;
-  RuntimeABICallableIdentity rvvCallableIdentity;
   RuntimeABIDispatchIdentity dispatchIdentity;
   llvm::StringRef externalABIComponentGroup;
 };

@@ -46,6 +46,63 @@ Final session commit recorded in git history for this round.
 - None - task complete
 
 
+## Session 70: RVV direct route fixture/API deletion
+
+**Date**: 2026-05-15
+**Task**: RVV direct route fixture/API deletion
+**Branch**: `main`
+
+### Summary
+
+Deleted the remaining RVV standalone direct runtime-callable
+source/header/object API and fixture-authority residue. RVV executable
+artifacts can no longer be justified by `RVVMicrokernel` public APIs, RVV
+direct selected-config authority resolvers, standalone RVV runtime-callable ABI
+names, or positive RVV direct source artifact fixtures.
+
+### Main Changes
+
+- Created Trellis task `05-15-rvv-direct-route-erasure`.
+- Deleted `include/TianChenRV/Target/RVV/RVVMicrokernel.h` and
+  `lib/Target/RVV/RVVMicrokernel.cpp`; removed the implementation source from
+  `TianChenRVRVVTarget`.
+- Removed `getRVVCallableIdentity()` / `rvvCallableIdentity` from the finite
+  runtime ABI contract and cleared standalone RVV callable identities.
+- Rewrote target artifact and runtime ABI tests away from RVV direct route
+  helper APIs, `RVVMicrokernel.cpp` source authority, and standalone RVV direct
+  runtime-callable ABI names.
+- Deleted stale ArtifactExport fixtures that preserved old direct route,
+  spoof, or positive runtime-callable authority behavior.
+- Rewrote `unknown-route-id.txt` as a route-agnostic unknown-route fixture.
+- No `.trellis/spec/` update was needed because the existing lowering/runtime
+  and testing specs already require deleted direct source/header/object routes
+  to stay absent until a materialized MLIR EmitC route exists.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target TianChenRVRVVTarget TianChenRVSupport tianchenrv-target-artifact-export-test tianchenrv-runtime-abi-callable-plan-test -j2`.
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-runtime-abi-callable-plan-test`
+- [OK] Focused lit from `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='(ArtifactExport|RVVMicrokernel)'`
+  passed 5/5 selected tests.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`: 114/114 passed.
+- [OK] Bounded final ref-scan: no production `RVVMicrokernel` APIs/stubs,
+  selected-config authority resolvers, standalone RVV direct runtime ABI names,
+  or RVV direct source/header/object route publishers remain.
+- [OK] `git diff --check`.
+- [OK] Trellis validation before finish/archive.
+
+### Status
+
+[OK] **Ready to archive and commit**
+
+### Next Steps
+
+- None - deletion slice complete.
+
+
 ## Session 67: Direct C semantic exporter erasure completion
 
 **Date**: 2026-05-15

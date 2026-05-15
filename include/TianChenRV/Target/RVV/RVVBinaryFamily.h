@@ -365,7 +365,6 @@ public:
                 family.outputPointerCType,
                 {},
                 {},
-                {},
                 {}}),
         family(&family) {}
 
