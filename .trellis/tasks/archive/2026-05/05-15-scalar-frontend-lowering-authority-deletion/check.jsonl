@@ -1,0 +1,6 @@
+{"file":".trellis/spec/index.md","reason":"Validate that the task stays inside the C++/MLIR and capability-driven project boundary."}
+{"file":".trellis/spec/architecture/design-boundaries.md","reason":"Review against descriptor-driven computation and backend-fragmentation regressions."}
+{"file":".trellis/spec/core-dialect/tcrv-exec-contract.md","reason":"Check that tcrv.exec remains an execution envelope, not scalar compute authority."}
+{"file":".trellis/spec/extension-plugins/scalar-fallback-plugin.md","reason":"Check scalar fallback wording and tests no longer protect frontend-lowering selection."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Check that missing executable scalar behavior is reported as a future EmitC rebuild gap."}
+{"file":".trellis/tasks/archive/2026-05/05-15-rvv-finite-selected-source-authority-deletion/prd.md","reason":"Compare focused deletion evidence with the prior RVV deletion discipline."}

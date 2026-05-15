@@ -1234,3 +1234,74 @@ future typed extension-family op -> EmitC route is rebuilt.
 
 - Continue deletion only if a future owner explicitly targets the remaining
   out-of-scope scalar frontend-lowering authority.
+
+
+## Session 71: Scalar frontend-lowering authority deletion
+
+**Date**: 2026-05-15
+**Task**: Scalar frontend-lowering authority deletion
+**Branch**: `main`
+
+### Summary
+
+Deleted scalar fallback frontend-lowering authority as a finite-family selector.
+Scalar fallback no longer selects vadd/vsub/vmul or i32/i64 families from
+`tcrv_frontend_lowering`, `frontendLowering` family fields, or lookup-by-
+frontend helper tables. Remaining scalar executable behavior is still bounded:
+descriptorless no-marker fallback may materialize the default i32 vadd typed op,
+and explicit typed scalar microkernel bodies remain the selected-path authority
+for future EmitC rebuild work.
+
+### Main Changes
+
+- Created Trellis task
+  `05-15-scalar-frontend-lowering-authority-deletion`.
+- Removed `frontendLowering` and
+  `lookupRVVScalarBinaryRegistrationByFrontendLowering` from
+  `RVVScalarBinaryFamily.h`.
+- Removed scalar plugin lookup-by-frontend, requested-family helper, and
+  frontend-driven descriptorless materialization.
+- Made scalar proposal support decline kernels with non-empty
+  `tcrv_frontend_lowering`; direct proposal and boundary materialization fail
+  closed with a deleted-authority diagnostic.
+- Rewrote scalar plugin tests so former frontend vadd/vsub/vmul/i64 positives
+  are deletion-negative proposal or boundary checks.
+- Rewrote the i64 scalar artifact fixture to use an explicit
+  `tcrv_scalar.i64_vmul_microkernel` body instead of frontend metadata, and
+  deleted the stale unused vmul frontend fixture.
+- Updated the scalar fallback spec so `tcrv_frontend_lowering` is documented as
+  deleted old authority rather than a scalar family selector.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tianchenrv-scalar-extension-plugin-test
+  tcrv-opt tcrv-translate -j2`.
+- [OK] `./build/bin/tianchenrv-scalar-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Manual affected artifact route:
+  `tcrv-opt test/Target/ArtifactExport/Inputs/scalar-i64-vmul-microkernel-source.txt
+  --tcrv-materialize-selected-lowering-boundaries
+  --tcrv-materialize-emission-plans`
+- [OK] Manual affected export failed closed as expected with
+  `requires exactly one supported source artifact emission-plan route; found none`.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`: 114/114
+  passed.
+- [OK] Focused ref-scan: no scalar
+  `lookupRVVScalarBinaryRegistrationByFrontendLowering`,
+  `getRequestedScalarBinaryFamily`, `ScalarBinaryFamilyDescriptor`, or
+  `frontendLowering` selector remains; `tcrv_frontend_lowering` remains only in
+  deletion-negative tests, rejection diagnostics, prior RVV deletion negatives,
+  script `implicit-check-not` coverage, and deletion guidance.
+- [OK] `git diff --check`
+- [OK] Trellis context validation before finish/archive.
+
+### Status
+
+[OK] **Ready to archive and commit**
+
+### Next Steps
+
+- Continue deletion only if a future owner explicitly targets non-frontend
+  scalar bridge residue; do not rebuild scalar EmitC in a deletion-only round.

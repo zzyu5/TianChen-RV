@@ -49,7 +49,7 @@ constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr std::int64_t kDefaultScalarMicrokernelElementCount = 16;
 
-using ScalarBinaryFamilyDescriptor =
+using ScalarBinaryFamilyRecord =
     tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyRecord;
 using ScalarBinaryMicrokernelRecord =
     tianchenrv::target::rvv_scalar::ScalarBinaryMicrokernelRecord;
@@ -57,11 +57,8 @@ using ScalarBinaryMicrokernelRecord =
 llvm::Error makeScalarPluginError(llvm::Twine message);
 
 struct ScalarMicrokernelFamilySpec {
-  const ScalarBinaryFamilyDescriptor *family;
+  const ScalarBinaryFamilyRecord *family;
 
-  llvm::StringRef getFrontendLowering() const {
-    return family->frontendLowering;
-  }
   const ScalarBinaryMicrokernelRecord &getScalar() const {
     return family->scalar;
   }
@@ -103,45 +100,8 @@ const ScalarMicrokernelFamilySpec &getI64VMulFamilySpec() {
   return spec;
 }
 
-const ScalarMicrokernelFamilySpec *
-getScalarFamilySpec(const ScalarBinaryFamilyDescriptor &family) {
-  if (family.familyID == "i32-vadd")
-    return &getI32VAddFamilySpec();
-  if (family.familyID == "i32-vsub")
-    return &getI32VSubFamilySpec();
-  if (family.familyID == "i32-vmul")
-    return &getI32VMulFamilySpec();
-  if (family.familyID == "i64-vadd")
-    return &getI64VAddFamilySpec();
-  if (family.familyID == "i64-vsub")
-    return &getI64VSubFamilySpec();
-  if (family.familyID == "i64-vmul")
-    return &getI64VMulFamilySpec();
-  return nullptr;
-}
-
-bool isDescriptorlessDefaultScalarTypedFamily(
-    const ScalarMicrokernelFamilySpec &family) {
-  return family.family->rvvFamily &&
-         (family.family->rvvFamily->dtype ==
-              tianchenrv::target::rvv::RVVBinaryDTypeKind::I32 ||
-          family.family->rvvFamily->dtype ==
-              tianchenrv::target::rvv::RVVBinaryDTypeKind::I64);
-}
-
 bool hasScalarElementCountMetadata(tcrv::exec::VariantOp variant) {
   return variant && variant->hasAttr(kScalarElementCountAttrName);
-}
-
-const ScalarMicrokernelFamilySpec *
-lookupScalarMicrokernelFamilyByFrontendLowering(
-    llvm::StringRef frontendLowering) {
-  const ScalarBinaryFamilyDescriptor *family =
-      tianchenrv::target::rvv_scalar::
-          lookupRVVScalarBinaryRegistrationByFrontendLowering(frontendLowering);
-  if (!family)
-    return nullptr;
-  return getScalarFamilySpec(*family);
 }
 
 llvm::Error makeScalarPluginError(llvm::Twine message) {
@@ -162,16 +122,25 @@ bool hasAvailableScalarFallbackCapability(
   return capability && capability->isAvailable();
 }
 
-const ScalarMicrokernelFamilySpec *
-getRequestedScalarBinaryFamily(const VariantProposalRequest &request) {
-  auto frontendLowering =
-      request.getKernel()->getAttrOfType<mlir::StringAttr>(
-          kFrontendLoweringAttrName);
-  if (!frontendLowering)
-    return &getI32VAddFamilySpec();
+bool hasDeletedScalarFrontendLoweringAuthority(tcrv::exec::KernelOp kernel) {
+  if (!kernel)
+    return false;
+  auto deletedFrontendMarker =
+      kernel->getAttrOfType<mlir::StringAttr>(kFrontendLoweringAttrName);
+  return deletedFrontendMarker &&
+         !deletedFrontendMarker.getValue().trim().empty();
+}
 
-  llvm::StringRef value = frontendLowering.getValue().trim();
-  return lookupScalarMicrokernelFamilyByFrontendLowering(value);
+llvm::Error rejectDeletedScalarFrontendLoweringAuthority(
+    tcrv::exec::KernelOp kernel, llvm::StringRef context) {
+  if (!hasDeletedScalarFrontendLoweringAuthority(kernel))
+    return llvm::Error::success();
+
+  return makeScalarPluginError(
+      llvm::Twine(context) +
+      " rejects deleted kernel metadata 'tcrv_frontend_lowering' as scalar "
+      "finite-family authority; rebuild scalar executable selection through "
+      "explicit tcrv_scalar extension-family ops and the common EmitC route");
 }
 
 mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
@@ -285,14 +254,6 @@ buildDescriptorlessDefaultScalarTypedMaterializationPlan(
     return std::nullopt;
 
   const ScalarMicrokernelFamilySpec *family = &getI32VAddFamilySpec();
-  auto frontendLowering =
-      kernel->getAttrOfType<mlir::StringAttr>(kFrontendLoweringAttrName);
-  if (frontendLowering) {
-    family = lookupScalarMicrokernelFamilyByFrontendLowering(
-        frontendLowering.getValue().trim());
-    if (!family || !isDescriptorlessDefaultScalarTypedFamily(*family))
-      return std::nullopt;
-  }
 
   ScalarMicrokernelMaterializationPlan plan;
   plan.family = family;
@@ -723,18 +684,17 @@ bool ScalarExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
   return request.getHighLevelOp() &&
          hasAvailableScalarFallbackCapability(request) &&
-         getRequestedScalarBinaryFamily(request);
+         !hasDeletedScalarFrontendLoweringAuthority(request.getKernel());
 }
 
 llvm::Error ScalarExtensionPlugin::proposeVariants(
     const VariantProposalRequest &request,
     llvm::SmallVectorImpl<VariantProposal> &out) const {
-  if (!supportsOperation(request))
-    return llvm::Error::success();
+  if (llvm::Error error = rejectDeletedScalarFrontendLoweringAuthority(
+          request.getKernel(), "scalar fallback proposal"))
+    return error;
 
-  const ScalarMicrokernelFamilySpec *family =
-      getRequestedScalarBinaryFamily(request);
-  if (!family)
+  if (!supportsOperation(request))
     return llvm::Error::success();
 
   VariantProposal proposal(kScalarFallbackFirstSliceVariantName,
@@ -879,6 +839,11 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
     return makeScalarPluginError(
         "lowering-boundary materialization requires an enclosing "
         "tcrv.exec.kernel");
+
+  if (llvm::Error error = rejectDeletedScalarFrontendLoweringAuthority(
+          request.getKernel(), "scalar fallback lowering-boundary "
+                               "materialization"))
+    return error;
 
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());

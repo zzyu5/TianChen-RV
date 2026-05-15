@@ -43,7 +43,6 @@ struct RVVScalarDispatchFamilyRecord {
 struct RVVScalarBinaryFamilyRecord {
   const rvv::RVVBinaryFamilyRecord *rvvFamily = nullptr;
   std::string familyID;
-  std::string frontendLowering;
   ScalarBinaryMicrokernelRecord scalar;
   RVVScalarDispatchFamilyRecord dispatch;
 };
@@ -139,7 +138,6 @@ inline RVVScalarBinaryFamilyRecord makeFamilyRegistrationRecord(
   RVVScalarBinaryFamilyRecord descriptor;
   descriptor.rvvFamily = &family;
   descriptor.familyID = family.familyID.str();
-  descriptor.frontendLowering = family.familyID.str();
 
   descriptor.scalar.rvvFamily = &family;
   descriptor.scalar.microkernelOpName = makeScalarRegistrationMicrokernelOpName(family);
@@ -242,17 +240,6 @@ lookupRVVScalarBinaryRegistrationByID(llvm::StringRef familyID) {
   for (const RVVScalarBinaryFamilyRecord *descriptor :
        getRVVScalarBinaryRegistrationRecords())
     if (descriptor->familyID == familyID)
-      return descriptor;
-  return nullptr;
-}
-
-inline const RVVScalarBinaryFamilyRecord *
-lookupRVVScalarBinaryRegistrationByFrontendLowering(
-    llvm::StringRef frontendLowering) {
-  frontendLowering = frontendLowering.trim();
-  for (const RVVScalarBinaryFamilyRecord *descriptor :
-       getRVVScalarBinaryRegistrationRecords())
-    if (descriptor->frontendLowering == frontendLowering)
       return descriptor;
   return nullptr;
 }

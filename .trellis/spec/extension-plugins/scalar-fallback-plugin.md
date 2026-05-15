@@ -47,18 +47,17 @@ list satisfies id `scalar.fallback`. Missing or unavailable fallback capability
 must produce no proposal rather than an implicit always-available variant.
 
 The default proposal for the bounded i32/i64 vector add/sub/mul fallback source
-slice is descriptorless. Typed scalar microkernel family ops, either
-materialized by the scalar plugin's descriptorless default path or
-hand-authored explicitly for the selected path, are the selected-path compute
-authority. `tcrv_scalar.element_count` is bounded selected-path metadata only;
-it is not high-level shape, problem size, AVL, vl, runtime loop trip count, or
-performance evidence.
-Bounded frontend lowering may preserve
-`tcrv_frontend_lowering = "i32-vadd"`, `"i32-vsub"`, `"i32-vmul"`,
-`"i64-vadd"`, `"i64-vsub"`, or `"i64-vmul"` on the generated kernel. The
-scalar plugin must select the matching typed scalar family/default
-materialization and must not use a descriptor, route id, ABI name, runtime glue
-role, operation label, C type, or emitted arithmetic from another family.
+slice is descriptorless and must not derive its finite family from frontend
+metadata. Typed scalar microkernel family ops, either materialized by the
+scalar plugin's bounded descriptorless default path or hand-authored explicitly
+for the selected path, are the selected-path compute authority.
+`tcrv_scalar.element_count` is bounded selected-path metadata only; it is not
+high-level shape, problem size, AVL, vl, runtime loop trip count, or performance
+evidence. Kernel metadata such as `tcrv_frontend_lowering = "i32-vsub"` is a
+deleted old authority: a scalar plugin must reject or ignore non-empty
+frontend-lowering markers rather than using them to select vadd/vsub/vmul,
+i32/i64 families, route ids, ABI names, runtime glue roles, operation labels,
+C types, or emitted arithmetic.
 
 ## Capability And Legality
 
@@ -159,16 +158,14 @@ variant's required capability symbol references. It must not materialize
 cause a missing-plugin diagnostic when selected as a fallback-only or dispatch
 fallback path.
 
-When the selected variant is descriptorless and its kernel frontend marker
-selects one of the finite i32/i64 add/sub/mul scalar families, or when no
-frontend marker is present and the default i32-vadd family applies, the same
-plugin-local materialization step must also create exactly one matching
-direct-child `tcrv_scalar.i32_vadd_microkernel`,
-`tcrv_scalar.i32_vsub_microkernel`, `tcrv_scalar.i32_vmul_microkernel`,
-`tcrv_scalar.i64_vadd_microkernel`, `tcrv_scalar.i64_vsub_microkernel`, or
-`tcrv_scalar.i64_vmul_microkernel`. A pre-existing matching scalar microkernel
-for that selected path is rejected during descriptorless default
-materialization so the selected typed body has a single owner.
+When the selected variant is descriptorless and no deleted frontend-lowering
+marker is present, the bounded descriptorless default path may create exactly
+one direct-child `tcrv_scalar.i32_vadd_microkernel` for the first scalar
+fallback slice. It must not choose `i32_vsub`, `i32_vmul`, `i64_vadd`,
+`i64_vsub`, or `i64_vmul` from `tcrv_frontend_lowering` or any equivalent
+metadata selector. A pre-existing matching scalar microkernel for that selected
+path is rejected during descriptorless default materialization so the selected
+typed body has a single owner.
 
 When a matching explicit scalar microkernel body already exists for the
 selected path, lowering-boundary materialization preserves that typed body and
