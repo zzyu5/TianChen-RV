@@ -62,8 +62,9 @@ Valid current inputs include:
 - `tcrv.exec.runtime_param`;
 - bounded selected-boundary surfaces.
 
-Existing descriptor-based slices may remain as implementation debt for current
-tests and evidence, but a descriptor is not a valid architecture input for new
+Existing descriptor-based slices are historical residue, deletion targets, or
+fail-closed implementation debt. They are not valid architecture inputs,
+transition architecture, evidence authority, or compatibility aids for new
 extension-family design.
 
 High-level op analysis becomes necessary for frontend lowering from `linalg`,

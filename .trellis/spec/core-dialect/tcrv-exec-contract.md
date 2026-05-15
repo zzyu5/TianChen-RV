@@ -564,9 +564,10 @@ High-level MLIR lowering is a future frontend integration phase, not a
 precondition for current `tcrv.exec` and extension plugin development. Current
 tests and bounded slices may start from hand-written TianChen-RV MLIR,
 materialized `tcrv.exec.variant`, selected-boundary IR, `mem_window`,
-`runtime_param`, or plugin-specific descriptors. When frontend lowering becomes
-the selected owner, it may start from hand-written or test `linalg` inputs and
-lower them into `tcrv.exec` capability, variant, and selected-boundary surfaces.
+`runtime_param`, typed extension-family bodies, or selected-path metadata. When
+frontend lowering becomes the selected owner, it may start from hand-written or
+test `linalg` inputs and lower them into `tcrv.exec` capability, variant, and
+selected-boundary surfaces.
 
 Correct:
 

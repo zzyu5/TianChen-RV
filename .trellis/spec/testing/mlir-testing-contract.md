@@ -155,15 +155,15 @@ Use lit/FileCheck for:
 - RVV selected microkernel descriptor materialization is deleted. Tests must
   assert that selected-boundary materialization does not auto-create
   `tcrv_rvv.i32_vadd_microkernel` or structured `setvl` / `with_vl` /
-  load/arithmetic/store bodies from finite selected descriptors, and that RVV
-  selected emission planning does not build callable ABI parameters or
+  load/arithmetic/store bodies from finite selected descriptor residue, and
+  that RVV selected emission planning does not build callable ABI parameters or
   supported source/header/object routes from descriptor/family records.
   Dialect parse/verify for hand-authored `tcrv_rvv.*_microkernel` ops may
   remain only as syntax coverage or fail-closed input coverage until the
   rebuild supplies explicit extension-family IR plus a materialized MLIR EmitC
   module route. Tests must expect no generated RVV C source, header, object,
   self-check harness, runtime-success, raw-log, correctness, or performance
-  claim from descriptor-selected RVV microkernel paths.
+  claim from descriptor-selected legacy RVV microkernel paths.
 - RVV microkernel emission-plan and emission-manifest handoff,
   now deletion-campaign fail-closed: selected RVV paths with or without matching
   `tcrv_rvv.*_microkernel` attachments must not produce supported

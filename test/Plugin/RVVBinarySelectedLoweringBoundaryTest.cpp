@@ -335,7 +335,7 @@ module {
       tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord().microkernelOpName);
   if (int status = expect(!microkernel,
                           "i32 selected boundary no longer materializes vsub "
-                          "microkernel from descriptor/family records"))
+                          "microkernel from selected metadata/family records"))
     return status;
 
   if (int status = expectSuccess(
@@ -489,7 +489,7 @@ module {
   if (int status =
           expect(!microkernel,
                  llvm::Twine("i64 selected boundary no longer materializes ") +
-                     family.familyID + " microkernel from selected descriptor"))
+                     family.familyID + " microkernel from selected metadata"))
     return status;
 
   return expectSuccess(

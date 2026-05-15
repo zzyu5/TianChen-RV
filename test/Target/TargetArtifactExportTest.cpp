@@ -1869,7 +1869,7 @@ bool expectRVVScalarDeletedExporterRegistrationNoop() {
   if (!expectSuccess(
           tianchenrv::target::rvv_scalar::
               registerRVVScalarDispatchTargetTranslateRoutes(translateRegistry),
-          "register RVV+scalar dispatch compatibility translate routes"))
+          "register RVV+scalar dispatch legacy translate routes"))
     return false;
   if (!expectSuccess(
           tianchenrv::target::rvv_scalar::
@@ -1879,7 +1879,7 @@ bool expectRVVScalarDeletedExporterRegistrationNoop() {
   return expectSuccess(
       tianchenrv::target::rvv_scalar::
           registerRVVScalarDispatchTargetTranslateRoutes(translateRegistry),
-      "repeat RVV+scalar dispatch compatibility translate route no-op "
+      "repeat RVV+scalar dispatch legacy translate route no-op "
       "contribution");
 }
 

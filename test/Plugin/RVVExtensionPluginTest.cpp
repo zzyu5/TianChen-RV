@@ -1243,7 +1243,7 @@ module {
   if (int result = expect(sophgo && sophgo->getKind() == "runtime-offload" &&
                               sophgo->getProperty("runtime") == "sophgo" &&
                               sophgo->getProperty("mode") == "pcie",
-                          "Sophgo/offload remains generic descriptor data"))
+                          "Sophgo/offload remains generic capability data"))
     return result;
 
   ExtensionPluginRegistry registry;
@@ -1951,18 +1951,17 @@ module {
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
-    return fail("failed to parse RVV descriptor-backed family module");
+    return fail("failed to parse RVV typed-family fixture module");
 
   mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
   if (int result =
-          expect(highLevelOp,
-                 "RVV descriptor-backed family test has high-level op"))
+          expect(highLevelOp, "RVV typed-family fixture has high-level op"))
     return result;
 
   ExtensionPluginRegistry registry;
   if (int result =
           expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
-                        "register RVV plugin for descriptor-backed test"))
+                        "register RVV plugin for typed-family fixture"))
     return result;
 
   auto expectFamily =
@@ -2183,7 +2182,7 @@ module {
   if (int result =
           expect(!microkernel,
                  "RVV i32m2 selected boundary no longer materializes vsub "
-                 "typed body from selected descriptor"))
+                 "typed body from selected metadata"))
     return result;
 
   llvm::Expected<
@@ -2199,7 +2198,7 @@ module {
   if (int result =
           expect(!static_cast<bool>(*selectedEmissionPlan),
                  "RVV i32m2 selected-emission planner no longer builds "
-                 "callable ABI params from selected descriptor"))
+                 "callable ABI params from selected metadata"))
     return result;
 
   VariantEmissionPlan emissionPlan;

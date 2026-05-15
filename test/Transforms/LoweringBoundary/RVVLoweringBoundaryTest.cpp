@@ -996,7 +996,7 @@ module {
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::materializeRVVLoweringBoundaries(
               wrapperKernel, wrapperPlugins),
-          "materialize RVV compatibility wrapper path"))
+          "materialize legacy RVV wrapper path"))
     return result;
 
   if (int result = expect(countDirectBoundaries(genericKernel) == 1 &&

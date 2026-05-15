@@ -595,14 +595,14 @@ module {
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
-    return fail("failed to parse direct descriptor planning contract module");
+    return fail("failed to parse direct typed-body planning contract module");
 
   KernelOp i64Kernel = findKernel(*module, "direct_i64_contract");
   RVVBinaryFamilyPlanningResolution i64Resolution;
   if (int result = expectExpectedSuccess(
           tianchenrv::plugin::rvv::resolveRVVBinaryFamilyForProposal(
-              i64Kernel, "unit direct i64 descriptor contract"),
-          i64Resolution, "resolve direct i64 descriptor contract"))
+              i64Kernel, "unit direct i64 typed-body contract"),
+          i64Resolution, "resolve direct i64 typed-body contract"))
     return result;
   if (int result =
           expect(i64Resolution.getFamilyID() == "i64-vadd" &&
@@ -620,7 +620,7 @@ module {
               i64CapabilityIDs[1] == "rvv.i64_m1.lmul_m1" &&
               i64CapabilityIDs[2] == "rvv.i64_m1.tail_policy.agnostic" &&
               i64CapabilityIDs[3] == "rvv.i64_m1.mask_policy.agnostic",
-          "direct i64 descriptor contract derives i64m1 capability ids"))
+          "direct i64 typed-body contract derives i64m1 capability ids"))
     return result;
 
   TargetCapabilitySet i64Capabilities;
@@ -631,7 +631,7 @@ module {
           tianchenrv::plugin::rvv::buildRVVBinaryProposalPlan(
               i64Capabilities, i64Kernel, "unit direct i64 proposal"),
           i64Plan,
-          "build proposal from direct i64 typed body compatibility contract"))
+          "build proposal from direct i64 typed-body contract"))
     return result;
   if (int result =
           expect(i64Plan.getFamilyID() == "i64-vadd" &&

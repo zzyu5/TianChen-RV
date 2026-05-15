@@ -129,10 +129,10 @@ or ABI surface that states the new meaning.
    include AVL, vl, pointer arguments, length `n`, `rvv_available`, and
    dispatch guard parameters. These are not target capabilities or
    compile-time variant constants.
-4. Descriptor-local bounded fixture parameters may describe one finite emitted
-   source slice, fixture, or target artifact descriptor. They must not
-   masquerade as high-level tensor shape, global problem size, AVL, or vl unless
-   real IR carries that meaning.
+4. Legacy bounded fixture parameters may describe selected-path metadata for a
+   historical or fail-closed slice only. They must not masquerade as high-level
+   tensor shape, global problem size, AVL, vl, source authority, production
+   input, or target artifact authority unless real IR carries that meaning.
 
 Emission plans, manifests, diagnostics, and generated artifacts must not claim
 that a parameter is IR-modeled unless the real IR has the corresponding

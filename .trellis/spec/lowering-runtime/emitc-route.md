@@ -173,8 +173,10 @@ A descriptor must not:
 - justify direct C string emission as the primary route.
 
 Existing fields and paths such as descriptor-based microkernel dispatch and
-descriptor-to-C exporters are bounded implementation debt. They may be used
-only to identify remaining transition slices until migrated to:
+descriptor-to-C exporters are historical residue, deletion targets, or
+fail-closed implementation debt. They must not be treated as transition
+architecture, compatibility aids, semantic sources, or production inputs.
+Executable rebuild work must use:
 
 ```text
 extension family ops

@@ -23,8 +23,10 @@ Direct descriptor-to-C string export is not the architecture. Direct
 RVV/scalar/RVV+scalar dispatch C compute-body exporters that synthesize source
 from selected metadata, family records, or route records are deleted or
 fail-closed until a real materialized MLIR EmitC module route exists. Existing
-descriptor-backed source/object/bundle helpers are bounded implementation debt
-that must not be used as the template for new extension work.
+descriptor-backed source/object/bundle helpers are historical residue,
+deletion targets, or fail-closed implementation debt. They must not be used as
+transition architecture, production input, evidence authority, or the template
+for new extension work.
 
 ## Scenario: Direct C Semantic Exporter Deleted Routes
 
@@ -434,12 +436,13 @@ preserve parameter layering:
   default guard C name is `rvv_available`; an explicit runtime_param may use
   another valid C name without changing callable role order, adding the guard to
   callable microkernel signatures, or introducing automatic hardware probing;
-- descriptor-local bounded values such as `tcrv_rvv.element_count` or
-  `tcrv_scalar.element_count` describe a finite descriptor or fixture slice only.
-  An extension plugin may choose such a sample size from validated structured
-  capability facts, such as RVV i32 M1 lane capacity, but the value still must
-  not be reported as tensor shape, global problem size, AVL, vl, runtime loop
-  trip count, correctness coverage, or performance evidence.
+- legacy bounded values such as `tcrv_rvv.element_count` or
+  `tcrv_scalar.element_count` describe selected-path metadata for a historical
+  or fail-closed slice only. An extension plugin may choose such a sample size
+  from validated structured capability facts, such as RVV i32 M1 lane capacity,
+  but the value still must not be reported as tensor shape, global problem
+  size, AVL, vl, runtime loop trip count, source authority, correctness
+  coverage, or performance evidence.
 
 Generated C may contain target-owned local variables such as a local `vl`
 computed by RVV intrinsics or ABI parameters such as `n` and `rvv_available`.
@@ -1493,11 +1496,10 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
 
 ### 5. Evidence Interpretation
 
-Real `ssh rvv` compile/run evidence for the generated self-check harness source
-proves only that the explicit generated i32 vector-add callable ABI source
-compiled and that its harness passed on that host with the selected compiler
-flags. It does not prove generic TianChen-RV lowering correctness, supported
-arbitrary RVV kernel emission, full runtime integration, or performance.
+This deleted route produces no source, self-check harness, object, runtime
+execution, correctness evidence, or performance evidence. Future RVV evidence
+must start from a materialized MLIR EmitC module route and then record separate
+real `ssh rvv` compile/run evidence for the concrete artifact under test.
 
 ### 6. Emission Plan / Manifest Handoff
 

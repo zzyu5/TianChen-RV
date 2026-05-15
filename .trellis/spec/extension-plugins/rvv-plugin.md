@@ -704,10 +704,10 @@ RVV work must keep these parameter layers distinct:
   models vl only when it consumes a real `!tcrv_rvv.vl` SSA operand. It must not
   imply that AVL or vl is IR-modeled unless a real op attribute, SSA value,
   region argument, or ABI parameter exists.
-- `tcrv_rvv.element_count` in the current i32-vadd descriptor, microkernel op,
-  and C export path is descriptor-local and bounded. It describes the finite
-  emitted source slice or test descriptor, not high-level MLIR tensor shape,
-  global problem size, AVL, or vl.
+- `tcrv_rvv.element_count` is legacy bounded selected-path metadata when it
+  appears on RVV first-slice surfaces. It does not describe a valid descriptor,
+  emitted source slice, production input, high-level MLIR tensor shape, global
+  problem size, AVL, or vl.
 - `tcrv_rvv.required_march` string matching is a bounded plugin-owned
   compatibility bridge for the current first slice. Do not expand dependence on
   `required_march` string comparisons when structured capabilities or
@@ -941,9 +941,9 @@ The generic source/header/object front doors must therefore find no supported
 RVV runtime-callable artifact until the Common EmitC rebuild lands.
 
 This target export does not change the default metadata-only RVV unsupported
-boundary. A selected RVV path without the finite descriptor or exactly one
-matching microkernel op remains unsupported/deferred for executable RVV kernel
-emission. Generic manifest export and core orchestration must not add
+boundary. A selected RVV path without exactly one matching typed microkernel op
+remains unsupported/deferred for executable RVV kernel emission. Generic
+manifest export and core orchestration must not add
 RVV-specific branches for this microkernel path.
 
 ### Current EmitC RVV intrinsic route
@@ -1016,9 +1016,9 @@ route before printing RVV intrinsic C/C++.
   intrinsic.
 - Base: a hand-authored bounded RVV microkernel with the same verified body can
   use the same route after selected-path and ABI preflight pass.
-- Bad: a selected descriptor says i32 add but the body contains
+- Bad: stale descriptor mirror metadata says i32 add but the body contains
   `tcrv_rvv.i32_sub`; export must fail instead of printing vadd C from the
-  descriptor.
+  metadata.
 
 #### 6. Tests Required
 
@@ -1035,7 +1035,7 @@ route before printing RVV intrinsic C/C++.
 Wrong:
 
 ```text
-selected descriptor -> generated microkernel body -> direct C/intrinsic source
+stale descriptor metadata -> generated microkernel body -> direct C/intrinsic source
 ```
 
 Correct:

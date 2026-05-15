@@ -14,8 +14,8 @@ offload, or hardware-specific evidence.
 The first scalar fallback C++ slice is intentionally bounded. It proves that a
 fallback implementation can participate through the same plugin protocol as RVV
 without adding extension-specific branches to core orchestration.
-Its descriptor fields are bounded implementation debt, not the architecture for
-adding new computation.
+Legacy descriptor-shaped field names are deletion residue or fail-closed
+implementation debt, not the architecture for adding new computation.
 
 Stable first-slice names:
 
@@ -189,8 +189,8 @@ appropriate to those paths.
 `tcrv_scalar.i32_vmul_microkernel` and
 `tcrv_scalar.i64_vadd_microkernel` and
 `tcrv_scalar.i64_vsub_microkernel` and
-`tcrv_scalar.i64_vmul_microkernel` are scalar extension-dialect executable
-source-export microkernel ops for the bounded i32/i64 add/sub/mul family. Each
+`tcrv_scalar.i64_vmul_microkernel` are scalar extension-dialect typed
+microkernel attachment ops for the bounded i32/i64 add/sub/mul family. Each
 represents exactly one bounded callable body for a selected scalar fallback
 path. The ops are plugin-local under the `tcrv_scalar` dialect and must carry
 only selected-path metadata: source kernel, selected variant, origin, selected

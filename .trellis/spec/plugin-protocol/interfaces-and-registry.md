@@ -367,9 +367,9 @@ materialized `tcrv.exec.variant` operations, selected-boundary IR,
 Future high-level `Operation *` analysis is an additional frontend integration
 surface, not a precondition for plugin integration today. When that frontend
 surface is selected as the owner, `linalg` is the preferred first high-level
-input family for handwritten tests. Existing bounded descriptors are
-implementation debt for current slices, not an architecture input for new
-families.
+input family for handwritten tests. Existing descriptor-shaped residues are
+deletion targets or fail-closed implementation debt, not an architecture input
+for new families.
 
 Correct core shape:
 

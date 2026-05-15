@@ -42,7 +42,11 @@ TianChen-RV MLIR 不是新的高层 tensor/tile IR，也不是一个硬件一个
 - 核心 pass 通过 capability registry 和 plugin interfaces 调用插件，不硬编码 RVV、IME、Sophgo 或其他扩展名称。
 - Common passes must operate through TCRV interfaces such as extension/config/resource/memory/compute/EmitC-lowerable interfaces, not family-name branches.
 - Current main lowering route is extension family ops -> EmitC ops -> intrinsic/vendor builtin/runtime C/C++ -> native compiler; clang/LLVM is default, GCC is compatible.
-- Descriptor-driven computation is invalid as long-term architecture. Existing descriptor/microkernel/direct-C paths are bounded implementation debt to migrate toward extension family ops and common EmitC lowering.
+- Descriptor-driven computation is invalid architecture. Existing
+  descriptor/microkernel/direct-C paths are historical residue, deletion
+  targets, or fail-closed implementation debt; they must not be described as a
+  transition architecture. Future executable work goes through extension family
+  ops and common EmitC lowering.
 - 插件化表示新增扩展代码应局部封装，不表示新增硬件零工作量。
 - 当前真实主线硬件是 RVV 1.0 环境，通过 `ssh rvv` 访问，64 核 CPU，具备 sudo 权限。
 - K3/IME 是后续 IME plugin 接入对象，用于验证新增 extension plugin 的局部化接入。

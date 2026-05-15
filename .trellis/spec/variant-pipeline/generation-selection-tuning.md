@@ -6,11 +6,11 @@ Do not generate generic `tcrv` compute ops first. Extension plugins propose exec
 
 Current TianChen-RV work may start from hand-written or test TianChen-RV MLIR,
 already materialized `tcrv.exec.variant`, selected-boundary IR,
-`tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, or a bounded
-plugin-specific descriptor. High-level MLIR op analysis is a future extension
-point for `linalg`, `stablehlo`, `tosa`, and similar inputs; it is not a
-precondition for integrating a new extension plugin today. When the frontend
-lowering owner is selected, the first high-level path may start from
+`tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, typed extension-family
+bodies, or selected-path metadata. High-level MLIR op analysis is a future
+extension point for `linalg`, `stablehlo`, `tosa`, and similar inputs; it is
+not a precondition for integrating a new extension plugin today. When the
+frontend lowering owner is selected, the first high-level path may start from
 hand-written or test `linalg` inputs and lower them into TianChen-RV surfaces
 that the backend/plugin pipeline can consume.
 
@@ -38,7 +38,8 @@ already materialized tcrv.exec.variant
 selected lowering-boundary IR
 tcrv.exec.mem_window
 tcrv.exec.runtime_param
-plugin-specific bounded descriptor
+typed extension-family body
+bounded selected-path metadata
 linalg.matmul
 linalg.generic reduction
 stablehlo dot_general
@@ -899,9 +900,10 @@ materialization must preserve the project parameter layering rule:
   arguments, length `n`, `rvv_available`, and dispatch guards must be modeled
   as real SSA, region/block arguments, explicit ABI/control attributes, or
   generated C ABI parameters before any pass describes them as modeled;
-- descriptor-local bounded fixture parameters such as the current
-  `tcrv_rvv.element_count` identify a finite descriptor or emitted source
-  slice only. They are not tensor shape, global problem size, AVL, or vl.
+- legacy bounded fixture parameters such as the current
+  `tcrv_rvv.element_count` identify selected-path metadata for a historical or
+  fail-closed slice only. They are not tensor shape, global problem size, AVL,
+  vl, source authority, or production route input.
 
 Selection and lowering-boundary metadata may name the parameter layer they
 consume, but must not promote a descriptor-local or runtime value into target

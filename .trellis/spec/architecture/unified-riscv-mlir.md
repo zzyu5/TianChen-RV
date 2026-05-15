@@ -123,9 +123,10 @@ A descriptor must not:
 - justify direct C string emission as the main compiler route.
 
 Existing finite descriptors, microkernel descriptors, and direct exporter
-helpers are implementation debt or bounded transition slices. They may remain
-long enough to preserve current tests and evidence, but new architecture work
-should migrate them toward:
+helpers are historical residue, deletion targets, or fail-closed
+implementation debt. They must not be treated as transition architecture,
+semantic source, compatibility aid, production input, or evidence authority.
+Executable rebuild work must start from:
 
 ```text
 extension family ops

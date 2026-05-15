@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global invariants after wording cleanup."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check design-boundary language after README/spec/test wording cleanup."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV deleted-route and extension-family wording after cleanup."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check direct C exporter and artifact wording after cleanup."}

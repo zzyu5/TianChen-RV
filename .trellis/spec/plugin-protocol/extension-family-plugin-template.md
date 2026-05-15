@@ -538,10 +538,11 @@ route: EmitC RVV intrinsic C/C++
 evidence: generated C compile, and ssh rvv for runtime/correctness claims
 ```
 
-The existing descriptor and microkernel surfaces are bounded implementation
-debt. They may be used only as migration evidence or compatibility diagnostics
-while the production route moves to extension family ops, common interfaces,
-and EmitC route mapping.
+The existing descriptor and direct-export microkernel surfaces are historical
+residue, deletion targets, or fail-closed implementation debt. They must not be
+used as migration evidence, compatibility architecture, semantic source, or
+production route authority. Rebuild work moves through extension family ops,
+common interfaces, and EmitC route mapping.
 
 ## Descriptor Boundary
 

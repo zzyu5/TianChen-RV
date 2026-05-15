@@ -1536,3 +1536,68 @@ Deleted remaining public pipeline expectations that no-body RVV metadata synthes
 ### Next Steps
 
 - None - task complete
+
+
+## Session 73: Spec/README legacy wording cleanup
+
+**Date**: 2026-05-15
+**Task**: Spec/README legacy wording cleanup
+**Branch**: `main`
+
+### Summary
+
+Completed a deletion-campaign wording cleanup for README, Trellis specs, prompt
+context, and directly relevant test diagnostics. Descriptor/direct-export
+language now describes old paths as deleted, historical, fail-closed, or
+non-semantic metadata rather than transition architecture or production input.
+
+### Main Changes
+
+- Created and started Trellis task
+  `05-15-spec-readme-legacy-wording-cleanup` with deletion-only PRD and
+  spec context.
+- Rewrote README sections that still described the deleted RVV smoke-probe
+  source export, scalar descriptor strings, and offload descriptor-only artifact
+  export as usable paths.
+- Rewrote spec language across architecture, plugin protocol, variant
+  pipeline, core dialect, lowering/runtime, capability-model, testing, RVV, and
+  scalar docs so descriptor/direct-export residues are fail-closed deletion
+  targets rather than migration or compatibility architecture.
+- Reworded focused C++ test diagnostics from descriptor-backed/selected
+  descriptor/compatibility wording to typed-family, selected-metadata, legacy,
+  or deleted-route wording.
+- Added no compiler implementation change, lowering route, plugin route,
+  runtime behavior, compatibility layer, helper wrapper, descriptor test,
+  negative-test framework, or new architecture.
+
+### Testing
+
+- [OK] Focused C++ build:
+  `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-rvv-binary-planning-test
+  tianchenrv-rvv-selected-lowering-boundary-test
+  tianchenrv-rvv-lowering-boundary-test
+  tianchenrv-target-artifact-export-test -j2`.
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-rvv-binary-planning-test`
+- [OK] `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- [OK] `./build/bin/tianchenrv-rvv-lowering-boundary-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused residual ref-scan found remaining targeted terms only in
+  deleted/fail-closed/historical wording, negative tests, or explicitly
+  forbidden old-route references.
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/05-15-spec-readme-legacy-wording-cleanup`
+- [INFO] No local `markdownlint` or `mdl` command was available.
+
+### Status
+
+[OK] **Ready to archive and commit**
+
+### Next Steps
+
+- Continue deletion only if another active doc/spec/test wording surface still
+  presents descriptor/direct-export/independent-backend paths as valid
+  architecture.

@@ -182,19 +182,12 @@ RVV capability profile, including bounded `vlenb_bytes` and derived
 Python remains evidence/artifact tooling and is not the compiler capability
 model.
 
-After `tcrv-opt --tcrv-execution-planning-pipeline` has selected an RVV path,
-the generated smoke probe can be exported and compiled on `ssh rvv` for a
-narrower source-to-toolchain evidence slice:
-
-```bash
-tcrv-opt input.mlir --tcrv-execution-planning-pipeline \
-  | tcrv-translate --tcrv-export-rvv-smoke-probe-c > rvv_smoke_probe.c
-```
-
-This proves only that the exported standalone smoke program can compile and run
-on the RVV host when separate `ssh rvv` evidence is recorded. It does not prove
-TianChen-RV lowered a selected kernel, generated an object for that kernel,
-linked runtime glue, produced a correctness result, or measured performance.
+The former compiler-owned RVV smoke-probe source export route is deleted.
+Post-planning metadata and `tcrv_rvv.lowering_boundary` must not be used to
+print a standalone probe program, intrinsic C body, or source-to-toolchain
+evidence artifact. RVV hardware/toolchain evidence remains the responsibility
+of explicit probe tooling such as `scripts/rvv_remote_probe.py` plus recorded
+`ssh rvv` artifacts.
 
 The previous hand-written/test `linalg.generic` frontend slice and its
 `tcrv-opt` lowering flags are deleted. Run the execution-planning pipeline only
@@ -229,16 +222,13 @@ metadata-only readiness/plan diagnostics by default. It does not add a new
 high-level compute op, generic scalar lowering, runtime ABI integration, object
 generation, correctness evidence, or performance evidence.
 
-For the bounded i32 vector add/sub slice, the scalar proposal also carries the
-finite plugin-owned descriptor
-`tcrv_scalar.lowering_descriptor = "i32-vadd-microkernel.v1"` or
-`"i32-vsub-microkernel.v1"` with descriptor-local
-`tcrv_scalar.element_count = 16`. When that selected path is materialized, the
-scalar plugin creates both the selected `tcrv_scalar.lowering_boundary` and
-one matching `tcrv_scalar.i32_vadd_microkernel` or
-`tcrv_scalar.i32_vsub_microkernel`; the element count is descriptor metadata,
-not tensor shape, AVL, vl, runtime loop trip count, correctness coverage, or
-performance evidence.
+For bounded scalar add/sub/mul slices, the scalar plugin no longer treats a
+descriptor string, default family table, or frontend marker as compute
+authority. A selected scalar path can preserve `tcrv_scalar.element_count` only
+as bounded selected-path metadata, and a typed scalar microkernel attachment is
+valid only when an explicit `tcrv_scalar.*_microkernel` body is already present
+on the selected path. The element count is not tensor shape, AVL, vl, runtime
+loop trip count, correctness coverage, or performance evidence.
 
 The scalar fallback plugin also owns the concrete `tcrv_scalar` MLIR namespace.
 Its first operation, `tcrv_scalar.lowering_boundary`, records selected fallback
@@ -288,25 +278,10 @@ generic runtime ABI handoff for downstream integration. They do not emit vendor
 runtime calls, implement DMA or buffer management, generate accelerator objects,
 run hardware, prove correctness, or measure performance.
 
-When that selected offload path has the matching plugin-owned lowering boundary
-and a supported descriptor emission plan, the target artifact route can export
-a deterministic runtime handoff descriptor:
-
-```bash
-tcrv-opt input.mlir --tcrv-execution-planning-pipeline \
-  | tcrv-translate --tcrv-export-target-artifact \
-  > offload_runtime_descriptor.txt
-```
-
-The descriptor contains only sanitized compiler-visible fields such as source
-kernel, selected variant, origin plugin, selected role, descriptor schema
-version, descriptor kind/status, adapter contract, required capabilities,
-runtime ABI kind/name, emission kind, artifact kind, lowering-boundary op name
-and status, runtime-offload handoff kind, handoff reason, and explicit
-non-claim metadata. Through the generic target artifact bundle exporter, the
-selected non-fallback offload descriptor path materializes as one descriptor
-artifact plus a bundle index entry carrying stable route, owner, runtime ABI,
-and handoff kind metadata; a scalar fallback candidate is not emitted as a
-second single artifact unless a target-owned composite route explicitly matches.
-This handoff is not offload runtime execution, hardware correctness evidence,
-or performance evidence.
+The previous offload descriptor-only target artifact route is deleted. A
+selected offload path may still carry capability-gated lowering-boundary and
+runtime-ABI handoff metadata for diagnostics and manifests, but generic target
+artifact export must fail closed until a future route is rebuilt through
+extension-family ops, a materialized EmitC/runtime C ABI handoff, and
+target-owned artifact generation. This metadata is not offload runtime
+execution, hardware correctness evidence, or performance evidence.

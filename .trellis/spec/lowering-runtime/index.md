@@ -24,6 +24,7 @@ This layer defines lowering, emission, runtime glue, and toolchain boundaries.
 
 - Core passes must not call vendor-specific compiler or runtime paths directly.
 - Toolchain patch/workaround belongs in plugin adapter.
-- Direct descriptor-to-C string export is implementation debt, not the system
-  lowering route.
+- Direct descriptor-to-C string export is deleted-route residue or fail-closed
+  implementation debt, not a transition lowering route or production system
+  path.
 - Emission output must be reproducible enough for experiments: selected variant, capabilities, flags, libraries, path, fallback status, and failure reason.
