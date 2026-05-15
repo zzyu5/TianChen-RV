@@ -358,11 +358,11 @@ module {
       {"capacity metadata", "does not match"});
 }
 
-int runDefaultI32VAddSelectedLoweringBoundaryModuleTest(
+int runDeletedSelectedSourceLoweringBoundaryModuleTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @rvv_default_i32_vadd_boundary attributes {} {
+  tcrv.exec.kernel @rvv_stale_selected_source_boundary attributes {} {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -404,7 +404,7 @@ module {
       tcrv_rvv.selected_binary_dtype = "i32",
       tcrv_rvv.selected_binary_family = "i32-vadd",
       tcrv_rvv.selected_binary_operator = "add",
-      tcrv_rvv.selected_binary_source_kind = "default-i32-vadd-typed-body-materialization",
+      tcrv_rvv.selected_binary_source_kind = "stale-selected-source-metadata",
       tcrv_rvv.selected_vector_shape = "i32m1",
       tcrv_rvv.selected_vector_sew = 32 : i64,
       tcrv_rvv.selected_vector_lmul = "m1",
@@ -421,12 +421,13 @@ module {
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
-    return fail("failed to parse default i32-vadd selected-boundary module");
+    return fail("failed to parse stale selected-source boundary module");
 
-  KernelOp kernel = findKernel(*module, "rvv_default_i32_vadd_boundary");
+  KernelOp kernel = findKernel(*module, "rvv_stale_selected_source_boundary");
   VariantOp variant = findVariant(kernel, "rvv_first_slice");
   if (int result =
-          expect(kernel && variant, "default i32-vadd test has kernel/variant"))
+          expect(kernel && variant,
+                 "stale selected-source test has kernel/variant"))
     return result;
   TargetCapabilitySet capabilities =
       TargetCapabilitySet::buildFromKernel(kernel);
@@ -600,7 +601,7 @@ int main() {
   if (int result = runI32SelectedLoweringBoundaryModuleTest(context))
     return result;
   if (int result =
-          runDefaultI32VAddSelectedLoweringBoundaryModuleTest(context))
+          runDeletedSelectedSourceLoweringBoundaryModuleTest(context))
     return result;
   if (int result = runI64SelectedLoweringBoundaryModuleTest(
           context, tianchenrv::target::rvv::getI64VSubFamilyRegistrationRecord()))

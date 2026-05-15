@@ -176,7 +176,7 @@ module {
     } {
     }
 
-    tcrv.exec.variant @i32_default_typed attributes {
+    tcrv.exec.variant @i32_deleted_selected_source attributes {
       origin = "rvv-plugin",
       requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic],
       policy = "metadata_only_first_slice",
@@ -186,7 +186,7 @@ module {
       tcrv_rvv.selected_binary_dtype = "i32",
       tcrv_rvv.selected_binary_family = "i32-vadd",
       tcrv_rvv.selected_binary_operator = "add",
-      tcrv_rvv.selected_binary_source_kind = "default-i32-vadd-typed-body-materialization",
+      tcrv_rvv.selected_binary_source_kind = "stale-selected-source-metadata",
       tcrv_rvv.selected_vector_shape = "i32m1",
       tcrv_rvv.selected_vector_sew = 32 : i64,
       tcrv_rvv.selected_vector_lmul = "m1",
@@ -198,7 +198,7 @@ module {
     } {
     }
 
-    tcrv.exec.variant @i32_default_missing_selected_source attributes {
+    tcrv.exec.variant @i32_metadata_without_body attributes {
       origin = "rvv-plugin",
       requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic],
       policy = "metadata_only_first_slice",
@@ -226,7 +226,7 @@ module {
       tcrv_rvv.selected_binary_dtype = "i32",
       tcrv_rvv.selected_binary_family = "i32-vadd",
       tcrv_rvv.selected_binary_operator = "add",
-      tcrv_rvv.selected_binary_source_kind = "default-i32-vadd-typed-body-materialization",
+      tcrv_rvv.selected_binary_source_kind = "stale-selected-source-metadata",
       tcrv_rvv.selected_vector_shape = "i32m1",
       tcrv_rvv.selected_vector_sew = 32 : i64,
       tcrv_rvv.selected_vector_lmul = "m1",
@@ -378,12 +378,12 @@ int runVariantLegalityModuleTest(mlir::MLIRContext &context) {
            "metadata cannot make a direct RVV binary variant legal"}))
     return result;
   if (int result = expectErrorContains(
-          verifyVariant("i32_default_typed"),
+          verifyVariant("i32_deleted_selected_source"),
           {"RVV selected-source metadata", "deleted as RVV finite-family "
                                           "legality authority"}))
     return result;
   if (int result = expectErrorContains(
-          verifyVariant("i32_default_missing_selected_source"),
+          verifyVariant("i32_metadata_without_body"),
           {"requires an actual typed RVV extension-family body",
            "metadata cannot make a direct RVV binary variant legal"}))
     return result;

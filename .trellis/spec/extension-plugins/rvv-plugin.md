@@ -192,13 +192,13 @@ It is required to match exactly one finite config shape and is distinct from
 base i32 M1 lane capacity. The current supported family members are
 `i32-vadd`, `i32-vsub`, `i32-vmul`, `i64-vadd`, `i64-vsub`, and `i64-vmul`,
 all using the runtime-callable binary ABI shape for their dtype and the bounded
-selected-path integer `tcrv_rvv.element_count`. The default automatic
-first-slice proposal still requests typed `i32-vadd` body materialization;
-bounded frontend lowering may preserve `tcrv_frontend_lowering = "i32-vsub"`,
-`"i32-vmul"`, `"i64-vadd"`, `"i64-vsub"`, or `"i64-vmul"` on the generated
-`tcrv.exec.kernel`, in which case the RVV plugin derives the matching proposal
-identity from that typed frontend family and later typed family/body evidence.
-Hand-authored or test TianChen-RV MLIR may also provide typed direct
+selected-path integer `tcrv_rvv.element_count`. The RVV plugin must not create
+any finite RVV binary proposal from a no-body `tcrv.exec.kernel`, from deleted
+`tcrv_frontend_lowering` metadata, or from finite-family registry metadata
+alone. Kernel-based proposal planning requires explicit typed
+extension-family body authority before selecting family, dtype, shape, route
+metadata, selected capabilities, or emitted body. Hand-authored or test
+TianChen-RV MLIR may provide typed direct
 `tcrv_rvv.i32_*_microkernel` or `tcrv_rvv.i64_*_microkernel` bodies to
 exercise the same contract. Direct variants without typed family/body authority
 must fail closed or remain explicitly unsupported metadata; they must not select
@@ -206,10 +206,11 @@ family, dtype, shape, route id, artifact kind, callable ABI, required
 capabilities, selected vector config, or emitted body. When structured
 `rvv.i32_m1_lane_count` capacity evidence is present through an exact
 capability provider or a relation-provider target profile, the RVV plugin
-chooses that selected-path sample size as four M1 i32 vectors, capped at 64
-elements; without structured capacity evidence it uses the fixed first-slice
-fallback sample size `16`. This is a compiler selected-plan decision, not a
-runtime trip count, shape, AVL, VL, correctness coverage, or performance claim.
+chooses that selected-path sample size for an already body-authorized i32 plan
+as four M1 i32 vectors, capped at 64 elements; without structured capacity
+evidence, an already body-authorized plan uses the fixed first-slice fallback
+sample size `16`. This is a compiler selected-plan decision, not a runtime trip
+count, shape, AVL, VL, correctness coverage, or performance claim.
 The generic string policy remains the input for core selection/dispatch. The
 typed policy, required march, optional capacity metadata, selected vector-shape
 metadata, selected-source identity, EmitC route metadata, and element count are
@@ -614,7 +615,7 @@ tcrv_rvv.lowering_boundary {
   role = "dispatch case",
   status = "unsupported",
   required_capabilities = [@rvv],
-  selected_binary_source_kind = "default-i32-vadd-typed-body-materialization",
+  selected_binary_source_kind = "typed-rvv-body-authority",
   selected_binary_dtype = "i32",
   selected_binary_family = "i32-vadd",
   selected_binary_operator = "add",

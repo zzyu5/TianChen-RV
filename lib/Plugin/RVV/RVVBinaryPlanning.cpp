@@ -1602,9 +1602,11 @@ resolveRVVBinaryFamilyForProposal(tcrv::exec::KernelOp kernel,
     return typedBodyResolution;
   }
 
-  RVVBinaryFamilyPlanningResolution defaultResolution;
-  defaultResolution.family = &target::rvv::getI32VAddFamilyRegistrationRecord();
-  return defaultResolution;
+  return makeRVVBinaryPlanningError(
+      llvm::Twine(diagnosticContext) +
+      " requires an explicit typed RVV extension-family body before selecting "
+      "a finite RVV binary family; no-body RVV proposal materialization is a "
+      "rebuild gap");
 }
 
 llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(

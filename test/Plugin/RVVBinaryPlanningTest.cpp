@@ -416,7 +416,7 @@ int runProposalPlanRequirementMetadataTest() {
   return 0;
 }
 
-int runDefaultI32VAddTypedBodyMaterializationPlanningTest() {
+int runMissingTypedBodyPlanningTest() {
   mlir::DialectRegistry dialectRegistry;
   tianchenrv::registerAllDialects(dialectRegistry);
   dialectRegistry.insert<tianchenrv::tcrv::rvv::TCRVRVVDialect>();
@@ -425,63 +425,38 @@ int runDefaultI32VAddTypedBodyMaterializationPlanningTest() {
 
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @default_i32_vadd_no_body {
+  tcrv.exec.kernel @missing_typed_rvv_body {
   }
 }
 )mlir";
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
-    return fail("failed to parse default i32-vadd planning module");
+    return fail("failed to parse missing typed-body planning module");
 
-  KernelOp kernel = findKernel(*module, "default_i32_vadd_no_body");
-  RVVBinaryFamilyPlanningResolution resolution;
-  if (int result = expectExpectedSuccess(
-          tianchenrv::plugin::rvv::resolveRVVBinaryFamilyForProposal(
-              kernel, "unit default i32-vadd typed materialization"),
-          resolution, "resolve default i32-vadd typed materialization request"))
-    return result;
-
-  if (int result =
-          expect(resolution.getFamilyID() == "i32-vadd" &&
-                     !resolution.hasDirectTypedBodyAuthority() &&
-                     resolution.getDirectSelectedShapeID().empty(),
-                 "default no-body RVV proposal stays metadata-only and does "
-                 "not expose selected-source authority"))
+  KernelOp kernel = findKernel(*module, "missing_typed_rvv_body");
+  llvm::Expected<RVVBinaryFamilyPlanningResolution> resolution =
+      tianchenrv::plugin::rvv::resolveRVVBinaryFamilyForProposal(
+          kernel, "unit missing typed RVV body");
+  if (resolution)
+    return fail("missing typed RVV body unexpectedly selected finite family");
+  if (int result = expectErrorContains(
+          resolution.takeError(),
+          "requires an explicit typed RVV extension-family body"))
     return result;
 
   TargetCapabilitySet capabilities;
   addBaseRVVFacts(capabilities);
   addI32M1Facts(capabilities);
 
-  RVVBinaryProposalPlan plan;
-  if (int result = expectExpectedSuccess(
-          tianchenrv::plugin::rvv::buildRVVBinaryProposalPlan(
-              capabilities, kernel, "unit default i32-vadd proposal"),
-          plan, "build default i32-vadd descriptorless proposal"))
-    return result;
-
-  if (int result =
-          expect(plan.getFamilyID() == "i32-vadd" &&
-                     plan.getSelectedShape().shapeID == "i32m1" &&
-                     plan.selectedPlan.elementCount == 16 &&
-                     !plan.hasDirectTypedBodyAuthority(),
-                 "default proposal selects i32m1 metadata without publishing "
-                 "finite selected-source authority"))
-    return result;
-
-  return expect(plan.getRequiredCapabilityIDs().size() == 5 &&
-                    plan.getRequiredCapabilityIDs()[0] == "rvv" &&
-                    plan.getRequiredCapabilityIDs()[1] ==
-                        "rvv.i32_m1.sew32" &&
-                    plan.getRequiredCapabilityIDs()[2] ==
-                        "rvv.i32_m1.lmul_m1" &&
-                    plan.getRequiredCapabilityIDs()[3] ==
-                        "rvv.i32_m1.tail_policy.agnostic" &&
-                    plan.getRequiredCapabilityIDs()[4] ==
-                        "rvv.i32_m1.mask_policy.agnostic",
-                "default proposal keeps selected vector-shape capability "
-                "requirements explicit for later typed body materialization");
+  llvm::Expected<RVVBinaryProposalPlan> plan =
+      tianchenrv::plugin::rvv::buildRVVBinaryProposalPlan(
+          capabilities, kernel, "unit missing typed RVV proposal body");
+  if (plan)
+    return fail("missing typed RVV body unexpectedly built proposal plan");
+  return expectErrorContains(
+      plan.takeError(),
+      "requires an explicit typed RVV extension-family body");
 }
 
 int runDeletedFrontendLoweringPlanningTest() {
@@ -774,7 +749,7 @@ int main() {
     return result;
   if (int result = runProposalPlanRequirementMetadataTest())
     return result;
-  if (int result = runDefaultI32VAddTypedBodyMaterializationPlanningTest())
+  if (int result = runMissingTypedBodyPlanningTest())
     return result;
   if (int result = runDeletedFrontendLoweringPlanningTest())
     return result;

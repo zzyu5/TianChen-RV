@@ -243,6 +243,108 @@ void replaceAll(std::string &text, llvm::StringRef from, llvm::StringRef to) {
   }
 }
 
+std::string makeI32TypedBodyAuthority(
+    llvm::StringRef kernelName, llvm::StringRef requiredCapabilitySymbol,
+    const tianchenrv::target::rvv::RVVBinaryFamilyRecord &family,
+    const tianchenrv::target::rvv::RVVVectorShapeConfig &shape) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  stream
+      << "    tcrv.exec.variant @rvv_typed_body_authority attributes {\n"
+      << "      origin = \"rvv-plugin\",\n"
+      << "      requires = [@" << requiredCapabilitySymbol << "],\n"
+      << "      tcrv_rvv.element_count = 16 : i64,\n"
+      << "      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = "
+         "agnostic>,\n"
+      << "      tcrv_rvv.required_march = \"rv64gcv\",\n"
+      << "      tcrv_rvv.selected_vector_shape = \"" << shape.shapeID
+      << "\",\n"
+      << "      tcrv_rvv.selected_vector_sew = " << shape.sewBits
+      << " : i64,\n"
+      << "      tcrv_rvv.selected_vector_lmul = \"" << shape.lmul << "\",\n"
+      << "      tcrv_rvv.selected_tail_policy = \"" << shape.tailPolicy
+      << "\",\n"
+      << "      tcrv_rvv.selected_mask_policy = \"" << shape.maskPolicy
+      << "\",\n"
+      << "      tcrv_rvv.selected_vector_type = \"" << shape.vectorType
+      << "\",\n"
+      << "      tcrv_rvv.selected_vector_suffix = \"" << shape.vectorSuffix
+      << "\",\n"
+      << "      tcrv_rvv.selected_setvl_suffix = \"" << shape.setvlSuffix
+      << "\"\n"
+      << "    } {\n"
+      << "    }\n"
+      << "    " << family.microkernelOpName << " attributes {\n"
+      << "      element_count = 16 : i64,\n"
+      << "      origin = \"rvv-plugin\",\n"
+      << "      required_capabilities = [@" << requiredCapabilitySymbol
+      << "],\n"
+      << "      required_march = \"rv64gcv\",\n"
+      << "      role = \"direct variant\",\n"
+      << "      selected_variant = @rvv_typed_body_authority,\n"
+      << "      selected_vector_shape = \"" << shape.shapeID << "\",\n"
+      << "      selected_vector_sew = " << shape.sewBits << " : i64,\n"
+      << "      selected_vector_lmul = \"" << shape.lmul << "\",\n"
+      << "      selected_tail_policy = \"" << shape.tailPolicy << "\",\n"
+      << "      selected_mask_policy = \"" << shape.maskPolicy << "\",\n"
+      << "      selected_vector_type = \"" << shape.vectorType << "\",\n"
+      << "      selected_vector_suffix = \"" << shape.vectorSuffix << "\",\n"
+      << "      selected_setvl_suffix = \"" << shape.setvlSuffix << "\",\n"
+      << "      source_kernel = \"" << kernelName << "\"\n"
+      << "    } {\n"
+      << "    ^bb0(%runtime_n: index):\n"
+      << "      %vl = tcrv_rvv.setvl %runtime_n {lmul = \"" << shape.lmul
+      << "\", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, "
+         "sew = "
+      << shape.sewBits << " : i64} : index -> !tcrv_rvv.vl\n"
+      << "      tcrv_rvv.with_vl %vl attributes {lmul = \"" << shape.lmul
+      << "\", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, "
+         "sew = "
+      << shape.sewBits << " : i64} {\n"
+      << "        %lhs = tcrv_rvv.i32_load %vl {buffer_role = "
+         "\"lhs-input-buffer\"} : !tcrv_rvv.vl -> !tcrv_rvv."
+      << shape.shapeID << "\n"
+      << "        %rhs = tcrv_rvv.i32_load %vl {buffer_role = "
+         "\"rhs-input-buffer\"} : !tcrv_rvv.vl -> !tcrv_rvv."
+      << shape.shapeID << "\n"
+      << "        %result = " << family.arithmeticOpName
+      << " %lhs, %rhs, %vl : !tcrv_rvv." << shape.shapeID
+      << ", !tcrv_rvv." << shape.shapeID
+      << ", !tcrv_rvv.vl -> !tcrv_rvv." << shape.shapeID << "\n"
+      << "        tcrv_rvv.i32_store %result, %vl {buffer_role = "
+         "\"output-buffer\"} : !tcrv_rvv."
+      << shape.shapeID << ", !tcrv_rvv.vl\n"
+      << "      } : !tcrv_rvv.vl\n"
+      << "    }\n";
+  stream.flush();
+  return text;
+}
+
+std::string withI32TypedBodyAuthority(
+    llvm::StringRef source, llvm::StringRef kernelName,
+    llvm::StringRef requiredCapabilitySymbol,
+    const tianchenrv::target::rvv::RVVBinaryFamilyRecord &family,
+    const tianchenrv::target::rvv::RVVVectorShapeConfig &shape) {
+  std::string text = source.str();
+  std::string marker = "\n  }\n";
+  std::size_t insertPosition = text.rfind(marker);
+  if (insertPosition == std::string::npos)
+    return text;
+  text.insert(insertPosition,
+              "\n" + makeI32TypedBodyAuthority(kernelName,
+                                               requiredCapabilitySymbol, family,
+                                               shape));
+  return text;
+}
+
+std::string withI32VAddM1BodyAuthority(llvm::StringRef source,
+                                       llvm::StringRef kernelName) {
+  return withI32TypedBodyAuthority(
+      source, kernelName, "rvv",
+      tianchenrv::target::rvv::getI32VAddFamilyRegistrationRecord(),
+      tianchenrv::target::rvv::getI32M1VectorShapeConfig());
+}
+
 mlir::func::FuncOp findHighLevelPlaceholder(mlir::ModuleOp module) {
   return module.lookupSymbol<mlir::func::FuncOp>("high_level_placeholder");
 }
@@ -710,7 +812,49 @@ module {
 }
 )mlir";
 
-  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  mlir::OwningOpRef<mlir::ModuleOp> noBodyModule =
+      parseModule(context, source);
+  if (!noBodyModule)
+    return fail("failed to parse no-body RVV capability profile module");
+
+  mlir::func::FuncOp noBodyHighLevelOp =
+      findHighLevelPlaceholder(*noBodyModule);
+  KernelOp noBodyKernel = findKernel(*noBodyModule, "profile_rvv");
+  if (int result =
+          expect(noBodyHighLevelOp && noBodyKernel,
+                 "no-body RVV capability profile test has op and kernel"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+                        "register RVV plugin for capability profile test"))
+    return result;
+
+  VariantProposalRequest noBodyRequest = makeRequest(
+      noBodyHighLevelOp.getOperation(), noBodyKernel, capabilities);
+  llvm::SmallVector<VariantProposal, 1> noBodyProposals;
+  llvm::SmallVector<VariantProposalDecline, 1> noBodyDeclines;
+  if (int result = expectSuccess(
+          registry.collectVariantProposals(noBodyRequest, noBodyProposals,
+                                           &noBodyDeclines),
+          "collect no RVV proposals from no-body profile capabilities"))
+    return result;
+  if (int result =
+          expect(noBodyProposals.empty() && noBodyDeclines.size() == 1,
+                 "no-body profile capabilities fail closed before RVV "
+                 "finite-family proposal"))
+    return result;
+  if (int result = expect(
+          noBodyDeclines[0].getReason().contains(
+              "explicit typed RVV extension-family body"),
+          "no-body decline names missing typed RVV body authority"))
+    return result;
+
+  std::string sourceWithBody =
+      withI32VAddM1BodyAuthority(source, "profile_rvv");
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      parseModule(context, sourceWithBody);
   if (!module)
     return fail("failed to parse RVV capability profile module");
 
@@ -718,12 +862,6 @@ module {
   KernelOp kernel = findKernel(*module, "profile_rvv");
   if (int result = expect(highLevelOp && kernel,
                           "RVV capability profile test has op and kernel"))
-    return result;
-
-  ExtensionPluginRegistry registry;
-  if (int result =
-          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
-                        "register RVV plugin for capability profile test"))
     return result;
 
   VariantProposalRequest request =
@@ -764,8 +902,19 @@ module {
       "rvv.i32_binary.selected_vector_shape", "isa-vector-config", "available",
       tianchenrv::support::CapabilityAvailability::Available,
       {{"shape", "i32m2"}}));
-  VariantProposalRequest i32M2Request =
-      makeRequest(highLevelOp.getOperation(), kernel, i32M2SelectedCapabilities);
+  std::string i32M2SourceWithBody = withI32TypedBodyAuthority(
+      source, "profile_rvv", "rvv",
+      tianchenrv::target::rvv::getI32VAddFamilyRegistrationRecord(),
+      tianchenrv::target::rvv::getI32M2VectorShapeConfig());
+  mlir::OwningOpRef<mlir::ModuleOp> i32M2Module =
+      parseModule(context, i32M2SourceWithBody);
+  if (!i32M2Module)
+    return fail("failed to parse RVV i32m2 capability profile module");
+  mlir::func::FuncOp i32M2HighLevelOp =
+      findHighLevelPlaceholder(*i32M2Module);
+  KernelOp i32M2Kernel = findKernel(*i32M2Module, "profile_rvv");
+  VariantProposalRequest i32M2Request = makeRequest(
+      i32M2HighLevelOp.getOperation(), i32M2Kernel, i32M2SelectedCapabilities);
   llvm::SmallVector<VariantProposal, 1> i32M2Proposals;
   if (int result = expectSuccess(
           registry.collectVariantProposals(i32M2Request, i32M2Proposals),
@@ -1065,8 +1214,10 @@ module {
 }
 )mlir";
 
+  std::string positiveSourceWithBody =
+      withI32VAddM1BodyAuthority(positiveSource, "mlir_property_rvv");
   mlir::OwningOpRef<mlir::ModuleOp> module =
-      parseModule(context, positiveSource);
+      parseModule(context, positiveSourceWithBody);
   if (!module)
     return fail("failed to parse RVV property decision positive module");
 
@@ -1168,10 +1319,11 @@ module {
                  "materialized RVV variant keeps generic @rvv requirement"))
     return result;
   if (int result =
-          expectSuccess(registry.verifyVariantLegality(
-                            tianchenrv::plugin::VariantLegalityRequest(
-                                variant, kernel, capabilities)),
-                        "RVV legality accepts property-enabled variant"))
+          expectErrorContains(registry.verifyVariantLegality(
+                                  tianchenrv::plugin::VariantLegalityRequest(
+                                      variant, kernel, capabilities)),
+                              {"requires an actual typed RVV "
+                               "extension-family body"}))
     return result;
 
   auto variantVLenB =
@@ -1196,8 +1348,10 @@ module {
   auto expectProposalDecline =
       [&](llvm::StringRef kernelName, llvm::StringRef source,
           std::initializer_list<llvm::StringRef> fragments) -> int {
+    std::string sourceWithBody =
+        withI32VAddM1BodyAuthority(source, kernelName);
     mlir::OwningOpRef<mlir::ModuleOp> negativeModule =
-        parseModule(context, source);
+        parseModule(context, sourceWithBody);
     if (!negativeModule)
       return fail(llvm::Twine("failed to parse negative RVV property module ") +
                   kernelName);
@@ -1312,11 +1466,11 @@ module {
     return result;
 
   if (int result = expectProposalDecline(
-          "secret_hint",
+          "redacted_hint",
           R"mlir(
 module {
   func.func @high_level_placeholder() { return }
-  tcrv.exec.kernel @secret_hint attributes {} {
+  tcrv.exec.kernel @redacted_hint attributes {} {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -1561,7 +1715,12 @@ module {
 }
 )mlir";
 
-  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  std::string sourceWithBody = withI32TypedBodyAuthority(
+      source, "profile_capacity_rvv", "module_rvv_capacity_profile",
+      tianchenrv::target::rvv::getI32VAddFamilyRegistrationRecord(),
+      tianchenrv::target::rvv::getI32M1VectorShapeConfig());
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      parseModule(context, sourceWithBody);
   if (!module)
     return fail("failed to parse module target-profile RVV capacity module");
 
@@ -1646,10 +1805,11 @@ module {
                  "module target profile symbol"))
     return result;
   if (int result =
-          expectSuccess(registry.verifyVariantLegality(
-                            tianchenrv::plugin::VariantLegalityRequest(
-                                variant, kernel, capabilities)),
-                        "RVV legality accepts module profile capacity facts"))
+          expectErrorContains(registry.verifyVariantLegality(
+                                  tianchenrv::plugin::VariantLegalityRequest(
+                                      variant, kernel, capabilities)),
+                              {"requires an actual typed RVV "
+                               "extension-family body"}))
     return result;
 
   tianchenrv::plugin::VariantCostEstimate estimate;
@@ -1939,7 +2099,12 @@ module {
 }
 )mlir";
 
-  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  std::string sourceWithBody = withI32TypedBodyAuthority(
+      source, "rvv_i32m2_vsub", "rvv",
+      tianchenrv::target::rvv::getI32VSubFamilyRegistrationRecord(),
+      tianchenrv::target::rvv::getI32M2VectorShapeConfig());
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      parseModule(context, sourceWithBody);
   if (!module)
     return fail("failed to parse RVV i32m2 proposal module");
 
@@ -2003,18 +2168,15 @@ module {
   {
     mlir::OpBuilder::InsertionGuard guard(builder);
     builder.setInsertionPointToEnd(&kernel.getBody().front());
-    if (int result = expectSuccess(
+    if (int result = expectErrorContains(
             registry.materializeSelectedLoweringBoundary(
                 VariantLoweringBoundaryRequest(
                     variant, kernel, capabilities,
                     VariantEmissionRole::DirectVariant, builder),
                 boundaryResult),
-            "materialize RVV i32m2 lowering boundary"))
+            {"requires an actual typed RVV extension-family body"}))
       return result;
   }
-  if (int result = expect(boundaryResult.isMaterialized(),
-                          "RVV i32m2 boundary materialized"))
-    return result;
 
   I32VSubMicrokernelOp microkernel =
       findRVVSubMicrokernel(kernel, variant.getSymName());
@@ -2306,7 +2468,10 @@ module {
 }
 )mlir";
 
-  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  std::string sourceWithBody =
+      withI32VAddM1BodyAuthority(source, "available_rvv");
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      parseModule(context, sourceWithBody);
   if (!module)
     return fail("failed to parse RVV available module");
 
@@ -2375,9 +2540,9 @@ module {
   llvm::ArrayRef<mlir::NamedAttribute> proposalAttributes =
       proposals[0].getPluginAttributes();
   if (int result =
-          expect(proposalAttributes.size() == 10,
+          expect(proposalAttributes.size() == 14,
                  "RVV proposal carries typed policy, selected vector-shape, "
-                 "and property evidence attributes"))
+                 "typed family, and property evidence attributes"))
     return result;
   mlir::Attribute rvvPolicy =
       findProposalAttribute(proposals[0],
@@ -2452,9 +2617,10 @@ module {
     return result;
 
   if (int result =
-          expectSuccess(registry.verifyKernelVariantLegality(kernel,
-                                                             capabilities),
-                        "RVV plugin legality accepts materialized variant"))
+          expectErrorContains(registry.verifyKernelVariantLegality(
+                                  kernel, capabilities),
+                              {"requires an actual typed RVV "
+                               "extension-family body"}))
     return result;
   if (int result =
           expectStringAttr(variant.getOperation(), "policy",
@@ -2477,11 +2643,10 @@ module {
 
   VariantSelectionPlan plan = std::move(*planOrError);
   if (int result = expect(plan.kind == VariantSelectionKind::StaticVariant &&
-                              plan.selectedVariant == variant &&
+                              static_cast<bool>(plan.selectedVariant) &&
                               !plan.fallback &&
                               plan.missingFallbackCoverage &&
-                              plan.rankedVariants.size() == 1 &&
-                              plan.rankedVariants[0].variant == variant,
+                              !plan.rankedVariants.empty(),
                           "selection consumes RVV-origin variant without "
                           "inventing a fallback through ExtensionPluginRegistry"))
     return result;

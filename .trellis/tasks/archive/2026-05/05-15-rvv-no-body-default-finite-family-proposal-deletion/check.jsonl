@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check the change remains C++/MLIR/LLVM/TableGen/CMake/lit/FileCheck and does not reintroduce descriptor-driven compiler authority."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Check the deletion preserves architecture non-goals and does not make RVV runtime claims without ssh rvv evidence."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin docs no longer preserve no-body default finite-family proposal authority."}
+{"file": "lib/Plugin/RVV/RVVBinaryPlanning.cpp", "reason": "Check no-body kernel planning fails closed and explicit typed RVV body authority remains the only kernel finite-family source."}
+{"file": "test/Plugin/RVVBinaryPlanningTest.cpp", "reason": "Check default proposal coverage was rewritten into fail-closed missing typed-body coverage."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Check RVV proposal/materialization behavior remains coherent after deleting no-body default family selection."}
