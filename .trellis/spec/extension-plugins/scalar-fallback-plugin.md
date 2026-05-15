@@ -47,16 +47,12 @@ must produce no proposal rather than an implicit always-available variant.
 
 The default proposal for the scalar fallback source slice is descriptorless and
 must not derive a finite i32/i64 add/sub/mul family from frontend metadata,
-bridge metadata, default family tables, absent body state, hand-authored
-microkernel names, or deleted scalar element-count metadata. There is no current
-typed scalar selected-path compute authority. `tcrv_scalar.element_count` is
-deleted legacy selected-path metadata; if present, it is a fail-closed old-route
-marker, not high-level shape, problem size, AVL, vl, runtime loop trip count,
-source-export authority, or performance evidence. Kernel metadata such as
-`tcrv_frontend_lowering = "i32-vsub"` is a deleted old authority: a scalar plugin
-must reject or ignore non-empty frontend-lowering markers rather than using them
-to select vadd/vsub/vmul, i32/i64 families, route ids, ABI names, runtime glue
-roles, operation labels, C types, or emitted arithmetic.
+bridge metadata, default family tables, absent body state, or hand-authored
+microkernel names. There is no current typed scalar selected-path compute
+authority. Historical markers such as `tcrv_frontend_lowering` and
+`tcrv_scalar.element_count` are deleted-route residue only; the active scalar
+plugin does not consume them as proposal, legality, selection, or boundary
+authority.
 
 ## Capability And Legality
 
@@ -67,9 +63,7 @@ Scalar fallback is still capability-driven:
   capability-provider `tcrv.exec.target`;
 - generated variants must require that capability through `requires`;
 - plugin legality must reject variants with missing origin, missing fallback
-  capability requirement, unavailable fallback capability, malformed deleted
-  `tcrv_scalar.element_count`, or any attempt to treat selected-path element
-  counts as current scalar compute/source-export authority;
+  capability requirement, or unavailable fallback capability;
 - core passes must not special-case scalar fallback by name.
 
 ## Cost And Selection
@@ -106,9 +100,7 @@ This metadata-only emission-plan diagnostic records plugin-owned intent only.
 It does not mean that TianChen-RV emitted LLVM IR, generated an object, linked a
 runtime, executed a scalar kernel, proved correctness, or measured performance.
 It also does not authorize metadata-alone selected lowering-boundary
-materialization: a selected scalar fallback variant carrying deleted
-`tcrv_scalar.element_count` metadata must fail closed before
-`tcrv_scalar.lowering_boundary` creation.
+materialization.
 
 ## Selected Lowering Boundary
 
@@ -117,8 +109,7 @@ path. Its first selected-boundary slice validates the selected scalar fallback
 variant through the same plugin-local legality rules, then materializes a
 plugin-local scalar metadata operation. A descriptorless no-body scalar fallback
 path may materialize this metadata-only boundary, but it must not synthesize,
-accept, or preserve a typed scalar microkernel body, derive finite family
-authority from deleted scalar metadata, or insert runtime ABI
+accept, or preserve a typed scalar microkernel body or insert runtime ABI
 `tcrv.exec.mem_window` / `tcrv.exec.runtime_param` operations from
 scalar/RVV-scalar bridge metadata.
 
@@ -155,12 +146,9 @@ fallback path.
 
 The scalar plugin must not create `tcrv_scalar.i32_vadd_microkernel` or any
 other finite-family scalar microkernel from defaults, RVV-scalar bridge
-metadata, `tcrv_frontend_lowering`, `tcrv_scalar.element_count`, hand-authored
-deleted-op syntax, or any equivalent metadata selector. Absence of a body is a
-metadata-only fallback state, not a compute authority. A selected scalar fallback
-variant carrying deleted `tcrv_scalar.element_count` metadata still fails closed
-before `tcrv_scalar.lowering_boundary` creation; the metadata alone is not a
-current boundary authority.
+metadata, hand-authored deleted-op syntax, or any equivalent metadata
+selector. Absence of a body is a metadata-only fallback state, not a compute
+authority.
 
 Downstream emission planning may consume this boundary only to materialize the
 metadata-only diagnostic above. The lowering boundary itself still records

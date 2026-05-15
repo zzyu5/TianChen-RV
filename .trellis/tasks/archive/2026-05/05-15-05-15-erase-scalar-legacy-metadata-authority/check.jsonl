@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Project spec root for validation context."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar plugin contract to validate the deletion-only cleanup."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime wording that still references scalar legacy metadata."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant-pipeline wording still mentions frontend-lowering markers."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Testing expectations for focused scalar plugin checks."}

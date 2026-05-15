@@ -1783,3 +1783,40 @@ Deleted the RVV-derived scalar/RVV-scalar bridge header, removed scalar plugin m
 - Removed RVV microkernel family specs and wrapper-name verifier authority from `RVVDialect.cpp`; surviving dataflow ops are now bounded under direct `tcrv_rvv.with_vl` control and matching `vl` token checks.
 - Replaced RVV dialect wrapper tests with `test/Dialect/RVV/dataflow.mlir`; rewrote/deleted focused RVV wrapper attachments in VariantMaterialization, VariantSelection, ExecutionPlanning, RVVScalarDispatch, ArtifactExport, and EmissionManifest fixtures.
 - Validation: focused C++ targets and tests passed; focused lit over `Dialect/RVV`, `Target/RVVMicrokernel`, `Transforms/VariantMaterialization`, `Transforms/VariantSelection`, `Transforms/ExecutionPlanning`, `Target/RVVScalarDispatch`, `Target/ArtifactExport`, and `Target/EmissionManifest` passed 38/38; Trellis validation and `git diff --check` passed.
+
+
+## Session 72: Erase scalar legacy metadata authority
+
+**Date**: 2026-05-15
+**Task**: Erase scalar legacy metadata authority
+**Branch**: `main`
+
+### Summary
+
+Removed scalar plugin dependence on tcrv_frontend_lowering and tcrv_scalar.element_count, rewrote the scalar plugin test and related specs, and passed focused build/test checks.
+
+### Main Changes
+
+- Deleted the active frontend-lowering and element-count gating from `lib/Plugin/Scalar/ScalarExtensionPlugin.cpp`.
+- Rewrote `test/Plugin/ScalarExtensionPluginTest.cpp` to cover capability-driven proposal and metadata-only boundary behavior without the deleted markers.
+- Updated the scalar fallback, lowering-runtime, and variant-pipeline spec wording so the markers are treated as deleted-route residue rather than active authority.
+- Verified with a focused scalar plugin build and smoke test, plus `git diff --check` and Trellis task validation.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

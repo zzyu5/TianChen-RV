@@ -228,46 +228,6 @@ module {
     }
   }
 
-  tcrv.exec.kernel @available_scalar_vadd attributes {
-    tcrv_frontend_lowering = "i32-vadd"
-  } {
-    tcrv.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
-  }
-
-  tcrv.exec.kernel @available_scalar_vsub attributes {
-    tcrv_frontend_lowering = "i32-vsub"
-  } {
-    tcrv.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
-  }
-
-  tcrv.exec.kernel @available_scalar_vmul attributes {
-    tcrv_frontend_lowering = "i32-vmul"
-  } {
-    tcrv.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
-  }
-
-  tcrv.exec.kernel @available_scalar_i64_vadd attributes {
-    tcrv_frontend_lowering = "i64-vadd"
-  } {
-    tcrv.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
-  }
-
   tcrv.exec.kernel @unavailable_scalar attributes {} {
     tcrv.exec.capability @scalar_fallback {
       id = "scalar.fallback",
@@ -287,17 +247,10 @@ module {
 
   mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
   KernelOp available = findKernel(*module, "available_scalar");
-  KernelOp availableVAdd = findKernel(*module, "available_scalar_vadd");
-  KernelOp availableVSub = findKernel(*module, "available_scalar_vsub");
-  KernelOp availableVMul = findKernel(*module, "available_scalar_vmul");
-  KernelOp availableI64VAdd =
-      findKernel(*module, "available_scalar_i64_vadd");
   KernelOp unavailable = findKernel(*module, "unavailable_scalar");
   KernelOp missing = findKernel(*module, "missing_scalar");
   if (int result =
-          expect(highLevelOp && available && availableVAdd && availableVSub &&
-                     availableVMul && availableI64VAdd && unavailable &&
-                     missing,
+          expect(highLevelOp && available && unavailable && missing,
                  "proposal gating module contains all anchors"))
     return result;
 
@@ -341,48 +294,6 @@ module {
                          tianchenrv::plugin::scalar::
                              getScalarFallbackCapabilityID(),
                  "scalar fallback proposal requires fallback capability id"))
-    return result;
-  bool hasElementCount = false;
-  for (mlir::NamedAttribute attr : proposals.front().getPluginAttributes()) {
-    llvm::StringRef name = attr.getName().getValue();
-    if (name == "tcrv_scalar.element_count") {
-      hasElementCount = true;
-    }
-  }
-  if (int result =
-          expect(!hasElementCount,
-                 "descriptorless scalar fallback proposal carries no "
-                 "element-count route metadata"))
-    return result;
-
-  auto expectDeletedFrontendLoweringNoProposalForKernel =
-      [&](KernelOp kernel, llvm::StringRef context) -> int {
-    TargetCapabilitySet kernelCapabilities =
-        TargetCapabilitySet::buildFromKernel(kernel);
-    VariantProposalRequest kernelRequest(highLevelOp.getOperation(), kernel,
-                                         kernelCapabilities);
-    proposals.clear();
-    if (int result = expectSuccess(
-            registry.collectVariantProposals(kernelRequest, proposals),
-            llvm::Twine("collect scalar proposal for deleted ") + context))
-      return result;
-    return expect(proposals.empty(),
-                  llvm::Twine("deleted scalar frontend-lowering authority "
-                              "does not produce proposal for ") +
-                      context);
-  };
-
-  if (int result = expectDeletedFrontendLoweringNoProposalForKernel(
-          availableVAdd, "frontend-lowered i32-vadd"))
-    return result;
-  if (int result = expectDeletedFrontendLoweringNoProposalForKernel(
-          availableVSub, "frontend-lowered i32-vsub"))
-    return result;
-  if (int result = expectDeletedFrontendLoweringNoProposalForKernel(
-          availableVMul, "frontend-lowered i32-vmul"))
-    return result;
-  if (int result = expectDeletedFrontendLoweringNoProposalForKernel(
-          availableI64VAdd, "frontend-lowered i64-vadd"))
     return result;
 
   TargetCapabilitySet unavailableCapabilities =
@@ -692,59 +603,6 @@ module {
   return 0;
 }
 
-int runDeletedFrontendLoweringBoundaryRejectionTest(
-    mlir::MLIRContext &context) {
-  constexpr llvm::StringLiteral source = R"mlir(
-module {
-  tcrv.exec.kernel @scalar_deleted_frontend attributes {
-    tcrv_frontend_lowering = "i32-vsub"
-  } {
-    tcrv.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
-    tcrv.exec.variant @scalar_fallback_first_slice attributes {
-      origin = "scalar-plugin",
-      requires = [@scalar_fallback]
-    } {
-    }
-  }
-}
-)mlir";
-
-  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
-  if (!module)
-    return fail("failed to parse deleted scalar frontend-lowering module");
-
-  KernelOp kernel = findKernel(*module, "scalar_deleted_frontend");
-  VariantOp variant = findVariant(kernel, "scalar_fallback_first_slice");
-  if (int result =
-          expect(kernel && variant,
-                 "deleted scalar frontend-lowering test has anchors"))
-    return result;
-
-  ExtensionPluginRegistry registry;
-  if (int result =
-          expectSuccess(tianchenrv::plugin::registerScalarExtensionPlugin(
-                            registry),
-                        "register scalar plugin for deleted frontend marker"))
-    return result;
-
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-  mlir::OpBuilder builder(&context);
-  builder.setInsertionPointToEnd(&kernel.getBody().front());
-  VariantLoweringBoundaryResult boundaryResult;
-  return expectErrorContains(
-      registry.materializeSelectedLoweringBoundary(
-          VariantLoweringBoundaryRequest(variant, kernel, capabilities,
-                                         VariantEmissionRole::DirectVariant,
-                                         builder),
-          boundaryResult),
-      {"rejects deleted kernel metadata", "tcrv_frontend_lowering",
-       "explicit tcrv_scalar extension-family ops", "common EmitC route"});
-}
-
 int runBoundaryMaterializationRejectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -798,61 +656,6 @@ module {
       {"selected scalar fallback variant @malformed_scalar_selected",
        "failed plugin legality before boundary materialization",
        "must require capability id", "scalar.fallback"});
-}
-
-int runScalarElementCountWithoutTypedBodyRejectionTest(
-    mlir::MLIRContext &context) {
-  constexpr llvm::StringLiteral source = R"mlir(
-module {
-  tcrv.exec.kernel @scalar_element_count_without_body attributes {} {
-    tcrv.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
-    tcrv.exec.variant @scalar_fallback_first_slice attributes {
-      fallback_role = "conservative",
-      origin = "scalar-plugin",
-      policy = "portable_scalar_fallback_first_slice",
-      requires = [@scalar_fallback],
-      tcrv_scalar.element_count = 16 : i64
-    } {
-    }
-  }
-}
-)mlir";
-
-  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
-  if (!module)
-    return fail("failed to parse scalar element-count metadata-alone module");
-
-  KernelOp kernel =
-      findKernel(*module, "scalar_element_count_without_body");
-  VariantOp variant = findVariant(kernel, "scalar_fallback_first_slice");
-  if (int result =
-          expect(kernel && variant,
-                 "scalar element-count metadata-alone module has anchors"))
-    return result;
-
-  ExtensionPluginRegistry registry;
-  if (int result = expectSuccess(
-          tianchenrv::plugin::registerScalarExtensionPlugin(registry),
-          "register scalar fallback plugin for metadata-alone rejection"))
-    return result;
-
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-  mlir::OpBuilder builder(&context);
-  builder.setInsertionPointToEnd(&kernel.getBody().front());
-  VariantLoweringBoundaryResult boundaryResult;
-  return expectErrorContains(
-      registry.materializeSelectedLoweringBoundary(
-          VariantLoweringBoundaryRequest(variant, kernel, capabilities,
-                                         VariantEmissionRole::DirectVariant,
-                                         builder),
-          boundaryResult),
-      {"scalar element-count metadata",
-       "scalar fallback selected boundaries are metadata-only",
-       "metadata alone cannot create tcrv_scalar.lowering_boundary"});
 }
 
 int runRVVDeclineStillMaterializesScalarBoundaryTest(
@@ -1063,11 +866,7 @@ int main() {
     return result;
   if (int result = runMaterializationSelectionAndEmissionTest(context))
     return result;
-  if (int result = runDeletedFrontendLoweringBoundaryRejectionTest(context))
-    return result;
   if (int result = runBoundaryMaterializationRejectionTest(context))
-    return result;
-  if (int result = runScalarElementCountWithoutTypedBodyRejectionTest(context))
     return result;
   if (int result = runRVVDeclineStillMaterializesScalarBoundaryTest(context))
     return result;

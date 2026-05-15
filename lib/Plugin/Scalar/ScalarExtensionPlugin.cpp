@@ -22,10 +22,6 @@ constexpr llvm::StringLiteral kScalarFallbackFirstSliceVariantName(
     "scalar_fallback_first_slice");
 constexpr llvm::StringLiteral kScalarFallbackPolicy(
     "portable_scalar_fallback_first_slice");
-constexpr llvm::StringLiteral kFrontendLoweringAttrName(
-    "tcrv_frontend_lowering");
-constexpr llvm::StringLiteral kScalarElementCountAttrName(
-    "tcrv_scalar.element_count");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
@@ -38,10 +34,6 @@ constexpr llvm::StringLiteral kFallbackReasonAttrName("fallback_reason");
 constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
 
 llvm::Error makeScalarPluginError(llvm::Twine message);
-
-bool hasScalarElementCountMetadata(tcrv::exec::VariantOp variant) {
-  return variant && variant->hasAttr(kScalarElementCountAttrName);
-}
 
 llvm::Error makeScalarPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -59,45 +51,6 @@ bool hasAvailableScalarFallbackCapability(
   const support::CapabilityDescriptor *capability =
       request.getCapabilities().lookupProviderByID(kScalarFallbackCapabilityID);
   return capability && capability->isAvailable();
-}
-
-bool hasDeletedScalarFrontendLoweringAuthority(tcrv::exec::KernelOp kernel) {
-  if (!kernel)
-    return false;
-  auto deletedFrontendMarker =
-      kernel->getAttrOfType<mlir::StringAttr>(kFrontendLoweringAttrName);
-  return deletedFrontendMarker &&
-         !deletedFrontendMarker.getValue().trim().empty();
-}
-
-llvm::Error rejectDeletedScalarFrontendLoweringAuthority(
-    tcrv::exec::KernelOp kernel, llvm::StringRef context) {
-  if (!hasDeletedScalarFrontendLoweringAuthority(kernel))
-    return llvm::Error::success();
-
-  return makeScalarPluginError(
-      llvm::Twine(context) +
-      " rejects deleted kernel metadata 'tcrv_frontend_lowering' as scalar "
-      "finite-family authority; rebuild scalar executable selection through "
-      "explicit tcrv_scalar extension-family ops and the common EmitC route");
-}
-
-llvm::Error validateScalarElementCountMirrorMetadataSyntax(
-    tcrv::exec::VariantOp variant) {
-  if (mlir::Attribute rawElementCount =
-          variant->getAttr(kScalarElementCountAttrName)) {
-    auto elementCount = llvm::dyn_cast<mlir::IntegerAttr>(rawElementCount);
-    if (!elementCount || elementCount.getInt() <= 0 ||
-        elementCount.getInt() > 64)
-      return makeScalarPluginError(
-          llvm::Twine("optional scalar element_count metadata on "
-                      "variant @") +
-          variant.getSymName() +
-          " requires tcrv_scalar.element_count in the bounded smoke range "
-          "[1, 64]");
-  }
-
-  return llvm::Error::success();
 }
 
 llvm::Expected<bool> variantRequiresScalarFallback(
@@ -247,18 +200,12 @@ void ScalarExtensionPlugin::registerDialects(
 
 bool ScalarExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
-  return request.getHighLevelOp() &&
-         hasAvailableScalarFallbackCapability(request) &&
-         !hasDeletedScalarFrontendLoweringAuthority(request.getKernel());
+  return request.getHighLevelOp() && hasAvailableScalarFallbackCapability(request);
 }
 
 llvm::Error ScalarExtensionPlugin::proposeVariants(
     const VariantProposalRequest &request,
     llvm::SmallVectorImpl<VariantProposal> &out) const {
-  if (llvm::Error error = rejectDeletedScalarFrontendLoweringAuthority(
-          request.getKernel(), "scalar fallback proposal"))
-    return error;
-
   if (!supportsOperation(request))
     return llvm::Error::success();
 
@@ -300,12 +247,6 @@ llvm::Error ScalarExtensionPlugin::verifyVariantLegality(
     return makeScalarPluginError(
         "materialized scalar fallback variant must require capability id "
         "'scalar.fallback'");
-
-  if (variant->hasAttr(kScalarElementCountAttrName)) {
-    if (llvm::Error error =
-            validateScalarElementCountMirrorMetadataSyntax(variant))
-      return error;
-  }
 
   return llvm::Error::success();
 }
@@ -382,11 +323,6 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
         "lowering-boundary materialization requires an enclosing "
         "tcrv.exec.kernel");
 
-  if (llvm::Error error = rejectDeletedScalarFrontendLoweringAuthority(
-          request.getKernel(), "scalar fallback lowering-boundary "
-                               "materialization"))
-    return error;
-
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality)) {
@@ -400,17 +336,6 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
   if (llvm::Error error = rejectExistingScalarBoundaryForVariant(
           request.getKernel(), request.getVariant()))
     return error;
-
-  if (hasScalarElementCountMetadata(request.getVariant())) {
-    return makeScalarPluginError(
-        llvm::Twine("selected scalar fallback variant @") +
-        request.getVariant().getSymName() +
-        " carries scalar element-count metadata '" +
-        kScalarElementCountAttrName +
-        "' but scalar fallback selected boundaries are metadata-only; "
-        "element-count metadata alone cannot create "
-        "tcrv_scalar.lowering_boundary");
-  }
 
   tcrv::scalar::LoweringBoundaryOp boundary = materializeScalarBoundaryOp(
       request.getBuilder(), request.getKernel(), request.getVariant(),

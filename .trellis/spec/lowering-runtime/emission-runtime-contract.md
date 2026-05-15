@@ -433,13 +433,14 @@ preserve parameter layering:
   default guard C name is `rvv_available`; an explicit runtime_param may use
   another valid C name without changing callable role order, adding the guard to
   callable microkernel signatures, or introducing automatic hardware probing;
-- legacy bounded values such as `tcrv_rvv.element_count` or
-  `tcrv_scalar.element_count` describe selected-path metadata for a historical
-  or fail-closed slice only. An extension plugin may choose such a sample size
-  from validated structured capability facts, such as RVV i32 M1 lane capacity,
-  but the value still must not be reported as tensor shape, global problem
-  size, AVL, vl, runtime loop trip count, source authority, correctness
-  coverage, or performance evidence.
+- legacy bounded values such as `tcrv_rvv.element_count` or the deleted scalar
+  element-count marker describe historical selected-path metadata at most. An
+  extension plugin may choose bounded diagnostic sample sizes from validated
+  structured capability facts, such as RVV i32 M1 lane capacity, but those
+  values still must not be reported as tensor shape, global problem size, AVL,
+  vl, runtime loop trip count, source authority, correctness coverage, or
+  performance evidence. The current scalar fallback plugin does not consume its
+  deleted element-count marker as active legality or boundary authority.
 
 Generated C may contain target-owned local variables such as a local `vl`
 computed by RVV intrinsics or ABI parameters such as `n` and `rvv_available`.
@@ -958,9 +959,10 @@ Rules:
   must fail closed and scalar plugin-local boundary materialization must not
   synthesize a microkernel from descriptorless no-body state, kernel frontend
   markers, bridge metadata, or a default family;
-- a selected scalar fallback variant carrying deleted
-  `tcrv_scalar.element_count` metadata must fail closed before
-  `tcrv_scalar.lowering_boundary` creation;
+- deleted scalar element-count metadata is not selected-boundary authority:
+  scalar plugin-local boundary materialization is authorized by selected variant
+  origin, `requires`, and available capability facts, not by scalar element
+  counts;
 - selected lowering-boundary metadata must not claim intrinsics, LLVM/RISC-V
   lowering, runtime ABI glue, generated objects, hardware execution,
   correctness, or performance.
@@ -1403,9 +1405,10 @@ emitted LLVM IR, generated an object, linked a runtime, executed a scalar
 kernel, proved correctness, or measured performance. Later scalar fallback
 lowering must add plugin-local lowering code and validation artifacts before
 reporting executable support. This metadata-only readiness/plan result also
-does not license metadata-alone selected-boundary materialization: deleted
-`tcrv_scalar.element_count` metadata must not create
-`tcrv_scalar.lowering_boundary`.
+does not license metadata-alone selected-boundary materialization: selected
+scalar fallback origin, required capability references, and available
+capability facts authorize `tcrv_scalar.lowering_boundary`, not deleted scalar
+element-count metadata.
 
 The selected scalar fallback boundary is slightly more concrete than an
 emission-plan diagnostic because it is a scalar extension-dialect op:

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-6.md`
-- **Total Sessions**: 71
+- **Total Sessions**: 72
 - **Last Active**: 2026-05-15
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-6.md` | ~1695 | Active |
+| `journal-6.md` | ~1822 | Active |
 | `journal-5.md` | ~1983 | Archived |
 | `journal-4.md` | ~1979 | Archived |
 | `journal-3.md` | ~1998 | Archived |
@@ -34,6 +34,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 72 | 2026-05-15 | Erase scalar legacy metadata authority | pending | `main` |
 | 71 | 2026-05-15 | RVV-scalar finite-family bridge erasure | pending | `main` |
 | 70 | 2026-05-15 | Direct C deleted-route shell erasure | pending | `main` |
 | 69 | 2026-05-15 | No-body RVV pipeline expectation deletion | pending | `main` |

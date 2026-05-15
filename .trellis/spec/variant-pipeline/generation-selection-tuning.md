@@ -92,10 +92,9 @@ delegating aliases, quarantine modes, or renamed compatibility paths.
 - Core planning still consumes already materialized `tcrv.exec.kernel`,
   `tcrv.exec.variant`, selected-boundary IR, `tcrv.exec.mem_window`,
   `tcrv.exec.runtime_param`, and plugin-local extension-family ops.
-- Source markers such as `tcrv_frontend_lowering` may remain as bounded
-  metadata on already materialized execution surfaces where existing plugin or
-  target contracts consume them, but core transforms must not use them to
-  infer RVV arithmetic semantics from high-level source bodies.
+- Source markers such as `tcrv_frontend_lowering` are historical deleted-route
+  residue only; core transforms must not use them to infer RVV arithmetic
+  semantics from high-level source bodies.
 
 ### 3. Validation & Error Matrix
 
