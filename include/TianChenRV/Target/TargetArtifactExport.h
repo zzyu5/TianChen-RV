@@ -505,11 +505,7 @@ llvm::Error validateTargetArtifactCandidateAgainstExporter(
 llvm::Expected<const TargetArtifactCompositeExporter *>
 selectTargetArtifactCompositeExporter(
     llvm::ArrayRef<TargetArtifactCandidate> candidates,
-    const TargetArtifactExporterRegistry &registry, bool sourceOnly);
-
-llvm::Error exportTargetSourceArtifact(
-    mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
-    llvm::raw_ostream &os);
+    const TargetArtifactExporterRegistry &registry);
 
 llvm::Error exportTargetArtifact(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,

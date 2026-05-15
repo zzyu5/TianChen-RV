@@ -1820,3 +1820,55 @@ Removed scalar plugin dependence on tcrv_frontend_lowering and tcrv_scalar.eleme
 ### Next Steps
 
 - None - task complete
+
+
+## Session 73: Delete target source artifact front door
+
+**Date**: 2026-05-15
+**Task**: Delete target source artifact front door
+**Branch**: `main`
+
+### Summary
+
+Deleted the generic target source artifact front door from `tcrv-translate` and
+the Target artifact export API. The Target exporter no longer has a
+source-only selection mode, source artifacts are no longer marked
+generic-front-door selectable in bundle records, and old source-front-door
+tests/fixtures were rewritten or deleted.
+
+### Main Changes
+
+- Removed `tcrv-export-target-source-artifact` registration and the
+  source-specific export wrapper.
+- Removed the public `exportTargetSourceArtifact` API and
+  `ArtifactSelectionMode::SourceOnly`.
+- Rewrote source-front-door lit coverage to assert unknown command-line option
+  behavior and deleted stale scalar/source-route fixtures.
+- Updated lowering/runtime contract and README wording to describe the deleted
+  source front door.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(target): delete target source artifact front door |
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-translate tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused manual FileCheck for `test/Target/ArtifactExport/target-source-artifact-routes.test`
+- [OK] Focused manual FileCheck for `test/Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir`
+- [OK] `tcrv-translate --help` absence check for `tcrv-export-target-source-artifact`
+- [OK] Focused ref-scans for deleted source API/selection authority
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-15-delete-target-source-artifact-front-door`
+
+### Status
+
+[OK] **Ready to archive and commit**
+
+### Next Steps
+
+- Continue deletion only if another active target/export surface still presents
+  direct C source export as valid architecture.

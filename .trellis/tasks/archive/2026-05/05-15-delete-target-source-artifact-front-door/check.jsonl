@@ -1,0 +1,3 @@
+{"file":".trellis/spec/index.md","reason":"Verify global architecture red lines remain satisfied"}
+{"file":".trellis/spec/lowering-runtime/index.md","reason":"Verify lowering/runtime deletion boundary remains fail-closed"}
+{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Verify tests and API shape align with target artifact export deletion contracts"}

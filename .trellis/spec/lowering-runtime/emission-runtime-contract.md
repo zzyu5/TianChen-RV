@@ -251,15 +251,13 @@ runtime-callable C header route may be selected through the generic
 `--tcrv-export-target-header-artifact` front door and must use artifact kind
 `runtime-callable-c-header`. Header selection is source-like only for its
 external C caller surface: it must not make
-`--tcrv-export-target-source-artifact` ambiguous with
-`runtime-callable-c-source`, and it must not make
 `--tcrv-export-target-artifact` choose the header instead of a matching
-library-object route. When both source and non-source target exporters match
-the same selected plan, `--tcrv-export-target-artifact` must prefer the
-non-source runtime-callable object route while
-`--tcrv-export-target-source-artifact` remains source-only. The object and
-header routes are still bounded target artifacts; they do not link, run
-hardware, perform automatic probing, prove correctness, or measure performance.
+library-object route. The generic source-only front door
+`--tcrv-export-target-source-artifact` is deleted; source artifacts are not
+generic-front-door selectable until a future materialized EmitC route rebuild
+defines a new contract. The object and header routes are still bounded target
+artifacts; they do not link, run hardware, perform automatic probing, prove
+correctness, or measure performance.
 The direct RVV microkernel library-object source may embed a bounded read-only
 artifact evidence section in the produced object, such as
 `.rodata.tianchenrv.rvv_artifact`, derived from the same selected source
@@ -379,13 +377,13 @@ runtime execution, RVV evidence, correctness coverage, or performance evidence.
 When a selected dispatch contains a primary supported non-fallback route plus a
 supported `dispatch fallback` route, generic single-artifact export must choose
 the primary non-fallback route and ignore the fallback candidate for ambiguity
-purposes. This keeps `--tcrv-export-target-source-artifact` and
-`--tcrv-export-target-artifact` deterministic for RVV/offload primary paths
-while preserving the scalar fallback candidate for the specialized host
-dispatch exporter. A scalar-only selected fallback remains exportable through
-the generic route when it is the only supported candidate. If multiple
-non-fallback candidates remain supported for one generic export request, the
-request is still ambiguous and must fail closed.
+purposes. This keeps `--tcrv-export-target-artifact` deterministic for
+RVV/offload primary paths while preserving the scalar fallback candidate for
+the specialized host dispatch exporter. The deleted generic source-only front
+door must remain absent. A scalar-only selected fallback remains exportable
+through the generic default route when it is the only supported non-source
+candidate. If multiple non-fallback candidates remain supported for one generic
+export request, the request is still ambiguous and must fail closed.
 
 ### Parameter Claim Boundary
 
@@ -514,10 +512,12 @@ dynamic %n loop + MLIR transfer tail semantics
 ### Execution-Plan / Export Preflight Coherence
 
 Before a module is handed to a generic target artifact export route, the public
-`tcrv-translate --tcrv-export-target-source-artifact` and
-`tcrv-translate --tcrv-export-target-artifact` front doors must run the
+`tcrv-translate --tcrv-export-target-artifact` and
+`tcrv-translate --tcrv-export-target-header-artifact` front doors must run the
 target-neutral preflight verifier to check that all compiler-visible handoff
-metadata still describes the same selected execution path. This check is a
+metadata still describes the same selected execution path. The deleted
+`tcrv-translate --tcrv-export-target-source-artifact` front door must fail at
+command-line registration instead of running export preflight. This check is a
 metadata coherence gate only. It must not export artifacts, lower to
 LLVM/RISC-V, emit extension instructions, create runtime ABI glue, run hardware,
 or claim correctness or performance.
@@ -631,11 +631,12 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   direct/RVV+scalar dispatch manifests as central route truth, or keep scalar
   route strings as compatibility authority.
 - Generic public translate helpers should call this helper once and then call
-  `exportTargetSourceArtifact`, `exportTargetArtifact`, or
-  `exportTargetHeaderArtifact`.
-- Source-only filtering remains the responsibility of the generic exporter via
-  artifact-kind validation, not by omitting non-source built-ins from the
-  registration helper.
+  `exportTargetArtifact` or `exportTargetHeaderArtifact`. The former
+  source-specific export API is deleted with the source-only front door.
+- Source artifacts are not generic-front-door selectable in the current
+  deleted-route state. Source route ids may remain only as exact-route,
+  bundle-component, or negative historical coverage where a target-owned caller
+  has already proven a non-semantic packaging need.
 - Extension/plugin-owned artifact routes may be registered through a
   target-layer plugin-exporter bundle registry keyed by extension plugin name.
   Public tools that already own an `ExtensionPluginRegistry` must pass that same
@@ -664,7 +665,7 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   -> generic registration failure before target artifact output.
 - Missing built-in route registration in a tool -> route lookup fails closed as
   an unknown target artifact route or no supported artifact route.
-- Offload selected without a supported target artifact route -> source/default/
+- Offload selected without a supported target artifact route -> default/header/
   bundle artifact front doors fail closed without output.
 - Route spoofing across RVV/scalar/offload origins or artifact kinds -> generic
   exporter metadata validation must fail before target-owned output.
@@ -674,8 +675,8 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 - Good: `tcrv-translate --tcrv-export-target-artifact` may select a supported
   metadata-only diagnostic route when the selected plugin path advertises one
   through the manifest-owned target exporter bundle.
-- Good: `tcrv-translate --tcrv-export-target-source-artifact`,
-  `--tcrv-export-target-header-artifact`, and the generic object front door fail
+- Good: `tcrv-translate --tcrv-export-target-source-artifact` is absent, while
+  `--tcrv-export-target-header-artifact` and the generic object front door fail
   closed for deleted RVV/scalar/dispatch direct C routes and emit no source,
   header, object, or bundle bytes.
 - Base: historical `tcrv-export-scalar-*`, RVV direct microkernel, and
@@ -1237,8 +1238,10 @@ llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
 
 - Deleted translate option is invoked -> command-line parsing reports an
   unknown/deleted option and no C source is printed.
-- Generic target source artifact export sees a historical smoke-probe route id
-  -> route lookup or coherence fails closed; no C source is printed.
+- Generic target artifact export sees a historical smoke-probe source route id
+  -> the generic source-only front door is absent and no C source is printed;
+  exact-route lookup or coherence must still fail closed if a stale source route
+  id is invoked through a target-owned helper.
 - A selected RVV variant carries stale standalone smoke-probe route metadata ->
   plugin legality/emission must not report a supported standalone source
   artifact.

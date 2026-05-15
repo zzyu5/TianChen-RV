@@ -312,12 +312,6 @@ mlir::LogicalResult planAndExportTargetTranslateArtifactRoute(
   return mlir::success();
 }
 
-mlir::LogicalResult exportTargetSourceArtifact(mlir::ModuleOp module,
-                                               llvm::raw_ostream &os) {
-  return exportCoherenceGatedTargetArtifact(
-      module, os, tianchenrv::target::exportTargetSourceArtifact);
-}
-
 mlir::LogicalResult exportTargetArtifact(mlir::ModuleOp module,
                                          llvm::raw_ostream &os) {
   return exportCoherenceGatedTargetArtifact(
@@ -396,12 +390,6 @@ void registerTianChenRVTranslations() {
   (void)emissionManifest;
 
   registerBuiltinTargetTranslateRouteTranslations();
-
-  static mlir::TranslateFromMLIRRegistration targetSourceArtifact(
-      "tcrv-export-target-source-artifact",
-      "export one supported TianChen-RV target source artifact route",
-      exportTargetSourceArtifact, registerTianChenRVTranslateDialects);
-  (void)targetSourceArtifact;
 
   static mlir::TranslateFromMLIRRegistration targetArtifact(
       "tcrv-export-target-artifact",

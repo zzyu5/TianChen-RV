@@ -459,8 +459,7 @@ bool expectGenericCompositeRouteMetadataPreflightRejectsStaleSelectedPlan() {
   llvm::SmallVector<TargetArtifactCandidate, 1> candidates;
   candidates.push_back(candidate);
   llvm::Expected<const TargetArtifactCompositeExporter *> selected =
-      selectTargetArtifactCompositeExporter(candidates, registry,
-                                            /*sourceOnly=*/false);
+      selectTargetArtifactCompositeExporter(candidates, registry);
   if (selected) {
     llvm::errs() << "generic composite route metadata preflight accepted stale "
                     "selected EmitC metadata\n";
@@ -1632,19 +1631,6 @@ module {
                      "register test header composite"))
     return false;
 
-  std::string sourceOutput;
-  llvm::raw_string_ostream sourceStream(sourceOutput);
-  if (!expectSuccess(exportTargetSourceArtifact(*module, registry,
-                                                sourceStream),
-                     "generic source artifact route selected"))
-    return false;
-  sourceStream.flush();
-  if (sourceOutput != "source-artifact\n") {
-    llvm::errs() << "generic source artifact selected unexpected output: "
-                 << sourceOutput << "\n";
-    return false;
-  }
-
   std::string objectOutput;
   llvm::raw_string_ostream objectStream(objectOutput);
   if (!expectSuccess(exportTargetArtifact(*module, registry, objectStream),
@@ -1764,8 +1750,8 @@ module {
       !sourceRecord.componentGroup.empty() ||
       !sourceRecord.externalABIName.empty() ||
       sourceRecord.owner != "test-plugin" ||
-      sourceRecord.selectableVia != "tcrv-export-target-source-artifact" ||
-      !sourceRecord.genericFrontDoorSelectable ||
+      !sourceRecord.selectableVia.empty() ||
+      sourceRecord.genericFrontDoorSelectable ||
       !sourceRecord.directHelperRoute ||
       sourceRecord.runtimeABIKind != "bundle-runtime-kind" ||
       sourceRecord.runtimeABIName != "bundle-runtime-name" ||
@@ -2127,13 +2113,7 @@ int main() {
                      "register header composite for selection"))
     return 1;
   if (!expectSelectedCompositeRoute(
-          selectTargetArtifactCompositeExporter(
-              {}, compositeSelectionRegistry, /*sourceOnly=*/true),
-          "source-composite", "source-only composite selection"))
-    return 1;
-  if (!expectSelectedCompositeRoute(
-          selectTargetArtifactCompositeExporter(
-              {}, compositeSelectionRegistry, /*sourceOnly=*/false),
+          selectTargetArtifactCompositeExporter({}, compositeSelectionRegistry),
           "object-composite", "artifact-kind composite selection"))
     return 1;
   if (!expectGenericCompositeRouteMetadataPreflightRejectsStaleSelectedPlan())

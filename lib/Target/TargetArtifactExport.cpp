@@ -46,8 +46,6 @@ constexpr llvm::StringLiteral kStandaloneCSourceArtifactKind(
     "standalone-c-source");
 constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
     "riscv-elf-relocatable-object");
-constexpr llvm::StringLiteral kTargetSourceFrontDoor(
-    "tcrv-export-target-source-artifact");
 constexpr llvm::StringLiteral kTargetArtifactFrontDoor(
     "tcrv-export-target-artifact");
 constexpr llvm::StringLiteral kTargetHeaderFrontDoor(
@@ -66,7 +64,6 @@ constexpr llvm::StringLiteral kTargetArtifactBundleIndexFileName(
     "tianchenrv-target-artifact-bundle.index");
 
 enum class ArtifactSelectionMode {
-  SourceOnly,
   DefaultArtifact,
   HeaderOnly,
 };
@@ -110,7 +107,7 @@ llvm::Error makePluginTargetRegistryError(llvm::Twine message) {
 llvm::Error makeArtifactExportError(KernelOp kernel, llvm::Twine message) {
   std::string text;
   llvm::raw_string_ostream stream(text);
-  stream << "TianChen-RV target source artifact export failed";
+  stream << "TianChen-RV target artifact export failed";
   if (kernel)
     stream << " for kernel @" << kernel.getSymName();
   else
@@ -123,7 +120,7 @@ llvm::Error makeArtifactExportError(KernelOp kernel, llvm::Twine message) {
 
 llvm::Error makeModuleArtifactExportError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV target source artifact export failed: ") +
+      llvm::Twine("TianChen-RV target artifact export failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -159,15 +156,18 @@ bool isHeaderArtifactKind(llvm::StringRef artifactKind) {
   return artifactKind == kRuntimeCallableCHeaderArtifactKind;
 }
 
+bool isDefaultGenericArtifactKind(llvm::StringRef artifactKind) {
+  return !isSourceArtifactKind(artifactKind) &&
+         !isHeaderArtifactKind(artifactKind);
+}
+
 bool isAllowedArtifactKind(ArtifactSelectionMode mode,
                            llvm::StringRef artifactKind) {
   switch (mode) {
-  case ArtifactSelectionMode::SourceOnly:
-    return isSourceArtifactKind(artifactKind);
   case ArtifactSelectionMode::HeaderOnly:
     return isHeaderArtifactKind(artifactKind);
   case ArtifactSelectionMode::DefaultArtifact:
-    return !isHeaderArtifactKind(artifactKind);
+    return isDefaultGenericArtifactKind(artifactKind);
   }
   llvm_unreachable("unknown target artifact selection mode");
 }
@@ -175,9 +175,9 @@ bool isAllowedArtifactKind(ArtifactSelectionMode mode,
 llvm::StringRef getGenericFrontDoorSelector(llvm::StringRef artifactKind) {
   if (isHeaderArtifactKind(artifactKind))
     return kTargetHeaderFrontDoor;
-  if (isSourceArtifactKind(artifactKind))
-    return kTargetSourceFrontDoor;
-  return kTargetArtifactFrontDoor;
+  if (isDefaultGenericArtifactKind(artifactKind))
+    return kTargetArtifactFrontDoor;
+  return {};
 }
 
 llvm::StringRef getEvidenceRoleForArtifactKind(llvm::StringRef artifactKind) {
@@ -1055,8 +1055,7 @@ llvm::Expected<const TargetArtifactCompositeExporter *>
 selectCompositeExporter(llvm::ArrayRef<TargetArtifactCandidate> candidates,
                         const TargetArtifactExporterRegistry &registry,
                         ArtifactSelectionMode mode) {
-  const TargetArtifactCompositeExporter *selectedSource = nullptr;
-  const TargetArtifactCompositeExporter *selectedNonSource = nullptr;
+  const TargetArtifactCompositeExporter *selectedDefault = nullptr;
   const TargetArtifactCompositeExporter *selectedHeader = nullptr;
   for (const TargetArtifactCompositeExporter &exporter :
        registry.getCompositeExporters()) {
@@ -1105,23 +1104,16 @@ selectCompositeExporter(llvm::ArrayRef<TargetArtifactCandidate> candidates,
       continue;
     }
 
-    bool sourceArtifact = isSourceArtifactKind(exporter.getArtifactKind());
-    const TargetArtifactCompositeExporter *&selected =
-        (mode == ArtifactSelectionMode::DefaultArtifact && !sourceArtifact)
-            ? selectedNonSource
-            : selectedSource;
-    if (selected)
+    if (selectedDefault)
       return makeModuleArtifactExportError(
           "requires at most one supported composite target artifact route; "
           "found multiple ambiguous composite artifacts");
-    selected = &exporter;
+    selectedDefault = &exporter;
   }
 
   if (mode == ArtifactSelectionMode::HeaderOnly)
     return selectedHeader;
-  if (mode == ArtifactSelectionMode::DefaultArtifact && selectedNonSource)
-    return selectedNonSource;
-  return selectedSource;
+  return selectedDefault;
 }
 
 } // namespace
@@ -1129,11 +1121,9 @@ selectCompositeExporter(llvm::ArrayRef<TargetArtifactCandidate> candidates,
 llvm::Expected<const TargetArtifactCompositeExporter *>
 selectTargetArtifactCompositeExporter(
     llvm::ArrayRef<TargetArtifactCandidate> candidates,
-    const TargetArtifactExporterRegistry &registry, bool sourceOnly) {
-  return selectCompositeExporter(
-      candidates, registry,
-      sourceOnly ? ArtifactSelectionMode::SourceOnly
-                 : ArtifactSelectionMode::DefaultArtifact);
+    const TargetArtifactExporterRegistry &registry) {
+  return selectCompositeExporter(candidates, registry,
+                                 ArtifactSelectionMode::DefaultArtifact);
 }
 
 llvm::Error collectTargetArtifactCandidates(
@@ -1387,9 +1377,9 @@ llvm::Error appendSingleCandidateBundleRecord(
   record.owner = exporter->getOriginPlugin().empty()
                      ? candidate.origin
                      : exporter->getOriginPlugin().str();
-  record.genericFrontDoorSelectable = true;
   record.selectableVia =
       getGenericFrontDoorSelector(candidate.artifactKind).str();
+  record.genericFrontDoorSelectable = !record.selectableVia.empty();
   record.directHelperRoute = exporter->hasDirectHelperRoute();
   record.runtimeABI = candidate.runtimeABI;
   record.runtimeABIKind = candidate.runtimeABIKind;
@@ -1465,9 +1455,9 @@ llvm::Error appendCompositeBundleRecords(
     record.artifactKind = exporter.getArtifactKind().str();
     record.routeID = exporter.getRouteID().str();
     record.owner = exporter.getOwner().str();
-    record.genericFrontDoorSelectable = true;
     record.selectableVia =
         getGenericFrontDoorSelector(exporter.getArtifactKind()).str();
+    record.genericFrontDoorSelectable = !record.selectableVia.empty();
     record.directHelperRoute = exporter.hasDirectHelperRoute();
     record.runtimeABI = deriveCompositeRuntimeABI(group.candidates);
     record.runtimeABIKind =
@@ -2426,7 +2416,16 @@ llvm::Error exportTargetArtifactImpl(
   llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
   for (const TargetArtifactCandidate &candidate : allCandidates) {
     if (mode == ArtifactSelectionMode::DefaultArtifact) {
-      if (!isHeaderArtifactKind(candidate.artifactKind))
+      const TargetArtifactExporter *exporter =
+          registry.lookup(candidate.routeID);
+      if (!exporter) {
+        if (isDefaultGenericArtifactKind(candidate.artifactKind))
+          candidates.push_back(candidate);
+        continue;
+      }
+
+      if (isDefaultGenericArtifactKind(exporter->getArtifactKind()) ||
+          candidate.artifactKind != exporter->getArtifactKind())
         candidates.push_back(candidate);
       continue;
     }
@@ -2440,20 +2439,6 @@ llvm::Error exportTargetArtifactImpl(
       }
 
       if (isHeaderArtifactKind(exporter->getArtifactKind()) ||
-          candidate.artifactKind != exporter->getArtifactKind())
-        candidates.push_back(candidate);
-      continue;
-    }
-
-    if (mode == ArtifactSelectionMode::SourceOnly) {
-      const TargetArtifactExporter *exporter = registry.lookup(candidate.routeID);
-      if (!exporter) {
-        if (isSourceArtifactKind(candidate.artifactKind))
-          candidates.push_back(candidate);
-        continue;
-      }
-
-      if (isSourceArtifactKind(exporter->getArtifactKind()) ||
           candidate.artifactKind != exporter->getArtifactKind())
         candidates.push_back(candidate);
       continue;
@@ -3266,14 +3251,6 @@ llvm::Error ExtensionBundleRegistry::
   }
 
   return llvm::Error::success();
-}
-
-llvm::Error exportTargetSourceArtifact(
-    mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,
-    llvm::raw_ostream &os) {
-  return exportTargetArtifactImpl(module, registry,
-                                  ArtifactSelectionMode::SourceOnly,
-                                  "source artifact", os);
 }
 
 llvm::Error exportTargetArtifact(

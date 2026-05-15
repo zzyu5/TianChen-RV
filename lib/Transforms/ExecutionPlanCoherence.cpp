@@ -1158,7 +1158,7 @@ llvm::Error validateSupportedArtifactCandidates(
   llvm::Expected<const tianchenrv::target::TargetArtifactCompositeExporter *>
       compositeExporter =
           tianchenrv::target::selectTargetArtifactCompositeExporter(
-              inputCandidates, targetExporters, /*sourceOnly=*/false);
+              inputCandidates, targetExporters);
   if (!compositeExporter)
     return compositeExporter.takeError();
   if (*compositeExporter)
