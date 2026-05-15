@@ -25,7 +25,7 @@ module {
       role = "direct variant",
       selected_variant = @fast,
       source_kernel = "missing_emission_metadata",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }

@@ -21,7 +21,7 @@ module {
       role = "dispatch fallback",
       selected_variant = @scalar_fallback_first_slice,
       source_kernel = "scalar_boundary_deleted",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }

@@ -27,4 +27,4 @@ module {
 
 // CHECK: TianChen-RV selected lowering-boundary materialization failed
 // CHECK-SAME: origin plugin 'scalar-plugin' reported unsupported lowering-boundary materialization
-// CHECK-SAME: no longer materializes a metadata-only selected lowering boundary
+// CHECK-SAME: no longer materializes a legacy metadata selected lowering boundary

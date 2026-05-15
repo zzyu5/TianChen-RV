@@ -140,7 +140,7 @@ Use lit/FileCheck for:
   materialization.
 - plugin-owned runtime ABI/emission ownership metadata on materialized emission
   plans, including bounded runtime ABI kind/name, runtime glue role, required
-  capability refs, unsupported RVV metadata boundaries, scalar metadata-only
+  capability refs, unsupported RVV metadata boundaries, scalar fail-closed
   fallback routes, and malformed plugin-returned metadata rejection.
 - target/export emission handoff manifests, including public tool coverage,
   deterministic symbol/path ordering, scalar fallback deleted-route
@@ -168,30 +168,29 @@ Use lit/FileCheck for:
   deletion-campaign fail-closed: selected RVV metadata paths must not produce
   supported runtime-callable C source metadata, descriptor-derived ABI
   parameters, or manifest entries until the Common EmitC rebuild supplies a
-  materialized source authority. Tests should cover unsupported metadata-only
-  diagnostics, stale deleted-route inputs, and the fact that deleted wrapper
-  attachments are not replacement lowering boundaries.
+  materialized source authority. Tests should cover unsupported diagnostics,
+  stale deleted-route inputs, and the fact that deleted wrapper attachments are
+  not replacement lowering boundaries.
 - generic target source artifact export routing, including post-planning
-  selected-path/emission-plan consumption, metadata-only fail-closed coverage
-  for deleted RVV direct artifact routes, and generic route coverage for
-  non-RVV supported metadata artifact paths,
-  fail-closed diagnostics for unsupported metadata-only paths, missing
+  selected-path/emission-plan consumption, fail-closed coverage for deleted RVV
+  direct artifact routes, and fail-closed coverage for deleted non-RVV metadata
+  artifact paths, fail-closed diagnostics for unsupported paths, missing
   plan/route metadata, unknown route ids, unsupported artifact kinds, stale
   selected paths, missing lowering boundaries, missing microkernels, ambiguous
   multiple supported artifacts, and scalar/offload paths not being routed
   through the RVV exporter.
 - target artifact bundle export routing, including an explicit output-directory
-  front door, deterministic metadata-only file names derived from registry
-  artifact route metadata, deterministic bundle index fields for any current
-  metadata-only route, preservation of existing single-artifact front doors,
+  front door, deterministic file names derived from registry artifact route
+  metadata, deterministic bundle index fields for any future supported route,
+  preservation of existing single-artifact front doors,
   generic rejection of incoherent grouped bundle records such as missing
   component roles, missing external ABI identity, missing runtime ABI
   signature, duplicate parameter roles, mismatched runtime ABI parameter
   name/type/ownership, mismatched parameter order, mismatched runtime ABI
   metadata, or mismatched selected component paths, fail-closed diagnostics for
   missing or invalid output directories, and fail-closed behavior for deleted
-  RVV/scalar/dispatch source/header/object routes or metadata-only selected
-  paths without a fake complete executable bundle.
+  RVV/scalar/dispatch/source metadata routes or unsupported selected paths
+  without a fake complete executable bundle.
   Bundle tests must not commit generated binary artifacts or treat object
   creation as link, runtime, correctness, or performance evidence.
 - plan-and-export target artifact bundle front-door coverage through
@@ -209,7 +208,7 @@ Use lit/FileCheck for:
   diagnostics, compatibility alias delegation, or historical option absence
   should be deleted rather than kept alive as production coverage.
 - execution-plan/export preflight coherence checks, including legal RVV explicit
-  microkernel, scalar fallback metadata-only path, and unsupported Offload
+  microkernel, scalar fallback fail-closed path, and unsupported Offload
   selected paths after descriptor deletion;
   existing execution-planning pipeline output followed by the preflight pass;
   and fail-closed diagnostics for stale selected paths, selected origin
@@ -219,12 +218,12 @@ Use lit/FileCheck for:
   metadata, unregistered origins, and ambiguous supported artifact candidates.
   Runtime ABI role-contract coverage must include absence/fail-closed checks
   for deleted direct scalar/RVV callable source routes and deleted
-  scalar/RVV/dispatch header/object helpers. Any remaining metadata-only
-  route preflight must reject malformed runtime ABI role/type/name/ownership
+  scalar/RVV/dispatch header/object helpers. Any remaining no-route
+  preflight must reject malformed runtime ABI role/type/name/ownership
   metadata before artifact output.
 - scalar explicit microkernel runtime-callable C target export is deleted.
-  Tests may still cover scalar fallback metadata-only boundary materialization
-  and deleted-route diagnostics, but they must not expect source/header/object/
+  Tests may still cover scalar fallback fail-closed boundary diagnostics and
+  deleted-route diagnostics, but they must not expect source/header/object/
   bundle bytes or portable scalar compute loops from
   `tcrv-export-scalar-*-microkernel-c` routes. Until a real materialized MLIR
   EmitC module route exists, tests must expect unsupported emission-plan
@@ -324,7 +323,7 @@ Use C++ tests for:
   generic conservative fallback role metadata, finite selected-path
   element-count metadata fail-closed behavior when no typed scalar body exists,
   absence of descriptorless default microkernel materialization, stable
-  metadata-only emission-plan fields when no matching microkernel exists, and
+  unsupported emission-plan fields when no matching microkernel exists, and
   deleted-route readiness/plan fields only when a matching explicit scalar
   microkernel and scalar lowering boundary are present.
 

@@ -17,7 +17,7 @@ def TCRV_Scalar_Dialect : Dialect {
     It does not model scalar arithmetic, selected-boundary metadata,
     source-export bodies, LLVM lowering, runtime ABI glue, generated
     artifacts, correctness, or performance. Historical scalar microkernel
-    source-export ops and metadata-only lowering-boundary ops are deleted
+    source-export ops and old lowering-boundary ops are deleted
     legacy route residue and are not part of the active dialect surface.
   }];
 }

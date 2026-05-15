@@ -474,7 +474,7 @@ module {
                 boundaryResult),
             {"scalar-plugin",
              "reported unsupported lowering-boundary materialization",
-             "no longer materializes a metadata-only selected lowering "
+             "no longer materializes a legacy metadata selected lowering "
              "boundary"}))
       return result;
   }
@@ -494,7 +494,7 @@ module {
                                      VariantEmissionRole::DirectVariant),
               status),
           {"scalar-plugin", "reported unsupported emission path",
-           "no active EmitC lowering", "metadata-only emission route"}))
+           "no active EmitC lowering", "legacy metadata emission route"}))
     return result;
 
   VariantEmissionPlan emissionPlan;

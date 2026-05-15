@@ -932,16 +932,13 @@ llvm::Error collectSelectedPlanMetadata(
   return llvm::Error::success();
 }
 
-llvm::Error validateSupportedOrMetadataRoute(KernelOp kernel,
-                                             DiagnosticOp diagnostic,
-                                             SelectedPath &path,
-                                             llvm::StringRef status,
-                                             llvm::StringRef loweringBoundary,
-                                             llvm::SmallVectorImpl<
-                                                 TargetArtifactCandidate>
-                                                 &supportedCandidates) {
-  if (status != execDiagnostic::kEmissionPlanSupportedStatusValue &&
-      status != execDiagnostic::kEmissionPlanMetadataOnlyStatusValue)
+llvm::Error validateSupportedRoute(KernelOp kernel, DiagnosticOp diagnostic,
+                                   SelectedPath &path, llvm::StringRef status,
+                                   llvm::StringRef loweringBoundary,
+                                   llvm::SmallVectorImpl<
+                                       TargetArtifactCandidate>
+                                       &supportedCandidates) {
+  if (status != execDiagnostic::kEmissionPlanSupportedStatusValue)
     return llvm::Error::success();
 
   std::string emissionKind;
@@ -975,9 +972,6 @@ llvm::Error validateSupportedOrMetadataRoute(KernelOp kernel,
                     loweringBoundary +
                     "' does not match selected path lowering-boundary '" +
                     getOperationName(path.loweringBoundary) + "'");
-
-  if (status != execDiagnostic::kEmissionPlanSupportedStatusValue)
-    return llvm::Error::success();
 
   TargetArtifactCandidate candidate;
   candidate.kernel = kernel;
@@ -1109,8 +1103,7 @@ llvm::Error validateEmissionPlans(
       return error;
 
     std::string loweringBoundary;
-    if (status == execDiagnostic::kEmissionPlanSupportedStatusValue ||
-        status == execDiagnostic::kEmissionPlanMetadataOnlyStatusValue) {
+    if (status == execDiagnostic::kEmissionPlanSupportedStatusValue) {
       if (llvm::Error error =
               requireStringAttr(kernel, diagnostic.getOperation(),
                                 execDiagnostic::kLoweringBoundaryAttrName,
@@ -1118,8 +1111,7 @@ llvm::Error validateEmissionPlans(
         return error;
     }
 
-    if (status == execDiagnostic::kEmissionPlanSupportedStatusValue ||
-        status == execDiagnostic::kEmissionPlanMetadataOnlyStatusValue) {
+    if (status == execDiagnostic::kEmissionPlanSupportedStatusValue) {
       llvm::SmallVector<std::string, 4> planCapabilities;
       if (llvm::Error error = collectRequiredCapabilitySymbols(
               kernel, diagnostic.getOperation(), "emission-plan diagnostic",
@@ -1145,7 +1137,7 @@ llvm::Error validateEmissionPlans(
                 "required_capabilities");
     }
 
-    if (llvm::Error error = validateSupportedOrMetadataRoute(
+    if (llvm::Error error = validateSupportedRoute(
             kernel, diagnostic, path, status, loweringBoundary,
             supportedCandidates))
       return error;

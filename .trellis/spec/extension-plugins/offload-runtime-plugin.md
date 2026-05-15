@@ -149,7 +149,7 @@ Concrete MLIR namespace:
 tcrv_offload
 ```
 
-Current first-slice op:
+Legacy/no-active-route first-slice op shape, for stale input validation only:
 
 ```mlir
 tcrv_offload.lowering_boundary {
@@ -157,15 +157,17 @@ tcrv_offload.lowering_boundary {
   selected_variant = @offload_runtime_first_slice,
   origin = "offload-plugin",
   role = "dispatch case",
-  status = "metadata-only",
+  status = "no-active-route",
   required_capabilities = [@offload_runtime],
   runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
   handoff_kind = "runtime-offload",
-  handoff_reason = "runtime-offload boundary is plugin-owned handoff metadata only"
+  handoff_reason = "runtime-offload boundary records no active route"
 }
 ```
 
-This op is a selected-path handoff boundary. It is not a high-level compute op,
+Production plugin materialization currently returns no boundary for Offload
+because no materialized EmitC/runtime/artifact route exists. If this op appears
+in input, it is a no-active-route validation surface. It is not a high-level compute op,
 custom RISC-V ISA op, vendor runtime call, DMA operation, accelerator kernel,
 object-generation step, correctness result, or performance result.
 

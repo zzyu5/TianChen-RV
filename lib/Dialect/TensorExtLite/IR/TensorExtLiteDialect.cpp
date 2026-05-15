@@ -34,7 +34,7 @@ constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
 constexpr llvm::StringLiteral kEmitCCallAttrName("emitc_call");
 constexpr llvm::StringLiteral kTensorExtLitePluginName(
     "tensorext-lite-plugin");
-constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
+constexpr llvm::StringLiteral kNoActiveRouteStatusValue("no-active-route");
 constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
 constexpr llvm::StringLiteral kExpectedFragmentABI(
     "tensorext-lite-fragment-boundary.v1");
@@ -241,10 +241,10 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
            << "' because this is the TensorExtLite plugin boundary surface";
 
   auto status = op->getAttrOfType<mlir::StringAttr>(kStatusAttrName);
-  if (status.getValue() != kMetadataOnlyStatusValue)
+  if (status.getValue() != kNoActiveRouteStatusValue)
     return emitOpError()
-           << "status must be '" << kMetadataOnlyStatusValue
-           << "' because tcrv_tensorext_lite.lowering_boundary is metadata-only";
+           << "status must be '" << kNoActiveRouteStatusValue
+           << "' because tcrv_tensorext_lite.lowering_boundary has no active route";
 
   auto fragmentABI =
       op->getAttrOfType<mlir::StringAttr>(kFragmentABIAttrName);

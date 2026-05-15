@@ -214,7 +214,7 @@ llvm::Error ScalarExtensionPlugin::checkVariantEmissionReadiness(
   out = VariantEmissionStatus::getUnsupported(
       kScalarPluginName, request.getVariant().getSymName(),
       "scalar fallback first slice has no active EmitC lowering, runtime ABI, "
-      "target artifact route, or metadata-only emission route");
+      "target artifact route, or legacy metadata emission route");
   return llvm::Error::success();
 }
 
@@ -232,7 +232,7 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
       kScalarPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
       "scalar fallback first slice has no materialized extension-family body, "
-      "EmitC lowering, runtime ABI, target artifact route, or metadata-only "
+      "EmitC lowering, runtime ABI, target artifact route, or legacy metadata "
       "emission route");
   out.setEmissionKind("scalar-fallback-unsupported-emission");
   out.setLoweringPipeline("scalar-fallback-no-materialized-emitc-route");
@@ -273,7 +273,7 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
   out = VariantLoweringBoundaryResult::getUnsupported(
       kScalarPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      "scalar fallback first slice no longer materializes a metadata-only "
+      "scalar fallback first slice no longer materializes a legacy metadata "
       "selected lowering boundary");
   return llvm::Error::success();
 }

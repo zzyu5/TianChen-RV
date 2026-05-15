@@ -1330,7 +1330,7 @@ module {
                      scalarOnlyPlan.selectedVariant == scalarOnlyVariants.front() &&
                      scalarOnlyPlan.fallback == scalarOnlyVariants.front() &&
                      !scalarOnlyPlan.missingFallbackCoverage,
-                 "scalar-only capability produces fallback-only metadata route"))
+                 "scalar-only capability produces fallback-only selected path"))
     return result;
 
   KernelOp rvvOnlyKernel = findKernel(*module, "rvv_only");

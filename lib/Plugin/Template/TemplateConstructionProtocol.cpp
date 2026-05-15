@@ -56,17 +56,17 @@ constexpr llvm::StringLiteral kTemplateCapabilityKind(
 constexpr llvm::StringLiteral kTemplateVariantName(
     "template_zero_core_first_slice");
 constexpr llvm::StringLiteral kTemplateRouteID(
-    "template-extension-zero-core-manifest");
+    "template-extension-no-active-emitc-route");
 constexpr llvm::StringLiteral kTemplateEmissionKind(
-    "template-extension-manifest-route");
+    "template-extension-unsupported-emission");
 constexpr llvm::StringLiteral kTemplateArtifactKind(
-    "template-extension-handoff-manifest");
+    "unsupported-emission-diagnostic");
 constexpr llvm::StringLiteral kTemplateRuntimeABI(
-    "template-zero-core-handoff.v1");
+    "unsupported-emission-runtime-abi");
 constexpr llvm::StringLiteral kTemplateRuntimeABIKind(
-    "template-extension-handoff");
+    "unsupported-plugin-runtime-abi");
 constexpr llvm::StringLiteral kTemplateRuntimeGlueRole(
-    "metadata-only-template-extension-handoff");
+    "no-runtime-glue-unsupported");
 constexpr llvm::StringLiteral kTemplateRequiredHeader(
     "template_extension_intrinsics.h");
 constexpr llvm::StringLiteral kTemplateRoleToCallMap(

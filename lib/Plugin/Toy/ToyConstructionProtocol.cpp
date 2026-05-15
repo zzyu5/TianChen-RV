@@ -54,14 +54,14 @@ constexpr llvm::StringLiteral kToyCapabilityID("toy.template");
 constexpr llvm::StringLiteral kToyCapabilityKind("extension-template");
 constexpr llvm::StringLiteral kToyVariantName("toy_template_first_slice");
 constexpr llvm::StringLiteral kToyRouteID(
-    "none-executable-toy-template-metadata");
+    "toy-template-no-active-emitc-route");
 constexpr llvm::StringLiteral kToyEmissionKind(
-    "toy-template-metadata-route");
-constexpr llvm::StringLiteral kToyArtifactKind("metadata-diagnostic");
-constexpr llvm::StringLiteral kToyRuntimeABI("toy-metadata-boundary.v1");
-constexpr llvm::StringLiteral kToyRuntimeABIKind("toy-template-metadata");
-constexpr llvm::StringLiteral kToyRuntimeGlueRole(
-    "metadata-only-toy-template-boundary");
+    "toy-template-unsupported-emission");
+constexpr llvm::StringLiteral kToyArtifactKind("unsupported-emission-diagnostic");
+constexpr llvm::StringLiteral kToyRuntimeABI("unsupported-emission-runtime-abi");
+constexpr llvm::StringLiteral kToyRuntimeABIKind(
+    "unsupported-plugin-runtime-abi");
+constexpr llvm::StringLiteral kToyRuntimeGlueRole("no-runtime-glue-unsupported");
 constexpr llvm::StringLiteral kToyRequiredHeader(
     "toy_extension_intrinsics.h");
 constexpr llvm::StringLiteral kToyRoleToCallMap(

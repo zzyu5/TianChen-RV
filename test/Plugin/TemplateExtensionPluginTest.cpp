@@ -979,76 +979,28 @@ module {
   LoweringBoundaryOp boundary =
       findTemplateBoundary(kernel, templateVariant.getSymName());
   if (int result =
-          expect(boundary,
-                 "Template selected boundary is materialized through plugin"))
-    return result;
-  if (int result =
-          expect(boundary->getAttrOfType<mlir::StringAttr>("origin")
-                         .getValue() ==
-                     tianchenrv::plugin::template_ext::
-                         getTemplateExtensionPluginName() &&
-                     boundary->getAttrOfType<mlir::StringAttr>("role")
-                         .getValue() == "direct variant" &&
-                     boundary->getAttrOfType<mlir::StringAttr>("status")
-                         .getValue() == "metadata-only" &&
-                     boundary->getAttrOfType<mlir::StringAttr>("integration_contract")
-                         .getValue() ==
-                         tianchenrv::plugin::template_ext::
-                             getTemplateExpectedIntegrationContract(),
-                 "Template boundary records metadata-only template handoff"))
+          expect(!boundary,
+                 "Template selected path does not materialize a route boundary"))
     return result;
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
-                          "Template boundary module verifies"))
+                          "Template no-boundary module verifies"))
     return result;
 
   ComputeSkeletonOp computeRole =
       findTemplateComputeRoleOp(kernel, templateVariant.getSymName());
   if (int result =
-          expect(computeRole,
-                 "Template selected path materializes ODS compute role op"))
-    return result;
-  if (int result = expectSuccess(
-          tianchenrv::plugin::template_ext::
-              verifyTemplateComputeRoleOpInterface(
-                  tianchenrv::plugin::template_ext::
-                      getTemplateConstructionManifest(),
-                  tianchenrv::plugin::template_ext::
-                      getTemplateTypedRoleGraphRealization(),
-                  computeRole.getOperation()),
-          "Template selected path compute op validates against construction "
-          "manifest"))
-    return result;
-  if (int result =
-          expect(computeRole
-                         ->getAttrOfType<mlir::StringAttr>("typed_role")
-                         .getValue() ==
-                     "template.role.compute.compute_skeleton" &&
-                     computeRole
-                         ->getAttrOfType<mlir::StringAttr>("source_role")
-                         .getValue() == "compute" &&
-                     computeRole
-                         ->getAttrOfType<mlir::StringAttr>(
-                             "role_specific_interface")
-                         .getValue() == "TCRVComputeOpInterface" &&
-                     computeRole
-                         ->getAttrOfType<mlir::StringAttr>("emitc_call")
-                         .getValue() == "__tcrv_template_compute",
-                 "Template compute role op records typed role and EmitC "
-                 "mapping"))
+          expect(!computeRole,
+                 "Template selected path does not materialize a compute role op"))
     return result;
 
   VariantEmissionStatus status;
-  if (int result = expectSuccess(
+  if (int result = expectErrorContains(
           registry.checkVariantEmissionReadiness(
               VariantEmissionRequest(templateVariant, kernel, capabilities,
                                      VariantEmissionRole::DirectVariant),
               status),
-          "Template emission readiness is plugin-owned"))
-    return result;
-  if (int result =
-          expect(status.isMetadataOnly() &&
-                     status.getEmissionPath().contains("template-extension"),
-                 "Template readiness reports metadata-only template route"))
+          {"reported unsupported emission path",
+           "no active materialized EmitC"}))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -1060,85 +1012,23 @@ module {
           "Template emission plan is plugin-owned"))
     return result;
   if (int result =
-          expect(emissionPlan.isSupported() &&
+          expect(emissionPlan.isUnsupported() &&
                      emissionPlan.getOriginPlugin() ==
                          tianchenrv::plugin::template_ext::
                              getTemplateExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() ==
                          templateVariant.getSymName() &&
-                     emissionPlan.getEmissionKind() ==
-                         tianchenrv::plugin::template_ext::
-                             getTemplateMetadataEmissionKind() &&
-                     emissionPlan.getLoweringPipeline() ==
-                         tianchenrv::plugin::template_ext::getTemplateMetadataRouteID() &&
-                     emissionPlan.getArtifactKind() ==
-                         tianchenrv::plugin::template_ext::
-                             getTemplateMetadataArtifactKind() &&
-                     emissionPlan.getRuntimeABIKind() ==
-                         tianchenrv::plugin::template_ext::
-                             getTemplateMetadataRuntimeABIKind() &&
-                     emissionPlan.getRuntimeABIName() ==
-                         tianchenrv::plugin::template_ext::
-                             getTemplateExpectedIntegrationContract() &&
-                     emissionPlan.getRuntimeGlueRole() ==
-                         tianchenrv::plugin::template_ext::
-                             getTemplateMetadataRuntimeGlueRole() &&
+                     emissionPlan.getLoweringPipeline().empty() &&
+                     emissionPlan.getArtifactKind().empty() &&
+                     emissionPlan.getSelectedPlanMetadata().empty() &&
+                     emissionPlan.getDiagnostic().contains(
+                         "no active materialized EmitC lowering") &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::template_ext::
                              getTemplateExtensionPreferredCapabilitySymbol(),
-                 "Template emission plan records stable exportable metadata route"))
-    return result;
-
-  if (int result =
-          expect(emissionPlan.getSelectedPlanMetadata().size() == 10,
-                 "Template emission plan records full construction selected-plan "
-                 "metadata"))
-    return result;
-  if (int result = expectEmissionPlanMetadata(
-          emissionPlan,
-          tianchenrv::plugin::template_ext::
-              getTemplateConstructionProtocolMetadataName(),
-          tianchenrv::plugin::template_ext::
-              getTemplateConstructionProtocolVersion(),
-          tianchenrv::plugin::template_ext::
-              getTemplateConstructionProtocolMetadataRole()))
-    return result;
-  if (int result = expectEmissionPlanMetadata(
-          emissionPlan,
-          tianchenrv::plugin::template_ext::
-              getTemplateConstructionArchetypeMetadataName(),
-          tianchenrv::plugin::template_ext::getTemplateConstructionArchetype(),
-          tianchenrv::plugin::template_ext::
-              getTemplateConstructionArchetypeMetadataRole()))
-    return result;
-  if (int result = expectEmissionPlanMetadata(
-          emissionPlan,
-          tianchenrv::plugin::template_ext::
-              getTemplateCommonInterfaceRealizationMetadataName(),
-          tianchenrv::plugin::template_ext::
-              getTemplateConstructionInterfaceRealization(),
-          tianchenrv::plugin::template_ext::
-              getTemplateCommonInterfaceRealizationMetadataRole()))
-    return result;
-  if (int result = expectEmissionPlanMetadata(
-          emissionPlan,
-          tianchenrv::plugin::template_ext::
-              getTemplateTypedRoleRealizationMetadataName(),
-          tianchenrv::plugin::template_ext::
-              getTemplateTypedRoleRealizationSummary(),
-          tianchenrv::plugin::template_ext::
-              getTemplateTypedRoleRealizationMetadataRole()))
-    return result;
-  if (int result = expectEmissionPlanMetadata(
-          emissionPlan,
-          tianchenrv::plugin::template_ext::
-              getTemplateEvidenceProfileMetadataName(),
-          tianchenrv::plugin::template_ext::
-              getTemplateConstructionEvidenceProfile(),
-          tianchenrv::plugin::template_ext::
-              getTemplateEvidenceProfileMetadataRole()))
+                 "Template emission plan fails closed without exportable route"))
     return result;
 
   return 0;

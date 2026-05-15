@@ -34,7 +34,7 @@ module {
       role = "direct variant",
       selected_variant = @scalar_fallback_first_slice,
       source_kernel = "coherence_stale_selected_variant",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }
@@ -96,7 +96,7 @@ module {
       role = "direct variant",
       selected_variant = @scalar_fallback_first_slice,
       source_kernel = "other_kernel",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }
@@ -137,7 +137,7 @@ module {
       role = "direct variant",
       selected_variant = @other_scalar,
       source_kernel = "coherence_boundary_variant_mismatch",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }
@@ -173,7 +173,7 @@ module {
       role = "direct variant",
       selected_variant = @scalar_fallback_first_slice,
       source_kernel = "coherence_boundary_origin_mismatch",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }
@@ -209,7 +209,7 @@ module {
       role = "direct variant",
       selected_variant = @scalar_fallback_first_slice,
       source_kernel = "coherence_emission_origin_mismatch",
-      status = "metadata-only"
+      status = "no-active-route"
     }
     tcrv.exec.diagnostic {
       artifact_kind = "unsupported-emission-diagnostic",

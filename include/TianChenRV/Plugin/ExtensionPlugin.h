@@ -337,7 +337,6 @@ struct VariantSelectedPlanMetadata {
 enum class VariantEmissionSupport {
   Unknown,
   Supported,
-  MetadataOnly,
   Unsupported,
 };
 
@@ -347,9 +346,6 @@ public:
   static VariantEmissionStatus getSupported(llvm::StringRef originPlugin,
                                             llvm::StringRef variantSymbol,
                                             llvm::StringRef emissionPath);
-  static VariantEmissionStatus getMetadataOnly(llvm::StringRef originPlugin,
-                                               llvm::StringRef variantSymbol,
-                                               llvm::StringRef metadataRoute);
   static VariantEmissionStatus getUnsupported(llvm::StringRef originPlugin,
                                               llvm::StringRef variantSymbol,
                                               llvm::StringRef reason);
@@ -359,9 +355,6 @@ public:
   }
   bool isSupported() const {
     return support == VariantEmissionSupport::Supported;
-  }
-  bool isMetadataOnly() const {
-    return support == VariantEmissionSupport::MetadataOnly;
   }
   bool isUnsupported() const {
     return support == VariantEmissionSupport::Unsupported;
@@ -373,7 +366,6 @@ public:
   llvm::StringRef getReason() const { return reason; }
 
   void setSupported() { support = VariantEmissionSupport::Supported; }
-  void setMetadataOnly() { support = VariantEmissionSupport::MetadataOnly; }
   void setUnsupported() { support = VariantEmissionSupport::Unsupported; }
   void setOriginPlugin(llvm::StringRef origin) { originPlugin = origin.str(); }
   void setVariantSymbol(llvm::StringRef symbol) {
@@ -399,12 +391,6 @@ public:
       llvm::StringRef emissionKind, llvm::StringRef loweringPipeline,
       llvm::StringRef runtimeABI, llvm::StringRef artifactKind,
       llvm::StringRef explanation);
-  static VariantEmissionPlan getMetadataOnly(
-      llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
-      llvm::StringRef variantSymbol, VariantEmissionRole role,
-      llvm::StringRef emissionKind, llvm::StringRef loweringPipeline,
-      llvm::StringRef runtimeABI, llvm::StringRef artifactKind,
-      llvm::StringRef explanation);
   static VariantEmissionPlan getUnsupported(
       llvm::StringRef originPlugin, llvm::StringRef kernelSymbol,
       llvm::StringRef variantSymbol, VariantEmissionRole role,
@@ -415,9 +401,6 @@ public:
   }
   bool isSupported() const {
     return support == VariantEmissionSupport::Supported;
-  }
-  bool isMetadataOnly() const {
-    return support == VariantEmissionSupport::MetadataOnly;
   }
   bool isUnsupported() const {
     return support == VariantEmissionSupport::Unsupported;
@@ -452,7 +435,6 @@ public:
   }
 
   void setSupported() { support = VariantEmissionSupport::Supported; }
-  void setMetadataOnly() { support = VariantEmissionSupport::MetadataOnly; }
   void setUnsupported() { support = VariantEmissionSupport::Unsupported; }
   void setRole(VariantEmissionRole value) { role = value; }
   void setOriginPlugin(llvm::StringRef origin) { originPlugin = origin.str(); }

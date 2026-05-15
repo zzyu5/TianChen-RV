@@ -512,20 +512,18 @@ planning after readiness, without generating executable artifacts:
   mismatches, origin mismatches, required-capability mismatches, and duplicate
   competing boundaries generically before materializing emission-plan
   diagnostics;
-- require supported and metadata-only plans to carry non-empty generic emission
-  kind, lowering pipeline identifier, runtime ABI identifier, artifact kind, and
-  explanation;
+- require supported plans to carry non-empty generic emission kind, lowering
+  pipeline identifier, runtime ABI identifier, artifact kind, and explanation;
 - reject `runtime-callable-c-source` as the artifact kind for supported or
-  metadata-only plans. Runtime ABI parameter metadata is bounded plan metadata
+  unsupported plans. Runtime ABI parameter metadata is bounded plan metadata
   only; it cannot legalize a direct C source artifact route before a future
   materialized MLIR EmitC source route rebuild;
 - require unsupported plans to carry a non-empty diagnostic string;
 - require plugin-returned route, ABI, glue-role, diagnostic, and explanation
   text to be bounded single-line metadata, not raw logs, credentials, or
   unbounded hardware output;
-- treat plans as plugin-owned compiler metadata/intent only; a supported or
-  metadata-only plan is not proof that code was generated, linked, executed,
-  correct, or performant;
+- treat plans as plugin-owned compiler metadata/intent only; a supported plan is
+  not proof that code was generated, linked, executed, correct, or performant;
 - keep readiness and planning separate: readiness answers whether the selected
   path is supportable, while the plan describes the plugin-owned
   lowering/runtime route or structured unsupported reason.

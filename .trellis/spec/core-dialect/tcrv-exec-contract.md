@@ -503,11 +503,11 @@ tcrv.exec.diagnostic {
 For `reason = "emission_plan"`, `target`, `origin`, `role`, `status`,
 `runtime_abi_kind`, `runtime_abi_name`, `runtime_glue_role`, and
 `required_capabilities` are required and non-empty. `status` must be
-`supported`, `metadata-only`, or `unsupported`. `required_capabilities` must
-contain capability symbol references that are a safe subset of the selected
-target variant `requires` metadata. Supported and metadata-only diagnostics
-additionally require non-empty `emission_kind`, `lowering_pipeline`,
-`runtime_abi`, and `artifact_kind`. Unsupported diagnostics require non-empty
+`supported` or `unsupported`. `required_capabilities` must contain capability
+symbol references that are a safe subset of the selected target variant
+`requires` metadata. Supported diagnostics additionally require non-empty
+`emission_kind`, `lowering_pipeline`, `runtime_abi`, and `artifact_kind`.
+Unsupported diagnostics require non-empty
 diagnostic text through `message`; they may still carry plugin-owned runtime
 ABI ownership metadata to explain the unsupported boundary. The target must
 resolve to a direct sibling `tcrv.exec.variant` in the same kernel.

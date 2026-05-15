@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-export-emission-manifest | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-execution-planning-pipeline 2>&1 | FileCheck %s
 
 module @offload_manifest_inputs {
   tcrv.exec.kernel @pipeline_offload_manifest {
@@ -51,23 +51,6 @@ module @offload_manifest_inputs {
   }
 }
 
-// CHECK: tianchenrv.emission_manifest.version: 1
-// CHECK: module: "offload_manifest_inputs"
-// CHECK-LABEL: kernel @pipeline_offload_manifest
-// CHECK: selected_surface: selected-marker
-// CHECK: selection_kind: "static-variant"
-// CHECK: path[0]:
-// CHECK: selected_variant: @offload_runtime_first_slice
-// CHECK: role: "direct variant"
-// CHECK: origin: "offload-plugin"
-// CHECK: emission_status: "unsupported"
-// CHECK: lowering_boundary: "tcrv_offload.lowering_boundary"
-// CHECK: runtime_abi_kind: "unsupported-plugin-runtime-abi"
-// CHECK: runtime_abi_name: "unsupported-emission-runtime-abi"
-// CHECK: runtime_glue_role: "no-runtime-glue-unsupported"
-// CHECK: required_capabilities: [@offload_runtime]
-// CHECK: explanation: "the Offload extension currently has no active executable lowering or target artifact route"
-// CHECK: preference:
-// CHECK: available: true
-// CHECK: policy: "prefer runtime-offload metadata handoff only when explicit offload.runtime capability metadata is available"
-// CHECK-NOT: path[1]:
+// CHECK: TianChen-RV emission path check failed for kernel @pipeline_offload_manifest
+// CHECK-SAME: selected lowering-boundary validation failed before plugin emission routing
+// CHECK-SAME: selected path @offload_runtime_first_slice as direct variant requires one materialized plugin lowering boundary before emission planning

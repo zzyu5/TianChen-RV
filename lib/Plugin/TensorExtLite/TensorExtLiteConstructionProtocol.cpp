@@ -56,17 +56,17 @@ constexpr llvm::StringLiteral kTensorExtLiteCapabilityKind(
 constexpr llvm::StringLiteral kTensorExtLiteVariantName(
     "tensorext_lite_tile_mma_first_slice");
 constexpr llvm::StringLiteral kTensorExtLiteRouteID(
-    "none-executable-tensorext-lite-fragment-mma-metadata");
+    "tensorext-lite-fragment-mma-no-active-emitc-route");
 constexpr llvm::StringLiteral kTensorExtLiteEmissionKind(
-    "tensorext-lite-fragment-mma-generated-route");
+    "tensorext-lite-fragment-mma-unsupported-emission");
 constexpr llvm::StringLiteral kTensorExtLiteArtifactKind(
-    "metadata-diagnostic");
+    "unsupported-emission-diagnostic");
 constexpr llvm::StringLiteral kTensorExtLiteRuntimeABI(
-    "tensorext-lite-fragment-boundary.v1");
+    "unsupported-emission-runtime-abi");
 constexpr llvm::StringLiteral kTensorExtLiteRuntimeABIKind(
-    "tensorext-lite-fragment-metadata");
+    "unsupported-plugin-runtime-abi");
 constexpr llvm::StringLiteral kTensorExtLiteRuntimeGlueRole(
-    "metadata-only-tensorext-lite-fragment-mma-boundary");
+    "no-runtime-glue-unsupported");
 constexpr llvm::StringLiteral kTensorExtLiteRequiredHeader(
     "tensorext_lite_intrinsics.h");
 constexpr llvm::StringLiteral kTensorExtLiteRoleToCallMap(

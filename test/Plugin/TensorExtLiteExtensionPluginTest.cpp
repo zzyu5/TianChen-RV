@@ -494,73 +494,29 @@ module {
   LoweringBoundaryOp boundary =
       findTensorExtLiteBoundary(kernel, tensorext_liteVariant.getSymName());
   if (int result =
-          expect(boundary,
-                 "TensorExtLite selected boundary is materialized through plugin"))
-    return result;
-  if (int result =
-          expect(boundary->getAttrOfType<mlir::StringAttr>("origin")
-                         .getValue() ==
-                     tianchenrv::plugin::tensorext_lite::
-                         getTensorExtLiteExtensionPluginName() &&
-                     boundary->getAttrOfType<mlir::StringAttr>("role")
-                         .getValue() == "direct variant" &&
-                     boundary->getAttrOfType<mlir::StringAttr>("status")
-                         .getValue() == "metadata-only" &&
-                     boundary->getAttrOfType<mlir::StringAttr>("fragment_abi")
-                         .getValue() ==
-                         tianchenrv::plugin::tensorext_lite::
-                             getTensorExtLiteExpectedFragmentABI(),
-                 "TensorExtLite boundary records metadata-only fragment handoff"))
+          expect(!boundary,
+                 "TensorExtLite selected path does not materialize a route boundary"))
     return result;
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
-                          "TensorExtLite boundary module verifies"))
+                          "TensorExtLite no-boundary module verifies"))
     return result;
 
   TileMmaSkeletonOp computeRole =
       findTensorExtLiteComputeRole(kernel, tensorext_liteVariant.getSymName());
   if (int result =
-          expect(computeRole,
-                 "TensorExtLite selected tile_mma role op is materialized through plugin"))
-    return result;
-  if (int result =
-          expect(computeRole
-                         ->getAttrOfType<mlir::StringAttr>("typed_role")
-                         .getValue() ==
-                         "tel.role.tile_mma" &&
-                     computeRole
-                         ->getAttrOfType<mlir::StringAttr>("source_role")
-                         .getValue() == "tile_mma" &&
-                     computeRole
-                         ->getAttrOfType<mlir::StringAttr>(
-                             "role_specific_interface")
-                         .getValue() == "TCRVComputeOpInterface" &&
-                     computeRole
-                         ->getAttrOfType<mlir::StringAttr>("emitc_call")
-                         .getValue() ==
-                         "__tcrv_tel_tile_mma",
-                 "TensorExtLite tile_mma role op carries typed construction metadata"))
-    return result;
-  if (int result = expectSuccess(
-          tianchenrv::plugin::tensorext_lite::verifyTensorExtLiteComputeRoleOpInterface(
-              tianchenrv::plugin::tensorext_lite::getTensorExtLiteConstructionManifest(),
-              tianchenrv::plugin::tensorext_lite::getTensorExtLiteTypedRoleGraphRealization(),
-              computeRole.getOperation()),
-          "TensorExtLite tile_mma role op validates against construction protocol"))
+          expect(!computeRole,
+                 "TensorExtLite selected path does not materialize a tile_mma role op"))
     return result;
 
   VariantEmissionStatus status;
-  if (int result = expectSuccess(
+  if (int result = expectErrorContains(
           registry.checkVariantEmissionReadiness(
-              VariantEmissionRequest(tensorext_liteVariant, kernel, capabilities,
+              VariantEmissionRequest(tensorext_liteVariant, kernel,
+                                     capabilities,
                                      VariantEmissionRole::DirectVariant),
               status),
-          "TensorExtLite emission readiness is plugin-owned"))
-    return result;
-  if (int result =
-          expect(status.isMetadataOnly() &&
-                     status.getEmissionPath().contains(
-                         "tensorext-lite-fragment-mma"),
-                 "TensorExtLite readiness reports metadata-only fragment route"))
+          {"reported unsupported emission path",
+           "no active materialized EmitC"}))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -572,39 +528,23 @@ module {
           "TensorExtLite emission plan is plugin-owned"))
     return result;
   if (int result =
-          expect(emissionPlan.isSupported() &&
+          expect(emissionPlan.isUnsupported() &&
                      emissionPlan.getOriginPlugin() ==
                          tianchenrv::plugin::tensorext_lite::
                              getTensorExtLiteExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() ==
                          tensorext_liteVariant.getSymName() &&
-                     emissionPlan.getEmissionKind() ==
-                         tianchenrv::plugin::tensorext_lite::
-                             getTensorExtLiteMetadataEmissionKind() &&
-                     emissionPlan.getLoweringPipeline() ==
-                         tianchenrv::plugin::tensorext_lite::getTensorExtLiteMetadataRouteID() &&
-                     emissionPlan.getArtifactKind() ==
-                         tianchenrv::plugin::tensorext_lite::
-                             getTensorExtLiteMetadataArtifactKind() &&
-                     emissionPlan.getRuntimeABIKind() ==
-                         tianchenrv::plugin::tensorext_lite::
-                             getTensorExtLiteMetadataRuntimeABIKind() &&
-                     emissionPlan.getRuntimeABIName() ==
-                         tianchenrv::plugin::tensorext_lite::
-                             getTensorExtLiteExpectedFragmentABI() &&
-                     emissionPlan.getRuntimeGlueRole() ==
-                         tianchenrv::plugin::tensorext_lite::
-                             getTensorExtLiteMetadataRuntimeGlueRole() &&
+                     emissionPlan.getLoweringPipeline().empty() &&
+                     emissionPlan.getArtifactKind().empty() &&
+                     emissionPlan.getSelectedPlanMetadata().empty() &&
+                     emissionPlan.getDiagnostic().contains(
+                         "no active materialized EmitC lowering") &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::tensorext_lite::
                              getTensorExtLiteFragmentPreferredCapabilitySymbol(),
-                 "TensorExtLite emission plan records stable exportable metadata route"))
-    return result;
-  if (int result =
-          expect(emissionPlan.getSelectedPlanMetadata().size() == 10,
-                 "TensorExtLite emission plan records construction selected metadata"))
+                 "TensorExtLite emission plan fails closed without exportable route"))
     return result;
 
   return 0;

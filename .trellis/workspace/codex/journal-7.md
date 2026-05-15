@@ -684,3 +684,36 @@ Deleted the active RVV no-body metadata first-slice proposal, boundary, and unsu
 ### Next Steps
 
 - None - task complete
+
+
+## Session 82: Generic metadata-only plugin route contract erasure
+
+**Date**: 2026-05-16
+**Task**: Generic metadata-only plugin route contract erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted generic metadata-only plugin emission/artifact route authority; Template/Toy/TensorExtLite/Offload now fail closed without materialized EmitC/artifact routes; focused C++/lit checks and check-tianchenrv passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

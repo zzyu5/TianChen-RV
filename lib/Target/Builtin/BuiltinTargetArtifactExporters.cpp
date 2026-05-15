@@ -8,9 +8,6 @@
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
-#include "TianChenRV/Target/Template/TemplateMetadataArtifact.h"
-#include "TianChenRV/Target/TensorExtLite/TensorExtLiteMetadataArtifact.h"
-#include "TianChenRV/Target/Toy/ToyMetadataArtifact.h"
 
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
@@ -74,7 +71,6 @@ llvm::Error registerOffloadExtensionBundle(
                          plugin::offload::getOffloadExtensionPluginName(),
                          plugin::registerOffloadExtensionPlugin);
   bundle.addRequiredDialectName("tcrv_offload");
-  bundle.addLoweringBoundaryOp("tcrv_offload.lowering_boundary");
   return registry.registerBundle(bundle);
 }
 
@@ -83,12 +79,6 @@ llvm::Error registerToyExtensionBundle(ExtensionBundleRegistry &registry) {
                          plugin::toy::getToyExtensionPluginName(),
                          plugin::registerToyExtensionPlugin);
   bundle.addRequiredDialectName("tcrv_toy");
-  bundle.addLoweringBoundaryOp("tcrv_toy.lowering_boundary");
-  bundle.setTargetArtifactExporterBundleRegistrationFn(
-      toy::registerToyMetadataArtifactPluginTargetExporterBundle);
-  bundle.addTargetArtifactRouteMetadataRequirement(
-      plugin::toy::getToyMetadataRouteID(),
-      plugin::toy::getToyMetadataArtifactKind());
   return registry.registerBundle(bundle);
 }
 
@@ -99,12 +89,6 @@ llvm::Error registerTemplateExtensionBundle(
       plugin::template_ext::getTemplateExtensionPluginName(),
       plugin::registerTemplateExtensionPlugin);
   bundle.addRequiredDialectName("tcrv_template");
-  bundle.addLoweringBoundaryOp("tcrv_template.lowering_boundary");
-  bundle.setTargetArtifactExporterBundleRegistrationFn(
-      template_ext::registerTemplateMetadataArtifactPluginTargetExporterBundle);
-  bundle.addTargetArtifactRouteMetadataRequirement(
-      plugin::template_ext::getTemplateMetadataRouteID(),
-      plugin::template_ext::getTemplateMetadataArtifactKind());
   return registry.registerBundle(bundle);
 }
 
@@ -115,13 +99,6 @@ llvm::Error registerTensorExtLiteExtensionBundle(
       plugin::tensorext_lite::getTensorExtLiteExtensionPluginName(),
       plugin::registerTensorExtLiteExtensionPlugin);
   bundle.addRequiredDialectName("tcrv_tensorext_lite");
-  bundle.addLoweringBoundaryOp("tcrv_tensorext_lite.lowering_boundary");
-  bundle.setTargetArtifactExporterBundleRegistrationFn(
-      tensorext_lite::
-          registerTensorExtLiteMetadataArtifactPluginTargetExporterBundle);
-  bundle.addTargetArtifactRouteMetadataRequirement(
-      plugin::tensorext_lite::getTensorExtLiteMetadataRouteID(),
-      plugin::tensorext_lite::getTensorExtLiteMetadataArtifactKind());
   return registry.registerBundle(bundle);
 }
 

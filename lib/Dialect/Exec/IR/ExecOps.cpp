@@ -62,7 +62,6 @@ constexpr llvm::StringLiteral kCapabilityProvidersAttrName(
 using diagnostic::kArtifactKindAttrName;
 using diagnostic::kEmissionKindAttrName;
 using diagnostic::kEmissionPlanSupportedStatusValue;
-using diagnostic::kEmissionPlanMetadataOnlyStatusValue;
 using diagnostic::kEmissionPlanUnsupportedStatusValue;
 using diagnostic::kLoweringBoundaryAttrName;
 using diagnostic::kLoweringPipelineAttrName;
@@ -464,8 +463,7 @@ mlir::LogicalResult verifyEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
   if (!diagnostic::isEmissionPlanStatus(statusAttr.getValue()))
     return diagnostic.emitOpError()
            << "emission-plan diagnostic status must be '"
-           << kEmissionPlanSupportedStatusValue << "', '"
-           << kEmissionPlanMetadataOnlyStatusValue << "', or '"
+           << kEmissionPlanSupportedStatusValue << "' or '"
            << kEmissionPlanUnsupportedStatusValue << "'";
 
   if (isPresentButEmptyStringAttr(op, kPlanKindAttrName))
@@ -504,8 +502,7 @@ mlir::LogicalResult verifyEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
               "tcrv.exec.variant";
 
   bool requiresMaterializedCapabilities =
-      statusAttr.getValue() == kEmissionPlanSupportedStatusValue ||
-      statusAttr.getValue() == kEmissionPlanMetadataOnlyStatusValue;
+      statusAttr.getValue() == kEmissionPlanSupportedStatusValue;
   if (mlir::failed(verifyEmissionPlanRequiredCapabilities(
           diagnostic, kernel, requiresMaterializedCapabilities)))
     return mlir::failure();

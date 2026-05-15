@@ -242,19 +242,19 @@ Rules:
   metadata;
 - carry bounded runtime ABI kind/name metadata and a bounded required runtime
   glue role chosen by the origin plugin;
-- reject `runtime-callable-c-source` as the artifact kind for every supported
-  or metadata-only plugin emission plan. Structured runtime ABI parameter
+- reject `runtime-callable-c-source` as the artifact kind for every plugin
+  emission plan. Structured runtime ABI parameter
   metadata must not make a direct C source artifact plan legal. Future source
   output requires a materialized MLIR EmitC module route with a new explicit
   source artifact contract; until then source-like mentions may appear only in
   unsupported deleted-route diagnostics or tests proving absence;
-- for supported and metadata-only paths, carry required capability symbol refs
-  that are a safe subset of the selected variant `requires` metadata;
+- for supported paths, carry required capability symbol refs that are a safe
+  subset of the selected variant `requires` metadata;
 - for supported paths, require non-empty emission kind, lowering pipeline
   identifier, runtime ABI identifier, artifact kind, and explanation;
 - for unsupported paths, require a non-empty diagnostic reason;
 - reject plugin-returned empty runtime ABI kind/name, empty runtime glue role,
-  missing required capability refs on supported/metadata-only plans, or
+  missing required capability refs on supported plans, or
   unbounded/secret-like diagnostic and explanation text before materialization;
 - diagnose missing origin, unregistered origin, disabled origin plugin,
   malformed plugin result, mismatched variant symbol, mismatched kernel symbol,
@@ -290,7 +290,7 @@ MLIR. The generic layer consumes only target-neutral emission-plan fields such
 as selected variant, role, origin, support status, lowering pipeline route id,
 emission kind, artifact kind, lowering-boundary reference, runtime ABI metadata,
 and required capability refs. It must fail closed for missing selected paths,
-missing emission-plan diagnostics, unsupported or metadata-only plans, unknown
+  missing emission-plan diagnostics, unsupported plans, unknown
 route ids, artifact-kind mismatch, origin/emission-kind mismatch, stale selected
 paths, duplicate or ambiguous supported artifacts, and malformed bounded text.
 
@@ -372,7 +372,7 @@ paths, or performance text.
 #### 1. Scope / Trigger
 
 This scenario is historical. Generic source/header/object export must not
-consume RVV metadata-only route fields as a supported runtime-callable artifact
+consume deleted RVV metadata fields as a supported runtime-callable artifact
 route after direct C semantic exporter deletion.
 
 #### 2. Signatures
@@ -696,16 +696,15 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   routes, and RVV+scalar dispatch source/header/object routes must not be
   registered as supported target artifact routes.
 - The scalar plugin may still contribute its extension bundle so selected
-  scalar fallback boundaries, dialect ownership, and metadata-only emission
-  planning remain visible, but its target-artifact exporter bundle must not
+  scalar fallback intent and dialect ownership remain visible, but its
+  target-artifact exporter bundle must not
   publish `tcrv-export-scalar-*` source/header/object routes or
   `scalar-*-runtime-callable-c-abi.v1` identities as executable artifact
   authority.
-- The current plugin-owned supported target artifact routes are metadata-only
-  diagnostic routes, such as Toy, Template, and TensorExtLite metadata
-  artifacts. They must carry explicit non-executable metadata route ids and
-  route-local candidate preflight; they are not scalar/RVV/dispatch executable
-  source, header, object, or bundle routes.
+- The current plugin-owned supported target artifact route set is empty until a
+  future Common EmitC rebuild materializes explicit extension-family routes.
+  Template, Toy, TensorExtLite, and Offload metadata artifact exporters must not
+  publish route ids or stand in for compiler-owned lowering.
 - The helper may include scalar/offload/Toy/template target headers for
   current legacy bundle composition, but target-support-enabled extensions must
   activate any non-deleted route contribution through the plugin/manifest hook.
@@ -727,9 +726,9 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   can contribute their plugin-owned target artifact exporters through the
   generic boundary. A plugin-owned exporter bundle may additionally declare
   required enabled extension plugins for composite routes whose selected-plan
-  contract spans more than one plugin-owned component. Current supported
-  contributions are metadata-only diagnostic exporters; deleted RVV, scalar,
-  and dispatch direct C exporters must contribute no route authority. Disabled
+  contract spans more than one plugin-owned component. Deleted Template, Toy,
+  TensorExtLite, Offload, RVV, scalar, and dispatch routes must contribute no
+  route authority. Disabled
   or missing plugins must not silently publish their plugin-owned target routes.
   Later selected-plan export then fails closed as an unknown or unavailable
   route/origin instead of falling back to a central extension-specific exporter
@@ -755,13 +754,10 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 
 #### 5. Good/Base/Bad Cases
 
-- Good: `tcrv-translate --tcrv-export-target-artifact` may select a supported
-  metadata-only diagnostic route when the selected plugin path advertises one
-  through the manifest-owned target exporter bundle.
 - Good: the generic source-only front door is absent, while
   `--tcrv-export-target-header-artifact` and the generic object front door fail
-  closed for deleted RVV/scalar/dispatch direct C routes and emit no source,
-  header, object, or bundle bytes.
+  closed for deleted Template/Toy/TensorExtLite/Offload/RVV/scalar/dispatch
+  routes and emit no source, header, object, or bundle bytes.
 - Base: historical `tcrv-export-scalar-*`, RVV direct microkernel, and
   RVV+scalar dispatch route strings may appear only as negative deleted-route
   coverage or absence checks, never as supported artifact selection.
@@ -776,14 +772,13 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 
 #### 6. Tests Required
 
-- C++ registry tests must prove the built-in helper registers all current
-  metadata-only route ids with deterministic generic metadata, rejects
-  duplicate registration, and does not expose deleted RVV/scalar/dispatch
-  direct C route ids or composite routes.
+- C++ registry tests must prove the built-in helper registers no deleted
+  metadata artifact route ids, keeps duplicate/invalid custom registration
+  diagnostics, and does not expose deleted RVV/scalar/dispatch direct C route
+  ids or composite routes.
 - lit/FileCheck route tests must continue to cover generic front-door
-  fail-closed behavior for deleted RVV/scalar/dispatch direct C routes, Offload
-  selected-path unsupported artifact rejection, metadata-only positive routes,
-  and RVV/scalar/offload route spoofing failures that produce no executable
+  fail-closed behavior for deleted Template/Toy/TensorExtLite/Offload/RVV/
+  scalar/dispatch routes and route spoofing failures that produce no executable
   artifact.
 - CMake checks must include the built-in Target support library in the tool and
   C++ test link graph.
@@ -942,7 +937,7 @@ unknown routes, or route/exporter metadata mismatches are selected-plan
 coherence failures, not late file-emission choices. Bundle file names and the
 index must be deterministic, safe, and metadata-derived, and must not contain
 local absolute paths, credentials, timestamps, random values, `artifacts/tmp`
-paths, raw logs, or secret-like text. Unsupported or metadata-only selected
+  paths, raw logs, or secret-like text. Unsupported selected
 paths must not produce a fake complete bundle. If artifact materialization
 fails, the exporter must fail before writing a complete index and must either
 remove partial outputs or otherwise avoid claiming a complete bundle. The
@@ -1208,7 +1203,7 @@ Each emission path should record:
 Before real lowering/runtime work exists, plugin emission plans may be
 materialized as `tcrv.exec.diagnostic {reason = "emission_plan"}` metadata.
 These diagnostics are reproducibility and compiler-decision records only. A
-supported or metadata-only diagnostic records plugin-owned intent such as
+  supported diagnostic records plugin-owned intent such as
 emission kind, lowering pipeline id, runtime ABI id, runtime ABI kind/name,
 runtime glue role, required capability refs, and artifact kind; it does not
 mean that the compiler emitted LLVM/RISC-V/RVV IR, assembled an object, linked
@@ -1236,7 +1231,7 @@ The current public `tcrv-opt` built-in registry includes the RVV first-slice
 plugin. Therefore an `origin = "rvv-plugin"` selected path can route through
 RVV plugin diagnostics instead of a generic unregistered-origin failure. RVV
 emission planning still fails closed until explicit extension-family IR plus a
-materialized EmitC route exists; no unsupported metadata route may be promoted
+  materialized EmitC route exists; no unsupported route metadata may be promoted
 to runtime ABI, artifact, correctness, or performance evidence. The tool-level
 `--tcrv-disable-builtin-plugins` option preserves an explicit empty-registry
 surface for negative parser/diagnostic tests.
@@ -1266,7 +1261,7 @@ hardware/toolchain evidence.
 ### 1. Scope / Trigger
 
 Trigger: historical post-planning MLIR contained a selected RVV path and a
-matching plugin-owned selected-boundary metadata route, then used a
+  matching plugin-owned selected-boundary record, then used a
 target/export tool to emit a deterministic standalone C smoke program with
 `riscv_vector.h` and RVV intrinsics.
 
@@ -1451,7 +1446,7 @@ source exporter.
 
 The first scalar fallback plugin slice may keep the portable fallback proposal
 visible to generic planning, but selected scalar fallback has no active EmitC
-lowering, runtime ABI, target artifact route, or metadata-only emission route.
+lowering, runtime ABI, target artifact route, or legacy metadata emission route.
 It must therefore return an unsupported emission readiness result and materialize
 only a fail-closed emission-plan diagnostic:
 
@@ -1925,11 +1920,12 @@ front door must not select a dispatch header route until a future EmitC-module
 route supplies source/header authority. Historical header route ids may remain
 only as negative route-absence checks or archived notes.
 
-## Runtime Offload Metadata Boundary
+## Runtime Offload No-Route Boundary
 
-The first runtime-offload plugin slice may return a metadata-only emission
-readiness result and materialize selected `tcrv_offload.lowering_boundary`
-metadata. After descriptor-route deletion, its emission plan must be
+The first runtime-offload plugin slice may return an unsupported emission
+readiness result. Production boundary materialization must return no selected
+`tcrv_offload.lowering_boundary` until a real materialized EmitC/runtime/artifact
+route exists. After descriptor-route deletion, its emission plan must be
 unsupported:
 
 ```text
@@ -1940,16 +1936,16 @@ runtime glue role: no-runtime-glue-unsupported
 diagnostic: runtime-offload has no active executable lowering or target artifact route
 ```
 
-This unsupported plan means only that the compiler recognized the selected
-Offload metadata boundary and deliberately found no active artifact route. It
+This unsupported plan means only that the compiler recognized a selected
+Offload-capable variant and deliberately found no active materialized route. It
 does not emit vendor runtime calls, allocate or copy device buffers, compile
 accelerator kernels, generate objects, link runtime libraries, run hardware,
-prove correctness, or measure performance. The selected
-`tcrv_offload.lowering_boundary` op records the plugin-local runtime-offload
-handoff boundary, but it remains metadata-only and non-executable. Its
-availability depends on explicit `offload.runtime` capability metadata and
-plugin legality; it cannot resurrect unavailable, malformed, illegal, or
-unselected variants.
+prove correctness, or measure performance. Production lowering-boundary
+materialization for Offload now returns no boundary; any stale
+`tcrv_offload.lowering_boundary` op is a no-active-route validation surface, not
+route authority. Availability depends on explicit `offload.runtime` capability
+metadata and plugin legality; it cannot resurrect unavailable, malformed,
+illegal, or unselected variants.
 
 Public source/default/header/bundle artifact front doors must ignore unsupported
 Offload emission plans as artifact candidates and fail closed if no other
@@ -2015,6 +2011,5 @@ dispatch-specific selected-plan metadata that exposes the consumed RVV
 component contract fields: runtime element-count C name, selected vector
 config, selected dispatch role, and descriptor-local element count as bounded
 component capacity metadata only. Missing or mismatched direct RVV selected
-config contract fields must fail before bundle output. Unsupported or
-metadata-only selected paths must omit target artifact records instead of
-fabricating route data.
+config contract fields must fail before bundle output. Unsupported selected
+paths must omit target artifact records instead of fabricating route data.

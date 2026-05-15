@@ -30,7 +30,7 @@ constexpr llvm::StringLiteral kExpectedRuntimeABI(
     "generic-runtime-offload-c-abi-handoff.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind("runtime-offload");
 constexpr llvm::StringLiteral kOffloadFirstSlicePolicy(
-    "metadata_only_runtime_offload_first_slice");
+    "no_active_route_runtime_offload_first_slice");
 constexpr llvm::StringLiteral kOffloadFirstSliceCondition(
     "offload_runtime_capability_available");
 constexpr llvm::StringLiteral kOffloadFirstSliceGuard(
@@ -45,8 +45,7 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
     "required_capabilities");
 constexpr llvm::StringLiteral kRuntimeABIAttrName("runtime_abi");
 constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
-constexpr llvm::StringLiteral kHandoffReasonAttrName("handoff_reason");
-constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
+constexpr llvm::StringLiteral kNoActiveRouteStatusValue("no-active-route");
 
 struct OffloadRuntimeCapabilityView {
   std::string runtimeABI;
@@ -280,68 +279,6 @@ llvm::Error verifyOffloadVariantMetadata(
   return llvm::Error::success();
 }
 
-llvm::Error rejectExistingOffloadBoundaryForVariant(
-    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant) {
-  if (!kernel || kernel.getBody().empty())
-    return llvm::Error::success();
-
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto boundary = llvm::dyn_cast<tcrv::offload::LoweringBoundaryOp>(op);
-    if (!boundary)
-      continue;
-
-    auto target =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
-    llvm::StringRef targetSymbol =
-        target ? target.getValue() : llvm::StringRef("<missing>");
-    if (targetSymbol != variant.getSymName())
-      continue;
-
-    return makeOffloadPluginError(
-        llvm::Twine("requires no pre-existing "
-                    "tcrv_offload.lowering_boundary for target @") +
-        targetSymbol);
-  }
-
-  return llvm::Error::success();
-}
-
-tcrv::offload::LoweringBoundaryOp materializeOffloadBoundaryOp(
-    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
-    tcrv::exec::VariantOp variant, VariantEmissionRole role,
-    const OffloadRuntimeCapabilityView &capabilityView) {
-  builder.getContext()->getOrLoadDialect<tcrv::offload::TCRVOffloadDialect>();
-
-  auto requiredCapabilities =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-
-  mlir::OperationState state(
-      variant.getLoc(), tcrv::offload::LoweringBoundaryOp::getOperationName());
-  state.addAttribute(kSourceKernelAttrName,
-                     builder.getStringAttr(kernel.getSymName()));
-  state.addAttribute(kSelectedVariantAttrName,
-                     mlir::FlatSymbolRefAttr::get(builder.getContext(),
-                                                  variant.getSymName()));
-  state.addAttribute(kOriginAttrName, builder.getStringAttr(kOffloadPluginName));
-  state.addAttribute(kRoleAttrName,
-                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
-  state.addAttribute(kStatusAttrName,
-                     builder.getStringAttr(kMetadataOnlyStatusValue));
-  state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
-  state.addAttribute(kRuntimeABIAttrName,
-                     builder.getStringAttr(capabilityView.runtimeABI));
-  state.addAttribute(kHandoffKindAttrName,
-                     builder.getStringAttr(capabilityView.handoffKind));
-  state.addAttribute(
-      kHandoffReasonAttrName,
-      builder.getStringAttr(
-          "runtime-offload boundary is plugin-owned handoff metadata only; no "
-          "vendor runtime call, accelerator kernel, object file, proof, or "
-          "measurement is produced"));
-  return llvm::cast<tcrv::offload::LoweringBoundaryOp>(
-      builder.create(state));
-}
-
 const offload::OffloadExtensionPlugin &getBuiltinOffloadExtensionPlugin() {
   static const offload::OffloadExtensionPlugin plugin;
   return plugin;
@@ -506,9 +443,9 @@ llvm::Error OffloadExtensionPlugin::estimateVariantCost(
   out.setOriginPlugin(kOffloadPluginName);
   out.setVariantSymbol(request.getVariant().getSymName());
   out.setExplanation(
-      "generic runtime-offload handoff metadata route; no executable runtime, "
-      "correctness, or performance claim");
-  out.setPolicy("prefer runtime-offload metadata handoff only when explicit "
+      "generic runtime-offload capability-gated placeholder; no materialized "
+      "EmitC route, runtime artifact, correctness, or performance claim");
+  out.setPolicy("prefer runtime-offload placeholder only when explicit "
                 "offload.runtime capability metadata is available");
   return llvm::Error::success();
 }
@@ -532,9 +469,10 @@ llvm::Error OffloadExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  out = VariantEmissionStatus::getMetadataOnly(
+  out = VariantEmissionStatus::getUnsupported(
       kOffloadPluginName, request.getVariant().getSymName(),
-      "generic-runtime-offload-handoff-non-executable-metadata-route");
+      "runtime-offload has no active materialized EmitC lowering or target "
+      "artifact route");
   return llvm::Error::success();
 }
 
@@ -593,30 +531,10 @@ llvm::Error OffloadExtensionPlugin::materializeSelectedLoweringBoundary(
         " failed plugin legality before boundary materialization: " + message);
   }
 
-  if (request.getRole() == VariantEmissionRole::DispatchFallback) {
-    out = VariantLoweringBoundaryResult::getNoBoundary(
-        kOffloadPluginName, kernel.getSymName(), variant.getSymName(),
-        request.getRole(),
-        "runtime-offload first slice does not materialize dispatch fallback "
-        "lowering boundaries");
-    return llvm::Error::success();
-  }
-
-  if (llvm::Error error = rejectExistingOffloadBoundaryForVariant(kernel,
-                                                                  variant))
-    return error;
-
-  llvm::Expected<OffloadRuntimeCapabilityView> capabilityView =
-      buildOffloadRuntimeCapabilityView(request.getCapabilities());
-  if (!capabilityView)
-    return capabilityView.takeError();
-
-  tcrv::offload::LoweringBoundaryOp boundary = materializeOffloadBoundaryOp(
-      request.getBuilder(), kernel, variant, request.getRole(),
-      *capabilityView);
-  out = VariantLoweringBoundaryResult::getMaterialized(
+  out = VariantLoweringBoundaryResult::getNoBoundary(
       kOffloadPluginName, kernel.getSymName(), variant.getSymName(),
-      request.getRole(), boundary.getOperation());
+      request.getRole(),
+      "runtime-offload has no active selected lowering-boundary route");
   return llvm::Error::success();
 }
 

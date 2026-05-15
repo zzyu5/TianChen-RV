@@ -27,7 +27,7 @@ constexpr llvm::StringLiteral kRuntimeABIAttrName("runtime_abi");
 constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
 constexpr llvm::StringLiteral kHandoffReasonAttrName("handoff_reason");
 constexpr llvm::StringLiteral kOffloadPluginName("offload-plugin");
-constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
+constexpr llvm::StringLiteral kNoActiveRouteStatusValue("no-active-route");
 constexpr llvm::StringLiteral kRuntimeOffloadHandoffKindValue(
     "runtime-offload");
 constexpr llvm::StringLiteral kDirectVariantRoleValue("direct variant");
@@ -113,11 +113,11 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
            << "' because this is the runtime-offload plugin boundary surface";
 
   auto status = op->getAttrOfType<mlir::StringAttr>(kStatusAttrName);
-  if (status.getValue() != kMetadataOnlyStatusValue)
+  if (status.getValue() != kNoActiveRouteStatusValue)
     return emitOpError()
-           << "status must be '" << kMetadataOnlyStatusValue
-           << "' because tcrv_offload.lowering_boundary is a handoff "
-              "metadata boundary and not executable offload lowering";
+           << "status must be '" << kNoActiveRouteStatusValue
+           << "' because tcrv_offload.lowering_boundary has no active "
+              "offload lowering route";
 
   auto handoffKind = op->getAttrOfType<mlir::StringAttr>(kHandoffKindAttrName);
   if (handoffKind.getValue() != kRuntimeOffloadHandoffKindValue)

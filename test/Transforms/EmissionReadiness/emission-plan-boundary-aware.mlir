@@ -25,7 +25,7 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{selected path @rvv_deleted_metadata_path as direct variant requires one materialized plugin lowering boundary before emission planning}}
+  // expected-error@+1 {{selected path @rvv_deleted_route_path as direct variant requires one materialized plugin lowering boundary before emission planning}}
   tcrv.exec.kernel @missing_rvv_boundary {
     tcrv.exec.capability @rvv {
       id = "rvv",
@@ -37,17 +37,17 @@ module {
       mask_policy = "agnostic",
       status = "available"
     }
-    tcrv.exec.variant @rvv_deleted_metadata_path attributes {
+    tcrv.exec.variant @rvv_deleted_route_path attributes {
       origin = "rvv-plugin",
       requires = [@rvv]
     } {
     }
     tcrv.exec.diagnostic {
-      message = "selected deleted RVV metadata path",
+      message = "selected deleted RVV route path",
       reason = "variant-selected",
       selection_kind = "static-variant",
       status = "selected",
-      target = @rvv_deleted_metadata_path
+      target = @rvv_deleted_route_path
     }
   }
 }
@@ -82,7 +82,7 @@ module {
       role = "direct variant",
       selected_variant = @scalar_fallback_first_slice,
       source_kernel = "boundary_origin_mismatch",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }
@@ -122,7 +122,7 @@ module {
       role = "direct variant",
       selected_variant = @other_scalar,
       source_kernel = "boundary_selected_variant_mismatch",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }
@@ -157,7 +157,7 @@ module {
       role = "direct variant",
       selected_variant = @scalar_fallback_first_slice,
       source_kernel = "duplicate_competing_boundaries",
-      status = "metadata-only"
+      status = "no-active-route"
     }
     tcrv.exec.diagnostic {
       message = "second mock boundary",
@@ -167,7 +167,7 @@ module {
       role = "direct variant",
       selected_variant = @scalar_fallback_first_slice,
       source_kernel = "duplicate_competing_boundaries",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }
@@ -207,7 +207,7 @@ module {
       role = "direct variant",
       selected_variant = @scalar_fallback_first_slice,
       source_kernel = "boundary_required_capabilities_mismatch",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }

@@ -24,11 +24,11 @@ class TCRVOffload_Op<string mnemonic, list<Trait> traits = []>
     : Op<TCRV_Offload_Dialect, mnemonic, traits>;
 
 def LoweringBoundaryOp : TCRVOffload_Op<"lowering_boundary", []> {
-  let summary = "metadata-only runtime-offload lowering boundary";
+  let summary = "fail-closed runtime-offload lowering boundary";
   let description = [{
     Records the offload plugin-owned runtime handoff boundary for a selected
     tcrv.exec.variant. The op carries source kernel, selected variant, origin
-    plugin, selected-path role, metadata-only status, required capability
+    plugin, selected-path role, no-active-route status, required capability
     references, runtime ABI handoff metadata, and a bounded handoff reason.
 
     This op is not an accelerator compute operation. It does not lower to

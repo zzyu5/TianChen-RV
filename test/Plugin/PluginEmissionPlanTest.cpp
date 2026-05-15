@@ -33,7 +33,6 @@ namespace {
 
 enum class SourcePlanStatus {
   Supported,
-  MetadataOnly,
 };
 
 class SourceArtifactPlanPlugin final : public ExtensionPlugin {
@@ -62,15 +61,6 @@ public:
           "future-emitc-source-abi.v1", "future-emitc-source-artifact",
           "source artifact plan that must fail closed without materialized "
           "EmitC");
-      break;
-    case SourcePlanStatus::MetadataOnly:
-      out = VariantEmissionPlan::getMetadataOnly(
-          name, request.getKernel().getSymName(),
-          request.getVariant().getSymName(), request.getRole(),
-          "future-emitc-source-probe", "future-emitc-source-route",
-          "future-emitc-source-abi.v1", "future-emitc-source-artifact",
-          "source artifact metadata plan that must fail closed without "
-          "materialized EmitC");
       break;
     }
 
@@ -180,8 +170,7 @@ module {
   TargetCapabilitySet capabilities =
       TargetCapabilitySet::buildFromKernel(kernel);
 
-  const SourcePlanStatus cases[] = {SourcePlanStatus::Supported,
-                                    SourcePlanStatus::MetadataOnly};
+  const SourcePlanStatus cases[] = {SourcePlanStatus::Supported};
   for (SourcePlanStatus status : cases) {
     SourceArtifactPlanPlugin plugin("source-plan", status);
     ExtensionPluginRegistry registry;

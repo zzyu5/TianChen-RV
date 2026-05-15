@@ -492,7 +492,7 @@ void addMockLoweringBoundary(mlir::MLIRContext &context, KernelOp kernel,
   state.addAttribute("origin", mlir::StringAttr::get(&context, origin));
   state.addAttribute("role", mlir::StringAttr::get(&context, role));
   state.addAttribute("status",
-                     mlir::StringAttr::get(&context, "metadata-only"));
+                     mlir::StringAttr::get(&context, "no-active-route"));
   if (variant) {
     if (auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires"))
       state.addAttribute("required_capabilities", requires);
@@ -1347,8 +1347,7 @@ int runEmissionPlanMaterializationNegativeTests(mlir::MLIRContext &context) {
     if (int result = expectMaterializationErrorLeavesDiagnosticCount(
             context, getDirectKernelSource(), registry,
             {"invalid emission plan",
-             "supported or metadata-only plan requires non-empty lowering "
-             "pipeline"},
+             "supported plan requires non-empty lowering pipeline"},
             0))
       return result;
   }
@@ -1494,7 +1493,7 @@ module {
       role = "direct variant",
       selected_variant = @old_fast,
       source_kernel = "stale_boundary_with_existing_plan",
-      status = "metadata-only"
+      status = "no-active-route"
     }
     tcrv.exec.diagnostic {
       message = "existing unsupported plan",

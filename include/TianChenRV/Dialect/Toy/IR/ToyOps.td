@@ -24,11 +24,11 @@ class TCRVToy_Op<string mnemonic, list<Trait> traits = []>
     : Op<TCRV_Toy_Dialect, mnemonic, traits>;
 
 def LoweringBoundaryOp : TCRVToy_Op<"lowering_boundary", []> {
-  let summary = "metadata-only Toy selected lowering boundary";
+  let summary = "fail-closed Toy selected lowering boundary";
   let description = [{
     Records the Toy plugin-owned selected lowering boundary for a chosen
     tcrv.exec.variant. The op carries source kernel, selected variant, origin
-    plugin, selected-path role, metadata-only status, required capability
+    plugin, selected-path role, no-active-route status, required capability
     references, and Toy template metadata.
 
     This op is not a compute operation and is not an executable lowering step.

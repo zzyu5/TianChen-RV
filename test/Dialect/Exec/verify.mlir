@@ -434,9 +434,9 @@ tcrv.exec.kernel @valid_supported_emission_plan_diagnostic attributes {} {
   }
   tcrv.exec.diagnostic {
     artifact_kind = "compiler-emission-plan",
-    emission_kind = "metadata-intent",
+    emission_kind = "portable-emission",
     lowering_pipeline = "portable.lowering.pipeline.v1",
-    message = "portable plugin-owned route is compiler-visible only",
+    message = "portable plugin-owned route has a materialized lowering plan",
     origin = "portable-plugin",
     plan_kind = "plugin-emission-plan",
     reason = "emission_plan",
@@ -445,7 +445,7 @@ tcrv.exec.kernel @valid_supported_emission_plan_diagnostic attributes {} {
     runtime_abi = "portable.runtime.abi.v1",
     runtime_abi_kind = "portable-host-runtime",
     runtime_abi_name = "portable.runtime.abi.v1",
-    runtime_glue_role = "metadata-only-runtime-glue",
+    runtime_glue_role = "portable-runtime-glue",
     severity = "info",
     status = "supported",
     target = @portable_variant
@@ -467,7 +467,7 @@ tcrv.exec.kernel @valid_unsupported_emission_plan_diagnostic attributes {} {
     role = "direct variant",
     runtime_abi_kind = "portable-host-runtime",
     runtime_abi_name = "portable.runtime.abi.deferred",
-    runtime_glue_role = "metadata-only-runtime-glue",
+    runtime_glue_role = "portable-runtime-glue",
     severity = "error",
     status = "unsupported",
     target = @portable_variant
@@ -481,7 +481,7 @@ tcrv.exec.kernel @missing_emission_plan_target attributes {} {
   tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{emission-plan diagnostic requires a variant symbol reference target}}
-  tcrv.exec.diagnostic {message = "missing target", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "metadata-only-runtime-glue", status = "unsupported"}
+  tcrv.exec.diagnostic {message = "missing target", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "unsupported"}
 }
 
 // -----
@@ -491,7 +491,7 @@ tcrv.exec.kernel @unknown_emission_plan_target attributes {} {
   tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{references unknown emission-plan diagnostic target variant @missing_variant in enclosing tcrv.exec.kernel}}
-  tcrv.exec.diagnostic {message = "unknown target", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "metadata-only-runtime-glue", status = "unsupported", target = @missing_variant}
+  tcrv.exec.diagnostic {message = "unknown target", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "unsupported", target = @missing_variant}
 }
 
 // -----
@@ -501,7 +501,7 @@ tcrv.exec.kernel @non_variant_emission_plan_target attributes {} {
   tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{emission-plan diagnostic target @portable resolves to a direct sibling symbol that is not a tcrv.exec.variant}}
-  tcrv.exec.diagnostic {message = "capability is not a variant", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "metadata-only-runtime-glue", status = "unsupported", target = @portable}
+  tcrv.exec.diagnostic {message = "capability is not a variant", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "unsupported", target = @portable}
 }
 
 // -----
@@ -511,7 +511,7 @@ tcrv.exec.kernel @empty_emission_plan_origin attributes {} {
   tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{emission-plan diagnostic requires non-empty string attribute 'origin'}}
-  tcrv.exec.diagnostic {message = "empty origin", origin = "", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "metadata-only-runtime-glue", status = "unsupported", target = @portable_variant}
+  tcrv.exec.diagnostic {message = "empty origin", origin = "", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "unsupported", target = @portable_variant}
 }
 
 // -----
@@ -521,7 +521,7 @@ tcrv.exec.kernel @empty_emission_plan_role attributes {} {
   tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{emission-plan diagnostic requires non-empty string attribute 'role'}}
-  tcrv.exec.diagnostic {message = "empty role", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "metadata-only-runtime-glue", status = "unsupported", target = @portable_variant}
+  tcrv.exec.diagnostic {message = "empty role", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "unsupported", target = @portable_variant}
 }
 
 // -----
@@ -531,7 +531,7 @@ tcrv.exec.kernel @empty_emission_plan_status attributes {} {
   tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{requires non-empty string attribute 'status' when present}}
-  tcrv.exec.diagnostic {message = "empty status", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "metadata-only-runtime-glue", status = "", target = @portable_variant}
+  tcrv.exec.diagnostic {message = "empty status", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "", target = @portable_variant}
 }
 
 // -----
@@ -540,8 +540,8 @@ tcrv.exec.kernel @bad_emission_plan_status attributes {} {
   tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
   tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
   }
-  // expected-error @+1 {{emission-plan diagnostic status must be 'supported', 'metadata-only', or 'unsupported'}}
-  tcrv.exec.diagnostic {message = "bad status", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "metadata-only-runtime-glue", status = "ready", target = @portable_variant}
+  // expected-error @+1 {{emission-plan diagnostic status must be 'supported' or 'unsupported'}}
+  tcrv.exec.diagnostic {message = "bad status", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "ready", target = @portable_variant}
 }
 
 // -----
@@ -551,7 +551,7 @@ tcrv.exec.kernel @supported_emission_plan_missing_lowering attributes {} {
   tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{emission-plan diagnostic requires non-empty string attribute 'lowering_pipeline'}}
-  tcrv.exec.diagnostic {artifact_kind = "compiler-emission-plan", emission_kind = "metadata-intent", message = "missing lowering", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi = "portable.runtime.abi.v1", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.v1", runtime_glue_role = "metadata-only-runtime-glue", status = "supported", target = @portable_variant}
+  tcrv.exec.diagnostic {artifact_kind = "compiler-emission-plan", emission_kind = "portable-emission", message = "missing lowering", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi = "portable.runtime.abi.v1", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.v1", runtime_glue_role = "portable-runtime-glue", status = "supported", target = @portable_variant}
 }
 
 // -----
@@ -570,7 +570,7 @@ tcrv.exec.kernel @supported_emission_plan_missing_runtime_abi attributes {} {
   tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{emission-plan diagnostic requires non-empty string attribute 'runtime_abi'}}
-  tcrv.exec.diagnostic {artifact_kind = "compiler-emission-plan", emission_kind = "metadata-intent", lowering_pipeline = "portable.lowering.pipeline.v1", message = "missing runtime abi", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.v1", runtime_glue_role = "metadata-only-runtime-glue", status = "supported", target = @portable_variant}
+  tcrv.exec.diagnostic {artifact_kind = "compiler-emission-plan", emission_kind = "portable-emission", lowering_pipeline = "portable.lowering.pipeline.v1", message = "missing runtime abi", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.v1", runtime_glue_role = "portable-runtime-glue", status = "supported", target = @portable_variant}
 }
 
 // -----
@@ -580,7 +580,7 @@ tcrv.exec.kernel @supported_emission_plan_missing_artifact_kind attributes {} {
   tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
   }
   // expected-error @+1 {{emission-plan diagnostic requires non-empty string attribute 'artifact_kind'}}
-  tcrv.exec.diagnostic {emission_kind = "metadata-intent", lowering_pipeline = "portable.lowering.pipeline.v1", message = "missing artifact kind", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi = "portable.runtime.abi.v1", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.v1", runtime_glue_role = "metadata-only-runtime-glue", status = "supported", target = @portable_variant}
+  tcrv.exec.diagnostic {emission_kind = "portable-emission", lowering_pipeline = "portable.lowering.pipeline.v1", message = "missing artifact kind", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi = "portable.runtime.abi.v1", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.v1", runtime_glue_role = "portable-runtime-glue", status = "supported", target = @portable_variant}
 }
 
 // -----
@@ -589,9 +589,9 @@ tcrv.exec.kernel @duplicate_emission_plan_diagnostic attributes {} {
   tcrv.exec.capability @portable {id = "portable", kind = "toolchain"}
   tcrv.exec.variant @portable_variant attributes {origin = "portable-plugin", requires = [@portable]} {
   }
-  tcrv.exec.diagnostic {message = "first", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "metadata-only-runtime-glue", status = "unsupported", target = @portable_variant}
+  tcrv.exec.diagnostic {message = "first", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "unsupported", target = @portable_variant}
   // expected-error @+1 {{duplicates emission-plan diagnostic for target @portable_variant in enclosing tcrv.exec.kernel}}
-  tcrv.exec.diagnostic {message = "second", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "metadata-only-runtime-glue", status = "unsupported", target = @portable_variant}
+  tcrv.exec.diagnostic {message = "second", origin = "portable-plugin", reason = "emission_plan", required_capabilities = [@portable], role = "direct variant", runtime_abi_kind = "portable-host-runtime", runtime_abi_name = "portable.runtime.abi.deferred", runtime_glue_role = "portable-runtime-glue", status = "unsupported", target = @portable_variant}
 }
 
 // -----

@@ -63,7 +63,7 @@ module {
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       selected_variant = @offload_runtime_first_slice,
       source_kernel = "offload_selected_missing_runtime_abi",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }
@@ -105,7 +105,7 @@ module {
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       selected_variant = @offload_runtime_first_slice,
       source_kernel = "offload_custom_isa_misclassification",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }

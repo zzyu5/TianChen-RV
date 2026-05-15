@@ -33,7 +33,7 @@ constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
     "role_specific_interface");
 constexpr llvm::StringLiteral kEmitCCallAttrName("emitc_call");
 constexpr llvm::StringLiteral kToyPluginName("toy-plugin");
-constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
+constexpr llvm::StringLiteral kNoActiveRouteStatusValue("no-active-route");
 constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
 constexpr llvm::StringLiteral kExpectedTemplateABI("toy-metadata-boundary.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind("toy-lowering-template");
@@ -237,10 +237,10 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
            << "' because this is the Toy plugin boundary surface";
 
   auto status = op->getAttrOfType<mlir::StringAttr>(kStatusAttrName);
-  if (status.getValue() != kMetadataOnlyStatusValue)
+  if (status.getValue() != kNoActiveRouteStatusValue)
     return emitOpError()
-           << "status must be '" << kMetadataOnlyStatusValue
-           << "' because tcrv_toy.lowering_boundary is metadata-only";
+           << "status must be '" << kNoActiveRouteStatusValue
+           << "' because tcrv_toy.lowering_boundary has no active route";
 
   auto templateABI =
       op->getAttrOfType<mlir::StringAttr>(kTemplateABIAttrName);

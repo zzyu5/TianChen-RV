@@ -30,10 +30,6 @@ using tianchenrv::tcrv::exec::diagnostic::kArtifactKindAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kEmissionKindAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanPlanKindValue;
 using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanReasonValue;
-using tianchenrv::tcrv::exec::diagnostic::
-    kEmissionPlanMetadataOnlySeverityValue;
-using tianchenrv::tcrv::exec::diagnostic::
-    kEmissionPlanMetadataOnlyStatusValue;
 using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanSupportedSeverityValue;
 using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanSupportedStatusValue;
 using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanUnsupportedSeverityValue;
@@ -915,7 +911,7 @@ llvm::Error validatePlansForMaterialization(
             validatePlanString(kernel, plan, "runtime glue role",
                                plan.getRuntimeGlueRole()))
       return error;
-    if (plan.isSupported() || plan.isMetadataOnly()) {
+    if (plan.isSupported()) {
       if (llvm::Error error =
               validatePlanRequiredCapabilities(kernel, plan, planVariant))
         return error;
@@ -951,7 +947,7 @@ llvm::Error validatePlansForMaterialization(
     }
 
     return makeEmissionPlanDiagnosticMaterializationError(
-        kernel, "plan status must be supported, metadata-only, or unsupported");
+        kernel, "plan status must be supported or unsupported");
   }
 
   return llvm::Error::success();
@@ -1056,14 +1052,12 @@ void materializeEmissionPlanDiagnostic(KernelOp kernel,
       context, state, kSeverityAttrName,
       plan.isSupported()
           ? kEmissionPlanSupportedSeverityValue
-          : (plan.isMetadataOnly() ? kEmissionPlanMetadataOnlySeverityValue
-                                   : kEmissionPlanUnsupportedSeverityValue));
+          : kEmissionPlanUnsupportedSeverityValue);
   addStringAttribute(
       context, state, kStatusAttrName,
       plan.isSupported()
           ? kEmissionPlanSupportedStatusValue
-          : (plan.isMetadataOnly() ? kEmissionPlanMetadataOnlyStatusValue
-                                   : kEmissionPlanUnsupportedStatusValue));
+          : kEmissionPlanUnsupportedStatusValue);
   state.addAttribute(kTargetAttrName,
                      mlir::FlatSymbolRefAttr::get(&context,
                                                   plan.getVariantSymbol()));
@@ -1086,20 +1080,16 @@ void materializeEmissionPlanDiagnostic(KernelOp kernel,
                      plan.getRuntimeGlueRole());
   addRequiredCapabilityAttribute(context, state, plan);
 
-  if (plan.isSupported() || plan.isMetadataOnly() ||
-      !plan.getEmissionKind().empty())
+  if (plan.isSupported() || !plan.getEmissionKind().empty())
     addStringAttribute(context, state, kEmissionKindAttrName,
                        plan.getEmissionKind());
-  if (plan.isSupported() || plan.isMetadataOnly() ||
-      !plan.getLoweringPipeline().empty())
+  if (plan.isSupported() || !plan.getLoweringPipeline().empty())
     addStringAttribute(context, state, kLoweringPipelineAttrName,
                        plan.getLoweringPipeline());
-  if (plan.isSupported() || plan.isMetadataOnly() ||
-      !plan.getRuntimeABI().empty())
+  if (plan.isSupported() || !plan.getRuntimeABI().empty())
     addStringAttribute(context, state, kRuntimeABIAttrName,
                        plan.getRuntimeABI());
-  if (plan.isSupported() || plan.isMetadataOnly() ||
-      !plan.getArtifactKind().empty())
+  if (plan.isSupported() || !plan.getArtifactKind().empty())
     addStringAttribute(context, state, kArtifactKindAttrName,
                        plan.getArtifactKind());
 

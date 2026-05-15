@@ -492,71 +492,28 @@ module {
   LoweringBoundaryOp boundary =
       findToyBoundary(kernel, toyVariant.getSymName());
   if (int result =
-          expect(boundary,
-                 "Toy selected boundary is materialized through plugin"))
-    return result;
-  if (int result =
-          expect(boundary->getAttrOfType<mlir::StringAttr>("origin")
-                         .getValue() ==
-                     tianchenrv::plugin::toy::
-                         getToyExtensionPluginName() &&
-                     boundary->getAttrOfType<mlir::StringAttr>("role")
-                         .getValue() == "direct variant" &&
-                     boundary->getAttrOfType<mlir::StringAttr>("status")
-                         .getValue() == "metadata-only" &&
-                     boundary->getAttrOfType<mlir::StringAttr>("template_abi")
-                         .getValue() ==
-                         tianchenrv::plugin::toy::
-                             getToyExpectedTemplateABI(),
-                 "Toy boundary records metadata-only template handoff"))
+          expect(!boundary,
+                 "Toy selected path does not materialize a route boundary"))
     return result;
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
-                          "Toy boundary module verifies"))
+                          "Toy no-boundary module verifies"))
     return result;
 
   ComputeSkeletonOp computeRole =
       findToyComputeRole(kernel, toyVariant.getSymName());
   if (int result =
-          expect(computeRole,
-                 "Toy selected compute role op is materialized through plugin"))
-    return result;
-  if (int result =
-          expect(computeRole
-                         ->getAttrOfType<mlir::StringAttr>("typed_role")
-                         .getValue() ==
-                         "toy.role.compute.compute_skeleton" &&
-                     computeRole
-                         ->getAttrOfType<mlir::StringAttr>("source_role")
-                         .getValue() == "compute" &&
-                     computeRole
-                         ->getAttrOfType<mlir::StringAttr>(
-                             "role_specific_interface")
-                         .getValue() == "TCRVComputeOpInterface" &&
-                     computeRole
-                         ->getAttrOfType<mlir::StringAttr>("emitc_call")
-                         .getValue() == "__tcrv_toy_compute",
-                 "Toy compute role op carries typed construction metadata"))
-    return result;
-  if (int result = expectSuccess(
-          tianchenrv::plugin::toy::verifyToyComputeRoleOpInterface(
-              tianchenrv::plugin::toy::getToyConstructionManifest(),
-              tianchenrv::plugin::toy::getToyTypedRoleGraphRealization(),
-              computeRole.getOperation()),
-          "Toy compute role op validates against construction protocol"))
+          expect(!computeRole,
+                 "Toy selected path does not materialize a compute role op"))
     return result;
 
   VariantEmissionStatus status;
-  if (int result = expectSuccess(
+  if (int result = expectErrorContains(
           registry.checkVariantEmissionReadiness(
               VariantEmissionRequest(toyVariant, kernel, capabilities,
                                      VariantEmissionRole::DirectVariant),
               status),
-          "Toy emission readiness is plugin-owned"))
-    return result;
-  if (int result =
-          expect(status.isMetadataOnly() &&
-                     status.getEmissionPath().contains("toy-template"),
-                 "Toy readiness reports metadata-only template route"))
+          {"reported unsupported emission path",
+           "no active materialized EmitC"}))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -568,39 +525,23 @@ module {
           "Toy emission plan is plugin-owned"))
     return result;
   if (int result =
-          expect(emissionPlan.isSupported() &&
+          expect(emissionPlan.isUnsupported() &&
                      emissionPlan.getOriginPlugin() ==
                          tianchenrv::plugin::toy::
                              getToyExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() ==
                          toyVariant.getSymName() &&
-                     emissionPlan.getEmissionKind() ==
-                         tianchenrv::plugin::toy::
-                             getToyMetadataEmissionKind() &&
-                     emissionPlan.getLoweringPipeline() ==
-                         tianchenrv::plugin::toy::getToyMetadataRouteID() &&
-                     emissionPlan.getArtifactKind() ==
-                         tianchenrv::plugin::toy::
-                             getToyMetadataArtifactKind() &&
-                     emissionPlan.getRuntimeABIKind() ==
-                         tianchenrv::plugin::toy::
-                             getToyMetadataRuntimeABIKind() &&
-                     emissionPlan.getRuntimeABIName() ==
-                         tianchenrv::plugin::toy::
-                             getToyExpectedTemplateABI() &&
-                     emissionPlan.getRuntimeGlueRole() ==
-                         tianchenrv::plugin::toy::
-                             getToyMetadataRuntimeGlueRole() &&
+                     emissionPlan.getLoweringPipeline().empty() &&
+                     emissionPlan.getArtifactKind().empty() &&
+                     emissionPlan.getSelectedPlanMetadata().empty() &&
+                     emissionPlan.getDiagnostic().contains(
+                         "no active materialized EmitC lowering") &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::toy::
                              getToyTemplatePreferredCapabilitySymbol(),
-                 "Toy emission plan records stable exportable metadata route"))
-    return result;
-  if (int result =
-          expect(emissionPlan.getSelectedPlanMetadata().size() == 10,
-                 "Toy emission plan records construction selected metadata"))
+                 "Toy emission plan fails closed without exportable route"))
     return result;
 
   return 0;

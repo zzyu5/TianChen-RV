@@ -838,13 +838,12 @@ llvm::Error buildPathRecord(KernelOp kernel, const SelectedPath &path,
                                       record.runtimeABIParameters))
     return error;
 
-  if (record.status == execDiagnostic::kEmissionPlanSupportedStatusValue ||
-      record.status == execDiagnostic::kEmissionPlanMetadataOnlyStatusValue) {
+  if (record.status == execDiagnostic::kEmissionPlanSupportedStatusValue) {
     if (!record.emissionKind || !record.loweringPipeline ||
         !record.runtimeABI || !record.artifactKind)
       return makeManifestError(
           kernel, llvm::Twine("selected path @") + record.selectedVariant +
-                      " has incomplete supported/metadata-only emission "
+                      " has incomplete supported emission "
                       "ownership metadata");
   }
 

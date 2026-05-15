@@ -4,5 +4,5 @@
 tcrv.exec.scalar_lowering_boundary {
   origin = "scalar-plugin",
   role = "direct variant",
-  status = "metadata-only"
+  status = "no-active-route"
 }

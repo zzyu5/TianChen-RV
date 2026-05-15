@@ -557,41 +557,21 @@ module {
   LoweringBoundaryOp offloadBoundary =
       findOffloadBoundary(kernel, offloadVariant.getSymName());
   if (int result =
-          expect(offloadBoundary,
-                 "offload selected boundary is materialized through plugin"))
-    return result;
-  if (int result =
-          expect(offloadBoundary->getAttrOfType<mlir::StringAttr>("origin")
-                         .getValue() ==
-                     tianchenrv::plugin::offload::
-                         getOffloadExtensionPluginName() &&
-                     offloadBoundary->getAttrOfType<mlir::StringAttr>("role")
-                         .getValue() == "direct variant" &&
-                     offloadBoundary->getAttrOfType<mlir::StringAttr>("status")
-                         .getValue() == "metadata-only" &&
-                     offloadBoundary
-                             ->getAttrOfType<mlir::StringAttr>("runtime_abi")
-                             .getValue() ==
-                         tianchenrv::plugin::offload::
-                             getOffloadExpectedRuntimeABI(),
-                 "offload boundary records metadata-only runtime handoff"))
+          expect(!offloadBoundary,
+                 "offload selected path does not materialize a route boundary"))
     return result;
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
-                          "offload boundary module verifies"))
+                          "offload no-boundary module verifies"))
     return result;
 
   VariantEmissionStatus status;
-  if (int result = expectSuccess(
+  if (int result = expectErrorContains(
           registry.checkVariantEmissionReadiness(
               VariantEmissionRequest(offloadVariant, kernel, capabilities,
                                      VariantEmissionRole::DirectVariant),
               status),
-          "offload emission readiness is plugin-owned"))
-    return result;
-  if (int result =
-          expect(status.isMetadataOnly() &&
-                     status.getEmissionPath().contains("offload-handoff"),
-                 "offload readiness reports metadata-only handoff route"))
+          {"reported unsupported emission path",
+           "no active materialized EmitC"}))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -615,8 +595,7 @@ module {
                      emissionPlan.getRuntimeABIParameters().empty() &&
                      emissionPlan.getSelectedPlanMetadata().empty() &&
                      emissionPlan.getDiagnostic().contains(
-                         "no active executable lowering or target artifact "
-                         "route") &&
+                         "no active executable lowering") &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::offload::
@@ -625,10 +604,11 @@ module {
                  "route"))
     return result;
 
-  if (int result = expectSuccess(
+  if (int result = expectErrorContains(
           tianchenrv::transforms::materializeKernelEmissionPlanDiagnostics(
               kernel, capabilities, registry),
-          "materialize offload emission-plan diagnostics"))
+          {"requires one materialized plugin lowering boundary",
+           "before emission planning"}))
     return result;
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
                           "offload emission-plan module verifies"))

@@ -16,7 +16,6 @@
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
-#include "TianChenRV/Target/Template/TemplateMetadataArtifact.h"
 #include "TianChenRV/Target/Toy/ToyMetadataArtifact.h"
 
 #include "mlir/IR/DialectRegistry.h"
@@ -26,7 +25,6 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <cstddef>
 #include <initializer_list>
 #include <string>
 
@@ -236,34 +234,6 @@ bool expectRVVRuntimeLengthContractMetadata() {
   return true;
 }
 
-bool expectRoute(const TargetArtifactExporterRegistry &registry,
-                 llvm::StringRef routeID, llvm::StringRef artifactKind,
-                 llvm::StringRef originPlugin,
-                 llvm::StringRef emissionKind,
-                 std::size_t expectedABIParameterCount = 0,
-                 llvm::StringRef expectedHandoffKind = {},
-                 llvm::StringRef expectedComponentGroup = {},
-                 llvm::StringRef expectedExternalABIName = {}) {
-  const TargetArtifactExporter *exporter = registry.lookup(routeID);
-  if (!exporter) {
-    llvm::errs() << "missing built-in exporter route '" << routeID << "'\n";
-    return false;
-  }
-  if (exporter->getArtifactKind() != artifactKind ||
-      exporter->getOriginPlugin() != originPlugin ||
-      exporter->getEmissionKind() != emissionKind || !exporter->getExportFn() ||
-      exporter->getRequiredRuntimeABIParameters().size() !=
-          expectedABIParameterCount ||
-      exporter->getHandoffKind() != expectedHandoffKind ||
-      exporter->getComponentGroup() != expectedComponentGroup ||
-      exporter->getExternalABIName() != expectedExternalABIName) {
-    llvm::errs() << "malformed built-in exporter metadata for route '"
-                 << routeID << "'\n";
-    return false;
-  }
-  return true;
-}
-
 bool expectRuntimeABIParametersEqual(
     llvm::ArrayRef<RuntimeABIParameter> actual,
     llvm::ArrayRef<RuntimeABIParameter> expected, llvm::StringRef context) {
@@ -271,139 +241,6 @@ bool expectRuntimeABIParametersEqual(
     return true;
   llvm::errs() << context << ": runtime ABI parameters did not match\n";
   return false;
-}
-
-const TargetArtifactSelectedPlanMetadataRequirement *
-findRouteSelectedPlanRequirement(const TargetArtifactExporter &exporter,
-                                 llvm::StringRef name) {
-  for (const TargetArtifactSelectedPlanMetadataRequirement &requirement :
-       exporter.getRouteMetadata().getSelectedPlanMetadataRequirements())
-    if (requirement.name == name)
-      return &requirement;
-  return nullptr;
-}
-
-const TargetArtifactRouteClaimField *
-findRouteClaimField(const TargetArtifactExporter &exporter,
-                    llvm::StringRef name) {
-  for (const TargetArtifactRouteClaimField &claim :
-       exporter.getRouteMetadata().getClaimFields())
-    if (claim.name == name)
-      return &claim;
-  return nullptr;
-}
-
-bool expectRouteRegistrationMetadata(
-    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID,
-    llvm::StringRef expectedRuntimeABI, llvm::StringRef expectedRuntimeABIKind,
-    llvm::StringRef expectedRuntimeABIName,
-    llvm::StringRef expectedRuntimeGlueRole,
-    llvm::StringRef handoffRequirementName,
-    llvm::StringRef expectedHandoffRequirementValue,
-    llvm::StringRef expectedHandoffRequirementRole,
-    llvm::StringRef expectedNoClaimName) {
-  const TargetArtifactExporter *exporter = registry.lookup(routeID);
-  if (!exporter) {
-    llvm::errs() << "missing exporter route '" << routeID
-                 << "' for route registration metadata check\n";
-    return false;
-  }
-
-  const TargetArtifactRouteMetadata &metadata = exporter->getRouteMetadata();
-  if (metadata.getRuntimeABI() != expectedRuntimeABI ||
-      metadata.getRuntimeABIKind() != expectedRuntimeABIKind ||
-      metadata.getRuntimeABIName() != expectedRuntimeABIName ||
-      metadata.getRuntimeGlueRole() != expectedRuntimeGlueRole) {
-    llvm::errs() << "route '" << routeID
-                 << "' has malformed registered runtime ABI metadata\n";
-    return false;
-  }
-
-  const TargetArtifactSelectedPlanMetadataRequirement *handoff =
-      findRouteSelectedPlanRequirement(*exporter, handoffRequirementName);
-  if (!handoff || handoff->value != expectedHandoffRequirementValue ||
-      handoff->role != expectedHandoffRequirementRole) {
-    llvm::errs() << "route '" << routeID
-                 << "' lacks expected selected-plan handoff requirement\n";
-    return false;
-  }
-
-  const TargetArtifactRouteClaimField *claim =
-      findRouteClaimField(*exporter, expectedNoClaimName);
-  if (!claim || claim->value != "none") {
-    llvm::errs() << "route '" << routeID
-                 << "' lacks expected registered no-claim field\n";
-    return false;
-  }
-
-  return true;
-}
-
-bool expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(
-    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID) {
-  const TargetArtifactExporter *exporter = registry.lookup(routeID);
-  if (!exporter) {
-    llvm::errs() << "missing exporter route '" << routeID
-                 << "' for stale runtime ABI preflight test\n";
-    return false;
-  }
-
-  TargetArtifactCandidate candidate;
-  candidate.routeID = routeID.str();
-  candidate.artifactKind = exporter->getArtifactKind().str();
-  candidate.origin = exporter->getOriginPlugin().str();
-  candidate.emissionKind = exporter->getEmissionKind().str();
-  candidate.runtimeABI = exporter->getRouteMetadata().getRuntimeABI().str();
-  candidate.runtimeABIKind = "stale-runtime-abi-kind";
-  candidate.runtimeABIName =
-      exporter->getRouteMetadata().getRuntimeABIName().str();
-  candidate.runtimeGlueRole =
-      exporter->getRouteMetadata().getRuntimeGlueRole().str();
-
-  return expectErrorContains(
-      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
-      "stale runtime ABI route registration preflight rejected",
-      {"route id", routeID, "registered for runtime_abi_kind",
-       "stale-runtime-abi-kind"});
-}
-
-bool expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
-    const TargetArtifactExporterRegistry &registry, llvm::StringRef routeID,
-    llvm::StringRef metadataName, llvm::StringRef staleValue) {
-  const TargetArtifactExporter *exporter = registry.lookup(routeID);
-  if (!exporter) {
-    llvm::errs() << "missing exporter route '" << routeID
-                 << "' for stale selected-plan metadata preflight test\n";
-    return false;
-  }
-
-  TargetArtifactCandidate candidate;
-  candidate.routeID = routeID.str();
-  candidate.artifactKind = exporter->getArtifactKind().str();
-  candidate.origin = exporter->getOriginPlugin().str();
-  candidate.emissionKind = exporter->getEmissionKind().str();
-  candidate.runtimeABI = exporter->getRouteMetadata().getRuntimeABI().str();
-  candidate.runtimeABIKind =
-      exporter->getRouteMetadata().getRuntimeABIKind().str();
-  candidate.runtimeABIName =
-      exporter->getRouteMetadata().getRuntimeABIName().str();
-  candidate.runtimeGlueRole =
-      exporter->getRouteMetadata().getRuntimeGlueRole().str();
-
-  for (const TargetArtifactSelectedPlanMetadataRequirement &requirement :
-       exporter->getRouteMetadata().getSelectedPlanMetadataRequirements()) {
-    std::string value =
-        requirement.name == metadataName ? staleValue.str() : requirement.value;
-    candidate.selectedPlanMetadata.push_back(
-        {requirement.name, value, requirement.role,
-         "route registration preflight test metadata"});
-  }
-
-  return expectErrorContains(
-      validateTargetArtifactCandidateAgainstExporter(candidate, *exporter),
-      "stale selected-plan route registration preflight rejected",
-      {"route id", routeID, "selected_plan_metadata", metadataName,
-       "must use value"});
 }
 
 bool expectGenericCompositeRouteMetadataPreflightRejectsStaleSelectedPlan() {
@@ -503,14 +340,11 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   }
   if (toyBundle->getBundleID() != "toy-extension-bundle" ||
       !containsString(toyBundle->getRequiredDialectNames(), "tcrv_toy") ||
-      !containsString(toyBundle->getLoweringBoundaryOps(),
-                      "tcrv_toy.lowering_boundary") ||
       !toyBundle->getPluginRegistrationFn() ||
-      !toyBundle->getTargetArtifactExporterBundleRegistrationFn() ||
-      !toyBundle->requiresTargetArtifactRouteMetadata() ||
-      toyBundle->getTargetArtifactRouteMetadata().size() != 1 ||
-      toyBundle->getTargetArtifactRouteMetadata().front().routeID !=
-          tianchenrv::plugin::toy::getToyMetadataRouteID()) {
+      !toyBundle->getLoweringBoundaryOps().empty() ||
+      toyBundle->getTargetArtifactExporterBundleRegistrationFn() ||
+      toyBundle->requiresTargetArtifactRouteMetadata() ||
+      !toyBundle->getTargetArtifactRouteMetadata().empty()) {
     llvm::errs() << "Toy extension bundle frontdoor is malformed\n";
     return false;
   }
@@ -526,14 +360,11 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   if (templateBundle->getBundleID() != "template-extension-bundle" ||
       !containsString(templateBundle->getRequiredDialectNames(),
                       "tcrv_template") ||
-      !containsString(templateBundle->getLoweringBoundaryOps(),
-                      "tcrv_template.lowering_boundary") ||
       !templateBundle->getPluginRegistrationFn() ||
-      !templateBundle->getTargetArtifactExporterBundleRegistrationFn() ||
-      !templateBundle->requiresTargetArtifactRouteMetadata() ||
-      templateBundle->getTargetArtifactRouteMetadata().size() != 1 ||
-      templateBundle->getTargetArtifactRouteMetadata().front().routeID !=
-          tianchenrv::plugin::template_ext::getTemplateMetadataRouteID()) {
+      !templateBundle->getLoweringBoundaryOps().empty() ||
+      templateBundle->getTargetArtifactExporterBundleRegistrationFn() ||
+      templateBundle->requiresTargetArtifactRouteMetadata() ||
+      !templateBundle->getTargetArtifactRouteMetadata().empty()) {
     llvm::errs() << "Template extension bundle frontdoor is malformed\n";
     return false;
   }
@@ -550,16 +381,11 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
           "tensorext-lite-extension-bundle" ||
       !containsString(tensorExtLiteBundle->getRequiredDialectNames(),
                       "tcrv_tensorext_lite") ||
-      !containsString(tensorExtLiteBundle->getLoweringBoundaryOps(),
-                      "tcrv_tensorext_lite.lowering_boundary") ||
       !tensorExtLiteBundle->getPluginRegistrationFn() ||
-      !tensorExtLiteBundle
-           ->getTargetArtifactExporterBundleRegistrationFn() ||
-      !tensorExtLiteBundle->requiresTargetArtifactRouteMetadata() ||
-      tensorExtLiteBundle->getTargetArtifactRouteMetadata().size() != 1 ||
-      tensorExtLiteBundle->getTargetArtifactRouteMetadata().front().routeID !=
-          tianchenrv::plugin::tensorext_lite::
-              getTensorExtLiteMetadataRouteID()) {
+      !tensorExtLiteBundle->getLoweringBoundaryOps().empty() ||
+      tensorExtLiteBundle->getTargetArtifactExporterBundleRegistrationFn() ||
+      tensorExtLiteBundle->requiresTargetArtifactRouteMetadata() ||
+      !tensorExtLiteBundle->getTargetArtifactRouteMetadata().empty()) {
     llvm::errs()
         << "TensorExtLite extension bundle frontdoor is malformed\n";
     return false;
@@ -595,7 +421,7 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   if (!scalarBundle->getRequiredDialectNames().empty() ||
       !scalarBundle->getLoweringBoundaryOps().empty()) {
     llvm::errs() << "Scalar extension bundle frontdoor still publishes "
-                    "deleted metadata-only dialect or lowering-boundary "
+                    "deleted dialect or lowering-boundary "
                     "surface\n";
     return false;
   }
@@ -626,51 +452,11 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
                                                                    registry),
           "register target artifact exporters through bundle frontdoor"))
     return false;
-
-  constexpr llvm::StringLiteral toyRouteID(
-      "none-executable-toy-template-metadata");
-  if (!expectRoute(registry, toyRouteID, "metadata-diagnostic", "toy-plugin",
-                   "toy-template-metadata-route", 0,
-                   "toy-lowering-template"))
+  if (registry.size() != 0 || registry.compositeSize() != 0) {
+    llvm::errs()
+        << "extension bundle frontdoor still registers target artifact routes\n";
     return false;
-  if (!expectRouteRegistrationMetadata(
-          registry, toyRouteID, "toy-metadata-boundary.v1",
-          "toy-template-metadata", "toy-metadata-boundary.v1",
-          "metadata-only-toy-template-boundary", "toy_template_abi",
-          "toy-metadata-boundary.v1", "template-abi",
-          "runtime_execution_claim"))
-    return false;
-  if (!expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(registry,
-                                                                 toyRouteID))
-    return false;
-  if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
-          registry, toyRouteID, "toy_template_abi",
-          "stale-toy-metadata-boundary"))
-    return false;
-
-  constexpr llvm::StringLiteral templateRouteID(
-      "template-extension-zero-core-manifest");
-  if (!expectRoute(registry, templateRouteID,
-                   "template-extension-handoff-manifest", "template-plugin",
-                   "template-extension-manifest-route", 0,
-                   "template-extension-lowering-boundary"))
-    return false;
-  if (!expectRouteRegistrationMetadata(
-          registry, templateRouteID, "template-zero-core-handoff.v1",
-          "template-extension-handoff", "template-zero-core-handoff.v1",
-          "metadata-only-template-extension-handoff",
-          "template_extension_integration_contract",
-          "template-zero-core-handoff.v1", "integration-contract",
-          "hardware_execution_claim"))
-    return false;
-  if (!expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(
-          registry, templateRouteID))
-    return false;
-  if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
-          registry, templateRouteID,
-          "template_extension_integration_contract",
-          "stale-template-zero-core-handoff"))
-    return false;
+  }
 
   return true;
 }
@@ -843,22 +629,18 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
 
 
 bool expectPluginOwnedToyTargetExporterRegistration() {
-  constexpr llvm::StringLiteral toyRouteID(
-      "none-executable-toy-template-metadata");
-
   PluginTargetArtifactExporterRegistry pluginExporters;
   if (!expectSuccess(
           tianchenrv::target::toy::
               registerToyMetadataArtifactPluginTargetExporterBundle(
                   pluginExporters),
-          "register Toy plugin-owned target exporter bundle"))
+          "Toy artifact exporter registration is fail-closed"))
     return false;
-  if (!expectErrorContains(
+  if (!expectSuccess(
           tianchenrv::target::toy::
               registerToyMetadataArtifactPluginTargetExporterBundle(
                   pluginExporters),
-          "duplicate Toy plugin-owned target exporter bundle rejected",
-          {"duplicate plugin-owned target exporter bundle", "toy-plugin"}))
+          "duplicate Toy fail-closed exporter registration remains no-op"))
     return false;
 
   ExtensionPluginRegistry plugins;
@@ -871,27 +653,8 @@ bool expectPluginOwnedToyTargetExporterRegistration() {
                          plugins, registry),
                      "populate target exporters from enabled Toy plugin"))
     return false;
-  if (!expectRoute(registry, toyRouteID, "metadata-diagnostic", "toy-plugin",
-                   "toy-template-metadata-route", 0,
-                   "toy-lowering-template"))
-    return false;
-  if (!expectRouteRegistrationMetadata(
-          registry, toyRouteID, "toy-metadata-boundary.v1",
-          "toy-template-metadata", "toy-metadata-boundary.v1",
-          "metadata-only-toy-template-boundary", "toy_template_abi",
-          "toy-metadata-boundary.v1", "template-abi",
-          "runtime_execution_claim"))
-    return false;
-  if (!expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(registry,
-                                                                 toyRouteID))
-    return false;
-  if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
-          registry, toyRouteID, "toy_template_scope", "runtime-success"))
-    return false;
-  const TargetArtifactExporter *toyExporter = registry.lookup(toyRouteID);
-  if (!toyExporter || !toyExporter->getCandidateValidationFn()) {
-    llvm::errs() << "plugin-owned Toy target exporter lacks candidate "
-                    "preflight validator\n";
+  if (registry.size() != 0 || registry.compositeSize() != 0) {
+    llvm::errs() << "Toy fail-closed target exporter registered a route\n";
     return false;
   }
 
@@ -899,8 +662,8 @@ bool expectPluginOwnedToyTargetExporterRegistration() {
           pluginExporters.registerExportersForPlugin(
               plugins, tianchenrv::plugin::toy::getToyExtensionPluginName(),
               registry),
-          "duplicate plugin-owned Toy target exporter route rejected",
-          {"duplicate exporter route id", toyRouteID}))
+          "Toy fail-closed per-plugin exporter registration is absent",
+          {"no registered target artifact exporter bundle", "toy-plugin"}))
     return false;
 
   DisabledToyTargetExporterPlugin disabledToy;
@@ -914,7 +677,7 @@ bool expectPluginOwnedToyTargetExporterRegistration() {
                          disabledPlugins, disabledRegistry),
                      "skip target exporters for disabled Toy plugin"))
     return false;
-  if (disabledRegistry.lookup(toyRouteID)) {
+  if (disabledRegistry.size() != 0 || disabledRegistry.compositeSize() != 0) {
     llvm::errs() << "disabled Toy plugin unexpectedly registered a target "
                     "artifact exporter\n";
     return false;
@@ -975,9 +738,9 @@ bool expectOffloadTargetArtifactExportersAbsent() {
                      "register all built-in target exporters after offload "
                      "executable route erasure"))
     return false;
-  if (!allRegistry.lookup("none-executable-toy-template-metadata")) {
-    llvm::errs() << "non-offload plugin-owned Toy route should still be "
-                    "registered through the same built-in target boundary\n";
+  if (allRegistry.size() != 0 || allRegistry.compositeSize() != 0) {
+    llvm::errs() << "built-in target exporters still publish erased plugin "
+                    "artifact routes\n";
     return false;
   }
 
@@ -1615,7 +1378,7 @@ module {
     }
     tcrv.exec.diagnostic {
       reason = "emission_plan",
-      message = "supported test metadata route",
+      message = "supported test route",
       severity = "info",
       status = "supported",
       target = @selected,
@@ -2110,9 +1873,9 @@ int main() {
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
     return 1;
-  if (builtinRegistry.size() != 3) {
-    llvm::errs() << "expected exactly 3 built-in target artifact routes after "
-                    "direct C deletion, got "
+  if (builtinRegistry.size() != 0) {
+    llvm::errs() << "expected no built-in target artifact routes after "
+                    "route deletion, got "
                  << builtinRegistry.size() << "\n";
     return 1;
   }
@@ -2122,64 +1885,8 @@ int main() {
                  << builtinRegistry.compositeSize() << "\n";
     return 1;
   }
-  if (!expectRoute(builtinRegistry,
-                   "none-executable-toy-template-metadata",
-                   "metadata-diagnostic", "toy-plugin",
-                   "toy-template-metadata-route", 0,
-                   "toy-lowering-template"))
-    return 1;
-  const TargetArtifactExporter *toyMetadataExporter =
-      builtinRegistry.lookup("none-executable-toy-template-metadata");
-  if (!toyMetadataExporter ||
-      !toyMetadataExporter->getCandidateValidationFn()) {
-    llvm::errs()
-        << "Toy metadata artifact route lacks candidate preflight validator\n";
-    return 1;
-  }
-  constexpr llvm::StringLiteral tensorExtLiteRouteID(
-      "none-executable-tensorext-lite-fragment-mma-metadata");
-  if (!expectRoute(
-          builtinRegistry, tensorExtLiteRouteID, "metadata-diagnostic",
-          tianchenrv::plugin::tensorext_lite::
-              getTensorExtLiteExtensionPluginName(),
-          tianchenrv::plugin::tensorext_lite::
-              getTensorExtLiteMetadataEmissionKind(),
-          0,
-          tianchenrv::plugin::tensorext_lite::
-              getTensorExtLiteExpectedHandoffKind()))
-    return 1;
-  if (!expectRouteRegistrationMetadata(
-          builtinRegistry, tensorExtLiteRouteID,
-          tianchenrv::plugin::tensorext_lite::
-              getTensorExtLiteExpectedFragmentABI(),
-          tianchenrv::plugin::tensorext_lite::
-              getTensorExtLiteMetadataRuntimeABIKind(),
-          tianchenrv::plugin::tensorext_lite::
-              getTensorExtLiteExpectedFragmentABI(),
-          tianchenrv::plugin::tensorext_lite::
-              getTensorExtLiteMetadataRuntimeGlueRole(),
-          "tensorext_lite_tile_mma_abi",
-          tianchenrv::plugin::tensorext_lite::
-              getTensorExtLiteExpectedFragmentABI(),
-          "fragment-abi", "runtime_execution_claim"))
-    return 1;
-  if (!expectGenericRouteMetadataPreflightRejectsStaleRuntimeABI(
-          builtinRegistry, tensorExtLiteRouteID))
-    return 1;
-  if (!expectGenericRouteMetadataPreflightRejectsStaleSelectedPlan(
-          builtinRegistry, tensorExtLiteRouteID,
-          "tensorext_lite_tile_mma_scope", "runtime-success"))
-    return 1;
-  const TargetArtifactExporter *tensorExtLiteMetadataExporter =
-      builtinRegistry.lookup(tensorExtLiteRouteID);
-  if (!tensorExtLiteMetadataExporter ||
-      !tensorExtLiteMetadataExporter->getCandidateValidationFn()) {
-    llvm::errs() << "TensorExtLite metadata artifact route lacks candidate "
-                    "preflight validator\n";
-    return 1;
-  }
-  if (!expectFailure(registerBuiltinTargetArtifactExporters(builtinRegistry),
-                     "duplicate built-in exporter registration rejected"))
+  if (!expectSuccess(registerBuiltinTargetArtifactExporters(builtinRegistry),
+                     "re-registering empty built-in exporters remains a no-op"))
     return 1;
 
   return 0;

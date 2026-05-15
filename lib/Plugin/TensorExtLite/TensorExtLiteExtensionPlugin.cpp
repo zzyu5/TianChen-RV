@@ -46,7 +46,7 @@ constexpr llvm::StringLiteral kExpectedFragmentABI(
     "tensorext-lite-fragment-boundary.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind("tensorext-lite-fragment-mma-template");
 constexpr llvm::StringLiteral kTensorExtLiteFragmentPolicy(
-    "metadata_only_tensorext_lite_tile_mma_first_slice");
+    "no_active_route_tensorext_lite_tile_mma_first_slice");
 constexpr llvm::StringLiteral kTensorExtLiteFragmentCondition(
     "tensorext_lite_tile_mma_capability_available");
 constexpr llvm::StringLiteral kTensorExtLiteFragmentGuard(
@@ -61,23 +61,17 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
     "required_capabilities");
 constexpr llvm::StringLiteral kFragmentABIAttrName("fragment_abi");
 constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
-constexpr llvm::StringLiteral kFragmentReasonAttrName("fragment_reason");
-constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
-constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
-constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
-constexpr llvm::StringLiteral kRoleOrderAttrName("role_order");
-constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
-constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
-    "role_specific_interface");
-constexpr llvm::StringLiteral kEmitCCallAttrName("emitc_call");
+constexpr llvm::StringLiteral kNoActiveRouteStatusValue("no-active-route");
 constexpr llvm::StringLiteral kTensorExtLiteMetadataRouteID(
-    "none-executable-tensorext-lite-fragment-mma-metadata");
+    "tensorext-lite-fragment-mma-no-active-emitc-route");
 constexpr llvm::StringLiteral kTensorExtLiteMetadataEmissionKind(
-    "tensorext-lite-fragment-mma-generated-route");
-constexpr llvm::StringLiteral kTensorExtLiteMetadataArtifactKind("metadata-diagnostic");
-constexpr llvm::StringLiteral kTensorExtLiteRuntimeABIKind("tensorext-lite-fragment-metadata");
+    "tensorext-lite-fragment-mma-unsupported-emission");
+constexpr llvm::StringLiteral kTensorExtLiteMetadataArtifactKind(
+    "unsupported-emission-diagnostic");
+constexpr llvm::StringLiteral kTensorExtLiteRuntimeABIKind(
+    "unsupported-plugin-runtime-abi");
 constexpr llvm::StringLiteral kTensorExtLiteRuntimeGlueRole(
-    "metadata-only-tensorext-lite-fragment-mma-boundary");
+    "no-runtime-glue-unsupported");
 constexpr llvm::StringLiteral kSelectedPlanCapabilityIDName(
     "tensorext_lite_tile_mma_capability_id");
 constexpr llvm::StringLiteral kSelectedPlanFragmentABIName(
@@ -424,137 +418,6 @@ llvm::Error verifyTensorExtLiteVariantMetadata(
   return llvm::Error::success();
 }
 
-llvm::Error rejectExistingTensorExtLiteBoundaryForVariant(
-    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant) {
-  if (!kernel || kernel.getBody().empty())
-    return llvm::Error::success();
-
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto boundary = llvm::dyn_cast<tcrv::tensorext_lite::LoweringBoundaryOp>(op);
-    if (!boundary)
-      continue;
-
-    auto target =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
-    llvm::StringRef targetSymbol =
-        target ? target.getValue() : llvm::StringRef("<missing>");
-    if (targetSymbol != variant.getSymName())
-      continue;
-
-    return makeTensorExtLitePluginError(
-        llvm::Twine("requires no pre-existing "
-                    "tcrv_tensorext_lite.lowering_boundary for target @") +
-        targetSymbol);
-  }
-
-  return llvm::Error::success();
-}
-
-llvm::Error rejectExistingTensorExtLiteComputeRoleForVariant(
-    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant) {
-  if (!kernel || kernel.getBody().empty())
-    return llvm::Error::success();
-
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto compute = llvm::dyn_cast<tcrv::tensorext_lite::TileMmaSkeletonOp>(op);
-    if (!compute)
-      continue;
-
-    auto target =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
-    llvm::StringRef targetSymbol =
-        target ? target.getValue() : llvm::StringRef("<missing>");
-    if (targetSymbol != variant.getSymName())
-      continue;
-
-    return makeTensorExtLitePluginError(
-        llvm::Twine("requires no pre-existing "
-                    "tcrv_tensorext_lite.tile_mma_skeleton for target @") +
-        targetSymbol);
-  }
-
-  return llvm::Error::success();
-}
-
-tcrv::tensorext_lite::LoweringBoundaryOp materializeTensorExtLiteBoundaryOp(
-    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
-    tcrv::exec::VariantOp variant, VariantEmissionRole role,
-    const TensorExtLiteFragmentCapabilityView &capabilityView) {
-  builder.getContext()->getOrLoadDialect<tcrv::tensorext_lite::TCRVTensorExtLiteDialect>();
-
-  auto requiredCapabilities =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-
-  mlir::OperationState state(variant.getLoc(),
-                             tcrv::tensorext_lite::LoweringBoundaryOp::getOperationName());
-  state.addAttribute(kSourceKernelAttrName,
-                     builder.getStringAttr(kernel.getSymName()));
-  state.addAttribute(kSelectedVariantAttrName,
-                     mlir::FlatSymbolRefAttr::get(builder.getContext(),
-                                                  variant.getSymName()));
-  state.addAttribute(kOriginAttrName, builder.getStringAttr(kTensorExtLitePluginName));
-  state.addAttribute(kRoleAttrName,
-                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
-  state.addAttribute(kStatusAttrName,
-                     builder.getStringAttr(kMetadataOnlyStatusValue));
-  state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
-  state.addAttribute(kFragmentABIAttrName,
-                     builder.getStringAttr(capabilityView.fragmentABI));
-  state.addAttribute(kHandoffKindAttrName,
-                     builder.getStringAttr(capabilityView.handoffKind));
-  state.addAttribute(
-      kFragmentReasonAttrName,
-      builder.getStringAttr(
-          "TensorExtLite extension fragment boundary is plugin-owned metadata only; no "
-          "TensorExtLite lowering route, runtime ABI glue, artifact generation, "
-          "correctness proof, or performance measurement is produced"));
-  return llvm::cast<tcrv::tensorext_lite::LoweringBoundaryOp>(builder.create(state));
-}
-
-tcrv::tensorext_lite::TileMmaSkeletonOp materializeTensorExtLiteComputeRoleOp(
-    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
-    tcrv::exec::VariantOp variant, VariantEmissionRole role) {
-  builder.getContext()->getOrLoadDialect<tcrv::tensorext_lite::TCRVTensorExtLiteDialect>();
-
-  const tensorext_lite::TensorExtLiteTypedRoleGraphRealization &realization =
-      tensorext_lite::getTensorExtLiteTypedRoleGraphRealization();
-  const tensorext_lite::TensorExtLiteTypedRoleInterfaceRealization &computeRole =
-      realization.roles[2];
-  auto requiredCapabilities =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-
-  mlir::OperationState state(variant.getLoc(),
-                             tcrv::tensorext_lite::TileMmaSkeletonOp::getOperationName());
-  state.addAttribute(kSourceKernelAttrName,
-                     builder.getStringAttr(kernel.getSymName()));
-  state.addAttribute(kSelectedVariantAttrName,
-                     mlir::FlatSymbolRefAttr::get(builder.getContext(),
-                                                  variant.getSymName()));
-  state.addAttribute(kOriginAttrName, builder.getStringAttr(kTensorExtLitePluginName));
-  state.addAttribute(kRoleAttrName,
-                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
-  state.addAttribute(kStatusAttrName,
-                     builder.getStringAttr(kRoleOpBoundaryStatusValue));
-  state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
-  state.addAttribute(kTypedRoleAttrName,
-                     builder.getStringAttr(computeRole.typedRoleID));
-  state.addAttribute(kRoleOrderAttrName,
-                     builder.getI64IntegerAttr(computeRole.order));
-  state.addAttribute(kSourceRoleAttrName,
-                     builder.getStringAttr(computeRole.role));
-  state.addAttribute(kRoleSpecificInterfaceAttrName,
-                     builder.getStringAttr(computeRole.roleSpecificInterface));
-  state.addAttribute(kEmitCCallAttrName,
-                     builder.getStringAttr(computeRole.emitCCall));
-  state.addAttribute(
-      kFragmentReasonAttrName,
-      builder.getStringAttr(
-          "TensorExtLite ODS tile_mma role-op boundary for construction protocol "
-          "interface validation only; no lowering route, runtime execution, "
-          "correctness proof, or performance measurement is produced"));
-  return llvm::cast<tcrv::tensorext_lite::TileMmaSkeletonOp>(builder.create(state));
-}
-
 mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
   return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
 }
@@ -642,7 +505,7 @@ TensorExtLiteExtensionPlugin::TensorExtLiteExtensionPlugin() {
   capabilities.push_back(PluginCapability(
       kTensorExtLiteFragmentCapabilityID, kTensorExtLiteFragmentCapabilityKind,
       "TensorExtLite extension fragment capability for plugin-registry integration "
-      "tests; metadata-only and not a production execution target"));
+      "tests; fail-closed and not a production execution target"));
 }
 
 llvm::StringRef TensorExtLiteExtensionPlugin::getName() const {
@@ -746,8 +609,8 @@ llvm::Error TensorExtLiteExtensionPlugin::estimateVariantCost(
   out.setOriginPlugin(kTensorExtLitePluginName);
   out.setVariantSymbol(request.getVariant().getSymName());
   out.setExplanation(
-      "TensorExtLite extension fragment metadata route; no executable lowering, "
-      "correctness, or performance claim");
+      "TensorExtLite extension fragment placeholder; no materialized EmitC "
+      "route, correctness, or performance claim");
   out.setPolicy("prefer TensorExtLite only when explicit tensorext_lite.tile_mma capability "
                 "metadata is available");
   return llvm::Error::success();
@@ -772,9 +635,10 @@ llvm::Error TensorExtLiteExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  out = VariantEmissionStatus::getMetadataOnly(
+  out = VariantEmissionStatus::getUnsupported(
       kTensorExtLitePluginName, request.getVariant().getSymName(),
-      "tensorext-lite-fragment-mma-non-executable-metadata-route");
+      "TensorExtLite extension has no active materialized EmitC lowering or "
+      "target artifact route");
   return llvm::Error::success();
 }
 
@@ -798,66 +662,14 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  out = VariantEmissionPlan::getSupported(
+  out = VariantEmissionPlan::getUnsupported(
       kTensorExtLitePluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      kTensorExtLiteMetadataEmissionKind, kTensorExtLiteMetadataRouteID, kExpectedFragmentABI,
-      kTensorExtLiteMetadataArtifactKind,
-      "TensorExtLite extension fragment records a plugin-owned metadata route only; it "
-      "does not emit executable code, runtime glue, artifacts, correctness "
-      "evidence, or performance evidence");
-  out.setRuntimeABIKind(kTensorExtLiteRuntimeABIKind);
-  out.setRuntimeABIName(kExpectedFragmentABI);
-  out.setRuntimeGlueRole(kTensorExtLiteRuntimeGlueRole);
+      "TensorExtLite extension has no active materialized EmitC lowering, "
+      "runtime ABI, or target artifact route");
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
-  out.addSelectedPlanMetadata(
-      kSelectedPlanCapabilityIDName, kTensorExtLiteFragmentCapabilityID,
-      "capability-requirement",
-      "records the generic capability id required by the TensorExtLite fragment");
-  out.addSelectedPlanMetadata(
-      kSelectedPlanFragmentABIName, kExpectedFragmentABI, "fragment-abi",
-      "mirrors the TensorExtLite capability fragment_abi property");
-  out.addSelectedPlanMetadata(
-      kSelectedPlanScopeName, "metadata-only", "evidence-scope",
-      "records that this route is a non-executable plugin integration "
-      "fragment");
-  const tensorext_lite::TensorExtLiteConstructionManifest &manifest =
-      tensorext_lite::getTensorExtLiteConstructionManifest();
-  out.addSelectedPlanMetadata(
-      tensorext_lite::getTensorExtLiteConstructionProtocolMetadataName(), manifest.protocolVersion,
-      tensorext_lite::getTensorExtLiteConstructionProtocolMetadataRole(),
-      "records the construction protocol version consumed by this TensorExtLite "
-      "extension path");
-  out.addSelectedPlanMetadata(
-      tensorext_lite::getTensorExtLiteConstructionArchetypeMetadataName(), manifest.archetype,
-      tensorext_lite::getTensorExtLiteConstructionArchetypeMetadataRole(),
-      "records the minimal custom extension archetype used by the TensorExtLite path");
-  out.addSelectedPlanMetadata(
-      tensorext_lite::getTensorExtLiteSemanticRoleGraphMetadataName(), manifest.semanticRoleGraph,
-      tensorext_lite::getTensorExtLiteSemanticRoleGraphMetadataRole(),
-      "records the ordered semantic role graph for the TensorExtLite generated route");
-  out.addSelectedPlanMetadata(
-      tensorext_lite::getTensorExtLiteCommonInterfaceRealizationMetadataName(),
-      tensorext_lite::getTensorExtLiteConstructionInterfaceRealization(),
-      tensorext_lite::getTensorExtLiteCommonInterfaceRealizationMetadataRole(),
-      "records the common TCRV interfaces expected for each TensorExtLite role");
-  out.addSelectedPlanMetadata(
-      tensorext_lite::getTensorExtLiteTypedRoleRealizationMetadataName(),
-      tensorext_lite::getTensorExtLiteTypedRoleRealizationSummary(),
-      tensorext_lite::getTensorExtLiteTypedRoleRealizationMetadataRole(),
-      "records the typed TensorExtLite role/interface objects consumed by the generated "
-      "route");
-  out.addSelectedPlanMetadata(
-      tensorext_lite::getTensorExtLiteEmitCRouteMappingMetadataName(), manifest.emitcRoute.routeID,
-      tensorext_lite::getTensorExtLiteEmitCRouteMappingMetadataRole(),
-      "records the plugin-owned EmitC route mapping for TensorExtLite construction");
-  out.addSelectedPlanMetadata(
-      tensorext_lite::getTensorExtLiteEvidenceProfileMetadataName(), manifest.evidenceProfile,
-      tensorext_lite::getTensorExtLiteEvidenceProfileMetadataRole(),
-      "records the focused evidence profile required before TensorExtLite generated "
-      "output");
   return llvm::Error::success();
 }
 
@@ -884,39 +696,10 @@ llvm::Error TensorExtLiteExtensionPlugin::materializeSelectedLoweringBoundary(
         " failed plugin legality before boundary materialization: " + message);
   }
 
-  if (request.getRole() == VariantEmissionRole::DispatchFallback) {
-    out = VariantLoweringBoundaryResult::getNoBoundary(
-        kTensorExtLitePluginName, kernel.getSymName(), variant.getSymName(),
-        request.getRole(),
-        "TensorExtLite extension fragment does not materialize dispatch fallback "
-        "lowering boundaries");
-    return llvm::Error::success();
-  }
-
-  if (llvm::Error error = rejectExistingTensorExtLiteBoundaryForVariant(kernel, variant))
-    return error;
-  if (llvm::Error error =
-          rejectExistingTensorExtLiteComputeRoleForVariant(kernel, variant))
-    return error;
-
-  llvm::Expected<TensorExtLiteFragmentCapabilityView> capabilityView =
-      buildTensorExtLiteFragmentCapabilityView(request.getCapabilities());
-  if (!capabilityView)
-    return capabilityView.takeError();
-
-  tcrv::tensorext_lite::LoweringBoundaryOp boundary = materializeTensorExtLiteBoundaryOp(
-      request.getBuilder(), kernel, variant, request.getRole(),
-      *capabilityView);
-  tcrv::tensorext_lite::TileMmaSkeletonOp computeRole =
-      materializeTensorExtLiteComputeRoleOp(request.getBuilder(), kernel, variant,
-                                  request.getRole());
-  if (llvm::Error error = tensorext_lite::verifyTensorExtLiteComputeRoleOpInterface(
-          tensorext_lite::getTensorExtLiteConstructionManifest(),
-          tensorext_lite::getTensorExtLiteTypedRoleGraphRealization(), computeRole.getOperation()))
-    return error;
-  out = VariantLoweringBoundaryResult::getMaterialized(
+  out = VariantLoweringBoundaryResult::getNoBoundary(
       kTensorExtLitePluginName, kernel.getSymName(), variant.getSymName(),
-      request.getRole(), boundary.getOperation());
+      request.getRole(),
+      "TensorExtLite extension has no active selected lowering-boundary route");
   return llvm::Error::success();
 }
 
@@ -945,7 +728,7 @@ llvm::Error TensorExtLiteExtensionPlugin::validateSelectedLoweringBoundary(
     return error;
   if (llvm::Error error =
           validateBoundaryStringAttr(boundary.getOperation(), kStatusAttrName,
-                                     kMetadataOnlyStatusValue))
+                                     kNoActiveRouteStatusValue))
     return error;
   if (llvm::Error error =
           validateBoundaryStringAttr(boundary.getOperation(),

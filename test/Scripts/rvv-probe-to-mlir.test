@@ -130,7 +130,7 @@
 # PIPE-SAME: target = @scalar_fallback_first_slice
 # PIPE: tcrv.exec.diagnostic
 # PIPE-SAME: emission_kind = "scalar-fallback-unsupported-emission"
-# PIPE-SAME: message = "scalar fallback first slice has no materialized extension-family body, EmitC lowering, runtime ABI, target artifact route, or metadata-only emission route"
+# PIPE-SAME: message = "scalar fallback first slice has no materialized extension-family body, EmitC lowering, runtime ABI, target artifact route, or legacy metadata emission route"
 # PIPE-SAME: reason = "emission_plan"
 # PIPE-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
 # PIPE-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
@@ -150,7 +150,7 @@
 # SCALAR_ONLY-NOT: tcrv_scalar.lowering_boundary
 # SCALAR_ONLY: tcrv.exec.diagnostic
 # SCALAR_ONLY-SAME: emission_kind = "scalar-fallback-unsupported-emission"
-# SCALAR_ONLY-SAME: message = "scalar fallback first slice has no materialized extension-family body, EmitC lowering, runtime ABI, target artifact route, or metadata-only emission route"
+# SCALAR_ONLY-SAME: message = "scalar fallback first slice has no materialized extension-family body, EmitC lowering, runtime ABI, target artifact route, or legacy metadata emission route"
 # SCALAR_ONLY-SAME: reason = "emission_plan"
 # SCALAR_ONLY-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
 # SCALAR_ONLY-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"

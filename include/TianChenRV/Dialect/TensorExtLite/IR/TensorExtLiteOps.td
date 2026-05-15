@@ -24,11 +24,11 @@ class TCRVTensorExtLite_Op<string mnemonic, list<Trait> traits = []>
     : Op<TCRV_TensorExtLite_Dialect, mnemonic, traits>;
 
 def LoweringBoundaryOp : TCRVTensorExtLite_Op<"lowering_boundary", []> {
-  let summary = "metadata-only TensorExtLite selected lowering boundary";
+  let summary = "fail-closed TensorExtLite selected lowering boundary";
   let description = [{
     Records the TensorExtLite plugin-owned selected lowering boundary for a chosen
     tcrv.exec.variant. The op carries source kernel, selected variant, origin
-    plugin, selected-path role, metadata-only status, required capability
+    plugin, selected-path role, no-active-route status, required capability
     references, and TensorExtLite fragment metadata.
 
     This op is not a compute operation and is not an executable lowering step.

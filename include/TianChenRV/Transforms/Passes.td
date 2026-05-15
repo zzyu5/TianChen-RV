@@ -259,7 +259,7 @@ def MaterializeSelectedLoweringBoundaries
     runtime, dtype, shape, or microarchitecture semantics.
 
     Plugins decide whether a selected path materializes a plugin-local
-    lowering-boundary operation or is a valid no-boundary metadata-only route.
+    lowering-boundary operation or is an explicit no-boundary fail-closed route.
     The pass itself does not lower to LLVM/RISC-V, emit intrinsics, create
     runtime ABI glue, generate objects, run hardware, prove correctness, or
     claim performance. Public tcrv-opt registration owns a deterministic

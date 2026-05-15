@@ -25,17 +25,17 @@ module {
     // CHECK-SAME: runtime_abi = "generic-runtime-offload-c-abi-handoff.v1"
     // CHECK-SAME: selected_variant = @offload_runtime_first_slice
     // CHECK-SAME: source_kernel = "offload_boundary_valid"
-    // CHECK-SAME: status = "metadata-only"
+    // CHECK-SAME: status = "no-active-route"
     tcrv_offload.lowering_boundary {
       handoff_kind = "runtime-offload",
-      handoff_reason = "runtime-offload boundary is plugin-owned handoff metadata only",
+      handoff_reason = "runtime-offload boundary records no active route",
       origin = "offload-plugin",
       required_capabilities = [@offload_runtime],
       role = "dispatch case",
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       selected_variant = @offload_runtime_first_slice,
       source_kernel = "offload_boundary_valid",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }
@@ -57,7 +57,7 @@ module {
       tcrv_offload.handoff_kind = "runtime-offload"
     } {
     }
-    // expected-error@+1 {{status must be 'metadata-only'}}
+    // expected-error@+1 {{status must be 'no-active-route'}}
     tcrv_offload.lowering_boundary {
       handoff_kind = "runtime-offload",
       origin = "offload-plugin",
@@ -97,7 +97,7 @@ module {
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       selected_variant = @offload_runtime_first_slice,
       source_kernel = "offload_boundary_wrong_handoff_kind",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }
@@ -128,7 +128,7 @@ module {
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       selected_variant = @offload_runtime_first_slice,
       source_kernel = "offload_boundary_fallback_role",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }
@@ -158,7 +158,7 @@ module {
       role = "direct variant",
       selected_variant = @offload_runtime_first_slice,
       source_kernel = "offload_boundary_missing_runtime_abi",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }
@@ -190,7 +190,7 @@ module {
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       selected_variant = @offload_runtime_first_slice,
       source_kernel = "offload_boundary_wrong_required_capabilities",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }
@@ -222,7 +222,7 @@ module {
       runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
       selected_variant = @offload_runtime_first_slice,
       source_kernel = "offload_boundary_executable_claim",
-      status = "metadata-only"
+      status = "no-active-route"
     }
   }
 }
