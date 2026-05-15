@@ -2400,7 +2400,20 @@ module {
     tcrv.exec.variant @rvv_first_slice attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
-      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m1.sew32",
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m1.lmul_m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m1.tail_policy.agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m1.mask_policy.agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
     } {
     }
   }
@@ -2423,11 +2436,11 @@ module {
           "RVV plugin returns explicit unsupported emission status"))
     return result;
   if (int result = expect(pluginStatus.isUnsupported(),
-                          "RVV metadata-only first slice is unsupported for "
-                          "emission"))
+                          "RVV first slice is unsupported for emission"))
     return result;
   if (int result =
-          expect(pluginStatus.getReason().contains("no RVV lowering"),
+          expect(pluginStatus.getReason().contains(
+                     "no materialized EmitC lowering"),
                  "RVV unsupported reason names missing lowering boundary"))
     return result;
 
@@ -2441,10 +2454,9 @@ module {
   if (int result = expectErrorContains(
           registry.checkVariantEmissionReadiness(request, registryStatus),
           {"rvv-plugin", "kernel @rvv_emission", "variant @rvv_first_slice",
-           "unsupported emission path", "metadata-only",
-           "no RVV lowering, runtime ABI, or executable emission path",
-           "not RVV hardware/toolchain/runtime/correctness/performance "
-           "evidence"}))
+           "unsupported emission path",
+           "no materialized EmitC lowering, runtime ABI, or artifact route",
+           "unsupported diagnostic boundary"}))
     return result;
 
   VariantEmissionPlan rvvPlan;
@@ -2465,18 +2477,19 @@ module {
                           "context"))
     return result;
   if (int result = expect(rvvPlan.getRuntimeABIKind() ==
-                              "rvv-plugin-deferred-runtime-abi",
-                          "RVV unsupported emission plan carries plugin-owned "
-                          "runtime ABI kind"))
+                              "unsupported-plugin-runtime-abi",
+                          "RVV unsupported emission plan carries generic "
+                          "unsupported runtime ABI kind"))
     return result;
   if (int result = expect(rvvPlan.getRuntimeABIName() ==
-                              "rvv-executable-runtime-abi-deferred",
-                          "RVV unsupported emission plan carries runtime ABI "
-                          "name"))
+                              "unsupported-emission-runtime-abi",
+                          "RVV unsupported emission plan carries generic "
+                          "unsupported runtime ABI name"))
     return result;
   if (int result =
-          expect(rvvPlan.getRuntimeGlueRole() == "deferred-rvv-runtime-glue",
-                 "RVV unsupported emission plan carries runtime glue role"))
+          expect(rvvPlan.getRuntimeGlueRole() ==
+                     "no-runtime-glue-unsupported",
+                 "RVV unsupported emission plan carries no-runtime glue role"))
     return result;
   if (int result = expect(rvvPlan.getRequiredCapabilitySymbols().size() == 1 &&
                               rvvPlan.getRequiredCapabilitySymbols().front() ==
@@ -2485,9 +2498,11 @@ module {
                           "refs"))
     return result;
   if (int result =
-          expect(rvvPlan.getDiagnostic().contains("no RVV lowering pipeline") &&
+          expect(rvvPlan.getDiagnostic().contains(
+                     "no materialized EmitC lowering") &&
                      rvvPlan.getDiagnostic().contains("runtime ABI") &&
-                     rvvPlan.getDiagnostic().contains("not RVV hardware"),
+                     rvvPlan.getDiagnostic().contains(
+                         "executable emission path"),
                  "RVV unsupported emission plan carries structured boundary "
                  "diagnostic"))
     return result;
@@ -2515,15 +2530,16 @@ module {
     return result;
   if (int result = expectUnsupportedEmissionPlanDiagnostic(
           diagnostics[0], "rvv_first_slice", "rvv-plugin",
-          "no RVV lowering pipeline"))
+          "no materialized EmitC lowering"))
     return result;
   if (int result =
           expect(getStringAttr(diagnostics[0].getOperation(),
                                execDiagnostic::kMessageAttrName)
-                     .contains("not RVV hardware/toolchain/runtime/"
-                               "correctness/performance evidence"),
-                 "RVV unsupported diagnostic avoids runtime/correctness/"
-                 "performance claim"))
+                         .contains("artifact contract") &&
+                     getStringAttr(diagnostics[0].getOperation(),
+                                   execDiagnostic::kMessageAttrName)
+                         .contains("executable emission path"),
+                 "RVV unsupported diagnostic names absent executable path"))
     return result;
 
   return 0;

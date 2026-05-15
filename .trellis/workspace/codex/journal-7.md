@@ -379,3 +379,74 @@ finite-family scalar microkernel op names as route anchors.
 - Continue deletion-only cleanup if another active deleted scalar/direct-C
   route fixture remains; otherwise the next phase should be an explicit rebuild
   task rather than restoring scalar microkernel syntax.
+
+
+## Session 81: RVV deferred runtime ABI fixture erasure
+
+**Date**: 2026-05-15
+**Task**: RVV Deferred Runtime ABI Fixture Erasure
+**Branch**: `main`
+
+### Summary
+
+Erased active stale RVV deferred runtime-ABI/glue fixture authority from
+tests and specs without adding a replacement runtime ABI or executable RVV
+route. Remaining RVV unsupported emission-plan coverage now asserts the
+current generic unsupported/no-runtime metadata boundary.
+
+### Main Changes
+
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` to document
+  generic unsupported runtime metadata instead of the old deferred RVV ABI/glue
+  strings.
+- Rewrote EmissionReadiness lit/C++ expectations from old deferred ABI/glue
+  anchors to `unsupported-plugin-runtime-abi`,
+  `unsupported-emission-runtime-abi`, and `no-runtime-glue-unsupported`.
+- Aligned the retained EmissionReadiness RVV fixtures with the current selected
+  vector-shape contract so they test the current unsupported plan path.
+- Updated target manifest and target bundle guard fixtures to stop carrying the
+  old deferred runtime ABI/glue strings.
+- Deleted `test/Transforms/ExecutionPlanCoherence/rvv-capacity-stale-boundary-fails.mlir`
+  because, after current selected-shape metadata was applied, it no longer
+  produced its stated negative failure and retaining it would require unrelated
+  execution-plan-coherence rebuild work.
+- Added no RVV runtime ABI, wrapper, alias, compatibility layer, descriptor
+  route, direct C exporter, source/header/object route, or rebuild path.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(rvv): erase deferred runtime abi fixtures |
+
+### Testing
+
+- [OK] `ninja -C build tcrv-opt tianchenrv-emission-readiness-test`
+- [OK] `build/bin/tianchenrv-emission-readiness-test`
+- [OK] `build/bin/tcrv-opt test/Transforms/EmissionReadiness/materialize-emission-plans-rvv-builtin.mlir --tcrv-materialize-emission-plans --split-input-file | /usr/lib/llvm-20/bin/FileCheck test/Transforms/EmissionReadiness/materialize-emission-plans-rvv-builtin.mlir`
+- [OK] `/usr/lib/llvm-20/bin/not build/bin/tcrv-opt test/Transforms/EmissionReadiness/emission-readiness-rvv-builtin.mlir --tcrv-check-emission-paths 2>&1 | /usr/lib/llvm-20/bin/FileCheck test/Transforms/EmissionReadiness/emission-readiness-rvv-builtin.mlir`
+- [OK] `build/bin/tianchenrv-emission-readiness-test | /usr/lib/llvm-20/bin/FileCheck test/Transforms/EmissionReadiness/emission-readiness.test`
+- [OK] `build/bin/tcrv-translate --tcrv-export-emission-manifest test/Target/EmissionManifest/emission-manifest-selected.mlir | /usr/lib/llvm-20/bin/FileCheck test/Target/EmissionManifest/emission-manifest-selected.mlir`
+- [OK] Target artifact bundle guard missing-dir, invalid-dir, and unsupported
+  no-bundle direct command checks.
+- [WARN] `python3 -m lit` is unavailable in this environment (`No module named
+  lit`); direct test commands and the build's lit runner were used instead.
+- [WARN] `ninja -C build check-tianchenrv` was attempted and failed in 8
+  existing baseline tests outside this owner: `Plugin/plugin-emission-plan.test`,
+  `Scripts/rvv-probe-to-mlir.test`,
+  `Target/TargetArtifactBundleExport/plan-and-export-target-artifact-bundle-no-viable.mlir`,
+  `Transforms/LoweringBoundary/rvv-i32m1-policy-capability-fails.mlir`,
+  `Transforms/LoweringBoundary/rvv-lowering-boundary-compat.mlir`,
+  `Transforms/LoweringBoundary/rvv-lowering-boundary-malformed.mlir`,
+  `Transforms/PluginVariantLegality/plugin-variant-legality-pass-invalid.mlir`,
+  and `Transforms/PluginVariantLegality/plugin-variant-legality-pass.mlir`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Continue deletion-only cleanup for remaining active wrong-logic fixtures, or
+  open a separate rebuild task for the existing RVV selected-shape legality
+  baseline failures. Do not restore deferred runtime ABI/glue metadata.

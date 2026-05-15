@@ -15,19 +15,33 @@ module {
     }
     tcrv.exec.variant @rvv_first_slice attributes {
       origin = "rvv-plugin",
-      requires = [@rvv]
+      requires = [@rvv],
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m1.sew32",
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m1.lmul_m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m1.tail_policy.agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m1.mask_policy.agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
     } {
     }
     // CHECK: tcrv.exec.diagnostic
-    // CHECK-SAME: message = "RVV metadata-only first slice has no RVV lowering pipeline
+    // CHECK-SAME: message = "RVV first slice has no materialized EmitC lowering, runtime ABI, artifact contract, or executable emission path
     // CHECK-SAME: origin = "rvv-plugin"
     // CHECK-SAME: plan_kind = "plugin-emission-plan"
     // CHECK-SAME: reason = "emission_plan"
     // CHECK-SAME: required_capabilities = [@rvv]
     // CHECK-SAME: role = "direct variant"
-    // CHECK-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
-    // CHECK-SAME: runtime_abi_name = "rvv-executable-runtime-abi-deferred"
-    // CHECK-SAME: runtime_glue_role = "deferred-rvv-runtime-glue"
+    // CHECK-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+    // CHECK-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
+    // CHECK-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
     // CHECK-SAME: severity = "error"
     // CHECK-SAME: status = "unsupported"
     // CHECK-SAME: target = @rvv_first_slice
@@ -52,13 +66,41 @@ module {
     // CHECK: tcrv.exec.variant @rvv_unselected
     tcrv.exec.variant @rvv_unselected attributes {
       origin = "rvv-plugin",
-      requires = [@rvv]
+      requires = [@rvv],
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m1.sew32",
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m1.lmul_m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m1.tail_policy.agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m1.mask_policy.agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
     } {
     }
     // CHECK: tcrv.exec.variant @rvv_selected
     tcrv.exec.variant @rvv_selected attributes {
       origin = "rvv-plugin",
-      requires = [@rvv]
+      requires = [@rvv],
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m1.sew32",
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m1.lmul_m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m1.tail_policy.agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m1.mask_policy.agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
     } {
     }
     tcrv.exec.diagnostic {
@@ -87,9 +129,9 @@ module {
     // CHECK-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
     // CHECK-SAME: reason = "emission_plan"
     // CHECK-SAME: required_capabilities = [@rvv]
-    // CHECK-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
-    // CHECK-SAME: runtime_abi_name = "rvv-executable-runtime-abi-deferred"
-    // CHECK-SAME: runtime_glue_role = "deferred-rvv-runtime-glue"
+    // CHECK-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+    // CHECK-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
+    // CHECK-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
     // CHECK-SAME: target = @rvv_selected
     // CHECK-NOT: target = @rvv_unselected
   }
@@ -117,12 +159,40 @@ module {
     }
     tcrv.exec.variant @rvv_case_b attributes {
       origin = "rvv-plugin",
-      requires = [@rvv]
+      requires = [@rvv],
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m1.sew32",
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m1.lmul_m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m1.tail_policy.agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m1.mask_policy.agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
     } {
     }
     tcrv.exec.variant @rvv_case_a attributes {
       origin = "rvv-plugin",
-      requires = [@rvv]
+      requires = [@rvv],
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m1.sew32",
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m1.lmul_m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m1.tail_policy.agnostic",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m1.mask_policy.agnostic",
+      tcrv_rvv.selected_vector_type = "vint32m1_t",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_setvl_suffix = "e32m1"
     } {
     }
     tcrv.exec.variant @scalar_fallback_first_slice attributes {
@@ -170,18 +240,18 @@ module {
     // CHECK-SAME: reason = "emission_plan"
     // CHECK-SAME: required_capabilities = [@rvv]
     // CHECK-SAME: role = "dispatch case"
-    // CHECK-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
-    // CHECK-SAME: runtime_abi_name = "rvv-executable-runtime-abi-deferred"
-    // CHECK-SAME: runtime_glue_role = "deferred-rvv-runtime-glue"
+    // CHECK-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+    // CHECK-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
+    // CHECK-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
     // CHECK-SAME: target = @rvv_case_b
     // CHECK: tcrv.exec.diagnostic
     // CHECK-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
     // CHECK-SAME: reason = "emission_plan"
     // CHECK-SAME: required_capabilities = [@rvv]
     // CHECK-SAME: role = "dispatch case"
-    // CHECK-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
-    // CHECK-SAME: runtime_abi_name = "rvv-executable-runtime-abi-deferred"
-    // CHECK-SAME: runtime_glue_role = "deferred-rvv-runtime-glue"
+    // CHECK-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+    // CHECK-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
+    // CHECK-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
     // CHECK-SAME: target = @rvv_case_a
     // CHECK: tcrv.exec.diagnostic
     // CHECK-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"

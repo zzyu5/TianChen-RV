@@ -58,16 +58,16 @@ module @target_artifact_bundle_guard_input {
     }
     tcrv.exec.diagnostic {
       reason = "emission_plan",
-      message = "RVV metadata-only first slice has no RVV lowering pipeline or bundle artifact",
+      message = "RVV first slice has no materialized EmitC lowering, runtime ABI, artifact contract, or bundle artifact",
       severity = "info",
       status = "unsupported",
       target = @rvv_first_slice,
       origin = "rvv-plugin",
       role = "direct variant",
       plan_kind = "plugin-emission-plan",
-      runtime_abi_kind = "rvv-plugin-deferred-runtime-abi",
-      runtime_abi_name = "rvv-executable-runtime-abi-deferred",
-      runtime_glue_role = "deferred-rvv-runtime-glue",
+      runtime_abi_kind = "unsupported-plugin-runtime-abi",
+      runtime_abi_name = "unsupported-emission-runtime-abi",
+      runtime_glue_role = "no-runtime-glue-unsupported",
       required_capabilities = [@rvv]
     }
   }

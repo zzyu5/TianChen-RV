@@ -852,11 +852,11 @@ Current first slice:
 
 ```text
 rvv-plugin @rvv_first_slice -> unsupported emission readiness
-reason: metadata/control-plane only; no RVV lowering/runtime/executable path
+reason: metadata/control-plane only; no materialized EmitC lowering/runtime/executable path
 emission plan status: unsupported
-runtime ABI kind: rvv-plugin-deferred-runtime-abi
-runtime ABI name: rvv-executable-runtime-abi-deferred
-runtime glue role: deferred-rvv-runtime-glue
+runtime ABI kind: unsupported-plugin-runtime-abi
+runtime ABI name: unsupported-emission-runtime-abi
+runtime glue role: no-runtime-glue-unsupported
 required capabilities: selected variant required capability refs
 ```
 
@@ -874,10 +874,10 @@ must still fail through the generic unregistered-origin registry diagnostic.
 Tests that need the historical empty-registry parser surface should pass
 `--tcrv-disable-builtin-plugins`.
 
-The RVV emission plan may still return bounded runtime ABI ownership metadata
-for the selected unsupported boundary. That metadata explains which plugin owns
-the future RVV executable/runtime ABI slice; it is not runtime ABI glue, code
-generation, hardware execution, correctness evidence, or performance evidence.
+The RVV emission plan returns generic unsupported runtime metadata for the
+selected unsupported boundary. That metadata records the absence of a supported
+runtime ABI/glue contract; it is not runtime ABI glue, code generation,
+hardware execution, correctness evidence, or performance evidence.
 
 ### Deleted Standalone Smoke-Probe Target Export
 

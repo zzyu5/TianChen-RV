@@ -110,16 +110,16 @@ module @manifest_inputs {
       emission_kind = "rvv-unsupported-metadata-boundary",
       lowering_boundary = "tcrv_rvv.lowering_boundary",
       lowering_pipeline = "rvv-none-executable-unsupported",
-      message = "RVV metadata-only first slice has no RVV lowering pipeline, runtime ABI, artifact contract, or executable emission path; this unsupported emission plan is a plugin-owned diagnostic boundary and not RVV hardware/toolchain/runtime/correctness/performance evidence",
+      message = "RVV first slice has no materialized EmitC lowering, runtime ABI, artifact contract, or executable emission path; this unsupported emission plan is a plugin-owned diagnostic boundary and not RVV hardware/toolchain/runtime/correctness/performance evidence",
       origin = "rvv-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",
       required_capabilities = [@rvv],
       role = "direct variant",
       runtime_abi = "rvv-none-executable-unsupported",
-      runtime_abi_kind = "rvv-plugin-deferred-runtime-abi",
-      runtime_abi_name = "rvv-executable-runtime-abi-deferred",
-      runtime_glue_role = "deferred-rvv-runtime-glue",
+      runtime_abi_kind = "unsupported-plugin-runtime-abi",
+      runtime_abi_name = "unsupported-emission-runtime-abi",
+      runtime_glue_role = "no-runtime-glue-unsupported",
       severity = "error",
       status = "unsupported",
       target = @rvv_first_slice
@@ -206,16 +206,16 @@ module @manifest_inputs {
       emission_kind = "rvv-unsupported-metadata-boundary",
       lowering_boundary = "tcrv_rvv.lowering_boundary",
       lowering_pipeline = "rvv-none-executable-unsupported",
-      message = "RVV metadata-only first slice has no RVV lowering pipeline, runtime ABI, artifact contract, or executable emission path; this unsupported emission plan is a plugin-owned diagnostic boundary and not RVV hardware/toolchain/runtime/correctness/performance evidence",
+      message = "RVV first slice has no materialized EmitC lowering, runtime ABI, artifact contract, or executable emission path; this unsupported emission plan is a plugin-owned diagnostic boundary and not RVV hardware/toolchain/runtime/correctness/performance evidence",
       origin = "rvv-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",
       required_capabilities = [@rvv],
       role = "dispatch case",
       runtime_abi = "rvv-none-executable-unsupported",
-      runtime_abi_kind = "rvv-plugin-deferred-runtime-abi",
-      runtime_abi_name = "rvv-executable-runtime-abi-deferred",
-      runtime_glue_role = "deferred-rvv-runtime-glue",
+      runtime_abi_kind = "unsupported-plugin-runtime-abi",
+      runtime_abi_name = "unsupported-emission-runtime-abi",
+      runtime_glue_role = "no-runtime-glue-unsupported",
       severity = "error",
       status = "unsupported",
       target = @rvv_case
@@ -255,11 +255,11 @@ module @manifest_inputs {
 // CHECK: emission_status: "unsupported"
 // CHECK: emission_kind: "rvv-unsupported-metadata-boundary"
 // CHECK: lowering_boundary: "tcrv_rvv.lowering_boundary"
-// CHECK: runtime_abi_kind: "rvv-plugin-deferred-runtime-abi"
-// CHECK: runtime_abi_name: "rvv-executable-runtime-abi-deferred"
-// CHECK: runtime_glue_role: "deferred-rvv-runtime-glue"
+// CHECK: runtime_abi_kind: "unsupported-plugin-runtime-abi"
+// CHECK: runtime_abi_name: "unsupported-emission-runtime-abi"
+// CHECK: runtime_glue_role: "no-runtime-glue-unsupported"
 // CHECK: required_capabilities: [@rvv]
-// CHECK: explanation: "RVV metadata-only first slice has no RVV lowering pipeline
+// CHECK: explanation: "RVV first slice has no materialized EmitC lowering
 // CHECK: preference:
 // CHECK: policy: "plugin-local RVV capability participation"
 

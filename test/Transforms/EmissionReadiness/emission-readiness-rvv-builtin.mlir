@@ -40,5 +40,5 @@ module {
 // CHECK: TianChen-RV variant emission readiness check failed
 // CHECK-SAME: variant @rvv_first_slice in kernel @public_rvv_readiness as direct variant
 // CHECK: origin plugin 'rvv-plugin' reported unsupported emission path
-// CHECK: RVV metadata-only first slice has no RVV lowering
+// CHECK: RVV first slice has no materialized EmitC lowering
 // CHECK-NOT: unknown origin plugin 'rvv-plugin'
