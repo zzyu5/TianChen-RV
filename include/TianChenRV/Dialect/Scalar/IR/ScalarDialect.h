@@ -7,7 +7,6 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Scalar/IR/ScalarOpsDialect.h.inc"
 
 #define GET_OP_CLASSES

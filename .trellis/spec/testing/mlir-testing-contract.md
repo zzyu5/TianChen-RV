@@ -215,8 +215,8 @@ Use lit/FileCheck for:
   diagnostics, or compatibility alias delegation should be deleted rather than
   kept alive as production coverage.
 - execution-plan/export preflight coherence checks, including legal RVV explicit
-  microkernel, scalar fallback microkernel, and unsupported Offload selected
-  paths after descriptor deletion;
+  microkernel, scalar fallback metadata-only path, and unsupported Offload
+  selected paths after descriptor deletion;
   existing execution-planning pipeline output followed by the preflight pass;
   and fail-closed diagnostics for stale selected paths, selected origin
   mismatch, lowering-boundary kernel/variant/origin mismatch, emission-plan
@@ -228,14 +228,13 @@ Use lit/FileCheck for:
   scalar/RVV/dispatch header/object helpers. Any remaining metadata-only
   route preflight must reject malformed runtime ABI role/type/name/ownership
   metadata before artifact output.
-- scalar explicit microkernel runtime-callable C target export is currently
-  deletion-campaign fail-closed. Tests may still cover dialect parse/verify,
-  selected scalar fallback, and matching `tcrv_scalar.lowering_boundary`
-  materialization, but they must not expect source/header/object/bundle bytes
-  or portable scalar compute loops from `tcrv-export-scalar-*-microkernel-c`
-  routes. Until a real materialized MLIR EmitC module route exists, tests must
-  expect unsupported emission-plan diagnostics and generic source front-door
-  failure with no generated C body.
+- scalar explicit microkernel runtime-callable C target export is deleted.
+  Tests may still cover scalar fallback metadata-only boundary materialization
+  and deleted-route diagnostics, but they must not expect source/header/object/
+  bundle bytes or portable scalar compute loops from
+  `tcrv-export-scalar-*-microkernel-c` routes. Until a real materialized MLIR
+  EmitC module route exists, tests must expect unsupported emission-plan
+  diagnostics and generic source front-door failure with no generated C body.
 - RVV + scalar host dispatch runtime-callable C export is currently
   deletion-campaign fail-closed. Tests may still cover selected RVV dispatch
   case, scalar dispatch fallback, runtime guard metadata, `tcrv.exec.mem_window`

@@ -175,20 +175,6 @@ public:
   }
 };
 
-class RouteBackedLowerable final : public TCRVEmitCLowerableInterface {
-public:
-  explicit RouteBackedLowerable(TCRVEmitCLowerableRoute route)
-      : route(std::move(route)) {}
-
-  llvm::Expected<TCRVEmitCLowerableRoute>
-  buildEmitCLowerableRoute() const override {
-    return route;
-  }
-
-private:
-  TCRVEmitCLowerableRoute route;
-};
-
 void addStandardABI(TCRVEmitCLowerableRoute &route,
                     llvm::StringRef lhsValueName = "lhs") {
   using tianchenrv::support::RuntimeABIParameter;
@@ -253,127 +239,6 @@ makeMinimalMaterializerRoute(llvm::StringRef arithmeticSourceOp,
     arithmetic.result =
         TCRVEmitCCallOpaqueResult{resultName->str(), "vint32m1_t"};
   route.addCallOpaqueStep(std::move(arithmetic));
-  return route;
-}
-
-void addStandardScalarABI(TCRVEmitCLowerableRoute &route,
-                          bool includeRuntimeElementCount = true) {
-  using tianchenrv::support::RuntimeABIParameter;
-  using tianchenrv::support::RuntimeABIParameterOwnership;
-  using tianchenrv::support::RuntimeABIParameterRole;
-
-  route.addABIValueMapping(
-      RuntimeABIParameter("lhs", "const int32_t *",
-                          RuntimeABIParameterRole::LHSInputBuffer,
-                          RuntimeABIParameterOwnership::TargetExportABIOwned),
-      "lhs");
-  route.addABIValueMapping(
-      RuntimeABIParameter("rhs", "const int32_t *",
-                          RuntimeABIParameterRole::RHSInputBuffer,
-                          RuntimeABIParameterOwnership::TargetExportABIOwned),
-      "rhs");
-  route.addABIValueMapping(
-      RuntimeABIParameter("out", "int32_t *",
-                          RuntimeABIParameterRole::OutputBuffer,
-                          RuntimeABIParameterOwnership::TargetExportABIOwned),
-      "out");
-  if (includeRuntimeElementCount)
-    route.addABIValueMapping(
-        RuntimeABIParameter(
-            "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount,
-            RuntimeABIParameterOwnership::TargetExportABIOwned),
-        "n");
-}
-
-TCRVEmitCLowerableRoute
-makeScalarElementLoopRoute(bool includeRuntimeElementCount = true,
-                           bool includeInterfaceProvenance = true) {
-  TCRVEmitCLowerableRoute route(
-      "test-emitc-scalar-element-loop-route",
-      "typed-scalar-family-op-to-emitc-call-opaque");
-  route.addHeader("stddef.h");
-  route.addHeader("stdint.h");
-  route.addTypeMapping("i32", "int32_t");
-  addStandardScalarABI(route, includeRuntimeElementCount);
-
-  TCRVEmitCCallOpaqueStep arithmetic;
-  arithmetic.sourceOp = {"tcrv_scalar.i32_vadd_microkernel", "compute"};
-  if (includeInterfaceProvenance)
-    arithmetic.sourceOp.opInterface = kEmitCLowerableOpInterfaceName.str();
-  arithmetic.callee = "tcrv_scalar_i32_add";
-  arithmetic.operands.push_back({"lhs[index]", "int32_t"});
-  arithmetic.operands.push_back({"rhs[index]", "int32_t"});
-  arithmetic.result = TCRVEmitCCallOpaqueResult{"sum", "int32_t"};
-  route.addCallOpaqueStep(std::move(arithmetic));
-
-  TCRVEmitCCallOpaqueStep store;
-  store.sourceOp = {"tcrv_scalar.i32_vadd_microkernel", "buffer-store"};
-  if (includeInterfaceProvenance)
-    store.sourceOp.opInterface = kEmitCLowerableOpInterfaceName.str();
-  store.callee = "tcrv_scalar_i32_store";
-  store.operands.push_back({"&out[index]", "int32_t *"});
-  store.operands.push_back({"sum", "int32_t"});
-  route.addCallOpaqueStep(std::move(store));
-  return route;
-}
-
-TCRVEmitCLowerableRoute
-makeDispatchControlRoute(bool includeDispatchGuard = true,
-                         llvm::StringRef firstRole = "dispatch-case-call") {
-  using tianchenrv::support::RuntimeABIParameter;
-  using tianchenrv::support::RuntimeABIParameterOwnership;
-  using tianchenrv::support::RuntimeABIParameterRole;
-
-  TCRVEmitCLowerableRoute route(
-      "test-emitc-rvv-scalar-dispatch-control-route",
-      "tcrv-exec-dispatch-control-to-emitc-call-opaque");
-  route.addHeader("stddef.h");
-  route.addHeader("stdint.h");
-  route.addABIValueMapping(
-      RuntimeABIParameter("lhs", "const int32_t *",
-                          RuntimeABIParameterRole::LHSInputBuffer,
-                          RuntimeABIParameterOwnership::TargetExportABIOwned),
-      "lhs");
-  route.addABIValueMapping(
-      RuntimeABIParameter("rhs", "const int32_t *",
-                          RuntimeABIParameterRole::RHSInputBuffer,
-                          RuntimeABIParameterOwnership::TargetExportABIOwned),
-      "rhs");
-  route.addABIValueMapping(
-      RuntimeABIParameter("out", "int32_t *",
-                          RuntimeABIParameterRole::OutputBuffer,
-                          RuntimeABIParameterOwnership::TargetExportABIOwned),
-      "out");
-  route.addABIValueMapping(
-      RuntimeABIParameter(
-          "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount,
-          RuntimeABIParameterOwnership::TargetExportABIOwned),
-      "n");
-  if (includeDispatchGuard)
-    route.addABIValueMapping(
-        RuntimeABIParameter(
-            "rvv_available", "int",
-            RuntimeABIParameterRole::DispatchAvailabilityGuard,
-            RuntimeABIParameterOwnership::TargetExportABIOwned),
-        "rvv_available");
-
-  TCRVEmitCCallOpaqueStep rvvCall;
-  rvvCall.sourceOp = {"tcrv.exec.case", firstRole.str()};
-  rvvCall.callee = "tcrv_rvv_i32_vadd_microkernel_kernel_rvv";
-  rvvCall.operands.push_back({"lhs", "const int32_t *"});
-  rvvCall.operands.push_back({"rhs", "const int32_t *"});
-  rvvCall.operands.push_back({"out", "int32_t *"});
-  rvvCall.operands.push_back({"n", "size_t"});
-  route.addCallOpaqueStep(std::move(rvvCall));
-
-  TCRVEmitCCallOpaqueStep scalarCall;
-  scalarCall.sourceOp = {"tcrv.exec.fallback", "dispatch-fallback-call"};
-  scalarCall.callee = "tcrv_scalar_i32_vadd_microkernel_kernel_scalar";
-  scalarCall.operands.push_back({"lhs", "const int32_t *"});
-  scalarCall.operands.push_back({"rhs", "const int32_t *"});
-  scalarCall.operands.push_back({"out", "int32_t *"});
-  scalarCall.operands.push_back({"n", "size_t"});
-  route.addCallOpaqueStep(std::move(scalarCall));
   return route;
 }
 
@@ -554,30 +419,6 @@ int expectRouteEmitsCppSourceAuthority(const TCRVEmitCLowerableRoute &route,
   return 0;
 }
 
-int expectRouteSourceAuthorityFails(const TCRVEmitCLowerableRoute &route,
-                                    llvm::StringRef expectedDiagnostic,
-                                    llvm::StringRef loopIndexName = "offset") {
-  TCRVEmitCSourceAuthorityOptions options;
-  options.functionName = "tcrv_emitc_bad_source_authority";
-  options.loopIndexName = loopIndexName.str();
-  std::string source;
-  llvm::raw_string_ostream os(source);
-  llvm::Error error = emitTCRVEmitCLowerableRouteAsCppSource(route, os,
-                                                             options);
-  if (!error)
-    return fail("expected MLIR Cpp source authority to fail closed");
-  os.flush();
-  if (int result =
-          expect(source.empty(),
-                 "failed source-authority emission does not emit partial C "
-                 "source"))
-    return result;
-  std::string message = llvm::toString(std::move(error));
-  return expect(llvm::StringRef(message).contains(expectedDiagnostic),
-                llvm::Twine("source-authority diagnostic contains '") +
-                    expectedDiagnostic + "'");
-}
-
 int expectLowerableLowersThroughCommonSourceAuthority(
     const TCRVEmitCLowerableInterface &lowerable, llvm::StringRef functionName,
     llvm::StringRef expectedCallee, llvm::StringRef expectedSourceOp,
@@ -635,130 +476,6 @@ int expectLowerableCommonSourceAuthorityFails(
   std::string message = llvm::toString(lowered.takeError());
   return expect(llvm::StringRef(message).contains(expectedDiagnostic),
                 llvm::Twine("common lower-to-EmitC diagnostic contains '") +
-                    expectedDiagnostic + "'");
-}
-
-int expectDispatchRouteEmitsCppSourceAuthority(
-    const TCRVEmitCLowerableRoute &route, llvm::StringRef functionName) {
-  TCRVEmitCSourceAuthorityOptions options;
-  options.functionName = functionName.str();
-  options.dispatchGuardValueName = "rvv_available";
-  options.requireInterfaceBackedCompute = false;
-
-  mlir::MLIRContext sourceContext;
-  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> sourceModule =
-      materializeTCRVEmitCLowerableRouteSourceAuthority(sourceContext, route,
-                                                        options);
-  if (!sourceModule)
-    return fail(llvm::Twine("expected dispatch route to materialize: ") +
-                llvm::toString(sourceModule.takeError()));
-
-  unsigned funcCount = 0;
-  unsigned ifCount = 0;
-  unsigned callOpaqueCount = 0;
-  sourceModule->get().walk([&](mlir::emitc::FuncOp) { ++funcCount; });
-  sourceModule->get().walk([&](mlir::emitc::IfOp) { ++ifCount; });
-  sourceModule->get().walk(
-      [&](mlir::emitc::CallOpaqueOp) { ++callOpaqueCount; });
-  if (int result = expect(funcCount == 1,
-                          "dispatch source-authority module contains one "
-                          "public emitc.func"))
-    return result;
-  if (int result = expect(ifCount == 1,
-                          "dispatch source-authority module models runtime "
-                          "guard control with emitc.if"))
-    return result;
-  if (int result =
-          expect(callOpaqueCount == 2,
-                 "dispatch source-authority module contains selected case and "
-                 "fallback call_opaque ops"))
-    return result;
-
-  std::string source;
-  llvm::raw_string_ostream os(source);
-  if (llvm::Error error =
-          emitTCRVEmitCLowerableRouteAsCppSource(route, os, options))
-    return fail(llvm::Twine("expected dispatch route to emit Cpp source: ") +
-                llvm::toString(std::move(error)));
-  os.flush();
-
-  if (int result =
-          expect(llvm::StringRef(source).contains(
-                     "tcrv_emitc.source_authority=mlir_emitc_cpp_emitter"),
-                 "dispatch source-authority output records MLIR Cpp emitter "
-                 "authority"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains(
-                     "tcrv_emitc.dispatch_control_source=tcrv.exec.dispatch"),
-                 "dispatch source-authority output records dispatch control "
-                 "source"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains(
-                     (llvm::Twine("void ") + functionName + "(").str()),
-                 "dispatch source-authority output contains public wrapper"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains("rvv_available"),
-                 "dispatch source-authority output records guard name"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains(
-                     "tcrv_rvv_i32_vadd_microkernel_kernel_rvv("),
-                 "dispatch source-authority output calls selected RVV "
-                 "component"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains("return;"),
-                 "dispatch source-authority output returns after selected "
-                 "case call"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains(
-                     "tcrv_scalar_i32_vadd_microkernel_kernel_scalar("),
-                 "dispatch source-authority output calls selected scalar "
-                 "fallback"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains(
-                     "tcrv_emitc.source_op=tcrv.exec.case "
-                     "role=dispatch-case-call"),
-                 "dispatch source-authority output preserves case "
-                 "provenance"))
-    return result;
-  if (int result =
-          expect(llvm::StringRef(source).contains(
-                     "tcrv_emitc.source_op=tcrv.exec.fallback "
-                     "role=dispatch-fallback-call"),
-                 "dispatch source-authority output preserves fallback "
-                 "provenance"))
-    return result;
-  return 0;
-}
-
-int expectDispatchRouteSourceAuthorityFails(
-    const TCRVEmitCLowerableRoute &route,
-    llvm::StringRef expectedDiagnostic) {
-  TCRVEmitCSourceAuthorityOptions options;
-  options.functionName = "tcrv_dispatch_bad_source_authority";
-  options.dispatchGuardValueName = "rvv_available";
-  options.requireInterfaceBackedCompute = false;
-  std::string source;
-  llvm::raw_string_ostream os(source);
-  llvm::Error error =
-      emitTCRVEmitCLowerableRouteAsCppSource(route, os, options);
-  if (!error)
-    return fail("expected dispatch MLIR Cpp source authority to fail closed");
-  os.flush();
-  if (int result =
-          expect(source.empty(),
-                 "failed dispatch source-authority emission does not emit "
-                 "partial C source"))
-    return result;
-  std::string message = llvm::toString(std::move(error));
-  return expect(llvm::StringRef(message).contains(expectedDiagnostic),
-                llvm::Twine("dispatch source-authority diagnostic contains '") +
                     expectedDiagnostic + "'");
 }
 
@@ -885,35 +602,6 @@ int main() {
           "tcrv_rvv.i32_mul"))
     return result;
 
-  TCRVEmitCLowerableRoute scalarRoute = makeScalarElementLoopRoute();
-  if (int result =
-          expect(scalarRoute.getCallOpaqueSteps().size() == 2,
-                 "scalar route preserves compute and store call_opaque steps"))
-    return result;
-  if (llvm::Error error = verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
-          scalarRoute, "tcrv_emitc_scalar_test_add", {"index"}))
-    return fail(llvm::Twine("expected scalar route to materialize: ") +
-                llvm::toString(std::move(error)));
-  if (int result = expectRouteEmitsCppSourceAuthority(
-          scalarRoute, "tcrv_emitc_scalar_test_add", "tcrv_scalar_i32_add",
-          "tcrv_scalar.i32_vadd_microkernel", "index"))
-    return result;
-  RouteBackedLowerable scalarLowerable(scalarRoute);
-  if (int result = expectLowerableLowersThroughCommonSourceAuthority(
-          scalarLowerable, "tcrv_emitc_common_scalar_test_add",
-          "tcrv_scalar_i32_add", "tcrv_scalar.i32_vadd_microkernel",
-          "index"))
-    return result;
-
-  TCRVEmitCLowerableRoute dispatchRoute = makeDispatchControlRoute();
-  if (int result =
-          expect(dispatchRoute.getCallOpaqueSteps().size() == 2,
-                 "dispatch route preserves case and fallback call steps"))
-    return result;
-  if (int result = expectDispatchRouteEmitsCppSourceAuthority(
-          dispatchRoute, "tcrv_dispatch_i32_vadd_kernel"))
-    return result;
-
   if (int result = expectMaterializationFails(
           makeMinimalMaterializerRoute("tcrv_rvv.i32_add", "compute",
                                        "__riscv_vadd_vv_i32m1", std::nullopt),
@@ -940,31 +628,6 @@ int main() {
                                        "__riscv_vadd_vv_i32m1", "sum_vec",
                                        "lhs", "vl", "lhs_value"),
           "ABI value mapping"))
-    return result;
-  if (int result = expectRouteSourceAuthorityFails(
-          makeScalarElementLoopRoute(/*includeRuntimeElementCount=*/false),
-          "requires exactly one runtime-element-count ABI mapping", "index"))
-    return result;
-  if (int result = expectRouteSourceAuthorityFails(
-          makeScalarElementLoopRoute(/*includeRuntimeElementCount=*/true,
-                                     /*includeInterfaceProvenance=*/false),
-          "requires generated op-interface provenance", "index"))
-    return result;
-  RouteBackedLowerable missingInterfaceLowerable(makeScalarElementLoopRoute(
-      /*includeRuntimeElementCount=*/true,
-      /*includeInterfaceProvenance=*/false));
-  if (int result = expectLowerableCommonSourceAuthorityFails(
-          missingInterfaceLowerable,
-          "requires generated op-interface provenance", "index"))
-    return result;
-  if (int result = expectDispatchRouteSourceAuthorityFails(
-          makeDispatchControlRoute(/*includeDispatchGuard=*/false),
-          "requires dispatch guard ABI value"))
-    return result;
-  if (int result = expectDispatchRouteSourceAuthorityFails(
-          makeDispatchControlRoute(/*includeDispatchGuard=*/true,
-                                   /*firstRole=*/"compute"),
-          "source role 'dispatch-case-call'"))
     return result;
   InvalidMissingCalleeLowerable invalid;
   if (int result = expectLowerableCommonSourceAuthorityFails(

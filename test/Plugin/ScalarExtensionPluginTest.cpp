@@ -34,7 +34,6 @@ using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::scalar::LoweringBoundaryOp;
-using tianchenrv::tcrv::scalar::I32VAddMicrokernelOp;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
@@ -156,23 +155,23 @@ LoweringBoundaryOp findScalarBoundary(KernelOp kernel,
   return result;
 }
 
-I32VAddMicrokernelOp findScalarMicrokernel(
-    KernelOp kernel, llvm::StringRef selectedVariantSymbol) {
-  I32VAddMicrokernelOp result;
+bool hasDeletedScalarMicrokernelOp(KernelOp kernel,
+                                   llvm::StringRef selectedVariantSymbol) {
   if (!kernel || kernel.getBody().empty())
-    return result;
+    return false;
 
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto microkernel = llvm::dyn_cast<I32VAddMicrokernelOp>(op);
-    if (!microkernel)
+    llvm::StringRef opName = op.getName().getStringRef();
+    if (!opName.starts_with("tcrv_scalar.") ||
+        !opName.contains("_microkernel"))
       continue;
 
     auto selectedVariant =
         op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
     if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
-      result = microkernel;
+      return true;
   }
-  return result;
+  return false;
 }
 
 int runRegistrationAndCapabilityMetadataTest() {
@@ -643,12 +642,10 @@ module {
   if (int result = expect(boundaryRequires && boundaryRequires == requiresAttr,
                           "scalar boundary preserves capability references"))
     return result;
-  I32VAddMicrokernelOp scalarMicrokernel =
-      findScalarMicrokernel(kernel, variant.getSymName());
   if (int result =
-          expect(!scalarMicrokernel,
+          expect(!hasDeletedScalarMicrokernelOp(kernel, variant.getSymName()),
                  "descriptorless scalar fallback no longer materializes a "
-                 "typed microkernel from absent body state"))
+                 "deleted microkernel op from absent body state"))
     return result;
   if (int result =
           expect(mlir::succeeded(mlir::verify(*module)),
@@ -690,147 +687,6 @@ module {
   if (int result = expectScalarMetadataOnlyEmissionPlan(
           emissionPlan,
           "descriptorless no-body scalar fallback remains metadata-only"))
-    return result;
-
-  return 0;
-}
-
-int runExplicitTypedMicrokernelIsInertForMetadataRouteTest(
-    mlir::MLIRContext &context) {
-  constexpr llvm::StringLiteral source = R"mlir(
-module {
-  tcrv.exec.kernel @explicit_scalar_body attributes {} {
-    tcrv.exec.capability @scalar_fallback {
-      id = "scalar.fallback",
-      kind = "fallback",
-      status = "available"
-    }
-    tcrv.exec.variant @scalar_fallback_first_slice attributes {
-      fallback_role = "conservative",
-      origin = "scalar-plugin",
-      policy = "portable_scalar_fallback_first_slice",
-      requires = [@scalar_fallback]
-    } {
-    }
-    tcrv_scalar.i32_vadd_microkernel {
-      element_count = 16 : i64,
-      origin = "scalar-plugin",
-      required_capabilities = [@scalar_fallback],
-      role = "direct variant",
-      selected_variant = @scalar_fallback_first_slice,
-      source_kernel = "explicit_scalar_body"
-    }
-  }
-}
-)mlir";
-
-  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
-  if (!module)
-    return fail("failed to parse explicit scalar microkernel module");
-
-  KernelOp kernel = findKernel(*module, "explicit_scalar_body");
-  VariantOp variant = findVariant(kernel, "scalar_fallback_first_slice");
-  if (int result =
-          expect(kernel && variant,
-                 "explicit scalar microkernel module has anchors"))
-    return result;
-
-  I32VAddMicrokernelOp explicitMicrokernel =
-      findScalarMicrokernel(kernel, variant.getSymName());
-  if (int result = expect(explicitMicrokernel,
-                          "explicit scalar body exists before boundary"))
-    return result;
-
-  ExtensionPluginRegistry registry;
-  if (int result = expectSuccess(
-          tianchenrv::plugin::registerScalarExtensionPlugin(registry),
-          "register scalar plugin for explicit typed body"))
-    return result;
-
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
-  mlir::OpBuilder builder(&context);
-  builder.setInsertionPointToEnd(&kernel.getBody().front());
-  VariantLoweringBoundaryResult boundaryResult;
-  if (int result = expectSuccess(
-          registry.materializeSelectedLoweringBoundary(
-              VariantLoweringBoundaryRequest(variant, kernel, capabilities,
-                                             VariantEmissionRole::DirectVariant,
-                                             builder),
-              boundaryResult),
-          "explicit scalar body materializes selected boundary"))
-    return result;
-  if (int result =
-          expect(boundaryResult.isMaterialized(),
-                 "explicit scalar body boundary result is materialized"))
-    return result;
-
-  unsigned microkernelCount = 0;
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto microkernel = llvm::dyn_cast<I32VAddMicrokernelOp>(op);
-    if (!microkernel)
-      continue;
-    auto selectedVariant =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-    if (selectedVariant && selectedVariant.getValue() == variant.getSymName())
-      ++microkernelCount;
-  }
-  if (int result =
-          expect(microkernelCount == 1,
-                 "selected boundary leaves the explicit scalar microkernel as "
-                 "inert input IR and does not auto-insert a duplicate"))
-    return result;
-  unsigned runtimeABIOpCount = 0;
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    llvm::StringRef opName = op.getName().getStringRef();
-    if (opName == "tcrv.exec.mem_window" ||
-        opName == "tcrv.exec.runtime_param")
-      ++runtimeABIOpCount;
-  }
-  if (int result = expect(
-          runtimeABIOpCount == 0,
-          "scalar boundary materialization no longer inserts bridge-derived "
-          "runtime ABI windows or params"))
-    return result;
-  if (int result =
-          expect(findScalarBoundary(kernel, variant.getSymName()),
-                 "explicit scalar body receives scalar lowering boundary"))
-    return result;
-  if (int result =
-          expect(mlir::succeeded(mlir::verify(*module)),
-                 "explicit scalar body module verifies after boundary"))
-    return result;
-
-  VariantEmissionStatus status;
-  if (int result = expectSuccess(
-          registry.checkVariantEmissionReadiness(
-              VariantEmissionRequest(variant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
-              status),
-          "explicit scalar body readiness remains metadata-only"))
-    return result;
-  if (int result =
-          expect(status.isMetadataOnly() &&
-                     status.getOriginPlugin() ==
-                         tianchenrv::plugin::scalar::
-                             getScalarExtensionPluginName() &&
-                     status.getVariantSymbol() == variant.getSymName() &&
-                     status.getEmissionPath() ==
-                         "portable-scalar-fallback-non-executable-metadata-route",
-                 "explicit scalar body no longer selects a direct-C "
-                 "microkernel readiness branch"))
-    return result;
-
-  VariantEmissionPlan emissionPlan;
-  if (int result = expectSuccess(
-          registry.buildVariantEmissionPlan(
-              VariantEmissionRequest(variant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
-              emissionPlan),
-          "explicit scalar body emission plan is plugin-owned"))
-    return result;
-  if (int result = expectScalarMetadataOnlyEmissionPlan(
-          emissionPlan,
-          "explicit scalar body emission plan remains scalar metadata-only"))
     return result;
 
   return 0;
@@ -1087,9 +943,10 @@ module {
                  "RVV decline does not block scalar boundary materialization"))
     return result;
   if (int result =
-          expect(!findScalarMicrokernel(kernel, scalarVariant.getSymName()),
+          expect(!hasDeletedScalarMicrokernelOp(kernel,
+                                                scalarVariant.getSymName()),
                  "RVV decline scalar fallback does not synthesize a "
-                 "descriptorless default microkernel"))
+                 "deleted descriptorless default microkernel"))
     return result;
   if (int result =
           expect(mlir::succeeded(mlir::verify(*module)),
@@ -1205,9 +1062,6 @@ int main() {
   if (int result = runProposalGatingTest(context))
     return result;
   if (int result = runMaterializationSelectionAndEmissionTest(context))
-    return result;
-  if (int result =
-          runExplicitTypedMicrokernelIsInertForMetadataRouteTest(context))
     return result;
   if (int result = runDeletedFrontendLoweringBoundaryRejectionTest(context))
     return result;

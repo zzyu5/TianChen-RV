@@ -953,16 +953,14 @@ Rules:
   `required_capabilities`;
 - scalar fallback boundary ops must carry `status = "metadata-only"` and
   selected variant, origin, role, and required capability reference metadata;
-- for the bounded scalar i32/i64 add/sub/mul source slice, typed selected-path
-  compute authority exists only when a matching explicit
-  `tcrv_scalar.*_microkernel` direct child is already present; scalar
-  plugin-local boundary materialization must not synthesize a microkernel from
-  descriptorless no-body state, kernel frontend markers, bridge metadata, or a
-  default family;
-- a selected scalar fallback variant carrying only
+- the bounded scalar i32/i64 add/sub/mul source slice has no active typed
+  scalar microkernel authority; deleted `tcrv_scalar.*_microkernel` syntax
+  must fail closed and scalar plugin-local boundary materialization must not
+  synthesize a microkernel from descriptorless no-body state, kernel frontend
+  markers, bridge metadata, or a default family;
+- a selected scalar fallback variant carrying deleted
   `tcrv_scalar.element_count` metadata must fail closed before
-  `tcrv_scalar.lowering_boundary` creation unless typed scalar microkernel
-  authority exists;
+  `tcrv_scalar.lowering_boundary` creation;
 - selected lowering-boundary metadata must not claim intrinsics, LLVM/RISC-V
   lowering, runtime ABI glue, generated objects, hardware execution,
   correctness, or performance.
@@ -1405,10 +1403,9 @@ emitted LLVM IR, generated an object, linked a runtime, executed a scalar
 kernel, proved correctness, or measured performance. Later scalar fallback
 lowering must add plugin-local lowering code and validation artifacts before
 reporting executable support. This metadata-only readiness/plan result also
-does not license metadata-alone selected-boundary materialization:
+does not license metadata-alone selected-boundary materialization: deleted
 `tcrv_scalar.element_count` metadata must not create
-`tcrv_scalar.lowering_boundary` unless a typed scalar microkernel body is
-already the selected-path authority.
+`tcrv_scalar.lowering_boundary`.
 
 The selected scalar fallback boundary is slightly more concrete than an
 emission-plan diagnostic because it is a scalar extension-dialect op:
@@ -1454,16 +1451,16 @@ Contracts:
 - A matching direct child `tcrv_scalar.lowering_boundary` must identify the
   same source kernel, selected variant, origin, role, metadata-only status, and
   required capability refs.
-- A matching direct child `tcrv_scalar.i32_vadd_microkernel` or
-  `tcrv_scalar.i32_vsub_microkernel` or `tcrv_scalar.i32_vmul_microkernel` must
-  identify the same selected path and required capability refs with a bounded
-  element count.
+- Deleted `tcrv_scalar.i32_vadd_microkernel` / `i32_vsub_microkernel` /
+  `i32_vmul_microkernel` syntax must not be accepted as active route authority;
+  if any historical fixture still contains that syntax, it must fail closed
+  before source output.
 - Output must be no executable portable C source, no header, and no object.
 - Historical selected metadata may remain parseable only as fail-closed input
   for deleted-route diagnostics.
 
 Missing selected scalar path, missing or stale scalar lowering boundary,
-missing or stale scalar microkernel, unavailable fallback capability, unknown
+deleted scalar microkernel syntax, unavailable fallback capability, unknown
 route id, unsupported artifact kind, route spoofing, offload-only paths, and
 ambiguous multiple supported artifacts must fail before source output.
 

@@ -1,5 +1,5 @@
-module @scalar_microkernel_source_input {
-  tcrv.exec.kernel @scalar_microkernel_export {
+module @scalar_fallback_dispatch_metadata_input {
+  tcrv.exec.kernel @scalar_fallback_dispatch_export {
     tcrv.exec.capability @rv64 {
       id = "rv64",
       kind = "isa-scalar",
@@ -81,14 +81,6 @@ module @scalar_microkernel_source_input {
     tcrv.exec.dispatch {
       tcrv.exec.case @rvv_first_slice
       tcrv.exec.fallback @scalar_fallback_first_slice
-    }
-    tcrv_scalar.i32_vadd_microkernel {
-      element_count = 16 : i64,
-      origin = "scalar-plugin",
-      required_capabilities = [@scalar_fallback],
-      role = "dispatch fallback",
-      selected_variant = @scalar_fallback_first_slice,
-      source_kernel = "scalar_microkernel_export"
     }
   }
 }

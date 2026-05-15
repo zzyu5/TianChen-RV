@@ -34,7 +34,7 @@ materialized requires form: requires = [@scalar_fallback] for an exact scalar
   `implies` id `scalar.fallback`
 generic policy: portable_scalar_fallback_first_slice
 generic fallback role: fallback_role = "conservative"
-selected-path element attr: tcrv_scalar.element_count
+deleted legacy selected-path element attr: tcrv_scalar.element_count
 ```
 
 The first-slice scalar plugin may propose `@scalar_fallback_first_slice` only
@@ -47,16 +47,16 @@ must produce no proposal rather than an implicit always-available variant.
 
 The default proposal for the scalar fallback source slice is descriptorless and
 must not derive a finite i32/i64 add/sub/mul family from frontend metadata,
-bridge metadata, default family tables, or absent body state. Only explicit
-typed scalar microkernel family ops that already exist on the selected path can
-act as typed selected-path compute authority for future lowering work.
-`tcrv_scalar.element_count` is bounded selected-path metadata only; it is not
-high-level shape, problem size, AVL, vl, runtime loop trip count, or performance
-evidence. Kernel metadata such as `tcrv_frontend_lowering = "i32-vsub"` is a
-deleted old authority: a scalar plugin must reject or ignore non-empty
-frontend-lowering markers rather than using them to select vadd/vsub/vmul,
-i32/i64 families, route ids, ABI names, runtime glue roles, operation labels,
-C types, or emitted arithmetic.
+bridge metadata, default family tables, absent body state, hand-authored
+microkernel names, or deleted scalar element-count metadata. There is no current
+typed scalar selected-path compute authority. `tcrv_scalar.element_count` is
+deleted legacy selected-path metadata; if present, it is a fail-closed old-route
+marker, not high-level shape, problem size, AVL, vl, runtime loop trip count,
+source-export authority, or performance evidence. Kernel metadata such as
+`tcrv_frontend_lowering = "i32-vsub"` is a deleted old authority: a scalar plugin
+must reject or ignore non-empty frontend-lowering markers rather than using them
+to select vadd/vsub/vmul, i32/i64 families, route ids, ABI names, runtime glue
+roles, operation labels, C types, or emitted arithmetic.
 
 ## Capability And Legality
 
@@ -67,9 +67,9 @@ Scalar fallback is still capability-driven:
   capability-provider `tcrv.exec.target`;
 - generated variants must require that capability through `requires`;
 - plugin legality must reject variants with missing origin, missing fallback
-  capability requirement, unavailable fallback capability, malformed
-  `tcrv_scalar.element_count`, or selected-path element counts outside the
-  bounded first-slice range `[1, 64]`;
+  capability requirement, unavailable fallback capability, malformed deleted
+  `tcrv_scalar.element_count`, or any attempt to treat selected-path element
+  counts as current scalar compute/source-export authority;
 - core passes must not special-case scalar fallback by name.
 
 ## Cost And Selection
@@ -103,15 +103,10 @@ artifact kind: metadata-diagnostic
 ```
 
 This metadata-only emission-plan diagnostic records plugin-owned intent only.
-It applies even if a hand-authored scalar microkernel attachment is present in
-the selected kernel. Such attachments remain dialect/future-route IR only; the
-scalar plugin must not interpret them as current callable microkernel family
-authority, direct-C source authority, runtime ABI authority, generated-artifact
-authority, correctness evidence, or performance evidence. It does not mean that
-TianChen-RV emitted LLVM IR, generated an object, linked a runtime, executed a
-scalar kernel, proved correctness, or measured performance.
+It does not mean that TianChen-RV emitted LLVM IR, generated an object, linked a
+runtime, executed a scalar kernel, proved correctness, or measured performance.
 It also does not authorize metadata-alone selected lowering-boundary
-materialization: a selected scalar fallback variant carrying only
+materialization: a selected scalar fallback variant carrying deleted
 `tcrv_scalar.element_count` metadata must fail closed before
 `tcrv_scalar.lowering_boundary` creation.
 
@@ -121,10 +116,11 @@ Scalar fallback participates in the generic selected lowering-boundary registry
 path. Its first selected-boundary slice validates the selected scalar fallback
 variant through the same plugin-local legality rules, then materializes a
 plugin-local scalar metadata operation. A descriptorless no-body scalar fallback
-path may materialize this metadata-only boundary, but it must not synthesize a
-typed scalar microkernel body, derive family authority from a typed scalar
-microkernel body, or insert runtime ABI `tcrv.exec.mem_window` /
-`tcrv.exec.runtime_param` operations from scalar/RVV-scalar bridge metadata.
+path may materialize this metadata-only boundary, but it must not synthesize,
+accept, or preserve a typed scalar microkernel body, derive finite family
+authority from deleted scalar metadata, or insert runtime ABI
+`tcrv.exec.mem_window` / `tcrv.exec.runtime_param` operations from
+scalar/RVV-scalar bridge metadata.
 
 ```mlir
 tcrv_scalar.lowering_boundary {
@@ -157,21 +153,14 @@ variant's required capability symbol references. It must not materialize
 cause a missing-plugin diagnostic when selected as a fallback-only or dispatch
 fallback path.
 
-When the selected variant is descriptorless and no explicit typed scalar body is
-present, the scalar plugin must not create `tcrv_scalar.i32_vadd_microkernel` or
-any other finite-family microkernel from defaults, RVV-scalar bridge metadata,
-`tcrv_frontend_lowering`, `tcrv_scalar.element_count`, or any equivalent
-metadata selector. Absence of a body is a metadata-only fallback state, not a
-compute authority.
-
-When an explicit scalar microkernel body already exists in the selected kernel,
-lowering-boundary materialization may leave that operation as inert input IR,
-but must not use it to select a finite family, validate selected element-count
-mirrors, synthesize ABI windows/params, or switch emission readiness/planning to
-a direct-C unsupported microkernel branch. A selected scalar fallback variant
-carrying `tcrv_scalar.element_count` metadata still fails closed before
-`tcrv_scalar.lowering_boundary` creation; the metadata alone is not a current
-boundary authority.
+The scalar plugin must not create `tcrv_scalar.i32_vadd_microkernel` or any
+other finite-family scalar microkernel from defaults, RVV-scalar bridge
+metadata, `tcrv_frontend_lowering`, `tcrv_scalar.element_count`, hand-authored
+deleted-op syntax, or any equivalent metadata selector. Absence of a body is a
+metadata-only fallback state, not a compute authority. A selected scalar fallback
+variant carrying deleted `tcrv_scalar.element_count` metadata still fails closed
+before `tcrv_scalar.lowering_boundary` creation; the metadata alone is not a
+current boundary authority.
 
 Downstream emission planning may consume this boundary only to materialize the
 metadata-only diagnostic above. The lowering boundary itself still records
@@ -184,28 +173,20 @@ slice through extension-family ops and a materialized MLIR EmitC route, then
 validated with compiler-generated artifacts and runtime evidence appropriate to
 that path.
 
-## Explicit I32/I64 Vector Add/Sub/Mul Microkernel Ops
+## Deleted I32/I64 Vector Add/Sub/Mul Microkernel Ops
 
-`tcrv_scalar.i32_vadd_microkernel` and
-`tcrv_scalar.i32_vsub_microkernel` and
-`tcrv_scalar.i32_vmul_microkernel` and
-`tcrv_scalar.i64_vadd_microkernel` and
-`tcrv_scalar.i64_vsub_microkernel` and
-`tcrv_scalar.i64_vmul_microkernel` are scalar extension-dialect typed
-microkernel attachment ops for future scalar lowering work. They are not active
-callable bodies for the current scalar fallback plugin. The ops are plugin-local
-under the `tcrv_scalar` dialect and must carry
-only selected-path metadata: source kernel, selected variant, origin, selected
-role, required capability refs, and a tiny element count. They must reject
-generic tensor/tile/benchmark attributes, unbounded or secret-like strings,
-invalid element counts, stale selected variants, missing or unavailable scalar
-fallback capability refs, and required-capability mismatches.
+`tcrv_scalar.i32_vadd_microkernel`,
+`tcrv_scalar.i32_vsub_microkernel`,
+`tcrv_scalar.i32_vmul_microkernel`,
+`tcrv_scalar.i64_vadd_microkernel`,
+`tcrv_scalar.i64_vsub_microkernel`, and
+`tcrv_scalar.i64_vmul_microkernel` are deleted scalar extension-dialect
+microkernel source-export surfaces. They must not remain as active dialect ops,
+EmitC-lowerable ops, inert future-route IR, selected-boundary authority,
+runtime ABI authority, generated-artifact authority, correctness evidence, or
+performance evidence.
 
 Scalar fallback direct runtime-callable C source/header/object routes are
-deleted production routes. A selected scalar fallback path may still materialize
-typed scalar extension ops for future lowering work, but the scalar plugin must
-not advertise selected metadata, typed scalar ops, or family records as
-supported or specially unsupported executable C artifacts. Generic target
-artifact front doors must fail closed for historical scalar direct route ids
-until a rebuilt path materializes a real MLIR EmitC module and emits C/C++
-through the MLIR emitter.
+deleted production routes. Generic target artifact front doors must fail closed
+for historical scalar direct route ids until a rebuilt path materializes a real
+MLIR EmitC module and emits C/C++ through the MLIR emitter.
