@@ -1305,3 +1305,66 @@ for future EmitC rebuild work.
 
 - Continue deletion only if a future owner explicitly targets non-frontend
   scalar bridge residue; do not rebuild scalar EmitC in a deletion-only round.
+
+## Session 72: Scalar descriptorless default materialization deletion
+
+**Date**: 2026-05-15
+**Task**: Scalar descriptorless default materialization deletion
+**Branch**: `main`
+
+### Summary
+
+Deleted descriptorless default scalar typed microkernel materialization as
+compute authority. A selected scalar fallback path with no explicit typed body
+now remains metadata-only and no longer auto-creates
+`tcrv_scalar.i32_vadd_microkernel`, scalar ABI mem/windows, or direct-C
+deleted-route diagnostics from absent body state. Explicit pre-existing typed
+scalar microkernel bodies remain preserved and fail closed at the deleted
+direct-C route boundary.
+
+### Main Changes
+
+- Created Trellis task
+  `05-15-scalar-descriptorless-default-materialization-deletion`.
+- Removed `buildDescriptorlessDefaultScalarTypedMaterializationPlan`,
+  `ScalarMicrokernelMaterializationPlan`, `materializeScalarMicrokernelOp`,
+  `microkernelPlan`, and the selected-boundary microkernel auto-insertion path
+  from `lib/Plugin/Scalar/ScalarExtensionPlugin.cpp`.
+- Kept explicit typed scalar body validation and ABI boundary setup only for
+  already-present `tcrv_scalar.*_microkernel` direct children.
+- Rewrote scalar plugin tests so no-body fallback asserts no synthesized
+  microkernel, explicit typed bodies are preserved without duplicate insertion,
+  and `tcrv_scalar.element_count` metadata alone fails closed.
+- Updated RVV+scalar dispatch and rvv probe expectations to metadata-only
+  scalar fallback diagnostics for no-body fallback.
+- Updated scalar fallback, lowering-runtime, and testing specs to remove
+  descriptorless default scalar microkernel materialization authority.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tianchenrv-scalar-extension-plugin-test tcrv-opt tcrv-translate -j2`.
+- [OK] `./build/bin/tianchenrv-scalar-extension-plugin-test`.
+- [OK] Focused lit from `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/RVVScalarDispatch/rvv-scalar-i32-vadd-dispatch-generic-route.mlir Target/ArtifactExport/scalar-target-source-artifact-routes.test Scripts/rvv-probe-to-mlir.test`.
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`.
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`: 114/114 passed.
+- [OK] Focused ref-scan: no active
+  `buildDescriptorlessDefaultScalarTypedMaterializationPlan`,
+  `microkernelPlan`, `materializeScalarMicrokernelOp`,
+  `descriptorless typed default materialization`, or
+  `descriptorless default materialization` occurrences remain.
+- [OK] `git diff --check`.
+- [OK] `git diff --cached --check`.
+- [OK] Trellis context validation before finish/archive.
+
+### Status
+
+[OK] **Ready to archive and commit**
+
+### Next Steps
+
+- Continue deletion only if another owner targets broader historical scalar
+  direct-route or dispatch-route spec residue. Do not rebuild scalar EmitC in a
+  deletion-only round.

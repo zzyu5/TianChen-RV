@@ -334,10 +334,11 @@ Use C++ tests for:
   available `scalar.fallback` capability, materialization, legality rejection
   for missing/unavailable fallback capability, conservative cost metadata,
   generic conservative fallback role metadata, finite selected-path
-  element-count metadata, bounded typed `tcrv_scalar.i32_vadd_microkernel`
-  materialization, stable metadata-only emission-plan fields when no matching
-  microkernel exists, and supported source-export readiness/plan fields only
-  when a matching scalar microkernel and scalar lowering boundary are present.
+  element-count metadata fail-closed behavior when no typed scalar body exists,
+  absence of descriptorless default microkernel materialization, stable
+  metadata-only emission-plan fields when no matching microkernel exists, and
+  deleted-route readiness/plan fields only when a matching explicit scalar
+  microkernel and scalar lowering boundary are present.
 
 ## CMake Checks
 

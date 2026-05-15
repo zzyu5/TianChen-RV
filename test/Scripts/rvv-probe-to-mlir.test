@@ -166,13 +166,14 @@
 # SCALAR_ONLY: tcrv_scalar.lowering_boundary
 # SCALAR_ONLY-SAME: selected_variant = @scalar_fallback_first_slice
 # SCALAR_ONLY: tcrv.exec.diagnostic
+# SCALAR_ONLY-SAME: emission_kind = "portable-scalar-fallback-metadata-route"
 # SCALAR_ONLY-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
-# SCALAR_ONLY-SAME: message = "runtime-callable scalar direct C source exporter was deleted; rebuild requires a materialized MLIR EmitC module source route"
+# SCALAR_ONLY-SAME: message = "scalar fallback first slice records a portable fallback metadata route for compiler decisions only; it does not emit objects, link a runtime, run hardware, prove correctness, or measure performance"
 # SCALAR_ONLY-SAME: reason = "emission_plan"
-# SCALAR_ONLY-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
-# SCALAR_ONLY-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
-# SCALAR_ONLY-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
-# SCALAR_ONLY-SAME: status = "unsupported"
+# SCALAR_ONLY-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
+# SCALAR_ONLY-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
+# SCALAR_ONLY-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
+# SCALAR_ONLY-SAME: status = "metadata-only"
 # SCALAR_ONLY-NOT: tcrv_rvv.lowering_boundary
 
 # SECRET: rvv_probe_to_mlir:

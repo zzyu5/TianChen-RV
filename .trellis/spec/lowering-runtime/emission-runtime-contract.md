@@ -1092,11 +1092,12 @@ Rules:
   `required_capabilities`;
 - scalar fallback boundary ops must carry `status = "metadata-only"` and
   selected variant, origin, role, and required capability reference metadata;
-- for the bounded scalar i32/i64 add/sub/mul source slice, scalar
-  plugin-local boundary materialization must identify typed selected-path
-  authority before creating the boundary: either a matching explicit
-  `tcrv_scalar.*_microkernel` direct child or a descriptorless typed default
-  materialization selected from the kernel frontend marker/default family;
+- for the bounded scalar i32/i64 add/sub/mul source slice, typed selected-path
+  compute authority exists only when a matching explicit
+  `tcrv_scalar.*_microkernel` direct child is already present; scalar
+  plugin-local boundary materialization must not synthesize a microkernel from
+  descriptorless no-body state, kernel frontend markers, bridge metadata, or a
+  default family;
 - a selected scalar fallback variant carrying only
   `tcrv_scalar.element_count` metadata must fail closed before
   `tcrv_scalar.lowering_boundary` creation unless typed scalar microkernel
@@ -1546,11 +1547,10 @@ emitted LLVM IR, generated an object, linked a runtime, executed a scalar
 kernel, proved correctness, or measured performance. Later scalar fallback
 lowering must add plugin-local lowering code and validation artifacts before
 reporting executable support. This metadata-only readiness/plan result also
-does not license metadata-only selected-boundary materialization:
+does not license metadata-alone selected-boundary materialization:
 `tcrv_scalar.element_count` metadata must not create
-`tcrv_scalar.lowering_boundary` unless a typed scalar microkernel body or
-descriptorless typed default materialization is already the selected-path
-authority.
+`tcrv_scalar.lowering_boundary` unless a typed scalar microkernel body is
+already the selected-path authority.
 
 The selected scalar fallback boundary is slightly more concrete than an
 emission-plan diagnostic because it is a scalar extension-dialect op:

@@ -61,14 +61,6 @@ module {
 // IR: tcrv_rvv.lowering_boundary {
 // IR-SAME: role = "dispatch case"
 // IR-SAME: selected_variant = @rvv_first_slice
-// IR: tcrv.exec.mem_window @abi_lhs_input_buffer
-// IR-SAME: abi_role = "lhs-input-buffer"
-// IR: tcrv.exec.mem_window @abi_rhs_input_buffer
-// IR-SAME: abi_role = "rhs-input-buffer"
-// IR: tcrv.exec.mem_window @abi_output_buffer
-// IR-SAME: abi_role = "output-buffer"
-// IR: tcrv.exec.runtime_param @abi_runtime_element_count
-// IR-SAME: abi_role = "runtime-element-count"
 // IR: tcrv_scalar.lowering_boundary
 // IR-SAME: role = "dispatch fallback"
 // IR-SAME: selected_variant = @scalar_fallback_first_slice
@@ -80,9 +72,11 @@ module {
 // IR-SAME: status = "unsupported"
 // IR-SAME: target = @rvv_first_slice
 // IR: tcrv.exec.diagnostic
-// IR-SAME: message = "runtime-callable scalar direct C source exporter was deleted; rebuild requires a materialized MLIR EmitC module source route"
+// IR-SAME: emission_kind = "portable-scalar-fallback-metadata-route"
+// IR-SAME: message = "scalar fallback first slice records a portable fallback metadata route for compiler decisions only; it does not emit objects, link a runtime, run hardware, prove correctness, or measure performance"
 // IR-SAME: role = "dispatch fallback"
-// IR-SAME: status = "unsupported"
+// IR-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
+// IR-SAME: status = "metadata-only"
 // IR-SAME: target = @scalar_fallback_first_slice
 
 // GENERIC-DELETED: requires exactly one supported source artifact emission-plan route; found none

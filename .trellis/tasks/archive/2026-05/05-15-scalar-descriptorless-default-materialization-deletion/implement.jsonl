@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and descriptor-driven computation prohibition."}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "Architecture boundaries for deletion-only work and invalid descriptor-driven microkernel/exporter framing."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Core execution-envelope boundary; compute semantics must stay in typed extension-family bodies."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Scalar fallback plugin contract and selected-boundary behavior being revised by this task."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Future correct lowering route and descriptor/default-selected compute prohibition."}

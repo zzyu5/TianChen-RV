@@ -12,7 +12,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <optional>
 #include <string>
 #include <utility>
 
@@ -47,7 +46,6 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
 constexpr llvm::StringLiteral kFallbackReasonAttrName("fallback_reason");
 constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
-constexpr std::int64_t kDefaultScalarMicrokernelElementCount = 16;
 
 using ScalarBinaryFamilyRecord =
     tianchenrv::target::rvv_scalar::RVVScalarBinaryFamilyRecord;
@@ -194,11 +192,6 @@ llvm::Error validateScalarMetadataText(llvm::StringRef context,
   return llvm::Error::success();
 }
 
-struct ScalarMicrokernelMaterializationPlan {
-  const ScalarMicrokernelFamilySpec *family = nullptr;
-  std::int64_t elementCount = 0;
-};
-
 llvm::Error validateScalarElementCountMirrorMetadataSyntax(
     tcrv::exec::VariantOp variant) {
   if (mlir::Attribute rawElementCount =
@@ -243,22 +236,6 @@ llvm::Error validateScalarElementCountMirrorAfterTypedPlan(
         " element_count before selected emission planning");
 
   return llvm::Error::success();
-}
-
-std::optional<ScalarMicrokernelMaterializationPlan>
-buildDescriptorlessDefaultScalarTypedMaterializationPlan(
-    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant) {
-  if (!kernel || !variant)
-    return std::nullopt;
-  if (variant->hasAttr(kScalarElementCountAttrName))
-    return std::nullopt;
-
-  const ScalarMicrokernelFamilySpec *family = &getI32VAddFamilySpec();
-
-  ScalarMicrokernelMaterializationPlan plan;
-  plan.family = family;
-  plan.elementCount = kDefaultScalarMicrokernelElementCount;
-  return plan;
 }
 
 llvm::Error validateMicrokernelEmissionAttr(mlir::Operation *op,
@@ -539,30 +516,6 @@ tcrv::scalar::LoweringBoundaryOp materializeScalarBoundaryOp(
   return llvm::cast<tcrv::scalar::LoweringBoundaryOp>(builder.create(state));
 }
 
-mlir::Operation *materializeScalarMicrokernelOp(
-    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
-    tcrv::exec::VariantOp variant, VariantEmissionRole role,
-    const ScalarMicrokernelMaterializationPlan &plan) {
-  auto requiredCapabilities =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-
-  llvm::StringRef opName = plan.family->getScalar().microkernelOpName;
-  mlir::OperationState state(variant.getLoc(), opName);
-  state.addAttribute(kSourceKernelAttrName,
-                     builder.getStringAttr(kernel.getSymName()));
-  state.addAttribute(kSelectedVariantAttrName,
-                     mlir::FlatSymbolRefAttr::get(builder.getContext(),
-                                                  variant.getSymName()));
-  state.addAttribute(kOriginAttrName,
-                     builder.getStringAttr(kScalarPluginName));
-  state.addAttribute(kRoleAttrName,
-                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
-  state.addAttribute(kElementCountAttrName,
-                     builder.getI64IntegerAttr(plan.elementCount));
-  state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
-  return builder.create(state);
-}
-
 llvm::Error rejectExistingScalarBoundaryForVariant(
     tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant) {
   if (!kernel || kernel.getBody().empty())
@@ -584,39 +537,6 @@ llvm::Error rejectExistingScalarBoundaryForVariant(
         llvm::Twine("requires no pre-existing "
                     "tcrv_scalar.lowering_boundary for target @") +
         targetSymbol);
-  }
-
-  return llvm::Error::success();
-}
-
-llvm::Error rejectExistingScalarMicrokernelForSelectedPath(
-    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
-    VariantEmissionRole role) {
-  if (!kernel || kernel.getBody().empty())
-    return llvm::Error::success();
-
-  llvm::StringRef expectedRole = stringifyVariantEmissionRole(role);
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    const ScalarMicrokernelFamilySpec *family =
-        getScalarMicrokernelFamilyForOp(&op);
-    if (!family)
-      continue;
-
-    auto target =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
-    auto microkernelRole = getStringAttr(&op, kRoleAttrName);
-    llvm::StringRef targetSymbol =
-        target ? target.getValue() : llvm::StringRef("<missing>");
-    llvm::StringRef roleValue = microkernelRole
-                                    ? microkernelRole.getValue()
-                                    : llvm::StringRef("<missing>");
-    if (targetSymbol != variant.getSymName() || roleValue != expectedRole)
-      continue;
-
-    return makeScalarPluginError(
-        llvm::Twine("requires no pre-existing ") +
-        family->getScalar().microkernelOpName + " for target @" +
-        targetSymbol + " as " + expectedRole);
   }
 
   return llvm::Error::success();
@@ -859,7 +779,6 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
           request.getKernel(), request.getVariant()))
     return error;
 
-  std::optional<ScalarMicrokernelMaterializationPlan> microkernelPlan;
   const ScalarMicrokernelFamilySpec *callableMicrokernelFamily = nullptr;
   bool selectedPathHasCallableMicrokernel = callableMicrokernelFamily != nullptr;
   if (!selectedPathHasCallableMicrokernel) {
@@ -876,15 +795,6 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
     selectedPathHasCallableMicrokernel = callableMicrokernelFamily != nullptr;
   }
 
-  if (!selectedPathHasCallableMicrokernel)
-    microkernelPlan = buildDescriptorlessDefaultScalarTypedMaterializationPlan(
-        request.getKernel(), request.getVariant());
-
-  if (microkernelPlan) {
-    callableMicrokernelFamily = microkernelPlan->family;
-    selectedPathHasCallableMicrokernel = callableMicrokernelFamily != nullptr;
-  }
-
   if (!selectedPathHasCallableMicrokernel &&
       hasScalarElementCountMetadata(request.getVariant())) {
     return makeScalarPluginError(
@@ -892,15 +802,9 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
         request.getVariant().getSymName() +
         " carries scalar element-count metadata '" +
         kScalarElementCountAttrName +
-        "' without a typed scalar microkernel body or descriptorless typed "
-        "default materialization; element-count metadata alone cannot create "
-        "tcrv_scalar.lowering_boundary");
+        "' without an explicit typed scalar microkernel body; element-count "
+        "metadata alone cannot create tcrv_scalar.lowering_boundary");
   }
-
-  if (microkernelPlan)
-    if (llvm::Error error = rejectExistingScalarMicrokernelForSelectedPath(
-            request.getKernel(), request.getVariant(), request.getRole()))
-      return error;
 
   if (selectedPathHasCallableMicrokernel)
     if (llvm::Error error = support::ensureRuntimeABIBufferMemWindows(
@@ -925,10 +829,6 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
   tcrv::scalar::LoweringBoundaryOp boundary = materializeScalarBoundaryOp(
       request.getBuilder(), request.getKernel(), request.getVariant(),
       request.getRole());
-  if (microkernelPlan)
-    materializeScalarMicrokernelOp(
-        request.getBuilder(), request.getKernel(), request.getVariant(),
-        request.getRole(), *microkernelPlan);
 
   out = VariantLoweringBoundaryResult::getMaterialized(
       kScalarPluginName, request.getKernel().getSymName(),
