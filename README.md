@@ -79,9 +79,9 @@ extension plugin registry. The public `tcrv-opt` pass
 `--tcrv-materialize-selected-lowering-boundaries` delegates selected direct,
 dispatch-case, and dispatch-fallback variant references to their origin plugin.
 RVV materializes `tcrv_rvv.lowering_boundary` for selected RVV paths; scalar
-fallback materializes `tcrv_scalar.lowering_boundary` for selected portable
-fallback paths. Both surfaces are compiler metadata only and do not claim
-executable lowering.
+fallback remains a generic dispatch/fallback envelope and does not currently
+materialize a scalar plugin-local selected-boundary operation. RVV boundary
+metadata is compiler metadata only and does not claim executable lowering.
 
 Emission-plan materialization also routes through the selected variant's origin
 plugin. The resulting `tcrv.exec.diagnostic {reason = "emission_plan"}`
@@ -216,10 +216,9 @@ exact capability or through an explicit module target/profile relation such as
 cost, selection, emission-readiness, and emission-plan interfaces as other
 plugins.
 
-This scalar fallback path is compiler metadata for a portable fallback route.
-It marks a generic conservative fallback role for dispatch synthesis and emits
-metadata-only readiness/plan diagnostics by default. It does not add a new
-high-level compute op, generic scalar lowering, runtime ABI integration, object
+This scalar fallback path is a conservative portable fallback proposal and
+dispatch envelope only. It does not add a new high-level compute op, generic
+scalar lowering, metadata-only emission route, runtime ABI integration, object
 generation, correctness evidence, or performance evidence.
 
 The scalar plugin no longer treats a descriptor string, default family table, or
@@ -229,16 +228,9 @@ current typed scalar microkernel attachment authority. The element count is not
 tensor shape, AVL, vl, runtime loop trip count, correctness coverage, or
 performance evidence.
 
-The scalar fallback plugin also owns the concrete `tcrv_scalar` MLIR namespace.
-Its first operation, `tcrv_scalar.lowering_boundary`, records selected fallback
-boundary metadata such as source kernel, selected variant, origin plugin,
-selected-path role, required capability references, and metadata-only status.
-It is a plugin-local attachment point for future scalar lowering work, not
-scalar computation, LLVM lowering, runtime ABI glue, object generation,
-correctness evidence, or performance evidence.
-
-The scalar dialect may still carry bounded attachment points for future scalar
-lowering work, but scalar fallback no longer has a supported direct
+The scalar fallback plugin reserves the concrete `tcrv_scalar` MLIR namespace
+for future scalar lowering work, but the namespace currently exposes no active
+selected-boundary operation. Scalar fallback also has no supported direct
 runtime-callable C source/header/object exporter. Historical scalar route
 metadata must fail closed instead of synthesizing portable C bodies from family
 records. A future scalar artifact route must be rebuilt through the shared

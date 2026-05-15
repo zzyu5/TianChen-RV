@@ -412,7 +412,7 @@ module {
     } {
     }
     tcrv.exec.diagnostic {
-      message = "select scalar fallback metadata route",
+      message = "select scalar fallback envelope",
       reason = "variant-selected",
       selection_kind = "fallback-only",
       severity = "note",
@@ -650,8 +650,10 @@ module {
           plugins.buildVariantEmissionPlan(scalarRequest, scalarPlan),
           "collect scalar fallback emission plan"))
     return result;
-  return expect(scalarPlan.isMetadataOnly(),
-                "scalar fallback emission plan remains metadata-only");
+  return expect(scalarPlan.isUnsupported() &&
+                    scalarPlan.getEmissionKind() ==
+                        "scalar-fallback-unsupported-emission",
+                "scalar fallback emission plan is unsupported fail-closed");
 }
 
 int runGenericRegistryRoutingAndDiagnosticTest() {

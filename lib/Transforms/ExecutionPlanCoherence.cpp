@@ -60,6 +60,7 @@ struct SelectedPath {
   std::string variantSymbol;
   std::string role;
   std::string origin;
+  bool requiresLoweringBoundary = true;
   mlir::Operation *loweringBoundary = nullptr;
   DiagnosticOp emissionPlan;
 };
@@ -374,7 +375,8 @@ llvm::Error collectDispatchSelectedPaths(
           tianchenrv::plugin::stringifyVariantEmissionRole(
               tianchenrv::plugin::VariantEmissionRole::DispatchCase)
               .str(),
-          std::move(origin)});
+          std::move(origin),
+          /*requiresLoweringBoundary=*/true});
       continue;
     }
 
@@ -409,7 +411,8 @@ llvm::Error collectDispatchSelectedPaths(
           tianchenrv::plugin::stringifyVariantEmissionRole(
               tianchenrv::plugin::VariantEmissionRole::DispatchFallback)
               .str(),
-          std::move(origin)});
+          std::move(origin),
+          /*requiresLoweringBoundary=*/false});
       continue;
     }
 
@@ -498,7 +501,8 @@ llvm::Error collectMarkerSelectedPath(
       tianchenrv::plugin::stringifyVariantEmissionRole(
           tianchenrv::plugin::VariantEmissionRole::DirectVariant)
           .str(),
-      std::move(origin)});
+      std::move(origin),
+      selectionKind != execDiagnostic::kFallbackOnlySelectionKindValue});
   return llvm::Error::success();
 }
 
@@ -705,6 +709,13 @@ llvm::Error validateLoweringBoundaries(KernelOp kernel,
                       "diagnostic surface");
 
     SelectedPath &path = paths[selectedIt->getValue()];
+    if (!path.requiresLoweringBoundary)
+      return makeCoherenceError(
+          kernel, llvm::Twine("selected path @") + path.variantSymbol +
+                      " as " + path.role +
+                      " does not accept a materialized plugin lowering "
+                      "boundary");
+
     std::string origin;
     if (llvm::Error error =
             requireStringAttr(kernel, &op, execDiagnostic::kOriginAttrName,
@@ -737,7 +748,7 @@ llvm::Error validateLoweringBoundaries(KernelOp kernel,
   }
 
   for (const SelectedPath &path : paths) {
-    if (path.loweringBoundary)
+    if (!path.requiresLoweringBoundary || path.loweringBoundary)
       continue;
     return makeCoherenceError(
         kernel, llvm::Twine("selected path @") + path.variantSymbol +
@@ -747,6 +758,9 @@ llvm::Error validateLoweringBoundaries(KernelOp kernel,
   }
 
   for (const SelectedPath &path : paths) {
+    if (!path.requiresLoweringBoundary)
+      continue;
+
     VariantEmissionRole role = VariantEmissionRole::DirectVariant;
     if (path.role == "dispatch case")
       role = VariantEmissionRole::DispatchCase;

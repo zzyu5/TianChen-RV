@@ -361,6 +361,7 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tcrv-opt
   tcrv-translate
   tianchenrv-capability-model-test
+  tianchenrv-plugin-emission-plan-test
   tianchenrv-plugin-variant-cost-test
   tianchenrv-plugin-registry-test
   tianchenrv-plugin-variant-legality-test

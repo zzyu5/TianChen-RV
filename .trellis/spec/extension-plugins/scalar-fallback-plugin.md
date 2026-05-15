@@ -80,23 +80,26 @@ protocol. Scalar fallback does not introduce a new core fallback selector: the
 plugin marks the proposal/cost estimate with the abstract conservative fallback
 role, and the core consumes only that generic role.
 
-## Metadata-Only Emission Boundary
+## Unsupported Emission Boundary
 
-Scalar fallback is currently a metadata-only route for compiler decisions:
+Scalar fallback is currently a fail-closed compiler-planning route. A selected
+scalar fallback proposal may remain visible to generic selection, dispatch, and
+coherence checks, but it must not become scalar compute, a metadata-only
+emission route, a runtime ABI, or target artifact authority:
 
 ```text
-readiness status: metadata-only
-emission kind: portable-scalar-fallback-metadata-route
-lowering pipeline: none-executable-metadata-only
-runtime ABI: none-metadata-only
-runtime ABI kind: host-scalar-fallback-metadata
-runtime ABI name: portable-scalar-fallback-metadata-abi.v1
-runtime glue role: metadata-only-host-fallback-boundary
+readiness status: unsupported
+emission kind: scalar-fallback-unsupported-emission
+lowering pipeline: scalar-fallback-no-materialized-emitc-route
+runtime ABI: scalar-fallback-no-runtime-abi
+runtime ABI kind: unsupported-plugin-runtime-abi
+runtime ABI name: unsupported-emission-runtime-abi
+runtime glue role: no-runtime-glue-unsupported
 required capabilities: selected scalar fallback variant required capability refs
-artifact kind: metadata-diagnostic
+artifact kind: unsupported-emission-diagnostic
 ```
 
-This metadata-only emission-plan diagnostic records plugin-owned intent only.
+This unsupported emission-plan diagnostic records a missing rebuild route only.
 It does not mean that TianChen-RV emitted LLVM IR, generated an object, linked a
 runtime, executed a scalar kernel, proved correctness, or measured performance.
 It also does not authorize metadata-alone selected lowering-boundary
@@ -104,26 +107,12 @@ materialization.
 
 ## Selected Lowering Boundary
 
-Scalar fallback participates in the generic selected lowering-boundary registry
-path. Its first selected-boundary slice validates the selected scalar fallback
-variant through the same plugin-local legality rules, then materializes a
-plugin-local scalar metadata operation. A descriptorless no-body scalar fallback
-path may materialize this metadata-only boundary, but it must not synthesize,
-accept, or preserve a typed scalar microkernel body or insert runtime ABI
-`tcrv.exec.mem_window` / `tcrv.exec.runtime_param` operations from
-scalar/RVV-scalar bridge metadata.
-
-```mlir
-tcrv_scalar.lowering_boundary {
-  source_kernel = "kernel_symbol",
-  selected_variant = @scalar_fallback_first_slice,
-  origin = "scalar-plugin",
-  role = "direct variant",
-  status = "metadata-only",
-  required_capabilities = [@scalar_fallback],
-  fallback_reason = "portable scalar fallback metadata boundary"
-}
-```
+Scalar fallback currently has no active selected lowering-boundary operation.
+Generic fallback-only and dispatch-fallback paths may keep selected `tcrv.exec`
+metadata, but they must not ask the scalar plugin to synthesize a scalar
+plugin-local boundary, runtime ABI operations, or a typed scalar microkernel
+from descriptorless no-body state, kernel frontend markers, bridge metadata, or
+a default family.
 
 Architectural family:
 
@@ -131,29 +120,27 @@ Architectural family:
 tcrv.scalar
 ```
 
-Concrete MLIR namespace:
+Reserved MLIR namespace:
 
 ```text
 tcrv_scalar
 ```
 
-The boundary op is a direct child of a `tcrv.exec.kernel`, references a direct
-sibling selected scalar fallback `tcrv.exec.variant`, and carries the selected
-variant's required capability symbol references. It must not materialize
-`tcrv_rvv` operations, must not be treated as executable lowering, and must not
-cause a missing-plugin diagnostic when selected as a fallback-only or dispatch
-fallback path.
+The reserved namespace is for a later scalar rebuild slice. It is not a current
+boundary surface and must not be treated as executable lowering, metadata-only
+emission, runtime ABI glue, object generation, correctness evidence, or
+performance evidence. Generic fallback-only and dispatch-fallback paths must not
+cause a missing-plugin diagnostic merely because no scalar boundary is
+materialized.
 
 The scalar plugin must not create any finite-family scalar microkernel from
 defaults, RVV-scalar bridge metadata, hand-authored deleted-op syntax, or any
-equivalent metadata selector. Absence of a body is a metadata-only fallback
+equivalent metadata selector. Absence of a body is an unsupported fallback
 state, not a compute authority.
 
-Downstream emission planning may consume this boundary only to materialize the
-metadata-only diagnostic above. The lowering boundary itself still records
-selected-path metadata only. It is not LLVM lowering, object generation, linked
-runtime glue, hardware execution, correctness evidence, or performance
-evidence.
+Downstream emission planning may emit only the unsupported diagnostic above for
+selected scalar fallback. It must not consume a scalar boundary as route
+authority because no active scalar boundary route exists.
 
 Real scalar fallback lowering must be added by a later plugin-local rebuild
 slice through extension-family ops and a materialized MLIR EmitC route, then

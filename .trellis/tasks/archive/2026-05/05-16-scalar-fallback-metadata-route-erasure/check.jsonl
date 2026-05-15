@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify changed behavior still preserves global TianChen-RV boundaries"}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify stale scalar metadata-route authority is not preserved"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused deletion tests and fail-closed evidence policy"}

@@ -592,6 +592,13 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
                     "deleted runtime-callable direct C route metadata\n";
     return false;
   }
+  if (!scalarBundle->getRequiredDialectNames().empty() ||
+      !scalarBundle->getLoweringBoundaryOps().empty()) {
+    llvm::errs() << "Scalar extension bundle frontdoor still publishes "
+                    "deleted metadata-only dialect or lowering-boundary "
+                    "surface\n";
+    return false;
+  }
 
   ExtensionPluginRegistry plugins;
   if (!expectSuccess(bundles.registerExtensionPlugins(plugins),

@@ -33,7 +33,6 @@ using tianchenrv::plugin::VariantLoweringBoundaryResult;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalRequest;
 using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::tcrv::scalar::LoweringBoundaryOp;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
@@ -75,32 +74,34 @@ int expectErrorContains(llvm::Error error,
   return 0;
 }
 
-int expectScalarMetadataOnlyEmissionPlan(
+int expectScalarUnsupportedEmissionPlan(
     const VariantEmissionPlan &emissionPlan, llvm::Twine context) {
-  return expect(emissionPlan.isMetadataOnly() &&
+  return expect(emissionPlan.isUnsupported() &&
                     emissionPlan.getOriginPlugin() ==
                         tianchenrv::plugin::scalar::
                             getScalarExtensionPluginName() &&
                     emissionPlan.getEmissionKind() ==
-                        "portable-scalar-fallback-metadata-route" &&
+                        "scalar-fallback-unsupported-emission" &&
                     emissionPlan.getLoweringPipeline() ==
-                        "none-executable-metadata-only" &&
-                    emissionPlan.getRuntimeABI() == "none-metadata-only" &&
+                        "scalar-fallback-no-materialized-emitc-route" &&
+                    emissionPlan.getRuntimeABI() ==
+                        "scalar-fallback-no-runtime-abi" &&
                     emissionPlan.getRuntimeABIKind() ==
-                        "host-scalar-fallback-metadata" &&
+                        "unsupported-plugin-runtime-abi" &&
                     emissionPlan.getRuntimeABIName() ==
-                        "portable-scalar-fallback-metadata-abi.v1" &&
+                        "unsupported-emission-runtime-abi" &&
                     emissionPlan.getRuntimeGlueRole() ==
-                        "metadata-only-host-fallback-boundary" &&
-                    emissionPlan.getArtifactKind() == "metadata-diagnostic" &&
-                    emissionPlan.getDiagnostic().empty() &&
+                        "no-runtime-glue-unsupported" &&
+                    emissionPlan.getArtifactKind() ==
+                        "unsupported-emission-diagnostic" &&
+                    emissionPlan.getDiagnostic().contains(
+                        "no materialized extension-family body") &&
                     emissionPlan.getRuntimeABIParameters().empty() &&
                     emissionPlan.getSelectedPlanMetadata().empty() &&
                     emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                     emissionPlan.getRequiredCapabilitySymbols().front() ==
                         "scalar_fallback" &&
-                    emissionPlan.getExplanation().contains(
-                        "portable fallback metadata route"),
+                    emissionPlan.getExplanation().empty(),
                 context);
 }
 
@@ -136,23 +137,15 @@ VariantOp findVariant(KernelOp kernel, llvm::StringRef symbolName) {
   return result;
 }
 
-LoweringBoundaryOp findScalarBoundary(KernelOp kernel,
-                                      llvm::StringRef selectedVariantSymbol) {
-  LoweringBoundaryOp result;
+bool hasScalarLoweringBoundary(KernelOp kernel) {
   if (!kernel || kernel.getBody().empty())
-    return result;
+    return false;
 
   for (mlir::Operation &op : kernel.getBody().front()) {
-    auto boundary = llvm::dyn_cast<LoweringBoundaryOp>(op);
-    if (!boundary)
-      continue;
-
-    auto selectedVariant =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
-      result = boundary;
+    if (op.getName().getStringRef() == "tcrv_scalar.lowering_boundary")
+      return true;
   }
-  return result;
+  return false;
 }
 
 int runRegistrationAndCapabilityMetadataTest() {
@@ -473,89 +466,35 @@ module {
   {
     mlir::OpBuilder::InsertionGuard guard(builder);
     builder.setInsertionPointToEnd(&kernel.getBody().front());
-    if (int result = expectSuccess(
+    if (int result = expectErrorContains(
             registry.materializeSelectedLoweringBoundary(
                 VariantLoweringBoundaryRequest(
                     variant, kernel, capabilities,
                     VariantEmissionRole::DirectVariant, builder),
                 boundaryResult),
-            "scalar fallback selected boundary materializes through plugin"))
+            {"scalar-plugin",
+             "reported unsupported lowering-boundary materialization",
+             "no longer materializes a metadata-only selected lowering "
+             "boundary"}))
       return result;
   }
   if (int result =
-          expect(boundaryResult.isMaterialized(),
-                 "scalar fallback boundary result is materialized"))
-    return result;
-  auto scalarBoundary =
-      llvm::dyn_cast_or_null<LoweringBoundaryOp>(
-          boundaryResult.getMaterializedOperation());
-  if (int result = expect(scalarBoundary,
-                          "scalar fallback boundary is a tcrv_scalar op"))
-    return result;
-  if (int result =
-          expect(scalarBoundary->getParentOp() == kernel.getOperation(),
-                 "scalar fallback boundary is a direct kernel child"))
-    return result;
-  if (int result =
-          expect(scalarBoundary->getAttrOfType<mlir::StringAttr>(
-                     "source_kernel")
-                         .getValue() == kernel.getSymName(),
-                 "scalar boundary preserves source kernel metadata"))
-    return result;
-  if (int result =
-          expect(scalarBoundary->getAttrOfType<mlir::FlatSymbolRefAttr>(
-                     "selected_variant")
-                         .getValue() == variant.getSymName(),
-                 "scalar boundary preserves selected variant reference"))
-    return result;
-  if (int result =
-          expect(scalarBoundary->getAttrOfType<mlir::StringAttr>("origin")
-                         .getValue() ==
-                     tianchenrv::plugin::scalar::
-                         getScalarExtensionPluginName(),
-                 "scalar boundary preserves origin plugin metadata"))
-    return result;
-  if (int result =
-          expect(scalarBoundary->getAttrOfType<mlir::StringAttr>("role")
-                         .getValue() == "direct variant" &&
-                     scalarBoundary->getAttrOfType<mlir::StringAttr>("status")
-                         .getValue() == "metadata-only",
-                 "scalar boundary records direct metadata-only selected path"))
-    return result;
-  if (int result =
-          expect(scalarBoundary->getAttrOfType<mlir::StringAttr>(
-                     "fallback_reason")
-                         .getValue()
-                         .contains("plugin-owned metadata only"),
-                 "scalar boundary carries non-executable fallback reason"))
-    return result;
-  auto boundaryRequires =
-      scalarBoundary->getAttrOfType<mlir::ArrayAttr>("required_capabilities");
-  if (int result = expect(boundaryRequires && boundaryRequires == requiresAttr,
-                          "scalar boundary preserves capability references"))
+          expect(!hasScalarLoweringBoundary(kernel),
+                 "scalar fallback does not materialize a lowering boundary"))
     return result;
   if (int result =
           expect(mlir::succeeded(mlir::verify(*module)),
-                 "scalar metadata boundary module verifies after materialization"))
+                 "scalar fallback module verifies without metadata boundary"))
     return result;
 
   VariantEmissionStatus status;
-  if (int result = expectSuccess(
+  if (int result = expectErrorContains(
           registry.checkVariantEmissionReadiness(
               VariantEmissionRequest(variant, kernel, capabilities,
                                      VariantEmissionRole::DirectVariant),
               status),
-          "scalar fallback metadata-only readiness is plugin-owned"))
-    return result;
-  if (int result =
-          expect(status.isMetadataOnly() &&
-                     status.getOriginPlugin() ==
-                         tianchenrv::plugin::scalar::
-                             getScalarExtensionPluginName() &&
-                     status.getVariantSymbol() == variant.getSymName() &&
-                     status.getEmissionPath() ==
-                         "portable-scalar-fallback-non-executable-metadata-route",
-                 "descriptorless no-body scalar readiness stays metadata-only"))
+          {"scalar-plugin", "reported unsupported emission path",
+           "no active EmitC lowering", "metadata-only emission route"}))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -571,9 +510,9 @@ module {
               emissionPlan.getVariantSymbol() == variant.getSymName(),
           "scalar fallback emission plan records kernel and variant"))
     return result;
-  if (int result = expectScalarMetadataOnlyEmissionPlan(
+  if (int result = expectScalarUnsupportedEmissionPlan(
           emissionPlan,
-          "descriptorless no-body scalar fallback remains metadata-only"))
+          "descriptorless no-body scalar fallback is unsupported fail-closed"))
     return result;
 
   return 0;
@@ -634,7 +573,7 @@ module {
        "must require capability id", "scalar.fallback"});
 }
 
-int runRVVDeclineStillMaterializesScalarBoundaryTest(
+int runRVVDeclineKeepsScalarFallbackEnvelopeBoundarylessTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -642,7 +581,7 @@ module {
     return
   }
 
-  tcrv.exec.kernel @rvv_decline_scalar_boundary attributes {} {
+  tcrv.exec.kernel @rvv_decline_scalar_envelope attributes {} {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -659,13 +598,13 @@ module {
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
-    return fail("failed to parse RVV-decline scalar boundary module");
+    return fail("failed to parse RVV-decline scalar envelope module");
 
   mlir::func::FuncOp highLevelOp = findHighLevelPlaceholder(*module);
-  KernelOp kernel = findKernel(*module, "rvv_decline_scalar_boundary");
+  KernelOp kernel = findKernel(*module, "rvv_decline_scalar_envelope");
   if (int result =
           expect(highLevelOp && kernel,
-                 "RVV-decline scalar boundary module has anchors"))
+                 "RVV-decline scalar envelope module has anchors"))
     return result;
 
   ExtensionPluginRegistry registry;
@@ -714,16 +653,16 @@ module {
   if (int result = expectSuccess(
           tianchenrv::plugin::materializeSelectedLoweringBoundaries(
               kernel, capabilities, registry),
-          "materialize scalar boundary after RVV decline"))
+          "fallback-only scalar envelope does not require boundary materialization"))
     return result;
 
   if (int result =
-          expect(findScalarBoundary(kernel, scalarVariant.getSymName()),
-                 "RVV decline does not block scalar boundary materialization"))
+          expect(!hasScalarLoweringBoundary(kernel),
+                 "RVV decline does not materialize a scalar lowering boundary"))
     return result;
   if (int result =
           expect(mlir::succeeded(mlir::verify(*module)),
-                 "RVV-decline scalar boundary module verifies"))
+                 "RVV-decline scalar envelope module verifies"))
     return result;
 
   return 0;
@@ -838,7 +777,8 @@ int main() {
     return result;
   if (int result = runBoundaryMaterializationRejectionTest(context))
     return result;
-  if (int result = runRVVDeclineStillMaterializesScalarBoundaryTest(context))
+  if (int result =
+          runRVVDeclineKeepsScalarFallbackEnvelopeBoundarylessTest(context))
     return result;
   if (int result = runLegalityRejectionTest(context))
     return result;

@@ -1,8 +1,7 @@
 // RUN: tcrv-opt %s --split-input-file --verify-diagnostics --tcrv-materialize-emission-plans
 
 module {
-  // expected-error@+1 {{selected path @scalar_fallback_first_slice as direct variant requires one materialized plugin lowering boundary before emission planning}}
-  tcrv.exec.kernel @missing_scalar_boundary {
+  tcrv.exec.kernel @fallback_only_scalar_without_boundary {
     tcrv.exec.capability @scalar_fallback {
       id = "scalar.fallback",
       kind = "fallback",
@@ -14,7 +13,7 @@ module {
     } {
     }
     tcrv.exec.diagnostic {
-      message = "selected scalar fallback path",
+      message = "selected scalar fallback envelope",
       reason = "variant-selected",
       selection_kind = "fallback-only",
       status = "selected",
@@ -71,7 +70,7 @@ module {
     tcrv.exec.diagnostic {
       message = "selected scalar fallback path",
       reason = "variant-selected",
-      selection_kind = "fallback-only",
+      selection_kind = "static-variant",
       status = "selected",
       target = @scalar_fallback_first_slice
     }
@@ -111,7 +110,7 @@ module {
     tcrv.exec.diagnostic {
       message = "selected scalar fallback path changed",
       reason = "variant-selected",
-      selection_kind = "fallback-only",
+      selection_kind = "static-variant",
       status = "selected",
       target = @scalar_fallback_first_slice
     }
@@ -146,7 +145,7 @@ module {
     tcrv.exec.diagnostic {
       message = "selected scalar fallback path",
       reason = "variant-selected",
-      selection_kind = "fallback-only",
+      selection_kind = "static-variant",
       status = "selected",
       target = @scalar_fallback_first_slice
     }
@@ -196,7 +195,7 @@ module {
     tcrv.exec.diagnostic {
       message = "selected scalar fallback path",
       reason = "variant-selected",
-      selection_kind = "fallback-only",
+      selection_kind = "static-variant",
       status = "selected",
       target = @scalar_fallback_first_slice
     }

@@ -575,3 +575,81 @@ test now asserts only the generic no-viable planning failure.
 - Keep the RVV probe/bundle fixture erasure deletion-only. If the `PIPE-NOT`
   and selected-shape legality failures need repair, open a separate rebuild
   task instead of restoring the deleted no-body contract.
+
+## Session 84: Scalar fallback metadata-route erasure
+
+**Date**: 2026-05-16
+**Task**: Scalar fallback metadata-route erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the active scalar fallback metadata-only selected-boundary and emission
+route. Scalar fallback remains a generic capability/proposal/fallback envelope,
+but no longer materializes a scalar plugin-local lowering boundary, metadata
+runtime ABI, metadata artifact route, or scalar bundle boundary surface.
+
+### Main Changes
+
+- Removed the scalar lowering-boundary op from the scalar dialect and reduced
+  the dialect to a reserved empty namespace for future rebuild work.
+- Reworked the scalar plugin to fail closed with unsupported emission readiness,
+  unsupported emission-plan diagnostics, and unsupported direct boundary
+  materialization instead of metadata-only route fields.
+- Changed generic lowering-boundary, emission-readiness, and coherence handling
+  so fallback-only and dispatch-fallback paths do not require or accept a
+  materialized plugin boundary.
+- Removed scalar dialect/lowering-boundary publication from the built-in scalar
+  extension bundle.
+- Rewrote scalar/probe/dispatch/manifest/coherence tests to assert unsupported
+  scalar emission or absent/deleted scalar boundary behavior rather than
+  metadata-route authority.
+- Updated README and Trellis specs that still instructed agents to preserve the
+  deleted scalar metadata route.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(scalar): erase fallback metadata route |
+
+### Testing
+
+- [OK] `ninja -C build tcrv-opt tcrv-translate tianchenrv-scalar-extension-plugin-test tianchenrv-rvv-lowering-boundary-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-scalar-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-lowering-boundary-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-emission-readiness-test`
+- [OK] `build/bin/tianchenrv-plugin-emission-plan-test`
+- [OK] focused lit/FileCheck filter covering scalar dialect, probe replay,
+  emission readiness, lowering boundary, execution-plan coherence, emission
+  manifest, RVV/scalar dispatch, execution planning, plugin legality, and
+  plugin emission-plan tests: 15 selected / 15 passed.
+- [OK] focused active-surface old-route scan: the old metadata route ids
+  `portable-scalar-fallback-metadata-route`,
+  `host-scalar-fallback-metadata`, and
+  `metadata-only-host-fallback-boundary` remain only in the current task PRD
+  before archive; active code, tests, README, and specs have no hits.
+- [OK] focused README/spec scan found no active hits for the deleted scalar
+  boundary op spelling or old metadata route ids.
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-16-scalar-fallback-metadata-route-erasure`
+- [WARN] `ninja -C build check-tianchenrv` was attempted after self-repairing
+  the scalar/emission-readiness and missing test dependency failures. It still
+  fails in 3 RVV stale-baseline tests outside this scalar deletion scope:
+  `Transforms/PluginVariantLegality/plugin-variant-legality-pass-invalid.mlir`,
+  `Transforms/LoweringBoundary/rvv-lowering-boundary-malformed.mlir`, and
+  `Transforms/LoweringBoundary/rvv-i32m1-policy-capability-fails.mlir`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Keep scalar fallback as a no-boundary unsupported fallback envelope until a
+  later rebuild task adds real extension-family ops, materialized EmitC, runtime
+  ABI, and evidence. Do not restore the scalar metadata-only route to satisfy
+  stale tests.
+- If desired, open a separate RVV baseline repair task for the 3 stale
+  selected-shape/policy legality expectations left by `check-tianchenrv`.

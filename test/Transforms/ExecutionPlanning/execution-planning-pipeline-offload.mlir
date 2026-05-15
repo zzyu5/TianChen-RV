@@ -208,10 +208,9 @@ module {
     // PIPE-NOT: tcrv.exec.variant @offload_runtime_first_slice
     // PIPE: tcrv.exec.variant @scalar_fallback_first_slice
     // PIPE-SAME: origin = "scalar-plugin"
-    // PIPE: tcrv_scalar.lowering_boundary
-    // PIPE-SAME: selected_variant = @scalar_fallback_first_slice
+    // PIPE-NOT: tcrv_scalar.lowering_boundary
     // PIPE-NOT: tcrv_offload.lowering_boundary
-    // PIPE: tcrv.exec.diagnostic
+    // PIPE: tcrv.exec.diagnostic {artifact_kind = "unsupported-emission-diagnostic", emission_kind = "scalar-fallback-unsupported-emission"
     // PIPE-SAME: target = @scalar_fallback_first_slice
 
     // ROUNDTRIP-NOT: tcrv.exec.variant @offload_runtime_first_slice
@@ -241,10 +240,9 @@ module {
     // PIPE-NOT: tcrv.exec.variant @offload_runtime_first_slice
     // PIPE: tcrv.exec.variant @scalar_fallback_first_slice
     // PIPE-SAME: origin = "scalar-plugin"
-    // PIPE: tcrv_scalar.lowering_boundary
-    // PIPE-SAME: selected_variant = @scalar_fallback_first_slice
+    // PIPE-NOT: tcrv_scalar.lowering_boundary
     // PIPE-NOT: tcrv_offload.lowering_boundary
-    // PIPE: tcrv.exec.diagnostic
+    // PIPE: tcrv.exec.diagnostic {artifact_kind = "unsupported-emission-diagnostic", emission_kind = "scalar-fallback-unsupported-emission"
     // PIPE-SAME: target = @scalar_fallback_first_slice
 
     // ROUNDTRIP-NOT: tcrv.exec.variant @offload_runtime_first_slice

@@ -227,14 +227,6 @@ module {
       status = "unsupported",
       unsupported_reason = "unsupported RVV pre-executable boundary metadata only"
     }
-    tcrv_scalar.lowering_boundary {
-      origin = "scalar-plugin",
-      required_capabilities = [@scalar_fallback],
-      role = "dispatch fallback",
-      selected_variant = @scalar_fallback_first_slice,
-      source_kernel = "dispatch_order_is_stable",
-      status = "metadata-only"
-    }
     // CHECK: tcrv.exec.diagnostic
     // CHECK-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
     // CHECK-SAME: reason = "emission_plan"
@@ -254,13 +246,14 @@ module {
     // CHECK-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
     // CHECK-SAME: target = @rvv_case_a
     // CHECK: tcrv.exec.diagnostic
-    // CHECK-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
+    // CHECK-SAME: emission_kind = "scalar-fallback-unsupported-emission"
     // CHECK-SAME: reason = "emission_plan"
     // CHECK-SAME: required_capabilities = [@scalar_fallback]
     // CHECK-SAME: role = "dispatch fallback"
-    // CHECK-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
-    // CHECK-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
-    // CHECK-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
+    // CHECK-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+    // CHECK-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
+    // CHECK-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
+    // CHECK-SAME: status = "unsupported"
     // CHECK-SAME: target = @scalar_fallback_first_slice
   }
 }

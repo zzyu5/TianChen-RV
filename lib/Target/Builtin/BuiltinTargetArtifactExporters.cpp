@@ -129,8 +129,6 @@ llvm::Error registerScalarExtensionBundle(ExtensionBundleRegistry &registry) {
   ExtensionBundle bundle("scalar-extension-bundle",
                          plugin::scalar::getScalarExtensionPluginName(),
                          plugin::registerScalarExtensionPlugin);
-  bundle.addRequiredDialectName("tcrv_scalar");
-  bundle.addLoweringBoundaryOp("tcrv_scalar.lowering_boundary");
   return registry.registerBundle(bundle);
 }
 

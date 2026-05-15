@@ -19,7 +19,7 @@ module @manifest_inputs {
       message = "fallback-only variant selected by generic cost and capability planning",
       origin = "scalar-plugin",
       preference_available = true,
-      preference_explanation = "portable scalar fallback first slice; coverage-oriented metadata route, not a performance claim",
+      preference_explanation = "portable scalar fallback first slice; conservative fallback envelope, not an executable route or performance claim",
       preference_policy = "prefer only as conservative fallback when better plugin-owned variants are unavailable or not selected",
       preference_rank = 0 : i64,
       preference_score = 1000.0 : f64,
@@ -30,32 +30,22 @@ module @manifest_inputs {
       status = "selected",
       target = @scalar_fallback_first_slice
     }
-    tcrv_scalar.lowering_boundary {
-      fallback_reason = "scalar fallback selected boundary is plugin-owned metadata only",
-      origin = "scalar-plugin",
-      required_capabilities = [@scalar_fallback],
-      role = "direct variant",
-      selected_variant = @scalar_fallback_first_slice,
-      source_kernel = "z_scalar_direct",
-      status = "metadata-only"
-    }
     tcrv.exec.diagnostic {
-      artifact_kind = "metadata-diagnostic",
-      emission_kind = "portable-scalar-fallback-metadata-route",
-      lowering_boundary = "tcrv_scalar.lowering_boundary",
-      lowering_pipeline = "none-executable-metadata-only",
-      message = "scalar fallback first slice records a portable fallback metadata route for compiler decisions only; it does not emit objects, link a runtime, run hardware, prove correctness, or measure performance",
+      artifact_kind = "unsupported-emission-diagnostic",
+      emission_kind = "scalar-fallback-unsupported-emission",
+      lowering_pipeline = "scalar-fallback-no-materialized-emitc-route",
+      message = "scalar fallback first slice has no materialized extension-family body, EmitC lowering, runtime ABI, target artifact route, or metadata-only emission route",
       origin = "scalar-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",
       required_capabilities = [@scalar_fallback],
       role = "direct variant",
-      runtime_abi = "none-metadata-only",
-      runtime_abi_kind = "host-scalar-fallback-metadata",
-      runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1",
-      runtime_glue_role = "metadata-only-host-fallback-boundary",
-      severity = "note",
-      status = "metadata-only",
+      runtime_abi = "scalar-fallback-no-runtime-abi",
+      runtime_abi_kind = "unsupported-plugin-runtime-abi",
+      runtime_abi_name = "unsupported-emission-runtime-abi",
+      runtime_glue_role = "no-runtime-glue-unsupported",
+      severity = "error",
+      status = "unsupported",
       target = @scalar_fallback_first_slice
     }
   }
@@ -175,7 +165,7 @@ module @manifest_inputs {
         fallback_role = "conservative",
         origin = "scalar-plugin",
         preference_available = true,
-        preference_explanation = "portable scalar fallback first slice; coverage-oriented metadata route, not a performance claim",
+        preference_explanation = "portable scalar fallback first slice; conservative fallback envelope, not an executable route or performance claim",
         preference_policy = "prefer only as conservative fallback when better plugin-owned variants are unavailable or not selected",
         preference_rank = 1 : i64,
         preference_score = 1000.0 : f64,
@@ -191,15 +181,6 @@ module @manifest_inputs {
       source_kernel = "m_dispatch",
       status = "unsupported",
       unsupported_reason = "RVV lowering boundary is pre-executable metadata only"
-    }
-    tcrv_scalar.lowering_boundary {
-      fallback_reason = "scalar fallback selected boundary is plugin-owned metadata only",
-      origin = "scalar-plugin",
-      required_capabilities = [@scalar_fallback],
-      role = "dispatch fallback",
-      selected_variant = @scalar_fallback_first_slice,
-      source_kernel = "m_dispatch",
-      status = "metadata-only"
     }
     tcrv.exec.diagnostic {
       artifact_kind = "unsupported-emission-diagnostic",
@@ -221,22 +202,21 @@ module @manifest_inputs {
       target = @rvv_case
     }
     tcrv.exec.diagnostic {
-      artifact_kind = "metadata-diagnostic",
-      emission_kind = "portable-scalar-fallback-metadata-route",
-      lowering_boundary = "tcrv_scalar.lowering_boundary",
-      lowering_pipeline = "none-executable-metadata-only",
-      message = "scalar fallback first slice records a portable fallback metadata route for compiler decisions only; it does not emit objects, link a runtime, run hardware, prove correctness, or measure performance",
+      artifact_kind = "unsupported-emission-diagnostic",
+      emission_kind = "scalar-fallback-unsupported-emission",
+      lowering_pipeline = "scalar-fallback-no-materialized-emitc-route",
+      message = "scalar fallback first slice has no materialized extension-family body, EmitC lowering, runtime ABI, target artifact route, or metadata-only emission route",
       origin = "scalar-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",
       required_capabilities = [@scalar_fallback],
       role = "dispatch fallback",
-      runtime_abi = "none-metadata-only",
-      runtime_abi_kind = "host-scalar-fallback-metadata",
-      runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1",
-      runtime_glue_role = "metadata-only-host-fallback-boundary",
-      severity = "note",
-      status = "metadata-only",
+      runtime_abi = "scalar-fallback-no-runtime-abi",
+      runtime_abi_kind = "unsupported-plugin-runtime-abi",
+      runtime_abi_name = "unsupported-emission-runtime-abi",
+      runtime_glue_role = "no-runtime-glue-unsupported",
+      severity = "error",
+      status = "unsupported",
       target = @scalar_fallback_first_slice
     }
   }
@@ -277,13 +257,12 @@ module @manifest_inputs {
 // CHECK: selected_variant: @scalar_fallback_first_slice
 // CHECK: role: "dispatch fallback"
 // CHECK: origin: "scalar-plugin"
-// CHECK: emission_status: "metadata-only"
-// CHECK: emission_kind: "portable-scalar-fallback-metadata-route"
-// CHECK: lowering_boundary: "tcrv_scalar.lowering_boundary"
-// CHECK: runtime_abi: "none-metadata-only"
-// CHECK: runtime_abi_kind: "host-scalar-fallback-metadata"
-// CHECK: runtime_abi_name: "portable-scalar-fallback-metadata-abi.v1"
-// CHECK: runtime_glue_role: "metadata-only-host-fallback-boundary"
+// CHECK: emission_status: "unsupported"
+// CHECK: emission_kind: "scalar-fallback-unsupported-emission"
+// CHECK: runtime_abi: "scalar-fallback-no-runtime-abi"
+// CHECK: runtime_abi_kind: "unsupported-plugin-runtime-abi"
+// CHECK: runtime_abi_name: "unsupported-emission-runtime-abi"
+// CHECK: runtime_glue_role: "no-runtime-glue-unsupported"
 // CHECK: required_capabilities: [@scalar_fallback]
 // CHECK: fallback_role: "conservative"
 
@@ -293,12 +272,11 @@ module @manifest_inputs {
 // CHECK: selected_variant: @scalar_fallback_first_slice
 // CHECK: role: "direct variant"
 // CHECK: origin: "scalar-plugin"
-// CHECK: emission_status: "metadata-only"
-// CHECK: emission_kind: "portable-scalar-fallback-metadata-route"
-// CHECK: lowering_boundary: "tcrv_scalar.lowering_boundary"
-// CHECK: runtime_abi_kind: "host-scalar-fallback-metadata"
-// CHECK: runtime_abi_name: "portable-scalar-fallback-metadata-abi.v1"
-// CHECK: runtime_glue_role: "metadata-only-host-fallback-boundary"
+// CHECK: emission_status: "unsupported"
+// CHECK: emission_kind: "scalar-fallback-unsupported-emission"
+// CHECK: runtime_abi_kind: "unsupported-plugin-runtime-abi"
+// CHECK: runtime_abi_name: "unsupported-emission-runtime-abi"
+// CHECK: runtime_glue_role: "no-runtime-glue-unsupported"
 // CHECK: required_capabilities: [@scalar_fallback]
 // CHECK: preference:
 // CHECK: available: true

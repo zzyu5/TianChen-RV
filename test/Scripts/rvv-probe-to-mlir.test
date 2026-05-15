@@ -119,34 +119,34 @@
 # PIPE-SAME: mask_policy = "agnostic"
 # PIPE: tcrv.exec.capability @rvv_probe_compile_run
 # PIPE-SAME: selected_march = "rv64gcv"
-# PIPE-NOT: tcrv.exec.variant @rvv_first_slice
+# PIPE: tcrv.exec.variant @rvv_first_slice
+# PIPE-SAME: origin = "rvv-plugin"
+# PIPE-SAME: requires = [@rvv
 # PIPE: tcrv.exec.variant @scalar_fallback_first_slice
 # PIPE-SAME: origin = "scalar-plugin"
 # PIPE-SAME: requires = [@scalar_fallback]
 # PIPE-NOT: tcrv.exec.dispatch
 # PIPE: tcrv.exec.diagnostic
 # PIPE-SAME: reason = "variant-selected"
-# PIPE-SAME: selection_kind = "fallback-only"
-# PIPE-SAME: target = @scalar_fallback_first_slice
-# PIPE: tcrv_scalar.lowering_boundary
-# PIPE-SAME: origin = "scalar-plugin"
-# PIPE-SAME: required_capabilities = [@scalar_fallback]
+# PIPE-SAME: selection_kind = "static-variant"
+# PIPE-SAME: target = @rvv_first_slice
+# PIPE: tcrv_rvv.lowering_boundary
 # PIPE-SAME: role = "direct variant"
-# PIPE-SAME: selected_variant = @scalar_fallback_first_slice
+# PIPE-SAME: selected_variant = @rvv_first_slice
 # PIPE-SAME: source_kernel = "rvv_probe_replay"
-# PIPE-SAME: status = "metadata-only"
+# PIPE-SAME: status = "unsupported"
 # PIPE: tcrv.exec.diagnostic
-# PIPE-SAME: emission_kind = "portable-scalar-fallback-metadata-route"
-# PIPE-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
-# PIPE-SAME: message = "scalar fallback first slice records a portable fallback metadata route for compiler decisions only; it does not emit objects, link a runtime, run hardware, prove correctness, or measure performance"
+# PIPE-SAME: emission_kind = "rvv-unsupported-metadata-boundary"
+# PIPE-SAME: lowering_boundary = "tcrv_rvv.lowering_boundary"
+# PIPE-SAME: message = "RVV first slice has no materialized EmitC lowering, runtime ABI, artifact contract, or executable emission path"
 # PIPE-SAME: reason = "emission_plan"
 # PIPE-SAME: role = "direct variant"
-# PIPE-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
-# PIPE-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
-# PIPE-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
-# PIPE-SAME: status = "metadata-only"
-# PIPE-SAME: target = @scalar_fallback_first_slice
-# PIPE-NOT: tcrv_rvv.lowering_boundary
+# PIPE-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+# PIPE-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
+# PIPE-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
+# PIPE-SAME: status = "unsupported"
+# PIPE-SAME: target = @rvv_first_slice
+# PIPE-NOT: tcrv_scalar.lowering_boundary
 
 # SCALAR_ONLY-NOT: tcrv.exec.variant @rvv_first_slice
 # SCALAR_ONLY: tcrv.exec.variant @scalar_fallback_first_slice
@@ -156,17 +156,15 @@
 # SCALAR_ONLY-SAME: reason = "variant-selected"
 # SCALAR_ONLY-SAME: selection_kind = "fallback-only"
 # SCALAR_ONLY-SAME: target = @scalar_fallback_first_slice
-# SCALAR_ONLY: tcrv_scalar.lowering_boundary
-# SCALAR_ONLY-SAME: selected_variant = @scalar_fallback_first_slice
+# SCALAR_ONLY-NOT: tcrv_scalar.lowering_boundary
 # SCALAR_ONLY: tcrv.exec.diagnostic
-# SCALAR_ONLY-SAME: emission_kind = "portable-scalar-fallback-metadata-route"
-# SCALAR_ONLY-SAME: lowering_boundary = "tcrv_scalar.lowering_boundary"
-# SCALAR_ONLY-SAME: message = "scalar fallback first slice records a portable fallback metadata route for compiler decisions only; it does not emit objects, link a runtime, run hardware, prove correctness, or measure performance"
+# SCALAR_ONLY-SAME: emission_kind = "scalar-fallback-unsupported-emission"
+# SCALAR_ONLY-SAME: message = "scalar fallback first slice has no materialized extension-family body, EmitC lowering, runtime ABI, target artifact route, or metadata-only emission route"
 # SCALAR_ONLY-SAME: reason = "emission_plan"
-# SCALAR_ONLY-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
-# SCALAR_ONLY-SAME: runtime_abi_name = "portable-scalar-fallback-metadata-abi.v1"
-# SCALAR_ONLY-SAME: runtime_glue_role = "metadata-only-host-fallback-boundary"
-# SCALAR_ONLY-SAME: status = "metadata-only"
+# SCALAR_ONLY-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+# SCALAR_ONLY-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
+# SCALAR_ONLY-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
+# SCALAR_ONLY-SAME: status = "unsupported"
 # SCALAR_ONLY-NOT: tcrv_rvv.lowering_boundary
 
 # SECRET: rvv_probe_to_mlir:

@@ -282,9 +282,13 @@ llvm::Error collectSelectedMarkerEmissionReference(
           kernel, diagnostic, directVariants, directSymbols, variant))
     return error;
 
-  references.push_back(
-      EmissionReference{variant, VariantEmissionRole::DirectVariant,
-                        /*requiresLoweringBoundary=*/true});
+  auto selectionKind =
+      diagnostic->getAttrOfType<mlir::StringAttr>(kSelectionKindAttrName);
+  bool requiresLoweringBoundary =
+      selectionKind.getValue() != kFallbackOnlySelectionKindValue;
+  references.push_back(EmissionReference{variant,
+                                         VariantEmissionRole::DirectVariant,
+                                         requiresLoweringBoundary});
   return llvm::Error::success();
 }
 
@@ -387,7 +391,7 @@ llvm::Error collectDispatchEmissionReferences(
         return error;
       fallbackReferences.push_back(
           EmissionReference{variant, VariantEmissionRole::DispatchFallback,
-                            /*requiresLoweringBoundary=*/true});
+                            /*requiresLoweringBoundary=*/false});
       continue;
     }
 

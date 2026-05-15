@@ -1015,9 +1015,9 @@ Before executable lowering exists, the compiler may materialize selected-path
 lowering-boundary metadata through the generic extension plugin registry. RVV is
 the first plugin that creates a plugin-local `tcrv_rvv.lowering_boundary`
 operation for selected RVV direct variants or dispatch cases. Scalar fallback
-creates a plugin-local `tcrv_scalar.lowering_boundary` operation for selected
-portable fallback paths. These structures are attachment points for future
-lowering work, not executable lowering products.
+currently remains a no-boundary generic fallback envelope and has no scalar
+plugin-local selected-boundary operation. RVV boundary structures are attachment
+points for future lowering work, not executable lowering products.
 
 Rules:
 
@@ -1027,25 +1027,19 @@ Rules:
   the selected variant's origin plugin before any plugin-local metadata is
   created;
 - scalar or other fallback references remain selected `tcrv.exec` metadata and
-  are routed to their origin plugin; scalar fallback materializes scalar
-  plugin-local metadata and must not receive RVV ops;
+  are routed through their generic fallback envelope; scalar fallback must not
+  receive RVV ops and must not synthesize a scalar plugin-local boundary;
 - RVV boundary ops must carry `status = "unsupported"` and a non-empty
   unsupported reason;
-- RVV and scalar fallback boundary ops must carry the generic selected-boundary
-  contract fields needed by downstream emission planning: `source_kernel`,
-  `selected_variant`, `origin`, `role`, `status`, and
-  `required_capabilities`;
-- scalar fallback boundary ops must carry `status = "metadata-only"` and
-  selected variant, origin, role, and required capability reference metadata;
+- RVV boundary ops must carry the generic selected-boundary contract fields
+  needed by downstream emission planning: `source_kernel`, `selected_variant`,
+  `origin`, `role`, `status`, and `required_capabilities`;
 - the bounded scalar source slice has no active typed scalar microkernel
   authority; historical scalar microkernel syntax must fail closed and scalar
-  plugin-local boundary materialization must not synthesize a microkernel from
-  descriptorless no-body state, kernel frontend markers, bridge metadata, or a
-  default family;
-- deleted scalar element-count metadata is not selected-boundary authority:
-  scalar plugin-local boundary materialization is authorized by selected variant
-  origin, `requires`, and available capability facts, not by scalar element
-  counts;
+  fallback must not synthesize a microkernel from descriptorless no-body state,
+  kernel frontend markers, bridge metadata, or a default family;
+- deleted scalar element-count metadata is not selected-boundary authority and
+  must not authorize scalar boundary materialization;
 - selected lowering-boundary metadata must not claim intrinsics, LLVM/RISC-V
   lowering, runtime ABI glue, generated objects, hardware execution,
   correctness, or performance.
@@ -1460,40 +1454,31 @@ artifact kind: unsupported-deleted-direct-c-route
 This plan is a deletion diagnostic only. It is not a compiler handoff to a C
 source exporter.
 
-## Scalar Fallback Metadata Boundary
+## Scalar Fallback Unsupported Boundary
 
-The first scalar fallback plugin slice may return a metadata-only emission
-readiness result and materialize a metadata-only emission-plan diagnostic for
-the portable fallback route:
+The first scalar fallback plugin slice may keep the portable fallback proposal
+visible to generic planning, but selected scalar fallback has no active EmitC
+lowering, runtime ABI, target artifact route, or metadata-only emission route.
+It must therefore return an unsupported emission readiness result and materialize
+only a fail-closed emission-plan diagnostic:
 
 ```text
-status: metadata-only
-emission kind: portable-scalar-fallback-metadata-route
-lowering pipeline: none-executable-metadata-only
-runtime ABI: none-metadata-only
-runtime ABI kind: host-scalar-fallback-metadata
-runtime ABI name: portable-scalar-fallback-metadata-abi.v1
-runtime glue role: metadata-only-host-fallback-boundary
-artifact kind: metadata-diagnostic
+status: unsupported
+emission kind: scalar-fallback-unsupported-emission
+lowering pipeline: scalar-fallback-no-materialized-emitc-route
+runtime ABI: scalar-fallback-no-runtime-abi
+runtime ABI kind: unsupported-plugin-runtime-abi
+runtime ABI name: unsupported-emission-runtime-abi
+runtime glue role: no-runtime-glue-unsupported
+artifact kind: unsupported-emission-diagnostic
 ```
 
 This is still compiler-decision metadata. It does not prove that TianChen-RV
 emitted LLVM IR, generated an object, linked a runtime, executed a scalar
 kernel, proved correctness, or measured performance. Later scalar fallback
 lowering must add plugin-local lowering code and validation artifacts before
-reporting executable support. This metadata-only readiness/plan result also
-does not license metadata-alone selected-boundary materialization: selected
-scalar fallback origin, required capability references, and available
-capability facts authorize `tcrv_scalar.lowering_boundary`, not deleted scalar
-element-count metadata.
-
-The selected scalar fallback boundary is slightly more concrete than an
-emission-plan diagnostic because it is a scalar extension-dialect op:
-`tcrv_scalar.lowering_boundary`. It records selected fallback metadata and
-required capability references, but it remains metadata-only and non-executable.
-It is not evidence that the compiler emitted LLVM IR, assembled an object,
-linked runtime glue, ran a scalar kernel, proved correctness, or measured
-performance.
+reporting executable support. This unsupported readiness/plan result also does
+not license metadata-alone selected-boundary materialization.
 
 ## Deleted Scalar Explicit Microkernel Target Export Boundary
 
@@ -1528,9 +1513,6 @@ Contracts:
 - Input must be real post-planning MLIR with one selected scalar fallback path.
 - The selected variant must be owned by `origin = "scalar-plugin"` and require
   an available capability whose id is `scalar.fallback`.
-- A matching direct child `tcrv_scalar.lowering_boundary` must identify the
-  same source kernel, selected variant, origin, role, metadata-only status, and
-  required capability refs.
 - Deleted finite-family scalar microkernel syntax must not be accepted as
   active route authority; if any historical fixture still contains that syntax,
   it must fail closed before source output.
@@ -1538,10 +1520,10 @@ Contracts:
 - Historical selected metadata may remain parseable only as fail-closed input
   for deleted-route diagnostics.
 
-Missing selected scalar path, missing or stale scalar lowering boundary,
-deleted scalar microkernel syntax, unavailable fallback capability, unknown
-route id, unsupported artifact kind, route spoofing, offload-only paths, and
-ambiguous multiple supported artifacts must fail before source output.
+Missing selected scalar path, deleted scalar microkernel syntax, unavailable
+fallback capability, unknown route id, unsupported artifact kind, route
+spoofing, offload-only paths, and ambiguous multiple supported artifacts must
+fail before source output.
 
 ## Support-Layer Finite Binary Runtime ABI Contract
 

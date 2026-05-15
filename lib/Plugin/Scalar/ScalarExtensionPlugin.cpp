@@ -2,7 +2,6 @@
 
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
 #include "mlir/IR/Attributes.h"
-#include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "llvm/Support/Errc.h"
 
@@ -22,16 +21,8 @@ constexpr llvm::StringLiteral kScalarFallbackFirstSliceVariantName(
     "scalar_fallback_first_slice");
 constexpr llvm::StringLiteral kScalarFallbackPolicy(
     "portable_scalar_fallback_first_slice");
-constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
-constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
-constexpr llvm::StringLiteral kRoleAttrName("role");
-constexpr llvm::StringLiteral kStatusAttrName("status");
-constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
-    "required_capabilities");
-constexpr llvm::StringLiteral kFallbackReasonAttrName("fallback_reason");
-constexpr llvm::StringLiteral kMetadataOnlyStatusValue("metadata-only");
 
 llvm::Error makeScalarPluginError(llvm::Twine message);
 
@@ -81,63 +72,6 @@ llvm::Expected<bool> variantRequiresScalarFallback(
   }
 
   return false;
-}
-
-tcrv::scalar::LoweringBoundaryOp materializeScalarBoundaryOp(
-    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
-    tcrv::exec::VariantOp variant, VariantEmissionRole role) {
-  builder.getContext()->getOrLoadDialect<tcrv::scalar::TCRVScalarDialect>();
-
-  auto requiredCapabilities =
-      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
-
-  mlir::OperationState state(
-      variant.getLoc(), tcrv::scalar::LoweringBoundaryOp::getOperationName());
-  state.addAttribute(kSourceKernelAttrName,
-                     builder.getStringAttr(kernel.getSymName()));
-  state.addAttribute(kSelectedVariantAttrName,
-                     mlir::FlatSymbolRefAttr::get(builder.getContext(),
-                                                  variant.getSymName()));
-  state.addAttribute(kOriginAttrName,
-                     builder.getStringAttr(kScalarPluginName));
-  state.addAttribute(kRoleAttrName,
-                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
-  state.addAttribute(kStatusAttrName,
-                     builder.getStringAttr(kMetadataOnlyStatusValue));
-  state.addAttribute(kRequiredCapabilitiesAttrName, requiredCapabilities);
-  state.addAttribute(
-      kFallbackReasonAttrName,
-      builder.getStringAttr(
-          "scalar fallback selected boundary is plugin-owned metadata only; "
-          "no scalar executable lowering, runtime ABI, generated artifact, "
-          "correctness proof, or performance measurement is produced"));
-  return llvm::cast<tcrv::scalar::LoweringBoundaryOp>(builder.create(state));
-}
-
-llvm::Error rejectExistingScalarBoundaryForVariant(
-    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant) {
-  if (!kernel || kernel.getBody().empty())
-    return llvm::Error::success();
-
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto boundary = llvm::dyn_cast<tcrv::scalar::LoweringBoundaryOp>(op);
-    if (!boundary)
-      continue;
-
-    auto target =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
-    llvm::StringRef targetSymbol =
-        target ? target.getValue() : llvm::StringRef("<missing>");
-    if (targetSymbol != variant.getSymName())
-      continue;
-
-    return makeScalarPluginError(
-        llvm::Twine("requires no pre-existing "
-                    "tcrv_scalar.lowering_boundary for target @") +
-        targetSymbol);
-  }
-
-  return llvm::Error::success();
 }
 
 const scalar::ScalarExtensionPlugin &getBuiltinScalarExtensionPlugin() {
@@ -262,8 +196,9 @@ llvm::Error ScalarExtensionPlugin::estimateVariantCost(
   out.setExplicitPreference(true);
   out.setOriginPlugin(kScalarPluginName);
   out.setVariantSymbol(request.getVariant().getSymName());
-  out.setExplanation("portable scalar fallback first slice; coverage-oriented "
-                     "metadata route, not a performance claim");
+  out.setExplanation("portable scalar fallback first slice; conservative "
+                     "fallback envelope, not an executable route or "
+                     "performance claim");
   out.setPolicy("prefer only as conservative fallback when better plugin-owned "
                 "variants are unavailable or not selected");
   out.setFallbackRole(VariantFallbackRole::ConservativeFallback);
@@ -276,9 +211,10 @@ llvm::Error ScalarExtensionPlugin::checkVariantEmissionReadiness(
     return makeScalarPluginError(
         "emission readiness requires a materialized tcrv.exec.variant");
 
-  out = VariantEmissionStatus::getMetadataOnly(
+  out = VariantEmissionStatus::getUnsupported(
       kScalarPluginName, request.getVariant().getSymName(),
-      "portable-scalar-fallback-non-executable-metadata-route");
+      "scalar fallback first slice has no active EmitC lowering, runtime ABI, "
+      "target artifact route, or metadata-only emission route");
   return llvm::Error::success();
 }
 
@@ -292,18 +228,19 @@ llvm::Error ScalarExtensionPlugin::buildVariantEmissionPlan(
     return makeScalarPluginError(
         "emission planning requires an enclosing tcrv.exec.kernel");
 
-  out = VariantEmissionPlan::getMetadataOnly(
+  out = VariantEmissionPlan::getUnsupported(
       kScalarPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      "portable-scalar-fallback-metadata-route",
-      "none-executable-metadata-only", "none-metadata-only",
-      "metadata-diagnostic",
-      "scalar fallback first slice records a portable fallback metadata route "
-      "for compiler decisions only; it does not emit objects, link a runtime, "
-      "run hardware, prove correctness, or measure performance");
-  out.setRuntimeABIKind("host-scalar-fallback-metadata");
-  out.setRuntimeABIName("portable-scalar-fallback-metadata-abi.v1");
-  out.setRuntimeGlueRole("metadata-only-host-fallback-boundary");
+      "scalar fallback first slice has no materialized extension-family body, "
+      "EmitC lowering, runtime ABI, target artifact route, or metadata-only "
+      "emission route");
+  out.setEmissionKind("scalar-fallback-unsupported-emission");
+  out.setLoweringPipeline("scalar-fallback-no-materialized-emitc-route");
+  out.setRuntimeABI("scalar-fallback-no-runtime-abi");
+  out.setRuntimeABIKind("unsupported-plugin-runtime-abi");
+  out.setRuntimeABIName("unsupported-emission-runtime-abi");
+  out.setRuntimeGlueRole("no-runtime-glue-unsupported");
+  out.setArtifactKind("unsupported-emission-diagnostic");
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
@@ -333,18 +270,11 @@ llvm::Error ScalarExtensionPlugin::materializeSelectedLoweringBoundary(
         " failed plugin legality before boundary materialization: " + message);
   }
 
-  if (llvm::Error error = rejectExistingScalarBoundaryForVariant(
-          request.getKernel(), request.getVariant()))
-    return error;
-
-  tcrv::scalar::LoweringBoundaryOp boundary = materializeScalarBoundaryOp(
-      request.getBuilder(), request.getKernel(), request.getVariant(),
-      request.getRole());
-
-  out = VariantLoweringBoundaryResult::getMaterialized(
+  out = VariantLoweringBoundaryResult::getUnsupported(
       kScalarPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      boundary.getOperation());
+      "scalar fallback first slice no longer materializes a metadata-only "
+      "selected lowering boundary");
   return llvm::Error::success();
 }
 

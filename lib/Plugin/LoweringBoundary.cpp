@@ -209,6 +209,9 @@ llvm::Error collectSelectedMarkerLoweringBoundaryReference(
           directVariants, directSymbols, variant))
     return error;
 
+  if (selectionKind.getValue() == kFallbackOnlySelectionKindValue)
+    return llvm::Error::success();
+
   references.push_back(SelectedLoweringBoundaryReference{
       variant, VariantEmissionRole::DirectVariant});
   return llvm::Error::success();
@@ -285,8 +288,6 @@ llvm::Error collectDispatchLoweringBoundaryReferences(
               VariantEmissionRole::DispatchFallback, directVariants,
               directSymbols, seenTargets, variant))
         return error;
-      fallbackReferences.push_back(SelectedLoweringBoundaryReference{
-          variant, VariantEmissionRole::DispatchFallback});
       continue;
     }
 

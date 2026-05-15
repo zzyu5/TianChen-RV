@@ -904,8 +904,6 @@ module {
                           "dispatch case");
   addMockLoweringBoundary(context, kernel, "medium", "mock-emitter",
                           "dispatch case");
-  addMockLoweringBoundary(context, kernel, "fallback", "mock-emitter",
-                          "dispatch fallback");
 
   mlir::PassManager passManager(&context);
   passManager.addPass(
@@ -974,8 +972,6 @@ module {
                           "dispatch case");
   addMockLoweringBoundary(context, kernel, "medium", "mock-emitter",
                           "dispatch case");
-  addMockLoweringBoundary(context, kernel, "fallback", "mock-emitter",
-                          "dispatch fallback");
 
   llvm::SmallVector<VariantEmissionPlan, 4> plans;
   if (int result = expectSuccess(
@@ -1262,8 +1258,6 @@ module {
                           "dispatch case");
   addMockLoweringBoundary(context, kernel, "medium", "mock-emitter",
                           "dispatch case");
-  addMockLoweringBoundary(context, kernel, "fallback", "mock-emitter",
-                          "dispatch fallback");
 
   if (int result = expectSuccess(
           tianchenrv::transforms::materializeKernelEmissionPlanDiagnostics(

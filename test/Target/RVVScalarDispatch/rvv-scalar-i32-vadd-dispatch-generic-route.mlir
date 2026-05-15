@@ -82,9 +82,7 @@ module {
 // IR: tcrv_rvv.lowering_boundary {
 // IR-SAME: role = "dispatch case"
 // IR-SAME: selected_variant = @rvv_first_slice
-// IR: tcrv_scalar.lowering_boundary
-// IR-SAME: role = "dispatch fallback"
-// IR-SAME: selected_variant = @scalar_fallback_first_slice
+// IR-NOT: tcrv_scalar.lowering_boundary
 // IR: tcrv.exec.diagnostic
 // IR-SAME: emission_kind = "rvv-unsupported-metadata-boundary"
 // IR-SAME: message = "RVV first slice has no materialized EmitC lowering, runtime ABI, artifact contract, or executable emission path"
@@ -93,11 +91,11 @@ module {
 // IR-SAME: status = "unsupported"
 // IR-SAME: target = @rvv_first_slice
 // IR: tcrv.exec.diagnostic
-// IR-SAME: emission_kind = "portable-scalar-fallback-metadata-route"
-// IR-SAME: message = "scalar fallback first slice records a portable fallback metadata route for compiler decisions only; it does not emit objects, link a runtime, run hardware, prove correctness, or measure performance"
+// IR-SAME: emission_kind = "scalar-fallback-unsupported-emission"
+// IR-SAME: message = "scalar fallback first slice has no materialized extension-family body, EmitC lowering, runtime ABI, target artifact route, or metadata-only emission route"
 // IR-SAME: role = "dispatch fallback"
-// IR-SAME: runtime_abi_kind = "host-scalar-fallback-metadata"
-// IR-SAME: status = "metadata-only"
+// IR-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+// IR-SAME: status = "unsupported"
 // IR-SAME: target = @scalar_fallback_first_slice
 
 // GENERIC-HDR-DELETED: requires exactly one supported header artifact emission-plan route; found none
