@@ -190,9 +190,7 @@ llvm::Error validateWithModuleAPI(
 int runI32SelectedLoweringBoundaryModuleTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-	  tcrv.exec.kernel @rvv_i32_vsub_boundary attributes {
-	    tcrv_frontend_lowering = "i32-vsub"
-	  } {
+	  tcrv.exec.kernel @rvv_i32_vsub_boundary attributes {} {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -261,7 +259,6 @@ module {
       policy = "metadata_only_first_slice",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
 	      tcrv_rvv.required_march = "rv64gcv",
-	      tcrv_rvv.element_count = 32 : i64,
       tcrv_rvv.vlenb_bytes = 32 : i64,
       tcrv_rvv.base_i32_m1_lanes = 8 : i64,
       tcrv_rvv.selected_vector_shape = "i32m1",
@@ -438,34 +435,11 @@ module {
   builder.setInsertionPointToEnd(&kernel.getBody().front());
 
   VariantLoweringBoundaryResult result;
-  if (int status = expectSuccess(
-          materializeWithModuleAPI(plugin, builder, variant, kernel,
-                                   capabilities, result),
-          "materialize default i32-vadd typed selected lowering boundary"))
-    return status;
-  if (int status =
-          expect(result.isMaterialized(),
-                 "default i32-vadd selected boundary result is materialized"))
-    return status;
-
-  LoweringBoundaryOp boundary = findBoundary(kernel, variant.getSymName());
-  if (int status =
-          expect(static_cast<bool>(boundary),
-                 "default i32-vadd selected boundary op exists"))
-    return status;
-
-  mlir::Operation *microkernel = findSelectedOpByName(
-      kernel, variant.getSymName(),
-      tianchenrv::target::rvv::getI32VAddFamilyRegistrationRecord().microkernelOpName);
-  if (int status =
-          expect(!microkernel,
-                 "default selected boundary no longer materializes i32-vadd "
-                 "microkernel from selected descriptor"))
-    return status;
-
-  return expectSuccess(
-      validateWithModuleAPI(plugin, variant, kernel, capabilities, boundary),
-      "validate default i32-vadd typed selected boundary through module API");
+  return expectErrorContains(
+      materializeWithModuleAPI(plugin, builder, variant, kernel, capabilities,
+                               result),
+      {"RVV selected-source metadata", "deleted as RVV finite-family legality "
+                                      "authority"});
 }
 
 int runI64SelectedLoweringBoundaryModuleTest(
@@ -475,9 +449,7 @@ int runI64SelectedLoweringBoundaryModuleTest(
       (llvm::Twine("rvv_") + family.functionStem + "_boundary").str();
   std::string source = R"mlir(
 module {
-	  tcrv.exec.kernel @rvv_i64_vmul_boundary attributes {
-	    tcrv_frontend_lowering = "i64-vmul"
-	  } {
+	  tcrv.exec.kernel @rvv_i64_vmul_boundary attributes {} {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -534,7 +506,6 @@ module {
       policy = "metadata_only_first_slice",
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
 	      tcrv_rvv.required_march = "rv64gcv",
-	      tcrv_rvv.element_count = 16 : i64,
       tcrv_rvv.selected_vector_shape = "i64m1",
       tcrv_rvv.selected_vector_sew = 64 : i64,
       tcrv_rvv.selected_vector_lmul = "m1",
@@ -549,7 +520,6 @@ module {
 }
 )mlir";
   replaceAll(source, "rvv_i64_vmul_boundary", kernelSymbol);
-  replaceAll(source, "i64-vmul", family.frontendLowering);
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)

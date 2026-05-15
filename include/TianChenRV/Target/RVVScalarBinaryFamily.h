@@ -139,7 +139,7 @@ inline RVVScalarBinaryFamilyRecord makeFamilyRegistrationRecord(
   RVVScalarBinaryFamilyRecord descriptor;
   descriptor.rvvFamily = &family;
   descriptor.familyID = family.familyID.str();
-  descriptor.frontendLowering = family.frontendLowering.str();
+  descriptor.frontendLowering = family.familyID.str();
 
   descriptor.scalar.rvvFamily = &family;
   descriptor.scalar.microkernelOpName = makeScalarRegistrationMicrokernelOpName(family);

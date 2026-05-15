@@ -1,9 +1,7 @@
 // RUN: not tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --implicit-check-not=tcrv_rvv.i64_vadd_microkernel --implicit-check-not="emission_plan" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=password --implicit-check-not=token
 
 module @rvv_microkernel_i64_vadd_missing_cap_input {
-  tcrv.exec.kernel @export_i64_vadd_missing_i64_caps attributes {
-    tcrv_frontend_lowering = "i64-vadd"
-  } {
+  tcrv.exec.kernel @export_i64_vadd_missing_i64_caps {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -54,7 +52,6 @@ module @rvv_microkernel_i64_vadd_missing_cap_input {
       origin = "rvv-plugin",
       policy = "metadata_only_first_slice",
       requires = [@rvv, @rvv_i64_m1_sew64, @rvv_i64_m1_lmul_m1, @rvv_i64_m1_tail_agnostic, @rvv_i64_m1_mask_agnostic],
-      tcrv_rvv.element_count = 8 : i64,
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
       tcrv_rvv.selected_mask_policy = "agnostic",

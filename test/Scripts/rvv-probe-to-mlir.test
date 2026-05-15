@@ -1,10 +1,9 @@
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py --self-test | FileCheck %s --check-prefix=SELF
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_replay --include-scalar-fallback | FileCheck %s --check-prefix=MLIR
-# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_i64_replay --frontend-lowering i64-vadd --emit-target-profile | FileCheck %s --check-prefix=I64-REPLAY
+# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_i64_replay --emit-target-profile | FileCheck %s --check-prefix=I64-REPLAY --implicit-check-not=tcrv_frontend_lowering
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_replay --include-scalar-fallback | tcrv-opt - | FileCheck %s --check-prefix=PARSE
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_replay --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE
-# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_i64_replay --frontend-lowering i64-vadd --emit-target-profile | tcrv-opt - --tcrv-execution-planning-pipeline | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=I64-SOURCE-DELETED --implicit-check-not=__riscv_vadd_vv_i64 --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
-# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/malformed-i64-sew.json --kernel-name malformed_i64_replay --frontend-lowering i64-vadd --emit-target-profile | not tcrv-opt - --tcrv-execution-planning-pipeline 2>&1 | FileCheck %s --check-prefix=I64-MALFORMED --implicit-check-not=tcrv_rvv.i64_vadd_microkernel --implicit-check-not=emission_plan --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
+# RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/sanitized-success.json --kernel-name rvv_probe_i64_replay --emit-target-profile | tcrv-opt - --tcrv-execution-planning-pipeline | not tcrv-translate --tcrv-export-target-source-artifact 2>&1 | FileCheck %s --check-prefix=I64-SOURCE-DELETED --implicit-check-not=__riscv_vadd_vv_i64 --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/missing-architecture.json --kernel-name missing_architecture --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/non-riscv64.json --kernel-name non_riscv64 --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
 # RUN: python3 %S/../../scripts/rvv_probe_to_mlir.py %S/../Fixtures/rvv_probe/missing-isa-vector-hints.json --kernel-name missing_isa_vector_hints --include-scalar-fallback | tcrv-opt - --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=SCALAR_ONLY
@@ -83,7 +82,6 @@
 # I64-REPLAY-SAME: @rvv_i64_m1_mask_agnostic
 # I64-REPLAY-LABEL: tcrv.exec.kernel @rvv_probe_i64_replay
 # I64-REPLAY-SAME: target = @rvv_probe_i64_replay_profile
-# I64-REPLAY-SAME: tcrv_frontend_lowering = "i64-vadd"
 
 # PARSE-LABEL: tcrv.exec.kernel @rvv_probe_replay
 # PARSE: tcrv.exec.capability @rvv
@@ -126,7 +124,6 @@
 # PIPE-SAME: origin = "rvv-plugin"
 # PIPE-SAME: requires = [@rvv, @rvv_i32_m1_sew32, @rvv_i32_m1_lmul_m1, @rvv_i32_m1_tail_agnostic, @rvv_i32_m1_mask_agnostic]
 # PIPE-SAME: tcrv_rvv.base_i32_m1_lanes = 4 : i64
-# PIPE-SAME: tcrv_rvv.element_count = 16 : i64
 # PIPE-SAME: tcrv_rvv.required_march = "rv64gcv"
 # PIPE-SAME: tcrv_rvv.selected_vector_shape = "i32m1"
 # PIPE-SAME: tcrv_rvv.vlenb_bytes = 16 : i64
@@ -157,25 +154,6 @@
 # PIPE-SAME: target = @rvv_first_slice
 
 # I64-SOURCE-DELETED: requires exactly one supported source artifact emission-plan route; found none
-
-# I64-SOURCE: /* executable_microkernel: tcrv_rvv.i64_vadd_microkernel */
-# I64-SOURCE: /* arithmetic_family: i64-vadd */
-# I64-SOURCE: /* dtype: i64 */
-# I64-SOURCE: /* active_route: tcrv-export-rvv-i64-vadd-microkernel-c */
-# I64-SOURCE: /* emitc_common_lower_to_emitc_boundary: TCRVLowerToEmitCSourceAuthority */
-# I64-SOURCE: /* selected_vector_shape_config: dtype=i64, shape=i64m1, sew=64, lmul=m1, tail_policy=agnostic, mask_policy=agnostic, vector_type=vint64m1_t, vector_suffix=i64m1, setvl_suffix=e64m1 */
-# I64-SOURCE: /* selected_vector_shape_capabilities: rvv.i64_m1.sew64 rvv.i64_m1.lmul_m1 rvv.i64_m1.tail_policy.agnostic rvv.i64_m1.mask_policy.agnostic */
-# I64-SOURCE: // tcrv_emitc.source_authority=mlir_emitc_cpp_emitter
-# I64-SOURCE: static void tcrv_rvv_i64_vadd_microkernel_rvv_probe_i64_replay_rvv_first_slice__tcrv_emitc_body
-# I64-SOURCE: __riscv_vsetvl_e64m1
-# I64-SOURCE: __riscv_vle64_v_i64m1
-# I64-SOURCE: __riscv_vadd_vv_i64m1
-# I64-SOURCE: __riscv_vse64_v_i64m1
-# I64-SOURCE: void tcrv_rvv_i64_vadd_microkernel_rvv_probe_i64_replay_rvv_first_slice
-
-# I64-MALFORMED: no viable plugin proposals
-# I64-MALFORMED: rvv-plugin:
-# I64-MALFORMED-SAME: requires available capability id 'rvv.i64_m1.sew64'
 
 # SCALAR_ONLY-NOT: tcrv.exec.variant @rvv_first_slice
 # SCALAR_ONLY: tcrv.exec.variant @scalar_fallback_first_slice

@@ -29,8 +29,6 @@ constexpr llvm::StringLiteral kRVVI32M1LanesAttrName(
     "tcrv_rvv.base_i32_m1_lanes");
 constexpr llvm::StringLiteral kRVVElementCountAttrName(
     "tcrv_rvv.element_count");
-constexpr llvm::StringLiteral kFrontendLoweringAttrName(
-    "tcrv_frontend_lowering");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
 constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
@@ -42,7 +40,6 @@ using target::rvv::RVVVectorShapeConfig;
 
 struct RVVFiniteBinaryTypedAuthority {
   const RVVBinaryFamilyRecord *family = nullptr;
-  std::string sourceKind;
 };
 
 llvm::Error makeRVVBinaryVariantLegalityError(llvm::Twine message) {
@@ -310,160 +307,87 @@ resolveTypedMicrokernelBodyAuthority(tcrv::exec::KernelOp kernel,
       return std::move(error);
 
     authority.family = family;
-    authority.sourceKind = getRVVDirectTypedMicrokernelBodySourceKind().str();
   }
 
   return authority;
 }
 
-llvm::Expected<RVVFiniteBinaryTypedAuthority>
-resolveSelectedSourceMetadataAuthority(tcrv::exec::KernelOp kernel,
-                                       tcrv::exec::VariantOp variant,
-                                       const RVVVectorShapeConfig &shape,
-                                       bool hasTypedBodyAuthority) {
-  RVVFiniteBinaryTypedAuthority authority;
-  auto familyAttr = variant->getAttrOfType<mlir::StringAttr>(
-      target::rvv::getRVVSelectedBinaryFamilyMetadataName());
+llvm::Error rejectDeletedSelectedSourceMetadata(tcrv::exec::VariantOp variant) {
   auto sourceAttr = variant->getAttrOfType<mlir::StringAttr>(
       getRVVSelectedBinarySourceKindAttrName());
-  if (!familyAttr && !sourceAttr)
-    return authority;
+  if (!sourceAttr)
+    return llvm::Error::success();
 
-  if (!kernel)
-    return makeRVVBinaryVariantLegalityError(
-        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
-        " typed selected-source authority requires an enclosing "
-        "tcrv.exec.kernel");
-
-  if (!familyAttr || !sourceAttr)
-    return makeRVVBinaryVariantLegalityError(
-        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
-        " typed selected-source authority requires both '" +
-        target::rvv::getRVVSelectedBinaryFamilyMetadataName() + "' and '" +
-        getRVVSelectedBinarySourceKindAttrName() + "'");
-
-  llvm::StringRef familyID = familyAttr.getValue().trim();
   llvm::StringRef sourceKind = sourceAttr.getValue().trim();
   std::string context =
-      (llvm::Twine("typed RVV selected-source authority on variant @") +
+      (llvm::Twine("RVV selected-source metadata on variant @") +
        variant.getSymName())
           .str();
-  if (familyID.empty() || sourceKind.empty())
+  if (sourceKind.empty())
     return makeRVVBinaryVariantLegalityError(
-        llvm::Twine(context) + " requires non-empty family and source kind");
-  if (llvm::Error error = validateRVVPropertyText(
-          context, target::rvv::getRVVSelectedBinaryFamilyMetadataName(),
-          familyID))
-    return std::move(error);
+        llvm::Twine(context) + " is deleted and must not be empty");
   if (llvm::Error error =
           validateRVVPropertyText(context,
                                   getRVVSelectedBinarySourceKindAttrName(),
                                   sourceKind))
-    return std::move(error);
+    return error;
+  return makeRVVBinaryVariantLegalityError(
+      llvm::Twine(context) + " source kind '" + sourceKind +
+      "' is deleted as RVV finite-family legality authority; future "
+      "executable RVV output requires explicit extension-family ops plus a "
+      "materialized MLIR EmitC module route");
+}
 
-  const RVVBinaryFamilyRecord *family =
-      target::rvv::lookupRVVBinaryFamilyRegistrationByID(familyID);
-  if (!family)
+llvm::Error verifyOptionalSelectedFamilyMetadataAgainstTypedBody(
+    tcrv::exec::VariantOp variant,
+    const RVVFiniteBinaryTypedAuthority &bodyAuthority,
+    const RVVVectorShapeConfig &shape) {
+  if (!bodyAuthority.family)
+    return llvm::Error::success();
+
+  auto familyAttr = variant->getAttrOfType<mlir::StringAttr>(
+      target::rvv::getRVVSelectedBinaryFamilyMetadataName());
+  if (!familyAttr)
+    return llvm::Error::success();
+
+  llvm::StringRef familyID = familyAttr.getValue().trim();
+  std::string context =
+      (llvm::Twine("typed RVV finite-family metadata on variant @") +
+       variant.getSymName())
+          .str();
+  if (familyID.empty())
     return makeRVVBinaryVariantLegalityError(
-        llvm::Twine(context) + " family '" + familyID +
-        "' must be one registered finite typed RVV binary family");
+        llvm::Twine(context) + " requires non-empty family metadata");
+  if (llvm::Error error = validateRVVPropertyText(
+          context, target::rvv::getRVVSelectedBinaryFamilyMetadataName(),
+          familyID))
+    return error;
+  if (familyID != bodyAuthority.family->familyID)
+    return makeRVVBinaryVariantLegalityError(
+        llvm::Twine(context) + " names family '" + familyID +
+        "' but actual typed RVV body authority is family '" +
+        bodyAuthority.family->familyID + "'");
 
-  if (llvm::Error error =
-          verifyFamilyMatchesSelectedShape(variant, *family, shape, context))
-    return std::move(error);
+  if (llvm::Error error = verifyFamilyMatchesSelectedShape(
+          variant, *bodyAuthority.family, shape, context))
+    return error;
 
   if (auto dtypeAttr = variant->getAttrOfType<mlir::StringAttr>(
           target::rvv::getRVVSelectedBinaryDTypeMetadataName())) {
-    if (dtypeAttr.getValue().trim() != family->dtypeID)
+    if (dtypeAttr.getValue().trim() != bodyAuthority.family->dtypeID)
       return makeRVVBinaryVariantLegalityError(
           llvm::Twine(context) + " dtype metadata must be '" +
-          family->dtypeID + "'");
+          bodyAuthority.family->dtypeID + "'");
   }
   if (auto operatorAttr = variant->getAttrOfType<mlir::StringAttr>(
           target::rvv::getRVVSelectedBinaryOperatorMetadataName())) {
-    if (operatorAttr.getValue().trim() != family->arithmeticVerb)
+    if (operatorAttr.getValue().trim() != bodyAuthority.family->arithmeticVerb)
       return makeRVVBinaryVariantLegalityError(
           llvm::Twine(context) + " operator metadata must be '" +
-          family->arithmeticVerb + "'");
+          bodyAuthority.family->arithmeticVerb + "'");
   }
 
-  if (sourceKind == getRVVFrontendLoweringSourceKind()) {
-    auto frontendLowering =
-        kernel->getAttrOfType<mlir::StringAttr>(kFrontendLoweringAttrName);
-    if (!frontendLowering ||
-        frontendLowering.getValue().trim() != family->frontendLowering)
-      return makeRVVBinaryVariantLegalityError(
-          llvm::Twine(context) + " source kind '" + sourceKind +
-          "' requires enclosing kernel metadata 'tcrv_frontend_lowering' to "
-          "be '" +
-          family->frontendLowering + "'");
-  } else if (sourceKind == getRVVDefaultTypedBinarySourceKind()) {
-    if (family->familyID !=
-        target::rvv::getI32VAddFamilyRegistrationRecord().familyID)
-      return makeRVVBinaryVariantLegalityError(
-          llvm::Twine(context) + " source kind '" + sourceKind +
-          "' is only valid for the bounded default i32-vadd typed route");
-    if (auto frontendLowering =
-            kernel->getAttrOfType<mlir::StringAttr>(kFrontendLoweringAttrName)) {
-      if (!frontendLowering.getValue().trim().empty())
-        return makeRVVBinaryVariantLegalityError(
-            llvm::Twine(context) + " source kind '" + sourceKind +
-            "' must not override explicit kernel tcrv_frontend_lowering "
-            "metadata");
-    }
-  } else if (sourceKind == getRVVDirectTypedMicrokernelBodySourceKind()) {
-    if (!hasTypedBodyAuthority)
-      return makeRVVBinaryVariantLegalityError(
-          llvm::Twine(context) + " source kind '" + sourceKind +
-          "' requires an actual typed tcrv_rvv.*_microkernel body");
-  } else {
-    return makeRVVBinaryVariantLegalityError(
-        llvm::Twine(context) + " source kind '" + sourceKind +
-        "' is not a supported typed RVV selected-source authority");
-  }
-
-  authority.family = family;
-  authority.sourceKind = sourceKind.str();
-  return authority;
-}
-
-llvm::Expected<RVVFiniteBinaryTypedAuthority>
-resolveKernelFrontendLoweringAuthority(tcrv::exec::KernelOp kernel,
-                                       tcrv::exec::VariantOp variant,
-                                       const RVVVectorShapeConfig &shape) {
-  RVVFiniteBinaryTypedAuthority authority;
-  if (!kernel)
-    return authority;
-
-  auto frontendLowering =
-      kernel->getAttrOfType<mlir::StringAttr>(kFrontendLoweringAttrName);
-  if (!frontendLowering || frontendLowering.getValue().trim().empty())
-    return authority;
-
-  llvm::StringRef frontendLoweringValue = frontendLowering.getValue().trim();
-  std::string context =
-      (llvm::Twine("typed RVV kernel frontend authority on variant @") +
-       variant.getSymName())
-          .str();
-  if (llvm::Error error = validateRVVPropertyText(
-          context, kFrontendLoweringAttrName, frontendLoweringValue))
-    return std::move(error);
-
-  const RVVBinaryFamilyRecord *family =
-      target::rvv::lookupRVVBinaryFamilyRegistrationByFrontendLowering(
-          frontendLoweringValue);
-  if (!family)
-    return makeRVVBinaryVariantLegalityError(
-        llvm::Twine(context) + " frontend lowering family must be " +
-        formatRVVBinaryFamilyFrontendLoweringList());
-
-  if (llvm::Error error =
-          verifyFamilyMatchesSelectedShape(variant, *family, shape, context))
-    return std::move(error);
-
-  authority.family = family;
-  authority.sourceKind = getRVVFrontendLoweringSourceKind().str();
-  return authority;
+  return llvm::Error::success();
 }
 
 llvm::Expected<RVVFiniteBinaryTypedAuthority>
@@ -475,33 +399,16 @@ resolveFiniteBinaryTypedAuthority(tcrv::exec::KernelOp kernel,
   if (!bodyAuthority)
     return bodyAuthority.takeError();
 
-  llvm::Expected<RVVFiniteBinaryTypedAuthority> metadataAuthority =
-      resolveSelectedSourceMetadataAuthority(
-          kernel, variant, shape,
-          /*hasTypedBodyAuthority=*/bodyAuthority->family != nullptr);
-  if (!metadataAuthority)
-    return metadataAuthority.takeError();
+  if (llvm::Error error = rejectDeletedSelectedSourceMetadata(variant))
+    return std::move(error);
 
-  if (bodyAuthority->family && metadataAuthority->family &&
-      bodyAuthority->family->familyID != metadataAuthority->family->familyID)
-    return makeRVVBinaryVariantLegalityError(
-        llvm::Twine("materialized RVV variant @") + variant.getSymName() +
-        " has typed microkernel body authority '" +
-        bodyAuthority->family->familyID +
-        "' but typed selected-source metadata names '" +
-        metadataAuthority->family->familyID + "'");
-
-  if (bodyAuthority->family)
+  if (bodyAuthority->family) {
+    if (llvm::Error error =
+            verifyOptionalSelectedFamilyMetadataAgainstTypedBody(
+                variant, *bodyAuthority, shape))
+      return std::move(error);
     return std::move(*bodyAuthority);
-  if (metadataAuthority->family)
-    return std::move(*metadataAuthority);
-
-  llvm::Expected<RVVFiniteBinaryTypedAuthority> frontendAuthority =
-      resolveKernelFrontendLoweringAuthority(kernel, variant, shape);
-  if (!frontendAuthority)
-    return frontendAuthority.takeError();
-  if (frontendAuthority->family)
-    return std::move(*frontendAuthority);
+  }
 
   return RVVFiniteBinaryTypedAuthority();
 }
@@ -568,8 +475,9 @@ llvm::Error verifyRVVBinaryVariantLegality(
     if (!authority->family)
       return makeRVVBinaryVariantLegalityError(
           llvm::Twine("materialized RVV variant @") + variant.getSymName() +
-          " requires typed RVV family/body or selected-source authority; "
-          "selected vector metadata alone cannot make a direct RVV binary "
+          " requires an actual typed RVV extension-family body; selected "
+          "binary metadata, selected-source metadata, element-count metadata, "
+          "or frontend-lowering metadata cannot make a direct RVV binary "
           "variant legal");
     finiteBinaryAuthority = std::move(*authority);
   }

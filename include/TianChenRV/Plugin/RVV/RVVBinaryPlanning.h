@@ -136,7 +136,7 @@ struct RVVBinaryProposalPlan {
   std::string condition;
   std::string guard;
   std::string policy;
-  std::string sourceKind;
+  bool directTypedBodyAuthority = false;
 
   llvm::StringRef getFamilyID() const;
   llvm::StringRef getDTypeID() const;
@@ -146,23 +146,22 @@ struct RVVBinaryProposalPlan {
   llvm::StringRef getCondition() const;
   llvm::StringRef getGuard() const;
   llvm::StringRef getPolicy() const;
-  llvm::StringRef getSourceKind() const;
+  bool hasDirectTypedBodyAuthority() const;
   bool hasCapacityMetadata() const;
 };
 
 struct RVVBinaryFamilyPlanningResolution {
   const target::rvv::RVVBinaryFamilyRecord *family = nullptr;
   const target::rvv::RVVVectorShapeConfig *directSelectedShape = nullptr;
-  std::string sourceKind;
+  bool directTypedBodyAuthority = false;
 
   bool isValid() const { return family != nullptr; }
   llvm::StringRef getFamilyID() const {
     return family ? family->familyID : llvm::StringRef();
   }
-  llvm::StringRef getFrontendLowering() const {
-    return family ? family->frontendLowering : llvm::StringRef();
+  bool hasDirectTypedBodyAuthority() const {
+    return directTypedBodyAuthority;
   }
-  llvm::StringRef getSourceKind() const { return sourceKind; }
   llvm::StringRef getDirectSelectedShapeID() const {
     return directSelectedShape ? directSelectedShape->shapeID
                                : llvm::StringRef();
@@ -188,18 +187,10 @@ getRVVBoundarySelectedVectorShapeMetadataNames();
 
 llvm::StringRef getRVVSelectedBinarySourceKindAttrName();
 
-llvm::StringRef getRVVFrontendLoweringSourceKind();
-
-llvm::StringRef getRVVDirectTypedMicrokernelBodySourceKind();
-
-llvm::StringRef getRVVDefaultTypedBinarySourceKind();
-
 llvm::StringRef getRVVBinaryRuntimeCallableCSourceArtifactKind();
 
 llvm::Expected<RVVBinaryEmissionIdentity> buildRVVBinaryEmissionIdentity(
     const target::rvv::RVVBinaryFamilyRecord &family);
-
-std::string formatRVVBinaryFamilyFrontendLoweringList();
 
 llvm::Expected<RVVBinaryCapabilityPropertyView>
 buildRVVBinaryCapabilityPropertyView(
@@ -229,11 +220,6 @@ resolveRVVBinaryFamilyForProposal(
 llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
     const support::TargetCapabilitySet &capabilities,
     const target::rvv::RVVBinaryFamilyRecord &family,
-    llvm::StringRef diagnosticContext = "RVV binary proposal");
-
-llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(
-    const support::TargetCapabilitySet &capabilities,
-    llvm::StringRef frontendLowering = llvm::StringRef(),
     llvm::StringRef diagnosticContext = "RVV binary proposal");
 
 llvm::Expected<RVVBinaryProposalPlan> buildRVVBinaryProposalPlan(

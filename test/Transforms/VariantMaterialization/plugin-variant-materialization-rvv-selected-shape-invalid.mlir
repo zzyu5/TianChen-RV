@@ -1,9 +1,7 @@
 // RUN: not tcrv-opt %s --tcrv-materialize-plugin-variants 2>&1 | FileCheck %s --implicit-check-not=tcrv_rvv.i32_vsub_microkernel --implicit-check-not="emission_plan" --implicit-check-not=runtime_success --implicit-check-not=throughput --implicit-check-not=latency --implicit-check-not=artifacts/tmp --implicit-check-not=password --implicit-check-not=token
 
 module {
-  tcrv.exec.kernel @selector_i32m2_missing_lmul attributes {
-    tcrv_frontend_lowering = "i32-vsub"
-  } {
+  tcrv.exec.kernel @selector_i32m2_missing_lmul {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",

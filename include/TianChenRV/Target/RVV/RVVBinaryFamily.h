@@ -1,7 +1,6 @@
 #ifndef TIANCHENRV_TARGET_RVV_RVVBINARYFAMILY_H
 #define TIANCHENRV_TARGET_RVV_RVVBINARYFAMILY_H
 
-#include "TianChenRV/Support/FiniteBinaryFrontendLowering.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
@@ -13,7 +12,6 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <optional>
 #include <string>
 
 namespace tianchenrv::target::rvv {
@@ -29,19 +27,17 @@ enum class RVVBinaryArithmeticKind {
   Mul,
 };
 
-// Finite RVV binary family facts used to connect typed frontend/source identity
-// to the RVV extension family. Route ids, intrinsic spellings, artifact kinds,
-// runtime ABI identity strings, and direct exporter names are intentionally not
-// part of this record.
+// Finite RVV binary family facts used only after typed RVV extension-family
+// body structure has already selected a bounded family. Frontend-lowering
+// markers, selected-source metadata, route ids, intrinsic spellings, artifact
+// kinds, runtime ABI identity strings, and direct exporter names are
+// intentionally not part of this record.
 struct RVVBinaryFamilyRecord {
   RVVBinaryDTypeKind dtype = RVVBinaryDTypeKind::I32;
   RVVBinaryArithmeticKind arithmetic = RVVBinaryArithmeticKind::Add;
   llvm::StringRef dtypeID;
   unsigned elementBitWidth = 32;
   llvm::StringRef familyID;
-  llvm::StringRef frontendLowering;
-  llvm::StringRef sourceArithmeticOpName;
-  llvm::StringRef dynamicVectorSourceKind;
   llvm::StringRef microkernelOpName;
   llvm::StringRef arithmeticOpName;
   llvm::StringRef arithmeticVerb;
@@ -50,7 +46,6 @@ struct RVVBinaryFamilyRecord {
   llvm::StringRef resultCName;
   llvm::StringRef constInputPointerCType;
   llvm::StringRef outputPointerCType;
-  const support::FiniteBinaryFrontendContract *frontendContract = nullptr;
 };
 
 inline const RVVBinaryFamilyRecord &getI32VAddFamilyRegistrationRecord() {
@@ -60,9 +55,6 @@ inline const RVVBinaryFamilyRecord &getI32VAddFamilyRegistrationRecord() {
       "i32",
       32,
       "i32-vadd",
-      "i32-vadd",
-      "arith.addi",
-      support::kFrontendDynamicVectorI32VAddSourceKind,
       "tcrv_rvv.i32_vadd_microkernel",
       "tcrv_rvv.i32_add",
       "add",
@@ -70,8 +62,7 @@ inline const RVVBinaryFamilyRecord &getI32VAddFamilyRegistrationRecord() {
       "I32_VADD",
       "sum_vec",
       "const int32_t *",
-      "int32_t *",
-      &support::getI32VAddFiniteBinaryFrontendContract()};
+      "int32_t *"};
   return record;
 }
 
@@ -82,9 +73,6 @@ inline const RVVBinaryFamilyRecord &getI32VSubFamilyRegistrationRecord() {
       "i32",
       32,
       "i32-vsub",
-      "i32-vsub",
-      "arith.subi",
-      support::kFrontendDynamicVectorI32VSubSourceKind,
       "tcrv_rvv.i32_vsub_microkernel",
       "tcrv_rvv.i32_sub",
       "subtract",
@@ -92,8 +80,7 @@ inline const RVVBinaryFamilyRecord &getI32VSubFamilyRegistrationRecord() {
       "I32_VSUB",
       "difference_vec",
       "const int32_t *",
-      "int32_t *",
-      &support::getI32VSubFiniteBinaryFrontendContract()};
+      "int32_t *"};
   return record;
 }
 
@@ -104,9 +91,6 @@ inline const RVVBinaryFamilyRecord &getI32VMulFamilyRegistrationRecord() {
       "i32",
       32,
       "i32-vmul",
-      "i32-vmul",
-      "arith.muli",
-      support::kFrontendDynamicVectorI32VMulSourceKind,
       "tcrv_rvv.i32_vmul_microkernel",
       "tcrv_rvv.i32_mul",
       "multiply",
@@ -114,8 +98,7 @@ inline const RVVBinaryFamilyRecord &getI32VMulFamilyRegistrationRecord() {
       "I32_VMUL",
       "product_vec",
       "const int32_t *",
-      "int32_t *",
-      &support::getI32VMulFiniteBinaryFrontendContract()};
+      "int32_t *"};
   return record;
 }
 
@@ -126,9 +109,6 @@ inline const RVVBinaryFamilyRecord &getI64VAddFamilyRegistrationRecord() {
       "i64",
       64,
       "i64-vadd",
-      "i64-vadd",
-      "arith.addi",
-      "",
       "tcrv_rvv.i64_vadd_microkernel",
       "tcrv_rvv.i64_add",
       "add",
@@ -136,8 +116,7 @@ inline const RVVBinaryFamilyRecord &getI64VAddFamilyRegistrationRecord() {
       "I64_VADD",
       "sum_vec",
       "const int64_t *",
-      "int64_t *",
-      &support::getI64VAddFiniteBinaryFrontendContract()};
+      "int64_t *"};
   return record;
 }
 
@@ -148,9 +127,6 @@ inline const RVVBinaryFamilyRecord &getI64VSubFamilyRegistrationRecord() {
       "i64",
       64,
       "i64-vsub",
-      "i64-vsub",
-      "arith.subi",
-      "",
       "tcrv_rvv.i64_vsub_microkernel",
       "tcrv_rvv.i64_sub",
       "subtract",
@@ -158,8 +134,7 @@ inline const RVVBinaryFamilyRecord &getI64VSubFamilyRegistrationRecord() {
       "I64_VSUB",
       "difference_vec",
       "const int64_t *",
-      "int64_t *",
-      &support::getI64VSubFiniteBinaryFrontendContract()};
+      "int64_t *"};
   return record;
 }
 
@@ -170,9 +145,6 @@ inline const RVVBinaryFamilyRecord &getI64VMulFamilyRegistrationRecord() {
       "i64",
       64,
       "i64-vmul",
-      "i64-vmul",
-      "arith.muli",
-      "",
       "tcrv_rvv.i64_vmul_microkernel",
       "tcrv_rvv.i64_mul",
       "multiply",
@@ -180,8 +152,7 @@ inline const RVVBinaryFamilyRecord &getI64VMulFamilyRegistrationRecord() {
       "I64_VMUL",
       "product_vec",
       "const int64_t *",
-      "int64_t *",
-      &support::getI64VMulFiniteBinaryFrontendContract()};
+      "int64_t *"};
   return record;
 }
 
@@ -206,64 +177,6 @@ lookupRVVBinaryFamilyRegistrationByID(llvm::StringRef familyID) {
 }
 
 inline const RVVBinaryFamilyRecord *
-lookupRVVBinaryFamilyRegistrationByFrontendLowering(llvm::StringRef frontendLowering) {
-  frontendLowering = frontendLowering.trim();
-  for (const RVVBinaryFamilyRecord *record :
-       getRVVBinaryFamilyRegistrationRecords()) {
-    if (record->frontendLowering == frontendLowering)
-      return record;
-  }
-  return nullptr;
-}
-
-inline std::optional<RVVBinaryDTypeKind>
-convertFrontendElementKindToRVVDTypeKind(
-    support::FiniteBinaryElementKind elementKind) {
-  switch (elementKind) {
-  case support::FiniteBinaryElementKind::I32:
-    return RVVBinaryDTypeKind::I32;
-  case support::FiniteBinaryElementKind::I64:
-    return RVVBinaryDTypeKind::I64;
-  }
-  return std::nullopt;
-}
-
-inline const RVVBinaryFamilyRecord *
-lookupRVVBinaryFamilyRegistrationByFrontendContract(
-    const support::FiniteBinaryFrontendContract &contract) {
-  const RVVBinaryFamilyRecord *family =
-      lookupRVVBinaryFamilyRegistrationByID(contract.familyID);
-  if (!family || !family->frontendContract ||
-      family->frontendContract->frontendLowering != contract.frontendLowering ||
-      family->frontendContract->elementKind != contract.elementKind ||
-      family->frontendContract->elementBitWidth != contract.elementBitWidth ||
-      family->frontendContract->constInputPointerCType !=
-          contract.constInputPointerCType ||
-      family->frontendContract->outputPointerCType !=
-          contract.outputPointerCType)
-    return nullptr;
-  return family;
-}
-
-inline const RVVBinaryFamilyRecord *
-lookupRVVBinaryFamilyRegistrationByFrontendSource(
-    support::FiniteBinaryElementKind elementKind,
-    llvm::StringRef sourceArithmeticOpName) {
-  std::optional<RVVBinaryDTypeKind> dtype =
-      convertFrontendElementKindToRVVDTypeKind(elementKind);
-  if (!dtype)
-    return nullptr;
-  sourceArithmeticOpName = sourceArithmeticOpName.trim();
-  for (const RVVBinaryFamilyRecord *record :
-       getRVVBinaryFamilyRegistrationRecords()) {
-    if (record->dtype == *dtype &&
-        record->sourceArithmeticOpName == sourceArithmeticOpName)
-      return record;
-  }
-  return nullptr;
-}
-
-inline const RVVBinaryFamilyRecord *
 lookupRVVBinaryFamilyRegistrationByRVVOperationName(
     llvm::StringRef rvvOperationName) {
   rvvOperationName = rvvOperationName.trim();
@@ -273,62 +186,6 @@ lookupRVVBinaryFamilyRegistrationByRVVOperationName(
       return record;
   }
   return nullptr;
-}
-
-inline bool isRVVBinaryFamilyAcceptedByDynamicVectorSource(
-    const RVVBinaryFamilyRecord &family) {
-  return !family.dynamicVectorSourceKind.empty();
-}
-
-inline llvm::StringRef getRVVDynamicVectorSourceKindForFamily(
-    const RVVBinaryFamilyRecord &family) {
-  return family.dynamicVectorSourceKind;
-}
-
-inline std::string formatRVVBinaryFrontendLoweringMarkers() {
-  std::string text;
-  llvm::raw_string_ostream stream(text);
-  llvm::ArrayRef<const RVVBinaryFamilyRecord *> families =
-      getRVVBinaryFamilyRegistrationRecords();
-  for (auto [index, family] : llvm::enumerate(families)) {
-    if (index != 0) {
-      if (index + 1 == families.size())
-        stream << ", or ";
-      else
-        stream << ", ";
-    }
-    stream << "'" << family->frontendLowering << "'";
-  }
-  stream.flush();
-  return text;
-}
-
-inline std::string formatRVVDynamicVectorFrontendLowerings() {
-  std::string text;
-  llvm::raw_string_ostream stream(text);
-  bool first = true;
-  unsigned remaining = 0;
-  for (const RVVBinaryFamilyRecord *family :
-       getRVVBinaryFamilyRegistrationRecords())
-    if (isRVVBinaryFamilyAcceptedByDynamicVectorSource(*family))
-      ++remaining;
-
-  for (const RVVBinaryFamilyRecord *family :
-       getRVVBinaryFamilyRegistrationRecords()) {
-    if (!isRVVBinaryFamilyAcceptedByDynamicVectorSource(*family))
-      continue;
-    if (!first) {
-      if (remaining == 1)
-        stream << " or ";
-      else
-        stream << ", ";
-    }
-    stream << "'" << family->frontendLowering << "'";
-    first = false;
-    --remaining;
-  }
-  stream.flush();
-  return text;
 }
 
 inline llvm::ArrayRef<const RVVVectorShapeConfig *>

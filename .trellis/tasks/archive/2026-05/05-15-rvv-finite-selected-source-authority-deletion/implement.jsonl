@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV invariants and spec layer routing"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "descriptor-driven microkernel/exporter framework and independent-backend boundaries"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec must remain execution envelope, not compute or target-family semantics"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin boundary, selected-boundary status, and deleted direct-route context"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "future accepted route is extension-family ops through materialized EmitC"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "extension-family construction protocol and common interface boundary"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "deleted direct/exporter route behavior and unsupported emission-plan boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "tests must not preserve old direct or descriptor-selected source authority"}
+{"file": ".trellis/tasks/archive/2026-05/05-15-rvv-body-verifier-descriptor-deletion/prd.md", "reason": "previous deletion-campaign evidence baseline"}
+{"file": "include/TianChenRV/Target/RVV/RVVBinaryFamily.h", "reason": "removed RVV frontend-lowering fields and lookup-by-frontend helpers"}
+{"file": "lib/Plugin/RVV/RVVBinaryPlanning.cpp", "reason": "rejected tcrv_frontend_lowering and removed selected-source planning contract"}
+{"file": "lib/Plugin/RVV/RVVBinaryVariantLegality.cpp", "reason": "made selected-source metadata fail closed for RVV variant legality"}
+{"file": "lib/Plugin/RVV/RVVExtensionPlugin.cpp", "reason": "stopped ordinary RVV proposals from emitting finite selected-source/element-count metadata"}
+{"file": "scripts/rvv_probe_to_mlir.py", "reason": "removed CLI emission of tcrv_frontend_lowering replay metadata"}

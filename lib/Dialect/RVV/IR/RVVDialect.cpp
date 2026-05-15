@@ -106,9 +106,6 @@ constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
 constexpr llvm::StringLiteral kUnsupportedStatusValue("unsupported");
 constexpr llvm::StringLiteral kDirectVariantRoleValue("direct variant");
 constexpr llvm::StringLiteral kDispatchCaseRoleValue("dispatch case");
-constexpr llvm::StringLiteral kFrontendLoweringSourceKind("frontend-lowering");
-constexpr llvm::StringLiteral kDefaultTypedMicrokernelBodySourceKind(
-    "default-i32-vadd-typed-body-materialization");
 constexpr llvm::StringLiteral kDirectTypedMicrokernelBodySourceKind(
     "direct-typed-microkernel-body");
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
@@ -187,9 +184,7 @@ bool hasAnySelectedBinarySourceIdentityMetadata(mlir::Operation *op) {
 }
 
 bool isAllowedSelectedBinarySourceKind(llvm::StringRef value) {
-  return value == kFrontendLoweringSourceKind ||
-         value == kDefaultTypedMicrokernelBodySourceKind ||
-         value == kDirectTypedMicrokernelBodySourceKind;
+  return value == kDirectTypedMicrokernelBodySourceKind;
 }
 
 mlir::LogicalResult verifyBoundedMetadata(mlir::Operation *op,

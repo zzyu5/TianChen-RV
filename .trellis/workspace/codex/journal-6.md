@@ -1166,3 +1166,71 @@ fail-closed only, and stale scalar direct artifact fixtures were removed.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 70: RVV finite selected-source authority deletion
+
+**Date**: 2026-05-15
+**Task**: RVV finite selected-source authority deletion
+**Branch**: `main`
+
+### Summary
+
+Deleted the remaining RVV finite selected-source / frontend-lowering authority
+from active legality and planning. RVV finite family selection no longer comes
+from `tcrv_frontend_lowering`, selected-source metadata, finite frontend
+contracts, or lookup-by-frontend family records. Ordinary RVV capability
+proposals now remain metadata-only vector-shape/capacity proposals until a
+future typed extension-family op -> EmitC route is rebuilt.
+
+### Main Changes
+
+- Created Trellis task
+  `05-15-rvv-finite-selected-source-authority-deletion`.
+- Deleted `FiniteBinaryFrontendLowering.h` and removed RVV selected-config
+  dependencies on frontend source extent/source-kind authority.
+- Removed RVV family `frontendLowering`, frontend contract pointers,
+  lookup-by-frontend helpers, and planner frontend proposal overloads.
+- Replaced planner `sourceKind` exposure with internal typed-body authority
+  tracking and made non-empty kernel `tcrv_frontend_lowering` fail closed.
+- Made variant legality reject `tcrv_rvv.selected_binary_source_kind`; selected
+  binary family/dtype/operator metadata now needs an actual typed RVV body.
+- Stopped generic RVV proposals and `rvv_probe_to_mlir.py` from emitting
+  frontend/selected-source metadata.
+- Rewrote RVV/plugin and lit tests so remaining frontend/selected-source
+  occurrences are deletion-negative or `implicit-check-not` checks.
+
+### Git Commits
+
+(Commit pending at journal write time; final round commit contains this entry.)
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tianchenrv-rvv-binary-planning-test
+  tianchenrv-rvv-binary-variant-legality-test
+  tianchenrv-rvv-selected-lowering-boundary-test
+  tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `./build/bin/tianchenrv-rvv-binary-planning-test`
+- [OK] `./build/bin/tianchenrv-rvv-binary-variant-legality-test`
+- [OK] `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Focused lit over touched RVV selected-shape, RVV microkernel, and
+  `rvv-probe-to-mlir` cases: 4/4 passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`: 114/114
+  passed.
+- [OK] Bounded ref-scan: no deleted RVV finite frontend contracts,
+  lookup-by-frontend helpers, frontend support header, planner `sourceKind`, or
+  default selected-source materialization helper remains in active RVV/plugin
+  code.
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Archived and ready to commit**
+
+### Next Steps
+
+- Continue deletion only if a future owner explicitly targets the remaining
+  out-of-scope scalar frontend-lowering authority.

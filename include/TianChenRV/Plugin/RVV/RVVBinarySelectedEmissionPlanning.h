@@ -17,7 +17,6 @@ namespace tianchenrv::plugin::rvv {
 
 struct RVVBinarySelectedEmissionAttachment {
   RVVBinarySelectedPlan selectedPlan;
-  std::string sourceKind;
 
   const target::rvv::RVVBinaryFamilyRecord &getFamily() const {
     return *selectedPlan.family;
@@ -35,7 +34,6 @@ struct RVVBinarySelectedEmissionAttachment {
 
 struct RVVBinarySelectedEmissionPlan {
   RVVBinarySelectedPlan selectedPlan;
-  std::string sourceKind;
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
   llvm::SmallVector<std::string, 5> requiredCapabilitySymbols;
   llvm::SmallVector<VariantSelectedPlanMetadata, 20> selectedPlanMetadata;

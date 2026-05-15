@@ -250,22 +250,15 @@ def default_kernel_name(artifact: dict[str, Any]) -> str:
     return validate_kernel_name(sanitized)
 
 
-def validate_frontend_lowering(value: str) -> str:
-    return validate_fact_string("frontend_lowering", value, required=False)
-
-
 def append_kernel_header(
     lines: list[str],
     kernel_symbol: str,
     *,
     target_profile: str,
-    frontend_lowering: str,
 ) -> None:
     attrs: list[str] = []
     if target_profile:
         attrs.append(f"target = @{target_profile}")
-    if frontend_lowering:
-        attrs.append(f"tcrv_frontend_lowering = {mlir_string(frontend_lowering)}")
     if attrs:
         lines.append(
             f"  tcrv.exec.kernel @{kernel_symbol} attributes "
@@ -281,12 +274,10 @@ def emit_replay_mlir(
     kernel_name: str | None,
     include_scalar_fallback: bool,
     scalar_fallback_status: str,
-    frontend_lowering: str = "",
     emit_target_profile: bool = False,
 ) -> str:
     facts = validated_capability_facts(artifact)
     kernel_symbol = validate_kernel_name(kernel_name or default_kernel_name(artifact))
-    frontend_lowering = validate_frontend_lowering(frontend_lowering)
     target_profile_symbol = f"{kernel_symbol}_profile" if emit_target_profile else ""
 
     rvv_status = (
@@ -305,7 +296,6 @@ def emit_replay_mlir(
             lines,
             kernel_symbol,
             target_profile="",
-            frontend_lowering=frontend_lowering,
         )
     append_capability(
         lines,
@@ -662,7 +652,6 @@ def emit_replay_mlir(
             lines,
             kernel_symbol,
             target_profile=target_profile_symbol,
-            frontend_lowering=frontend_lowering,
         )
 
     lines.append("  }")
@@ -804,13 +793,11 @@ def run_self_test() -> None:
             kernel_name="rvv_probe_i64_replay",
             include_scalar_fallback=False,
             scalar_fallback_status="available",
-            frontend_lowering="i64-vadd",
             emit_target_profile=True,
         )
         assert_self_test(
             "tcrv.exec.target @rvv_probe_i64_replay_profile" in target_profile_mlir
             and "capability_providers = [@rvv, @rvv_hart_count" in target_profile_mlir
-            and 'tcrv_frontend_lowering = "i64-vadd"' in target_profile_mlir
             and "target = @rvv_probe_i64_replay_profile" in target_profile_mlir,
             "target-profile replay fixture was not emitted",
         )
@@ -870,7 +857,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default="available",
         choices=["available", "unavailable", "disabled", "missing"],
     )
-    parser.add_argument("--frontend-lowering", default="")
     parser.add_argument("--emit-target-profile", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args(argv)
@@ -892,7 +878,6 @@ def main(argv: list[str]) -> int:
             kernel_name=args.kernel_name or None,
             include_scalar_fallback=args.include_scalar_fallback,
             scalar_fallback_status=args.scalar_fallback_status,
-            frontend_lowering=args.frontend_lowering,
             emit_target_profile=args.emit_target_profile,
         )
     )

@@ -331,7 +331,9 @@ int runProposalPlanRequirementMetadataTest() {
   RVVBinaryProposalPlan i32Plan;
   if (int result = expectExpectedSuccess(
           tianchenrv::plugin::rvv::buildRVVBinaryProposalPlan(
-              i32Capabilities, "i32-vmul", "unit i32-vmul proposal"),
+              i32Capabilities,
+              tianchenrv::target::rvv::getI32VMulFamilyRegistrationRecord(),
+              "unit i32-vmul proposal"),
           i32Plan, "build i32-vmul proposal plan"))
     return result;
 
@@ -380,15 +382,17 @@ int runProposalPlanRequirementMetadataTest() {
   RVVBinaryProposalPlan i64Plan;
   if (int result = expectExpectedSuccess(
           tianchenrv::plugin::rvv::buildRVVBinaryProposalPlan(
-              i64Capabilities, "i64-vmul", "unit i64-vmul proposal"),
+              i64Capabilities,
+              tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord(),
+              "unit i64-vmul proposal"),
           i64Plan, "build i64-vmul proposal plan"))
     return result;
   if (int result =
           expect(i64Plan.getFamilyID() == "i64-vmul" &&
-                     i64Plan.getSourceKind() == "frontend-lowering" &&
+                     !i64Plan.hasDirectTypedBodyAuthority() &&
                      i64Plan.getSelectedShape().shapeID == "i64m1",
-                 "i64 proposal plan preserves typed family, frontend source "
-                 "kind, and i64m1 shape"))
+                 "i64 proposal plan preserves typed family and i64m1 shape "
+                 "without frontend source authority"))
     return result;
   if (int result =
           expect(i64Plan.getRequiredCapabilityIDs().size() == 5 &&
@@ -409,13 +413,7 @@ int runProposalPlanRequirementMetadataTest() {
                           "route or ABI descriptor fields"))
     return result;
 
-  llvm::Expected<RVVBinaryProposalPlan> unsupported =
-      tianchenrv::plugin::rvv::buildRVVBinaryProposalPlan(
-          i64Capabilities, "i16-vadd", "unit unsupported proposal");
-  if (unsupported)
-    return fail("expected unsupported finite family proposal error");
-  return expectErrorContains(unsupported.takeError(),
-                             "frontend lowering family must be");
+  return 0;
 }
 
 int runDefaultI32VAddTypedBodyMaterializationPlanningTest() {
@@ -446,11 +444,10 @@ module {
 
   if (int result =
           expect(resolution.getFamilyID() == "i32-vadd" &&
-                     resolution.getSourceKind() ==
-                         "default-i32-vadd-typed-body-materialization" &&
+                     !resolution.hasDirectTypedBodyAuthority() &&
                      resolution.getDirectSelectedShapeID().empty(),
-                 "default no-body i32-vadd resolves only as typed-body "
-                 "materialization request"))
+                 "default no-body RVV proposal stays metadata-only and does "
+                 "not expose selected-source authority"))
     return result;
 
   TargetCapabilitySet capabilities;
@@ -468,10 +465,9 @@ module {
           expect(plan.getFamilyID() == "i32-vadd" &&
                      plan.getSelectedShape().shapeID == "i32m1" &&
                      plan.selectedPlan.elementCount == 16 &&
-                     plan.getSourceKind() ==
-                         "default-i32-vadd-typed-body-materialization",
-                 "default proposal selects i32m1 typed body materialization "
-                 "without descriptor compute authority"))
+                     !plan.hasDirectTypedBodyAuthority(),
+                 "default proposal selects i32m1 metadata without publishing "
+                 "finite selected-source authority"))
     return result;
 
   return expect(plan.getRequiredCapabilityIDs().size() == 5 &&
@@ -486,6 +482,37 @@ module {
                         "rvv.i32_m1.mask_policy.agnostic",
                 "default proposal keeps selected vector-shape capability "
                 "requirements explicit for later typed body materialization");
+}
+
+int runDeletedFrontendLoweringPlanningTest() {
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  dialectRegistry.insert<tianchenrv::tcrv::rvv::TCRVRVVDialect>();
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @frontend_selected attributes {
+    tcrv_frontend_lowering = "i32-vsub"
+  } {
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse deleted frontend-lowering planning module");
+
+  KernelOp kernel = findKernel(*module, "frontend_selected");
+  llvm::Expected<RVVBinaryFamilyPlanningResolution> resolution =
+      tianchenrv::plugin::rvv::resolveRVVBinaryFamilyForProposal(
+          kernel, "unit deleted frontend lowering");
+  if (resolution)
+    return fail("frontend-lowering metadata unexpectedly selected RVV family");
+  return expectErrorContains(resolution.takeError(),
+                             "cannot select an RVV finite binary family from "
+                             "deleted kernel metadata 'tcrv_frontend_lowering'");
 }
 
 int runDirectTypedBodyPlanningContractTest() {
@@ -604,8 +631,7 @@ module {
     return result;
   if (int result =
           expect(i64Resolution.getFamilyID() == "i64-vadd" &&
-                     i64Resolution.getSourceKind() ==
-                         "direct-typed-microkernel-body" &&
+                     i64Resolution.hasDirectTypedBodyAuthority() &&
                      i64Resolution.getDirectSelectedShapeID() == "i64m1",
                  "direct i64 typed body with optional legacy mirror resolves "
                  "typed family and shape"))
@@ -635,14 +661,13 @@ module {
   if (int result =
           expect(i64Plan.getFamilyID() == "i64-vadd" &&
                      i64Plan.getSelectedShape().shapeID == "i64m1" &&
-                     i64Plan.getSourceKind() ==
-                         "direct-typed-microkernel-body" &&
+                     i64Plan.hasDirectTypedBodyAuthority() &&
                      i64Plan.getRequiredCapabilityIDs().size() == 5 &&
                      i64Plan.getRequiredCapabilityIDs()[1] ==
                          "rvv.i64_m1.sew64" &&
                      i64Plan.getRequiredCapabilityIDs()[4] ==
                          "rvv.i64_m1.mask_policy.agnostic",
-                 "direct i64 proposal uses typed source-kind and centralized "
+                 "direct i64 proposal uses typed-body authority and centralized "
                  "contract capability ids without descriptor compute authority"))
     return result;
 
@@ -655,8 +680,7 @@ module {
     return result;
   if (int result =
           expect(i32Resolution.getFamilyID() == "i32-vadd" &&
-                     i32Resolution.getSourceKind() ==
-                         "direct-typed-microkernel-body" &&
+                     i32Resolution.hasDirectTypedBodyAuthority() &&
                      i32Resolution.getDirectSelectedShapeID() == "i32m2",
                  "direct i32 typed body resolves family and shape without "
                  "descriptor compute authority"))
@@ -673,8 +697,7 @@ module {
     return result;
   return expect(i32Plan.getFamilyID() == "i32-vadd" &&
                     i32Plan.getSelectedShape().shapeID == "i32m2" &&
-                    i32Plan.getSourceKind() ==
-                        "direct-typed-microkernel-body" &&
+                    i32Plan.hasDirectTypedBodyAuthority() &&
                     i32Plan.getRequiredCapabilityIDs()[1] ==
                         "rvv.i32_m2.sew32" &&
                     i32Plan.getRequiredCapabilityIDs()[2] ==
@@ -752,6 +775,8 @@ int main() {
   if (int result = runProposalPlanRequirementMetadataTest())
     return result;
   if (int result = runDefaultI32VAddTypedBodyMaterializationPlanningTest())
+    return result;
+  if (int result = runDeletedFrontendLoweringPlanningTest())
     return result;
   if (int result = runDirectTypedBodyPlanningContractTest())
     return result;

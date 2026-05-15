@@ -248,7 +248,6 @@ module {
       tcrv_rvv.selected_binary_dtype = "i64",
       tcrv_rvv.selected_binary_family = "i64-vmul",
       tcrv_rvv.selected_binary_operator = "multiply",
-      tcrv_rvv.selected_binary_source_kind = "direct-typed-microkernel-body",
       tcrv_rvv.selected_vector_shape = "i64m1",
       tcrv_rvv.selected_vector_sew = 64 : i64,
       tcrv_rvv.selected_vector_lmul = "m1",
@@ -385,23 +384,23 @@ int runVariantLegalityModuleTest(mlir::MLIRContext &context) {
 
   if (int result = expectErrorContains(
           verifyVariant("i32_vadd"),
-          {"requires typed RVV family/body or selected-source authority",
-           "selected vector metadata alone"}))
+          {"requires an actual typed RVV extension-family body",
+           "metadata cannot make a direct RVV binary variant legal"}))
     return result;
-  if (int result = expectSuccess(
+  if (int result = expectErrorContains(
           verifyVariant("i32_default_typed"),
-          "direct module accepts descriptorless default i32 typed RVV variant "
-          "only with selected-source metadata"))
+          {"RVV selected-source metadata", "deleted as RVV finite-family "
+                                          "legality authority"}))
     return result;
   if (int result = expectErrorContains(
           verifyVariant("i32_default_missing_selected_source"),
-          {"requires typed RVV family/body or selected-source authority",
-           "selected vector metadata alone"}))
+          {"requires an actual typed RVV extension-family body",
+           "metadata cannot make a direct RVV binary variant legal"}))
     return result;
-  if (int result = expectSuccess(
+  if (int result = expectErrorContains(
           verifyVariant("i32_vadd_mirror"),
-          "direct module accepts i32 selected-source metadata without descriptor "
-          "mirror metadata"))
+          {"RVV selected-source metadata", "deleted as RVV finite-family "
+                                          "legality authority"}))
     return result;
   if (int result = expectSuccess(verifyVariant("i64_vmul"),
                                  "direct module accepts i64-vmul RVV variant "
@@ -409,13 +408,13 @@ int runVariantLegalityModuleTest(mlir::MLIRContext &context) {
     return result;
   if (int result = expectErrorContains(
           verifyVariant("i64_vsub"),
-          {"requires typed RVV family/body or selected-source authority",
-           "selected vector metadata alone"}))
+          {"requires an actual typed RVV extension-family body",
+           "metadata cannot make a direct RVV binary variant legal"}))
     return result;
   if (int result = expectErrorContains(
           verifyVariant("i64_direct_source_without_body"),
-          {"direct-typed-microkernel-body",
-           "requires an actual typed tcrv_rvv.*_microkernel body"}))
+          {"RVV selected-source metadata", "deleted as RVV finite-family "
+                                          "legality authority"}))
     return result;
 
   if (int result = expectErrorContains(

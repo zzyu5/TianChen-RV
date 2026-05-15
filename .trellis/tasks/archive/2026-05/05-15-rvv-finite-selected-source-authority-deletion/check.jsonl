@@ -1,0 +1,19 @@
+{"file": ".trellis/spec/index.md", "reason": "verify global TianChen-RV invariants are preserved"}
+{"file": ".trellis/spec/architecture/design-boundaries.md", "reason": "verify no descriptor-driven or independent backend authority is reintroduced"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "verify tcrv.exec remains target-neutral execution envelope"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV changes remain plugin-local and fail-closed"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify no replacement path bypasses the future EmitC route"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "verify no family-specific core orchestration branch is added"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify deleted route behavior remains unsupported/absent"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "verify tests no longer preserve old selected-source/frontend authority"}
+{"file": ".trellis/tasks/archive/2026-05/05-15-rvv-body-verifier-descriptor-deletion/prd.md", "reason": "compare completion evidence against previous deletion round"}
+{"command": "cmake --build build --target tianchenrv-rvv-binary-planning-test tianchenrv-rvv-binary-variant-legality-test tianchenrv-rvv-selected-lowering-boundary-test tianchenrv-rvv-extension-plugin-test -j2", "result": "passed"}
+{"command": "./build/bin/tianchenrv-rvv-binary-planning-test", "result": "passed"}
+{"command": "./build/bin/tianchenrv-rvv-binary-variant-legality-test", "result": "passed"}
+{"command": "./build/bin/tianchenrv-rvv-selected-lowering-boundary-test", "result": "passed"}
+{"command": "./build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed"}
+{"command": "cmake --build build --target tcrv-opt tcrv-translate -j2", "result": "passed"}
+{"command": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='(plugin-variant-materialization-rvv-selected-shape|rvv-microkernel-i64-vadd-missing-cap-fails|rvv-probe-to-mlir)'", "workdir": "build/test", "result": "passed 4/4"}
+{"command": "cmake --build build --target check-tianchenrv -j2", "result": "passed 114/114"}
+{"command": "git diff --check", "result": "passed"}
+{"command": "rg deleted frontend/selected-source authority patterns over RVV/plugin/support/script/lit paths", "result": "no deleted frontend contracts/lookups/planner sourceKind remain; remaining matches are deletion-negative tests/messages, RVV dialect direct typed identity validation, or out-of-scope scalar tests"}

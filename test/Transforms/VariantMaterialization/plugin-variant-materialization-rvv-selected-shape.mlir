@@ -2,9 +2,7 @@
 
 module {
   // CHECK-LABEL: tcrv.exec.kernel @selector_i32m2_with_both_shapes
-  tcrv.exec.kernel @selector_i32m2_with_both_shapes attributes {
-    tcrv_frontend_lowering = "i32-vsub"
-  } {
+  tcrv.exec.kernel @selector_i32m2_with_both_shapes {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -111,9 +109,7 @@ module {
   // CHECK-SAME: status = "unsupported"
 
   // CHECK-LABEL: tcrv.exec.kernel @default_i32m1_without_selector
-  tcrv.exec.kernel @default_i32m1_without_selector attributes {
-    tcrv_frontend_lowering = "i32-vadd"
-  } {
+  tcrv.exec.kernel @default_i32m1_without_selector {
     tcrv.exec.capability @default_rvv {
       id = "rvv",
       kind = "isa-vector",

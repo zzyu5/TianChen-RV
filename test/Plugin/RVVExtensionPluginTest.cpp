@@ -50,8 +50,6 @@ using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
-using tianchenrv::tcrv::rvv::I32VAddMicrokernelOp;
-using tianchenrv::tcrv::rvv::I32VMulMicrokernelOp;
 using tianchenrv::tcrv::rvv::I32VSubMicrokernelOp;
 using tianchenrv::tcrv::rvv::MaskPolicy;
 using tianchenrv::tcrv::rvv::PolicyAttr;
@@ -161,18 +159,6 @@ int expectStringAttr(mlir::Operation *operation, llvm::StringRef attrName,
                     " preserves expected value");
 }
 
-int expectIntegerAttr(mlir::Operation *operation, llvm::StringRef attrName,
-                      int64_t expectedValue) {
-  auto attr = operation->getAttrOfType<mlir::IntegerAttr>(attrName);
-  if (int result =
-          expect(static_cast<bool>(attr),
-                 llvm::Twine("expected integer attribute ") + attrName))
-    return result;
-  return expect(attr.getInt() == expectedValue,
-                llvm::Twine("integer attribute ") + attrName +
-                    " preserves expected value");
-}
-
 mlir::Attribute findProposalAttribute(const VariantProposal &proposal,
                                       llvm::StringRef attrName) {
   for (mlir::NamedAttribute attribute : proposal.getPluginAttributes()) {
@@ -223,23 +209,6 @@ KernelOp findKernel(mlir::ModuleOp module, llvm::StringRef name) {
   return kernel;
 }
 
-I32VAddMicrokernelOp findRVVAddMicrokernel(
-    KernelOp kernel, llvm::StringRef selectedVariantSymbol) {
-  I32VAddMicrokernelOp result;
-  if (!kernel || kernel.getBody().empty())
-    return result;
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto microkernel = llvm::dyn_cast<I32VAddMicrokernelOp>(op);
-    if (!microkernel)
-      continue;
-    auto selectedVariant =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
-      result = microkernel;
-  }
-  return result;
-}
-
 I32VSubMicrokernelOp findRVVSubMicrokernel(
     KernelOp kernel, llvm::StringRef selectedVariantSymbol) {
   I32VSubMicrokernelOp result;
@@ -255,39 +224,6 @@ I32VSubMicrokernelOp findRVVSubMicrokernel(
       result = microkernel;
   }
   return result;
-}
-
-I32VMulMicrokernelOp findRVVMulMicrokernel(
-    KernelOp kernel, llvm::StringRef selectedVariantSymbol) {
-  I32VMulMicrokernelOp result;
-  if (!kernel || kernel.getBody().empty())
-    return result;
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto microkernel = llvm::dyn_cast<I32VMulMicrokernelOp>(op);
-    if (!microkernel)
-      continue;
-    auto selectedVariant =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
-      result = microkernel;
-  }
-  return result;
-}
-
-mlir::Operation *findRVVI64Microkernel(
-    KernelOp kernel, llvm::StringRef selectedVariantSymbol,
-    llvm::StringRef microkernelOpName) {
-  if (!kernel || kernel.getBody().empty())
-    return nullptr;
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    if (op.getName().getStringRef() != microkernelOpName)
-      continue;
-    auto selectedVariant =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
-      return &op;
-  }
-  return nullptr;
 }
 
 std::string getRVVFamilySymbolFragment(
@@ -771,10 +707,6 @@ module {
     }
   }
 
-  tcrv.exec.kernel @profile_i64_vadd attributes {
-    tcrv_frontend_lowering = "i64-vadd"
-  } {
-  }
 }
 )mlir";
 
@@ -812,9 +744,6 @@ module {
     return result;
   if (int result = expectProposalIntegerAttr(
           proposals[0], "tcrv_rvv.base_i32_m1_lanes", 4))
-    return result;
-  if (int result =
-          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.element_count", 16))
     return result;
   if (int result = expectProposalStringAttr(
           proposals[0], "tcrv_rvv.selected_vector_shape", "i32m1"))
@@ -948,100 +877,6 @@ module {
                  "metadata"))
     return result;
 
-  KernelOp i64Kernel = findKernel(*module, "profile_i64_vadd");
-  if (int result =
-          expect(static_cast<bool>(i64Kernel),
-                 "RVV capability profile i64 test kernel is present"))
-    return result;
-
-  VariantProposalRequest i64Request =
-      makeRequest(highLevelOp.getOperation(), i64Kernel, capabilities);
-  llvm::SmallVector<VariantProposal, 1> i64Proposals;
-  if (int result = expectSuccess(
-          registry.collectVariantProposals(i64Request, i64Proposals),
-          "profile-derived i64m1 capabilities feed RVV proposal collection"))
-    return result;
-  if (int result =
-          expect(i64Proposals.size() == 1,
-                 "profile-derived i64m1 RVV capabilities propose one variant"))
-    return result;
-  if (int result = expect(
-          i64Proposals[0].getRequiredCapabilityIDs().size() == 5 &&
-              i64Proposals[0].getRequiredCapabilityIDs()[1] ==
-                  "rvv.i64_m1.sew64" &&
-              i64Proposals[0].getRequiredCapabilityIDs()[2] ==
-                  "rvv.i64_m1.lmul_m1" &&
-              i64Proposals[0].getRequiredCapabilityIDs()[3] ==
-                  "rvv.i64_m1.tail_policy.agnostic" &&
-              i64Proposals[0].getRequiredCapabilityIDs()[4] ==
-                  "rvv.i64_m1.mask_policy.agnostic",
-          "profile-derived i64 proposal requires i64m1 capability IDs"))
-    return result;
-  if (int result = expectProposalStringAttr(
-          i64Proposals[0], "tcrv_rvv.selected_vector_shape", "i64m1"))
-    return result;
-
-  llvm::SmallVector<VariantOp, 1> i64MaterializedVariants;
-  if (int result = expectSuccess(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
-              builder, registry, i64Request, &i64MaterializedVariants),
-          "materialize RVV i64 proposal from profile capabilities"))
-    return result;
-  if (int result =
-          expect(i64MaterializedVariants.size() == 1,
-                 "one profile-derived RVV i64 variant materialized"))
-    return result;
-  VariantOp i64Variant = i64MaterializedVariants.front();
-  VariantLoweringBoundaryResult i64BoundaryResult;
-  {
-    mlir::OpBuilder::InsertionGuard guard(builder);
-    builder.setInsertionPointToEnd(&i64Kernel.getBody().front());
-    if (int result = expectSuccess(
-            registry.materializeSelectedLoweringBoundary(
-                VariantLoweringBoundaryRequest(
-                    i64Variant, i64Kernel, capabilities,
-                    VariantEmissionRole::DirectVariant, builder),
-                i64BoundaryResult),
-            "materialize profile-derived RVV i64 lowering boundary"))
-      return result;
-  }
-  if (int result =
-          expect(i64BoundaryResult.isMaterialized(),
-                 "profile-derived RVV i64 boundary materialized"))
-    return result;
-
-  mlir::Operation *i64Microkernel = findRVVI64Microkernel(
-      i64Kernel, i64Variant.getSymName(),
-      tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord().microkernelOpName);
-  if (int result =
-          expect(!i64Microkernel,
-                 "profile-derived RVV i64 path no longer materializes i64 "
-                 "vadd op from selected descriptor"))
-    return result;
-
-  VariantEmissionPlan i64Plan;
-  if (int result = expectSuccess(
-          plugin.buildVariantEmissionPlan(
-              VariantEmissionRequest(i64Variant, i64Kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
-              i64Plan),
-          "profile-derived RVV i64 path builds emission plan"))
-    return result;
-  if (int result =
-          expect(i64Plan.isUnsupported() &&
-                     i64Plan.getDiagnostic().contains(
-                         "RVV metadata-only first slice has no RVV lowering "
-                         "pipeline") &&
-                     i64Plan.getRuntimeABIKind() ==
-                         "rvv-plugin-deferred-runtime-abi" &&
-                     i64Plan.getRuntimeABIName() ==
-                         "rvv-executable-runtime-abi-deferred" &&
-                     i64Plan.getRuntimeGlueRole() ==
-                         "deferred-rvv-runtime-glue",
-                 "profile-derived RVV i64 path reaches metadata-only "
-                 "unsupported emission plan"))
-    return result;
-
   RVVProbeCapabilityFacts wideFacts = makeSuccessfulProbeFacts();
   wideFacts.vlenbBytes = 128;
   wideFacts.i32M1LaneCount = 32;
@@ -1069,10 +904,6 @@ module {
   if (int result = expectProposalIntegerAttr(
           wideProposals[0], "tcrv_rvv.base_i32_m1_lanes", 32))
     return result;
-  if (int result = expectProposalIntegerAttr(
-          wideProposals[0], "tcrv_rvv.element_count", 64))
-    return result;
-
   return 0;
 }
 
@@ -1304,9 +1135,6 @@ module {
   if (int result = expectProposalIntegerAttr(
           proposals[0], "tcrv_rvv.base_i32_m1_lanes", 8))
     return result;
-  if (int result =
-          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.element_count", 32))
-    return result;
   if (int result = expectProposalStringAttr(
           proposals[0], "tcrv_rvv.selected_vector_shape", "i32m1"))
     return result;
@@ -1355,9 +1183,6 @@ module {
                      variantI32Lanes && variantI32Lanes.getInt() == 8,
                  "materialized RVV variant preserves capability-derived "
                  "capacity metadata"))
-    return result;
-  if (int result = expectIntegerAttr(variant.getOperation(),
-                                     "tcrv_rvv.element_count", 32))
     return result;
   if (int result = expectStringAttr(variant.getOperation(),
                                     "tcrv_rvv.selected_vector_shape",
@@ -1795,10 +1620,6 @@ module {
   if (int result = expectProposalIntegerAttr(
           proposals[0], "tcrv_rvv.base_i32_m1_lanes", 8))
     return result;
-  if (int result =
-          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.element_count", 32))
-    return result;
-
   mlir::OpBuilder builder(&context);
   llvm::SmallVector<VariantOp, 1> materializedVariants;
   if (int result = expectSuccess(
@@ -2003,88 +1824,11 @@ module {
                           llvm::Twine("collect RVV proposal for ") +
                               kernelName))
       return result;
-    if (int result =
-            expect(proposals.size() == 1,
-                   llvm::Twine("one RVV proposal for ") + kernelName))
-      return result;
-    mlir::OpBuilder builder(&context);
-    llvm::SmallVector<VariantOp, 1> materializedVariants;
-    if (int result = expectSuccess(
-            tianchenrv::transforms::collectAndMaterializeVariantProposals(
-                builder, registry, request, &materializedVariants),
-            llvm::Twine("materialize RVV proposal for ") + kernelName))
-      return result;
-    if (int result =
-            expect(materializedVariants.size() == 1,
-                   llvm::Twine("one materialized RVV variant for ") +
-                       kernelName))
-      return result;
-    VariantOp variant = materializedVariants.front();
-    VariantLoweringBoundaryResult boundaryResult;
-    {
-      mlir::OpBuilder::InsertionGuard guard(builder);
-      builder.setInsertionPointToEnd(&kernel.getBody().front());
-      if (int result = expectSuccess(
-              registry.materializeSelectedLoweringBoundary(
-                  VariantLoweringBoundaryRequest(
-                      variant, kernel, capabilities,
-                      VariantEmissionRole::DirectVariant, builder),
-                  boundaryResult),
-              llvm::Twine("materialize RVV boundary for ") + kernelName))
-        return result;
-    }
-    if (int result =
-            expect(boundaryResult.isMaterialized(),
-                   llvm::Twine("RVV boundary materialized for ") + kernelName))
-      return result;
-
-    if (family.arithmetic ==
-        tianchenrv::target::rvv::RVVBinaryArithmeticKind::Add) {
-      if (int result = expect(
-              !findRVVAddMicrokernel(kernel, variant.getSymName()),
-              "registry-backed RVV vadd descriptor no longer materializes "
-              "vadd op"))
-        return result;
-    } else if (family.arithmetic ==
-               tianchenrv::target::rvv::RVVBinaryArithmeticKind::Sub) {
-      if (int result = expect(
-              !findRVVSubMicrokernel(kernel, variant.getSymName()),
-              "registry-backed RVV vsub descriptor no longer materializes "
-              "vsub op"))
-        return result;
-    } else {
-      if (int result = expect(
-              !findRVVMulMicrokernel(kernel, variant.getSymName()),
-              "registry-backed RVV vmul descriptor no longer materializes "
-              "vmul op"))
-        return result;
-    }
-
-    VariantEmissionPlan emissionPlan;
-    if (int result = expectSuccess(
-            registry.buildVariantEmissionPlan(
-                VariantEmissionRequest(variant, kernel, capabilities,
-                                       VariantEmissionRole::DirectVariant),
-                emissionPlan),
-            llvm::Twine("build RVV emission plan for ") + kernelName))
-      return result;
-    if (int result =
-            expect(emissionPlan.isUnsupported() &&
-                       emissionPlan.getDiagnostic().contains(
-                           "RVV metadata-only first slice has no RVV lowering "
-                           "pipeline") &&
-                       emissionPlan.getRuntimeABIKind() ==
-                           "rvv-plugin-deferred-runtime-abi" &&
-                       emissionPlan.getRuntimeABIName() ==
-                           "rvv-executable-runtime-abi-deferred" &&
-                       emissionPlan.getRuntimeGlueRole() ==
-                           "deferred-rvv-runtime-glue",
-                   llvm::Twine("RVV emission plan records metadata-only "
-                               "unsupported route for ") +
-                       kernelName))
-      return result;
-
-    return 0;
+    (void)family;
+    return expect(proposals.empty(),
+                  llvm::Twine("deleted tcrv_frontend_lowering authority "
+                              "does not produce an RVV proposal for ") +
+                      kernelName);
   };
 
   if (int result = expectFamily(
@@ -2110,9 +1854,7 @@ module {
     return
   }
 
-  tcrv.exec.kernel @rvv_i32m2_vsub attributes {
-    tcrv_frontend_lowering = "i32-vsub"
-  } {
+  tcrv.exec.kernel @rvv_i32m2_vsub attributes {} {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -2390,7 +2132,7 @@ module {
   replaceAll(source, "rvv_i64_vadd", kernelSymbol);
   replaceAll(source, "frontend_i64_vadd", frontendKernelSymbol);
   replaceAll(source, "source_i64_vadd", sourceFunctionSymbol);
-  replaceAll(source, "i64-vadd", family.frontendLowering);
+  replaceAll(source, "i64-vadd", family.familyID);
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
@@ -2417,114 +2159,10 @@ module {
           registry.collectVariantProposals(request, proposals),
           "collect RVV i64 proposal"))
     return result;
-  if (int result =
-          expect(proposals.size() == 1,
-                 "finite i64m1 capability facts produce one proposal"))
-    return result;
-  if (int result = expect(
-          proposals[0].getRequiredCapabilityIDs().size() == 5 &&
-              proposals[0].getRequiredCapabilityIDs()[1] ==
-                  "rvv.i64_m1.sew64" &&
-              proposals[0].getRequiredCapabilityIDs()[2] ==
-                  "rvv.i64_m1.lmul_m1" &&
-              proposals[0].getRequiredCapabilityIDs()[3] ==
-                  "rvv.i64_m1.tail_policy.agnostic" &&
-              proposals[0].getRequiredCapabilityIDs()[4] ==
-                  "rvv.i64_m1.mask_policy.agnostic",
-          "RVV i64 proposal requires i64m1 config capability ids"))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposals[0], "tcrv_rvv.selected_vector_shape", "i64m1"))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposals[0], "tcrv_rvv.selected_vector_type", "vint64m1_t"))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposals[0], "tcrv_rvv.selected_setvl_suffix", "e64m1"))
-    return result;
-
-  mlir::OpBuilder builder(&context);
-  llvm::SmallVector<VariantOp, 1> materializedVariants;
-  if (int result = expectSuccess(
-          tianchenrv::transforms::collectAndMaterializeVariantProposals(
-              builder, registry, request, &materializedVariants),
-          "materialize RVV i64 proposal"))
-    return result;
-  if (int result = expect(materializedVariants.size() == 1,
-                          "one RVV i64 variant materialized"))
-    return result;
-  VariantOp variant = materializedVariants.front();
-
-  if (int result = expectStringAttr(variant.getOperation(),
-                                    "tcrv_rvv.selected_vector_shape", "i64m1"))
-    return result;
-
-  VariantLoweringBoundaryResult boundaryResult;
-  {
-    mlir::OpBuilder::InsertionGuard guard(builder);
-    builder.setInsertionPointToEnd(&kernel.getBody().front());
-    if (int result = expectSuccess(
-            registry.materializeSelectedLoweringBoundary(
-                VariantLoweringBoundaryRequest(
-                    variant, kernel, capabilities,
-                    VariantEmissionRole::DirectVariant, builder),
-                boundaryResult),
-            "materialize RVV i64 lowering boundary"))
-      return result;
-  }
-  if (int result = expect(boundaryResult.isMaterialized(),
-                          "RVV i64 boundary materialized"))
-    return result;
-
-  mlir::Operation *microkernel =
-      findRVVI64Microkernel(kernel, variant.getSymName(),
-                            family.microkernelOpName);
-  if (int result =
-          expect(!microkernel,
-                 llvm::Twine("RVV i64 selected boundary no longer "
-                             "materializes ") +
-                     family.familyID + " typed body from selected descriptor"))
-    return result;
-
-  llvm::Expected<
-      std::optional<tianchenrv::plugin::rvv::RVVBinarySelectedEmissionPlan>>
-      selectedEmissionPlan =
-          tianchenrv::plugin::rvv::buildRVVBinarySelectedEmissionPlan(
-              VariantEmissionRequest(variant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
-              tianchenrv::plugin::rvv::getRVVExtensionPluginName());
-  if (!selectedEmissionPlan)
-    return fail(llvm::Twine("build RVV i64 selected-emission plan for ") +
-                family.familyID + ": " +
-                llvm::toString(selectedEmissionPlan.takeError()));
-  if (int result =
-          expect(!static_cast<bool>(*selectedEmissionPlan),
-                 llvm::Twine("RVV i64 selected-emission planner no longer "
-                             "builds callable ABI params from selected "
-                             "descriptor for ") +
-                     family.familyID))
-    return result;
-
-  VariantEmissionPlan emissionPlan;
-  if (int result = expectSuccess(
-          registry.buildVariantEmissionPlan(
-              VariantEmissionRequest(variant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
-              emissionPlan),
-          "build RVV i64 emission plan"))
-    return result;
-  return expect(emissionPlan.isUnsupported() &&
-                    emissionPlan.getDiagnostic().contains(
-                        "RVV metadata-only first slice has no RVV lowering "
-                        "pipeline") &&
-                    emissionPlan.getRuntimeABIKind() ==
-                        "rvv-plugin-deferred-runtime-abi" &&
-                    emissionPlan.getRuntimeABIName() ==
-                        "rvv-executable-runtime-abi-deferred" &&
-                    emissionPlan.getRuntimeGlueRole() ==
-                        "deferred-rvv-runtime-glue",
-                "RVV i64 emission plan records metadata-only unsupported route "
-                "and no descriptor ABI params");
+  return expect(proposals.empty(),
+                llvm::Twine("deleted tcrv_frontend_lowering authority does "
+                            "not produce an RVV i64 proposal for ") +
+                    family.familyID);
 }
 
 int runRVVI64VAddProposalMaterializationTest(mlir::MLIRContext &context) {
@@ -2737,7 +2375,7 @@ module {
   llvm::ArrayRef<mlir::NamedAttribute> proposalAttributes =
       proposals[0].getPluginAttributes();
   if (int result =
-          expect(proposalAttributes.size() == 15,
+          expect(proposalAttributes.size() == 10,
                  "RVV proposal carries typed policy, selected vector-shape, "
                  "and property evidence attributes"))
     return result;
@@ -2752,22 +2390,6 @@ module {
     return result;
   if (int result = expectProposalStringAttr(
           proposals[0], "tcrv_rvv.required_march", "rv64gcv"))
-    return result;
-  if (int result =
-          expectProposalIntegerAttr(proposals[0], "tcrv_rvv.element_count", 16))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposals[0], "tcrv_rvv.selected_binary_dtype", "i32"))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposals[0], "tcrv_rvv.selected_binary_family", "i32-vadd"))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposals[0], "tcrv_rvv.selected_binary_operator", "add"))
-    return result;
-  if (int result = expectProposalStringAttr(
-          proposals[0], "tcrv_rvv.selected_binary_source_kind",
-          "default-i32-vadd-typed-body-materialization"))
     return result;
   if (int result = expectProposalStringAttr(
           proposals[0], "tcrv_rvv.selected_vector_shape", "i32m1"))
@@ -2807,9 +2429,6 @@ module {
                      requiredMarchAttr.getValue() == "rv64gcv",
                  "materialized RVV variant has typed origin, requires, and "
                  "plugin-owned property metadata"))
-    return result;
-  if (int result = expectIntegerAttr(variant.getOperation(),
-                                     "tcrv_rvv.element_count", 16))
     return result;
   if (int result = expectStringAttr(variant.getOperation(),
                                     "tcrv_rvv.selected_vector_shape",
