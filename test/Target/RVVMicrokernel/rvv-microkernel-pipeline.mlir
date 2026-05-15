@@ -52,7 +52,19 @@ module @rvv_microkernel_input {
       policy = "metadata_only_first_slice",
       requires = [@rvv],
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      tcrv_rvv.required_march = "rv64gcv"
+      tcrv_rvv.required_march = "rv64gcv",
+      tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m1.mask_policy.agnostic",
+      tcrv_rvv.selected_setvl_suffix = "e32m1",
+      tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m1.tail_policy.agnostic",
+      tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m1.lmul_m1",
+      tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m1.sew32",
+      tcrv_rvv.selected_vector_shape = "i32m1",
+      tcrv_rvv.selected_vector_suffix = "i32m1",
+      tcrv_rvv.selected_vector_type = "vint32m1_t"
     } {
     }
     tcrv.exec.variant @scalar_fallback_first_slice attributes {

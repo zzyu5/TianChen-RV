@@ -88,17 +88,17 @@ module {
       origin = "rvv-plugin",
       policy = "metadata_only_first_slice",
       requires = [@rvv, @rvv_i32_m2_sew32, @rvv_i32_m2_lmul_m2, @rvv_i32_m2_tail_agnostic, @rvv_i32_m2_mask_agnostic],
-      tcrv_rvv.element_count = 16 : i64,
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.selected_binary_dtype = "i32",
-      tcrv_rvv.selected_binary_family = "i32-vadd",
-      tcrv_rvv.selected_binary_operator = "add",
       tcrv_rvv.selected_vector_shape = "i32m2",
       tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m2.sew32",
       tcrv_rvv.selected_vector_lmul = "m2",
+      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m2.lmul_m2",
       tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m2.tail_policy.agnostic",
       tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m2.mask_policy.agnostic",
       tcrv_rvv.selected_vector_type = "vint32m2_t",
       tcrv_rvv.selected_vector_suffix = "i32m2",
       tcrv_rvv.selected_setvl_suffix = "e32m2"
@@ -152,7 +152,7 @@ module {
   // CHECK: tcrv.exec.diagnostic
   // CHECK-SAME: emission_kind = "rvv-unsupported-metadata-boundary"
   // CHECK-SAME: required_capabilities = [@rvv, @rvv_i32_m2_sew32, @rvv_i32_m2_lmul_m2, @rvv_i32_m2_tail_agnostic, @rvv_i32_m2_mask_agnostic]
-  // CHECK-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
+  // CHECK-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
   // CHECK-SAME: status = "unsupported"
 
   // CHECK-LABEL: tcrv.exec.kernel @default_i32m1_without_selector
@@ -212,17 +212,17 @@ module {
       origin = "rvv-plugin",
       policy = "metadata_only_first_slice",
       requires = [@default_rvv, @default_rvv_i32_m1_sew32, @default_rvv_i32_m1_lmul_m1, @default_rvv_i32_m1_tail_agnostic, @default_rvv_i32_m1_mask_agnostic],
-      tcrv_rvv.element_count = 16 : i64,
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.selected_binary_dtype = "i32",
-      tcrv_rvv.selected_binary_family = "i32-vadd",
-      tcrv_rvv.selected_binary_operator = "add",
       tcrv_rvv.selected_vector_shape = "i32m1",
       tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m1.sew32",
       tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m1.lmul_m1",
       tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m1.tail_policy.agnostic",
       tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m1.mask_policy.agnostic",
       tcrv_rvv.selected_vector_type = "vint32m1_t",
       tcrv_rvv.selected_vector_suffix = "i32m1",
       tcrv_rvv.selected_setvl_suffix = "e32m1"
@@ -268,6 +268,6 @@ module {
   // CHECK-SAME: selected_vector_shape = "i32m1"
   // CHECK: tcrv.exec.diagnostic
   // CHECK-SAME: emission_kind = "rvv-unsupported-metadata-boundary"
-  // CHECK-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
+  // CHECK-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
   // CHECK-SAME: status = "unsupported"
 }

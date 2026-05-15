@@ -285,7 +285,7 @@ Campaign deletion targets are:
   microkernel selection, descriptor intrinsic or artifact route authority,
   descriptor C generation, descriptor-as-plugin/template/RAG basis, finite
   descriptor family production paths, `i32-vadd-microkernel.v1`-style
-  descriptor semantics, `RVVBinaryDescriptor`, `RVVBinaryFamilyRegistry`,
+  descriptor semantics, old RVV binary descriptor/family-registry names,
   descriptor-based dispatch, and descriptor-to-C exporters;
 - direct C semantic exporters that synthesize compute bodies from metadata,
   descriptors, selected routes, or family registries instead of consuming

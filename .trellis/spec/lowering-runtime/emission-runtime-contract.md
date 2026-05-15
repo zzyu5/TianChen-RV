@@ -158,8 +158,8 @@ Rules:
   binary RVV/scalar callable source route, these entries must be derived from
   and validated against direct `tcrv.exec.mem_window` /
   `tcrv.exec.runtime_param` IR boundaries rather than acting as an independent
-  parameter truth source. Add/sub/mul ABI identity fields must be derived from
-  the selected finite binary runtime ABI contract keyed by selected family id;
+  parameter truth source. Add/sub/mul ABI identity fields must not be derived
+  from deleted finite RVV family records or selected-binary metadata;
 - for supported and metadata-only paths, carry required capability symbol refs
   that are a safe subset of the selected variant `requires` metadata;
 - for supported paths, require non-empty emission kind, lowering pipeline
@@ -270,17 +270,14 @@ success text, artifact paths, credentials, correctness claims, or performance
 claims.
 The self-check object route remains an explicit target-owned helper command for
 evidence collection, not the generic artifact front door.
-For the direct RVV i32/i64 add/sub/mul microkernel paths, the runtime-callable C
-header route is matched from the same validated callable source candidate as the
-object route. It derives its single prototype from the same selected path,
-microkernel body, callable ABI plan, mem_window/runtime_param boundaries, and
-capability metadata as the source/object routes. For the i64 source/header/
-object routes, the selected typed `tcrv_rvv.i64_vadd_microkernel`,
-`tcrv_rvv.i64_vsub_microkernel`, or `tcrv_rvv.i64_vmul_microkernel` body is the
-authority for family, dtype, arithmetic op, intrinsic config, callable ABI,
-route id, artifact kind, component group, function stem, and generated C body.
-Target export must fail closed when a selected path lacks typed family/body
-authority before source/header/object/bundle output. The header must not embed
+For historical direct RVV i32/i64 add/sub/mul microkernel paths, the
+runtime-callable C header/object route is deleted as production authority.
+Selected RVV metadata, microkernel op names, or descriptor-shaped mirrors are
+not authority for family, dtype, arithmetic op, intrinsic config, callable ABI,
+route id, artifact kind, component group, function stem, or generated C body.
+Target export must fail closed when a selected path lacks future explicit
+extension-family ops plus a materialized EmitC route before
+source/header/object/bundle output. The header must not embed
 callable bodies, RVV intrinsics, `main`,
 self-check helpers, runtime probing, evidence logs, credentials, artifact
 paths, or performance text.
@@ -1801,41 +1798,18 @@ os << formatRuntimeABIInvocationContractCommentBody(
     "runtime_abi_invocation_contract", *contract);
 ```
 
-## Target-Layer RVV Binary Runtime ABI Contract
+## Deleted Target-Layer RVV Binary Runtime ABI Contract
 
-The selected RVV binary microkernel route has a target-owned runtime ABI
-contract over the finite RVV family registry:
-
-```cpp
-const tianchenrv::target::rvv::RVVBinaryRuntimeABIContract &
-tianchenrv::target::rvv::getRVVBinaryRuntimeABIContract(
-    const tianchenrv::target::rvv::RVVBinaryFamilyDescriptor &family);
-```
-
-This contract covers exactly the currently supported direct RVV binary
-families `i32-vadd`, `i32-vsub`, `i32-vmul`, `i64-vadd`, `i64-vsub`, and
-`i64-vmul`. It derives from the selected `RVVBinaryFamilyDescriptor`:
-
-- ordered callable C parameters:
-  `lhs`, `rhs`, `out`, and runtime element count `n`;
-- C pointer spellings from the selected dtype, for example
-  `const int32_t *` / `int32_t *` for i32 families and
-  `const int64_t *` / `int64_t *` for i64 families;
-- target-export ABI ownership and callable role requirements;
-- `tcrv.exec.mem_window` specs for lhs/rhs/out buffer roles;
-- the direct runtime element-count `tcrv.exec.runtime_param` spec;
-- RVV runtime ABI kind/name, runtime glue role, and external ABI component
-  group for source/header/object bundle coherence.
+The target-layer RVV binary runtime ABI contract and finite family registry are
+deleted as active planning/emission authority. RVV selected-path code must not
+derive callable parameters, C pointer spellings, runtime ABI kind/name, runtime
+glue role, component group, function stem, route id, or artifact kind from
+finite add/sub/mul family records or selected-binary metadata.
 
 The older i32 support-layer contract remains the scalar/dispatch compatibility
-owner for bounded i32 shared surfaces. Direct RVV microkernel planning,
-readiness, emission-plan diagnostics, target-artifact exporter registration,
-route-local candidate preflight, header/object helper metadata, and manifest or
-bundle serialization that handle direct RVV i32/i64 add/sub/mul must consume
-the selected RVV binary contract when a concrete selected RVV family is
-available. `i32-vadd` compatibility wrappers may stay as wrappers only; they
-must not be the active source of truth for `i32-vsub`, `i32-vmul`, or any i64
-RVV selected family.
+owner for bounded i32 shared surfaces only. It must not be repurposed as RVV
+binary family authority, and it must not synthesize direct RVV source/header/
+object routes.
 
 Direct RVV binary source/header/object route ownership is deleted as production
 route authority. Historical route ids such as

@@ -51,17 +51,17 @@ module {
       origin = "rvv-plugin",
       policy = "metadata_only_first_slice",
       requires = [@rvv],
-      tcrv_rvv.element_count = 16 : i64,
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       tcrv_rvv.required_march = "rv64gcv",
-      tcrv_rvv.selected_binary_dtype = "i32",
-      tcrv_rvv.selected_binary_family = "i32-vadd",
-      tcrv_rvv.selected_binary_operator = "add",
       tcrv_rvv.selected_vector_shape = "i32m1",
       tcrv_rvv.selected_vector_sew = 32 : i64,
+      tcrv_rvv.selected_vector_sew_capability = "rvv.i32_m1.sew32",
       tcrv_rvv.selected_vector_lmul = "m1",
+      tcrv_rvv.selected_vector_lmul_capability = "rvv.i32_m1.lmul_m1",
       tcrv_rvv.selected_tail_policy = "agnostic",
+      tcrv_rvv.selected_tail_policy_capability = "rvv.i32_m1.tail_policy.agnostic",
       tcrv_rvv.selected_mask_policy = "agnostic",
+      tcrv_rvv.selected_mask_policy_capability = "rvv.i32_m1.mask_policy.agnostic",
       tcrv_rvv.selected_vector_type = "vint32m1_t",
       tcrv_rvv.selected_vector_suffix = "i32m1",
       tcrv_rvv.selected_setvl_suffix = "e32m1"
@@ -114,9 +114,9 @@ module {
 // IR-SAME: selected_variant = @scalar_fallback_first_slice
 // IR: tcrv.exec.diagnostic
 // IR-SAME: emission_kind = "rvv-unsupported-metadata-boundary"
-// IR-SAME: message = "RVV metadata-only first slice has no RVV lowering pipeline, runtime ABI, artifact contract, or executable emission path; this unsupported emission plan is a plugin-owned diagnostic boundary and not RVV hardware/toolchain/runtime/correctness/performance evidence"
+// IR-SAME: message = "RVV first slice has no materialized EmitC lowering, runtime ABI, artifact contract, or executable emission path"
 // IR-SAME: role = "dispatch case"
-// IR-SAME: runtime_abi_kind = "rvv-plugin-deferred-runtime-abi"
+// IR-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
 // IR-SAME: status = "unsupported"
 // IR-SAME: target = @rvv_first_slice
 // IR: tcrv.exec.diagnostic

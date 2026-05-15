@@ -11,9 +11,9 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
-#include "TianChenRV/Target/RVV/RVVBinaryFamily.h"
-#include "TianChenRV/Target/RVV/RVVSelectedConfigContract.h"
+#include "TianChenRV/Target/RVV/RVVRuntimeLengthContract.h"
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
+#include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
 #include "TianChenRV/Target/Template/TemplateMetadataArtifact.h"
@@ -42,8 +42,6 @@ using tianchenrv::support::I32BinaryCallableRuntimeABIParameterBindings;
 using tianchenrv::support::RuntimeABIParameter;
 using tianchenrv::support::RuntimeABIParameterOwnership;
 using tianchenrv::support::RuntimeABIParameterRole;
-using RVVBinaryFamilyRecord =
-    tianchenrv::target::rvv::RVVBinaryFamilyRecord;
 
 const I32BinaryRuntimeABIContract &
 getRuntimeABIContract(llvm::StringRef familyID) {
@@ -241,97 +239,13 @@ bool expectRVVRuntimeLengthContractMetadata() {
     return false;
   }
 
-  llvm::Expected<RVVBinarySelectedConfigContract> selectedConfig =
-      buildRVVBinarySelectedConfigContract(
-          getI32VAddFamilyRegistrationRecord(), getI32M1VectorShapeConfig(),
-          "rvv_first_slice", "direct variant",
-          /*componentCapacityElementCount=*/16, "len");
-  if (!selectedConfig) {
-    llvm::errs() << "failed to build selected config from runtime length "
-                    "contract: "
-                 << llvm::toString(selectedConfig.takeError()) << "\n";
-    return false;
-  }
-  if (selectedConfig->getRuntimeLengthContract()
-              .getRuntimeElementCountCName() != "len" ||
-      !llvm::StringRef(selectedConfig->formatRuntimeVLBoundaryCommentBody())
-           .contains("runtime_element_count_c_name=len")) {
-    llvm::errs() << "selected config did not consume runtime length "
-                    "contract\n";
-    return false;
-  }
-  if (selectedConfig->getRuntimeLengthContract()
-          .formatRemainingAVLOperandExpression("offset") != "len - offset") {
+  if (runtimeLength.formatRemainingAVLOperandExpression("offset") !=
+      "len - offset") {
     llvm::errs() << "RVV runtime length contract did not derive the "
                     "remaining-AVL vsetvl operand from the runtime ABI C "
                     "name\n";
     return false;
   }
-  llvm::Expected<tianchenrv::target::rvv::RVVBinarySelectedConfigEmissionView>
-      selectedEmission =
-          tianchenrv::target::rvv::buildRVVBinarySelectedConfigEmissionView(
-              *selectedConfig);
-  if (!selectedEmission) {
-    llvm::errs() << "failed to build selected config emission view: "
-                 << llvm::toString(selectedEmission.takeError()) << "\n";
-    return false;
-  }
-  if (selectedEmission->vectorType != "vint32m1_t" ||
-      selectedEmission->vectorSuffix != "i32m1" ||
-      selectedEmission->setvlSuffix != "e32m1" ||
-      selectedEmission->tailPolicy != "agnostic" ||
-      selectedEmission->maskPolicy != "agnostic") {
-    llvm::errs() << "selected config emission view did not derive i32m1 "
-                    "RVV vector config facts from the selected config contract\n";
-    return false;
-  }
-  if (!llvm::StringRef(
-           selectedConfig->formatSelectedConfigEmissionAuthorityCommentBody())
-           .contains("source=RVVBinarySelectedConfigContract")) {
-    llvm::errs() << "selected config emission authority comment lost the "
-                    "selected-config source provenance\n";
-    return false;
-  }
-  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 3>
-      selectedProfileMetadata;
-  appendRVVBinarySelectedConfigProfileMetadata(*selectedConfig,
-                                               selectedProfileMetadata);
-  if (selectedProfileMetadata.size() != 3 ||
-      selectedProfileMetadata[0].name !=
-          getRVVSelectedConfigProfileHardwareFactsMetadataName() ||
-      selectedProfileMetadata[1].name !=
-          getRVVSelectedConfigProfileVariantConfigMetadataName() ||
-      selectedProfileMetadata[2].name !=
-          getRVVSelectedConfigProfileRuntimeRolesMetadataName() ||
-      selectedProfileMetadata[0].role !=
-          getRVVSelectedConfigProfileMetadataRole() ||
-      !llvm::StringRef(selectedProfileMetadata[0].value)
-           .contains("hw=target-capability-profile") ||
-      !llvm::StringRef(selectedProfileMetadata[1].value)
-           .contains("variant=rvv-plugin-selected-vector-config") ||
-      !llvm::StringRef(selectedProfileMetadata[2].value)
-           .contains("runtime=runtime-abi-ssa-control")) {
-    llvm::errs() << "selected config profile metadata did not separate "
-                    "hardware facts, variant config, and runtime roles\n";
-    return false;
-  }
-
-  llvm::Expected<RVVBinarySelectedConfigContract> staleDescriptorAuthority =
-      buildRVVBinarySelectedConfigContract(
-          getI32VAddFamilyRegistrationRecord(), getI32M1VectorShapeConfig(),
-          "rvv_first_slice", "direct variant",
-          /*componentCapacityElementCount=*/65, "n");
-  if (staleDescriptorAuthority) {
-    llvm::errs() << "artifact-local capacity unexpectedly passed RVV runtime "
-                    "length validation\n";
-    return false;
-  }
-  if (!expectErrorContains(
-          staleDescriptorAuthority.takeError(),
-          "artifact-local component capacity rejected by RVV runtime length contract",
-          {"RVV runtime length contract failed",
-           "artifact-local component capacity"}))
-    return false;
 
   return true;
 }
@@ -1342,111 +1256,6 @@ bool expectI32BinaryRuntimeABIContractShape() {
   return true;
 }
 
-bool expectRVVBinaryRuntimeABIContractShapeForFamily(
-    const RVVBinaryFamilyRecord &family) {
-  const auto &contract =
-      tianchenrv::target::rvv::getRVVBinaryRuntimeABIContract(family);
-  constexpr RuntimeABIParameterOwnership owned =
-      RuntimeABIParameterOwnership::TargetExportABIOwned;
-
-  if (&contract.getFamilyRegistrationRecord() != &family ||
-      contract.getFamilyID() != family.familyID ||
-      !contract.getRuntimeABI().empty() ||
-      !contract.getRuntimeABIKind().empty() ||
-      !contract.getRuntimeABIName().empty() ||
-      !contract.getRuntimeGlueRole().empty() ||
-      !contract.getExternalABIComponentGroup().empty()) {
-    llvm::errs() << "RVV binary runtime ABI contract still carries deleted "
-                    "route/ABI identity for "
-                 << family.familyID << "\n";
-    return false;
-  }
-
-  llvm::ArrayRef<RuntimeABIParameter> callable =
-      contract.getCallableParameters();
-  if (callable.size() != 4 ||
-      !expectParameter(callable[0], "lhs", family.constInputPointerCType,
-                       RuntimeABIParameterRole::LHSInputBuffer, owned,
-                       "RVV callable lhs") ||
-      !expectParameter(callable[1], "rhs", family.constInputPointerCType,
-                       RuntimeABIParameterRole::RHSInputBuffer, owned,
-                       "RVV callable rhs") ||
-      !expectParameter(callable[2], "out", family.outputPointerCType,
-                       RuntimeABIParameterRole::OutputBuffer, owned,
-                       "RVV callable out") ||
-      !expectParameter(callable[3], "n", "size_t",
-                       RuntimeABIParameterRole::RuntimeElementCount, owned,
-                       "RVV callable runtime element count"))
-    return false;
-
-  llvm::SmallVector<RuntimeABIParameter, 4> renamed =
-      contract.getCallableParameters("runtime_n");
-  if (renamed.size() != 4 || renamed[3].cName != "runtime_n" ||
-      renamed[3].cType != "size_t" ||
-      renamed[3].role != RuntimeABIParameterRole::RuntimeElementCount) {
-    llvm::errs() << "RVV binary runtime ABI contract did not preserve the "
-                    "runtime element-count parameter override for "
-                 << family.familyID << "\n";
-    return false;
-  }
-
-  llvm::ArrayRef<RuntimeABIParameter> requirements =
-      contract.getCallableRoleRequirements();
-  if (requirements.size() != callable.size())
-    return false;
-  for (auto [index, requirement] : llvm::enumerate(requirements)) {
-    if (!requirement.cName.empty() ||
-        requirement.cType != callable[index].cType ||
-        requirement.role != callable[index].role ||
-        requirement.ownership != callable[index].ownership) {
-      llvm::errs() << "RVV callable role requirement[" << index
-                   << "] does not mirror finite callable role/type for "
-                   << family.familyID << "\n";
-      return false;
-    }
-  }
-
-  llvm::ArrayRef<tianchenrv::support::RuntimeABIMemWindowSpec> windows =
-      contract.getBufferMemWindowSpecs();
-  if (windows.size() != 3 ||
-      windows[0].cType != family.constInputPointerCType ||
-      windows[1].cType != family.constInputPointerCType ||
-      windows[2].cType != family.outputPointerCType ||
-      windows[0].role != RuntimeABIParameterRole::LHSInputBuffer ||
-      windows[1].role != RuntimeABIParameterRole::RHSInputBuffer ||
-      windows[2].role != RuntimeABIParameterRole::OutputBuffer) {
-    llvm::errs() << "RVV binary runtime ABI contract mem_window specs are "
-                    "not finite-family consistent for "
-                 << family.familyID << "\n";
-    return false;
-  }
-
-  tianchenrv::support::RuntimeABIParamSpec count =
-      contract.getRuntimeElementCountParamSpec("runtime_n");
-  if (count.role != RuntimeABIParameterRole::RuntimeElementCount ||
-      count.cName != "runtime_n" || count.cType != "size_t" ||
-      count.ownership != "target-export-abi-owned") {
-    llvm::errs() << "RVV binary runtime ABI contract runtime count spec is "
-                    "malformed for "
-                 << family.familyID << "\n";
-    return false;
-  }
-
-  return expectRuntimeABIParametersEqual(
-      tianchenrv::target::rvv::getRVVBinaryCallableRuntimeABIRoleRequirements(
-          family),
-      requirements, "RVV ABI-shape helper delegates to runtime ABI contract");
-}
-
-bool expectRVVBinaryRuntimeABIContractShape() {
-  for (const RVVBinaryFamilyRecord *family :
-       tianchenrv::target::rvv::getRVVBinaryFamilyRegistrationRecords()) {
-    if (!expectRVVBinaryRuntimeABIContractShapeForFamily(*family))
-      return false;
-  }
-  return true;
-}
-
 bool expectTranslateRoute(const TargetTranslateRouteRegistry &registry,
                           llvm::StringRef routeID,
                           bool expectedBinaryStdout,
@@ -2355,8 +2164,6 @@ int main() {
                      "register built-in target artifact exporters"))
     return 1;
   if (!expectI32BinaryRuntimeABIContractShape())
-    return 1;
-  if (!expectRVVBinaryRuntimeABIContractShape())
     return 1;
   if (!expectTargetTranslateRouteRegistryShape())
     return 1;

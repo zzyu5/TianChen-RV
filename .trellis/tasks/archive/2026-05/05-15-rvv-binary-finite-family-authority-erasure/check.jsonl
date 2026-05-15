@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global red lines: no Python compiler core, no descriptor-driven compute, no independent backend split."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check retained RVV plugin behavior remains capability/plugin metadata or unsupported boundary only."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check deletion does not add a replacement non-EmitC or direct-C route."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check emission/readiness/export paths fail closed without restored RVV finite-family authority."}

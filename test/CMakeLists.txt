@@ -85,55 +85,6 @@ target_link_libraries(tianchenrv-rvv-extension-plugin-test
   MLIRSupport
 )
 
-add_executable(tianchenrv-rvv-binary-planning-test
-  Plugin/RVVBinaryPlanningTest.cpp
-)
-
-target_link_libraries(tianchenrv-rvv-binary-planning-test
-  PRIVATE
-  TianChenRVInitAll
-  TianChenRVPlugin
-  TianChenRVRVVPlugin
-  TianChenRVRVVTarget
-  TianChenRVTarget
-  TianChenRVSupport
-  MLIRIR
-  MLIRParser
-  MLIRSupport
-)
-
-add_executable(tianchenrv-rvv-binary-variant-legality-test
-  Plugin/RVVBinaryVariantLegalityTest.cpp
-)
-
-target_link_libraries(tianchenrv-rvv-binary-variant-legality-test
-  PRIVATE
-  TianChenRVInitAll
-  TianChenRVBuiltinPlugins
-  TianChenRVPlugin
-  TianChenRVRVVPlugin
-  TianChenRVSupport
-  MLIRIR
-  MLIRParser
-  MLIRSupport
-)
-
-add_executable(tianchenrv-rvv-selected-lowering-boundary-test
-  Plugin/RVVBinarySelectedLoweringBoundaryTest.cpp
-)
-
-target_link_libraries(tianchenrv-rvv-selected-lowering-boundary-test
-  PRIVATE
-  TianChenRVInitAll
-  TianChenRVBuiltinPlugins
-  TianChenRVPlugin
-  TianChenRVRVVPlugin
-  TianChenRVSupport
-  MLIRIR
-  MLIRParser
-  MLIRSupport
-)
-
 add_executable(tianchenrv-scalar-extension-plugin-test
   Plugin/ScalarExtensionPluginTest.cpp
 )
@@ -401,8 +352,6 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tianchenrv-plugin-registry-test
   tianchenrv-plugin-variant-legality-test
   tianchenrv-plugin-variant-proposal-test
-  tianchenrv-rvv-binary-planning-test
-  tianchenrv-rvv-selected-lowering-boundary-test
   tianchenrv-emission-readiness-test
   tianchenrv-emitc-lowerable-interface-test
   tianchenrv-offload-extension-plugin-test

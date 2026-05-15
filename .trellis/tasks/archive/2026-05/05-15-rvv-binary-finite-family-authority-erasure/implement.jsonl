@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants: unified RISC-V MLIR, C++/MLIR stack, descriptor/direct-C deletion boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin scope, current capability/vector-shape facts, and stale finite-family wording to correct or stop protecting."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Future executable route must be extension-family ops to EmitC, not descriptor or finite selected metadata."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/readiness/export boundaries and deleted direct-C route behavior."}

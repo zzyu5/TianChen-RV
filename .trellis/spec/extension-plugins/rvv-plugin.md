@@ -182,40 +182,27 @@ validated `rvv.probe.compile_run.selected_march` property, optional
 capability-derived `tcrv_rvv.vlenb_bytes` and
 `tcrv_rvv.base_i32_m1_lanes` integer attributes when structured vlenb/lane
 capabilities are available, a complete selected vector-shape metadata group,
-and typed finite RVV binary family/body authority for the bounded RVV
-C-intrinsic microkernel family.
+and no executable RVV family/body authority.
 The selected vector-shape group records the
 plugin/target-owned compile-time choice: shape id, SEW, LMUL, tail policy,
 mask policy, C vector type, intrinsic suffix, setvl suffix, and the backing
 capability ids through selected-plan metadata and generated source comments.
 It is required to match exactly one finite config shape and is distinct from
-base i32 M1 lane capacity. The current supported family members are
-`i32-vadd`, `i32-vsub`, `i32-vmul`, `i64-vadd`, `i64-vsub`, and `i64-vmul`,
-all using the runtime-callable binary ABI shape for their dtype and the bounded
-selected-path integer `tcrv_rvv.element_count`. The RVV plugin must not create
-any finite RVV binary proposal from a no-body `tcrv.exec.kernel`, from deleted
-`tcrv_frontend_lowering` metadata, or from finite-family registry metadata
-alone. Kernel-based proposal planning requires explicit typed
-extension-family body authority before selecting family, dtype, shape, route
-metadata, selected capabilities, or emitted body. Hand-authored or test
-TianChen-RV MLIR may provide typed direct
-`tcrv_rvv.i32_*_microkernel` or `tcrv_rvv.i64_*_microkernel` bodies to
-exercise the same contract. Direct variants without typed family/body authority
-must fail closed or remain explicitly unsupported metadata; they must not select
-family, dtype, shape, route id, artifact kind, callable ABI, required
-capabilities, selected vector config, or emitted body. When structured
-`rvv.i32_m1_lane_count` capacity evidence is present through an exact
-capability provider or a relation-provider target profile, the RVV plugin
-chooses that selected-path sample size for an already body-authorized i32 plan
-as four M1 i32 vectors, capped at 64 elements; without structured capacity
-evidence, an already body-authorized plan uses the fixed first-slice fallback
-sample size `16`. This is a compiler selected-plan decision, not a runtime trip
-count, shape, AVL, VL, correctness coverage, or performance claim.
+base i32 M1 lane capacity. The RVV plugin must not create any binary-family
+proposal from a no-body `tcrv.exec.kernel`, from deleted
+`tcrv_frontend_lowering` metadata, from finite-family registry metadata, or
+from hand-authored microkernel names alone. Kernel-based executable planning
+requires a future explicit extension-family op contract and a materialized
+EmitC route before selecting family, dtype, route metadata, callable ABI,
+artifact kind, or emitted body. Until that rebuild lands, direct RVV variants
+remain explicitly unsupported metadata; they may carry selected vector-shape
+and capacity facts, but they must not select a binary family, microkernel
+route, runtime ABI, artifact route, or generated body.
 The generic string policy remains the input for core selection/dispatch. The
 typed policy, required march, optional capacity metadata, selected vector-shape
-metadata, selected binary family metadata, and element count are default
-plugin-local metadata preserved by the generic proposal/materialization path
-and validated by `RVVExtensionPlugin` when present on a materialized variant.
+metadata, and selected vector-shape capability mirrors are default plugin-local
+metadata preserved by the generic proposal/materialization path and validated
+by `RVVExtensionPlugin` when present on a materialized variant.
 Descriptor mirror metadata is not a production authority and is not emitted or
 consumed by typed RVV proposal planning. These fields are
 compiler-visible metadata for the existing
@@ -365,9 +352,9 @@ deleted. A selected `rvv-plugin` path may still materialize
 vector-shape evidence, and capacity metadata, but it must not synthesize a
 plugin-local direct kernel-child `tcrv_rvv.*_microkernel`, `setvl`/`with_vl`,
 load/arithmetic/store body, or callable runtime ABI boundary from finite family
-records, `RVVBinaryIntrinsicRoute`, legacy lowering tokens, route ids, or
-descriptor mirrors. Until the rebuild supplies explicit extension-family IR
-plus a materialized MLIR EmitC module route, RVV microkernel attachments and
+records, legacy route helpers, lowering tokens, route ids, or descriptor
+mirrors. Until the rebuild supplies explicit extension-family IR plus a
+materialized MLIR EmitC module route, RVV microkernel attachments and
 descriptor-derived callable ABI data are fail-closed metadata, not active
 emission authority.
 
@@ -907,51 +894,19 @@ code/spec/test fixtures. The compiler front door must not print
 RVV hardware/toolchain smoke evidence belongs in explicit probe tooling and
 separate `ssh rvv` artifacts.
 
-### I32 Vector-Add Microkernel Materialization And Export
+### RVV Unsupported Boundary And Future EmitC Route
 
-`tcrv_rvv.i32_vadd_microkernel` is the first RVV extension-dialect executable
-microkernel op. It represents exactly one bounded i32 vector-add executable
-microkernel body for a selected RVV path. The op is plugin-local under the
-`tcrv_rvv` dialect and must carry only selected-path metadata: source kernel,
-selected variant, origin, selected role, required capability refs, required
-march, optional selected mabi, a tiny element count, and one structured
-dataflow region. The region has one runtime index block argument for
-target/export-owned `n`/AVL, one `tcrv_rvv.setvl` consuming that argument, one
-`tcrv_rvv.with_vl` consuming the resulting `!tcrv_rvv.vl` value, and exactly
-a finite lhs-load, rhs-load, add, output-store dataflow sequence nested under
-the `with_vl` body. It must
-reject generic tensor/tile/benchmark attributes, unbounded or secret-like
-strings, invalid element counts, stale selected variants, missing or
-unavailable RVV capability refs, required-march mismatches, descriptor-local
-`element_count` masquerading as AVL/VL, and malformed control/dataflow bodies.
+The current selected RVV plugin path is metadata-only and fail-closed for
+execution. It may materialize one `tcrv_rvv.lowering_boundary` with selected
+vector-shape, capacity, capability, selected-variant, role, and unsupported
+reason metadata. It must not auto-create RVV microkernel bodies, callable ABI
+parameters, source/header/object artifacts, self-check helpers, or intrinsic
+C/C++ output.
 
-During selected-boundary materialization, `RVVExtensionPlugin` may create this
-op only after selected RVV variant legality is satisfied by explicit typed body
-authority and bounded `tcrv_rvv.element_count`. This materialization is
-plugin-owned and must remain local to `tcrv_rvv`; generic transforms and
-`tcrv.exec` must not learn RVV compute semantics, dtype dispatch, or
-microarchitecture-specific branches.
-
-Runtime-callable RVV microkernel source/header/object/self-check translate
-commands are not active production routes after the direct C exporter deletion.
-Post-planning MLIR with selected RVV microkernel attachments may still carry
-typed lowering-boundary metadata, but emission planning must produce an
-unsupported diagnostic naming the missing materialized MLIR EmitC module route.
-The generic source/header/object front doors must therefore find no supported
-RVV runtime-callable artifact until the Common EmitC rebuild lands.
-
-This target export does not change the default metadata-only RVV unsupported
-boundary. A selected RVV path without exactly one matching typed microkernel op
-remains unsupported/deferred for executable RVV kernel emission. Generic
-manifest export and core orchestration must not add
-RVV-specific branches for this microkernel path.
-
-### Current EmitC RVV intrinsic route
-
-The current main route is:
+The intended rebuild route is:
 
 ```text
-TCRV RVV family ops
+explicit TCRV RVV extension-family ops
   -> EmitC
   -> RVV intrinsic C/C++
   -> clang default, gcc compatible
@@ -962,13 +917,13 @@ backend patches are optional future routes. They are not the current RVV system
 definition and should not be described as the mainline until promoted by a
 separate spec and implementation evidence.
 
-### Scenario: RVV finite binary family-op EmitC intrinsic route
+### Scenario: Future RVV Extension-Family EmitC Intrinsic Route
 
 #### 1. Scope / Trigger
 
-This scenario applies when a selected finite RVV binary microkernel path exports
-runtime-callable C/C++ source. The route must consume the verified
-`tcrv_rvv.*` family-op body and lower it through an explicit EmitC intrinsic
+This scenario applies only after a future rebuild introduces explicit RVV
+extension-family ops and a materialized EmitC module route. The route must
+consume verified RVV family ops and lower them through a shared EmitC intrinsic
 route before printing RVV intrinsic C/C++.
 
 #### 2. Signatures
@@ -977,8 +932,8 @@ route before printing RVV intrinsic C/C++.
   `tcrv_rvv.setvl -> tcrv_rvv.with_vl -> tcrv_rvv.<dtype>_load ->
   tcrv_rvv.<dtype>_load -> tcrv_rvv.<dtype>_<add|sub|mul> ->
   tcrv_rvv.<dtype>_store`.
-- Route plan: `RVVEmitCIntrinsicRoute`, with standard headers, source op
-  names, `emitc.call_opaque` callee names, and one setvl callee.
+- Route plan: an explicit EmitC intrinsic route object with standard headers,
+  source op names, `emitc.call_opaque` callee names, and one setvl callee.
 - Exported route metadata comments must include `emitc_route`,
   `emitc_route_headers`, `emitc_route_source_ops`, and indexed
   `emitc.call_opaque[...]` entries.
@@ -987,9 +942,8 @@ route before printing RVV intrinsic C/C++.
 
 - The computation op is the RVV family op in the verified body, not metadata
   tokens.
-- Typed family/body authority selects the bounded family, dtype, shape, and
-  intrinsic spelling. Metadata-only variants without typed family/body authority
-  fail closed before source output.
+- Explicit extension-family ops select the bounded operation, dtype, shape, and
+  intrinsic spelling. Metadata-only variants fail closed before source output.
 - `emitc.call_opaque` callees map from verified family ops:
   setvl maps to the selected vsetvl intrinsic; load, arithmetic, and store map
   to the selected RVV load, arithmetic, and store intrinsics.
@@ -1011,7 +965,7 @@ route before printing RVV intrinsic C/C++.
 
 #### 5. Good/Base/Bad Cases
 
-- Good: auto-materialized i32 add emits `tcrv_rvv.i32_add`, the route records
+- Good: future rebuilt i32 add emits `tcrv_rvv.i32_add`, the route records
   `emitc.call_opaque` for `__riscv_vadd_vv_i32m1`, and generated C calls that
   intrinsic.
 - Base: a hand-authored bounded RVV microkernel with the same verified body can
@@ -1025,8 +979,7 @@ route before printing RVV intrinsic C/C++.
 - lit/FileCheck or C++ tests must show selected-boundary materialization does
   not auto-create an RVV family body from descriptor/family records.
 - Tests must show RVV selected emission planning does not build callable ABI
-  parameters or supported source/header/object routes from
-  `selectedPlan.descriptor`.
+  parameters or supported source/header/object routes from selected metadata.
 - Negative coverage must keep stale body, stale descriptor, missing boundary,
   and malformed ABI cases fail-closed before source/header/object output.
 

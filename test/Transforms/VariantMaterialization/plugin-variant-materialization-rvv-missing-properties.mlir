@@ -48,4 +48,4 @@ module {
 }
 
 // CHECK: error: TianChen-RV plugin variant materialization for kernel @rvv_missing_property_evidence collected no viable plugin proposals; recoverable plugin declines in registration order: rvv-plugin:
-// CHECK-SAME: capability id 'rvv' requires preserved property 'architecture'
+// CHECK-SAME: RVV capability requires bounded 'architecture' capability property

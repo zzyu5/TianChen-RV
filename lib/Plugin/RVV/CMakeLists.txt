@@ -1,8 +1,4 @@
 add_mlir_library(TianChenRVRVVPlugin
-  RVVBinaryPlanning.cpp
-  RVVBinarySelectedEmissionPlanning.cpp
-  RVVBinarySelectedLoweringBoundary.cpp
-  RVVBinaryVariantLegality.cpp
   RVVCapabilityProfile.cpp
   RVVExtensionPlugin.cpp
   RVVLoweringBoundary.cpp

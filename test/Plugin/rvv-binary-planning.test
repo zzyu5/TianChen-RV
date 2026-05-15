@@ -1,3 +1,0 @@
-# RUN: tianchenrv-rvv-binary-planning-test | FileCheck %s
-
-# CHECK: RVV binary planning smoke test passed

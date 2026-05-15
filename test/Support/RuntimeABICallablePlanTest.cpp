@@ -2,7 +2,6 @@
 #include "TianChenRV/Support/RuntimeABICallablePlan.h"
 #include "TianChenRV/Support/RuntimeABIMemWindow.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
-#include "TianChenRV/Target/RVV/RVVBinaryFamily.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -21,6 +20,8 @@
 
 using tianchenrv::support::RuntimeABIParameter;
 using tianchenrv::support::RuntimeABIParameterRole;
+using tianchenrv::support::FiniteBinaryRuntimeABIContract;
+using tianchenrv::support::FiniteBinaryRuntimeABIContractSpec;
 using tianchenrv::support::buildFiniteBinaryCallableABIPlan;
 using tianchenrv::support::buildI32BinaryCallableABIPlan;
 using tianchenrv::support::buildRuntimeABIInvocationContract;
@@ -29,16 +30,32 @@ using tianchenrv::support::getI32BinaryRuntimeABIContract;
 using tianchenrv::support::runtimeABIParametersEqual;
 using tianchenrv::support::validateFiniteBinaryCallableABIParameterMirror;
 using tianchenrv::support::validateI32BinaryCallableABIParameterMirror;
-using tianchenrv::target::rvv::getI64VAddFamilyRegistrationRecord;
-using tianchenrv::target::rvv::getI64VMulFamilyRegistrationRecord;
-using tianchenrv::target::rvv::getI64VSubFamilyRegistrationRecord;
-using tianchenrv::target::rvv::getRVVBinaryRuntimeABIContract;
-using tianchenrv::target::rvv::RVVBinaryFamilyRecord;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::MemWindowOp;
 using tianchenrv::tcrv::exec::RuntimeParamOp;
 
 namespace {
+
+const FiniteBinaryRuntimeABIContract &getI64AddRuntimeABIContract() {
+  static const FiniteBinaryRuntimeABIContract contract(
+      FiniteBinaryRuntimeABIContractSpec{"i64-vadd", "const int64_t *",
+                                         "int64_t *", {}, {}, {}});
+  return contract;
+}
+
+const FiniteBinaryRuntimeABIContract &getI64SubRuntimeABIContract() {
+  static const FiniteBinaryRuntimeABIContract contract(
+      FiniteBinaryRuntimeABIContractSpec{"i64-vsub", "const int64_t *",
+                                         "int64_t *", {}, {}, {}});
+  return contract;
+}
+
+const FiniteBinaryRuntimeABIContract &getI64MulRuntimeABIContract() {
+  static const FiniteBinaryRuntimeABIContract contract(
+      FiniteBinaryRuntimeABIContractSpec{"i64-vmul", "const int64_t *",
+                                         "int64_t *", {}, {}, {}});
+  return contract;
+}
 
 int fail(llvm::Twine message) {
   llvm::errs() << "FAIL: " << message << "\n";
@@ -362,14 +379,13 @@ buildPlan(mlir::MLIRContext &context, llvm::StringRef source) {
 
 llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
 buildFinitePlan(mlir::MLIRContext &context, llvm::StringRef source,
-                const RVVBinaryFamilyRecord &family) {
+                const FiniteBinaryRuntimeABIContract &contract) {
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
     return llvm::make_error<llvm::StringError>("failed to parse test module",
                                                llvm::inconvertibleErrorCode());
   KernelOp kernel = findKernel(*module, "abi_kernel");
-  return buildFiniteBinaryCallableABIPlan(
-      kernel, getRVVBinaryRuntimeABIContract(family));
+  return buildFiniteBinaryCallableABIPlan(kernel, contract);
 }
 
 int runValidPlanTest(mlir::MLIRContext &context) {
@@ -541,15 +557,16 @@ int runI32BinaryFamilyContractCoverageTest() {
 }
 
 int runValidI64FamilyPlanTests(mlir::MLIRContext &context) {
-  const RVVBinaryFamilyRecord *families[] = {
-      &getI64VAddFamilyRegistrationRecord(), &getI64VSubFamilyRegistrationRecord(),
-      &getI64VMulFamilyRegistrationRecord()};
-  for (const RVVBinaryFamilyRecord *family : families) {
+  const FiniteBinaryRuntimeABIContract *families[] = {
+      &getI64AddRuntimeABIContract(), &getI64SubRuntimeABIContract(),
+      &getI64MulRuntimeABIContract()};
+  for (const FiniteBinaryRuntimeABIContract *family : families) {
     llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan> plan =
         buildFinitePlan(context, kValidI64CallableABI, *family);
     if (!plan)
       return fail(llvm::Twine("valid i64 callable ABI plan failed for ") +
-                  family->familyID + ": " + llvm::toString(plan.takeError()));
+                  family->getFamilyID() + ": " +
+                  llvm::toString(plan.takeError()));
 
     if (int result = expect(plan->parameters.size() == 4,
                             "valid i64 plan has four callable parameters"))
@@ -644,7 +661,7 @@ int runMalformedIRTests(mlir::MLIRContext &context) {
 int runMalformedI64IRTests(mlir::MLIRContext &context) {
   llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
       missingWindow = buildFinitePlan(context, kMissingI64MemWindow,
-                                      getI64VSubFamilyRegistrationRecord());
+                                      getI64SubRuntimeABIContract());
   if (int result = expectErrorContains(
           missingWindow.takeError(),
           {"runtime ABI mem_window validation failed",
@@ -661,8 +678,7 @@ int runMalformedI64IRTests(mlir::MLIRContext &context) {
   addDuplicateLHSWindow(duplicateWindowKernel);
   llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
       duplicateWindow = buildFiniteBinaryCallableABIPlan(
-          duplicateWindowKernel,
-          getRVVBinaryRuntimeABIContract(getI64VSubFamilyRegistrationRecord()));
+          duplicateWindowKernel, getI64SubRuntimeABIContract());
   if (int result = expectErrorContains(
           duplicateWindow.takeError(),
           {"runtime ABI mem_window validation failed",
@@ -676,7 +692,7 @@ int runMalformedI64IRTests(mlir::MLIRContext &context) {
       "c_type = \"const int32_t *\"");
   llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
       staleWindow = buildFinitePlan(context, staleMemWindowType,
-                                    getI64VSubFamilyRegistrationRecord());
+                                    getI64SubRuntimeABIContract());
   if (int result = expectErrorContains(
           staleWindow.takeError(),
           {"runtime ABI mem_window validation failed",
@@ -691,7 +707,7 @@ int runMalformedI64IRTests(mlir::MLIRContext &context) {
       "      ownership = \"ir-modeled\",");
   llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
       staleOwnership = buildFinitePlan(context, staleRuntimeOwnership,
-                                       getI64VMulFamilyRegistrationRecord());
+                                       getI64MulRuntimeABIContract());
   if (int result = expectErrorContains(
           staleOwnership.takeError(),
           {"runtime ABI runtime_param validation failed",
@@ -707,8 +723,7 @@ int runMalformedI64IRTests(mlir::MLIRContext &context) {
   addDuplicateRuntimeParam(duplicateRuntimeKernel);
   llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
       duplicateRuntime = buildFiniteBinaryCallableABIPlan(
-          duplicateRuntimeKernel,
-          getRVVBinaryRuntimeABIContract(getI64VAddFamilyRegistrationRecord()));
+          duplicateRuntimeKernel, getI64AddRuntimeABIContract());
   if (int result = expectErrorContains(
           duplicateRuntime.takeError(),
           {"runtime ABI runtime_param validation failed",
@@ -726,8 +741,7 @@ int runMalformedI64IRTests(mlir::MLIRContext &context) {
   setRuntimeElementCountCName(emptyRuntimeNameKernel, "");
   llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
       emptyRuntimeName = buildFiniteBinaryCallableABIPlan(
-          emptyRuntimeNameKernel,
-          getRVVBinaryRuntimeABIContract(getI64VAddFamilyRegistrationRecord()));
+          emptyRuntimeNameKernel, getI64AddRuntimeABIContract());
   if (int result = expectErrorContains(
           emptyRuntimeName.takeError(),
           {"finite binary runtime ABI callable plan validation failed",
@@ -994,9 +1008,7 @@ int runI64MirrorValidationTests(mlir::MLIRContext &context) {
     return fail("failed to parse i64 mirror validation module");
   KernelOp kernel = findKernel(*module, "abi_kernel");
   llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan> plan =
-      buildFiniteBinaryCallableABIPlan(
-          kernel,
-          getRVVBinaryRuntimeABIContract(getI64VMulFamilyRegistrationRecord()));
+      buildFiniteBinaryCallableABIPlan(kernel, getI64MulRuntimeABIContract());
   if (!plan)
     return fail("failed to build i64 mirror validation plan: " +
                 llvm::toString(plan.takeError()));
@@ -1007,7 +1019,7 @@ int runI64MirrorValidationTests(mlir::MLIRContext &context) {
   if (int result = expectErrorContains(
           validateFiniteBinaryCallableABIParameterMirror(
               kernel, missingOutput, plan->parameters, "i64 missing mirror",
-              getRVVBinaryRuntimeABIContract(getI64VMulFamilyRegistrationRecord())),
+              getI64MulRuntimeABIContract()),
           {"i64 missing mirror requires runtime ABI parameter role "
            "'output-buffer'"}))
     return result;
@@ -1018,7 +1030,7 @@ int runI64MirrorValidationTests(mlir::MLIRContext &context) {
   if (int result = expectErrorContains(
           validateFiniteBinaryCallableABIParameterMirror(
               kernel, duplicateRole, plan->parameters, "i64 duplicate mirror",
-              getRVVBinaryRuntimeABIContract(getI64VMulFamilyRegistrationRecord())),
+              getI64MulRuntimeABIContract()),
           {"i64 duplicate mirror contains duplicate runtime ABI parameter role "
            "'lhs-input-buffer'"}))
     return result;
@@ -1029,7 +1041,7 @@ int runI64MirrorValidationTests(mlir::MLIRContext &context) {
   if (int result = expectErrorContains(
           validateFiniteBinaryCallableABIParameterMirror(
               kernel, staleOutputType, plan->parameters, "i64 stale mirror",
-              getRVVBinaryRuntimeABIContract(getI64VMulFamilyRegistrationRecord())),
+              getI64MulRuntimeABIContract()),
           {"i64 stale mirror runtime ABI parameter role 'output-buffer' "
            "must mirror IR-backed callable ABI parameter",
            "c_type='int64_t *'"}))

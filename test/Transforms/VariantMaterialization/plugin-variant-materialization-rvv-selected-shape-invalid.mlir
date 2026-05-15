@@ -112,4 +112,4 @@ module {
 
 // CHECK: no viable plugin proposals
 // CHECK: rvv-plugin:
-// CHECK: RVV property decision requires capability id 'rvv.i32_m2.lmul_m2'
+// CHECK: RVV selected vector shape i32m2 requires available capability id 'rvv.i32_m2.lmul_m2'

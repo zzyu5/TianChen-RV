@@ -46,6 +46,63 @@ Final session commit recorded in git history for this round.
 - None - task complete
 
 
+## Session 72: RVV binary finite-family authority erasure
+
+**Date**: 2026-05-15
+**Task**: RVV binary finite-family authority erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted active RVV binary finite-family planning/legality/selected-boundary and
+selected-emission owners, rewired the RVV plugin to metadata-only vector-shape
+planning plus unsupported diagnostic boundaries, and removed focused tests that
+protected selected-binary and finite-family route authority.
+
+### Main Changes
+
+- Deleted RVV binary family records, selected-plan structs, variant legality,
+  selected-boundary, selected-emission, and their CMake/test registrations.
+- RVV plugin now keeps generic plugin identity, capability/profile facts,
+  vector-shape metadata, target support bundle registration, and an unsupported
+  selected lowering boundary; it no longer emits selected-binary metadata,
+  runtime ABI helper calls, intrinsic route names, or finite family resolution.
+- Reworked focused RVV plugin/materialization/dispatch/RVVMicrokernel tests and
+  spec wording so future RVV executable support must be rebuilt through
+  explicit extension-family ops plus materialized EmitC route.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(rvv): erase binary finite-family authority |
+
+### Testing
+
+- [OK] Focused build: `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-runtime-abi-callable-plan-test`,
+  `tianchenrv-target-artifact-export-test`.
+- [OK] Focused C++ smoke tests passed.
+- [OK] Focused lit filters passed for RVV plugin, variant materialization,
+  variant selection, RVV scalar dispatch, and RVVMicrokernel.
+- [OK] Ref-scan cleared Hermes-listed RVV binary/selected-binary symbols from
+  active RVV plugin/target/test/spec surfaces; remaining `_microkernel`
+  appearances are dialect or hand-authored fixture syntax, not route authority.
+- [OK] `git diff --check`, `git diff --cached --check`, and Trellis task
+  validation passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Continue deletion if another RVV route surface still treats microkernel names
+  or selected metadata as executable authority; otherwise the next rebuild
+  round should start from explicit extension-family ops and EmitC.
+
+
 ## Session 70: RVV selected-source metadata quarantine deletion
 
 **Date**: 2026-05-15
