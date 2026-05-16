@@ -207,8 +207,8 @@ llvm::Error RVVExtensionPlugin::registerSourceSeedPasses(
   out.push_back(SourceSeedPassRegistration(
       kRVVPluginName,
       "tcrv-rvv-materialize-i32m1-selected-boundary-seed",
-      "Materialize one bounded MLIR vector i32 add seed into the RVV i32m1 "
-      "selected-boundary form",
+      "Materialize one bounded MLIR vector i32 add source pattern into the "
+      "RVV i32m1 selected-boundary form",
       [] { return createMaterializeRVVI32M1SelectedBoundarySeedPass(); }));
   return llvm::Error::success();
 }

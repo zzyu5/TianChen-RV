@@ -56,6 +56,77 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 98: RVV unseeded vector-loop selected-boundary materializer
+
+**Date**: 2026-05-17
+**Task**: `05-17-rvv-unseeded-vector-loop-selected-boundary-materializer`
+**Branch**: `main`
+
+### Summary
+
+Moved the bounded RVV i32m1 add source front door from
+`tcrv_rvv.lowering_seed` authorization to RVV-owned structural source
+recognition, while preserving the existing selected multi-VL EmitC
+object/header/bundle route.
+
+### Main Changes
+
+- Reworked `RVVSelectedBoundarySeed.cpp` to recognize one unseeded source
+  function with positional `lhs/rhs/out/n`, `scf.for 0 to n step 4`,
+  `vector<4xi32>` load/load/add/store, and no extra source compute.
+- Rejected stale `tcrv_rvv.lowering_seed` metadata as route authority; it now
+  only appears in negative tests/spec text and the rejection diagnostic.
+- Kept the public RVV source materialization pass/front-door name as plugin
+  plumbing, but updated descriptions and generated policy metadata to
+  `source-pattern-*`.
+- Updated positive RVV transform, SourceSeed pipeline, and target
+  object/header/bundle fixtures to consume the unseeded source pattern.
+- Added/updated negative coverage for wrong ABI/order, stale seed metadata,
+  wrong loop bounds/step/vector shape, non-add arithmetic, extra loop ops,
+  missing store, and stale selected-boundary residue.
+- Updated RVV and variant-pipeline specs so the source body, not seed metadata,
+  is the durable positive authority.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`.
+- [OK] Focused C++:
+  `./build/bin/tianchenrv-rvv-extension-plugin-test` and
+  `./build/bin/tianchenrv-target-artifact-export-test`.
+- [OK] Focused lit:
+  `rvv-i32m1-selected-boundary-seed|source-seed-artifact-front-door-pipeline|source-seed-target-artifact-(header|object)`,
+  7/7 passed.
+- [OK] Focused explicit RVV route lit:
+  `rvv-first-slice-materialization|i32m1-(add|sub|mul)|emitc-to-cpp-handoff|emitc-to-cpp-non-materialized`,
+  8/8 passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`, 106/106 lit
+  tests passed.
+- [OK] `git diff --check`.
+- [OK] Artifact evidence under
+  `artifacts/tmp/rvv_unseeded_vector_loop_selected_boundary_materializer/20260516T202408Z`.
+  `llvm-readobj` reports `Format: elf64-littleriscv`, `Arch: riscv64`, and
+  `Type: Relocatable`.
+- [OK] Real `ssh rvv` unseeded source-path compile/link/run:
+  `vlmax_e32m1=4`, `n=4/5/11` all PASS, ending with
+  `unseeded_multi_vl_tail_status=PASS`.
+- [OK] Targeted scans: no positive RVV transform/target fixture still requires
+  `tcrv_rvv.lowering_seed`; remaining hits are stale-metadata rejection
+  tests/spec/code. No descriptor/direct-C/source-export route authority was
+  restored in touched code/test surfaces.
+
+### Self-Repair
+
+- Re-ran artifact `readobj` with `/usr/lib/llvm-20/bin/llvm-readobj` after the
+  shell PATH lacked `llvm-readobj`.
+- Kept public pass/front-door names stable while removing seed metadata as
+  production route authority.
+
+### Status
+
+[OK] Completed; ready to archive and commit.
+
+
 ## Session 98: RVV runtime AVL multi-VL EmitC loop
 
 **Date**: 2026-05-17

@@ -30,7 +30,7 @@ using tianchenrv::support::RuntimeABIParameterOwnership;
 using tianchenrv::support::RuntimeABIParameterRole;
 
 constexpr llvm::StringLiteral kSeedAttrName("tcrv_rvv.lowering_seed");
-constexpr llvm::StringLiteral kSeedAttrValue("i32m1_add");
+constexpr llvm::StringLiteral kLoweringSeedAttrSuffix(".lowering_seed");
 constexpr llvm::StringLiteral kRVVCapabilitySymbol("rvv");
 constexpr llvm::StringLiteral kScalarPluginName("scalar-plugin");
 constexpr llvm::StringLiteral kScalarFallbackCapabilitySymbol(
@@ -40,9 +40,9 @@ constexpr llvm::StringLiteral kScalarFallbackCapabilityKind("fallback");
 constexpr llvm::StringLiteral kScalarFallbackPolicy(
     "portable_scalar_fallback_first_slice");
 constexpr llvm::StringLiteral kRVVCasePolicy(
-    "source-seed-selected-rvv-case");
+    "source-pattern-selected-rvv-case");
 constexpr llvm::StringLiteral kFallbackPolicy(
-    "source-seed-conservative-fallback-envelope");
+    "source-pattern-conservative-fallback-envelope");
 
 constexpr std::int64_t kSourceVectorLaneCount = 4;
 
@@ -53,7 +53,7 @@ struct SourceRuntimeABIValue {
   mlir::BlockArgument sourceArgument;
 };
 
-struct BoundedI32AddSourceSeed {
+struct BoundedI32AddSourcePattern {
   mlir::func::FuncOp func;
   llvm::SmallVector<SourceRuntimeABIValue, 4> runtimeABIValues;
 };
@@ -96,16 +96,26 @@ bool usesOnlyIndex(mlir::Operation::operand_range indices,
   return llvm::hasSingleElement(indices) && *indices.begin() == expectedIndex;
 }
 
-mlir::LogicalResult failSeed(mlir::Operation *op, llvm::StringRef message) {
-  op->emitError() << "bounded RVV i32m1 selected-boundary seed failed: "
+mlir::LogicalResult failMaterializer(mlir::Operation *op,
+                                     llvm::StringRef message) {
+  op->emitError() << "bounded RVV i32m1 selected-boundary materializer failed: "
                   << message;
   return mlir::failure();
 }
 
-mlir::FailureOr<BoundedI32AddSourceSeed>
-failSeedMatch(mlir::Operation *op, llvm::StringRef message) {
-  (void)failSeed(op, message);
+mlir::FailureOr<BoundedI32AddSourcePattern>
+failMaterializerMatch(mlir::Operation *op, llvm::StringRef message) {
+  (void)failMaterializer(op, message);
   return mlir::failure();
+}
+
+bool hasForeignLoweringSeedAttr(mlir::func::FuncOp func) {
+  for (mlir::NamedAttribute attr : func->getAttrs()) {
+    llvm::StringRef name = attr.getName().getValue();
+    if (name != kSeedAttrName && name.ends_with(kLoweringSeedAttrSuffix))
+      return true;
+  }
+  return false;
 }
 
 llvm::SmallVector<SourceRuntimeABIValue, 4>
@@ -136,37 +146,40 @@ mlir::LogicalResult requireSourceOnlyModule(mlir::ModuleOp module) {
   if (!staleOp)
     return mlir::success();
 
-  return failSeed(staleOp,
-                  "source seed pass requires source-only MLIR input; "
-                  "pre-existing tcrv.exec/tcrv_rvv selected-boundary or "
-                  "unselected variant residue is not accepted");
+  return failMaterializer(staleOp,
+                          "source materializer requires source-only MLIR "
+                          "input; pre-existing tcrv.exec/tcrv_rvv "
+                          "selected-boundary or unselected variant residue is "
+                          "not accepted");
 }
 
-mlir::FailureOr<BoundedI32AddSourceSeed>
-matchBoundedI32AddSeed(mlir::func::FuncOp func) {
-  auto seedAttr = func->getAttrOfType<mlir::StringAttr>(kSeedAttrName);
-  if (!seedAttr)
-    return mlir::failure();
-  if (seedAttr.getValue() != kSeedAttrValue)
-    return failSeedMatch(func, "unsupported RVV lowering seed attribute value");
+mlir::FailureOr<BoundedI32AddSourcePattern>
+matchBoundedI32AddSourcePattern(mlir::func::FuncOp func) {
+  if (func->hasAttr(kSeedAttrName))
+    return failMaterializerMatch(
+        func,
+        "stale tcrv_rvv.lowering_seed metadata is not accepted as "
+        "source-route authority");
 
   mlir::FunctionType functionType = func.getFunctionType();
   if (functionType.getNumResults() != 0)
-    return failSeedMatch(func, "source function must not return values");
+    return failMaterializerMatch(func, "source function must not return values");
   if (functionType.getNumInputs() != 4)
-    return failSeedMatch(func,
-                         "source function must expose exactly four runtime "
-                         "ABI operands: lhs, rhs, out, and n");
+    return failMaterializerMatch(
+        func,
+        "source function must expose exactly four runtime ABI operands: lhs, "
+        "rhs, out, and n");
   for (unsigned index = 0; index < 3; ++index) {
     if (!isRank1DynamicI32MemRef(functionType.getInput(index)))
-      return failSeedMatch(func,
-                           "lhs, rhs, and out operands must be memref<?xi32>");
+      return failMaterializerMatch(
+          func, "lhs, rhs, and out operands must be memref<?xi32>");
   }
   if (!functionType.getInput(3).isIndex())
-    return failSeedMatch(func, "runtime n operand must have index type");
+    return failMaterializerMatch(func,
+                                 "runtime n operand must have index type");
 
   if (!llvm::hasSingleElement(func.getBody()))
-    return failSeedMatch(func, "source function must have one block");
+    return failMaterializerMatch(func, "source function must have one block");
   mlir::Block &entry = func.getBody().front();
 
   mlir::scf::ForOp loop;
@@ -180,92 +193,101 @@ matchBoundedI32AddSeed(mlir::func::FuncOp func) {
     }
     if (auto forOp = llvm::dyn_cast<mlir::scf::ForOp>(op)) {
       if (loop)
-        return failSeedMatch(func, "source function must contain one scf.for");
+        return failMaterializerMatch(func,
+                                     "source function must contain one scf.for");
       loop = forOp;
       continue;
     }
-    return failSeedMatch(&op,
-                         "source function may contain only index constants, "
-                         "one scf.for, and one empty return");
+    return failMaterializerMatch(
+        &op,
+        "source function may contain only index constants, one scf.for, and "
+        "one empty return");
   }
   if (!loop)
-    return failSeedMatch(func, "source function must contain one scf.for");
+    return failMaterializerMatch(func,
+                                 "source function must contain one scf.for");
   if (returnCount != 1)
-    return failSeedMatch(func, "source function must contain one empty return");
+    return failMaterializerMatch(func,
+                                 "source function must contain one empty "
+                                 "return");
 
   std::optional<std::int64_t> lower =
       getConstantIndexValue(loop.getLowerBound());
   if (!lower || *lower != 0)
-    return failSeedMatch(loop, "scf.for lower bound must be constant index 0");
+    return failMaterializerMatch(
+        loop, "scf.for lower bound must be constant index 0");
   if (loop.getUpperBound() != entry.getArgument(3))
-    return failSeedMatch(loop,
-                         "scf.for upper bound must be the runtime n operand");
+    return failMaterializerMatch(
+        loop, "scf.for upper bound must be the runtime n operand");
   std::optional<std::int64_t> step = getConstantIndexValue(loop.getStep());
   if (!step || *step != kSourceVectorLaneCount)
-    return failSeedMatch(loop,
-                         "scf.for step must match the bounded vector chunk");
+    return failMaterializerMatch(
+        loop, "scf.for step must match the bounded vector chunk");
   if (loop.getNumRegionIterArgs() != 0 || loop->getNumResults() != 0)
-    return failSeedMatch(loop,
-                         "scf.for must not use loop-carried iter_args or "
-                         "yield values");
+    return failMaterializerMatch(
+        loop,
+        "scf.for must not use loop-carried iter_args or yield values");
 
   mlir::Block &loopBody = loop.getRegion().front();
   llvm::SmallVector<mlir::Operation *, 4> bodyOps;
   for (mlir::Operation &op : loopBody) {
     if (auto yield = llvm::dyn_cast<mlir::scf::YieldOp>(op)) {
       if (yield->getNumOperands() != 0)
-        return failSeedMatch(yield,
-                             "scf.for yield must not carry loop values");
+        return failMaterializerMatch(
+            yield, "scf.for yield must not carry loop values");
       continue;
     }
     bodyOps.push_back(&op);
   }
   if (bodyOps.size() != 4)
-    return failSeedMatch(loop,
-                         "scf.for body must contain exactly two vector.load "
-                         "ops, one arith.addi, and one vector.store");
+    return failMaterializerMatch(
+        loop,
+        "scf.for body must contain exactly two vector.load ops, one "
+        "arith.addi, and one vector.store");
 
   auto lhsLoad = llvm::dyn_cast<mlir::vector::LoadOp>(bodyOps[0]);
   auto rhsLoad = llvm::dyn_cast<mlir::vector::LoadOp>(bodyOps[1]);
   auto add = llvm::dyn_cast<mlir::arith::AddIOp>(bodyOps[2]);
   auto store = llvm::dyn_cast<mlir::vector::StoreOp>(bodyOps[3]);
   if (!lhsLoad || !rhsLoad || !add || !store)
-    return failSeedMatch(loop,
-                         "scf.for body operation order must be vector.load, "
-                         "vector.load, arith.addi, vector.store");
+    return failMaterializerMatch(
+        loop,
+        "scf.for body operation order must be vector.load, vector.load, "
+        "arith.addi, vector.store");
 
   mlir::Value iv = loop.getInductionVar();
   if (lhsLoad.getBase() != entry.getArgument(0) ||
       !usesOnlyIndex(lhsLoad.getIndices(), iv))
-    return failSeedMatch(lhsLoad,
-                         "first vector.load must read lhs at the loop iv");
+    return failMaterializerMatch(
+        lhsLoad, "first vector.load must read lhs at the loop iv");
   if (rhsLoad.getBase() != entry.getArgument(1) ||
       !usesOnlyIndex(rhsLoad.getIndices(), iv))
-    return failSeedMatch(rhsLoad,
-                         "second vector.load must read rhs at the loop iv");
+    return failMaterializerMatch(
+        rhsLoad, "second vector.load must read rhs at the loop iv");
   if (!isBoundedSourceVectorI32(lhsLoad.getResult().getType()) ||
       !isBoundedSourceVectorI32(rhsLoad.getResult().getType()))
-    return failSeedMatch(loop,
-                         "source vector loads must produce vector<4xi32>");
+    return failMaterializerMatch(
+        loop, "source vector loads must produce vector<4xi32>");
 
   if (add.getLhs() != lhsLoad.getResult() || add.getRhs() != rhsLoad.getResult())
-    return failSeedMatch(add,
-                         "arith.addi must consume the two source vector loads");
+    return failMaterializerMatch(
+        add, "arith.addi must consume the two source vector loads");
   if (!isBoundedSourceVectorI32(add.getResult().getType()))
-    return failSeedMatch(add, "arith.addi must produce vector<4xi32>");
+    return failMaterializerMatch(add,
+                                 "arith.addi must produce vector<4xi32>");
 
   if (store.getBase() != entry.getArgument(2) ||
       !usesOnlyIndex(store.getIndices(), iv))
-    return failSeedMatch(store,
-                         "vector.store must write out at the loop iv");
+    return failMaterializerMatch(store,
+                                 "vector.store must write out at the loop iv");
   if (store.getValueToStore() != add.getResult())
-    return failSeedMatch(store,
-                         "vector.store must store the arith.addi result");
+    return failMaterializerMatch(
+        store, "vector.store must store the arith.addi result");
 
-  BoundedI32AddSourceSeed seed;
-  seed.func = func;
-  seed.runtimeABIValues = deriveSourceRuntimeABIValues(entry);
-  return seed;
+  BoundedI32AddSourcePattern source;
+  source.func = func;
+  source.runtimeABIValues = deriveSourceRuntimeABIValues(entry);
+  return source;
 }
 
 mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
@@ -409,9 +431,9 @@ void createSelectedDispatchEnvelope(mlir::OpBuilder &builder,
   (void)builder.create(fallbackState);
 }
 
-void materializeSeedKernel(mlir::OpBuilder &builder,
-                           const BoundedI32AddSourceSeed &seed) {
-  mlir::func::FuncOp func = seed.func;
+void materializeSourceKernel(mlir::OpBuilder &builder,
+                             const BoundedI32AddSourcePattern &source) {
+  mlir::func::FuncOp func = source.func;
   mlir::Location loc = func.getLoc();
   std::string kernelName = (func.getSymName() + "_kernel").str();
   std::string variantName = (func.getSymName() + "_rvv_i32_add").str();
@@ -458,13 +480,13 @@ void materializeSeedKernel(mlir::OpBuilder &builder,
     mlir::Type runtimeABIValueType =
         tcrv::rvv::RuntimeABIValueType::get(builder.getContext());
     mlir::Operation *lhs = createRuntimeABIValue(
-        builder, loc, seed.runtimeABIValues[0], runtimeABIValueType);
+        builder, loc, source.runtimeABIValues[0], runtimeABIValueType);
     mlir::Operation *rhs = createRuntimeABIValue(
-        builder, loc, seed.runtimeABIValues[1], runtimeABIValueType);
+        builder, loc, source.runtimeABIValues[1], runtimeABIValueType);
     mlir::Operation *out = createRuntimeABIValue(
-        builder, loc, seed.runtimeABIValues[2], runtimeABIValueType);
+        builder, loc, source.runtimeABIValues[2], runtimeABIValueType);
     mlir::Operation *n = createRuntimeABIValue(
-        builder, loc, seed.runtimeABIValues[3], builder.getIndexType());
+        builder, loc, source.runtimeABIValues[3], builder.getIndexType());
     mlir::Operation *setvl = createSetVL(builder, loc, n->getResult(0), policy);
     mlir::Operation *withVL =
         createWithVL(builder, loc, setvl->getResult(0), policy);
@@ -497,8 +519,8 @@ public:
   }
 
   llvm::StringRef getDescription() const final {
-    return "Materialize one bounded MLIR vector i32 add seed into the RVV "
-           "i32m1 selected-boundary form";
+    return "Materialize one bounded MLIR vector i32 add source pattern into "
+           "the RVV i32m1 selected-boundary form";
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
@@ -510,37 +532,39 @@ public:
   void runOnOperation() final {
     mlir::ModuleOp module = getOperation();
 
-    llvm::SmallVector<mlir::func::FuncOp, 2> seeds;
+    llvm::SmallVector<mlir::func::FuncOp, 2> sources;
     module.walk([&](mlir::func::FuncOp func) {
-      if (func->hasAttr(kSeedAttrName))
-        seeds.push_back(func);
+      if (!hasForeignLoweringSeedAttr(func))
+        sources.push_back(func);
     });
-    if (seeds.empty())
+    if (sources.empty())
       return;
+    if (sources.size() != 1) {
+      (void)failMaterializer(
+          module,
+          "source module must contain exactly one RVV source function "
+          "candidate");
+      signalPassFailure();
+      return;
+    }
 
     if (mlir::failed(requireSourceOnlyModule(module))) {
       signalPassFailure();
       return;
     }
 
-    llvm::SmallVector<BoundedI32AddSourceSeed, 2> matchedSeeds;
-    for (mlir::func::FuncOp func : seeds) {
-      mlir::FailureOr<BoundedI32AddSourceSeed> seed =
-          matchBoundedI32AddSeed(func);
-      if (mlir::failed(seed)) {
-        signalPassFailure();
-        return;
-      }
-      matchedSeeds.push_back(std::move(*seed));
+    mlir::FailureOr<BoundedI32AddSourcePattern> source =
+        matchBoundedI32AddSourcePattern(sources.front());
+    if (mlir::failed(source)) {
+      signalPassFailure();
+      return;
     }
 
     mlir::OpBuilder builder(module.getContext());
     builder.setInsertionPointToStart(module.getBody());
-    for (const BoundedI32AddSourceSeed &seed : matchedSeeds)
-      materializeSeedKernel(builder, seed);
+    materializeSourceKernel(builder, *source);
 
-    for (BoundedI32AddSourceSeed &seed : matchedSeeds)
-      seed.func.erase();
+    source->func.erase();
   }
 };
 

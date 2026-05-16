@@ -89,6 +89,14 @@ bundle route packages the object and header as one selected-variant component
 group. Historical header and bundle route ids remain deleted and must not be
 used as compatibility aliases.
 
+The bounded RVV i32m1 add source materializer may construct this selected route
+from the exact MLIR vector/scf source pattern owned by the RVV plugin. That
+source body, not stale `tcrv_rvv.lowering_seed` metadata, route ids,
+descriptors, artifact names, or deleted finite-family records, is the positive
+authority for this front door. Unsupported source shapes and stale pre-existing
+`tcrv.exec`/`tcrv_rvv` residue must fail before emission planning or target
+artifact export.
+
 RVV probe facts remain bounded hardware/toolchain evidence inputs. They may be
 validated into raw `TargetCapabilitySet` evidence facts, but they must not
 manufacture finite SEW/LMUL/tail/mask config capabilities or authorize a

@@ -4,7 +4,7 @@
 // RUN: not tcrv-opt %s --tcrv-disable-builtin-plugins --tcrv-rvv-materialize-i32m1-selected-boundary-seed 2>&1 | FileCheck %s --check-prefix=NO-BUILTIN
 
 module {
-  func.func @seed(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) attributes {tcrv_rvv.lowering_seed = "i32m1_add"} {
+  func.func @seed(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
     %c0 = arith.constant 0 : index
     %c4 = arith.constant 4 : index
     scf.for %i = %c0 to %n step %c4 {
@@ -62,7 +62,7 @@ module {
 // BOUNDARY: tcrv.exec.dispatch
 // BOUNDARY: tcrv.exec.case @seed_rvv_i32_add
 // BOUNDARY-SAME: origin = "rvv-plugin"
-// BOUNDARY-SAME: policy = "source-seed-selected-rvv-case"
+// BOUNDARY-SAME: policy = "source-pattern-selected-rvv-case"
 // BOUNDARY: tcrv.exec.fallback @seed_scalar_fallback
 // BOUNDARY-SAME: fallback_role = "conservative"
 // BOUNDARY-SAME: origin = "scalar-plugin"

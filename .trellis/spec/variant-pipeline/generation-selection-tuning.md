@@ -125,21 +125,26 @@ plugin/interface-owned frontend construction
   -> common EmitC route
 ```
 
-## Scenario: RVV-Owned Bounded Vector I32 Add Seed
+## Scenario: RVV-Owned Bounded Vector I32 Add Source Pattern
 
 ### 1. Scope / Trigger
 
-This scenario applies to the bounded rebuild seed that accepts one explicitly
-marked MLIR vector/arithmetic i32 add source shape and materializes the existing
-RVV i32m1 selected-boundary route. It is a plugin-owned RVV entry point, not a
-restoration of the deleted core linalg/vector RVV source frontend family.
+This scenario applies to the bounded RVV-owned source materializer that accepts
+one structurally recognized MLIR vector/arithmetic i32 add source shape and
+materializes the existing RVV i32m1 selected-boundary route. It is a
+plugin-owned RVV entry point, not a restoration of the deleted core
+linalg/vector RVV source frontend family.
 
 ### 2. Signatures
 
 - Public pass option:
   `--tcrv-rvv-materialize-i32m1-selected-boundary-seed`.
-- Required source marker:
-  `tcrv_rvv.lowering_seed = "i32m1_add"`.
+- The pass option name is historical pass plumbing only. It does not make a
+  `seed` attribute or seed metadata the route authority.
+- No positive source marker is required for the RVV i32 add slice.
+- Stale RVV source marker metadata such as
+  `tcrv_rvv.lowering_seed = "i32m1_add"` must not create a selected RVV route
+  and may be rejected before materialization.
 - Required source function ABI:
   `func.func @name(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index)`.
 - Required source body shape:
@@ -171,6 +176,9 @@ restoration of the deleted core linalg/vector RVV source frontend family.
 - The pass is source-only. Pre-existing `tcrv.exec` or `tcrv_rvv` operations in
   the input are stale selected-boundary or variant residue for this pass and
   must fail closed instead of being merged with source lowering.
+- The bounded source body is the positive authority for this slice. Route ids,
+  descriptors, artifact names, stale seed metadata, deleted family records, and
+  common/core source scans must not authorize RVV materialization.
 
 ### 4. Validation & Error Matrix
 
@@ -181,38 +189,40 @@ restoration of the deleted core linalg/vector RVV source frontend family.
   store operands, or source store not using the `arith.addi` result -> fail.
 - `scf.for` with loop-carried `iter_args`, yielded values, unsupported lower
   bound, unsupported upper bound, or unsupported step -> fail.
-- Pre-existing `tcrv.exec`/`tcrv_rvv` operations in the same seed input -> fail
-  as stale selected-boundary or unselected variant residue.
-- Unsupported seed marker values -> fail; they must not silently fall back to a
+- Pre-existing `tcrv.exec`/`tcrv_rvv` operations in the same source input ->
+  fail as stale selected-boundary or unselected variant residue.
+- Stale `tcrv_rvv.lowering_seed` metadata alone -> fail or be ignored in a way
+  that cannot create a selected route. It must not silently fall back to a
   generic RVV lowering path.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: an explicitly marked `func.func` with the exact i32 add vector source
-  shape materializes a selected RVV i32m1 variant that the existing EmitC route
+- Good: an unmarked `func.func` with the exact i32 add vector source shape
+  materializes a selected RVV i32m1 variant that the existing EmitC route
   accepts.
-- Base: hand-written TianChen-RV MLIR with explicit RVV variant bodies remains a
-  valid backend-first input and does not require this source seed.
+- Base: hand-written TianChen-RV MLIR with explicit RVV variant bodies remains
+  a valid backend-first input and does not require this source materializer.
 - Bad: a common transform scans arbitrary linalg/vector/add/sub/mul source
   bodies and chooses RVV semantics through route ids, descriptors, artifact
-  names, or deleted finite-family metadata.
+  names, stale seed metadata, or deleted finite-family metadata.
 
 ### 6. Tests Required
 
-- Positive lit/FileCheck coverage for source seed -> selected
+- Positive lit/FileCheck coverage for unseeded source pattern -> selected
   `tcrv.exec.variant` containing explicit runtime ABI bindings,
   source-argument provenance purpose strings, `tcrv_rvv.with_vl`, and
   `tcrv_rvv.i32_add`.
-- Positive route-consumption coverage proving the seed output reaches existing
-  RVV emission-plan and EmitC materialization.
+- Positive route-consumption coverage proving the materializer output reaches
+  existing RVV emission-plan and EmitC materialization.
 - Negative lit/FileCheck coverage for missing ABI operands, unsupported
-  dtype/rank/shape, malformed source body, unsupported marker values, and stale
+  dtype/rank/shape, malformed source body, stale seed metadata, and stale
   pre-existing `tcrv.exec`/`tcrv_rvv` residue.
 - Negative source-shape coverage must include wrong arithmetic op, wrong
   buffer role/use, missing or extra runtime `n`, unsupported loop bounds/step,
-  loop-carried values, and marker-with-empty or unrelated body.
+  loop-carried values, missing store, extra loop ops, and unrelated body.
 - Existing explicit RVV i32m1 construction/EmitC/target tests must continue to
-  pass so the seed is proven to feed the current route instead of replacing it.
+  pass so the source materializer is proven to feed the current route instead
+  of replacing it.
 
 ### 7. Wrong vs Correct
 
@@ -226,7 +236,7 @@ arbitrary vector/linalg source -> core RVV arithmetic recognizer
 Correct:
 
 ```text
-explicit bounded RVV seed marker + exact source shape
+exact bounded RVV-owned source shape
   -> RVV-owned materialization pass
   -> plugin-owned typed RVV selected-boundary body
   -> existing construction/EmitC/target route
@@ -383,17 +393,17 @@ than duplicating symbols or silently appending stale metadata.
 
 ## Public Source-Seed Artifact Front-Door Pipeline
 
-Bounded source-seed materialization has a separate explicit `tcrv-opt` front
-door:
+Bounded plugin-owned source materialization has a separate explicit `tcrv-opt`
+front door:
 
 ```text
 --tcrv-source-seed-artifact-front-door-pipeline
 ```
 
-This pipeline is for plugin-owned source seeds that already materialize a
-selected extension-family boundary. It is not a replacement for the ordinary
-execution-planning pipeline and must not be invoked silently by default
-planning/export commands.
+This pipeline is for plugin-owned source materializers that already
+materialize a selected extension-family boundary. It is not a replacement for
+the ordinary execution-planning pipeline and must not be invoked silently by
+default planning/export commands.
 
 The pipeline composes existing registered pass factories in this order:
 
@@ -409,17 +419,18 @@ all enabled plugin-registered source-seed materialization passes
 The source-seed pass list comes from
 `ExtensionPluginRegistry::collectSourceSeedPasses` in deterministic enabled
 plugin order. Common/tool code may collect, validate, register, and sequence
-those pass factories, but it must not inspect source seed marker names, source
-operation shapes, arithmetic, template semantics, route ids, runtime ABI names,
-intrinsic names, artifact kinds, or target-family details.
+those pass factories, but it must not inspect plugin source marker names,
+source operation shapes, arithmetic, template semantics, route ids, runtime ABI
+names, intrinsic names, artifact kinds, or target-family details.
 
 This pipeline intentionally does not run
 `tcrv-materialize-plugin-variants`, `tcrv-select-variants`, or unconditional
-selected lowering-boundary materialization. Current bounded source seeds
+selected lowering-boundary materialization. Current bounded source materializers
 produce selected `tcrv.exec.variant` surfaces and selected extension-family
 boundary IR themselves. Re-running proposal/selection would compete with that
 selected surface, and unconditionally materializing boundaries would duplicate
-plugin-owned seed boundaries such as Toy `tcrv_toy.compute_skeleton`.
+plugin-owned source boundaries such as RVV `tcrv_rvv.with_vl` or Toy
+`tcrv_toy.compute_skeleton`.
 
 The artifact front door stops at emission-plan/coherence-checked TianChen-RV
 IR. Existing target translate routes, such as
@@ -434,10 +445,11 @@ Disabled built-in plugins leave the source-seed pass list empty. Source inputs
 must then fail closed in the generic gates rather than being lowered through
 hidden global plugin state.
 
-The pipeline must preserve the fail-closed behavior of each plugin-owned seed:
-unsupported marker values, malformed source shapes, stale pre-existing
-`tcrv.exec`/extension-boundary residue, and mixed incompatible seed inputs must
-not be merged into one source program or repaired by common code.
+The pipeline must preserve the fail-closed behavior of each plugin-owned source
+materializer: stale marker metadata, malformed source shapes, stale
+pre-existing `tcrv.exec`/extension-boundary residue, and mixed incompatible
+source inputs must not be merged into one source program or repaired by common
+code.
 
 ## Plugin-Driven Proposal
 
