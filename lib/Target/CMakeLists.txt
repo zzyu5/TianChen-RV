@@ -1,5 +1,4 @@
 add_subdirectory(RVV)
-add_subdirectory(Toy)
 
 add_mlir_library(TianChenRVTarget
   EmissionManifest.cpp

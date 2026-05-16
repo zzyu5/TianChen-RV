@@ -696,17 +696,17 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   publish `tcrv-export-scalar-*` source/header/object routes or
   `scalar-*-runtime-callable-c-abi.v1` identities as executable artifact
   authority.
-- The current plugin-owned supported target artifact route set is empty until a
-  future Common EmitC rebuild materializes explicit extension-family routes.
-  Template, Toy, TensorExtLite, and Offload metadata artifact exporters must not
-  publish route ids or stand in for compiler-owned lowering.
-- The helper may include scalar/offload/Toy/template target headers for
-  current legacy bundle composition, but target-support-enabled extensions must
-  activate any supported route contribution through the plugin/manifest hook.
-  In particular, central built-in code must not include the RVV target-support
-  bundle header, directly call the RVV target-support helper, iterate RVV
-  direct/RVV+scalar dispatch manifests as central route truth, or keep scalar
-  route strings as compatibility authority.
+- The current plugin-owned supported target artifact route set is limited to
+  explicit rebuilt materialized routes such as the RVV materialized EmitC
+  object/header bundle path. Template, Toy, TensorExtLite, and Offload metadata
+  artifact exporters must not publish route ids or stand in for compiler-owned
+  lowering.
+- Target-support-enabled extensions must activate any supported route
+  contribution through the plugin/manifest hook. In particular, central
+  built-in code must not include extension-specific target-support bundle
+  headers, directly call RVV/Toy/scalar target-support helpers, iterate
+  extension-specific manifests as central route truth, or keep scalar/Toy route
+  strings as compatibility authority.
 - Generic public translate helpers should call this helper once and then call
   `exportTargetArtifact` or `exportTargetHeaderArtifact`. The former
   source-specific export API is deleted with the source-only front door.

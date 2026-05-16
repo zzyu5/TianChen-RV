@@ -56,6 +56,68 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 99: Toy template target artifact route erasure
+
+**Date**: 2026-05-17
+**Task**: Toy template target artifact route erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the remaining Toy metadata/source target artifact route, removed the
+Toy target support bundle and direct translate route exposure, downgraded Toy
+emission planning to an unsupported non-artifact diagnostic, and kept the Toy
+EmitC materialization helper as non-production target-artifact behavior.
+
+### Main Changes
+
+- Removed `TianChenRVToyTarget`, `ToyTargetSupportBundle`, the Toy target
+  exporter registration hook, and the Toy target translate route hook.
+- Deleted `test/Target/Toy/*` fixtures that protected
+  `tcrv-toy-template-artifact`, Toy `metadata-diagnostic` export, and
+  `materialized_emitc_cpp_source` positive target artifact output.
+- Updated built-in target artifact and translate route tests so the current
+  production route set is RVV materialized EmitC object plus RVV header
+  composite, with no Toy target artifact route.
+- Changed Toy emission plans from supported metadata artifact candidates to
+  unsupported diagnostics that state the Toy target artifact route is deleted.
+- Refreshed the lowering-runtime spec so supported built-in target artifact
+  routes are limited to explicit rebuilt materialized routes and Toy metadata
+  exporters cannot stand in for compiler-owned lowering.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-toy-extension-plugin-test tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-toy-extension-plugin-test`
+- [OK] focused lit filter:
+  `execution-planning-pipeline-toy|source-seed-target-artifact-object|tensorext-lite-target-artifact-unsupported|toy-template-materialization|emitc-to-cpp-handoff|emitc-to-cpp-non-materialized`,
+  9/9 passed.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 99/99 lit tests passed.
+- [OK] `git diff --check`
+- [OK] `tcrv-translate --help` scan shows no `tcrv-toy-template-artifact`.
+- [OK] targeted residue scan over Toy target, built-in target registration,
+  tcrv-translate, Toy target lit, and TargetArtifactExportTest is clean for
+  the deleted route strings and positive Toy metadata/source artifact outputs.
+
+### Self-Repair
+
+- First full `check-tianchenrv` failed because Toy still published a supported
+  `metadata-diagnostic` emission plan after the exporter was deleted. Fixed by
+  making the Toy emission plan unsupported rather than restoring the old target
+  artifact exporter.
+
+### Spec Update
+
+- Updated `.trellis/spec/lowering-runtime/emission-runtime-contract.md` to
+  reflect the current supported target artifact route boundary after Toy
+  deletion.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+
 ## Session 98: RVV unseeded vector-loop selected-boundary materializer
 
 **Date**: 2026-05-17

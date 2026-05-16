@@ -4,10 +4,12 @@ module {
   // PIPE: tcrv.exec.kernel @pipeline_toy_template
   // PIPE: tcrv_toy.compute_skeleton {
   // PIPE-SAME: selected_variant = @toy_template_first_slice
-  // PIPE: artifact_kind = "metadata-diagnostic"
-  // PIPE-SAME: lowering_pipeline = "toy-template-compute-emitc-route"
-  // PIPE-SAME: status = "supported"
-  // PIPE-NOT: names unknown target artifact export route id 'toy-template-compute-emitc-route'
+  // PIPE: tcrv.exec.diagnostic
+  // PIPE-SAME: message = "Toy template target artifact export route is deleted
+  // PIPE-SAME: reason = "emission_plan"
+  // PIPE-SAME: status = "unsupported"
+  // PIPE-NOT: artifact_kind = "metadata-diagnostic"
+  // PIPE-NOT: lowering_pipeline = "toy-template-compute-emitc-route"
   tcrv.exec.kernel @pipeline_toy_template {
     tcrv.exec.capability @toy_template {
       id = "toy.template",

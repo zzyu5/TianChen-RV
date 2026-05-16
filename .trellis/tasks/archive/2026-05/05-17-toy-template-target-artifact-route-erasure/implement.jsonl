@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global stack, unified RISC-V MLIR boundary, and descriptor/direct-C deletion invariants"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Metadata/source authority deletion boundary and future frontend constraints"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target/export route authority and fail-closed deletion campaign requirements"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Materialized EmitC route contract and selected emission-plan to target artifact handoff"}
+{"file": ".trellis/tasks/archive/2026-05/05-17-toy-source-seed-authority-erasure/prd.md", "reason": "Previous Toy source-seed deletion boundary that this round extends at target artifact layer"}

@@ -19,7 +19,6 @@
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
-#include "TianChenRV/Target/Toy/ToyTargetSupportBundle.h"
 
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
@@ -156,7 +155,7 @@ constexpr llvm::StringLiteral kBundleTestDuplicateRouteID(
 constexpr llvm::StringLiteral kBundleTestUnsupportedEmissionKind(
     "bundle-test-unsupported-emission");
 
-llvm::Error registerNoMetadataToyTargetExporter(
+llvm::Error registerNoMetadataTestLocalTargetExporter(
     TargetArtifactExporterRegistry &registry) {
   return registry.registerExporter(TargetArtifactExporter(
       kBundleTestMissingRouteMetadataID, "metadata-diagnostic",
@@ -164,14 +163,14 @@ llvm::Error registerNoMetadataToyTargetExporter(
       kBundleTestUnsupportedEmissionKind, noopExporter));
 }
 
-llvm::Error registerNoMetadataToyPluginTargetExporterBundle(
+llvm::Error registerNoMetadataTestLocalPluginTargetExporterBundle(
     PluginTargetArtifactExporterRegistry &registry) {
   return registry.registerBundle(PluginTargetArtifactExporterBundle(
       tianchenrv::plugin::toy::getToyExtensionPluginName(),
-      registerNoMetadataToyTargetExporter));
+      registerNoMetadataTestLocalTargetExporter));
 }
 
-llvm::Error registerNoMetadataToyCompositeTargetExporter(
+llvm::Error registerNoMetadataTestLocalCompositeTargetExporter(
     TargetArtifactExporterRegistry &registry) {
   return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
       kBundleTestNoMetadataCompositeRouteID, "riscv-elf-relocatable-object",
@@ -179,14 +178,14 @@ llvm::Error registerNoMetadataToyCompositeTargetExporter(
       tianchenrv::plugin::toy::getToyExtensionPluginName()));
 }
 
-llvm::Error registerNoMetadataToyCompositePluginTargetExporterBundle(
+llvm::Error registerNoMetadataTestLocalCompositePluginTargetExporterBundle(
     PluginTargetArtifactExporterRegistry &registry) {
   return registry.registerBundle(PluginTargetArtifactExporterBundle(
       tianchenrv::plugin::toy::getToyExtensionPluginName(),
-      registerNoMetadataToyCompositeTargetExporter));
+      registerNoMetadataTestLocalCompositeTargetExporter));
 }
 
-llvm::Error registerDuplicateToyTargetExporters(
+llvm::Error registerDuplicateTestLocalTargetExporters(
     TargetArtifactExporterRegistry &registry) {
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           kBundleTestDuplicateRouteID, "metadata-diagnostic",
@@ -199,11 +198,11 @@ llvm::Error registerDuplicateToyTargetExporters(
       kBundleTestUnsupportedEmissionKind, noopExporter));
 }
 
-llvm::Error registerDuplicateToyPluginTargetExporterBundle(
+llvm::Error registerDuplicateTestLocalPluginTargetExporterBundle(
     PluginTargetArtifactExporterRegistry &registry) {
   return registry.registerBundle(PluginTargetArtifactExporterBundle(
       tianchenrv::plugin::toy::getToyExtensionPluginName(),
-      registerDuplicateToyTargetExporters));
+      registerDuplicateTestLocalTargetExporters));
 }
 
 llvm::Expected<bool>
@@ -324,71 +323,6 @@ bool expectRVVEmitCTranslateRoute(
   return expectTranslateRoute(registry, "tcrv-rvv-emitc-to-cpp",
                               /*expectedBinaryStdout=*/false,
                               "MLIR EmitC C/C++ emitter");
-}
-
-bool expectToyTemplateExporterShape(
-    const TargetArtifactExporterRegistry &registry, llvm::StringRef context) {
-  const tianchenrv::plugin::toy::ToyConstructionManifest &manifest =
-      tianchenrv::plugin::toy::getToyConstructionManifest();
-  const tianchenrv::plugin::toy::ToyTemplateEmitCConstructionRoute &route =
-      tianchenrv::plugin::toy::getToyTemplateEmitCConstructionRoute();
-
-  const TargetArtifactExporter *exporter = registry.lookup(route.routeID);
-  if (!exporter) {
-    llvm::errs() << context << ": missing Toy template target artifact route\n";
-    return false;
-  }
-  if (exporter->getArtifactKind() != route.artifactKind ||
-      exporter->getOriginPlugin() != manifest.family.pluginName ||
-      exporter->getEmissionKind() != route.emissionKind ||
-      exporter->getHandoffKind() !=
-          "materialized-emitc-cpp-toy-template-source-artifact" ||
-      !exporter->getComponentGroup().empty() ||
-      !exporter->getExternalABIName().empty() ||
-      !exporter->getRequiredRuntimeABIParameters().empty() ||
-      !exporter->getExportFn() || !exporter->getCandidateValidationFn()) {
-    llvm::errs() << context << ": malformed Toy template exporter metadata\n";
-    return false;
-  }
-
-  TargetArtifactCandidate candidate;
-  candidate.selectedVariant = "toy_template_first_slice";
-  candidate.role = "direct variant";
-  candidate.routeID = route.routeID.str();
-  candidate.origin = manifest.family.pluginName.str();
-  candidate.emissionKind = route.emissionKind.str();
-  candidate.artifactKind = route.artifactKind.str();
-  candidate.loweringBoundary = route.loweringBoundaryOpName.str();
-  candidate.runtimeABI = route.runtimeABI.str();
-  candidate.runtimeABIKind = route.runtimeABIKind.str();
-  candidate.runtimeABIName = route.runtimeABIName.str();
-  candidate.runtimeGlueRole = route.runtimeGlueRole.str();
-  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
-                         candidate, *exporter),
-                     "validate Toy template artifact candidate"))
-    return false;
-
-  TargetArtifactCandidate badBoundary = candidate;
-  badBoundary.loweringBoundary = "tcrv_toy.lowering_boundary";
-  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
-                               badBoundary, *exporter),
-                           "Toy template artifact rejects legacy boundary",
-                           {"lowering boundary",
-                            route.loweringBoundaryOpName}))
-    return false;
-
-  TargetArtifactCandidate badRuntimeParams = candidate;
-  badRuntimeParams.runtimeABIParameters.push_back(RuntimeABIParameter(
-      "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount,
-      RuntimeABIParameterOwnership::TargetExportABIOwned));
-  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
-                               badRuntimeParams, *exporter),
-                           "Toy template artifact rejects runtime ABI params",
-                           {"does not accept structured runtime ABI "
-                            "parameters"}))
-    return false;
-
-  return true;
 }
 
 TargetArtifactCandidate makeValidRVVTargetArtifactCandidate() {
@@ -677,16 +611,6 @@ bool expectRVVTargetHeaderCompositeShape(
   return true;
 }
 
-bool expectToyTemplateTranslateRoute(
-    const TargetTranslateRouteRegistry &registry, llvm::StringRef context) {
-  (void)context;
-  return expectTranslateRoute(
-      registry,
-      tianchenrv::target::toy::getToyTemplateTargetTranslateRouteID(),
-      /*expectedBinaryStdout=*/false, "Toy template",
-      tianchenrv::target::toy::getToyTemplateTargetArtifactRouteID());
-}
-
 bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   ExtensionBundleRegistry bundles;
   if (!expectSuccess(registerBuiltinExtensionBundles(bundles),
@@ -707,9 +631,8 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   if (toyBundle->getBundleID() != "toy-extension-bundle" ||
       !containsString(toyBundle->getRequiredDialectNames(), "tcrv_toy") ||
       !toyBundle->getPluginRegistrationFn() ||
-      !containsString(toyBundle->getLoweringBoundaryOps(),
-                      "tcrv_toy.compute_skeleton") ||
-      !toyBundle->getTargetArtifactExporterBundleRegistrationFn()) {
+      !toyBundle->getLoweringBoundaryOps().empty() ||
+      toyBundle->getTargetArtifactExporterBundleRegistrationFn()) {
     llvm::errs() << "Toy extension bundle frontdoor is malformed\n";
     return false;
   }
@@ -811,18 +734,16 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
                                                                    registry),
           "register target artifact exporters through bundle frontdoor"))
     return false;
-  if (registry.size() != 2 || registry.compositeSize() != 1) {
-    llvm::errs() << "extension bundle frontdoor should register Toy and RVV "
-                    "materialized EmitC target artifact routes plus the RVV "
-                    "header composite route, got "
+  if (registry.size() != 1 || registry.compositeSize() != 1) {
+    llvm::errs() << "extension bundle frontdoor should register only the RVV "
+                    "materialized EmitC target artifact route plus the RVV "
+                    "header composite route after Toy target artifact erasure, "
+                    "got "
                     "standalone="
                  << registry.size() << " composite=" << registry.compositeSize()
                  << "\n";
     return false;
   }
-  if (!expectToyTemplateExporterShape(
-          registry, "extension bundle frontdoor Toy template exporter"))
-    return false;
   if (!expectRVVTargetArtifactExporterShape(
           registry, "extension bundle frontdoor RVV target artifact exporter"))
     return false;
@@ -878,11 +799,11 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
   {
     ExtensionBundleRegistry bundles;
     ExtensionBundle noMetadataRoute(
-        "toy-no-metadata-route-bundle",
+        "test-local-no-metadata-route-bundle",
         tianchenrv::plugin::toy::getToyExtensionPluginName(),
         tianchenrv::plugin::registerToyExtensionPlugin);
     noMetadataRoute.setTargetArtifactExporterBundleRegistrationFn(
-        registerNoMetadataToyPluginTargetExporterBundle);
+        registerNoMetadataTestLocalPluginTargetExporterBundle);
     if (!expectSuccess(bundles.registerBundle(noMetadataRoute),
                        "register no-metadata-route bundle"))
       return false;
@@ -907,11 +828,11 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
   {
     ExtensionBundleRegistry bundles;
     ExtensionBundle noMetadataCompositeRoute(
-        "toy-no-metadata-composite-route-bundle",
+        "test-local-no-metadata-composite-route-bundle",
         tianchenrv::plugin::toy::getToyExtensionPluginName(),
         tianchenrv::plugin::registerToyExtensionPlugin);
     noMetadataCompositeRoute.setTargetArtifactExporterBundleRegistrationFn(
-        registerNoMetadataToyCompositePluginTargetExporterBundle);
+        registerNoMetadataTestLocalCompositePluginTargetExporterBundle);
     if (!expectSuccess(bundles.registerBundle(noMetadataCompositeRoute),
                        "register no-metadata-composite-route bundle"))
       return false;
@@ -938,11 +859,11 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
   {
     ExtensionBundleRegistry bundles;
     ExtensionBundle duplicateRoute(
-        "toy-duplicate-route-bundle",
+        "test-local-duplicate-route-bundle",
         tianchenrv::plugin::toy::getToyExtensionPluginName(),
         tianchenrv::plugin::registerToyExtensionPlugin);
     duplicateRoute.setTargetArtifactExporterBundleRegistrationFn(
-        registerDuplicateToyPluginTargetExporterBundle);
+        registerDuplicateTestLocalPluginTargetExporterBundle);
     if (!expectSuccess(bundles.registerBundle(duplicateRoute),
                        "register duplicate-route bundle"))
       return false;
@@ -996,18 +917,16 @@ bool expectOffloadTargetArtifactExportersAbsent() {
                      "register all built-in target exporters after offload "
                      "executable route erasure"))
     return false;
-  if (allRegistry.size() != 2 || allRegistry.compositeSize() != 1) {
-    llvm::errs() << "built-in target exporters should publish Toy and RVV "
-                    "materialized EmitC target artifact routes plus the RVV "
-                    "header composite route while Offload remains absent, got "
+  if (allRegistry.size() != 1 || allRegistry.compositeSize() != 1) {
+    llvm::errs() << "built-in target exporters should publish only the RVV "
+                    "materialized EmitC target artifact route plus the RVV "
+                    "header composite route while Offload and Toy artifact "
+                    "routes remain absent, got "
                     "standalone="
                  << allRegistry.size() << " composite="
                  << allRegistry.compositeSize() << "\n";
     return false;
   }
-  if (!expectToyTemplateExporterShape(
-          allRegistry, "all built-in plugin Toy template exporter"))
-    return false;
   if (!expectRVVTargetArtifactExporterShape(
           allRegistry, "all built-in plugin RVV target artifact exporter"))
     return false;
@@ -1020,65 +939,6 @@ bool expectOffloadTargetArtifactExportersAbsent() {
   }
 
   return true;
-}
-
-bool expectToyTargetSupportBundleExtractionRegistration() {
-  PluginTargetArtifactExporterRegistry pluginExporters;
-  if (!expectSuccess(
-          tianchenrv::target::toy::
-              registerToyTargetSupportPluginTargetExporterBundles(
-                  pluginExporters),
-          "register Toy target-support artifact exporter bundles"))
-    return false;
-  if (pluginExporters.size() != 1) {
-    llvm::errs() << "Toy target-support bundle should contribute exactly one "
-                    "plugin-owned target-artifact exporter bundle, got "
-                 << pluginExporters.size() << "\n";
-    return false;
-  }
-  if (!expectSuccess(
-          tianchenrv::target::toy::
-              registerToyTargetSupportPluginTargetExporterBundles(
-                  pluginExporters),
-          "repeat Toy target-support no-op artifact exporter registration"))
-    return false;
-
-  ExtensionBundle bundle("toy-extension-bundle",
-                         tianchenrv::plugin::toy::getToyExtensionPluginName(),
-                         tianchenrv::plugin::registerToyExtensionPlugin);
-  bundle.addRequiredDialectName("tcrv_toy");
-  if (!expectSuccess(
-          tianchenrv::target::toy::configureToyTargetSupportExtensionBundle(
-              bundle),
-          "configure Toy target-support extension bundle metadata"))
-    return false;
-  if (!bundle.getTargetArtifactExporterBundleRegistrationFn() ||
-      !containsString(bundle.getLoweringBoundaryOps(),
-                      "tcrv_toy.compute_skeleton")) {
-    llvm::errs() << "Toy target-support bundle did not install exporter "
-                    "registration and lowering-boundary metadata\n";
-    return false;
-  }
-
-  ExtensionPluginRegistry plugins;
-  if (!expectSuccess(tianchenrv::plugin::registerToyExtensionPlugin(plugins),
-                     "register Toy plugin for target-support bundle"))
-    return false;
-
-  TargetArtifactExporterRegistry registry;
-  if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
-                         plugins, registry),
-                     "populate Toy target-support exporters"))
-    return false;
-  if (registry.size() != 1 || registry.compositeSize() != 0) {
-    llvm::errs() << "Toy target-support exporter bundle should register one "
-                    "metadata/source artifact route, got standalone="
-                 << registry.size() << " composite=" << registry.compositeSize()
-                 << "\n";
-    return false;
-  }
-  return expectToyTemplateExporterShape(
-      registry, "Toy target-support populated template exporter");
 }
 
 bool expectRVVTargetSupportBundleExtractionRegistration() {
@@ -1225,17 +1085,15 @@ bool expectRVVPluginManifestTargetSupportActivation() {
                      "register built-in target translate routes through "
                      "generic plugin manifest aggregation"))
     return false;
-  if (builtinRoutes.size() != 2) {
+  if (builtinRoutes.size() != 1) {
     llvm::errs() << "built-in target translate route aggregation did not "
-                    "publish the RVV EmitC and Toy target translate routes, got "
+                    "publish only the RVV EmitC target route after Toy target "
+                    "artifact route erasure, got "
                  << builtinRoutes.size() << "\n";
     return false;
   }
   if (!expectRVVEmitCTranslateRoute(
           builtinRoutes, "built-in RVV target routes"))
-    return false;
-  if (!expectToyTemplateTranslateRoute(
-          builtinRoutes, "built-in Toy target route"))
     return false;
 
   return true;
@@ -1251,27 +1109,26 @@ bool expectToyPluginManifestTargetSupportActivation() {
           "manifest hook"))
     return false;
   if (!containsString(bundle.getRequiredDialectNames(), "tcrv_toy") ||
-      !containsString(bundle.getLoweringBoundaryOps(),
-                      "tcrv_toy.compute_skeleton") ||
-      !bundle.getTargetArtifactExporterBundleRegistrationFn()) {
-    llvm::errs() << "Toy plugin manifest hook did not configure the "
-                    "target-support extension bundle\n";
+      !bundle.getLoweringBoundaryOps().empty() ||
+      bundle.getTargetArtifactExporterBundleRegistrationFn()) {
+    llvm::errs() << "Toy plugin manifest hook restored target artifact "
+                    "lowering-boundary or exporter metadata\n";
     return false;
   }
 
   TargetTranslateRouteRegistry pluginRoutes;
   if (!expectSuccess(
           toyPlugin.registerTargetSupportTranslateRoutes(pluginRoutes),
-          "activate Toy target translate routes through plugin manifest hook"))
+          "confirm Toy target translate routes stay erased through plugin "
+          "manifest hook"))
     return false;
-  if (pluginRoutes.size() != 1) {
-    llvm::errs() << "Toy plugin manifest hook should publish exactly one "
-                    "artifact-backed target translate route, got "
+  if (pluginRoutes.size() != 0) {
+    llvm::errs() << "Toy plugin manifest hook should not publish target "
+                    "translate routes after target artifact route erasure, got "
                  << pluginRoutes.size() << "\n";
     return false;
   }
-  return expectToyTemplateTranslateRoute(pluginRoutes,
-                                         "Toy plugin manifest target route");
+  return true;
 }
 
 bool expectParameter(const RuntimeABIParameter &parameter,
@@ -1451,18 +1308,15 @@ bool expectTargetTranslateRouteRegistryShape() {
   if (!expectSuccess(registerBuiltinTargetTranslateRoutes(builtinRoutes),
                      "register built-in target translate routes"))
     return false;
-  if (builtinRoutes.size() != 2) {
+  if (builtinRoutes.size() != 1) {
     llvm::errs() << "built-in target translate routes did not expose the "
-                    "materialized RVV EmitC handoff and the Toy template "
-                    "artifact-backed route, got "
+                    "materialized RVV EmitC handoff as the only current "
+                    "target translate route, got "
                  << builtinRoutes.size() << "\n";
     return false;
   }
   if (!expectRVVEmitCTranslateRoute(
           builtinRoutes, "built-in target translate routes"))
-    return false;
-  if (!expectToyTemplateTranslateRoute(
-          builtinRoutes, "built-in Toy target translate route"))
     return false;
   return expectSuccess(
       registerBuiltinTargetTranslateRoutes(builtinRoutes),
@@ -2397,8 +2251,6 @@ int main() {
     return 1;
   if (!expectOffloadTargetArtifactExportersAbsent())
     return 1;
-  if (!expectToyTargetSupportBundleExtractionRegistration())
-    return 1;
   if (!expectRVVTargetSupportBundleExtractionRegistration())
     return 1;
   if (!expectToyPluginManifestTargetSupportActivation())
@@ -2418,26 +2270,23 @@ int main() {
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
     return 1;
-  if (builtinRegistry.size() != 2) {
-    llvm::errs() << "expected Toy and RVV materialized EmitC target artifact "
-                    "routes, got "
+  if (builtinRegistry.size() != 1) {
+    llvm::errs() << "expected only the RVV materialized EmitC target artifact "
+                    "route after Toy target artifact route erasure, got "
                  << builtinRegistry.size() << "\n";
     return 1;
   }
   if (builtinRegistry.compositeSize() != 1) {
     llvm::errs() << "expected one RVV built-in composite target artifact "
-                    "header route for current Toy/RVV exporters, got "
+                    "header route for current built-in exporters, got "
                  << builtinRegistry.compositeSize() << "\n";
     return 1;
   }
   if (!expectSuccess(registerBuiltinTargetArtifactExporters(builtinRegistry),
                      "re-registering built-in exporters remains a no-op"))
     return 1;
-  if (builtinRegistry.size() != 2 ||
+  if (builtinRegistry.size() != 1 ||
       builtinRegistry.compositeSize() != 1)
-    return 1;
-  if (!expectToyTemplateExporterShape(
-          builtinRegistry, "final built-in Toy template exporter"))
     return 1;
   if (!expectRVVTargetArtifactExporterShape(
           builtinRegistry, "final built-in RVV target artifact exporter"))

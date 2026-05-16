@@ -555,32 +555,26 @@ module {
           "Toy emission plan is plugin-owned"))
     return result;
   if (int result =
-          expect(emissionPlan.isSupported() &&
+          expect(emissionPlan.isUnsupported() &&
                      emissionPlan.getOriginPlugin() ==
                          tianchenrv::plugin::toy::
                              getToyExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() ==
                          toyVariant.getSymName() &&
-                     emissionPlan.getLoweringPipeline() == routeSpec.routeID &&
-                     emissionPlan.getEmissionKind() ==
-                         routeSpec.emissionKind &&
-                     emissionPlan.getArtifactKind() ==
-                         routeSpec.artifactKind &&
-                     emissionPlan.getLoweringBoundaryOpName() ==
-                         routeSpec.loweringBoundaryOpName &&
-                     emissionPlan.getRuntimeABI() == routeSpec.runtimeABI &&
-                     emissionPlan.getRuntimeABIKind() ==
-                         routeSpec.runtimeABIKind &&
-                     emissionPlan.getRuntimeABIName() ==
-                         routeSpec.runtimeABIName &&
-                     emissionPlan.getRuntimeGlueRole() ==
-                         routeSpec.runtimeGlueRole &&
+                     emissionPlan.getLoweringPipeline().empty() &&
+                     emissionPlan.getEmissionKind().empty() &&
+                     emissionPlan.getArtifactKind().empty() &&
+                     emissionPlan.getLoweringBoundaryOpName().empty() &&
+                     emissionPlan.getDiagnostic().contains(
+                         "Toy template target artifact export route is "
+                         "deleted") &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::toy::
                              getToyTemplatePreferredCapabilitySymbol(),
-                 "Toy emission plan advertises the bounded EmitC module route"))
+                 "Toy emission plan no longer advertises target artifact "
+                 "authority"))
     return result;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;

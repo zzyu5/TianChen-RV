@@ -5,7 +5,6 @@
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyEmitCRouteProvider.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
-#include "TianChenRV/Target/Toy/ToyTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -686,28 +685,12 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
-  VariantEmitCLowerableRequest routeRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole());
-  if (llvm::Error error =
-          toy::buildToyTemplateEmitCLowerableRoute(routeRequest, route))
-    return error;
-
-  const toy::ToyTemplateEmitCConstructionRoute &constructionRoute =
-      toy::getToyTemplateEmitCConstructionRoute();
-  out = VariantEmissionPlan::getSupported(
+  out = VariantEmissionPlan::getUnsupported(
       kToyPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      constructionRoute.emissionKind, route.getRouteID(),
-      constructionRoute.runtimeABI, constructionRoute.artifactKind,
-      "Toy selected compute_skeleton route materializes an EmitC module "
-      "through the common TCRVEmitCLowerableRoute materializer before the "
-      "Toy metadata/source target artifact export boundary");
-  out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
-  out.setRuntimeABIName(constructionRoute.runtimeABIName);
-  out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);
-  out.setLoweringBoundaryOpName(constructionRoute.loweringBoundaryOpName);
+      "Toy template target artifact export route is deleted; the Toy "
+      "compute_skeleton EmitC materialization helper is not a production "
+      "target artifact route until an explicit rebuilt exporter exists");
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
@@ -840,12 +823,7 @@ llvm::Error ToyExtensionPlugin::buildVariantEmitCLowerableRoute(
 llvm::Error ToyExtensionPlugin::configureTargetSupportExtensionBundle(
     target::ExtensionBundle &bundle) const {
   bundle.addRequiredDialectName("tcrv_toy");
-  return target::toy::configureToyTargetSupportExtensionBundle(bundle);
-}
-
-llvm::Error ToyExtensionPlugin::registerTargetSupportTranslateRoutes(
-    target::TargetTranslateRouteRegistry &registry) const {
-  return target::toy::registerToyTargetSupportTargetTranslateRoutes(registry);
+  return llvm::Error::success();
 }
 
 } // namespace toy

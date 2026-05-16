@@ -55,8 +55,6 @@ public:
   llvm::Error
   configureTargetSupportExtensionBundle(target::ExtensionBundle &bundle)
       const override;
-  llvm::Error registerTargetSupportTranslateRoutes(
-      target::TargetTranslateRouteRegistry &registry) const override;
 
 private:
   llvm::SmallVector<PluginCapability, 1> capabilities;

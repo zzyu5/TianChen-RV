@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture and stack invariants are preserved"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check no Toy metadata/source authority remains as active route"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check built-in target exporter registration no longer publishes stale metadata/source routes"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check remaining artifact paths require selected materialized EmitC handoff and do not infer Toy route authority"}
+{"file": ".trellis/tasks/archive/2026-05/05-17-toy-source-seed-authority-erasure/prd.md", "reason": "Check this deletion does not undo previous Toy source-seed authority erasure"}
