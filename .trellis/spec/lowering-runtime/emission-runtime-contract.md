@@ -1507,23 +1507,16 @@ fallback capability, unknown route id, unsupported artifact kind, route
 spoofing, offload-only paths, and ambiguous multiple supported artifacts must
 fail before source output.
 
-## Support-Layer Finite Binary Runtime ABI Contract
+## Support-Layer Runtime ABI Shape Primitives
 
-The support layer may keep C++ helpers for extension-agnostic finite-binary
-runtime ABI shape validation. These helpers are descriptorless and do not own
-selected route identity:
-
-```cpp
-llvm::Expected<tianchenrv::support::FiniteBinaryCallableABIPlan>
-tianchenrv::support::buildFiniteBinaryCallableABIPlan(
-    tcrv::exec::KernelOp kernel,
-    const tianchenrv::support::FiniteBinaryRuntimeABIContract &contract);
-```
+The support layer may keep C++ helpers for extension-agnostic runtime ABI shape
+validation. These helpers are descriptorless and do not own selected route
+identity, artifact identity, runtime evidence, or callable emission authority.
 
 `FiniteBinaryRuntimeABIContract` owns only reusable ABI shape primitives:
 
-- ordered callable C parameter roles for lhs/rhs/out/runtime element count;
-- callable role requirements used by target artifact route validation;
+- ordered parameter roles for lhs/rhs/out/runtime element count;
+- role requirements used by target or plugin validation;
 - `tcrv.exec.mem_window` specs for lhs/rhs/out buffer roles;
 - `tcrv.exec.runtime_param` specs for runtime element count and an explicitly
   named dispatch availability guard.
@@ -1535,34 +1528,48 @@ target capabilities, selected march/mabi, or performance/correctness claims.
 It also must not publish static selected-family contracts for RVV/scalar
 families.
 
-### Scenario: Explicit Finite-Binary ABI Shape Primitive
+### Scenario: Explicit ABI Shape Primitive
 
 #### 1. Scope / Trigger
 
-- Trigger: plugin/target-owned code needs to validate that selected runtime ABI
-  parameter metadata mirrors real `tcrv.exec.mem_window` and
-  `tcrv.exec.runtime_param` IR.
-- The caller must provide the `FiniteBinaryRuntimeABIContract`; Support must not
-  infer one from RVV, scalar, dtype, arithmetic family, route id, or descriptor
-  metadata.
+- Trigger: plugin/target-owned code needs reusable parameter-role,
+  mem-window, or runtime-param shape helpers.
+- The caller must provide the contract; Support must not infer one from RVV,
+  scalar, dtype, arithmetic family, route id, selected artifact metadata, or
+  descriptor metadata.
 
-#### 2. Contracts
+#### 2. Signatures
+
+Deleted support signatures:
+
+- no public support-layer callable-plan struct or builder;
+- no support-layer metadata mirror validator for an IR-backed callable plan;
+- no direct/dispatch invocation-comment contract struct, builder, or
+  formatter.
+
+Still-allowed support signatures are limited to neutral role/shape primitives
+for runtime ABI parameters, mem-window specs, runtime-param specs, and bounded
+role binding.
+
+#### 3. Contracts
 
 - The caller-owned contract may name a family identifier for diagnostics only;
   Support must not interpret it as a selected RVV/scalar route.
 - Runtime element-count and dispatch guard C names are explicit caller-selected
-  ABI spellings, not Support defaults, descriptor element counts, or compile-time
-  vector shape facts.
-- Support must not provide `I32BinaryRuntimeABIContract`,
-  `getI32BinaryRuntimeABIContract`, selected-family i32 helper overloads, or
-  no-argument defaults equivalent to an i32 family.
+  ABI spellings, not Support defaults, descriptor element counts, or
+  compile-time vector shape facts.
+- Support must not provide selected-family i32 helper overloads or no-argument
+  defaults equivalent to an i32 family.
 - Support must not publish `rvv_available` as a default dispatch guard C name.
   A transform or plugin that needs a guard name must pass one explicitly.
 - Runtime ABI identity strings for RVV, scalar, dispatch, offload, or future
   families must come from the owning plugin/target route construction, not from
   Support.
+- Support must not build an IR-backed callable plan object from plugin family
+  contracts, validate detached metadata mirrors of that object, or format
+  direct/dispatch invocation evidence as comment-body metadata.
 
-#### 3. Validation & Error Matrix
+#### 4. Validation & Error Matrix
 
 - Missing plugin/target ABI construction -> fail closed as a missing
   plugin-owned ABI construction gap; do not recreate Support defaults.
@@ -1572,41 +1579,46 @@ families.
   export or invocation.
 - Dispatch ABI metadata attached as detached records instead of direct
   `tcrv.exec.runtime_param` IR -> dispatch export fails.
-- Stale selected runtime-count metadata that disagrees with the IR-backed ABI
-  plan -> target/export validation fails.
+- Stale selected runtime-count metadata that disagrees with typed exec IR ->
+  target/export validation fails.
+- A generated artifact needs invocation evidence -> it must wait for a rebuilt
+  materialized EmitC-module route and plugin-owned runtime ABI surface, not a
+  support-layer comment formatter.
 
-#### 4. Good/Base/Bad Cases
+#### 5. Good/Base/Bad Cases
 
-- Good: a plugin-owned route constructs an explicit finite-binary contract and
-  passes explicit runtime-count and dispatch-guard C names into Support
-  validation.
+- Good: a plugin-owned route constructs an explicit contract and passes
+  explicit runtime-count and dispatch-guard C names into role/shape validation.
 - Base: a missing plugin-owned ABI route remains unsupported/fail-closed.
 - Bad: Support publishes selected RVV/scalar i32 family contracts, dispatch C
-  function names, or `rvv_available` defaults.
+  function names, callable-plan metadata mirrors, comment-body invocation
+  contracts, or `rvv_available` defaults.
 
-#### 5. Tests Required
+#### 6. Tests Required
 
-- C++ Support tests must prove finite-binary shape primitives validate explicit
-  caller-owned contracts without hard-coded RVV/scalar selected-family identity.
+- C++ support tests may cover neutral role binding and shape primitives without
+  hard-coded RVV/scalar selected-family identity.
 - Target artifact tests must not assert RVV/scalar dispatch C function identity
   strings as Support-owned contract output.
-- Focused scans must show the deleted Support I32 helper surface remains absent.
+- Generated source/header comment tests must wait for a rebuilt EmitC-module
+  route; support tests must not preserve direct/dispatch invocation comments as
+  compiler-owned runtime ABI evidence.
+- Focused scans must show deleted Support selected-family helper surfaces and
+  callable-plan/comment-contract surfaces remain absent.
 
-#### 6. Wrong vs Correct
+#### 7. Wrong vs Correct
 
 Wrong:
 
-```cpp
-const auto &contract =
-    tianchenrv::support::getI32BinaryRuntimeABIContract("i32-vsub");
+```text
+selected-family metadata -> support-owned callable evidence comment
 ```
 
 Correct:
 
-```cpp
-auto contract = pluginRoute.buildFiniteBinaryRuntimeABIContract();
-auto plan = tianchenrv::support::buildFiniteBinaryCallableABIPlan(kernel,
-                                                                  contract);
+```text
+plugin-owned runtime ABI surface -> explicit role/shape validation helper
+future executable evidence -> materialized EmitC module and runtime artifact
 ```
 
 The contract also must not turn runtime SSA/control values into compile-time
@@ -1621,153 +1633,10 @@ facts and the typed `tcrv.exec.case runtime_guard_required` marker, but it must
 create only compute-free exec IR: one same-kernel dispatch-availability
 `runtime_param` and selected `tcrv.exec.case runtime_guard` symbol references.
 Generic `condition`, `guard`, or `policy` strings may be retained as printable
-annotations, but they are not semantic runtime ABI guard triggers. RVV, scalar, and
-future plugin lowering code may consume or validate those links, but must not
-privately invent the dispatch guard parameter or attach dispatch-case links as a
-plugin-local side effect.
-
-Required tests for changes to this contract:
-
-- C++ tests must prove the callable parameter order, roles, C spellings, and
-  ownership match the contract for add/sub/mul;
-- C++ tests must prove add/sub/mul expose distinct selected-family-derived RVV,
-  scalar, and dispatch runtime ABI identities;
-- C++ tests must prove Support callable-planning headers do not require target
-  descriptor headers or descriptor-shaped planning overloads;
-- at least one active target exporter or validation path must reject metadata
-  that disagrees with the contract;
-- existing lit/FileCheck coverage must continue proving that RVV, scalar, and
-  RVV+scalar dispatch exports consume the same `tcrv.exec.mem_window` and
-  `tcrv.exec.runtime_param` IR-backed ABI plan.
-
-### Scenario: Generated Runtime ABI Invocation Contract
-
-#### 1. Scope / Trigger
-
-This scenario applies when a generated finite binary callable artifact or
-dispatcher prints, embeds, validates, or consumes a
-`runtime_abi_invocation_contract` comment. The contract is the compiler-owned
-callable invocation evidence boundary for generated source/header/object or
-bundle artifacts. It is not a descriptor, runtime log, benchmark result, route
-selection policy, or Python evidence schema.
-
-#### 2. Signatures
-
-```cpp
-struct RuntimeABIInvocationContract {
-  std::string sourceOwner;
-  std::string callableSymbol;
-  std::string runtimeABIKind;
-  std::string runtimeABIName;
-  std::string runtimeGlueRole;
-  llvm::SmallVector<RuntimeABIParameter, 5> parameters;
-  std::string runtimeElementCountCName;
-  std::string dispatchGuardCName;
-  std::string productionOwner;
-};
-
-llvm::Expected<RuntimeABIInvocationContract>
-buildRuntimeABIInvocationContract(
-    tcrv::exec::KernelOp kernel, llvm::StringRef familyID,
-    llvm::ArrayRef<RuntimeABIParameter> parameters,
-    llvm::StringRef sourceOwner, llvm::StringRef callableSymbol,
-    llvm::StringRef runtimeABIKind, llvm::StringRef runtimeABIName,
-    llvm::StringRef runtimeGlueRole,
-    llvm::StringRef runtimeElementCountCName,
-    llvm::StringRef productionOwner,
-    llvm::StringRef dispatchGuardCName = llvm::StringRef());
-
-std::string formatRuntimeABIInvocationContractCommentBody(
-    llvm::StringRef label, const RuntimeABIInvocationContract &contract);
-```
-
-The current labels are `runtime_abi_invocation_contract` for direct generated
-RVV/scalar callable artifacts and
-`dispatch_runtime_abi_invocation_contract` for RVV+scalar dispatcher artifacts.
-
-#### 3. Contracts
-
-- `sourceOwner`, `callableSymbol`, `runtimeABIKind`, `runtimeABIName`,
-  `runtimeElementCountCName`, and `productionOwner` are required bounded
-  single-line fields.
-- `runtimeGlueRole` is required for direct callable artifacts that have a
-  plugin-owned runtime glue role; dispatch contracts may leave it empty.
-- `parameters` are ordered ABI parameters from the IR-backed callable or
-  dispatch ABI plan.
-- `runtimeElementCountCName` must match the unique ordered parameter whose
-  role is `runtime-element-count`.
-- When `dispatchGuardCName` is present, it must match the unique ordered
-  parameter whose role is `dispatch-availability-guard`.
-- When `dispatchGuardCName` is absent, a direct callable invocation contract
-  must not carry a dispatch-availability-guard parameter.
-- The formatter is presentation only. It must not recover family, dtype,
-  intrinsic, runtime length, selected config, or route identity from
-  descriptor strings.
-
-#### 4. Validation & Error Matrix
-
-- Empty ordered parameter list -> fail before artifact contract emission.
-- Missing or duplicate runtime element-count role -> fail before artifact
-  contract emission.
-- `runtimeElementCountCName` stale against the ordered runtime element-count
-  parameter -> fail before artifact contract emission.
-- Dispatch contract with missing or duplicate dispatch guard role -> fail
-  before dispatcher artifact emission.
-- Dispatch contract with stale `dispatchGuardCName` -> fail before dispatcher
-  artifact emission.
-- Direct callable contract that carries a dispatch guard parameter -> fail
-  before direct callable artifact emission.
-- Empty, multiline, or unbounded required text field -> fail before artifact
-  contract emission.
-
-#### 5. Good/Base/Bad Cases
-
-- Good: RVVMicrokernel builds the invocation contract from the selected
-  callable ABI plan and prints the direct
-  `runtime_abi_invocation_contract` with ordered roles
-  `lhs-input-buffer->rhs-input-buffer->output-buffer->runtime-element-count`.
-- Good: RVV+scalar dispatch ABI contract helpers build the dispatcher
-  invocation contract from the dispatch ABI plan and print the dispatch guard C
-  name from the same
-  IR-backed runtime param consumed by the generated dispatcher call.
-- Base: evidence scripts parse the generated comments and record them as
-  evidence only.
-- Bad: target code hand-formats an invocation contract from route file names,
-  descriptor element counts, or detached metadata without validating the
-  ordered RuntimeABI plan.
-
-#### 6. Tests Required
-
-- C++ support tests must cover direct callable and dispatch invocation contract
-  construction and formatting.
-- C++ support tests must cover stale runtime element-count C names, direct
-  contracts with dispatch guards, missing dispatch guards, and stale dispatch
-  guard C names.
-- Generated source/header comment tests for this dispatch path must wait for a
-  rebuilt EmitC-module route; current support tests cover only ABI contract
-  construction and formatting.
-- E2E runner tests may parse generated contracts, but must not implement
-  compiler-side RuntimeABI planning.
-
-#### 7. Wrong vs Correct
-
-Wrong:
-
-```cpp
-os << "runtime_abi_invocation_contract: callable_symbol=" << name
-   << ", ordered_roles=lhs-input-buffer->rhs-input-buffer";
-```
-
-Correct:
-
-```cpp
-auto contract = buildRuntimeABIInvocationContract(
-    kernel, familyID, abiPlan.parameters, "RVVMicrokernel.cpp", name,
-    runtimeABIKind, runtimeABIName, runtimeGlueRole, runtimeCountCName,
-    "rvv-target-export");
-os << formatRuntimeABIInvocationContractCommentBody(
-    "runtime_abi_invocation_contract", *contract);
-```
+annotations, but they are not semantic runtime ABI guard triggers. RVV, scalar,
+and future plugin lowering code may consume or validate those links, but must
+not privately invent the dispatch guard parameter or attach dispatch-case links
+as a plugin-local side effect.
 
 ## Deleted Target-Layer RVV Binary Runtime ABI Contract
 

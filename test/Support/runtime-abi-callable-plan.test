@@ -1,3 +1,0 @@
-# RUN: tianchenrv-runtime-abi-callable-plan-test | FileCheck %s
-
-# CHECK: runtime ABI callable plan smoke test passed

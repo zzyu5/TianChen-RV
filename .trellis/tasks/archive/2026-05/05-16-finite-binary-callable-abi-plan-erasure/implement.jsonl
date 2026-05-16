@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Confirm global stack and deletion-only boundary."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Delete spec authority for finite-binary callable plans and invocation comment contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Confirm future runtime ABI route remains materialized extension-family EmitC, not support metadata."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Confirm plugin/runtime work remains plugin-local and interface-driven."}
+{"file": "include/TianChenRV/Support/RuntimeABIContract.h", "reason": "Confirm remaining neutral runtime ABI helpers do not reintroduce callable-plan metadata authority."}
+{"file": "lib/Support/RuntimeABIContract.cpp", "reason": "Confirm support implementation remains role/shape validation only after callable-plan deletion."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Confirm target tests do not depend on callable-plan metadata mirrors or invocation comments."}
+{"file": "lib/Support/CMakeLists.txt", "reason": "Remove deleted support source from TianChenRVSupport."}
+{"file": "test/CMakeLists.txt", "reason": "Remove standalone runtime ABI callable-plan test target and check dependency."}

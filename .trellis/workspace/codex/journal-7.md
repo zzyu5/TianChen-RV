@@ -56,6 +56,55 @@ Deleted Support-owned I32/RVV runtime ABI contracts and helpers; rewired tests/s
 - None - task complete
 
 
+## Session 87: Finite binary callable ABI plan erasure
+
+**Date**: 2026-05-16
+**Task**: finite-binary-callable-abi-plan-erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the support-layer runtime ABI callable-plan authority, standalone
+callable-plan test surface, and lowering-runtime spec text that preserved
+finite-family callable metadata mirrors or direct/dispatch invocation comment
+contracts.
+
+### Main Changes
+
+- Removed the public callable-plan support header and implementation from
+  `TianChenRVSupport`.
+- Removed the standalone callable-plan C++ test, its lit wrapper, and the
+  `check-tianchenrv` dependency.
+- Rewrote the lowering-runtime support ABI section around neutral role/shape
+  primitives only, with no support-owned callable emission evidence.
+- Created, validated, and archived the deletion-only Trellis task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(support): erase callable abi plan authority |
+
+### Testing
+
+- [OK] focused active-surface ref-scan for deleted callable-plan and
+  invocation-comment symbols
+- [OK] `ninja -C build TianChenRVSupport tianchenrv-capability-model-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-capability-model-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `ninja -C build check-tianchenrv` (73/73 lit tests)
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-16-finite-binary-callable-abi-plan-erasure`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 87: Target artifact route-metadata authority erasure
 
 **Date**: 2026-05-16

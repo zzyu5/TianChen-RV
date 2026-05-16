@@ -296,19 +296,6 @@ target_link_libraries(tianchenrv-capability-model-test
   MLIRSupport
 )
 
-add_executable(tianchenrv-runtime-abi-callable-plan-test
-  Support/RuntimeABICallablePlanTest.cpp
-)
-
-target_link_libraries(tianchenrv-runtime-abi-callable-plan-test
-  PRIVATE
-  TianChenRVInitAll
-  TianChenRVSupport
-  MLIRIR
-  MLIRParser
-  MLIRSupport
-)
-
 add_executable(tianchenrv-emitc-lowerable-interface-test
   Conversion/EmitC/TCRVEmitCLowerableInterfaceTest.cpp
 )
@@ -353,7 +340,6 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tianchenrv-offload-extension-plugin-test
   tianchenrv-rvv-dialect-test
   tianchenrv-rvv-extension-plugin-test
-  tianchenrv-runtime-abi-callable-plan-test
   tianchenrv-scalar-extension-plugin-test
   tianchenrv-target-artifact-export-test
   tianchenrv-template-extension-plugin-test
