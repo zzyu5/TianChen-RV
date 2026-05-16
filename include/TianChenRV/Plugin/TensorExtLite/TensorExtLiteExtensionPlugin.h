@@ -53,7 +53,7 @@ public:
       const VariantEmitCLowerableRequest &request,
       conversion::emitc::TCRVEmitCLowerableRoute &out) const override;
   llvm::Error
-  configureTargetSupportExtensionBundle(target::ExtensionBundle &bundle)
+  configureTargetSupportExtensionBundle(ExtensionBundle &bundle)
       const override;
 
 private:

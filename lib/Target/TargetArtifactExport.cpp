@@ -4,6 +4,7 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Support/ArtifactMetadata.h"
 #include "TianChenRV/Support/CapabilityModel.h"
@@ -287,33 +288,6 @@ bool containsForbiddenText(llvm::StringRef value) {
          normalized.contains("raw log") || normalized.contains("raw-log") ||
          normalized.contains("http://") || normalized.contains("https://") ||
          normalized.contains("://");
-}
-
-llvm::Error validateRouteRegistryText(llvm::StringRef fieldName,
-                                      llvm::StringRef value) {
-  constexpr std::size_t kMaxTextLength = 512;
-  if (value.empty() || value.size() > kMaxTextLength)
-    return makeRegistryError(llvm::Twine(fieldName) +
-                             " must be bounded non-empty single-line "
-                             "metadata");
-
-  for (char character : value) {
-    unsigned char byte = static_cast<unsigned char>(character);
-    if (character == '\n' || character == '\r' || byte == 0)
-      return makeRegistryError(llvm::Twine(fieldName) +
-                               " must be bounded non-empty single-line "
-                               "metadata");
-    if (byte < 0x20 && character != '\t')
-      return makeRegistryError(llvm::Twine(fieldName) +
-                               " must be bounded non-empty single-line "
-                               "metadata");
-  }
-
-  if (containsForbiddenText(value))
-    return makeRegistryError(llvm::Twine(fieldName) +
-                             " must not contain secret-like or raw credential "
-                             "text");
-  return llvm::Error::success();
 }
 
 llvm::Error validateBoundedText(KernelOp kernel, llvm::StringRef fieldName,
@@ -2935,35 +2909,6 @@ bool hasEnabledBundleDependencies(
                       });
 }
 
-llvm::Error makeExtensionBundleRegistryError(llvm::Twine message) {
-  return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV extension bundle registry failed: ") + message,
-      llvm::errc::invalid_argument);
-}
-
-llvm::Error validateExtensionBundleRegistryText(llvm::StringRef fieldName,
-                                                llvm::StringRef value) {
-  if (llvm::Error error = validateRouteRegistryText(fieldName, value))
-    return makeExtensionBundleRegistryError(llvm::toString(std::move(error)));
-  return llvm::Error::success();
-}
-
-llvm::Error validateUniqueTextList(llvm::StringRef bundleID,
-                                   llvm::StringRef fieldName,
-                                   llvm::ArrayRef<std::string> values) {
-  llvm::StringSet<> seen;
-  for (llvm::StringRef value : values) {
-    if (llvm::Error error =
-            validateExtensionBundleRegistryText(fieldName, value))
-      return error;
-    if (!seen.insert(value).second)
-      return makeExtensionBundleRegistryError(
-          llvm::Twine("extension bundle '") + bundleID +
-          "' has duplicate " + fieldName + " '" + value + "'");
-  }
-  return llvm::Error::success();
-}
-
 } // namespace
 
 llvm::Error PluginTargetArtifactExporterRegistry::
@@ -3039,131 +2984,24 @@ llvm::Error PluginTargetArtifactExporterRegistry::registerExportersForPlugin(
   return llvm::Error::success();
 }
 
-ExtensionBundle::ExtensionBundle(
-    llvm::StringRef bundleID, llvm::StringRef pluginName,
-    ExtensionPluginRegistrationFn pluginRegistrationFn)
-    : bundleID(bundleID.str()), pluginName(pluginName.str()),
-      pluginRegistrationFn(pluginRegistrationFn) {}
-
-void ExtensionBundle::addRequiredDialectName(llvm::StringRef dialectName) {
-  requiredDialectNames.push_back(dialectName.str());
-}
-
-void ExtensionBundle::addLoweringBoundaryOp(llvm::StringRef opName) {
-  loweringBoundaryOps.push_back(opName.str());
-}
-
-void ExtensionBundle::setTargetArtifactExporterBundleRegistrationFn(
-    PluginTargetArtifactExporterBundleRegistrationFn registrationFn) {
-  targetArtifactExporterBundleRegistrationFn = registrationFn;
-}
-
-llvm::Error ExtensionBundleRegistry::registerBundle(
-    const ExtensionBundle &bundle) {
-  if (llvm::Error error = validateExtensionBundleRegistryText(
-          "extension bundle id", bundle.getBundleID()))
-    return error;
-  if (llvm::Error error = validateExtensionBundleRegistryText(
-          "extension bundle plugin name", bundle.getPluginName()))
-    return error;
-  if (!bundle.getPluginRegistrationFn())
-    return makeExtensionBundleRegistryError(
-        llvm::Twine("extension bundle '") + bundle.getBundleID() +
-        "' must have a non-null extension plugin registration callback");
-  if (bundleIndicesByID.count(bundle.getBundleID()))
-    return makeExtensionBundleRegistryError(
-        llvm::Twine("duplicate extension bundle id '") +
-        bundle.getBundleID() + "'");
-  if (bundleIndicesByPlugin.count(bundle.getPluginName()))
-    return makeExtensionBundleRegistryError(
-        llvm::Twine("duplicate extension bundle plugin id '") +
-        bundle.getPluginName() + "'");
-
-  if (llvm::Error error =
-          validateUniqueTextList(bundle.getBundleID(), "required dialect",
-                                 bundle.getRequiredDialectNames()))
-    return error;
-  if (llvm::Error error = validateUniqueTextList(
-          bundle.getBundleID(), "lowering boundary op",
-          bundle.getLoweringBoundaryOps()))
-    return error;
-
-  std::size_t index = bundles.size();
-  bundles.push_back(bundle);
-  bundleIndicesByID[bundles.back().getBundleID()] = index;
-  bundleIndicesByPlugin[bundles.back().getPluginName()] = index;
-  return llvm::Error::success();
-}
-
-const ExtensionBundle *
-ExtensionBundleRegistry::lookupBundle(llvm::StringRef bundleID) const {
-  auto it = bundleIndicesByID.find(bundleID);
-  if (it == bundleIndicesByID.end())
-    return nullptr;
-  return &bundles[it->getValue()];
-}
-
-const ExtensionBundle *
-ExtensionBundleRegistry::lookupPluginBundle(llvm::StringRef pluginName) const {
-  auto it = bundleIndicesByPlugin.find(pluginName);
-  if (it == bundleIndicesByPlugin.end())
-    return nullptr;
-  return &bundles[it->getValue()];
-}
-
-llvm::Error ExtensionBundleRegistry::registerExtensionPlugins(
-    plugin::ExtensionPluginRegistry &plugins) const {
-  for (const ExtensionBundle &bundle : bundles) {
-    if (llvm::Error error = bundle.getPluginRegistrationFn()(plugins)) {
-      std::string message = llvm::toString(std::move(error));
-      return makeExtensionBundleRegistryError(
-          llvm::Twine("extension bundle '") + bundle.getBundleID() +
-          "' failed to register extension plugin '" +
-          bundle.getPluginName() + "': " + message);
-    }
-  }
-  return llvm::Error::success();
-}
-
-llvm::Error ExtensionBundleRegistry::
-    registerTargetArtifactExporterBundles(
-        PluginTargetArtifactExporterRegistry &registry) const {
-  for (const ExtensionBundle &bundle : bundles) {
-    PluginTargetArtifactExporterBundleRegistrationFn registrationFn =
-        bundle.getTargetArtifactExporterBundleRegistrationFn();
-    if (!registrationFn)
-      continue;
-
-    if (llvm::Error error = registrationFn(registry)) {
-      std::string message = llvm::toString(std::move(error));
-      return makeExtensionBundleRegistryError(
-          llvm::Twine("extension bundle '") + bundle.getBundleID() +
-          "' failed to register plugin-owned target artifact exporter "
-          "bundle: " +
-          message);
-    }
-  }
-
-  return llvm::Error::success();
-}
-
-llvm::Error ExtensionBundleRegistry::
-    registerTargetArtifactExportersForEnabledPlugins(
-        const plugin::ExtensionPluginRegistry &plugins,
-        TargetArtifactExporterRegistry &registry) const {
+llvm::Error registerTargetArtifactExportersForEnabledExtensionBundles(
+    const plugin::ExtensionBundleRegistry &bundles,
+    const plugin::ExtensionPluginRegistry &plugins,
+    TargetArtifactExporterRegistry &registry) {
   PluginTargetArtifactExporterRegistry pluginExporters;
   if (llvm::Error error =
-          registerTargetArtifactExporterBundles(pluginExporters))
+          bundles.registerTargetArtifactExporterBundles(pluginExporters))
     return error;
 
   if (llvm::Error error =
           pluginExporters.registerExportersForEnabledPlugins(plugins,
                                                              registry)) {
     std::string message = llvm::toString(std::move(error));
-    return makeExtensionBundleRegistryError(
+    return llvm::make_error<llvm::StringError>(
         llvm::Twine("failed to populate target artifact exporters from "
                     "extension bundles: ") +
-        message);
+            message,
+        llvm::errc::invalid_argument);
   }
 
   return llvm::Error::success();

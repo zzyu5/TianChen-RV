@@ -1,4 +1,5 @@
 add_mlir_library(TianChenRVPlugin
+  ExtensionBundle.cpp
   ExtensionPlugin.cpp
   LoweringBoundary.cpp
 

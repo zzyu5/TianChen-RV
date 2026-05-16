@@ -1,6 +1,7 @@
 #include "TianChenRV/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.h"
 
 #include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteEmitCRouteProvider.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -287,7 +288,8 @@ llvm::Error registerTensorExtLiteTargetSupportPluginTargetExporterBundles(
 }
 
 llvm::Error
-configureTensorExtLiteTargetSupportExtensionBundle(ExtensionBundle &bundle) {
+configureTensorExtLiteTargetSupportExtensionBundle(
+    plugin::ExtensionBundle &bundle) {
   bundle.setTargetArtifactExporterBundleRegistrationFn(
       registerTensorExtLiteTargetSupportPluginTargetExporterBundles);
   return llvm::Error::success();

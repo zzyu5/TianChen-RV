@@ -1,8 +1,8 @@
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
 
 #include "TianChenRV/Dialect/Template/IR/TemplateDialect.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
-#include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -746,7 +746,7 @@ llvm::Error TemplateExtensionPlugin::validateSelectedLoweringBoundary(
 }
 
 llvm::Error TemplateExtensionPlugin::configureTargetSupportExtensionBundle(
-    target::ExtensionBundle &bundle) const {
+    ExtensionBundle &bundle) const {
   bundle.addRequiredDialectName("tcrv_template");
   return llvm::Error::success();
 }

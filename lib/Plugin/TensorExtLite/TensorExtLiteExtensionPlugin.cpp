@@ -2,9 +2,9 @@
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteEmitCRouteProvider.h"
-#include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
@@ -805,7 +805,7 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmitCLowerableRoute(
 
 llvm::Error
 TensorExtLiteExtensionPlugin::configureTargetSupportExtensionBundle(
-    target::ExtensionBundle &bundle) const {
+    ExtensionBundle &bundle) const {
   bundle.addRequiredDialectName("tcrv_tensorext_lite");
   return target::tensorext_lite::
       configureTensorExtLiteTargetSupportExtensionBundle(bundle);

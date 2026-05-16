@@ -3,12 +3,12 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBoundarySeed.h"
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
-#include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -437,7 +437,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmitCLowerableRoute(
 }
 
 llvm::Error RVVExtensionPlugin::configureTargetSupportExtensionBundle(
-    target::ExtensionBundle &bundle) const {
+    ExtensionBundle &bundle) const {
   bundle.addRequiredDialectName("tcrv_rvv");
   return target::rvv::configureRVVTargetSupportExtensionBundle(bundle);
 }

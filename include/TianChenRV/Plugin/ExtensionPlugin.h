@@ -26,7 +26,6 @@ class Pass;
 } // namespace mlir
 
 namespace tianchenrv::target {
-class ExtensionBundle;
 class TargetTranslateRouteRegistry;
 } // namespace tianchenrv::target
 
@@ -35,6 +34,8 @@ class TCRVEmitCLowerableRoute;
 } // namespace tianchenrv::conversion::emitc
 
 namespace tianchenrv::plugin {
+
+class ExtensionBundle;
 
 inline constexpr llvm::StringLiteral kVariantFallbackRoleAttrName(
     "fallback_role");
@@ -676,7 +677,7 @@ public:
       const VariantEmitCLowerableRequest &request,
       conversion::emitc::TCRVEmitCLowerableRoute &out) const;
   virtual llvm::Error
-  configureTargetSupportExtensionBundle(target::ExtensionBundle &bundle) const;
+  configureTargetSupportExtensionBundle(ExtensionBundle &bundle) const;
   virtual llvm::Error registerTargetSupportTranslateRoutes(
       target::TargetTranslateRouteRegistry &registry) const;
 };

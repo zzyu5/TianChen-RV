@@ -1,6 +1,7 @@
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
@@ -22,12 +23,12 @@ llvm::Error registerBuiltinTargetArtifactExporters(
           registerBuiltinNonPluginTargetArtifactExporters(registry))
     return error;
 
-  ExtensionBundleRegistry bundles;
+  plugin::ExtensionBundleRegistry bundles;
   if (llvm::Error error = plugin::registerBuiltinExtensionBundles(bundles))
     return error;
 
-  return bundles.registerTargetArtifactExportersForEnabledPlugins(plugins,
-                                                                  registry);
+  return registerTargetArtifactExportersForEnabledExtensionBundles(
+      bundles, plugins, registry);
 }
 
 llvm::Error registerBuiltinTargetArtifactExporters(

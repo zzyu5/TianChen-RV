@@ -641,6 +641,120 @@ Each plugin registers:
   when the plugin owns target artifact or direct helper routes;
 - fallback behavior.
 
+## Scenario: Extension Bundle Interface Ownership
+
+### 1. Scope / Trigger
+
+This applies when code registers built-in or external extension-family bundles,
+configures plugin-owned target-support hooks, or connects plugin catalogs to
+target artifact exporter registries. The extension bundle surface is a plugin
+construction contract, not a target artifact export contract.
+
+### 2. Signatures
+
+The generic bundle API lives under the plugin/common interface:
+
+```cpp
+#include "TianChenRV/Plugin/ExtensionBundle.h"
+
+namespace tianchenrv::plugin {
+using ExtensionPluginRegistrationFn =
+    llvm::Error (*)(ExtensionPluginRegistry &registry);
+
+class ExtensionBundle;
+class ExtensionBundleRegistry;
+
+class ExtensionPlugin {
+public:
+  virtual llvm::Error
+  configureTargetSupportExtensionBundle(ExtensionBundle &bundle) const;
+};
+} // namespace tianchenrv::plugin
+```
+
+Target artifact export may expose target-specific consumer APIs and exporter
+registries, but `TargetArtifactExport.h` must not define the generic
+`ExtensionBundle`, `ExtensionBundleRegistry`, or extension plugin registration
+callback types.
+
+### 3. Contracts
+
+- `ExtensionBundle` records bundle id, owner plugin name, plugin registration
+  callback, required dialect names, selected lowering-boundary op names, and
+  optional plugin-owned target artifact exporter bundle registration callback.
+- `ExtensionBundleRegistry` owns generic bundle validation, bundle lookup, and
+  extension plugin registration. It may collect target artifact exporter bundle
+  callbacks into a target-owned `PluginTargetArtifactExporterRegistry`, but it
+  must not validate target artifact route semantics itself.
+- Target artifact exporter registries remain target-layer code. They validate
+  route ids, artifact kinds, candidate preflight callbacks, composite routes,
+  dependency enablement, and exporter invocation.
+- Built-in plugin catalogs register concrete plugin bundles from the plugin
+  layer. Target built-in artifact aggregation consumes those registries
+  generically and must not own concrete per-extension bundle lists.
+- Target translate route aggregation remains a generic consumer of enabled
+  plugin hooks; it must not regain family-specific orchestration branches.
+
+### 4. Validation & Error Matrix
+
+- Empty bundle id or plugin name -> extension bundle registry rejects bounded
+  text.
+- Null extension plugin registration callback -> extension bundle registry
+  rejects the bundle.
+- Duplicate bundle id or duplicate owner plugin -> extension bundle registry
+  rejects registration.
+- Duplicate required dialect or lowering-boundary op entry -> extension bundle
+  registry rejects registration.
+- Target artifact exporter bundle references a missing or disabled required
+  plugin -> target exporter bundle registry fails closed before route
+  registration.
+- Target artifact exporter bundle registers malformed route metadata -> target
+  artifact exporter registry rejects the route, not the plugin bundle registry.
+
+### 5. Good/Base/Bad Cases
+
+- Good: `Plugin/BuiltinExtensionPlugins` owns the concrete built-in bundle
+  catalog and fills a `plugin::ExtensionBundleRegistry`; target artifact export
+  consumes that registry through target exporter bundle registries.
+- Base: a plugin with no current artifact route may still configure required
+  dialect metadata or no target-support metadata, and target artifact export
+  publishes no route for that plugin.
+- Bad: `TargetArtifactExport.h` defines generic extension bundles, or
+  `lib/Target/Builtin` includes concrete RVV/IME/Offload/TensorExt/Toy plugin
+  headers to own the extension-family catalog.
+
+### 6. Tests Required
+
+- C++ coverage proving built-in bundle catalog registration reaches all
+  built-in plugins through the plugin/common bundle registry.
+- C++ coverage proving target artifact exporter routes contributed by bundles
+  are still registered only for enabled plugins with satisfied dependencies.
+- Negative C++ coverage for duplicate bundle ids, duplicate plugin ownership,
+  invalid bundle text, invalid target exporter bundles, and duplicate target
+  artifact routes.
+- Ref-scan coverage proving `TargetArtifactExport.h` does not define generic
+  bundle classes and `lib/Target/Builtin` does not own concrete plugin bundle
+  manifests.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+target artifact export header
+  -> generic ExtensionBundle / ExtensionBundleRegistry ownership
+  -> target built-in layer owns concrete extension family catalog
+```
+
+Correct:
+
+```text
+plugin/common ExtensionBundleRegistry
+  -> plugin-owned built-in or external extension catalog
+  -> target-owned exporter registries consume enabled plugin bundle hooks
+  -> target artifact export validates and emits only selected target artifacts
+```
+
 ## Built-In Registration API
 
 Concrete built-in plugins may expose small C++ helpers that populate an

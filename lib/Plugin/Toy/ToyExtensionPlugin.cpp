@@ -2,9 +2,9 @@
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Dialect/Toy/IR/ToyDialect.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyEmitCRouteProvider.h"
-#include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -821,7 +821,7 @@ llvm::Error ToyExtensionPlugin::buildVariantEmitCLowerableRoute(
 }
 
 llvm::Error ToyExtensionPlugin::configureTargetSupportExtensionBundle(
-    target::ExtensionBundle &bundle) const {
+    ExtensionBundle &bundle) const {
   bundle.addRequiredDialectName("tcrv_toy");
   return llvm::Error::success();
 }

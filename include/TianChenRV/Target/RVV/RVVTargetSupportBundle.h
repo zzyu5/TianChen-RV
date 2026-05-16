@@ -5,10 +5,13 @@
 #include "llvm/Support/Error.h"
 
 namespace tianchenrv::target {
-class ExtensionBundle;
 class PluginTargetArtifactExporterRegistry;
 class TargetTranslateRouteRegistry;
 } // namespace tianchenrv::target
+
+namespace tianchenrv::plugin {
+class ExtensionBundle;
+} // namespace tianchenrv::plugin
 
 namespace tianchenrv::target::rvv {
 
@@ -16,7 +19,7 @@ llvm::StringRef getRVVMaterializedEmitCTargetArtifactRouteID();
 llvm::StringRef getRVVMaterializedEmitCHeaderArtifactRouteID();
 
 llvm::Error
-configureRVVTargetSupportExtensionBundle(ExtensionBundle &bundle);
+configureRVVTargetSupportExtensionBundle(plugin::ExtensionBundle &bundle);
 
 llvm::Error registerRVVTargetSupportPluginTargetExporterBundles(
     PluginTargetArtifactExporterRegistry &registry);

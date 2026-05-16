@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and architecture invariants for this structural layering migration."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines plugin registry/interface ownership and target-support bundle hooks."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Defines target artifact export as a consume-only generic front door and guards against descriptor/direct-C authority."}
+{"file": ".trellis/tasks/archive/2026-05/05-17-built-in-extension-catalog-target-layer-decoupling/prd.md", "reason": "Previous completed task whose catalog movement exposes the remaining bundle-interface layering bottleneck."}

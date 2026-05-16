@@ -670,7 +670,7 @@ llvm::Error ExtensionPlugin::buildVariantEmitCLowerableRoute(
 }
 
 llvm::Error ExtensionPlugin::configureTargetSupportExtensionBundle(
-    target::ExtensionBundle &bundle) const {
+    ExtensionBundle &bundle) const {
   (void)bundle;
   return llvm::Error::success();
 }

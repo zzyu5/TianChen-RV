@@ -5,22 +5,16 @@
 
 namespace tianchenrv::plugin {
 
+class ExtensionBundleRegistry;
 class ExtensionPluginRegistry;
 
 } // namespace tianchenrv::plugin
-
-namespace tianchenrv::target {
-
-class ExtensionBundleRegistry;
-
-} // namespace tianchenrv::target
 
 namespace tianchenrv::plugin {
 
 llvm::Error registerBuiltinExtensionPlugins(ExtensionPluginRegistry &registry);
 
-llvm::Error
-registerBuiltinExtensionBundles(target::ExtensionBundleRegistry &registry);
+llvm::Error registerBuiltinExtensionBundles(ExtensionBundleRegistry &registry);
 
 } // namespace tianchenrv::plugin
 

@@ -55,7 +55,7 @@ public:
       const VariantEmitCLowerableRequest &request,
       conversion::emitc::TCRVEmitCLowerableRoute &out) const override;
   llvm::Error configureTargetSupportExtensionBundle(
-      target::ExtensionBundle &bundle) const override;
+      ExtensionBundle &bundle) const override;
   llvm::Error registerTargetSupportTranslateRoutes(
       target::TargetTranslateRouteRegistry &registry) const override;
 

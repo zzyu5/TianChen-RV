@@ -1,5 +1,6 @@
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
@@ -7,7 +8,6 @@
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
-#include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
@@ -27,7 +27,7 @@ llvm::Error makeBuiltinExtensionCatalogError(llvm::Twine message) {
 
 struct BuiltinExtensionBundleSpec {
   llvm::StringLiteral bundleID;
-  target::ExtensionPluginRegistrationFn registrationFn = nullptr;
+  ExtensionPluginRegistrationFn registrationFn = nullptr;
 };
 
 constexpr BuiltinExtensionBundleSpec kBuiltinExtensionBundles[] = {
@@ -40,7 +40,7 @@ constexpr BuiltinExtensionBundleSpec kBuiltinExtensionBundles[] = {
 };
 
 llvm::Expected<const ExtensionPlugin *>
-registerSingleManifestPlugin(target::ExtensionPluginRegistrationFn registrationFn,
+registerSingleManifestPlugin(ExtensionPluginRegistrationFn registrationFn,
                              llvm::StringRef bundleID) {
   ExtensionPluginRegistry plugins;
   if (llvm::Error error = registrationFn(plugins))
@@ -54,15 +54,14 @@ registerSingleManifestPlugin(target::ExtensionPluginRegistrationFn registrationF
 }
 
 llvm::Error registerManifestOwnedExtensionBundle(
-    target::ExtensionBundleRegistry &registry, llvm::StringRef bundleID,
-    target::ExtensionPluginRegistrationFn registrationFn) {
+    ExtensionBundleRegistry &registry, llvm::StringRef bundleID,
+    ExtensionPluginRegistrationFn registrationFn) {
   llvm::Expected<const ExtensionPlugin *> plugin =
       registerSingleManifestPlugin(registrationFn, bundleID);
   if (!plugin)
     return plugin.takeError();
 
-  target::ExtensionBundle bundle(bundleID, (*plugin)->getName(),
-                                 registrationFn);
+  ExtensionBundle bundle(bundleID, (*plugin)->getName(), registrationFn);
   if (llvm::Error error =
           (*plugin)->configureTargetSupportExtensionBundle(bundle)) {
     std::string message = llvm::toString(std::move(error));
@@ -85,7 +84,7 @@ llvm::Error registerBuiltinExtensionPlugins(ExtensionPluginRegistry &registry) {
 }
 
 llvm::Error
-registerBuiltinExtensionBundles(target::ExtensionBundleRegistry &registry) {
+registerBuiltinExtensionBundles(ExtensionBundleRegistry &registry) {
   for (const BuiltinExtensionBundleSpec &spec : kBuiltinExtensionBundles) {
     if (llvm::Error error = registerManifestOwnedExtensionBundle(
             registry, spec.bundleID, spec.registrationFn))

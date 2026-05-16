@@ -1,7 +1,7 @@
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
 
 #include "TianChenRV/Dialect/Offload/IR/OffloadDialect.h"
-#include "TianChenRV/Target/TargetArtifactExport.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -540,7 +540,7 @@ llvm::Error OffloadExtensionPlugin::materializeSelectedLoweringBoundary(
 }
 
 llvm::Error OffloadExtensionPlugin::configureTargetSupportExtensionBundle(
-    target::ExtensionBundle &bundle) const {
+    ExtensionBundle &bundle) const {
   bundle.addRequiredDialectName("tcrv_offload");
   return llvm::Error::success();
 }

@@ -5,9 +5,12 @@
 #include "llvm/Support/Error.h"
 
 namespace tianchenrv::target {
-class ExtensionBundle;
 class PluginTargetArtifactExporterRegistry;
 } // namespace tianchenrv::target
+
+namespace tianchenrv::plugin {
+class ExtensionBundle;
+} // namespace tianchenrv::plugin
 
 namespace tianchenrv::target::tensorext_lite {
 
@@ -17,7 +20,8 @@ llvm::Error registerTensorExtLiteTargetSupportPluginTargetExporterBundles(
     PluginTargetArtifactExporterRegistry &registry);
 
 llvm::Error
-configureTensorExtLiteTargetSupportExtensionBundle(ExtensionBundle &bundle);
+configureTensorExtLiteTargetSupportExtensionBundle(
+    plugin::ExtensionBundle &bundle);
 
 } // namespace tianchenrv::target::tensorext_lite
 

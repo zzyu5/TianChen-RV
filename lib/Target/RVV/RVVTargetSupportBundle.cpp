@@ -1,6 +1,7 @@
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -599,7 +600,7 @@ llvm::Error registerRVVTargetSupportPluginTargetExporterBundles(
 }
 
 llvm::Error
-configureRVVTargetSupportExtensionBundle(ExtensionBundle &bundle) {
+configureRVVTargetSupportExtensionBundle(plugin::ExtensionBundle &bundle) {
   bundle.addLoweringBoundaryOp(
       plugin::rvv::getRVVI32M1ArithmeticLoweringBoundaryOpName());
   bundle.setTargetArtifactExporterBundleRegistrationFn(

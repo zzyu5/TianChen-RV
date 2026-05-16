@@ -50,7 +50,7 @@ public:
   llvm::Error validateSelectedLoweringBoundary(
       const VariantLoweringBoundaryValidationRequest &request) const override;
   llvm::Error
-  configureTargetSupportExtensionBundle(target::ExtensionBundle &bundle)
+  configureTargetSupportExtensionBundle(ExtensionBundle &bundle)
       const override;
 
 private:

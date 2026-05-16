@@ -1477,3 +1477,67 @@ Deleted the Toy metadata-seed selected-boundary route, removed the Toy source-se
 ### Next Steps
 
 - None - task complete
+
+
+## Session 100: Extension bundle interface target-layer extraction
+
+**Date**: 2026-05-17
+**Task**: Extension bundle interface target-layer extraction
+**Branch**: `main`
+
+### Summary
+
+Moved the generic extension bundle and bundle registry interface out of target
+artifact export into the plugin/common layer, rewired plugin target-support
+bundle hooks to use the rehomed type, and kept target artifact export as a
+generic consumer of plugin-owned bundle registries.
+
+### Main Changes
+
+- Added `TianChenRV/Plugin/ExtensionBundle.h` and
+  `lib/Plugin/ExtensionBundle.cpp` for `plugin::ExtensionBundle`,
+  `plugin::ExtensionBundleRegistry`, and extension plugin registration callback
+  ownership.
+- Removed generic bundle class and callback definitions from
+  `TargetArtifactExport.h`; target keeps exporter registries and exposes only a
+  target-side helper to consume enabled extension bundles.
+- Rewired built-in plugin catalog registration and all
+  `configureTargetSupportExtensionBundle` overrides to use the plugin/common
+  bundle interface.
+- Removed the direct `TianChenRVTarget` link from `TianChenRVBuiltinPlugins`
+  and added the bundle implementation to `TianChenRVPlugin`.
+- Updated target artifact tests and plugin-protocol spec coverage for the new
+  long-term bundle ownership contract.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test tianchenrv-tensorext-lite-extension-plugin-test tcrv-translate tcrv-opt -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- [OK] focused lit filter for TensorExtLite target artifact, source-seed target
+  artifact, EmitC handoff, Toy/Template target artifact, target artifact
+  registry, and no-viable bundle front doors: 8/8 passed.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 100/100 lit tests
+  passed.
+- [OK] `git diff --check`
+- [OK] targeted scans proving `lib/Target/Builtin` has no concrete plugin
+  catalog list, `TargetArtifactExport.h` no longer defines generic bundle
+  classes, plugin/builtin no longer depends on target bundle types, and no
+  descriptor/direct-C/source-export route authority was introduced in code
+  diff.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-17-extension-bundle-interface-target-layer-extraction`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -33,6 +33,7 @@ class TCRVEmitCLowerableRoute;
 } // namespace tianchenrv::conversion::emitc
 
 namespace tianchenrv::plugin {
+class ExtensionBundleRegistry;
 class ExtensionPluginRegistry;
 class VariantEmitCLowerableRequest;
 
@@ -47,10 +48,6 @@ using TargetArtifactCandidateValidationFn = llvm::Error (*)(
     const TargetArtifactCandidate &candidate);
 using PluginTargetArtifactExporterRegistrationFn =
     llvm::Error (*)(TargetArtifactExporterRegistry &registry);
-using PluginTargetArtifactExporterBundleRegistrationFn =
-    llvm::Error (*)(PluginTargetArtifactExporterRegistry &registry);
-using ExtensionPluginRegistrationFn =
-    llvm::Error (*)(plugin::ExtensionPluginRegistry &registry);
 using TargetArtifactCompositeMatchFn = llvm::Expected<bool> (*)(
     llvm::ArrayRef<TargetArtifactCandidate> candidates);
 using TargetArtifactCompositeCandidateValidationFn = llvm::Error (*)(
@@ -324,67 +321,10 @@ private:
       bundlesByPlugin;
 };
 
-class ExtensionBundle {
-public:
-  ExtensionBundle() = default;
-  ExtensionBundle(llvm::StringRef bundleID, llvm::StringRef pluginName,
-                  ExtensionPluginRegistrationFn pluginRegistrationFn);
-
-  llvm::StringRef getBundleID() const { return bundleID; }
-  llvm::StringRef getPluginName() const { return pluginName; }
-  ExtensionPluginRegistrationFn getPluginRegistrationFn() const {
-    return pluginRegistrationFn;
-  }
-  llvm::ArrayRef<std::string> getRequiredDialectNames() const {
-    return requiredDialectNames;
-  }
-  llvm::ArrayRef<std::string> getLoweringBoundaryOps() const {
-    return loweringBoundaryOps;
-  }
-  PluginTargetArtifactExporterBundleRegistrationFn
-  getTargetArtifactExporterBundleRegistrationFn() const {
-    return targetArtifactExporterBundleRegistrationFn;
-  }
-
-  void addRequiredDialectName(llvm::StringRef dialectName);
-  void addLoweringBoundaryOp(llvm::StringRef opName);
-  void setTargetArtifactExporterBundleRegistrationFn(
-      PluginTargetArtifactExporterBundleRegistrationFn registrationFn);
-
-private:
-  std::string bundleID;
-  std::string pluginName;
-  ExtensionPluginRegistrationFn pluginRegistrationFn = nullptr;
-  llvm::SmallVector<std::string, 2> requiredDialectNames;
-  llvm::SmallVector<std::string, 2> loweringBoundaryOps;
-  PluginTargetArtifactExporterBundleRegistrationFn
-      targetArtifactExporterBundleRegistrationFn = nullptr;
-};
-
-class ExtensionBundleRegistry {
-public:
-  llvm::Error registerBundle(const ExtensionBundle &bundle);
-
-  const ExtensionBundle *lookupBundle(llvm::StringRef bundleID) const;
-  const ExtensionBundle *lookupPluginBundle(llvm::StringRef pluginName) const;
-  llvm::ArrayRef<ExtensionBundle> getBundles() const { return bundles; }
-  std::size_t size() const { return bundles.size(); }
-
-  llvm::Error
-  registerExtensionPlugins(plugin::ExtensionPluginRegistry &plugins) const;
-
-  llvm::Error registerTargetArtifactExporterBundles(
-      PluginTargetArtifactExporterRegistry &registry) const;
-
-  llvm::Error registerTargetArtifactExportersForEnabledPlugins(
-      const plugin::ExtensionPluginRegistry &plugins,
-      TargetArtifactExporterRegistry &registry) const;
-
-private:
-  llvm::SmallVector<ExtensionBundle, 4> bundles;
-  llvm::StringMap<std::size_t> bundleIndicesByID;
-  llvm::StringMap<std::size_t> bundleIndicesByPlugin;
-};
+llvm::Error registerTargetArtifactExportersForEnabledExtensionBundles(
+    const plugin::ExtensionBundleRegistry &bundles,
+    const plugin::ExtensionPluginRegistry &plugins,
+    TargetArtifactExporterRegistry &registry);
 
 llvm::Error collectTargetArtifactCandidates(
     mlir::ModuleOp module,

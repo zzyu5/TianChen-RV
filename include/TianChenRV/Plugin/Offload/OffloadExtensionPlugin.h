@@ -48,7 +48,7 @@ public:
       const VariantLoweringBoundaryRequest &request,
       VariantLoweringBoundaryResult &out) const override;
   llvm::Error
-  configureTargetSupportExtensionBundle(target::ExtensionBundle &bundle)
+  configureTargetSupportExtensionBundle(ExtensionBundle &bundle)
       const override;
 
 private:

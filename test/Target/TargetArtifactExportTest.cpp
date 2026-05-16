@@ -4,6 +4,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
@@ -39,6 +40,8 @@ using namespace tianchenrv::target;
 
 namespace {
 
+using tianchenrv::plugin::ExtensionBundle;
+using tianchenrv::plugin::ExtensionBundleRegistry;
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
 using tianchenrv::support::FiniteBinaryCallableRuntimeABIParameterBindings;
@@ -990,8 +993,8 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
 
   TargetArtifactExporterRegistry registry;
   if (!expectSuccess(
-          bundles.registerTargetArtifactExportersForEnabledPlugins(plugins,
-                                                                   registry),
+          registerTargetArtifactExportersForEnabledExtensionBundles(
+              bundles, plugins, registry),
           "register target artifact exporters through bundle frontdoor"))
     return false;
   if (registry.size() != 2 || registry.compositeSize() != 1) {
@@ -1078,8 +1081,8 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
       return false;
     TargetArtifactExporterRegistry exporters;
     if (!expectSuccess(
-            bundles.registerTargetArtifactExportersForEnabledPlugins(
-                plugins, exporters),
+            registerTargetArtifactExportersForEnabledExtensionBundles(
+                bundles, plugins, exporters),
             "registered route without target artifact descriptor authority"))
       return false;
     if (!exporters.lookup(kBundleTestMissingRouteMetadataID)) {
@@ -1108,8 +1111,8 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
       return false;
     TargetArtifactExporterRegistry exporters;
     if (!expectSuccess(
-            bundles.registerTargetArtifactExportersForEnabledPlugins(
-                plugins, exporters),
+            registerTargetArtifactExportersForEnabledExtensionBundles(
+                bundles, plugins, exporters),
             "registered composite route without target artifact descriptor "
             "authority"))
       return false;
@@ -1161,8 +1164,8 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
       return false;
     TargetArtifactExporterRegistry exporters;
     if (!expectErrorContains(
-            bundles.registerTargetArtifactExportersForEnabledPlugins(
-                plugins, exporters),
+            registerTargetArtifactExportersForEnabledExtensionBundles(
+                bundles, plugins, exporters),
             "duplicate route through bundle rejected",
             {"duplicate exporter route id", kBundleTestDuplicateRouteID}))
       return false;
