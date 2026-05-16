@@ -35,4 +35,4 @@ module {
   }
 }
 
-// CHECK: bounded RVV EmitC route supports only SEW32 LMUL m1 i32 add
+// CHECK: bounded RVV EmitC route supports only SEW32 LMUL m1 i32 arithmetic

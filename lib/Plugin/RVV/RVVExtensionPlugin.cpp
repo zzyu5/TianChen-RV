@@ -192,16 +192,21 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
   if (llvm::Error error =
-          buildRVVI32M1AddEmitCLowerableRoute(routeRequest, route)) {
+          buildRVVI32M1ArithmeticEmitCLowerableRoute(routeRequest, route)) {
     std::string diagnostic = llvm::toString(std::move(error));
     out = VariantEmissionStatus::getUnsupported(
         kRVVPluginName, request.getVariant().getSymName(), diagnostic);
     return llvm::Error::success();
   }
 
+  llvm::Expected<RVVI32M1ArithmeticOp> arithmeticOp =
+      symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(route.getRouteID());
+  if (!arithmeticOp)
+    return arithmeticOp.takeError();
+
   out = VariantEmissionStatus::getSupported(
       kRVVPluginName, request.getVariant().getSymName(),
-      target::rvv::getRVVI32M1AddObjectArtifactRouteID());
+      target::rvv::getRVVI32M1ArithmeticObjectArtifactRouteID(*arithmeticOp));
   return llvm::Error::success();
 }
 
@@ -225,24 +230,32 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
   if (llvm::Error error =
-          buildRVVI32M1AddEmitCLowerableRoute(routeRequest, route))
+          buildRVVI32M1ArithmeticEmitCLowerableRoute(routeRequest, route))
     return error;
+
+  llvm::Expected<RVVI32M1ArithmeticOp> arithmeticOp =
+      symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(route.getRouteID());
+  if (!arithmeticOp)
+    return arithmeticOp.takeError();
 
   out = VariantEmissionPlan::getSupported(
       kRVVPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      getRVVI32M1AddEmissionKind(),
-      target::rvv::getRVVI32M1AddObjectArtifactRouteID(),
-      getRVVI32M1AddRuntimeABIName(),
+      getRVVI32M1ArithmeticEmissionKind(),
+      target::rvv::getRVVI32M1ArithmeticObjectArtifactRouteID(*arithmeticOp),
+      getRVVI32M1ArithmeticRuntimeABIName(*arithmeticOp),
       "riscv-elf-relocatable-object",
-      "RVV explicit i32m1 add route materializes EmitC, emits C/C++ through "
-      "MLIR EmitC, and exports a RISC-V relocatable object through the RVV "
-      "target artifact route");
-  out.setRuntimeABIKind(getRVVI32M1AddRuntimeABIKind());
-  out.setRuntimeABIName(getRVVI32M1AddRuntimeABIName());
-  out.setRuntimeGlueRole(getRVVI32M1AddRuntimeGlueRole());
-  out.setLoweringBoundaryOpName(getRVVI32M1AddLoweringBoundaryOpName());
-  out.addRuntimeABIParameters(getRVVI32M1AddRuntimeABIParameters());
+      (llvm::Twine("RVV explicit i32m1 ") +
+       stringifyRVVI32M1ArithmeticOp(*arithmeticOp) +
+       " route materializes EmitC, emits C/C++ through MLIR EmitC, and "
+       "exports a RISC-V relocatable object through the RVV target artifact "
+       "route")
+          .str());
+  out.setRuntimeABIKind(getRVVI32M1ArithmeticRuntimeABIKind());
+  out.setRuntimeABIName(getRVVI32M1ArithmeticRuntimeABIName(*arithmeticOp));
+  out.setRuntimeGlueRole(getRVVI32M1ArithmeticRuntimeGlueRole());
+  out.setLoweringBoundaryOpName(getRVVI32M1ArithmeticLoweringBoundaryOpName());
+  out.addRuntimeABIParameters(getRVVI32M1ArithmeticRuntimeABIParameters());
   return out.setRequiredCapabilitySymbolsFromVariant(request.getVariant());
 }
 
@@ -282,7 +295,7 @@ llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
 llvm::Error RVVExtensionPlugin::buildVariantEmitCLowerableRoute(
     const VariantEmitCLowerableRequest &request,
     conversion::emitc::TCRVEmitCLowerableRoute &out) const {
-  return buildRVVI32M1AddEmitCLowerableRoute(request, out);
+  return buildRVVI32M1ArithmeticEmitCLowerableRoute(request, out);
 }
 
 llvm::Error RVVExtensionPlugin::configureTargetSupportExtensionBundle(

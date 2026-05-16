@@ -30,32 +30,134 @@ namespace {
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVEmitCToCppRouteID(
     "tcrv-rvv-emitc-to-cpp");
-constexpr llvm::StringLiteral kRVVI32M1AddObjectArtifactRouteID(
-    "tcrv-rvv-i32m1-add-riscv-elf-object");
-constexpr llvm::StringLiteral kRVVI32M1AddHeaderArtifactRouteID(
-    "tcrv-rvv-i32m1-add-callable-c-header");
-constexpr llvm::StringLiteral kRVVI32M1AddObjectTranslateRouteID(
-    "tcrv-rvv-i32m1-add-object");
-constexpr llvm::StringLiteral kRVVI32M1AddHeaderTranslateRouteID(
-    "tcrv-rvv-i32m1-add-header");
-constexpr llvm::StringLiteral kRVVI32M1AddObjectArtifactKind(
+constexpr llvm::StringLiteral kRVVI32M1ArithmeticObjectArtifactKind(
     "riscv-elf-relocatable-object");
-constexpr llvm::StringLiteral kRVVI32M1AddHeaderArtifactKind(
+constexpr llvm::StringLiteral kRVVI32M1ArithmeticHeaderArtifactKind(
     "runtime-callable-c-header");
-constexpr llvm::StringLiteral kRVVI32M1AddObjectHandoffKind(
+constexpr llvm::StringLiteral kRVVI32M1ArithmeticObjectHandoffKind(
     "materialized-emitc-cpp-to-riscv-elf-object");
-constexpr llvm::StringLiteral kRVVI32M1AddCallableComponentGroup(
-    "rvv-i32m1-add-callable-artifact-bundle.v1");
+
+struct RVVI32M1ArithmeticTargetRouteDescriptor {
+  plugin::rvv::RVVI32M1ArithmeticOp op;
+  llvm::StringLiteral mnemonic;
+  llvm::StringLiteral objectArtifactRouteID;
+  llvm::StringLiteral headerArtifactRouteID;
+  llvm::StringLiteral objectTranslateRouteID;
+  llvm::StringLiteral headerTranslateRouteID;
+  llvm::StringLiteral callableComponentGroup;
+  TargetArtifactExportFn objectExportFn;
+  TargetArtifactExportFn headerExportFn;
+  TargetArtifactCompositeMatchFn headerMatchFn;
+  TargetArtifactCompositeCandidateValidationFn headerValidationFn;
+  SelectedEmitCArtifactRouteBuilderFn routeBuilderFn;
+};
 
 llvm::Error makeRVVObjectRouteError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV i32m1 object artifact route failed: ") +
+      llvm::Twine(
+          "TianChen-RV RVV i32m1 arithmetic object artifact route failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
 
-std::string makeHeaderGuard(llvm::StringRef functionName) {
-  std::string guard("TIANCHENRV_RVV_I32M1_ADD_CALLABLE_");
+llvm::Error exportRVVI32M1AddObjectArtifact(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os);
+llvm::Error exportRVVI32M1SubObjectArtifact(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os);
+llvm::Error exportRVVI32M1MulObjectArtifact(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os);
+llvm::Error exportRVVI32M1AddCallableHeaderArtifact(mlir::ModuleOp module,
+                                                    llvm::raw_ostream &os);
+llvm::Error exportRVVI32M1SubCallableHeaderArtifact(mlir::ModuleOp module,
+                                                    llvm::raw_ostream &os);
+llvm::Error exportRVVI32M1MulCallableHeaderArtifact(mlir::ModuleOp module,
+                                                    llvm::raw_ostream &os);
+llvm::Expected<bool>
+matchRVVI32M1AddCallableHeaderBundle(llvm::ArrayRef<TargetArtifactCandidate>);
+llvm::Expected<bool>
+matchRVVI32M1SubCallableHeaderBundle(llvm::ArrayRef<TargetArtifactCandidate>);
+llvm::Expected<bool>
+matchRVVI32M1MulCallableHeaderBundle(llvm::ArrayRef<TargetArtifactCandidate>);
+llvm::Error validateRVVI32M1AddCallableHeaderBundle(
+    llvm::ArrayRef<TargetArtifactCandidate>);
+llvm::Error validateRVVI32M1SubCallableHeaderBundle(
+    llvm::ArrayRef<TargetArtifactCandidate>);
+llvm::Error validateRVVI32M1MulCallableHeaderBundle(
+    llvm::ArrayRef<TargetArtifactCandidate>);
+
+constexpr RVVI32M1ArithmeticTargetRouteDescriptor
+    kRVVI32M1ArithmeticTargetRoutes[] = {
+        {plugin::rvv::RVVI32M1ArithmeticOp::Add,
+         "add",
+         "tcrv-rvv-i32m1-add-riscv-elf-object",
+         "tcrv-rvv-i32m1-add-callable-c-header",
+         "tcrv-rvv-i32m1-add-object",
+         "tcrv-rvv-i32m1-add-header",
+         "rvv-i32m1-add-callable-artifact-bundle.v1",
+         exportRVVI32M1AddObjectArtifact,
+         exportRVVI32M1AddCallableHeaderArtifact,
+         matchRVVI32M1AddCallableHeaderBundle,
+         validateRVVI32M1AddCallableHeaderBundle,
+         plugin::rvv::buildRVVI32M1AddEmitCLowerableRoute},
+        {plugin::rvv::RVVI32M1ArithmeticOp::Sub,
+         "sub",
+         "tcrv-rvv-i32m1-sub-riscv-elf-object",
+         "tcrv-rvv-i32m1-sub-callable-c-header",
+         "tcrv-rvv-i32m1-sub-object",
+         "tcrv-rvv-i32m1-sub-header",
+         "rvv-i32m1-sub-callable-artifact-bundle.v1",
+         exportRVVI32M1SubObjectArtifact,
+         exportRVVI32M1SubCallableHeaderArtifact,
+         matchRVVI32M1SubCallableHeaderBundle,
+         validateRVVI32M1SubCallableHeaderBundle,
+         plugin::rvv::buildRVVI32M1SubEmitCLowerableRoute},
+        {plugin::rvv::RVVI32M1ArithmeticOp::Mul,
+         "mul",
+         "tcrv-rvv-i32m1-mul-riscv-elf-object",
+         "tcrv-rvv-i32m1-mul-callable-c-header",
+         "tcrv-rvv-i32m1-mul-object",
+         "tcrv-rvv-i32m1-mul-header",
+         "rvv-i32m1-mul-callable-artifact-bundle.v1",
+         exportRVVI32M1MulObjectArtifact,
+         exportRVVI32M1MulCallableHeaderArtifact,
+         matchRVVI32M1MulCallableHeaderBundle,
+         validateRVVI32M1MulCallableHeaderBundle,
+         plugin::rvv::buildRVVI32M1MulEmitCLowerableRoute},
+};
+
+const RVVI32M1ArithmeticTargetRouteDescriptor &
+getRVVI32M1ArithmeticTargetRouteDescriptor(
+    plugin::rvv::RVVI32M1ArithmeticOp op) {
+  for (const RVVI32M1ArithmeticTargetRouteDescriptor &descriptor :
+       kRVVI32M1ArithmeticTargetRoutes)
+    if (descriptor.op == op)
+      return descriptor;
+  llvm_unreachable("unknown RVV i32m1 arithmetic target route");
+}
+
+llvm::Expected<const RVVI32M1ArithmeticTargetRouteDescriptor *>
+getRVVI32M1ArithmeticTargetRouteDescriptorByObjectRoute(
+    llvm::StringRef routeID) {
+  for (const RVVI32M1ArithmeticTargetRouteDescriptor &descriptor :
+       kRVVI32M1ArithmeticTargetRoutes)
+    if (routeID == descriptor.objectArtifactRouteID)
+      return &descriptor;
+  return makeRVVObjectRouteError(
+      llvm::Twine("unknown RVV i32m1 arithmetic object route '") + routeID +
+      "'");
+}
+
+std::string makeHeaderGuard(llvm::StringRef functionName,
+                            llvm::StringRef mnemonic) {
+  std::string guard("TIANCHENRV_RVV_I32M1_");
+  for (char c : mnemonic) {
+    unsigned char byte = static_cast<unsigned char>(c);
+    if (std::isalnum(byte))
+      guard.push_back(static_cast<char>(std::toupper(byte)));
+    else
+      guard.push_back('_');
+  }
+  guard.append("_CALLABLE_");
   for (char c : functionName) {
     unsigned char byte = static_cast<unsigned char>(c);
     if (std::isalnum(byte))
@@ -67,7 +169,7 @@ std::string makeHeaderGuard(llvm::StringRef functionName) {
   return guard;
 }
 
-llvm::Error validateRVVI32M1AddObjectCandidate(
+llvm::Error validateRVVI32M1ArithmeticObjectCandidate(
     const TargetArtifactCandidate &candidate);
 
 llvm::Error exportMaterializedRVVEmitCToCpp(mlir::ModuleOp module,
@@ -76,21 +178,24 @@ llvm::Error exportMaterializedRVVEmitCToCpp(mlir::ModuleOp module,
       module, os, "RVV EmitC C/C++ translate route");
 }
 
-SelectedEmitCArtifactRouteConfig getRVVI32M1AddEmitCArtifactConfig() {
+SelectedEmitCArtifactRouteConfig getRVVI32M1ArithmeticEmitCArtifactConfig(
+    plugin::rvv::RVVI32M1ArithmeticOp op) {
+  const RVVI32M1ArithmeticTargetRouteDescriptor &descriptor =
+      getRVVI32M1ArithmeticTargetRouteDescriptor(op);
   SelectedEmitCArtifactRouteConfig config;
-  config.routeID = kRVVI32M1AddObjectArtifactRouteID;
-  config.artifactKind = kRVVI32M1AddObjectArtifactKind;
+  config.routeID = descriptor.objectArtifactRouteID;
+  config.artifactKind = kRVVI32M1ArithmeticObjectArtifactKind;
   config.originPlugin = kRVVPluginName;
-  config.routeDescription = "RVV i32m1 object artifact route";
-  config.candidateValidationFn = validateRVVI32M1AddObjectCandidate;
-  config.routeBuilderFn =
-      tianchenrv::plugin::rvv::buildRVVI32M1AddEmitCLowerableRoute;
+  config.routeDescription = "RVV i32m1 arithmetic object artifact route";
+  config.candidateValidationFn = validateRVVI32M1ArithmeticObjectCandidate;
+  config.routeBuilderFn = descriptor.routeBuilderFn;
   return config;
 }
 
-llvm::Expected<std::string> emitRVVI32M1AddCppSource(mlir::ModuleOp module) {
+llvm::Expected<std::string> emitRVVI32M1ArithmeticCppSource(
+    mlir::ModuleOp module, plugin::rvv::RVVI32M1ArithmeticOp op) {
   return emitSelectedEmitCArtifactCppSource(
-      module, getRVVI32M1AddEmitCArtifactConfig());
+      module, getRVVI32M1ArithmeticEmitCArtifactConfig(op));
 }
 
 llvm::Expected<std::string> findRVVClangTool() {
@@ -164,15 +269,18 @@ llvm::Error closeTemporaryFD(int fd, llvm::StringRef label) {
 }
 
 llvm::Expected<std::string>
-compileGeneratedSourceToRiscvObject(llvm::StringRef generatedSource) {
+compileGeneratedSourceToRiscvObject(llvm::StringRef generatedSource,
+                                    llvm::StringRef mnemonic) {
   llvm::Expected<std::string> clangPath = findRVVClangTool();
   if (!clangPath)
     return clangPath.takeError();
 
   int sourceFD = -1;
   llvm::SmallString<128> sourcePath;
+  std::string temporaryStem =
+      (llvm::Twine("tcrv-rvv-i32m1-") + mnemonic).str();
   if (std::error_code ec = llvm::sys::fs::createTemporaryFile(
-          "tcrv-rvv-i32m1-add", "c", sourceFD, sourcePath))
+          temporaryStem, "c", sourceFD, sourcePath))
     return makeRVVObjectRouteError(
         llvm::Twine("failed to create generated C/C++ temporary source: ") +
         ec.message());
@@ -180,7 +288,7 @@ compileGeneratedSourceToRiscvObject(llvm::StringRef generatedSource) {
   int objectFD = -1;
   llvm::SmallString<128> objectPath;
   if (std::error_code ec = llvm::sys::fs::createTemporaryFile(
-          "tcrv-rvv-i32m1-add", "o", objectFD, objectPath)) {
+          temporaryStem, "o", objectFD, objectPath)) {
     llvm::sys::fs::remove(sourcePath);
     return makeRVVObjectRouteError(
         llvm::Twine("failed to create RISC-V object temporary output: ") +
@@ -190,7 +298,7 @@ compileGeneratedSourceToRiscvObject(llvm::StringRef generatedSource) {
   int stdoutFD = -1;
   llvm::SmallString<128> stdoutPath;
   if (std::error_code ec = llvm::sys::fs::createTemporaryFile(
-          "tcrv-rvv-i32m1-add", "stdout", stdoutFD, stdoutPath)) {
+          temporaryStem, "stdout", stdoutFD, stdoutPath)) {
     llvm::sys::fs::remove(sourcePath);
     llvm::sys::fs::remove(objectPath);
     return makeRVVObjectRouteError(
@@ -201,7 +309,7 @@ compileGeneratedSourceToRiscvObject(llvm::StringRef generatedSource) {
   int stderrFD = -1;
   llvm::SmallString<128> stderrPath;
   if (std::error_code ec = llvm::sys::fs::createTemporaryFile(
-          "tcrv-rvv-i32m1-add", "stderr", stderrFD, stderrPath)) {
+          temporaryStem, "stderr", stderrFD, stderrPath)) {
     llvm::sys::fs::remove(sourcePath);
     llvm::sys::fs::remove(objectPath);
     llvm::sys::fs::remove(stdoutPath);
@@ -285,15 +393,19 @@ compileGeneratedSourceToRiscvObject(llvm::StringRef generatedSource) {
   return objectBytes;
 }
 
-llvm::Error exportRVVI32M1AddObjectArtifact(mlir::ModuleOp module,
-                                            llvm::raw_ostream &os) {
+llvm::Error exportRVVI32M1ArithmeticObjectArtifact(
+    mlir::ModuleOp module, llvm::raw_ostream &os,
+    plugin::rvv::RVVI32M1ArithmeticOp op) {
+  const RVVI32M1ArithmeticTargetRouteDescriptor &descriptor =
+      getRVVI32M1ArithmeticTargetRouteDescriptor(op);
   llvm::Expected<std::string> generatedSource =
-      emitRVVI32M1AddCppSource(module);
+      emitRVVI32M1ArithmeticCppSource(module, op);
   if (!generatedSource)
     return generatedSource.takeError();
 
   llvm::Expected<std::string> objectBytes =
-      compileGeneratedSourceToRiscvObject(*generatedSource);
+      compileGeneratedSourceToRiscvObject(*generatedSource,
+                                          descriptor.mnemonic);
   if (!objectBytes)
     return objectBytes.takeError();
 
@@ -301,15 +413,36 @@ llvm::Error exportRVVI32M1AddObjectArtifact(mlir::ModuleOp module,
   return llvm::Error::success();
 }
 
-llvm::Error exportRVVI32M1AddCallableHeaderArtifact(mlir::ModuleOp module,
-                                                    llvm::raw_ostream &os) {
+llvm::Error exportRVVI32M1AddObjectArtifact(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os) {
+  return exportRVVI32M1ArithmeticObjectArtifact(
+      module, os, plugin::rvv::RVVI32M1ArithmeticOp::Add);
+}
+
+llvm::Error exportRVVI32M1SubObjectArtifact(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os) {
+  return exportRVVI32M1ArithmeticObjectArtifact(
+      module, os, plugin::rvv::RVVI32M1ArithmeticOp::Sub);
+}
+
+llvm::Error exportRVVI32M1MulObjectArtifact(mlir::ModuleOp module,
+                                            llvm::raw_ostream &os) {
+  return exportRVVI32M1ArithmeticObjectArtifact(
+      module, os, plugin::rvv::RVVI32M1ArithmeticOp::Mul);
+}
+
+llvm::Error exportRVVI32M1ArithmeticCallableHeaderArtifact(
+    mlir::ModuleOp module, llvm::raw_ostream &os,
+    plugin::rvv::RVVI32M1ArithmeticOp op) {
+  const RVVI32M1ArithmeticTargetRouteDescriptor &descriptor =
+      getRVVI32M1ArithmeticTargetRouteDescriptor(op);
   llvm::Expected<std::string> functionName =
       getSelectedEmitCArtifactFunctionName(
-          module, getRVVI32M1AddEmitCArtifactConfig());
+          module, getRVVI32M1ArithmeticEmitCArtifactConfig(op));
   if (!functionName)
     return functionName.takeError();
 
-  std::string guard = makeHeaderGuard(*functionName);
+  std::string guard = makeHeaderGuard(*functionName, descriptor.mnemonic);
   os << "#ifndef " << guard << "\n";
   os << "#define " << guard << "\n\n";
   os << "#include <stddef.h>\n";
@@ -318,15 +451,15 @@ llvm::Error exportRVVI32M1AddCallableHeaderArtifact(mlir::ModuleOp module,
   os << "extern \"C\" {\n";
   os << "#endif\n\n";
   os << "/* tianchenrv.runtime_abi_name: "
-     << tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName() << " */\n";
+     << plugin::rvv::getRVVI32M1ArithmeticRuntimeABIName(op) << " */\n";
   os << "/* tianchenrv.runtime_glue_role: "
-     << tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeGlueRole() << " */\n";
+     << plugin::rvv::getRVVI32M1ArithmeticRuntimeGlueRole() << " */\n";
   os << "/* tianchenrv.object_route: "
-     << kRVVI32M1AddObjectArtifactRouteID << " */\n";
+     << descriptor.objectArtifactRouteID << " */\n";
   os << "/* tianchenrv.header_route: "
-     << kRVVI32M1AddHeaderArtifactRouteID << " */\n";
+     << descriptor.headerArtifactRouteID << " */\n";
   llvm::SmallVector<support::RuntimeABIParameter, 4> parameters =
-      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIParameters();
+      plugin::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
   for (auto [index, parameter] : llvm::enumerate(parameters)) {
     os << "/* tianchenrv.runtime_abi_parameter[" << index << "]: "
        << parameter.cName << " : " << parameter.cType << " : "
@@ -351,103 +484,198 @@ llvm::Error exportRVVI32M1AddCallableHeaderArtifact(mlir::ModuleOp module,
   return llvm::Error::success();
 }
 
-llvm::Error validateRVVI32M1AddObjectCandidate(
+llvm::Error exportRVVI32M1AddCallableHeaderArtifact(mlir::ModuleOp module,
+                                                    llvm::raw_ostream &os) {
+  return exportRVVI32M1ArithmeticCallableHeaderArtifact(
+      module, os, plugin::rvv::RVVI32M1ArithmeticOp::Add);
+}
+
+llvm::Error exportRVVI32M1SubCallableHeaderArtifact(mlir::ModuleOp module,
+                                                    llvm::raw_ostream &os) {
+  return exportRVVI32M1ArithmeticCallableHeaderArtifact(
+      module, os, plugin::rvv::RVVI32M1ArithmeticOp::Sub);
+}
+
+llvm::Error exportRVVI32M1MulCallableHeaderArtifact(mlir::ModuleOp module,
+                                                    llvm::raw_ostream &os) {
+  return exportRVVI32M1ArithmeticCallableHeaderArtifact(
+      module, os, plugin::rvv::RVVI32M1ArithmeticOp::Mul);
+}
+
+llvm::Error validateRVVI32M1ArithmeticObjectCandidate(
     const TargetArtifactCandidate &candidate) {
+  llvm::Expected<const RVVI32M1ArithmeticTargetRouteDescriptor *> descriptor =
+      getRVVI32M1ArithmeticTargetRouteDescriptorByObjectRoute(
+          candidate.routeID);
+  if (!descriptor)
+    return descriptor.takeError();
+
   if (candidate.runtimeABIKind !=
-      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIKind())
+      plugin::rvv::getRVVI32M1ArithmeticRuntimeABIKind())
     return makeRVVObjectRouteError(
         llvm::Twine("runtime ABI kind must be '") +
-        tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIKind() +
-        "' for route '" +
-        kRVVI32M1AddObjectArtifactRouteID + "'");
+        plugin::rvv::getRVVI32M1ArithmeticRuntimeABIKind() +
+        "' for route '" + (*descriptor)->objectArtifactRouteID + "'");
   if (candidate.runtimeABIName !=
-      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName())
+      plugin::rvv::getRVVI32M1ArithmeticRuntimeABIName((*descriptor)->op))
     return makeRVVObjectRouteError(
         llvm::Twine("runtime ABI name must be '") +
-        tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName() + "'");
+        plugin::rvv::getRVVI32M1ArithmeticRuntimeABIName((*descriptor)->op) +
+        "'");
   if (candidate.runtimeGlueRole !=
-      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeGlueRole())
+      plugin::rvv::getRVVI32M1ArithmeticRuntimeGlueRole())
     return makeRVVObjectRouteError(
         llvm::Twine("runtime glue role must be '") +
-        tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeGlueRole() + "'");
+        plugin::rvv::getRVVI32M1ArithmeticRuntimeGlueRole() + "'");
   if (candidate.loweringBoundary !=
-      tianchenrv::plugin::rvv::getRVVI32M1AddLoweringBoundaryOpName())
+      plugin::rvv::getRVVI32M1ArithmeticLoweringBoundaryOpName())
     return makeRVVObjectRouteError(
         llvm::Twine("lowering boundary metadata must name '") +
-        tianchenrv::plugin::rvv::getRVVI32M1AddLoweringBoundaryOpName() +
+        plugin::rvv::getRVVI32M1ArithmeticLoweringBoundaryOpName() +
         "' for the bounded EmitC route");
   return llvm::Error::success();
 }
 
-llvm::Expected<bool> matchRVVI32M1AddCallableHeaderBundle(
-    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+llvm::Expected<bool> matchRVVI32M1ArithmeticCallableHeaderBundle(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    plugin::rvv::RVVI32M1ArithmeticOp op) {
   if (candidates.size() != 1)
     return false;
+  const RVVI32M1ArithmeticTargetRouteDescriptor &descriptor =
+      getRVVI32M1ArithmeticTargetRouteDescriptor(op);
   const TargetArtifactCandidate &candidate = candidates.front();
-  return candidate.routeID == kRVVI32M1AddObjectArtifactRouteID &&
-         candidate.artifactKind == kRVVI32M1AddObjectArtifactKind &&
+  return candidate.routeID == descriptor.objectArtifactRouteID &&
+         candidate.artifactKind == kRVVI32M1ArithmeticObjectArtifactKind &&
          candidate.origin == kRVVPluginName;
+}
+
+llvm::Expected<bool>
+matchRVVI32M1AddCallableHeaderBundle(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  return matchRVVI32M1ArithmeticCallableHeaderBundle(
+      candidates, plugin::rvv::RVVI32M1ArithmeticOp::Add);
+}
+
+llvm::Expected<bool>
+matchRVVI32M1SubCallableHeaderBundle(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  return matchRVVI32M1ArithmeticCallableHeaderBundle(
+      candidates, plugin::rvv::RVVI32M1ArithmeticOp::Sub);
+}
+
+llvm::Expected<bool>
+matchRVVI32M1MulCallableHeaderBundle(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  return matchRVVI32M1ArithmeticCallableHeaderBundle(
+      candidates, plugin::rvv::RVVI32M1ArithmeticOp::Mul);
+}
+
+llvm::Error validateRVVI32M1ArithmeticCallableHeaderBundle(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    plugin::rvv::RVVI32M1ArithmeticOp op) {
+  const RVVI32M1ArithmeticTargetRouteDescriptor &descriptor =
+      getRVVI32M1ArithmeticTargetRouteDescriptor(op);
+  if (candidates.size() != 1)
+    return makeRVVObjectRouteError(
+        "callable header bundle route requires exactly one RVV i32m1 "
+        "arithmetic object candidate");
+  const TargetArtifactCandidate &candidate = candidates.front();
+  if (candidate.routeID != descriptor.objectArtifactRouteID)
+    return makeRVVObjectRouteError(
+        llvm::Twine("callable header bundle route requires object route '") +
+        descriptor.objectArtifactRouteID + "'");
+  if (candidate.artifactKind != kRVVI32M1ArithmeticObjectArtifactKind)
+    return makeRVVObjectRouteError(
+        llvm::Twine("callable header bundle route requires artifact_kind '") +
+        kRVVI32M1ArithmeticObjectArtifactKind + "'");
+  return validateRVVI32M1ArithmeticObjectCandidate(candidate);
 }
 
 llvm::Error validateRVVI32M1AddCallableHeaderBundle(
     llvm::ArrayRef<TargetArtifactCandidate> candidates) {
-  if (candidates.size() != 1)
-    return makeRVVObjectRouteError(
-        "callable header bundle route requires exactly one RVV i32m1 add "
-        "object candidate");
-  const TargetArtifactCandidate &candidate = candidates.front();
-  if (candidate.routeID != kRVVI32M1AddObjectArtifactRouteID)
-    return makeRVVObjectRouteError(
-        llvm::Twine("callable header bundle route requires object route '") +
-        kRVVI32M1AddObjectArtifactRouteID + "'");
-  if (candidate.artifactKind != kRVVI32M1AddObjectArtifactKind)
-    return makeRVVObjectRouteError(
-        llvm::Twine("callable header bundle route requires artifact_kind '") +
-        kRVVI32M1AddObjectArtifactKind + "'");
-  return validateRVVI32M1AddObjectCandidate(candidate);
+  return validateRVVI32M1ArithmeticCallableHeaderBundle(
+      candidates, plugin::rvv::RVVI32M1ArithmeticOp::Add);
 }
 
-llvm::Error registerRVVI32M1AddObjectExporter(
+llvm::Error validateRVVI32M1SubCallableHeaderBundle(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  return validateRVVI32M1ArithmeticCallableHeaderBundle(
+      candidates, plugin::rvv::RVVI32M1ArithmeticOp::Sub);
+}
+
+llvm::Error validateRVVI32M1MulCallableHeaderBundle(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  return validateRVVI32M1ArithmeticCallableHeaderBundle(
+      candidates, plugin::rvv::RVVI32M1ArithmeticOp::Mul);
+}
+
+llvm::Error registerRVVI32M1ArithmeticObjectExporters(
     TargetArtifactExporterRegistry &registry) {
   llvm::SmallVector<support::RuntimeABIParameter, 4> parameters =
-      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIParameters();
-  if (!registry.lookup(kRVVI32M1AddObjectArtifactRouteID)) {
-    if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
-            kRVVI32M1AddObjectArtifactRouteID, kRVVI32M1AddObjectArtifactKind,
-            kRVVPluginName,
-            tianchenrv::plugin::rvv::getRVVI32M1AddEmissionKind(),
-            exportRVVI32M1AddObjectArtifact, parameters,
-            kRVVI32M1AddObjectHandoffKind, validateRVVI32M1AddObjectCandidate,
-            kRVVI32M1AddCallableComponentGroup,
-            tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName())))
-      return error;
-  }
+      plugin::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
 
-  if (registry.lookupComposite(kRVVI32M1AddHeaderArtifactRouteID))
-    return llvm::Error::success();
-  return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-      kRVVI32M1AddHeaderArtifactRouteID, kRVVI32M1AddHeaderArtifactKind,
-      matchRVVI32M1AddCallableHeaderBundle,
-      exportRVVI32M1AddCallableHeaderArtifact, kRVVPluginName,
-      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIKind(),
-      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName(), parameters,
-      kRVVI32M1AddCallableComponentGroup,
-      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName(),
-      validateRVVI32M1AddCallableHeaderBundle));
+  for (const RVVI32M1ArithmeticTargetRouteDescriptor &descriptor :
+       kRVVI32M1ArithmeticTargetRoutes) {
+    if (!registry.lookup(descriptor.objectArtifactRouteID)) {
+      if (llvm::Error error =
+              registry.registerExporter(TargetArtifactExporter(
+                  descriptor.objectArtifactRouteID,
+                  kRVVI32M1ArithmeticObjectArtifactKind, kRVVPluginName,
+                  plugin::rvv::getRVVI32M1ArithmeticEmissionKind(),
+                  descriptor.objectExportFn, parameters,
+                  kRVVI32M1ArithmeticObjectHandoffKind,
+                  validateRVVI32M1ArithmeticObjectCandidate,
+                  descriptor.callableComponentGroup,
+                  plugin::rvv::getRVVI32M1ArithmeticRuntimeABIName(
+                      descriptor.op))))
+        return error;
+    }
+
+    if (!registry.lookupComposite(descriptor.headerArtifactRouteID)) {
+      if (llvm::Error error = registry.registerCompositeExporter(
+              TargetArtifactCompositeExporter(
+                  descriptor.headerArtifactRouteID,
+                  kRVVI32M1ArithmeticHeaderArtifactKind,
+                  descriptor.headerMatchFn, descriptor.headerExportFn,
+                  kRVVPluginName,
+                  plugin::rvv::getRVVI32M1ArithmeticRuntimeABIKind(),
+                  plugin::rvv::getRVVI32M1ArithmeticRuntimeABIName(
+                      descriptor.op),
+                  parameters, descriptor.callableComponentGroup,
+                  plugin::rvv::getRVVI32M1ArithmeticRuntimeABIName(
+                      descriptor.op),
+                  descriptor.headerValidationFn)))
+        return error;
+    }
+  }
+  return llvm::Error::success();
 }
 
 } // namespace
 
-llvm::StringRef getRVVI32M1AddObjectArtifactRouteID() {
-  return kRVVI32M1AddObjectArtifactRouteID;
+llvm::StringRef getRVVI32M1ArithmeticObjectArtifactRouteID(
+    plugin::rvv::RVVI32M1ArithmeticOp op) {
+  return getRVVI32M1ArithmeticTargetRouteDescriptor(op).objectArtifactRouteID;
 }
 
-llvm::StringRef getRVVI32M1AddHeaderArtifactRouteID() {
-  return kRVVI32M1AddHeaderArtifactRouteID;
+llvm::StringRef getRVVI32M1ArithmeticHeaderArtifactRouteID(
+    plugin::rvv::RVVI32M1ArithmeticOp op) {
+  return getRVVI32M1ArithmeticTargetRouteDescriptor(op).headerArtifactRouteID;
 }
 
-llvm::StringRef getRVVI32M1AddCallableComponentGroup() {
-  return kRVVI32M1AddCallableComponentGroup;
+llvm::StringRef getRVVI32M1ArithmeticCallableComponentGroup(
+    plugin::rvv::RVVI32M1ArithmeticOp op) {
+  return getRVVI32M1ArithmeticTargetRouteDescriptor(op).callableComponentGroup;
+}
+
+llvm::StringRef getRVVI32M1ArithmeticObjectTranslateRouteID(
+    plugin::rvv::RVVI32M1ArithmeticOp op) {
+  return getRVVI32M1ArithmeticTargetRouteDescriptor(op).objectTranslateRouteID;
+}
+
+llvm::StringRef getRVVI32M1ArithmeticHeaderTranslateRouteID(
+    plugin::rvv::RVVI32M1ArithmeticOp op) {
+  return getRVVI32M1ArithmeticTargetRouteDescriptor(op).headerTranslateRouteID;
 }
 
 llvm::Error registerRVVTargetSupportPluginTargetExporterBundles(
@@ -456,12 +684,13 @@ llvm::Error registerRVVTargetSupportPluginTargetExporterBundles(
           registry.lookup(kRVVPluginName)) {
     for (const PluginTargetArtifactExporterBundle &bundle :
          registry.lookupAll(kRVVPluginName))
-      if (bundle.getRegistrationFn() == registerRVVI32M1AddObjectExporter)
+      if (bundle.getRegistrationFn() ==
+          registerRVVI32M1ArithmeticObjectExporters)
         return llvm::Error::success();
     (void)existing;
   }
   return registry.registerBundle(PluginTargetArtifactExporterBundle(
-      kRVVPluginName, registerRVVI32M1AddObjectExporter));
+      kRVVPluginName, registerRVVI32M1ArithmeticObjectExporters));
 }
 
 llvm::Error
@@ -473,17 +702,6 @@ configureRVVTargetSupportExtensionBundle(ExtensionBundle &bundle) {
 
 llvm::Error registerRVVTargetSupportTargetTranslateRoutes(
     TargetTranslateRouteRegistry &registry) {
-  auto registerHeaderRoute = [&registry]() -> llvm::Error {
-    if (registry.lookup(kRVVI32M1AddHeaderTranslateRouteID))
-      return llvm::Error::success();
-    return registry.registerRoute(TargetTranslateRoute(
-        kRVVI32M1AddHeaderTranslateRouteID,
-        "export a selected RVV i32m1 add callable C header for the generated "
-        "RISC-V relocatable object ABI",
-        exportRVVI32M1AddCallableHeaderArtifact,
-        /*requiresBinaryStdout=*/false, kRVVI32M1AddHeaderArtifactRouteID));
-  };
-
   if (!registry.lookup(kRVVEmitCToCppRouteID)) {
     if (llvm::Error error = registry.registerRoute(TargetTranslateRoute(
             kRVVEmitCToCppRouteID,
@@ -492,16 +710,32 @@ llvm::Error registerRVVTargetSupportTargetTranslateRoutes(
             exportMaterializedRVVEmitCToCpp)))
       return error;
   }
-  if (registry.lookup(kRVVI32M1AddObjectTranslateRouteID))
-    return registerHeaderRoute();
-  if (llvm::Error error = registry.registerRoute(TargetTranslateRoute(
-      kRVVI32M1AddObjectTranslateRouteID,
-      "export a selected RVV i32m1 add path through EmitC, the MLIR EmitC "
-      "C/C++ emitter, and clang RISC-V relocatable object compilation",
-      exportRVVI32M1AddObjectArtifact,
-      /*requiresBinaryStdout=*/true, kRVVI32M1AddObjectArtifactRouteID)))
-    return error;
-  return registerHeaderRoute();
+
+  for (const RVVI32M1ArithmeticTargetRouteDescriptor &descriptor :
+       kRVVI32M1ArithmeticTargetRoutes) {
+    if (!registry.lookup(descriptor.objectTranslateRouteID)) {
+      if (llvm::Error error = registry.registerRoute(TargetTranslateRoute(
+              descriptor.objectTranslateRouteID,
+              "export a selected RVV i32m1 arithmetic path through EmitC, the "
+              "MLIR EmitC C/C++ emitter, and clang RISC-V relocatable object "
+              "compilation",
+              descriptor.objectExportFn,
+              /*requiresBinaryStdout=*/true,
+              descriptor.objectArtifactRouteID)))
+        return error;
+    }
+    if (!registry.lookup(descriptor.headerTranslateRouteID)) {
+      if (llvm::Error error = registry.registerRoute(TargetTranslateRoute(
+              descriptor.headerTranslateRouteID,
+              "export a selected RVV i32m1 arithmetic callable C header for "
+              "the generated RISC-V relocatable object ABI",
+              descriptor.headerExportFn,
+              /*requiresBinaryStdout=*/false,
+              descriptor.headerArtifactRouteID)))
+        return error;
+    }
+  }
+  return llvm::Error::success();
 }
 
 } // namespace tianchenrv::target::rvv

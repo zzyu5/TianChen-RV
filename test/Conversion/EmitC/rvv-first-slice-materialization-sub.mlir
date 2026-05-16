@@ -1,13 +1,13 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=PLAN-FAIL
+// RUN: tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes | FileCheck %s
 
 module {
-  tcrv.exec.kernel @rvv_i32_mixed_arithmetic_kernel {
+  tcrv.exec.kernel @rvv_i32_sub_kernel {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
       status = "available"
     }
-    tcrv.exec.variant @rvv_i32_mixed attributes {
+    tcrv.exec.variant @rvv_i32_sub attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
@@ -28,22 +28,15 @@ module {
       } {
         %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %diff = tcrv_rvv.i32_sub %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         tcrv_rvv.i32_store %out_ptr, %diff, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
-    tcrv.exec.diagnostic {
-      message = "selected unsupported mixed RVV i32m1 arithmetic",
-      reason = "variant-selected",
-      selection_kind = "fallback-only",
-      severity = "note",
-      status = "selected",
-      target = @rvv_i32_mixed
-    }
   }
 }
 
-// PLAN-FAIL: RVV plugin-owned EmitC route provider failed
-// PLAN-FAIL: bounded RVV EmitC route requires exactly one supported tcrv_rvv.i32_add, tcrv_rvv.i32_sub, or tcrv_rvv.i32_mul op
-// PLAN-FAIL-NOT: riscv-elf-relocatable-object
+// CHECK: emitc.include <"riscv_vector.h">
+// CHECK: emitc.func @tcrv_emitc_rvv_i32_sub_kernel_rvv_i32_sub
+// CHECK: tcrv_emitc.source_op=tcrv_rvv.i32_sub role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsub_vv_i32m1
+// CHECK: call_opaque "__riscv_vsub_vv_i32m1"
+// CHECK: tcrv_emitc.source_op=tcrv_rvv.i32_store role=store op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vse32_v_i32m1

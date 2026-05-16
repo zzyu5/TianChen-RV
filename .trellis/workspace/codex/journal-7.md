@@ -1768,3 +1768,55 @@ Added explicit RVV runtime ABI SSA values for lhs/rhs/out/n, rewired the i32m1 a
 ### Next Steps
 
 - None - task complete
+
+
+## Session 91: RVV i32m1 arithmetic EmitC route family
+
+**Date**: 2026-05-16
+**Task**: RVV i32m1 arithmetic EmitC route family
+**Branch**: `main`
+
+### Summary
+
+Generalized the plugin-owned RVV i32m1 add EmitC route into an add/sub/mul
+arithmetic route family with selected object/header artifact export and real
+`ssh rvv` link/run correctness evidence for all three routes.
+
+### Main Changes
+
+- Added an RVV plugin-owned i32m1 arithmetic route descriptor covering
+  `tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`, and `tcrv_rvv.i32_mul`.
+- Preserved the explicit ABI SSA contract for `lhs`, `rhs`, `out`, and `n`
+  while mapping each route to its RVV intrinsic.
+- Expanded the RVV target support bundle to register operation-specific
+  object/header/component/translate routes without adding RVV names to common
+  target artifact export code.
+- Added selected dispatch and EmitC materialization coverage for sub and mul,
+  and rewrote the unsupported-shape fixture to fail closed on mixed arithmetic.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | target(rvv): generalize i32m1 emitc arithmetic routes |
+
+### Testing
+
+- [OK] `cmake --build build --target TianChenRVRVVPlugin TianChenRVRVVTarget -- -j2`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -- -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -- -j2`
+- [OK] Focused `tcrv-opt --tcrv-materialize-emitc-lowerable-routes | FileCheck` for add/sub/mul, negative, missing ABI, and missing store cases.
+- [OK] Focused `tcrv-translate --tcrv-emit-selected-emitc-artifact` object/header/export checks for add/sub/mul selected dispatch and selected-path artifacts.
+- [OK] `cmake --build build --target check-tianchenrv -- -j2` (87/87 tests)
+- [OK] `ssh rvv` link/run harnesses for add/sub/mul artifacts under `artifacts/tmp/rvv_i32m1_arithmetic_route_family/20260516T101424Z`
+- [OK] `git diff --check`
+- [OK] Changed-surface scans: common `TargetArtifactExport.*` has no RVV intrinsic/header/operation route names; legacy descriptor/direct-C/source-export hits were limited to existing dialect boundary comments.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
