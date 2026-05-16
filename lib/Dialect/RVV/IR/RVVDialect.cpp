@@ -1,6 +1,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 
@@ -280,14 +281,6 @@ bool isSupportedI32Vector(mlir::Type type) {
   return !getI32VectorLMUL(type).empty();
 }
 
-bool isSupportedI32LMUL(llvm::StringRef lmul) {
-  return lmul == "m1" || lmul == "m2";
-}
-
-bool isSupportedRVVFirstSliceConfig(std::int64_t sew, llvm::StringRef lmul) {
-  return sew == 32 && isSupportedI32LMUL(lmul);
-}
-
 mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
                                                  mlir::Value value,
                                                  llvm::StringRef role) {
@@ -307,7 +300,7 @@ mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
     return op->emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
               "metadata for bounded RVV i32 dataflow";
-  if (expectedSEW.getInt() != 32)
+  if (expectedSEW.getInt() != getRVVFirstSliceSEWBits())
     return op->emitOpError()
            << "requires " << role
            << " type to agree with enclosing tcrv_rvv.with_vl SEW32 "
@@ -521,8 +514,8 @@ mlir::LogicalResult SetVLOp::verify() {
     return emitOpError()
            << "requires result type to be !tcrv_rvv.vl";
 
-  if (!isSupportedRVVFirstSliceConfig(static_cast<std::int64_t>(getSew()),
-                                      getLmul()))
+  if (!isRVVFirstSliceDataflowConfig(static_cast<std::int64_t>(getSew()),
+                                     getLmul()))
     return emitOpError()
            << "requires bounded RVV first-slice compile-time config to be "
               "SEW32 with LMUL \"m1\" or \"m2\"";
@@ -576,7 +569,7 @@ mlir::LogicalResult WithVLOp::verify() {
   auto sew = op->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
   auto lmul = op->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   if (sew && lmul &&
-      !isSupportedRVVFirstSliceConfig(sew.getInt(), lmul.getValue()))
+      !isRVVFirstSliceDataflowConfig(sew.getInt(), lmul.getValue()))
     return emitOpError()
            << "requires bounded RVV first-slice compile-time config to be "
               "SEW32 with LMUL \"m1\" or \"m2\"";

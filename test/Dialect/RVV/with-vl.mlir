@@ -71,3 +71,43 @@ module {
     } : !tcrv_rvv.vl
   }
 }
+
+// -----
+
+module {
+  tcrv.exec.kernel @rvv_with_vl_reject_sew_mismatch {
+    %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %vl = tcrv_rvv.setvl %avl {
+      lmul = "m1",
+      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      sew = 32 : i64
+    } : index -> !tcrv_rvv.vl
+    // expected-error@+1 {{requires bounded RVV first-slice compile-time config to be SEW32 with LMUL "m1" or "m2"}}
+    tcrv_rvv.with_vl %vl attributes {
+      lmul = "m1",
+      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      sew = 16 : i64
+    } {
+    } : !tcrv_rvv.vl
+  }
+}
+
+// -----
+
+module {
+  tcrv.exec.kernel @rvv_with_vl_reject_lmul_mismatch {
+    %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %vl = tcrv_rvv.setvl %avl {
+      lmul = "m1",
+      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      sew = 32 : i64
+    } : index -> !tcrv_rvv.vl
+    // expected-error@+1 {{requires optional 'lmul' metadata to match defining tcrv_rvv.setvl}}
+    tcrv_rvv.with_vl %vl attributes {
+      lmul = "m2",
+      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      sew = 32 : i64
+    } {
+    } : !tcrv_rvv.vl
+  }
+}

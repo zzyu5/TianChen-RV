@@ -135,6 +135,18 @@ compiler config facts.
   or ABI values. They must not be encoded as these compile-time config
   capability facts. Deleted local RVV element-count metadata must not be
   reintroduced as a runtime trip count or artifact descriptor.
+- The selected i32m1 arithmetic EmitC route must consume one RVV-owned
+  config/VL contract shared with RVV dialect verification. That contract
+  validates `tcrv_rvv.setvl` and `tcrv_rvv.with_vl` as the same compile-time
+  SEW32, LMUL m1, tail agnostic, mask agnostic config; verifies that
+  `with_vl` consumes the visible `setvl` VL result; and keeps AVL/VL as
+  runtime SSA values. Dialect-level bounded dataflow may parse non-executable
+  sibling config such as i32m2 when explicitly modeled, but the selected
+  i32m1 arithmetic artifact route must fail closed before route payload
+  construction if the selected body is not the exact i32m1 config.
+- Target artifact export may consume the selected emission-plan route and
+  runtime ABI metadata, but it must not re-derive RVV SEW/LMUL/policy/VL
+  semantics in common target code.
 
 ### 4. Validation & Error Matrix
 
@@ -145,6 +157,13 @@ compiler config facts.
   legality error.
 - Explicit selected RVV variant without `tcrv_rvv` ops in its body -> fatal
   legality error.
+- Selected i32m1 arithmetic route whose `setvl` / `with_vl` compile-time
+  config does not match SEW32, LMUL m1, tail agnostic, mask agnostic -> fail
+  before EmitC call payload construction.
+- Selected i32m1 arithmetic route whose `with_vl` does not consume the visible
+  `setvl` VL SSA result -> fail before EmitC call payload construction.
+- Selected route id whose expected add/sub/mul op does not match the typed
+  arithmetic op in the selected body -> fail before target artifact export.
 - Capability/profile facts may still be validated for replay and typed-body
   checks, but they must not create proposal, boundary, emission-plan, runtime
   ABI, artifact, or metadata-only route authority by themselves.
@@ -165,6 +184,10 @@ compiler config facts.
   no RVV proposal.
 - Legality tests must reject stale metadata-only RVV variants that do not
   contain explicit typed `tcrv_rvv` ops.
+- Dialect and EmitC route tests must cover the i32m1 config/VL contract:
+  missing or mismatched `with_vl` config, non-agnostic policy, unsupported
+  LMUL for i32m1 artifact export, `with_vl` consuming a non-`setvl` VL token,
+  and stale selected route/op combinations.
 - Lowering-boundary, emission-readiness, manifest, target export, and probe
   replay tests must not require RVV boundary, runtime ABI, artifact, or route
   metadata from bare capability evidence.

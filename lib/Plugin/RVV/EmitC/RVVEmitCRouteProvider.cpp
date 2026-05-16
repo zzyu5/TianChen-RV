@@ -3,6 +3,7 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
@@ -125,20 +126,6 @@ struct RVVI32M1ArithmeticSlice {
   support::RuntimeABIParameter outABI;
   support::RuntimeABIParameter runtimeElementCountABI;
 };
-
-llvm::Error requireAgnosticPolicy(tcrv::rvv::PolicyAttr policy,
-                                  llvm::StringRef context) {
-  if (!policy)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) + " requires finite RVV policy metadata");
-  if (policy.getTail() != tcrv::rvv::TailPolicy::Agnostic ||
-      policy.getMask() != tcrv::rvv::MaskPolicy::Agnostic)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " supports only tail agnostic, mask agnostic policy for the bounded "
-        "i32m1 EmitC route");
-  return llvm::Error::success();
-}
 
 std::string formatRuntimeABIExpectedRoles(
     llvm::ArrayRef<support::RuntimeABIParameterRole> expectedRoles) {
@@ -296,31 +283,11 @@ collectRVVI32M1ArithmeticSlice(tcrv::exec::VariantOp variant) {
   slice.setvl = setvls.front();
   slice.withVL = withVLs.front();
 
-  if (slice.setvl.getSew() != 32 || slice.setvl.getLmul() != "m1")
-    return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route supports only SEW32 LMUL m1 i32 arithmetic");
-  if (llvm::Error error =
-          requireAgnosticPolicy(slice.setvl.getPolicy(), "tcrv_rvv.setvl"))
-    return std::move(error);
-
-  auto withVLSEW =
-      slice.withVL->getAttrOfType<mlir::IntegerAttr>("sew");
-  auto withVLLMUL =
-      slice.withVL->getAttrOfType<mlir::StringAttr>("lmul");
-  auto withVLPolicy =
-      slice.withVL->getAttrOfType<tcrv::rvv::PolicyAttr>("policy");
-  if (!withVLSEW || withVLSEW.getInt() != 32 || !withVLLMUL ||
-      withVLLMUL.getValue() != "m1")
-    return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route requires tcrv_rvv.with_vl SEW32 LMUL m1 "
-        "metadata");
-  if (llvm::Error error =
-          requireAgnosticPolicy(withVLPolicy, "tcrv_rvv.with_vl"))
-    return std::move(error);
-  if (slice.withVL.getVl() != slice.setvl.getVl())
-    return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route requires tcrv_rvv.with_vl to consume the "
-        "visible tcrv_rvv.setvl result");
+  tcrv::rvv::RVVConfigContractDiagnostic configDiagnostic =
+      tcrv::rvv::validateRVVI32M1ArithmeticConfigVLContract(slice.setvl,
+                                                            slice.withVL);
+  if (!configDiagnostic.ok)
+    return makeRVVEmitCRouteProviderError(configDiagnostic.message);
 
   llvm::Expected<support::RuntimeABIParameter> runtimeElementCountABI =
       getRuntimeABIParameterBindingFromValue(

@@ -122,6 +122,27 @@ module {
 // -----
 
 module {
+  tcrv.exec.kernel @rvv_dataflow_reject_missing_with_vl_policy {
+    %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+    %vl = tcrv_rvv.setvl %avl {
+      lmul = "m1",
+      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      sew = 32 : i64
+    } : index -> !tcrv_rvv.vl
+    tcrv_rvv.with_vl %vl attributes {
+      lmul = "m1",
+      sew = 32 : i64
+    } {
+      // expected-error@+1 {{requires enclosing tcrv_rvv.with_vl to carry explicit policy metadata for bounded RVV i32 dataflow}}
+      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+    } : !tcrv_rvv.vl
+  }
+}
+
+// -----
+
+module {
   tcrv.exec.kernel @rvv_dataflow_reject_element_count {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
     %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value

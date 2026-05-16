@@ -1820,3 +1820,40 @@ arithmetic route family with selected object/header artifact export and real
 ### Next Steps
 
 - None - task complete
+
+
+## Session 91: RVV config/VL selected-boundary contract
+
+**Date**: 2026-05-16
+**Task**: RVV config/VL selected-boundary contract
+**Branch**: `main`
+
+### Summary
+
+Implemented a shared RVV-owned config/VL contract for the existing i32m1 arithmetic route family; wired dialect and plugin route validation to it; added focused negative coverage and completed full check-tianchenrv.
+
+### Main Changes
+
+- Added `RVVConfigContract` under the RVV dialect layer for SEW32/LMUL m1/m2 dataflow constants, i32m1 artifact-route config validation, agnostic policy checks, and setvl/with_vl runtime VL contract diagnostics.
+- Replaced route-provider-local SEW/LMUL/policy checks with `validateRVVI32M1ArithmeticConfigVLContract`, so add/sub/mul i32m1 route construction consumes one shared RVV-owned contract before EmitC payload construction.
+- Kept RVV intrinsic/header names local to RVV route provider/tests; common target scan outside `Target/RVV` returned no RVV intrinsic/header/config matches.
+- Added/regressed lit coverage for with_vl SEW/LMUL mismatch, missing policy, non-agnostic policy, unsupported i32m2 artifact route config, with_vl consuming a non-setvl VL token, and stale selected add route vs sub body.
+- Checks passed: focused CMake build, focused RVV dialect/EmitC/target lit set, `tianchenrv-rvv-dialect-test`, `tianchenrv-target-artifact-export-test`, and `cmake --build build --target check-tianchenrv -j2` (90/90).
+- No generated C/header/object payload changed: diff only rewired pre-payload route validation; route headers, type mappings, ABI parameter order, call opaque steps, callable header export, and object compilation code stayed unchanged. Prior c70febc ssh rvv evidence remains applicable.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
