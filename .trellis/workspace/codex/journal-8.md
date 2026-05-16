@@ -56,6 +56,68 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 99: Built-in extension catalog target-layer decoupling
+
+**Date**: 2026-05-17
+**Task**: Built-in extension catalog target-layer decoupling
+**Branch**: `main`
+
+### Summary
+
+Moved built-in extension bundle manifest ownership from target artifact export
+into the built-in plugin catalog, then rewired target artifact export,
+target translate route registration, `tcrv-opt`, and `tcrv-translate` to consume
+that plugin/catalog front door.
+
+### Main Changes
+
+- Added `plugin::registerBuiltinExtensionBundles(...)` beside
+  `plugin::registerBuiltinExtensionPlugins(...)`, with the concrete built-in
+  RVV/Offload/Toy/Template/TensorExtLite/Scalar manifest list now owned in
+  `lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp`.
+- Reduced `lib/Target/Builtin/BuiltinTargetArtifactExporters.cpp` to target
+  artifact exporter aggregation only: it delegates catalog assembly to
+  `Plugin/BuiltinExtensionPlugins` and continues to use
+  `ExtensionBundleRegistry::registerTargetArtifactExportersForEnabledPlugins`.
+- Removed target namespace built-in extension bundle helper declarations and
+  migrated target translate, `tcrv-opt`, `tcrv-translate`, and target artifact
+  tests to the plugin catalog API.
+- Preserved current RVV object/header composite and TensorExtLite header route
+  behavior; Toy, Template, Offload, and Scalar still contribute no current
+  target artifact route authority.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test tcrv-translate tcrv-opt -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-tensorext-lite-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- [OK] focused lit from `build/test` for TensorExtLite/RVV/Toy target artifact
+  routes and registry front doors: 8/8 passed.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 100/100 lit tests
+  passed.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-17-built-in-extension-catalog-target-layer-decoupling`
+- [OK] Targeted scans: target builtin artifact aggregation has no concrete
+  plugin headers, no hard-coded extension family bundle list, and the source
+  diff adds no descriptor/direct-C/source-export authority.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 99: Common extension target artifact bundle registration seam
 
 **Date**: 2026-05-17

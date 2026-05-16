@@ -3,6 +3,7 @@ add_mlir_library(TianChenRVBuiltinPlugins
 
   LINK_LIBS PUBLIC
   TianChenRVPlugin
+  TianChenRVTarget
   TianChenRVOffloadPlugin
   TianChenRVRVVPlugin
   TianChenRVScalarPlugin

@@ -5,7 +5,6 @@
 
 namespace tianchenrv::target {
 
-class ExtensionBundleRegistry;
 class TargetArtifactExporterRegistry;
 
 } // namespace tianchenrv::target
@@ -15,11 +14,6 @@ class ExtensionPluginRegistry;
 } // namespace tianchenrv::plugin
 
 namespace tianchenrv::target {
-
-llvm::Error registerBuiltinExtensionBundles(ExtensionBundleRegistry &registry);
-
-llvm::Error registerBuiltinExtensionBundlePlugins(
-    plugin::ExtensionPluginRegistry &registry);
 
 llvm::Error registerBuiltinTargetArtifactExporters(
     TargetArtifactExporterRegistry &registry);

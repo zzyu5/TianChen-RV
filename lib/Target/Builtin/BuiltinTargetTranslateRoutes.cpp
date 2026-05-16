@@ -1,7 +1,7 @@
 #include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
 
+#include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
 
 #include "llvm/ADT/Twine.h"
@@ -25,7 +25,7 @@ llvm::Error makeBuiltinTranslateRouteError(llvm::Twine message) {
 llvm::Error
 registerBuiltinTargetTranslateRoutes(TargetTranslateRouteRegistry &registry) {
   plugin::ExtensionPluginRegistry plugins;
-  if (llvm::Error error = registerBuiltinExtensionBundlePlugins(plugins))
+  if (llvm::Error error = plugin::registerBuiltinExtensionPlugins(plugins))
     return error;
 
   for (const plugin::ExtensionPlugin *extensionPlugin :

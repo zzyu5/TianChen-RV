@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
+#include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
@@ -840,8 +841,9 @@ module {
 
 bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   ExtensionBundleRegistry bundles;
-  if (!expectSuccess(registerBuiltinExtensionBundles(bundles),
-                     "register built-in extension bundles"))
+  if (!expectSuccess(tianchenrv::plugin::registerBuiltinExtensionBundles(
+                         bundles),
+                     "register built-in extension bundles through catalog"))
     return false;
   if (bundles.size() != 6) {
     llvm::errs() << "built-in extension bundle registry expected 6 bundles\n";
@@ -1191,7 +1193,8 @@ bool expectOffloadTargetArtifactExportersAbsent() {
   }
 
   ExtensionPluginRegistry allPlugins;
-  if (!expectSuccess(registerBuiltinExtensionBundlePlugins(allPlugins),
+  if (!expectSuccess(tianchenrv::plugin::registerBuiltinExtensionPlugins(
+                         allPlugins),
                      "register built-in extension plugins for offload target "
                      "exporter absence check"))
     return false;
