@@ -75,11 +75,8 @@ llvm::Error registerOffloadExtensionBundle(
 }
 
 llvm::Error registerToyExtensionBundle(ExtensionBundleRegistry &registry) {
-  ExtensionBundle bundle("toy-extension-bundle",
-                         plugin::toy::getToyExtensionPluginName(),
-                         plugin::registerToyExtensionPlugin);
-  bundle.addRequiredDialectName("tcrv_toy");
-  return registry.registerBundle(bundle);
+  return registerManifestOwnedExtensionBundle(
+      registry, "toy-extension-bundle", plugin::registerToyExtensionPlugin);
 }
 
 llvm::Error registerTemplateExtensionBundle(

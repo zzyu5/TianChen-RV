@@ -1,14 +1,42 @@
-add_mlir_library(TianChenRVToyPlugin
+add_mlir_library(TianChenRVToyConstructionProtocol
   ToyConstructionProtocol.cpp
+
+  PARTIAL_SOURCES_INTENDED
+
+  LINK_LIBS PUBLIC
+  TianChenRVPluginConstructionProtocol
+  MLIRIR
+  MLIRSupport
+)
+
+add_mlir_library(TianChenRVToyEmitCRouteProvider
   ToyEmitCRouteProvider.cpp
-  ToyExtensionPlugin.cpp
+
+  PARTIAL_SOURCES_INTENDED
 
   LINK_LIBS PUBLIC
   TianChenRVConversionEmitC
   TianChenRVPlugin
-  TianChenRVPluginConstructionProtocol
+  TianChenRVToyConstructionProtocol
   TianChenRVSupport
   TianChenRVToyDialect
+  MLIRIR
+  MLIRSupport
+)
+
+add_mlir_library(TianChenRVToyPlugin
+  ToyExtensionPlugin.cpp
+
+  PARTIAL_SOURCES_INTENDED
+
+  LINK_LIBS PUBLIC
+  TianChenRVConversionEmitC
+  TianChenRVPlugin
+  TianChenRVSupport
+  TianChenRVToyConstructionProtocol
+  TianChenRVToyDialect
+  TianChenRVToyEmitCRouteProvider
+  TianChenRVToyTarget
   MLIRIR
   MLIRSupport
 )

@@ -1,9 +1,13 @@
-// RUN: not tcrv-opt %s --split-input-file --tcrv-execution-planning-pipeline 2>&1 | FileCheck %s --check-prefix=PIPE
+// RUN: tcrv-opt %s --split-input-file --tcrv-execution-planning-pipeline | FileCheck %s --check-prefix=PIPE
 
 module {
-  // PIPE: TianChen-RV execution plan coherence check failed for kernel @pipeline_toy_template
-  // PIPE-SAME: selected target artifact front door @toy_template_first_slice as direct variant route 'toy-template-compute-emitc-route'
-  // PIPE-SAME: names unknown target artifact export route id 'toy-template-compute-emitc-route'
+  // PIPE: tcrv.exec.kernel @pipeline_toy_template
+  // PIPE: tcrv_toy.compute_skeleton {
+  // PIPE-SAME: selected_variant = @toy_template_first_slice
+  // PIPE: artifact_kind = "metadata-diagnostic"
+  // PIPE-SAME: lowering_pipeline = "toy-template-compute-emitc-route"
+  // PIPE-SAME: status = "supported"
+  // PIPE-NOT: names unknown target artifact export route id 'toy-template-compute-emitc-route'
   tcrv.exec.kernel @pipeline_toy_template {
     tcrv.exec.capability @toy_template {
       id = "toy.template",

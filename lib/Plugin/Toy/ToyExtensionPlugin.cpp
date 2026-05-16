@@ -4,6 +4,8 @@
 #include "TianChenRV/Dialect/Toy/IR/ToyDialect.h"
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyEmitCRouteProvider.h"
+#include "TianChenRV/Target/TargetArtifactExport.h"
+#include "TianChenRV/Target/Toy/ToyTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -699,8 +701,8 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
       constructionRoute.emissionKind, route.getRouteID(),
       constructionRoute.runtimeABI, constructionRoute.artifactKind,
       "Toy selected compute_skeleton route materializes an EmitC module "
-      "through the common TCRVEmitCLowerableRoute materializer; target "
-      "artifact export remains out of scope for this bounded template");
+      "through the common TCRVEmitCLowerableRoute materializer before the "
+      "Toy metadata/source target artifact export boundary");
   out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
   out.setRuntimeABIName(constructionRoute.runtimeABIName);
   out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);
@@ -832,6 +834,17 @@ llvm::Error ToyExtensionPlugin::buildVariantEmitCLowerableRoute(
     return error;
 
   return toy::buildToyTemplateEmitCLowerableRoute(request, out);
+}
+
+llvm::Error ToyExtensionPlugin::configureTargetSupportExtensionBundle(
+    target::ExtensionBundle &bundle) const {
+  bundle.addRequiredDialectName("tcrv_toy");
+  return target::toy::configureToyTargetSupportExtensionBundle(bundle);
+}
+
+llvm::Error ToyExtensionPlugin::registerTargetSupportTranslateRoutes(
+    target::TargetTranslateRouteRegistry &registry) const {
+  return target::toy::registerToyTargetSupportTargetTranslateRoutes(registry);
 }
 
 } // namespace toy

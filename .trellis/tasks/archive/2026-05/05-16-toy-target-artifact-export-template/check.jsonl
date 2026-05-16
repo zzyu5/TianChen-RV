@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "global red-line verification"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "verify registry/interface routing and absence of family branches in common/core"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify target artifact handoff and no descriptor/direct-C route restoration"}
+{"file": ".trellis/spec/testing/index.md", "reason": "verify focused C++ and lit/FileCheck evidence"}

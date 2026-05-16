@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV architecture and stack invariants"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "extension-family plugin construction and target/export evidence boundary"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin registry, emission plan, selected boundary, target-support route contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC route and selected emission-plan to target artifact handoff contract"}
+{"file": ".trellis/spec/testing/index.md", "reason": "focused MLIR/FileCheck and C++ test evidence policy"}
