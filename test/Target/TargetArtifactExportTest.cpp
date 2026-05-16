@@ -383,8 +383,9 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   }
   if (rvvBundle->requiresTargetArtifactRouteMetadata() ||
       !rvvBundle->getTargetArtifactRouteMetadata().empty()) {
-    llvm::errs() << "RVV extension bundle frontdoor still publishes deleted "
-                    "runtime-callable direct C route metadata\n";
+    llvm::errs() << "RVV extension bundle frontdoor still publishes "
+                    "target-artifact route metadata without a materialized "
+                    "artifact route\n";
     return false;
   }
 
@@ -398,7 +399,8 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   if (scalarBundle->requiresTargetArtifactRouteMetadata() ||
       !scalarBundle->getTargetArtifactRouteMetadata().empty()) {
     llvm::errs() << "Scalar extension bundle frontdoor still publishes "
-                    "deleted runtime-callable direct C route metadata\n";
+                    "target-artifact route metadata without a materialized "
+                    "artifact route\n";
     return false;
   }
   if (!scalarBundle->getRequiredDialectNames().empty() ||
@@ -661,8 +663,9 @@ bool expectRVVTargetSupportBundleExtractionRegistration() {
           "register RVV target-support artifact exporter bundles"))
     return false;
   if (pluginExporters.size() != 0) {
-    llvm::errs() << "RVV target-support bundle still contributes deleted "
-                    "direct C exporter bundles\n";
+    llvm::errs() << "RVV target-support bundle still contributes "
+                    "target-artifact exporter bundles without materialized "
+                    "artifact routes\n";
     return false;
   }
   if (!expectSuccess(
@@ -689,8 +692,9 @@ bool expectRVVTargetSupportBundleExtractionRegistration() {
   if (bundle.requiresTargetArtifactRouteMetadata() ||
       !bundle.getTargetArtifactRouteMetadata().empty() ||
       !bundle.getLoweringBoundaryOps().empty()) {
-    llvm::errs() << "RVV target-support bundle still owns deleted boundary or "
-                    "direct C route metadata requirements\n";
+    llvm::errs() << "RVV target-support bundle still owns boundary or "
+                    "target-artifact route metadata requirements without a "
+                    "materialized artifact route\n";
     return false;
   }
 
@@ -710,7 +714,8 @@ bool expectRVVTargetSupportBundleExtractionRegistration() {
 
   if (registry.size() != 0 || registry.compositeSize() != 0) {
     llvm::errs() << "RVV target-support exporter bundle still registers "
-                    "deleted direct C routes\n";
+                    "target-artifact routes without materialized artifact "
+                    "routes\n";
     return false;
   }
 
@@ -955,8 +960,8 @@ bool expectTargetTranslateRouteRegistryShape() {
                      "register built-in target translate routes"))
     return false;
   if (builtinRoutes.size() != 0) {
-    llvm::errs() << "built-in target translate routes still expose deleted "
-                    "direct C route manifests, got "
+    llvm::errs() << "built-in target translate routes still expose route "
+                    "manifests without materialized artifact routes, got "
                  << builtinRoutes.size() << "\n";
     return false;
   }
@@ -1783,8 +1788,8 @@ int main() {
     return 1;
   }
   if (builtinRegistry.compositeSize() != 0) {
-    llvm::errs() << "expected no built-in composite target artifact routes "
-                    "after direct C deletion, got "
+    llvm::errs() << "expected no built-in composite target artifact routes, "
+                    "got "
                  << builtinRegistry.compositeSize() << "\n";
     return 1;
   }

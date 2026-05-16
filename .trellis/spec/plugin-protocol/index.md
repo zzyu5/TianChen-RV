@@ -12,7 +12,8 @@ This layer defines how hardware/runtime extensions integrate with TianChen-RV.
 - [ ] Does core code call registry/interface APIs rather than `hasRVV`/`hasIME`/`hasSophgo` branches?
 - [ ] If core interface changes are needed, are they justified by a genuinely new execution semantic?
 - [ ] Can current plugin work start from TianChen-RV MLIR, selected-boundary IR, typed extension-family bodies, or selected-path metadata without requiring high-level op lowering first?
-- [ ] Does the work avoid descriptor-driven computation and direct descriptor-to-C as a long-term path?
+- [ ] Does the work avoid descriptor-driven computation and descriptor-driven
+      C/source export as a long-term path?
 - [ ] Does documentation state that pluginization is local work, not zero work?
 - [ ] Are plugin interfaces, registries, dialect registrations, and lowering hooks implemented in C++/MLIR rather than Python?
 

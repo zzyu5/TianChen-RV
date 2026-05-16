@@ -184,8 +184,8 @@ Each review must check whether the worker preserved the TianChen-RV project boun
 - Concrete computation stays in TCRV extension families such as RVV, IME,
   TensorExt, Offload, scalar fallback, or future vendor/custom families.
 - The current main route is extension family ops -> EmitC -> intrinsic/vendor
-  builtin/runtime C/C++; descriptor-driven computation and direct descriptor-to-C
-  export are implementation debt, not architecture.
+  builtin/runtime C/C++; descriptor-driven computation and descriptor-driven
+  C/source export are implementation debt, not architecture.
 - Capability objects participate in compiler decisions rather than appearing only as comments or strings.
 - RVV hardware facts, compile-time variant config, runtime SSA/control values,
   and descriptor-local bounded parameters remain explicitly separated.

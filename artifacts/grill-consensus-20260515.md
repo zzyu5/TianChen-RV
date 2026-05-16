@@ -625,7 +625,7 @@ Deletion means removing active authority from:
 
 ```text
 descriptor-driven computation;
-direct descriptor-to-C or route-to-C exporters;
+descriptor-driven C/source or route-to-C exporters;
 microkernel wrapper ops as executable semantic authority;
 route metadata as add/sub/mul/RVV semantic source;
 target export as compute synthesis;

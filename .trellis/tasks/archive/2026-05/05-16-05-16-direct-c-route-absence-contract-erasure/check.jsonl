@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Confirm changes still respect global stack and deletion-only boundary."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify stale direct-C absence wording is erased from active lowering/runtime contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify remaining wording aligns with materialized EmitC as future route."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify generic registry behavior remains plugin-local and not old route-family-specific."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify active tests are specified around current generic behavior, not old direct-C route names."}

@@ -19,47 +19,46 @@ TCRV extension family ops
 The default native compiler is clang/LLVM. GCC is a compatibility path.
 Vendor compilers are extension-specific compatibility paths.
 
-Direct descriptor-to-C string export is not the architecture. Direct
-RVV/scalar/RVV+scalar dispatch C compute-body exporters that synthesize source
-from selected metadata, family records, or route records are deleted or
-fail-closed until a real materialized MLIR EmitC module route exists. Existing
-descriptor-backed source/object/bundle helpers are historical residue,
-deletion targets, or fail-closed implementation debt. They must not be used as
-transition architecture, production input, evidence authority, or the template
-for new extension work.
+Descriptor-driven C string export is not the architecture. C compute-body
+printers that synthesize source from selected metadata, family records, or
+route records are removed or fail closed until a real materialized MLIR EmitC
+module route exists. Existing descriptor-backed source/object/bundle helpers
+are historical residue, deletion targets, or fail-closed implementation debt.
+They must not be used as transition architecture, production input, evidence
+authority, or the template for new extension work.
 
-## Scenario: Direct C Semantic Exporter Deleted Routes
+## Scenario: Metadata-Driven C Exporter Erasure
 
 ### 1. Scope / Trigger
 
 This applies when RVV, scalar fallback, or RVV+scalar dispatch selected paths
-would previously have emitted runtime-callable C source, C headers,
+would historically have emitted runtime-callable C source, C headers,
 relocatable objects, self-check sources, or artifact bundles from target-owned
 records rather than from a materialized MLIR EmitC module.
 
 ### 2. Signatures
 
-- Deleted direct translate options include former standalone RVV smoke-probe,
-  RVV microkernel, self-check, scalar microkernel, and RVV+scalar dispatch
-  direct C exporters.
-- Deleted production route ids include the RVV smoke-probe standalone source,
-  RVV/scalar microkernel source, header, object, dispatch
-  source/header/object, self-check source/object, and bundle-derived route
-  families.
-- There is no remaining standalone direct C source route exception in the
-  built-in target artifact exporter set. Future source output requires a real
+- Legacy translate options for standalone smoke-probe, microkernel,
+  self-check, scalar fallback, and RVV+scalar dispatch C outputs are not
+  current target artifact route identifiers.
+- Legacy production route ids for generated source, header, object,
+  self-check, and bundle-derived C outputs are not current target artifact
+  route identifiers.
+- There is no standalone source-output exception in the built-in target
+  artifact exporter set. Future source output requires a real
   extension-family IR plus materialized MLIR EmitC module route.
 
 ### 3. Contracts
 
-- Plugin emission plans for deleted runtime-callable C routes must return
-  `status = "unsupported"`, `runtime_abi_kind =
+- Plugin emission plans for source-like outputs without a materialized EmitC
+  route must return `status = "unsupported"`, `runtime_abi_kind =
   "unsupported-plugin-runtime-abi"`, `runtime_abi_name =
   "unsupported-emission-runtime-abi"`, and `runtime_glue_role =
   "no-runtime-glue-unsupported"`.
-- Built-in target artifact exporter registration must not publish deleted
-  RVV/scalar/dispatch source, header, object, self-check, or bundle routes as
-  active production routes.
+- Built-in target artifact exporter registration must publish only currently
+  supported production routes. It must not use historical RVV/scalar/dispatch
+  source, header, object, self-check, or bundle identifiers as current route
+  authority.
 - Public target source/header/object front doors must fail closed when no
   supported emission-plan route remains.
 
@@ -70,13 +69,14 @@ records rather than from a materialized MLIR EmitC module.
 - Generic source/header/object front door sees only unsupported plans ->
   reports no supported route and prints no C body, header, object, or bundle
   index.
-- Plugin-selected path reaches emission planning -> emits the deleted-route
-  unsupported diagnostic, not supported artifact metadata.
+- Plugin-selected path reaches emission planning without a materialized EmitC
+  route -> emits a generic unsupported diagnostic for the missing current
+  route, not supported artifact metadata.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: tests assert unsupported diagnostics and route absence for deleted
-  direct C route families.
+- Good: tests assert unsupported diagnostics and generic fail-closed registry
+  behavior without treating old route names as current API.
 - Base: stale standalone RVV smoke-probe route fixtures must not remain as
   active compiler inputs and must not emit C.
 - Bad: selected metadata, family records, route records, or descriptor mirrors
@@ -85,9 +85,11 @@ records rather than from a materialized MLIR EmitC module.
 
 ### 6. Tests Required
 
-- C++ registry tests proving deleted route families are not registered.
-- lit tests proving direct options and generic front doors fail closed without
-  emitted C text.
+- C++ registry tests proving the built-in target artifact route set contains
+  only currently supported routes and preserves generic duplicate/invalid
+  registration diagnostics.
+- lit tests proving removed direct options and generic front doors fail closed
+  without emitted C text.
 - Full `check-tianchenrv` must not rely on stale positive direct-C source,
   header, object, bundle, or e2e dry-run fixtures.
 
@@ -102,7 +104,7 @@ selected route metadata -> raw C body/header/object/bundle
 Correct:
 
 ```text
-selected route metadata -> unsupported deleted-route diagnostic
+selected route metadata -> unsupported missing-materialized-EmitC diagnostic
 future rebuild -> materialized MLIR EmitC module -> C/C++ emitter
 ```
 
@@ -247,7 +249,8 @@ Rules:
   metadata must not make a direct C source artifact plan legal. Future source
   output requires a materialized MLIR EmitC module route with a new explicit
   source artifact contract; until then source-like mentions may appear only in
-  unsupported deleted-route diagnostics or tests proving absence;
+  unsupported missing-materialized-EmitC diagnostics or tests proving generic
+  fail-closed behavior;
 - for supported paths, carry required capability symbol refs that are a safe
   subset of the selected variant `requires` metadata;
 - for supported paths, require non-empty emission kind, lowering pipeline
@@ -434,7 +437,7 @@ Correct:
 
 ```text
 selected RVV metadata boundary
-  -> unsupported/deleted-route diagnostic
+  -> unsupported missing-materialized-EmitC diagnostic
 future rebuild:
 explicit extension-family ops -> materialized MLIR EmitC module -> artifact
 ```
@@ -688,10 +691,10 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   by delegating to target-owned registration functions or, for route groups
   with an extension plugin manifest hook, by asking that plugin to configure
   its target-support `ExtensionBundle` contribution.
-- The current non-plugin single-candidate route set is empty after direct
-  smoke-probe source exporter deletion.
+- The current non-plugin single-candidate route set is empty until a
+  materialized source route is rebuilt.
 - The current plugin-owned executable runtime-callable C route set is empty
-  after direct C semantic exporter deletion. RVV selected microkernel
+  until a materialized source route is rebuilt. RVV selected microkernel
   source/header/object routes, scalar selected fallback source/header/object
   routes, and RVV+scalar dispatch source/header/object routes must not be
   registered as supported target artifact routes.
@@ -707,7 +710,7 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   publish route ids or stand in for compiler-owned lowering.
 - The helper may include scalar/offload/Toy/template target headers for
   current legacy bundle composition, but target-support-enabled extensions must
-  activate any non-deleted route contribution through the plugin/manifest hook.
+  activate any supported route contribution through the plugin/manifest hook.
   In particular, central built-in code must not include the RVV target-support
   bundle header, directly call the RVV target-support helper, iterate RVV
   direct/RVV+scalar dispatch manifests as central route truth, or keep scalar
@@ -715,10 +718,10 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 - Generic public translate helpers should call this helper once and then call
   `exportTargetArtifact` or `exportTargetHeaderArtifact`. The former
   source-specific export API is deleted with the source-only front door.
-- Source artifacts are not generic-front-door selectable in the current
-  deleted-route state. Source route ids may remain only as exact-route,
-  bundle-component, or negative historical coverage where a target-owned caller
-  has already proven a non-semantic packaging need.
+- Source artifacts are not generic-front-door selectable until a materialized
+  EmitC-backed source contract exists. Source route ids may remain only as
+  exact-route or bundle-component packaging metadata where a target-owned
+  caller has already proven a non-semantic packaging need.
 - Extension/plugin-owned artifact routes may be registered through a
   target-layer plugin-exporter bundle registry keyed by extension plugin name.
   Public tools that already own an `ExtensionPluginRegistry` must pass that same
@@ -726,8 +729,9 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   can contribute their plugin-owned target artifact exporters through the
   generic boundary. A plugin-owned exporter bundle may additionally declare
   required enabled extension plugins for composite routes whose selected-plan
-  contract spans more than one plugin-owned component. Deleted Template, Toy,
-  TensorExtLite, Offload, RVV, scalar, and dispatch routes must contribute no
+  contract spans more than one plugin-owned component. Template, Toy,
+  TensorExtLite, Offload, RVV, scalar, and dispatch families without current
+  materialized artifact routes must contribute no
   route authority. Disabled
   or missing plugins must not silently publish their plugin-owned target routes.
   Later selected-plan export then fails closed as an unknown or unavailable
@@ -756,11 +760,10 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 
 - Good: the generic source-only front door is absent, while
   `--tcrv-export-target-header-artifact` and the generic object front door fail
-  closed for deleted Template/Toy/TensorExtLite/Offload/RVV/scalar/dispatch
-  routes and emit no source, header, object, or bundle bytes.
+  closed for families without current materialized artifact routes and emit no
+  source, header, object, or bundle bytes.
 - Base: historical `tcrv-export-scalar-*`, RVV direct microkernel, and
-  RVV+scalar dispatch route strings may appear only as negative deleted-route
-  coverage or absence checks, never as supported artifact selection.
+  RVV+scalar dispatch route strings are not supported artifact selection.
 - Bad: each generic translate helper manually repeats
   `registerRVVMicrokernelTargetExporters`,
   `registerScalarMicrokernelTargetExporters`, and similar target-owned route
@@ -772,14 +775,12 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 
 #### 6. Tests Required
 
-- C++ registry tests must prove the built-in helper registers no deleted
-  metadata artifact route ids, keeps duplicate/invalid custom registration
-  diagnostics, and does not expose deleted RVV/scalar/dispatch direct C route
-  ids or composite routes.
+- C++ registry tests must prove the built-in helper registers only currently
+  supported target artifact routes and keeps duplicate/invalid custom
+  registration diagnostics.
 - lit/FileCheck route tests must continue to cover generic front-door
-  fail-closed behavior for deleted Template/Toy/TensorExtLite/Offload/RVV/
-  scalar/dispatch routes and route spoofing failures that produce no executable
-  artifact.
+  fail-closed behavior for missing materialized artifact routes and route
+  spoofing failures that produce no executable artifact.
 - CMake checks must include the built-in Target support library in the tool and
   C++ test link graph.
 
@@ -869,9 +870,9 @@ registerBuiltinTargetTranslateRoutes(TargetTranslateRouteRegistry &registry);
   scalar direct, or RVV+scalar dispatch manifests. It should call
   `registerBuiltinTargetTranslateRoutes` once and then register each supported
   contributed route generically.
-- Deleted standalone direct-C helpers, including historical RVV smoke probe,
-  RVV microkernel, scalar microkernel, and RVV+scalar dispatch helpers, must
-  remain absent or fail closed until a rebuilt EmitC-module route owns them.
+- Historical standalone C helpers, including RVV smoke probe, RVV
+  microkernel, scalar microkernel, and RVV+scalar dispatch helpers, must remain
+  absent or fail closed until a rebuilt EmitC-module route owns them.
 - Target translate route registration does not change `TargetArtifactExport`
   semantics, exporter matching, route-local ABI validation, generated artifact
   contents, object compilation, bundle export, or evidence claims.
@@ -909,8 +910,8 @@ for (const TargetTranslateRoute &route : routes.getRoutes())
 
 The correct shape keeps supported route-family facts and callbacks in
 target-owned support modules, while the public tool supplies only the generic
-MLIR translate registration and dialect hook. Today, deleted direct-C semantic
-exporters contribute no route-family callbacks.
+MLIR translate registration and dialect hook. Today, historical metadata-driven
+C exporters contribute no route-family callbacks.
 
 The artifact-kind aware generic route may also dispatch supported non-source
 artifacts through target-owned exporters. Shared generic routing still validates
@@ -991,8 +992,8 @@ Historical RVV+scalar dispatch source/header/object/self-check manifests and
 route-family helper APIs are deleted as production route authority. Public
 tools and generic target-artifact front doors must not register these route
 families as supported executable C artifact paths. Historical add/sub/mul route
-names may appear only in negative deleted-route coverage, route-absence checks,
-or archived migration notes.
+names must not be used as active target artifact selection authority, test API,
+or diagnostic API.
 
 Future dispatch executable artifact support must be rebuilt through
 extension-family ops, a materialized common EmitC module, and the MLIR C/C++
@@ -1315,8 +1316,8 @@ llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
 
 ### 6. Tests Required
 
-- lit/FileCheck deleted-route coverage for generic source frontdoor route
-  absence.
+- lit/FileCheck coverage for generic source frontdoor fail-closed behavior when
+  no materialized EmitC route exists.
 - C++ registry coverage proving built-in target artifact exporters only expose
   the current allowed route set.
 - Plugin legality/emission coverage proving historical standalone smoke-probe
@@ -1334,7 +1335,7 @@ selected RVV metadata -> standalone RVV smoke-probe C source
 Correct:
 
 ```text
-selected RVV metadata -> unsupported/deleted-route diagnostic
+selected RVV metadata -> unsupported missing-materialized-EmitC diagnostic
 future rebuild:
 explicit extension-family ops -> materialized MLIR EmitC module -> artifact
 ```
@@ -1386,7 +1387,7 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   source/export authority for the selected path.
 - Deleted direct child `tcrv_rvv.*_microkernel` wrappers are no longer
   parseable active RVV dialect inputs. Historical references to those wrappers
-  are fail-closed deleted-route evidence only and must not be treated as
+  are fail-closed evidence only and must not be treated as
   selected compute truth, descriptor/config validation authority, or a source
   of callable ABI parameters.
 - RVV selected emission planning must not resolve lhs-input-buffer,
@@ -1395,7 +1396,7 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
 - Output must be no executable C source, no header, no object, and no
   self-check harness.
 - Historical selected metadata may remain parseable only as fail-closed input
-  for deleted-route diagnostics.
+  for unsupported missing-materialized-EmitC diagnostics.
 - Output must not include timestamps, absolute paths, raw logs, credentials,
   benchmark sizes, latency/throughput numbers, or performance claims.
 
@@ -1506,7 +1507,7 @@ Contracts:
   it must fail closed before source output.
 - Output must be no executable portable C source, no header, and no object.
 - Historical selected metadata may remain parseable only as fail-closed input
-  for deleted-route diagnostics.
+  for unsupported missing-materialized-EmitC diagnostics.
 
 Missing selected scalar path, deleted scalar microkernel syntax, unavailable
 fallback capability, unknown route id, unsupported artifact kind, route
@@ -1897,8 +1898,8 @@ Historical RVV+scalar dispatch object and self-check-object helpers compiled
 direct-printer generated C. Those object helpers are deleted with the direct C
 semantic exporter path. The generic `--tcrv-export-target-artifact` front door
 must not select a dispatch object route until a future EmitC-module source
-route supplies the artifact authority. Historical object route ids may remain
-only as negative route-absence checks or archived notes.
+route supplies the artifact authority. Historical object route ids must not be
+used as active selection authority, test API, or diagnostic API.
 
 ### Deleted Dispatch Self-Check Executable Evidence Bridge
 
@@ -1917,8 +1918,8 @@ evidence over that rebuilt artifact.
 Historical RVV+scalar dispatch header helpers are deleted with the direct C
 semantic exporter route. The generic `--tcrv-export-target-header-artifact`
 front door must not select a dispatch header route until a future EmitC-module
-route supplies source/header authority. Historical header route ids may remain
-only as negative route-absence checks or archived notes.
+route supplies source/header authority. Historical header route ids must not
+be used as active selection authority, test API, or diagnostic API.
 
 ## Runtime Offload No-Route Boundary
 

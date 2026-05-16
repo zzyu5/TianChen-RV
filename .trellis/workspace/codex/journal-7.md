@@ -914,3 +914,58 @@ Erased construction-protocol generated C/source skeleton authority from common a
 ### Next Steps
 
 - None - task complete
+
+
+## Session 86: Direct-C route absence contract erasure
+
+**Date**: 2026-05-16
+**Task**: Direct-C route absence contract erasure
+**Branch**: `main`
+
+### Summary
+
+Erased active spec/test wording that preserved removed target direct-C route
+absence as a named API. Target artifact export coverage now describes current
+generic registry behavior, source/front-door fail-closed behavior, and missing
+materialized EmitC routes without making old route-family names diagnostic or
+test authority.
+
+### Main Changes
+
+- Rewrote lowering/runtime and testing specs from named deleted-route absence
+  contracts to generic fail-closed and missing-materialized-EmitC contracts.
+- Rephrased target artifact export C++ test diagnostics around generic empty
+  route registries and missing materialized artifact routes.
+- Updated README, supervisor prompt text, and grill consensus wording to use
+  descriptor-driven C/source export terminology instead of stale
+  descriptor-to-C route phrasing.
+- Created, validated, and archived the deletion-only Trellis task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(target): erase direct-c route absence contracts |
+
+### Testing
+
+- [OK] focused active-surface ref-scan for Hermes brief terms over
+  `.trellis/spec`, `include`, `lib`, `test`, `README.md`, `scripts`, and the
+  tracked grill consensus note
+- [OK] broader stale-route wording scan over
+  `.trellis/spec/lowering-runtime/emission-runtime-contract.md`,
+  `.trellis/spec/testing/mlir-testing-contract.md`, and
+  `test/Target/TargetArtifactExportTest.cpp`
+- [OK] `ninja -C build tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `ninja -C build check-tianchenrv` (74/74 lit tests)
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-16-05-16-direct-c-route-absence-contract-erasure`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

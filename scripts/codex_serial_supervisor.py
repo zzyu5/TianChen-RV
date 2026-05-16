@@ -1705,7 +1705,7 @@ bypasses the C++ / MLIR / LLVM / TableGen / CMake / lit / FileCheck stack;
 adds compute semantics to tcrv.exec or treats tcrv.exec.kernel as a mathematical kernel/hardware IR body;
 treats RVV, IME, TensorExt, Offload, scalar fallback, or future vendor targets as independent backend dialects instead of TCRV extension families;
 puts extension-specific semantic branches in core passes instead of TCRV common interfaces and plugin hooks;
-adds computation semantics through descriptors or direct descriptor-to-C exporters;
+adds computation semantics through descriptors or descriptor-driven C/source exporters;
 routes new executable lowering around extension family ops -> EmitC -> intrinsic/vendor builtin/runtime C/C++;
 implements a new plugin without the Extension-Family Plugin Construction Protocol;
 omits extension archetype, semantic role graph, common interface realization, EmitC route mapping, or evidence profile for extension/plugin work;

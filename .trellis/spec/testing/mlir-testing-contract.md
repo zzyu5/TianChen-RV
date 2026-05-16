@@ -11,33 +11,32 @@ C++ tests where appropriate
 CMake configure/build checks
 ```
 
-## Scenario: Deleted Direct C Exporter Test Ownership
+## Scenario: Current Target Artifact Export Test Ownership
 
 ### 1. Scope / Trigger
 
 Use this contract for tests that touch RVV microkernel, scalar microkernel, or
-RVV+scalar dispatch runtime-callable C source/header/object/self-check/bundle
-routes after the direct C semantic exporter deletion campaign.
+RVV+scalar dispatch source/header/object/self-check/bundle surfaces while no
+materialized MLIR EmitC route exists.
 
 ### 2. Signatures
 
 - Removed direct options include the historical RVV microkernel, self-check,
-  scalar microkernel, and RVV+scalar dispatch direct C exporters.
-- Fail-closed diagnostic text must name the deleted direct C source exporter
-  and the missing materialized MLIR EmitC module route.
+  scalar microkernel, and RVV+scalar dispatch C-output helpers.
+- Fail-closed diagnostic text must explain that no materialized MLIR EmitC
+  module route is available.
 - Generic target artifact front doors remain valid test commands, but they
-  must report absence of a supported route for deleted direct-C artifacts.
+  must report absence of a currently supported route.
 
 ### 3. Contracts
 
 - Do not keep lit or script tests whose only assertion is successful direct C
   source, header, object, self-check, bundle, or e2e dry-run output from the
   old printers.
-- Tests may keep MLIR planning/source fixtures only when they assert
-  unsupported/deleted-route behavior or serve as parseable input to another
-  fail-closed test.
-- C++ tests for route registries must assert deleted route absence rather than
-  positive registration.
+- Tests may keep MLIR planning/source fixtures only when they assert current
+  unsupported behavior or serve as parseable input to another fail-closed test.
+- C++ tests for route registries must assert current generic registry behavior
+  rather than old route-family absence.
 
 ### 4. Validation & Error Matrix
 
@@ -55,15 +54,16 @@ routes after the direct C semantic exporter deletion campaign.
   receives an unsupported emission-plan diagnostic.
 - Base: RVV smoke-probe tests may remain only when they exercise selected RVV
   metadata through current unsupported emission-plan diagnostics without naming
-  a deleted direct-C route fixture.
+  an old route-name fixture.
 - Bad: a test checks `runtime-callable-c-source`, a direct route id, or an
   `__riscv_` intrinsic as proof that kernel semantic source export or
   smoke-probe source export succeeded.
 
 ### 6. Tests Required
 
-- Focused fail-closed lit coverage for RVV direct source, scalar source, and
-  RVV+scalar dispatch generic front doors.
+- Focused fail-closed lit coverage for RVV source, scalar source, and
+  RVV+scalar dispatch generic front doors when no materialized EmitC route is
+  available.
 - C++ plugin/registry coverage for unsupported emission plans and absent
   target artifact route registrations.
 - Full `check-tianchenrv` after deleting stale positive fixtures.
@@ -79,7 +79,7 @@ RUN: tcrv-translate --old-direct-c-route | FileCheck generated C body
 Correct:
 
 ```text
-RUN: not tcrv-translate --old-direct-c-route | FileCheck deleted-route error
+RUN: not tcrv-translate --old-direct-source-route | FileCheck missing-EmitC error
 RUN: tcrv-opt ... | FileCheck unsupported emission-plan diagnostic
 ```
 
@@ -188,19 +188,20 @@ Use lit/FileCheck for:
   signature, duplicate parameter roles, mismatched runtime ABI parameter
   name/type/ownership, mismatched parameter order, mismatched runtime ABI
   metadata, or mismatched selected component paths, fail-closed diagnostics for
-  missing or invalid output directories, and fail-closed behavior for deleted
-  RVV/scalar/dispatch/source metadata routes or unsupported selected paths
-  without a fake complete executable bundle.
+  missing or invalid output directories, and fail-closed behavior for obsolete
+  metadata/source route inputs or unsupported selected paths without a fake
+  complete executable bundle.
   Bundle tests must not commit generated binary artifacts or treat object
   creation as link, runtime, correctness, or performance evidence.
 - plan-and-export target artifact bundle front-door coverage through
   `tcrv-translate`, including an input fixture that contains only kernel and
   capability anchors rather than hand-authored selected-path diagnostics,
   lowering-boundary metadata, or emission-plan diagnostics; fail-closed
-  deleted-route coverage for RVV/scalar/dispatch executable bundles; and a
-  focused fail-closed negative case proving planning failure does not print
-  bundle completion or emit a complete executable bundle index. The front door
-  must not first lower marked linalg/vector source into the exec ABI boundary.
+  coverage for missing materialized RVV/scalar/dispatch executable bundles;
+  and a focused fail-closed negative case proving planning failure does not
+  print bundle completion or emit a complete executable bundle index. The
+  front door must not first lower marked linalg/vector source into the exec ABI
+  boundary.
 - deleted core RVV source-to-exec fixture erasure, proving active tests no
   longer invoke the historical source, linalg RVV, linalg i32 compatibility, or
   vector i32 arithmetic public options as named absence fixtures. Tests that
@@ -216,14 +217,14 @@ Use lit/FileCheck for:
   route/origin mismatch, missing runtime ABI ownership metadata, stale or
   mismatched selected RVV capacity
   metadata, unregistered origins, and ambiguous supported artifact candidates.
-  Runtime ABI role-contract coverage must include absence/fail-closed checks
-  for deleted direct scalar/RVV callable source routes and deleted
-  scalar/RVV/dispatch header/object helpers. Any remaining no-route
-  preflight must reject malformed runtime ABI role/type/name/ownership
-  metadata before artifact output.
+  Runtime ABI role-contract coverage must include fail-closed checks for
+  missing materialized scalar/RVV callable source routes and scalar/RVV/
+  dispatch header/object helpers. Any remaining no-route preflight must reject
+  malformed runtime ABI role/type/name/ownership metadata before artifact
+  output.
 - scalar explicit microkernel runtime-callable C target export is deleted.
   Tests may still cover scalar fallback fail-closed boundary diagnostics and
-  deleted-route diagnostics, but they must not expect source/header/object/
+  unsupported diagnostics, but they must not expect source/header/object/
   bundle bytes or portable scalar compute loops from
   `tcrv-export-scalar-*-microkernel-c` routes. Until a real materialized MLIR
   EmitC module route exists, tests must expect unsupported emission-plan
@@ -249,8 +250,8 @@ Use lit/FileCheck for:
   can report success. Fallback cases must be checked not to receive
   `runtime_guard_required` or `runtime_guard` metadata unless the core exec
   dialect contract is explicitly extended.
-  Direct RVV/scalar/dispatch object coverage must currently prove route absence
-  or fail-closed behavior rather than object creation. No test should require
+  RVV/scalar/dispatch object coverage must currently prove generic fail-closed
+  behavior rather than object creation. No test should require
   public source/object/header translate commands or generic artifact front
   doors to emit runtime-callable microkernel or dispatch artifacts from the old
   direct C printer path.
@@ -515,11 +516,12 @@ RVV runtime-callable C source/header/object/bundle evidence.
 - Good: fail-closed tests prove the old direct route is unsupported and emits
   no RVV intrinsic body.
 - Base: RVV smoke-probe tests remain allowed only as current unsupported RVV
-  emission-plan coverage without deleted direct-C route-name fixtures.
+  emission-plan coverage without old route-name fixtures.
 - Bad: a script treats route metadata plus selected-family fields as enough to
   produce executable C evidence.
 
 ### 6. Tests Required
 
-- Keep focused fail-closed lit/C++ coverage for deleted route families.
+- Keep focused fail-closed lit/C++ coverage for obsolete route-family inputs
+  without making their names active test APIs.
 - Do not require script self-tests for the removed direct e2e runner.

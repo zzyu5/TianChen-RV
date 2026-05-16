@@ -121,14 +121,13 @@ generic source-only artifact export entrypoint is deleted. Explicit RVV
 hardware/toolchain probes belong in separate probe tooling and recorded `ssh
 rvv` artifacts, not in a compiler source-artifact entrypoint.
 
-The historical RVV, scalar, and RVV+scalar runtime-callable direct C semantic
-exporters are deleted production routes. Selected metadata, family records,
-route records, or descriptor-like records must not be translated directly into
-kernel C source, headers, objects, self-check sources, or target-artifact
-bundles. The removed direct translate options are absent, and surviving
-generic target-artifact front doors fail closed for those deleted route ids
-until a future rebuild materializes a real MLIR EmitC module and emits C/C++
-through the MLIR emitter.
+The historical RVV, scalar, and RVV+scalar metadata-driven C semantic
+exporters are no longer production routes. Selected metadata, family records,
+route records, or descriptor-like records must not be translated into kernel C
+source, headers, objects, self-check sources, or target-artifact bundles. The
+removed direct translate options are absent, and surviving generic
+target-artifact front doors fail closed until a future rebuild materializes a
+real MLIR EmitC module and emits C/C++ through the MLIR emitter.
 
 The generic target-artifact front doors remain coherence gates, not alternate
 direct-C backdoors. They may still reject stale RVV/scalar/dispatch

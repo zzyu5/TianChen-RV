@@ -49,7 +49,7 @@ the PRD first; do not choose an unrelated direction.
   vendor builtin / runtime C/C++ -> native compiler. Clang/LLVM is the default
   native compiler; GCC is a compatibility path.
 - Descriptor-driven computation is invalid as long-term architecture. Do not
-  add computation semantics through descriptors or direct descriptor-to-C
+  add computation semantics through descriptors or descriptor-driven C/source
   export.
 - New extension work should follow the Extension-Family Plugin Construction
   Protocol in the Trellis specs: archetype, semantic role graph, family
