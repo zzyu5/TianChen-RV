@@ -44,6 +44,17 @@ bool shouldIncludePlugin(const ExtensionPlugin &plugin, bool enabledOnly) {
   return !enabledOnly || plugin.isEnabled();
 }
 
+bool isNestedUnder(mlir::Operation *operation, mlir::Operation *ancestor) {
+  if (!operation || !ancestor)
+    return false;
+  for (mlir::Operation *parent = operation->getParentOp(); parent;
+       parent = parent->getParentOp()) {
+    if (parent == ancestor)
+      return true;
+  }
+  return false;
+}
+
 bool hasConservativeFallbackRole(const VariantCostRankingEntry &entry) {
   if (entry.estimate.getFallbackRole() ==
       VariantFallbackRole::ConservativeFallback)
@@ -2019,13 +2030,15 @@ llvm::Error ExtensionPluginRegistry::validateVariantLoweringBoundaryResult(
               "' produced invalid lowering-boundary result: materialized "
               "result requires a non-null operation");
 
-    if (operation->getParentOp() != kernel.getOperation())
+    if (operation->getParentOp() != kernel.getOperation() &&
+        !isNestedUnder(operation, variant.getOperation()))
       return makeVariantLoweringBoundaryError(
           variant, kernel, role,
           llvm::Twine("origin plugin '") + plugin.getName() +
               "' produced invalid lowering-boundary result: materialized "
               "operation must be a direct child of the request "
-              "tcrv.exec.kernel");
+              "tcrv.exec.kernel or nested under the selected "
+              "tcrv.exec.variant");
 
     if (!result.getReason().empty())
       return makeVariantLoweringBoundaryError(

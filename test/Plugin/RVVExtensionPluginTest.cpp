@@ -29,6 +29,9 @@ using tianchenrv::plugin::VariantEmissionPlan;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
 using tianchenrv::plugin::VariantLegalityRequest;
+using tianchenrv::plugin::VariantLoweringBoundaryRequest;
+using tianchenrv::plugin::VariantLoweringBoundaryResult;
+using tianchenrv::plugin::VariantLoweringBoundaryValidationRequest;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalDecline;
 using tianchenrv::plugin::VariantProposalRequest;
@@ -94,6 +97,19 @@ VariantOp findVariant(KernelOp kernel, llvm::StringRef name) {
       variant = candidate;
   }
   return variant;
+}
+
+mlir::Operation *findFirstNestedOp(VariantOp variant, llvm::StringRef name) {
+  mlir::Operation *found = nullptr;
+  if (!variant)
+    return found;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (found || op == variant.getOperation())
+      return;
+    if (op->getName().getStringRef() == name)
+      found = op;
+  });
+  return found;
 }
 
 mlir::func::FuncOp findHighLevelPlaceholder(mlir::ModuleOp module) {
@@ -399,6 +415,169 @@ module {
       {"explicit typed RVV extension-family body"});
 }
 
+int runWithVLSelectedLoweringBoundaryTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32m1_boundary_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+
+    tcrv.exec.variant @rvv_i32_add attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        tcrv_rvv.i32_store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+
+    tcrv.exec.variant @rvv_i32_sub attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %diff = tcrv_rvv.i32_sub %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        tcrv_rvv.i32_store %out_ptr, %diff, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+
+    tcrv.exec.variant @rvv_i32_mul attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %product = tcrv_rvv.i32_mul %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        tcrv_rvv.i32_store %out_ptr, %product, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV with_vl boundary module");
+  KernelOp kernel = findKernel(*module, "rvv_i32m1_boundary_kernel");
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+                        "register RVV plugin for with_vl boundary test"))
+    return result;
+
+  mlir::OpBuilder builder(module->getContext());
+  for (llvm::StringRef variantName : {"rvv_i32_add", "rvv_i32_sub",
+                                      "rvv_i32_mul"}) {
+    VariantOp variant = findVariant(kernel, variantName);
+    mlir::Operation *withVL = findFirstNestedOp(variant, "tcrv_rvv.with_vl");
+    if (int result = expect(withVL != nullptr,
+                            llvm::Twine("found with_vl for @") + variantName))
+      return result;
+
+    VariantLoweringBoundaryResult boundaryResult;
+    if (int result = expectSuccess(
+            registry.materializeSelectedLoweringBoundary(
+                VariantLoweringBoundaryRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant, builder),
+                boundaryResult),
+            llvm::Twine("materialize with_vl selected boundary for @") +
+                variantName))
+      return result;
+    if (int result =
+            expect(boundaryResult.isMaterialized(),
+                   llvm::Twine("RVV selected boundary is materialized for @") +
+                       variantName))
+      return result;
+    if (int result =
+            expect(boundaryResult.getMaterializedOperation() == withVL,
+                   llvm::Twine("materialized boundary is existing with_vl for @") +
+                       variantName))
+      return result;
+    if (int result = expectSuccess(
+            registry.validateSelectedLoweringBoundary(
+                VariantLoweringBoundaryValidationRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant, withVL)),
+            llvm::Twine("validate with_vl selected boundary for @") +
+                variantName))
+      return result;
+  }
+
+  VariantOp addVariant = findVariant(kernel, "rvv_i32_add");
+  mlir::Operation *setvl = findFirstNestedOp(addVariant, "tcrv_rvv.setvl");
+  return expectErrorContains(
+      registry.validateSelectedLoweringBoundary(
+          VariantLoweringBoundaryValidationRequest(
+              addVariant, kernel, capabilities,
+              VariantEmissionRole::DirectVariant, setvl)),
+      {"selected RVV i32m1 lowering boundary must be the existing "
+       "tcrv_rvv.with_vl operation"});
+}
+
+int runWithVLSelectedLoweringBoundaryDuplicateRejectionTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32m1_duplicate_boundary_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_i32_add_duplicate_with_vl attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        tcrv_rvv.i32_store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV duplicate with_vl boundary module");
+  KernelOp kernel = findKernel(*module, "rvv_i32m1_duplicate_boundary_kernel");
+  VariantOp variant = findVariant(kernel, "rvv_i32_add_duplicate_with_vl");
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+                        "register RVV plugin for duplicate boundary test"))
+    return result;
+
+  mlir::OpBuilder builder(module->getContext());
+  VariantLoweringBoundaryResult boundaryResult;
+  return expectErrorContains(
+      registry.materializeSelectedLoweringBoundary(
+          VariantLoweringBoundaryRequest(
+              variant, kernel, capabilities,
+              VariantEmissionRole::DirectVariant, builder),
+          boundaryResult),
+      {"selected RVV i32m1 lowering boundary requires exactly one "
+       "tcrv_rvv.with_vl op"});
+}
+
 } // namespace
 
 int main() {
@@ -406,6 +585,7 @@ int main() {
   tianchenrv::registerAllDialects(dialectRegistry);
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();
+  context.getOrLoadDialect<tianchenrv::tcrv::rvv::TCRVRVVDialect>();
 
   if (int result = runRegistrationAndCapabilityMetadataTest())
     return result;
@@ -417,6 +597,11 @@ int main() {
           runCapabilityOnlyProposalAndTypedBodyRequirementTest(context))
     return result;
   if (int result = runMetadataOnlyVariantLegalityRejectionTest(context))
+    return result;
+  if (int result = runWithVLSelectedLoweringBoundaryTest(context))
+    return result;
+  if (int result =
+          runWithVLSelectedLoweringBoundaryDuplicateRejectionTest(context))
     return result;
 
   llvm::outs() << "RVV extension plugin smoke test passed\n";

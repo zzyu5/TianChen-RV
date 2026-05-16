@@ -64,13 +64,14 @@ typed policy attr value: #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
 optional vlenb attr name: tcrv_rvv.vlenb_bytes
 ```
 
-The bounded explicit RVV i32m1 add executable slice is allowed to export a
-callable object/header bundle only through the selected emission-plan target
-artifact handoff:
+The bounded explicit RVV i32m1 add/sub/mul executable slice is allowed to
+export a callable object/header bundle only through the selected emission-plan
+target artifact handoff:
 
 ```text
 selected RVV path
-  -> explicit typed tcrv_rvv i32m1 add body
+  -> explicit typed tcrv_rvv i32m1 add/sub/mul body
+  -> validated tcrv_rvv.with_vl selected lowering boundary
   -> RVV-owned EmitC lowerable route
   -> MLIR EmitC C/C++ emitter
   -> clang RISC-V relocatable object plus callable C header
@@ -293,9 +294,10 @@ descriptor-derived callable ABI data are fail-closed historical inputs, not
 active emission authority.
 
 The former microkernel direct C slice is deleted as production authority.
-Outside the bounded explicit RVV i32m1 add EmitC object/header route described
-above, selected `rvv-plugin` paths must report unsupported emission plans until
-the rebuild provides a materialized MLIR EmitC module route for that slice.
+Outside the bounded explicit RVV i32m1 add/sub/mul EmitC object/header route
+described above, selected `rvv-plugin` paths must report unsupported emission
+plans until the rebuild provides a materialized MLIR EmitC module route for
+that slice.
 Target/export code must not synthesize RVV compute C bodies from selected
 metadata, family records, route records, or deleted wrapper records. RVV routes
 must fail closed instead of producing `riscv_vector.h` intrinsic source,
@@ -597,25 +599,32 @@ validated raw hardware/profile facts such as `tcrv_rvv.vlenb_bytes`, but
 executable artifacts require explicit extension-family IR plus a materialized
 EmitC/runtime route.
 
-## Deleted Selected Lowering Boundary Route
+## Selected `with_vl` Lowering Boundary Route
 
 The canonical public `tcrv-opt` pass
 `--tcrv-materialize-selected-lowering-boundaries` still routes through the
-generic `ExtensionPluginRegistry` interface. RVV now implements that hook as
-fail-closed no-boundary behavior for selected RVV-owned direct variants or
-dispatch cases. There is no RVV-specific public wrapper pass for this route.
+generic `ExtensionPluginRegistry` interface. For the bounded explicit i32m1
+add/sub/mul route, RVV recognizes the existing `tcrv_rvv.with_vl` operation in
+the selected variant body as the selected lowering boundary. There is no
+RVV-specific public wrapper pass for this route.
 
 Rules:
 
 - RVV-specific interpretation stays in the RVV plugin/dialect implementation.
-- The generic pass routes dispatch fallback references through their generic
-  fallback envelope; RVV returns no boundary for direct, dispatch, and fallback
-  roles until a future materialized EmitC lowering route exists.
+- The generic pass routes selected direct variants and dispatch cases through
+  the plugin interface; the RVV plugin may report the existing
+  `tcrv_rvv.with_vl` op as the materialized boundary when the selected variant
+  is a legal i32m1 add/sub/mul body.
+- Dispatch fallback references continue through their generic fallback
+  envelope and do not create an RVV boundary.
 - Kernels without a dispatch or direct selected-path diagnostic are diagnosed
   before any plugin lowering-boundary hook is invoked.
 - The old boundary op must not be materialized as an unsupported placeholder.
+- `tcrv_rvv.with_vl` boundary validation must use the RVV-owned config/VL
+  contract and fail closed for missing, duplicate, mismatched, or unsupported
+  selected boundary shapes.
 - RVV target exporters must not consume selected-boundary route identity fields
-  as artifact authority. Executable emission requires a rebuilt
+  as artifact authority by themselves. Executable emission requires the
   extension-family op -> MLIR EmitC module route.
 - No RVV boundary result may be reported as hardware execution, correctness, or
   performance evidence.
@@ -792,11 +801,11 @@ separate spec and implementation evidence.
 
 #### 1. Scope / Trigger
 
-This scenario applies to the current bounded RVV i32m1 add materialization
-route. The route consumes verified RVV family ops and lowers them through the
-shared EmitC lowerable route into an MLIR EmitC module. Printing C/C++,
-compiling, target artifact packaging, and `ssh rvv` runtime evidence are later
-stages and are not implied by this route.
+This scenario applies to the current bounded RVV i32m1 add/sub/mul
+materialization route. The route consumes verified RVV family ops and lowers
+them through the shared EmitC lowerable route into an MLIR EmitC module.
+Printing C/C++, compiling, target artifact packaging, and `ssh rvv` runtime
+evidence are later stages and are not implied by this route.
 
 #### 2. Signatures
 
@@ -804,21 +813,26 @@ stages and are not implied by this route.
   four explicit `tcrv_rvv.runtime_abi_value` bindings for `lhs`, `rhs`,
   `out`, and `n`, then
   `tcrv_rvv.setvl -> tcrv_rvv.with_vl -> tcrv_rvv.i32_load ->
-  tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store`
-  for SEW32 LMUL m1 with agnostic policy.
+  tcrv_rvv.i32_load -> tcrv_rvv.i32_add|i32_sub|i32_mul ->
+  tcrv_rvv.i32_store` for SEW32 LMUL m1 with agnostic policy.
+- Selected lowering boundary: the existing `tcrv_rvv.with_vl` operation in the
+  selected variant body, not a synthesized wrapper.
 - Route plan: an explicit EmitC intrinsic route object with standard headers,
   source op names, `emitc.call_opaque` callee names, and one setvl callee.
 - Materialized EmitC provenance comments must include typed source op names,
   source roles, `TCRVEmitCLowerableOpInterface`, and `emitc.call_opaque`
   callee evidence.
 - Provider header: `TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h`.
-- Provider route builder:
-  `plugin::rvv::buildRVVI32M1AddEmitCLowerableRoute(
-  const plugin::VariantEmitCLowerableRequest &,
-  conversion::emitc::TCRVEmitCLowerableRoute &)`.
+- Provider route builders:
+  `plugin::rvv::buildRVVI32M1ArithmeticEmitCLowerableRoute`,
+  `plugin::rvv::buildRVVI32M1AddEmitCLowerableRoute`,
+  `plugin::rvv::buildRVVI32M1SubEmitCLowerableRoute`, and
+  `plugin::rvv::buildRVVI32M1MulEmitCLowerableRoute`; each accepts
+  `const plugin::VariantEmitCLowerableRequest &` and populates
+  `conversion::emitc::TCRVEmitCLowerableRoute &`.
 - Provider metadata accessors own the bounded route id, emission kind,
   lowering-boundary op name, runtime ABI kind/name/glue role, and ordered
-  runtime ABI parameters for this RVV i32m1 add slice.
+  runtime ABI parameters for this RVV i32m1 arithmetic slice.
 
 #### 3. Contracts
 
@@ -854,6 +868,8 @@ stages and are not implied by this route.
   source output.
 - Missing `tcrv_rvv.setvl` / `tcrv_rvv.with_vl` control surface -> fail before
   source output.
+- Missing, duplicate, mismatched, or unsupported selected `tcrv_rvv.with_vl`
+  boundary shape -> fail before route payload construction or source output.
 - Missing, duplicate, malformed, or unsupported explicit runtime ABI value
   binding for `lhs`, `rhs`, `out`, or `n` -> fail before source output.
 - Missing route callee for any body step -> fail before source output.
@@ -864,9 +880,10 @@ stages and are not implied by this route.
 
 #### 5. Good/Base/Bad Cases
 
-- Good: future rebuilt i32 add emits `tcrv_rvv.i32_add`, the route records
-  `emitc.call_opaque` for `__riscv_vadd_vv_i32m1`, and generated C calls that
-  intrinsic.
+- Good: future rebuilt i32 add/sub/mul emits the matching
+  `tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`, or `tcrv_rvv.i32_mul`, the route
+  records the matching `emitc.call_opaque` arithmetic intrinsic, and generated
+  C calls that intrinsic.
 - Base: a hand-authored bounded RVV explicit dataflow body with the same
   verified `setvl` / `with_vl` / load-arithmetic-store sequence can use the
   same route after selected-path and ABI preflight pass.

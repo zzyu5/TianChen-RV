@@ -61,6 +61,48 @@ with expected `[8,4,1000,42]` and actual `[8,4,1000,42]`.
 - None - task complete
 
 
+## Session 92: RVV with_vl selected lowering boundary
+
+**Date**: 2026-05-16
+**Task**: `05-16-rvv-with-vl-selected-boundary`
+**Branch**: `main`
+
+### Summary
+
+Made the existing `tcrv_rvv.with_vl` region the explicit selected lowering
+boundary for the bounded RVV i32m1 add/sub/mul route, then aligned the long-term
+RVV plugin spec with that boundary.
+
+### Main Changes
+
+- RVV plugin `materializeSelectedLoweringBoundary` now returns the existing
+  selected variant `tcrv_rvv.with_vl` op instead of a no-boundary result.
+- RVV plugin `validateSelectedLoweringBoundary` now validates the boundary with
+  the shared config/VL contract and the existing i32m1 arithmetic EmitC route
+  provider.
+- Common registry boundary result validation now generically permits a
+  materialized boundary op nested under the selected variant.
+- Added C++ coverage for add/sub/mul materialization/validation, wrong-boundary
+  rejection, and duplicate `with_vl` rejection.
+- Added lit coverage for selected-boundary materialization and unsupported LMUL
+  rejection through `--tcrv-materialize-selected-lowering-boundaries`.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` to replace the stale
+  RVV no-boundary rule with the selected `with_vl` boundary contract.
+
+### Checks
+
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit set for new lowering-boundary tests, config/VL negatives,
+  add/sub/mul selected artifact export, and stale route/op.
+- [OK] changed-surface scan: no descriptor/direct-C/source-export terms
+  restored; common/core diff has no RVV intrinsic/header names.
+- [OK] `cmake --build build --target check-tianchenrv -- -j$(nproc)` (92/92)
+
+### Status
+
+[OK] Completed; ready to archive and commit.
+
+
 ## Session 90: Common selected-emission-plan EmitC artifact front door
 
 **Date**: 2026-05-16

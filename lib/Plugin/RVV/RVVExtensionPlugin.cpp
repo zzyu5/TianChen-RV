@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
+#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
@@ -62,6 +63,92 @@ llvm::Error requireExplicitTypedRVVBody(tcrv::exec::VariantOp variant) {
   return makeRVVPluginError(
       "materialized RVV variant requires explicit typed RVV "
       "extension-family body");
+}
+
+llvm::Error requireRVVSelectedVariant(tcrv::exec::VariantOp variant) {
+  if (!variant)
+    return makeRVVPluginError(
+        "selected RVV lowering boundary requires a materialized "
+        "tcrv.exec.variant");
+
+  auto originAttr = variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (!originAttr || originAttr.getValue() != kRVVPluginName)
+    return makeRVVPluginError(
+        "materialized RVV variant must be owned by origin 'rvv-plugin'");
+
+  return requireExplicitTypedRVVBody(variant);
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+findSelectedRVVI32M1WithVLBoundary(tcrv::exec::VariantOp variant) {
+  if (!variant)
+    return makeRVVPluginError(
+        "selected RVV lowering boundary requires a materialized "
+        "tcrv.exec.variant");
+
+  llvm::SmallVector<tcrv::rvv::SetVLOp, 2> setvls;
+  llvm::SmallVector<tcrv::rvv::WithVLOp, 2> withVLs;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (auto setvl = llvm::dyn_cast<tcrv::rvv::SetVLOp>(op))
+      setvls.push_back(setvl);
+    if (auto withVL = llvm::dyn_cast<tcrv::rvv::WithVLOp>(op))
+      withVLs.push_back(withVL);
+  });
+
+  if (setvls.size() != 1)
+    return makeRVVPluginError(
+        "selected RVV i32m1 lowering boundary requires exactly one "
+        "tcrv_rvv.setvl op");
+  if (withVLs.size() != 1)
+    return makeRVVPluginError(
+        "selected RVV i32m1 lowering boundary requires exactly one "
+        "tcrv_rvv.with_vl op");
+
+  tcrv::rvv::RVVConfigContractDiagnostic configDiagnostic =
+      tcrv::rvv::validateRVVI32M1ArithmeticConfigVLContract(setvls.front(),
+                                                            withVLs.front());
+  if (!configDiagnostic.ok)
+    return makeRVVPluginError(configDiagnostic.message);
+
+  return withVLs.front();
+}
+
+llvm::Error validateSelectedRVVI32M1WithVLBoundary(
+    const VariantLoweringBoundaryValidationRequest &request) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!variant)
+    return makeRVVPluginError(
+        "selected RVV lowering-boundary validation requires a materialized "
+        "tcrv.exec.variant");
+  if (!request.getKernel())
+    return makeRVVPluginError(
+        "selected RVV lowering-boundary validation requires an enclosing "
+        "tcrv.exec.kernel");
+
+  if (llvm::Error error = requireRVVSelectedVariant(variant))
+    return error;
+
+  auto boundary =
+      llvm::dyn_cast_if_present<tcrv::rvv::WithVLOp>(request.getBoundary());
+  if (!boundary)
+    return makeRVVPluginError(
+        "selected RVV i32m1 lowering boundary must be the existing "
+        "tcrv_rvv.with_vl operation");
+
+  llvm::Expected<tcrv::rvv::WithVLOp> expectedBoundary =
+      findSelectedRVVI32M1WithVLBoundary(variant);
+  if (!expectedBoundary)
+    return expectedBoundary.takeError();
+  if (expectedBoundary->getOperation() != boundary.getOperation())
+    return makeRVVPluginError(
+        "selected RVV i32m1 lowering boundary must be the unique "
+        "tcrv_rvv.with_vl operation in the selected variant body");
+
+  conversion::emitc::TCRVEmitCLowerableRoute route;
+  VariantEmitCLowerableRequest routeRequest(
+      variant, request.getKernel(), request.getCapabilities(),
+      request.getRole());
+  return rvv::buildRVVI32M1ArithmeticEmitCLowerableRoute(routeRequest, route);
 }
 
 const rvv::RVVExtensionPlugin &getBuiltinRVVExtensionPlugin() {
@@ -187,6 +274,34 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
     return makeRVVPluginError(
         "emission readiness requires an enclosing tcrv.exec.kernel");
 
+  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  request.getCapabilities());
+  if (llvm::Error error = verifyVariantLegality(legality)) {
+    std::string diagnostic = llvm::toString(std::move(error));
+    out = VariantEmissionStatus::getUnsupported(
+        kRVVPluginName, request.getVariant().getSymName(), diagnostic);
+    return llvm::Error::success();
+  }
+
+  llvm::Expected<tcrv::rvv::WithVLOp> selectedBoundary =
+      findSelectedRVVI32M1WithVLBoundary(request.getVariant());
+  if (!selectedBoundary) {
+    std::string diagnostic = llvm::toString(selectedBoundary.takeError());
+    out = VariantEmissionStatus::getUnsupported(
+        kRVVPluginName, request.getVariant().getSymName(), diagnostic);
+    return llvm::Error::success();
+  }
+  VariantLoweringBoundaryValidationRequest boundaryRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole(), selectedBoundary->getOperation());
+  if (llvm::Error error =
+          validateSelectedRVVI32M1WithVLBoundary(boundaryRequest)) {
+    std::string diagnostic = llvm::toString(std::move(error));
+    out = VariantEmissionStatus::getUnsupported(
+        kRVVPluginName, request.getVariant().getSymName(), diagnostic);
+    return llvm::Error::success();
+  }
+
   conversion::emitc::TCRVEmitCLowerableRoute route;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
@@ -223,6 +338,17 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
   VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
                                   request.getCapabilities());
   if (llvm::Error error = verifyVariantLegality(legality))
+    return error;
+
+  llvm::Expected<tcrv::rvv::WithVLOp> selectedBoundary =
+      findSelectedRVVI32M1WithVLBoundary(request.getVariant());
+  if (!selectedBoundary)
+    return selectedBoundary.takeError();
+  VariantLoweringBoundaryValidationRequest boundaryRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole(), selectedBoundary->getOperation());
+  if (llvm::Error error =
+          validateSelectedRVVI32M1WithVLBoundary(boundaryRequest))
     return error;
 
   conversion::emitc::TCRVEmitCLowerableRoute route;
@@ -276,20 +402,28 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
   if (llvm::Error error = verifyVariantLegality(legality))
     return error;
 
-  out = VariantLoweringBoundaryResult::getNoBoundary(
+  llvm::Expected<tcrv::rvv::WithVLOp> boundary =
+      findSelectedRVVI32M1WithVLBoundary(request.getVariant());
+  if (!boundary)
+    return boundary.takeError();
+
+  VariantLoweringBoundaryValidationRequest validationRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole(), boundary->getOperation());
+  if (llvm::Error error =
+          validateSelectedRVVI32M1WithVLBoundary(validationRequest))
+    return error;
+
+  out = VariantLoweringBoundaryResult::getMaterialized(
       kRVVPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      "RVV explicit typed IR uses the bounded EmitC lowerable route directly; "
-      "no selected lowering-boundary op is materialized");
+      boundary->getOperation());
   return llvm::Error::success();
 }
 
 llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
     const VariantLoweringBoundaryValidationRequest &request) const {
-  (void)request;
-  return makeRVVPluginError(
-      "RVV selected lowering-boundary validation requires a materialized "
-      "plugin lowering boundary for explicit typed RVV IR");
+  return validateSelectedRVVI32M1WithVLBoundary(request);
 }
 
 llvm::Error RVVExtensionPlugin::buildVariantEmitCLowerableRoute(

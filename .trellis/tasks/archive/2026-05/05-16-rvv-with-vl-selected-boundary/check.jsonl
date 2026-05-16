@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global red lines for final review."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin selected boundary and route ownership remain local."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC artifact front door remains extension-agnostic."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused evidence and negative coverage match testing contract."}
