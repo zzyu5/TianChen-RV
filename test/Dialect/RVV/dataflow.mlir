@@ -4,6 +4,9 @@ module {
   // CHECK-LABEL: tcrv.exec.kernel @rvv_i32_dataflow_valid
   tcrv.exec.kernel @rvv_i32_dataflow_valid {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+    %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+    %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
     %vl = tcrv_rvv.setvl %avl {
       lmul = "m1",
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
@@ -15,8 +18,8 @@ module {
       sew = 32 : i64
     } {
       // CHECK: tcrv_rvv.i32_load
-      %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-      %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+      %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
       // CHECK: tcrv_rvv.i32_add
       %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
       // CHECK: tcrv_rvv.i32_sub
@@ -24,7 +27,7 @@ module {
       // CHECK: tcrv_rvv.i32_mul
       %product = tcrv_rvv.i32_mul %sum, %diff, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
       // CHECK: tcrv_rvv.i32_store
-      tcrv_rvv.i32_store %product, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m1, !tcrv_rvv.vl
+      tcrv_rvv.i32_store %out_ptr, %product, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
     } : !tcrv_rvv.vl
   }
 }
@@ -35,6 +38,9 @@ module {
   // CHECK-LABEL: tcrv.exec.kernel @rvv_i32m2_dataflow_valid
   tcrv.exec.kernel @rvv_i32m2_dataflow_valid {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+    %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+    %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
     %vl = tcrv_rvv.setvl %avl {
       lmul = "m2",
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
@@ -46,12 +52,12 @@ module {
       sew = 32 : i64
     } {
       // CHECK: tcrv_rvv.i32_load
-      %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m2
-      %rhs = tcrv_rvv.i32_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m2
+      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
+      %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
       // CHECK: tcrv_rvv.i32_sub
       %diff = tcrv_rvv.i32_sub %lhs, %rhs, %vl : !tcrv_rvv.i32m2, !tcrv_rvv.i32m2, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
       // CHECK: tcrv_rvv.i32_store
-      tcrv_rvv.i32_store %diff, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i32m2, !tcrv_rvv.vl
+      tcrv_rvv.i32_store %out_ptr, %diff, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m2, !tcrv_rvv.vl
     } : !tcrv_rvv.vl
   }
 }
@@ -61,13 +67,14 @@ module {
 module {
   tcrv.exec.kernel @rvv_dataflow_reject_outside_with_vl {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
     %vl = tcrv_rvv.setvl %avl {
       lmul = "m1",
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
     } : index -> !tcrv_rvv.vl
     // expected-error@+1 {{must be nested directly in a tcrv_rvv.with_vl body}}
-    %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+    %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
   }
 }
 
@@ -76,6 +83,7 @@ module {
 module {
   tcrv.exec.kernel @rvv_dataflow_reject_wrong_vl_token {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
     %vl = tcrv_rvv.setvl %avl {
       lmul = "m1",
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
@@ -88,7 +96,7 @@ module {
       sew = 32 : i64
     } {
       // expected-error@+1 {{requires RVV dataflow op to consume the !tcrv_rvv.vl token owned by the surrounding tcrv_rvv.with_vl}}
-      %lhs = tcrv_rvv.i32_load %other {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+      %lhs = tcrv_rvv.i32_load %lhs_ptr, %other : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
     } : !tcrv_rvv.vl
   }
 }
@@ -98,6 +106,7 @@ module {
 module {
   tcrv.exec.kernel @rvv_dataflow_reject_missing_with_vl_config {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
     %vl = tcrv_rvv.setvl %avl {
       lmul = "m1",
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
@@ -105,7 +114,7 @@ module {
     } : index -> !tcrv_rvv.vl
     tcrv_rvv.with_vl %vl {
       // expected-error@+1 {{requires enclosing tcrv_rvv.with_vl to carry explicit SEW metadata for bounded RVV i32 dataflow}}
-      %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
     } : !tcrv_rvv.vl
   }
 }
@@ -115,6 +124,7 @@ module {
 module {
   tcrv.exec.kernel @rvv_dataflow_reject_element_count {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
     %vl = tcrv_rvv.setvl %avl {
       lmul = "m1",
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
@@ -126,7 +136,7 @@ module {
       sew = 32 : i64
     } {
       // expected-error@+1 {{does not accept attribute '"element_count"'}}
-      %lhs = tcrv_rvv.i32_load %vl {buffer_role = "lhs-input-buffer", element_count = 16 : i64} : !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl {element_count = 16 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
     } : !tcrv_rvv.vl
   }
 }

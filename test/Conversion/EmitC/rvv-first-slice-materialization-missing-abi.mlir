@@ -1,7 +1,7 @@
-// RUN: tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
 
 module {
-  tcrv.exec.kernel @rvv_i32_add_kernel {
+  tcrv.exec.kernel @rvv_missing_runtime_n_binding {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -15,7 +15,7 @@ module {
       %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %n = "builtin.unrealized_conversion_cast"() : () -> index
       %vl = tcrv_rvv.setvl %n {
         lmul = "m1",
         policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
@@ -35,17 +35,5 @@ module {
   }
 }
 
-// CHECK: emitc.include <"stddef.h">
-// CHECK: emitc.include <"stdint.h">
-// CHECK: emitc.include <"riscv_vector.h">
-// CHECK: emitc.func @tcrv_emitc_rvv_i32_add_kernel_rvv_i32_add
-// CHECK-NOT: unrealized_conversion_cast
-// CHECK: tcrv_emitc.route_source_op=tcrv_rvv.with_vl role=scope op_interface=TCRVEmitCLowerableOpInterface
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.setvl role=configure op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e32m1
-// CHECK: call_opaque "__riscv_vsetvl_e32m1"
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.i32_load role=load op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle32_v_i32m1
-// CHECK: call_opaque "__riscv_vle32_v_i32m1"
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.i32_add role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vadd_vv_i32m1
-// CHECK: call_opaque "__riscv_vadd_vv_i32m1"
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.i32_store role=store op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vse32_v_i32m1
-// CHECK: call_opaque "__riscv_vse32_v_i32m1"
+// CHECK: RVV plugin-owned EmitC route provider failed
+// CHECK-SAME: tcrv_rvv.setvl AVL operand must be defined by explicit tcrv_rvv.runtime_abi_value

@@ -96,6 +96,21 @@ def TCRVRVV_VLType : TCRVRVV_Type<"VL", "vl"> {
   }];
 }
 
+def TCRVRVV_RuntimeABIValueType
+    : TCRVRVV_Type<"RuntimeABIValue", "runtime_abi_value"> {
+  let summary = "bounded RVV runtime ABI value token type";
+  let description = [{
+    A plugin-local token type representing one explicit runtime ABI value
+    visible to the bounded RVV first-slice IR. Buffer ABI values such as lhs,
+    rhs, and out use this token before the RVV EmitC route maps them to C
+    pointer parameters. Runtime scalar values such as n may use ordinary MLIR
+    scalar types while still being defined by tcrv_rvv.runtime_abi_value.
+
+    This type is not a descriptor, vector register, memory model, source
+    exporter, runtime result, correctness evidence, or performance evidence.
+  }];
+}
+
 def TCRVRVV_I32M1VectorType : TCRVRVV_Type<"I32M1Vector", "i32m1"> {
   let summary = "finite RVV i32 m1 vector dataflow token type";
   let description = [{
@@ -118,6 +133,34 @@ def TCRVRVV_I32M2VectorType : TCRVRVV_Type<"I32M2Vector", "i32m2"> {
     tcrv_rvv.setvl / tcrv_rvv.with_vl metadata remains the source of
     SEW/LMUL/policy truth. This token does not authorize target emission.
   }];
+}
+
+def RuntimeABIValueOp : TCRVRVV_Op<"runtime_abi_value"> {
+  let summary = "bounded RVV runtime ABI value binding";
+  let description = [{
+    Binds one callable runtime ABI value into explicit RVV extension-family IR
+    for the current first slice. The operation records the ABI role, C
+    parameter name, C type spelling, and ownership class, then produces one SSA
+    value consumed by tcrv_rvv.setvl, tcrv_rvv.i32_load, or
+    tcrv_rvv.i32_store.
+
+    This op is an ABI/provenance boundary only. It does not describe
+    computation, infer route selection, expose target hardware facts, replace
+    tcrv.exec dispatch/runtime-param organization, or authorize descriptor or
+    direct-C source export.
+  }];
+
+  let arguments = (ins
+    StrAttr:$role,
+    StrAttr:$c_name,
+    StrAttr:$c_type,
+    StrAttr:$ownership,
+    OptionalAttr<StrAttr>:$purpose
+  );
+  let results = (outs AnyType:$value);
+
+  let assemblyFormat = "attr-dict `:` type($value)";
+  let hasVerifier = 1;
 }
 
 def SetVLOp : TCRVRVV_Op<"setvl",
@@ -195,24 +238,26 @@ def I32LoadOp : TCRVRVV_Op<"i32_load",
   let summary = "bounded RVV i32 load dataflow op";
   let description = [{
     Records one bounded plugin-local RVV i32 load dataflow step. The op is
-    nested directly under tcrv_rvv.with_vl, consumes the same runtime
-    !tcrv_rvv.vl control token as the surrounding scope, carries exactly one
-    input buffer ABI role reference, and produces one bounded !tcrv_rvv.i32m1
-    or !tcrv_rvv.i32m2 dataflow token matching the enclosing LMUL scope.
+    nested directly under tcrv_rvv.with_vl, consumes one explicit runtime ABI
+    buffer SSA value plus the same runtime !tcrv_rvv.vl control token as the
+    surrounding scope, and produces one bounded !tcrv_rvv.i32m1 or
+    !tcrv_rvv.i32m2 dataflow token matching the enclosing LMUL scope.
 
-    Pointer operands remain future target/export ABI-owned parameters, not
-    IR-modeled buffers. Runtime n/AVL/VL remains represented by real runtime
+    Buffer names, C types, and ABI roles come from the defining
+    tcrv_rvv.runtime_abi_value op, not from descriptor metadata or target-side
+    inference. Runtime n/AVL/VL remains represented by real runtime
     SSA/control surfaces. Deleted local element-count metadata is not accepted
     here.
   }];
 
   let arguments = (ins
-    AnyType:$vl,
-    StrAttr:$buffer_role
+    AnyType:$buffer,
+    AnyType:$vl
   );
   let results = (outs AnyType:$loaded);
 
-  let assemblyFormat = "$vl attr-dict `:` type($vl) `->` type($loaded)";
+  let assemblyFormat =
+    "$buffer `,` $vl attr-dict `:` type($buffer) `,` type($vl) `->` type($loaded)";
   let hasVerifier = 1;
 }
 
@@ -301,25 +346,26 @@ def I32StoreOp : TCRVRVV_Op<"i32_store",
   let summary = "bounded RVV i32 store dataflow op";
   let description = [{
     Records one bounded plugin-local RVV i32 store dataflow step. The op is
-    nested directly under tcrv_rvv.with_vl, consumes one bounded i32 dataflow
-    token matching the enclosing LMUL scope and the same runtime !tcrv_rvv.vl
-    control token as the surrounding scope, and carries exactly one output
-    buffer ABI role reference.
+    nested directly under tcrv_rvv.with_vl, consumes one explicit output
+    runtime ABI buffer SSA value, one bounded i32 dataflow token matching the
+    enclosing LMUL scope, and the same runtime !tcrv_rvv.vl control token as
+    the surrounding scope.
 
-    Pointer operands remain future target/export ABI-owned parameters, not
-    IR-modeled buffers. Runtime n/AVL/VL remains represented by real runtime
+    Output C name, C type, and ABI role come from the defining
+    tcrv_rvv.runtime_abi_value op, not from descriptor metadata or target-side
+    inference. Runtime n/AVL/VL remains represented by real runtime
     SSA/control surfaces. Deleted local element-count metadata is not accepted
     here.
   }];
 
   let arguments = (ins
+    AnyType:$buffer,
     AnyType:$value,
-    AnyType:$vl,
-    StrAttr:$buffer_role
+    AnyType:$vl
   );
 
   let assemblyFormat =
-    "$value `,` $vl attr-dict `:` type($value) `,` type($vl)";
+    "$buffer `,` $value `,` $vl attr-dict `:` type($buffer) `,` type($value) `,` type($vl)";
   let hasVerifier = 1;
 }
 

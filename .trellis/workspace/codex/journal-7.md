@@ -1737,3 +1737,34 @@ Moved the bounded RVV i32m1 add EmitC route semantics into a plugin-owned provid
 ### Next Steps
 
 - None - task complete
+
+
+## Session 90: RVV runtime ABI SSA binding
+
+**Date**: 2026-05-16
+**Task**: RVV runtime ABI SSA binding
+**Branch**: `main`
+
+### Summary
+
+Added explicit RVV runtime ABI SSA values for lhs/rhs/out/n, rewired the i32m1 add EmitC provider to bind from those values, refreshed focused fixtures/specs, and passed check-tianchenrv.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

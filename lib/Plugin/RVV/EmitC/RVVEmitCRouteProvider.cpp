@@ -5,6 +5,7 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Support/RuntimeABIContract.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
@@ -12,6 +13,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <optional>
 #include <string>
@@ -82,6 +84,10 @@ struct RVVI32M1AddSlice {
   tcrv::rvv::I32LoadOp rhsLoad;
   tcrv::rvv::I32AddOp add;
   tcrv::rvv::I32StoreOp store;
+  support::RuntimeABIParameter lhsABI;
+  support::RuntimeABIParameter rhsABI;
+  support::RuntimeABIParameter outABI;
+  support::RuntimeABIParameter runtimeElementCountABI;
 };
 
 llvm::Error requireAgnosticPolicy(tcrv::rvv::PolicyAttr policy,
@@ -95,6 +101,117 @@ llvm::Error requireAgnosticPolicy(tcrv::rvv::PolicyAttr policy,
         llvm::Twine(context) +
         " supports only tail agnostic, mask agnostic policy for the bounded "
         "i32m1 EmitC route");
+  return llvm::Error::success();
+}
+
+std::string formatRuntimeABIExpectedRoles(
+    llvm::ArrayRef<support::RuntimeABIParameterRole> expectedRoles) {
+  std::string expected;
+  llvm::raw_string_ostream stream(expected);
+  llvm::interleave(
+      expectedRoles,
+      [&](support::RuntimeABIParameterRole role) {
+        stream << "'"
+               << support::stringifyRuntimeABIParameterRole(role) << "'";
+      },
+      [&] { stream << " or "; });
+  stream.flush();
+  return expected;
+}
+
+llvm::Expected<support::RuntimeABIParameter>
+getRuntimeABIParameterBindingFromValue(
+    mlir::Value value, llvm::StringRef context,
+    llvm::ArrayRef<support::RuntimeABIParameterRole> expectedRoles) {
+  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  if (!binding)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must be defined by explicit tcrv_rvv.runtime_abi_value before "
+        "RVV EmitC route construction");
+
+  std::optional<support::RuntimeABIParameterRole> role =
+      support::symbolizeRuntimeABIParameterRole(binding.getRole());
+  if (!role)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " carries unsupported runtime ABI role '" +
+        binding.getRole() + "'");
+  if (!llvm::is_contained(expectedRoles, *role)) {
+    std::string expectedRolesText =
+        formatRuntimeABIExpectedRoles(expectedRoles);
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " must bind runtime ABI role " +
+        expectedRolesText + "; got '" +
+        binding.getRole() + "'");
+  }
+
+  std::optional<support::RuntimeABIParameterOwnership> ownership =
+      support::symbolizeRuntimeABIParameterOwnership(binding.getOwnership());
+  if (!ownership)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " carries unsupported runtime ABI ownership '" +
+        binding.getOwnership() + "'");
+
+  return support::RuntimeABIParameter(binding.getCName(), binding.getCType(),
+                                      *role, *ownership);
+}
+
+llvm::Error assignRVVLoadBinding(
+    RVVI32M1AddSlice &slice, tcrv::rvv::I32LoadOp load,
+    const support::RuntimeABIParameter &parameter) {
+  if (parameter.role == support::RuntimeABIParameterRole::LHSInputBuffer) {
+    if (slice.lhsLoad)
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV EmitC route requires a unique lhs-input-buffer load");
+    slice.lhsLoad = load;
+    slice.lhsABI = parameter;
+    return llvm::Error::success();
+  }
+  if (parameter.role == support::RuntimeABIParameterRole::RHSInputBuffer) {
+    if (slice.rhsLoad)
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV EmitC route requires a unique rhs-input-buffer load");
+    slice.rhsLoad = load;
+    slice.rhsABI = parameter;
+    return llvm::Error::success();
+  }
+
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("unsupported RVV i32 load runtime ABI role '") +
+      support::stringifyRuntimeABIParameterRole(parameter.role) +
+      "' for bounded EmitC route");
+}
+
+llvm::Error validateRVVI32M1AddRuntimeABIParameters(
+    RVVI32M1AddSlice &slice,
+    const support::RuntimeABIParameter &runtimeElementCountABI,
+    const support::RuntimeABIParameter &outABI) {
+  slice.runtimeElementCountABI = runtimeElementCountABI;
+  slice.outABI = outABI;
+
+  llvm::SmallVector<support::RuntimeABIParameter, 4> ordered;
+  ordered.push_back(slice.lhsABI);
+  ordered.push_back(slice.rhsABI);
+  ordered.push_back(slice.outABI);
+  ordered.push_back(slice.runtimeElementCountABI);
+
+  support::FiniteBinaryRuntimeABIContract contract(
+      support::FiniteBinaryRuntimeABIContractSpec{
+          "rvv-i32m1-add-callable-c-abi", "const int32_t *", "int32_t *"});
+  llvm::Expected<support::FiniteBinaryCallableRuntimeABIParameterBindings>
+      bindings = support::bindFiniteBinaryCallableRuntimeABIParametersByRole(
+          ordered, "RVV i32m1 add explicit runtime ABI values", contract);
+  if (!bindings)
+    return bindings.takeError();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 4> expected =
+      getRVVI32M1AddRuntimeABIParameters();
+  if (!support::runtimeABIParametersEqual(ordered, expected))
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route requires explicit runtime ABI values to "
+        "match callable C ABI parameters lhs, rhs, out, n with stable types "
+        "and ownership");
+
   return llvm::Error::success();
 }
 
@@ -150,6 +267,13 @@ collectRVVI32M1AddSlice(tcrv::exec::VariantOp variant) {
         "bounded RVV EmitC route requires tcrv_rvv.with_vl to consume the "
         "visible tcrv_rvv.setvl result");
 
+  llvm::Expected<support::RuntimeABIParameter> runtimeElementCountABI =
+      getRuntimeABIParameterBindingFromValue(
+          slice.setvl.getAvl(), "tcrv_rvv.setvl AVL operand",
+          {support::RuntimeABIParameterRole::RuntimeElementCount});
+  if (!runtimeElementCountABI)
+    return runtimeElementCountABI.takeError();
+
   llvm::SmallVector<tcrv::rvv::I32LoadOp, 2> loads;
   unsigned addCount = 0;
   unsigned storeCount = 0;
@@ -183,45 +307,37 @@ collectRVVI32M1AddSlice(tcrv::exec::VariantOp variant) {
   if (storeCount != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one tcrv_rvv.i32_store op");
-  if (rvvOpCount != 6)
+  if (rvvOpCount != 10)
     return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route supports only setvl/with_vl/i32_load/"
-        "i32_load/i32_add/i32_store");
+        "bounded RVV EmitC route supports only runtime_abi_value/"
+        "runtime_abi_value/runtime_abi_value/runtime_abi_value/setvl/"
+        "with_vl/i32_load/i32_load/i32_add/i32_store");
 
   for (tcrv::rvv::I32LoadOp load : loads) {
-    llvm::StringRef role = load.getBufferRole();
-    if (role == support::stringifyRuntimeABIParameterRole(
-                    support::RuntimeABIParameterRole::LHSInputBuffer)) {
-      if (slice.lhsLoad)
-        return makeRVVEmitCRouteProviderError(
-            "bounded RVV EmitC route requires a unique lhs-input-buffer "
-            "load");
-      slice.lhsLoad = load;
-      continue;
-    }
-    if (role == support::stringifyRuntimeABIParameterRole(
-                    support::RuntimeABIParameterRole::RHSInputBuffer)) {
-      if (slice.rhsLoad)
-        return makeRVVEmitCRouteProviderError(
-            "bounded RVV EmitC route requires a unique rhs-input-buffer "
-            "load");
-      slice.rhsLoad = load;
-      continue;
-    }
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported RVV i32 load role '") + role +
-        "' for bounded EmitC route");
+    llvm::Expected<support::RuntimeABIParameter> parameter =
+        getRuntimeABIParameterBindingFromValue(
+            load.getBuffer(), "tcrv_rvv.i32_load buffer operand",
+            {support::RuntimeABIParameterRole::LHSInputBuffer,
+             support::RuntimeABIParameterRole::RHSInputBuffer});
+    if (!parameter)
+      return parameter.takeError();
+    if (llvm::Error error = assignRVVLoadBinding(slice, load, *parameter))
+      return error;
   }
 
   if (!slice.lhsLoad || !slice.rhsLoad)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires lhs-input-buffer and "
         "rhs-input-buffer loads");
-  if (slice.store.getBufferRole() !=
-      support::stringifyRuntimeABIParameterRole(
-          support::RuntimeABIParameterRole::OutputBuffer))
-    return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route requires output-buffer store role");
+  llvm::Expected<support::RuntimeABIParameter> outABI =
+      getRuntimeABIParameterBindingFromValue(
+          slice.store.getBuffer(), "tcrv_rvv.i32_store buffer operand",
+          {support::RuntimeABIParameterRole::OutputBuffer});
+  if (!outABI)
+    return outABI.takeError();
+  if (llvm::Error error = validateRVVI32M1AddRuntimeABIParameters(
+          slice, *runtimeElementCountABI, *outABI))
+    return error;
   if (slice.add.getLhs() != slice.lhsLoad.getLoaded() ||
       slice.add.getRhs() != slice.rhsLoad.getLoaded())
     return makeRVVEmitCRouteProviderError(
@@ -347,8 +463,10 @@ llvm::Error buildRVVI32M1AddEmitCLowerableRoute(
   route.addHeader("riscv_vector.h");
   route.addTypeMapping("!tcrv_rvv.vl", "size_t");
   route.addTypeMapping("!tcrv_rvv.i32m1", "vint32m1_t");
-  for (const support::RuntimeABIParameter &parameter :
-       getRVVI32M1AddRuntimeABIParameters())
+  const support::RuntimeABIParameter runtimeABIParameters[] = {
+      slice->lhsABI, slice->rhsABI, slice->outABI,
+      slice->runtimeElementCountABI};
+  for (const support::RuntimeABIParameter &parameter : runtimeABIParameters)
     route.addABIValueMapping(parameter, parameter.cName);
 
   llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance>
@@ -363,20 +481,24 @@ llvm::Error buildRVVI32M1AddEmitCLowerableRoute(
   if (llvm::Error error = addCallStepFromSource(
           route, slice->setvl.getOperation(), "configure",
           "__riscv_vsetvl_e32m1",
-          {TCRVEmitCCallOpaqueOperand{"n", "size_t"}},
+          {TCRVEmitCCallOpaqueOperand{
+              slice->runtimeElementCountABI.cName,
+              slice->runtimeElementCountABI.cType}},
           TCRVEmitCCallOpaqueResult{"vl", "size_t"}))
     return error;
   if (llvm::Error error = addCallStepFromSource(
           route, slice->lhsLoad.getOperation(), "load",
           "__riscv_vle32_v_i32m1",
-          {TCRVEmitCCallOpaqueOperand{"lhs", "const int32_t *"},
+          {TCRVEmitCCallOpaqueOperand{slice->lhsABI.cName,
+                                      slice->lhsABI.cType},
            TCRVEmitCCallOpaqueOperand{"vl", "size_t"}},
           TCRVEmitCCallOpaqueResult{"lhs_vec", "vint32m1_t"}))
     return error;
   if (llvm::Error error = addCallStepFromSource(
           route, slice->rhsLoad.getOperation(), "load",
           "__riscv_vle32_v_i32m1",
-          {TCRVEmitCCallOpaqueOperand{"rhs", "const int32_t *"},
+          {TCRVEmitCCallOpaqueOperand{slice->rhsABI.cName,
+                                      slice->rhsABI.cType},
            TCRVEmitCCallOpaqueOperand{"vl", "size_t"}},
           TCRVEmitCCallOpaqueResult{"rhs_vec", "vint32m1_t"}))
     return error;
@@ -391,7 +513,8 @@ llvm::Error buildRVVI32M1AddEmitCLowerableRoute(
   if (llvm::Error error = addCallStepFromSource(
           route, slice->store.getOperation(), "store",
           "__riscv_vse32_v_i32m1",
-          {TCRVEmitCCallOpaqueOperand{"out", "int32_t *"},
+          {TCRVEmitCCallOpaqueOperand{slice->outABI.cName,
+                                      slice->outABI.cType},
            TCRVEmitCCallOpaqueOperand{"sum_vec", "vint32m1_t"},
            TCRVEmitCCallOpaqueOperand{"vl", "size_t"}}))
     return error;

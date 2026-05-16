@@ -380,25 +380,29 @@ dataflow only; the former executable microkernel wrapper ops are deleted. It
 introduces the vector-length token type `!tcrv_rvv.vl`, the finite policy
 attribute
 `#tcrv_rvv.policy<tail = agnostic|undisturbed, mask =
-agnostic|undisturbed>`, the bounded runtime AVL-to-VL control-plane operation
-`tcrv_rvv.setvl`, the bounded VL scope region operation `tcrv_rvv.with_vl`,
-the finite `tcrv_rvv.i32_load`, `tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`,
-`tcrv_rvv.i32_mul`, and `tcrv_rvv.i32_store` ops nested under that scope for
-non-executable i32 dataflow modeling. The previous plugin-local selected
-lowering-boundary operation is deleted as active compiler authority. The setvl op
-consumes a runtime AVL SSA value, produces a `!tcrv_rvv.vl` token, and carries
-only bounded first-slice compile-time config metadata: SEW 32, LMUL m1 or m2,
-and the finite policy attribute. The with_vl op consumes one `!tcrv_rvv.vl` value and
-owns one single-block region for bounded RVV control/body work. Optional
+agnostic|undisturbed>`, the bounded `!tcrv_rvv.runtime_abi_value` token and
+`tcrv_rvv.runtime_abi_value` ABI binding op, the bounded runtime AVL-to-VL
+control-plane operation `tcrv_rvv.setvl`, the bounded VL scope region
+operation `tcrv_rvv.with_vl`, the finite `tcrv_rvv.i32_load`,
+`tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`, `tcrv_rvv.i32_mul`, and
+`tcrv_rvv.i32_store` ops nested under that scope for non-executable i32
+dataflow modeling. The previous plugin-local selected lowering-boundary
+operation is deleted as active compiler authority. The `runtime_abi_value` op
+binds one callable C ABI value by role, C name, C type, and ownership, and
+produces an SSA value consumed by the RVV first-slice IR. The setvl op consumes
+a runtime AVL SSA value, produces a `!tcrv_rvv.vl` token, and carries only
+bounded first-slice compile-time config metadata: SEW 32, LMUL m1 or m2, and
+the finite policy attribute. The with_vl op consumes one `!tcrv_rvv.vl` value
+and owns one single-block region for bounded RVV control/body work. Optional
 duplicated SEW/LMUL/policy metadata is limited to the same bounded first-slice
 config and must agree with the visible defining setvl when present. The bounded
-i32 add/sub/mul dataflow body carries finite runtime ABI role references on
-the explicit lhs load, rhs load, and output store operations; concrete C
-parameter names are not resolved into executable artifacts until a future
-EmitC route rebuild provides the required ABI boundary. It is not a generic
-vector memory model. These surfaces are not generic RVV arithmetic, generic
-memory operations, LLVM/RISC-V lowering, full runtime ABI glue, hardware
-execution, correctness evidence, or performance evidence. `tcrv_rvv`
+i32 add/sub/mul dataflow body consumes explicit `lhs`, `rhs`, and `out`
+runtime ABI SSA values on the load/store operations; concrete C parameter
+names are plugin-owned route inputs from the defining runtime ABI value ops,
+not descriptor fields or target-side inference. It is not a generic vector
+memory model. These surfaces are not generic RVV arithmetic, generic memory
+operations, LLVM/RISC-V lowering, full runtime ABI glue, hardware execution,
+correctness evidence, or performance evidence. `tcrv_rvv`
 is the concrete MLIR dialect namespace because MLIR dialect namespaces cannot
 contain `.` characters; the architectural extension family remains `tcrv.rvv`.
 
@@ -774,6 +778,8 @@ stages and are not implied by this route.
 #### 2. Signatures
 
 - Source family body:
+  four explicit `tcrv_rvv.runtime_abi_value` bindings for `lhs`, `rhs`,
+  `out`, and `n`, then
   `tcrv_rvv.setvl -> tcrv_rvv.with_vl -> tcrv_rvv.i32_load ->
   tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store`
   for SEW32 LMUL m1 with agnostic policy.
@@ -801,6 +807,12 @@ stages and are not implied by this route.
   setvl maps to the selected vsetvl intrinsic; load, arithmetic, and store map
   to the selected RVV load, arithmetic, and store intrinsics.
 - Runtime `n` remains the IR-backed runtime-element-count ABI parameter.
+- Runtime `lhs`, `rhs`, `out`, and `n` must be explicit SSA values produced by
+  `tcrv_rvv.runtime_abi_value` in the selected RVV body before this bounded
+  route may construct EmitC. `setvl` consumes the `n` SSA value; load/store
+  ops consume the buffer SSA values. Synthetic
+  `builtin.unrealized_conversion_cast` placeholders and buffer-role-only
+  metadata are not artifact handoff authority for this route.
 - Materialized EmitC comments are compiler route evidence only; they are not
   runtime correctness, hardware execution, throughput, latency, or performance
   evidence.
@@ -819,6 +831,8 @@ stages and are not implied by this route.
   source output.
 - Missing `tcrv_rvv.setvl` / `tcrv_rvv.with_vl` control surface -> fail before
   source output.
+- Missing, duplicate, malformed, or unsupported explicit runtime ABI value
+  binding for `lhs`, `rhs`, `out`, or `n` -> fail before source output.
 - Missing route callee for any body step -> fail before source output.
 - Stale runtime ABI role/name/type/ownership mirror -> fail before source
   output through the target artifact preflight.

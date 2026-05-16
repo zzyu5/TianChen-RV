@@ -8,7 +8,6 @@
 #include "mlir/IR/DialectImplementation.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -42,7 +41,11 @@ constexpr llvm::StringLiteral kLMULAttrName("lmul");
 constexpr llvm::StringLiteral kPolicyAttrName("policy");
 constexpr llvm::StringLiteral kElementCountAttrName("element_count");
 constexpr llvm::StringLiteral kRequiredMarchAttrName("required_march");
-constexpr llvm::StringLiteral kBufferRoleAttrName("buffer_role");
+constexpr llvm::StringLiteral kRoleAttrName("role");
+constexpr llvm::StringLiteral kCNameAttrName("c_name");
+constexpr llvm::StringLiteral kCTypeAttrName("c_type");
+constexpr llvm::StringLiteral kOwnershipAttrName("ownership");
+constexpr llvm::StringLiteral kPurposeAttrName("purpose");
 constexpr llvm::StringLiteral kVLenAttrName("vlen");
 constexpr llvm::StringLiteral kVLenBAttrName("vlenb");
 constexpr llvm::StringLiteral kRVVVariantRequiredMarchAttrName(
@@ -111,8 +114,8 @@ bool isAllowedWithVLAttr(llvm::StringRef name) {
          name == kPolicyAttrName;
 }
 
-bool isAllowedI32LoadAttr(llvm::StringRef name) {
-  return name == kBufferRoleAttrName;
+bool isAllowedI32LoadAttr(llvm::StringRef) {
+  return false;
 }
 
 bool isAllowedI32AddAttr(llvm::StringRef name) {
@@ -127,8 +130,14 @@ bool isAllowedI32MulAttr(llvm::StringRef name) {
   return false;
 }
 
-bool isAllowedI32StoreAttr(llvm::StringRef name) {
-  return name == kBufferRoleAttrName;
+bool isAllowedI32StoreAttr(llvm::StringRef) {
+  return false;
+}
+
+bool isAllowedRuntimeABIValueAttr(llvm::StringRef name) {
+  return name == kRoleAttrName || name == kCNameAttrName ||
+         name == kCTypeAttrName || name == kOwnershipAttrName ||
+         name == kPurposeAttrName;
 }
 
 bool isForbiddenSetVLParameterAttr(llvm::StringRef name) {
@@ -154,31 +163,83 @@ bool isForbiddenDataflowParameterAttr(llvm::StringRef name) {
          name == kLMULAttrName || name == kPolicyAttrName;
 }
 
-mlir::LogicalResult verifyBoundedDataflowRoleAttr(
-    mlir::Operation *op, llvm::StringRef attrName,
-    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole> expectedRoles,
-    llvm::StringSet<> *seenRoles = nullptr) {
-  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
-  if (!attr || attr.getValue().trim().empty())
-    return op->emitOpError()
-           << "requires non-empty runtime ABI role string attribute '"
-           << attrName << "'";
+bool isSafeCIdentifier(llvm::StringRef value) {
+  if (value.empty() || value.size() > 128)
+    return false;
+  auto isHead = [](char c) {
+    unsigned char byte = static_cast<unsigned char>(c);
+    return std::isalpha(byte) || c == '_';
+  };
+  auto isTail = [&](char c) {
+    unsigned char byte = static_cast<unsigned char>(c);
+    return isHead(c) || std::isdigit(byte);
+  };
+  if (!isHead(value.front()))
+    return false;
+  return llvm::all_of(value.drop_front(), isTail);
+}
 
-  llvm::StringRef value = attr.getValue().trim();
-  if (mlir::failed(verifyBoundedMetadata(op, attrName, value)))
+llvm::StringRef getBoundedRuntimeABIValueCType(
+    tianchenrv::support::RuntimeABIParameterRole role) {
+  using Role = tianchenrv::support::RuntimeABIParameterRole;
+  switch (role) {
+  case Role::LHSInputBuffer:
+  case Role::RHSInputBuffer:
+    return "const int32_t *";
+  case Role::OutputBuffer:
+    return "int32_t *";
+  case Role::RuntimeElementCount:
+    return "size_t";
+  case Role::DispatchAvailabilityGuard:
+    return {};
+  }
+  return {};
+}
+
+bool isBoundedInputBufferRole(
+    tianchenrv::support::RuntimeABIParameterRole role) {
+  using Role = tianchenrv::support::RuntimeABIParameterRole;
+  return role == Role::LHSInputBuffer || role == Role::RHSInputBuffer;
+}
+
+bool isBoundedBufferRole(tianchenrv::support::RuntimeABIParameterRole role) {
+  using Role = tianchenrv::support::RuntimeABIParameterRole;
+  return isBoundedInputBufferRole(role) || role == Role::OutputBuffer;
+}
+
+mlir::FailureOr<RuntimeABIValueOp>
+verifyRuntimeABIValueOperand(mlir::Operation *op, mlir::Value value,
+                             llvm::StringRef operandName) {
+  if (!llvm::isa<RuntimeABIValueType>(value.getType()))
+    return op->emitOpError()
+           << "requires " << operandName
+           << " operand to have !tcrv_rvv.runtime_abi_value type";
+
+  auto binding = value.getDefiningOp<RuntimeABIValueOp>();
+  if (!binding)
+    return op->emitOpError()
+           << "requires " << operandName
+           << " operand to be defined by tcrv_rvv.runtime_abi_value";
+
+  return binding;
+}
+
+mlir::LogicalResult verifyRuntimeABIValueOperandRole(
+    mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
+    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
+        expectedRoles) {
+  mlir::FailureOr<RuntimeABIValueOp> binding =
+      verifyRuntimeABIValueOperand(op, value, operandName);
+  if (mlir::failed(binding))
     return mlir::failure();
 
   std::optional<tianchenrv::support::RuntimeABIParameterRole> parsedRole =
-      tianchenrv::support::symbolizeRuntimeABIParameterRole(value);
+      tianchenrv::support::symbolizeRuntimeABIParameterRole(
+          (*binding).getRole());
   if (!parsedRole)
     return op->emitOpError()
-           << "attribute '" << attrName
-           << "' must reference a supported runtime ABI parameter role";
-
-  if (seenRoles && !seenRoles->insert(value).second)
-    return op->emitOpError()
-           << "requires each dataflow runtime ABI role reference to be unique; "
-              "duplicate role '" << value << "'";
+           << "requires " << operandName
+           << " operand runtime ABI role to be supported";
 
   if (llvm::is_contained(expectedRoles, *parsedRole))
     return mlir::success();
@@ -195,8 +256,8 @@ mlir::LogicalResult verifyBoundedDataflowRoleAttr(
       [&] { stream << " or "; });
   stream.flush();
   return op->emitOpError()
-         << "attribute '" << attrName
-         << "' must reference runtime ABI role " << expected;
+         << "requires " << operandName << " operand to bind runtime ABI role "
+         << expected;
 }
 
 bool isI32M1Vector(mlir::Type type) {
@@ -330,6 +391,94 @@ llvm::StringRef I32StoreOp::getTCRVEmitCLowerableSourceOpName() {
 
 llvm::StringRef I32StoreOp::getTCRVEmitCLowerableSourceRole() {
   return "store";
+}
+
+mlir::LogicalResult RuntimeABIValueOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (!isAllowedRuntimeABIValueAttr(attrName))
+      return emitOpError()
+             << "only accepts runtime ABI binding attributes '" << kRoleAttrName
+             << "', '" << kCNameAttrName << "', '" << kCTypeAttrName
+             << "', '" << kOwnershipAttrName << "', and optional '"
+             << kPurposeAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (op->getNumResults() != 1)
+    return emitOpError() << "requires exactly one SSA result";
+
+  if (mlir::failed(verifyBoundedMetadata(op, kRoleAttrName, getRole())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kCNameAttrName, getCName())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kCTypeAttrName, getCType())))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyBoundedMetadata(op, kOwnershipAttrName, getOwnership())))
+    return mlir::failure();
+  if (auto purpose = op->getAttrOfType<mlir::StringAttr>(kPurposeAttrName))
+    if (mlir::failed(
+            verifyBoundedMetadata(op, kPurposeAttrName, purpose.getValue())))
+      return mlir::failure();
+
+  if (!isSafeCIdentifier(getCName()))
+    return emitOpError()
+           << "requires attribute '" << kCNameAttrName
+           << "' to be a valid bounded C identifier";
+
+  std::optional<tianchenrv::support::RuntimeABIParameterRole> parsedRole =
+      tianchenrv::support::symbolizeRuntimeABIParameterRole(getRole());
+  if (!parsedRole)
+    return emitOpError() << "attribute '" << kRoleAttrName
+                         << "' must reference a supported runtime ABI "
+                            "parameter role";
+
+  std::optional<tianchenrv::support::RuntimeABIParameterOwnership>
+      parsedOwnership =
+          tianchenrv::support::symbolizeRuntimeABIParameterOwnership(
+              getOwnership());
+  if (!parsedOwnership)
+    return emitOpError() << "attribute '" << kOwnershipAttrName
+                         << "' must reference a supported runtime ABI "
+                            "parameter ownership";
+  if (*parsedOwnership !=
+      tianchenrv::support::RuntimeABIParameterOwnership::TargetExportABIOwned)
+    return emitOpError()
+           << "requires ownership '"
+           << tianchenrv::support::stringifyRuntimeABIParameterOwnership(
+                  tianchenrv::support::RuntimeABIParameterOwnership::
+                      TargetExportABIOwned)
+           << "' for the bounded RVV callable C ABI";
+
+  llvm::StringRef expectedCType =
+      getBoundedRuntimeABIValueCType(*parsedRole);
+  if (expectedCType.empty())
+    return emitOpError()
+           << "does not support runtime ABI role '" << getRole()
+           << "' in the bounded RVV callable ABI";
+  if (getCType() != expectedCType)
+    return emitOpError()
+           << "requires runtime ABI role '" << getRole()
+           << "' to use C type '" << expectedCType << "'";
+
+  if (*parsedRole ==
+      tianchenrv::support::RuntimeABIParameterRole::RuntimeElementCount) {
+    if (!getValue().getType().isIndex())
+      return emitOpError()
+             << "requires runtime-element-count result to have index type";
+    return mlir::success();
+  }
+
+  if (isBoundedBufferRole(*parsedRole) &&
+      llvm::isa<RuntimeABIValueType>(getValue().getType()))
+    return mlir::success();
+
+  return emitOpError()
+         << "requires buffer ABI value result to have "
+            "!tcrv_rvv.runtime_abi_value type";
 }
 
 mlir::LogicalResult SetVLOp::verify() {
@@ -478,15 +627,21 @@ mlir::LogicalResult I32LoadOp::verify() {
 
     if (!isAllowedI32LoadAttr(attrName))
       return emitOpError()
-             << "only accepts finite input buffer runtime ABI role attribute '"
-             << kBufferRoleAttrName
-             << "'; unexpected attribute '" << attr.getName() << "'";
+             << "does not accept dataflow attributes; input buffer ABI "
+                "provenance must come from the explicit buffer SSA operand; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
   }
 
-  if (op->getNumOperands() != 1 || op->getNumResults() != 1)
+  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
     return emitOpError()
-           << "requires exactly one !tcrv_rvv.vl operand and one "
-              "bounded RVV i32 vector result";
+           << "requires exactly one explicit input buffer ABI operand, one "
+              "!tcrv_rvv.vl operand, and one bounded RVV i32 vector result";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getBuffer(), "input buffer",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
@@ -496,14 +651,6 @@ mlir::LogicalResult I32LoadOp::verify() {
     return mlir::failure();
   if (mlir::failed(
           verifyI32VectorTypeForWithVL(op, getLoaded(), "result")))
-    return mlir::failure();
-
-  llvm::StringSet<> seenRoles;
-  if (mlir::failed(verifyBoundedDataflowRoleAttr(
-          op, kBufferRoleAttrName,
-          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer},
-          &seenRoles)))
     return mlir::failure();
 
   return mlir::success();
@@ -665,15 +812,21 @@ mlir::LogicalResult I32StoreOp::verify() {
 
     if (!isAllowedI32StoreAttr(attrName))
       return emitOpError()
-             << "only accepts finite output buffer runtime ABI role attribute '"
-             << kBufferRoleAttrName
-             << "'; unexpected attribute '" << attr.getName() << "'";
+             << "does not accept dataflow attributes; output buffer ABI "
+                "provenance must come from the explicit buffer SSA operand; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
   }
 
-  if (op->getNumOperands() != 2 || op->getNumResults() != 0)
+  if (op->getNumOperands() != 3 || op->getNumResults() != 0)
     return emitOpError()
-           << "requires one bounded RVV i32 vector value operand, one "
-              "!tcrv_rvv.vl operand, and no results";
+           << "requires one explicit output buffer ABI operand, one bounded "
+              "RVV i32 vector value operand, one !tcrv_rvv.vl operand, and "
+              "no results";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getBuffer(), "output buffer",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
@@ -682,13 +835,6 @@ mlir::LogicalResult I32StoreOp::verify() {
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
   if (mlir::failed(verifyI32VectorTypeForWithVL(op, getValue(), "stored value")))
-    return mlir::failure();
-
-  llvm::StringSet<> seenRoles;
-  if (mlir::failed(verifyBoundedDataflowRoleAttr(
-          op, kBufferRoleAttrName,
-          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer},
-          &seenRoles)))
     return mlir::failure();
 
   return mlir::success();

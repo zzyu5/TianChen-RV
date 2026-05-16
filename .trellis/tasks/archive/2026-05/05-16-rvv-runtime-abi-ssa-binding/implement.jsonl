@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "global project stack and descriptor/direct-C boundaries"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC route and selected artifact handoff contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local first-slice ABI and explicit typed-op boundaries"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused lit/FileCheck and RVV evidence requirements"}
