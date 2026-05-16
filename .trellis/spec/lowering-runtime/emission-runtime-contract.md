@@ -348,14 +348,13 @@ artifacts are not generic-front-door selectable until a future materialized
 EmitC route rebuild defines a new contract. The object and header routes are
 still bounded target artifacts; they do not link, run hardware, perform
 automatic probing, prove correctness, or measure performance.
-The direct RVV microkernel library-object source may embed a bounded read-only
-artifact evidence section in the produced object, such as
-`.rodata.tianchenrv.rvv_artifact`, derived from the same selected source
-artifact plan, selected vector config, runtime AVL/VL authority, and ordered
-runtime ABI role contract as the validated source/header route. This object section is
-compiler-artifact provenance only: it must not contain runtime logs, hardware
-success text, artifact paths, credentials, correctness claims, or performance
-claims.
+Historical direct RVV microkernel library-object provenance sections are
+deleted as active route authority. Future object provenance must be derived
+from explicit extension-family IR, the materialized EmitC/runtime route, and
+the ordered runtime ABI role contract rather than selected config descriptors
+or runtime-length metadata helpers. Such provenance must not contain runtime
+logs, hardware success text, artifact paths, credentials, correctness claims,
+or performance claims.
 The self-check object route remains an explicit target-owned helper command for
 evidence collection, not the generic artifact front door.
 For historical direct RVV i32/i64 add/sub/mul microkernel paths, the
@@ -487,14 +486,10 @@ preserve parameter layering:
 - compile-time variant config such as SEW, LMUL, tail/mask policy, unroll, and
   selected lowering strategy may be serialized as compiler decision metadata
   only when it was actually selected or proposed by the plugin and checked
-  against capabilities. For RVV i32 binary paths, selected vector-shape
-  metadata may include shape id, SEW, LMUL, tail/mask policy, vector type,
-  intrinsic suffix, and setvl suffix, but those fields remain target/plugin
-  compile-time config rather than runtime ABI values or `tcrv.exec` compute
-  semantics. The RVV arithmetic family registry owns only the suffix-free
-  arithmetic intrinsic prefix; target source emission forms the full RVV
-  arithmetic intrinsic name by appending the selected vector-shape suffix after
-  selected-shape validation;
+  against capabilities. RVV paths must derive executable intrinsic spelling and
+  VL setup from explicit `tcrv_rvv` IR plus a materialized EmitC/runtime route,
+  not from target-owned selected-shape descriptors, suffix tables, or comment
+  metadata;
 - runtime SSA values / runtime control values such as AVL, vl, pointer
   arguments, length `n`, and dispatch guards may be emitted only as real
   IR/control fields or generated ABI parameters;
@@ -1866,13 +1861,9 @@ mismatched selected-plan metadata fail closed before bundle export. Source,
 header, and object routes must remain separate records. Composite dispatch
 records may be attached to the selected dispatch surface and must preserve the
 component selected variants/roles rather than moving RVV/scalar branch
-semantics into `tcrv.exec` or generic manifest code. For RVV+scalar dispatch
-records, the target-owned dispatch exporter must consume the validated direct
-RVV component selected-config/runtime AVL contract before deriving dispatch
-source/header/object or bundle records. The composite bundle record must carry
-dispatch-specific selected-plan metadata that exposes the consumed RVV
-component contract fields: runtime element-count C name, selected vector
-config, selected dispatch role, and descriptor-local element count as bounded
-component capacity metadata only. Missing or mismatched direct RVV selected
-config contract fields must fail before bundle output. Unsupported selected
-paths must omit target artifact records instead of fabricating route data.
+semantics into `tcrv.exec` or generic manifest code. Deleted direct RVV
+selected-config/runtime AVL contracts are not active bundle authority. A future
+RVV+scalar dispatch exporter must consume explicit extension-family IR plus a
+materialized EmitC/runtime route before deriving dispatch source/header/object
+or bundle records. Unsupported selected paths must omit target artifact records
+instead of fabricating route data.

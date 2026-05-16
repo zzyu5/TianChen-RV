@@ -56,6 +56,59 @@ Deleted Support-owned I32/RVV runtime ABI contracts and helpers; rewired tests/s
 - None - task complete
 
 
+## Session 88: RVV finite vector-shape metadata erasure
+
+**Date**: 2026-05-16
+**Task**: RVV finite vector-shape metadata erasure
+**Branch**: `main`
+
+### Summary
+
+Erased RVV target-owned finite vector-shape catalogs and runtime-length
+comment/expression helper authority. RVV plugin capability registration now
+advertises only the base `rvv` capability, and tests/specs no longer protect
+selected vector-shape selector lookup or runtime-length C/comment formatting.
+
+### Main Changes
+
+- Deleted `RVVVectorShape.h` and `RVVRuntimeLengthContract.h`.
+- Removed finite vector-shape capability advertisement and selected-shape
+  selector registration from `RVVExtensionPlugin`.
+- Rewrote RVV plugin and target artifact tests to stop consuming selected
+  shape helpers and runtime-length formatting helpers.
+- Updated RVV, capability-model, and lowering-runtime specs so future RVV
+  executable work must derive config and runtime values from explicit
+  `tcrv_rvv` IR plus materialized EmitC/runtime routes, not target helper
+  descriptors.
+- Created, validated, and prepared to archive the deletion-only Trellis task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(rvv): erase finite vector-shape metadata |
+
+### Testing
+
+- [OK] focused active-surface ref-scan for the Direction Brief's deleted RVV
+  vector-shape/runtime-length helper terms over `.trellis/spec`, `include`,
+  `lib`, `test`, `README.md`, and `scripts`
+- [OK] `ninja -C build TianChenRVRVVPlugin TianChenRVRVVTarget tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `ninja -C build check-tianchenrv` (73/73 lit tests)
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-16-rvv-finite-vector-shape-metadata-erasure`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 87: Finite binary callable ABI plan erasure
 
 **Date**: 2026-05-16

@@ -4,7 +4,6 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -135,17 +134,11 @@ int runRegistrationAndCapabilityMetadataTest() {
 
   llvm::SmallVector<PluginCapability, 16> capabilities;
   registry.collectCapabilities(capabilities);
-  if (int result = expect(capabilities.size() == 14,
-                          "RVV plugin exposes RVV/vector-shape capabilities"))
+  if (int result = expect(capabilities.size() == 1,
+                          "RVV plugin exposes only the base RVV capability"))
     return result;
-  if (int result = expect(registry.lookupCapabilityByID("rvv") != nullptr,
-                          "RVV capability id lookup succeeds"))
-    return result;
-  return expect(registry.lookupCapabilityByID(
-                    tianchenrv::target::rvv::
-                        getRVVI32BinarySelectedVectorShapeCapabilityID()) !=
-                    nullptr,
-                "RVV selected vector-shape selector capability lookup succeeds");
+  return expect(registry.lookupCapabilityByID("rvv") != nullptr,
+                "RVV capability id lookup succeeds");
 }
 
 int runCapabilityProfileTest() {
@@ -166,12 +159,6 @@ int runCapabilityProfileTest() {
   if (int result = expect(configCapabilities.empty(),
                           "RVV probe profile does not manufacture vector "
                           "config capabilities"))
-    return result;
-  if (int result = expect(
-          !capabilities.isCapabilityAvailableByID(
-              tianchenrv::target::rvv::getI32M1VectorShapeConfig()
-                  .sewCapabilityID),
-          "RVV probe profile does not expose i32m1 SEW config capability"))
     return result;
   return expect(capabilities.isCapabilityAvailableByID(
                     tianchenrv::plugin::rvv::
@@ -399,15 +386,7 @@ module {
     tcrv.exec.variant @rvv_metadata_without_typed_body attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
-      tcrv_rvv.policy = "not_a_typed_policy",
-      tcrv_rvv.selected_vector_shape = "i32m1",
-      tcrv_rvv.selected_vector_sew = 32 : i64,
-      tcrv_rvv.selected_vector_lmul = "m1",
-      tcrv_rvv.selected_tail_policy = "agnostic",
-      tcrv_rvv.selected_mask_policy = "agnostic",
-      tcrv_rvv.selected_vector_type = "vint32m1_t",
-      tcrv_rvv.selected_vector_suffix = "i32m1",
-      tcrv_rvv.selected_setvl_suffix = "e32m1"
+      tcrv_rvv.policy = "not_a_typed_policy"
     } {
     }
   }

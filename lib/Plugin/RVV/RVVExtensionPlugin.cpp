@@ -3,7 +3,6 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
-#include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Attributes.h"
@@ -44,23 +43,6 @@ llvm::Error makeRVVPluginError(llvm::Twine message) {
 bool hasAvailableRVVCapability(const VariantProposalRequest &request) {
   return request.getKernel() &&
          request.getCapabilities().isCapabilityAvailableByID(kRVVCapabilityID);
-}
-
-void addRVVVectorShapeCapabilities(
-    llvm::SmallVectorImpl<PluginCapability> &capabilities,
-    const target::rvv::RVVVectorShapeConfig &config) {
-  capabilities.push_back(PluginCapability(
-      config.sewCapabilityID, "isa-vector-config",
-      "RVV compile-time SEW config capability"));
-  capabilities.push_back(PluginCapability(
-      config.lmulCapabilityID, "isa-vector-config",
-      "RVV compile-time LMUL config capability"));
-  capabilities.push_back(PluginCapability(
-      config.tailPolicyCapabilityID, "isa-vector-config",
-      "RVV compile-time tail policy config capability"));
-  capabilities.push_back(PluginCapability(
-      config.maskPolicyCapabilityID, "isa-vector-config",
-      "RVV compile-time mask policy config capability"));
 }
 
 bool variantContainsExplicitTypedRVVBody(tcrv::exec::VariantOp variant) {
@@ -113,17 +95,6 @@ RVVExtensionPlugin::RVVExtensionPlugin() {
       kRVVCapabilityID, kRVVCapabilityKind,
       "RVV first-slice vector ISA capability participation; target "
       "availability is supplied by tcrv.exec.capability metadata"));
-  for (const target::rvv::RVVI32VectorShapeConfig *config :
-       target::rvv::getFiniteI32VectorShapeConfigs())
-    addRVVVectorShapeCapabilities(capabilities, *config);
-  for (const target::rvv::RVVVectorShapeConfig *config :
-       target::rvv::getFiniteI64VectorShapeConfigs())
-    addRVVVectorShapeCapabilities(capabilities, *config);
-  capabilities.push_back(PluginCapability(
-      tianchenrv::target::rvv::
-          getRVVI32BinarySelectedVectorShapeCapabilityID(),
-      "isa-vector-config",
-      "RVV i32 selected vector-shape selector capability"));
 }
 
 llvm::StringRef RVVExtensionPlugin::getName() const {

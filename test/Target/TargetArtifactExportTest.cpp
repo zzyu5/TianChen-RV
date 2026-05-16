@@ -11,7 +11,6 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
-#include "TianChenRV/Target/RVV/RVVRuntimeLengthContract.h"
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
@@ -163,25 +162,6 @@ bool expectErrorContains(llvm::Error error, llvm::StringRef context,
       return false;
     }
   }
-  return true;
-}
-
-bool expectRVVRuntimeLengthContractShape() {
-  using namespace tianchenrv::target::rvv;
-
-  RVVRuntimeLengthContract runtimeLength("len", 16);
-  if (!expectSuccess(validateRVVRuntimeLengthContract(runtimeLength),
-                     "valid RVV runtime length contract"))
-    return false;
-
-  if (runtimeLength.formatRemainingAVLOperandExpression("offset") !=
-      "len - offset") {
-    llvm::errs() << "RVV runtime length contract did not derive the "
-                    "remaining-AVL vsetvl operand from the runtime ABI C "
-                    "name\n";
-    return false;
-  }
-
   return true;
 }
 
@@ -1455,9 +1435,6 @@ int main() {
   tianchenrv::registerAllDialects(dialectRegistry);
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();
-
-  if (!expectRVVRuntimeLengthContractShape())
-    return 1;
 
   TargetArtifactExporterRegistry registry;
 

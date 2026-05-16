@@ -54,33 +54,8 @@ plugin capability id: rvv
 plugin capability kind: isa-vector
 preferred kernel capability symbol: @rvv
 variant origin: rvv-plugin
-finite capability ids:
+registered plugin capability ids:
   rvv
-  rvv.i32_m1.sew32
-  rvv.i32_m1.lmul_m1
-  rvv.i32_m1.tail_policy.agnostic
-  rvv.i32_m1.mask_policy.agnostic
-  rvv.i32_m2.sew32
-  rvv.i32_m2.lmul_m2
-  rvv.i32_m2.tail_policy.agnostic
-  rvv.i32_m2.mask_policy.agnostic
-  rvv.i64_m1.sew64
-  rvv.i64_m1.lmul_m1
-  rvv.i64_m1.tail_policy.agnostic
-  rvv.i64_m1.mask_policy.agnostic
-optional finite i32 binary selected vector-shape selector capability id:
-  rvv.i32_binary.selected_vector_shape
-selector property:
-  shape = "i32m1" | "i32m2"
-preferred finite config symbols:
-  @rvv_i32_m1_sew32
-  @rvv_i32_m1_lmul_m1
-  @rvv_i32_m1_tail_agnostic
-  @rvv_i32_m1_mask_agnostic
-  @rvv_i32_m2_sew32
-  @rvv_i32_m2_lmul_m2
-  @rvv_i32_m2_tail_agnostic
-  @rvv_i32_m2_mask_agnostic
 explicit typed variant form: a hand-authored or future materialized RVV variant
   must contain real `tcrv_rvv` ops in its body before RVV plugin legality or
   selection preference can accept it
@@ -89,15 +64,6 @@ typed policy attr value: #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
 deleted legacy element-count attr name: tcrv_rvv.element_count
 optional vlenb attr name: tcrv_rvv.vlenb_bytes
 optional base i32 m1 lane attr name: tcrv_rvv.base_i32_m1_lanes
-selected vector-shape attr names:
-  tcrv_rvv.selected_vector_shape
-  tcrv_rvv.selected_vector_sew
-  tcrv_rvv.selected_vector_lmul
-  tcrv_rvv.selected_tail_policy
-  tcrv_rvv.selected_mask_policy
-  tcrv_rvv.selected_vector_type
-  tcrv_rvv.selected_vector_suffix
-  tcrv_rvv.selected_setvl_suffix
 ```
 
 RVV probe facts remain bounded hardware/toolchain evidence inputs. They may be
@@ -108,7 +74,7 @@ Proposal collection for a no-body RVV-capable kernel records a recoverable
 decline and produces no RVV proposal. Materialized RVV variant legality is
 strict: the variant must be owned by `origin = "rvv-plugin"` and contain real
 `tcrv_rvv` operations in its body. Metadata-only RVV attributes, finite
-capability facts, selected vector shape facts, or profile evidence alone are
+capability facts, deleted selected-shape facts, or profile evidence alone are
 not sufficient.
 
 The RVV plugin must not create any binary-family proposal from a no-body
@@ -347,9 +313,9 @@ Interpretation rules:
   evidence identities. Current probe-derived profile IDs include `rvv`,
   `rvv.hart_count`, `rvv.vlenb_bytes`, `rvv.i32_m1_lane_count`,
   `rvv.toolchain.clang`, `rvv.toolchain.cmake`, `rvv.probe.compile_run`,
-  `rvv.toolchain.march`, and `rvv.toolchain.mabi`. Finite SEW/LMUL/tail/mask
-  config IDs such as `rvv.i32_m1.sew32` belong to explicit RVV vector-shape
-  config/profile fixtures or plugin-selected variant requirements, not to
+  `rvv.toolchain.march`, and `rvv.toolchain.mabi`. SEW/LMUL/tail/mask config
+  IDs such as `rvv.i32_m1.sew32` belong to explicit RVV config/profile fixtures
+  or plugin-selected variant requirements, not to
   probe-derived profile construction. These identities must not include
   ssh/provider names, raw command logs, secrets, benchmark names, or
   performance measurements.
@@ -423,7 +389,9 @@ contain `.` characters; the architectural extension family remains `tcrv.rvv`.
 
 ## Capability Fields
 
-RVV plugin should register and query:
+RVV plugin should register the base plugin capability and may query explicit
+profile or typed-variant config facts without advertising them from a target
+helper catalog:
 
 ```text
 rvv
@@ -436,7 +404,6 @@ rvv.i32_m2.sew32
 rvv.i32_m2.lmul_m2
 rvv.i32_m2.tail_policy.agnostic
 rvv.i32_m2.mask_policy.agnostic
-rvv.i32_binary.selected_vector_shape
 vlen
 elen
 supported SEW
@@ -538,9 +505,8 @@ RVV work must keep these parameter layers distinct:
   constrain legality, vector capacity, and selection after provenance is
   validated, including plugin-owned `tcrv_rvv.vlenb_bytes` and
   `tcrv_rvv.base_i32_m1_lanes` variant metadata. The base lane attribute is the
-  i32 M1 capacity implied by vlenb, even when the selected vector shape is
-  i32m2. It is not selected m1 config metadata and is not a per-variant runtime
-  value.
+  i32 M1 capacity implied by vlenb. It is not selected LMUL config metadata and
+  is not a per-variant runtime value.
 - SEW, LMUL, tail policy, and mask policy are compile-time variant config
   selected or proposed by the RVV plugin and checked against target
   capabilities. The current non-executable bounded RVV dataflow slice admits only SEW 32 with
@@ -550,27 +516,17 @@ RVV work must keep these parameter layers distinct:
   `rvv.i32_m1.mask_policy.agnostic`; the m2 shape is backed by
   `rvv.i32_m2.sew32`, `rvv.i32_m2.lmul_m2`,
   `rvv.i32_m2.tail_policy.agnostic`, and
-  `rvv.i32_m2.mask_policy.agnostic`. A selected variant must require exactly
-  one shape, and future EmitC/export routes must reject selected capability/body
-  LMUL mismatches before artifact bytes are emitted. These config ids are not
+  `rvv.i32_m2.mask_policy.agnostic`. A selected variant must carry explicit
+  typed RVV IR whose SEW/LMUL/policy attributes agree with its requirements,
+  and future EmitC/export routes must reject capability/body LMUL mismatches
+  before artifact bytes are emitted. These config ids are not
   sufficient as standalone hardware facts without the surrounding
   RVV/profile/toolchain evidence.
-- The selected vector-shape config is the target-owned serialization of that
-  compile-time choice. Materialized explicit RVV variants, selected-plan
-  metadata, and any future generated RVV C source comments must agree on
-  `selected_vector_shape`,
-  `selected_vector_sew`, `selected_vector_lmul`, `selected_tail_policy`,
-  `selected_mask_policy`, `selected_vector_type`,
-  `selected_vector_suffix`, and `selected_setvl_suffix`. If any selected-shape
-  attribute is present, the complete group is required. An i32m2 selected path
-  must not carry stale selected i32m1 config even though it may still carry the
-  separate `base_i32_m1_lanes` capacity fact.
-- RVV arithmetic family identity and selected vector-shape suffix are separate
-  contracts. The i32 add/sub/mul family registry owns only the suffix-free
-  arithmetic intrinsic prefix; the target exporter appends the selected
-  vector-shape suffix after validating the selected shape group. A full
-  intrinsic string such as `__riscv_vadd_vv_i32m2` is therefore an emission
-  result, not a family descriptor field.
+- Target helper catalogs must not serialize the selected RVV compile-time
+  choice. Materialized explicit RVV variants and any future generated artifacts
+  must derive SEW, LMUL, tail/mask policy, and intrinsic spellings from real
+  `tcrv_rvv` IR plus the materialized EmitC/runtime route, not from selected
+  metadata descriptors, suffix tables, or target-owned shape catalogs.
 - AVL and vl are runtime SSA values / runtime control values. The current
   bounded `tcrv_rvv.setvl` surface models AVL as a real runtime SSA operand and
   vl as a real `!tcrv_rvv.vl` result. The bounded `tcrv_rvv.with_vl` surface
@@ -592,12 +548,11 @@ IR-modeled unless the real IR has the corresponding attribute, type, SSA value,
 region argument, or generated ABI parameter. The current `tcrv_rvv.setvl` and
 `tcrv_rvv.with_vl` ops model only runtime AVL/VL control-plane IR; they do not
 make VLEN/vlenb or descriptor-local `element_count` runtime values.
-RVV emission plans may carry bounded `selected_plan_metadata` entries such as
-the selected vector-shape group, `tcrv_rvv.vlenb_bytes`, and
-`tcrv_rvv.base_i32_m1_lanes` only as plugin-owned selected-plan
-self-description. Those entries must be generated from validated selected
-variant metadata and must not become runtime ABI parameters, generated control
-values, runtime shapes, or performance claims.
+RVV emission plans must not use selected-shape metadata descriptors as
+lowering, runtime ABI, or artifact authority. Bounded diagnostics may mention
+validated hardware/profile facts such as `tcrv_rvv.vlenb_bytes` and
+`tcrv_rvv.base_i32_m1_lanes`, but executable artifacts require explicit
+extension-family IR plus a materialized EmitC/runtime route.
 
 ## Deleted Selected Lowering Boundary Route
 

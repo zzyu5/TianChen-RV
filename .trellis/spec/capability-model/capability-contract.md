@@ -120,9 +120,9 @@ or ABI surface that states the new meaning.
 2. Compile-time variant config belongs in plugin-proposed variant metadata,
    selected config, tuning, or lowering-boundary metadata and must be checked
    against target capability. Examples include SEW, LMUL, tail policy, mask
-   policy, unroll, selected vector type/suffix, setvl suffix, and selected
-   lowering strategy. RVV selected vector-shape config is plugin/target-owned
-   metadata and must not become `tcrv.exec` compute semantics.
+   policy, unroll, and selected lowering strategy. RVV executable config must
+   come from explicit extension-family IR and checked capability facts, not from
+   target-owned selected-shape descriptors or suffix catalogs.
 3. Runtime SSA values / runtime control values belong in real IR or ABI
    surfaces: SSA values, region or block arguments, op attributes that
    explicitly mean ABI/control values, or generated C ABI parameters. Examples
