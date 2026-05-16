@@ -1,6 +1,6 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC
-// RUN: tcrv-opt %s --tcrv-materialize-emission-plans --tcrv-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC
+// RUN: not tcrv-opt %s --tcrv-materialize-emission-plans --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --check-prefix=COMBINED-FAIL
 
 module {
   tcrv.exec.kernel @tensorext_lite_emitc_kernel {
@@ -33,16 +33,13 @@ module {
 }
 
 // PLAN: tcrv.exec.diagnostic
-// PLAN-SAME: artifact_kind = "metadata-diagnostic"
-// PLAN-SAME: emission_kind = "materialized-emitc-cpp-tensorext-lite-fragment-mma-module"
-// PLAN-SAME: lowering_boundary = "tcrv_tensorext_lite.role_sequence"
-// PLAN-SAME: lowering_pipeline = "tensorext-lite-fragment-mma-emitc-route"
+// PLAN-SAME: message = "TensorExtLite selected explicit role sequence materializes an EmitC module through the common TCRVEmitCLowerableRoute materializer; target artifact export remains unsupported for this family slice"
 // PLAN-SAME: origin = "tensorext-lite-plugin"
 // PLAN-SAME: reason = "emission_plan"
-// PLAN-SAME: runtime_abi = "tensorext-lite-fragment-mma-runtime-c-abi.v1"
-// PLAN-SAME: runtime_abi_kind = "plugin-owned-runtime-abi"
-// PLAN-SAME: runtime_glue_role = "emitc-cpp-tensorext-lite-fragment-runtime-glue"
-// PLAN-SAME: status = "supported"
+// PLAN-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+// PLAN-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
+// PLAN-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
+// PLAN-SAME: status = "unsupported"
 // PLAN-SAME: target = @tensorext_lite_tile_mma_first_slice
 
 // EMITC: emitc.include <"stdint.h">
@@ -61,3 +58,5 @@ module {
 // EMITC: tcrv_emitc.source_op=tcrv_tensorext_lite.store_frag_skeleton role=store_frag op_interface=TCRVEmitCLowerableOpInterface callee=tcrv_tensorext_lite_store_frag
 // EMITC: call_opaque "tcrv_tensorext_lite_store_frag"
 // EMITC-NOT: __riscv_
+
+// COMBINED-FAIL: requires one supported selected emission-plan diagnostic before materializing an EmitC route from selected-path metadata

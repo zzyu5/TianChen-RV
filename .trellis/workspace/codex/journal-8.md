@@ -56,6 +56,73 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 99: Metadata-diagnostic artifact-kind authority erasure
+
+**Date**: 2026-05-17
+**Task**: Metadata diagnostic artifact-kind authority erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted `metadata-diagnostic` as a current supported construction/emission and
+target artifact kind. Toy and TensorExtLite now keep only unsupported diagnostic
+artifact-kind metadata for construction surfaces without publishing target
+artifact authority, and TensorExtLite emission planning fails closed while
+separate in-memory EmitC route materialization remains covered.
+
+### Main Changes
+
+- Removed `metadata-diagnostic` from common construction, plugin emission-plan,
+  and target artifact exporter validators.
+- Rewrote Toy and TensorExtLite construction route metadata to use
+  `unsupported-emission-diagnostic` instead of metadata-only artifact authority.
+- Rewrote TensorExtLite emission planning from a supported metadata diagnostic
+  artifact to an unsupported plan with bounded unsupported runtime ABI ownership
+  metadata.
+- Updated target artifact tests to reject metadata diagnostic exporter
+  registration and to keep bundle/default artifact coverage on object/header
+  materialized kinds.
+- Updated lit coverage so TensorExtLite target artifact export finds no
+  supported route and combined unsupported-plan plus EmitC-route materialization
+  fails closed.
+- Added emission-runtime spec coverage for the metadata-diagnostic artifact-kind
+  erasure contract and removed stale supported-plan wording from the EmitC route
+  spec.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] Built focused C++ targets:
+  `tianchenrv-construction-protocol-common-test`,
+  `tianchenrv-plugin-emission-plan-test`,
+  `tianchenrv-toy-extension-plugin-test`,
+  `tianchenrv-tensorext-lite-extension-plugin-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] Ran the five focused C++ test executables.
+- [OK] Focused lit filter:
+  `tensorext-lite-(first-slice-materialization|target-artifact-unsupported)`.
+- [OK] `git diff --check`.
+- [OK] Production scan found no `metadata-diagnostic` under
+  `include/TianChenRV/Plugin`, `lib/Plugin`, `include/TianChenRV/Target`, or
+  `lib/Target`.
+- [OK] Test scan found `metadata-diagnostic` only in negative rejection cases.
+- [OK] `cmake --build build --target check-tianchenrv`: 99/99 lit tests
+  passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 99: Toy template target artifact route erasure
 
 **Date**: 2026-05-17

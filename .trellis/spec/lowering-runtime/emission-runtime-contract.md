@@ -369,6 +369,99 @@ callable bodies, RVV intrinsics, `main`,
 self-check helpers, runtime probing, evidence logs, credentials, artifact
 paths, or performance text.
 
+### Scenario: Metadata-Diagnostic Artifact-Kind Authority Erasure
+
+#### 1. Scope / Trigger
+
+This applies when common construction manifests, plugin emission plans, target
+artifact exporter registries, bundle records, or tests would treat
+`metadata-diagnostic` as a current artifact kind for a supported construction,
+emission, or target artifact route.
+
+#### 2. Signatures
+
+- Deleted supported construction/emission artifact kind:
+  `metadata-diagnostic`.
+- Still-allowed unsupported diagnostic kind:
+  `unsupported-emission-diagnostic`.
+- Current materialized target artifact kinds:
+  `runtime-callable-c-header` and `riscv-elf-relocatable-object`.
+- Supported plugin emission artifact kinds may include compiler metadata such
+  as `compiler-emission-plan`, but that metadata is not a target artifact route.
+
+#### 3. Contracts
+
+- Common construction validation must reject `metadata-diagnostic` in
+  `EmitCMapping::artifactKind`.
+- Supported plugin emission plans must reject `metadata-diagnostic` as
+  `artifactKind`.
+- Target artifact exporter registration, composite exporter registration,
+  selected target artifact candidate validation, and bundle record validation
+  must reject `metadata-diagnostic`.
+- Toy and TensorExtLite construction manifests may keep their common
+  in-memory EmitC route identity, but their artifact kind must be an
+  unsupported diagnostic, not a supported artifact.
+- TensorExtLite may materialize an in-memory EmitC route through the common
+  `TCRVEmitCLowerableRoute` materializer. Its emission plan remains an
+  unsupported diagnostic until a real target artifact route is rebuilt.
+- Unsupported emission-plan diagnostics still carry bounded unsupported runtime
+  ABI ownership metadata: `unsupported-plugin-runtime-abi`,
+  `unsupported-emission-runtime-abi`, and `no-runtime-glue-unsupported`.
+
+#### 4. Validation & Error Matrix
+
+- Construction manifest uses `metadata-diagnostic` -> common construction
+  verifier rejects unsupported artifact kind.
+- Supported plugin emission plan uses `metadata-diagnostic` -> plugin registry
+  rejects invalid materialized emission artifact kind.
+- Target exporter or composite exporter registers `metadata-diagnostic` ->
+  target artifact exporter registry rejects unsupported artifact kind.
+- Selected supported emission-plan diagnostic carries `metadata-diagnostic` ->
+  target artifact export rejects unsupported `artifact_kind`.
+- Unsupported TensorExtLite plan is followed by selected-plan-driven EmitC route
+  materialization -> fail closed because there is no supported selected
+  emission-plan diagnostic.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: RVV rebuilt materialized EmitC object/header bundle exports use object
+  and header artifact kinds only.
+- Base: Toy and TensorExtLite route materializers can still prove in-memory
+  EmitC materialization without publishing target artifact authority.
+- Bad: Toy, TensorExtLite, Offload, Template, or test-local routes publish
+  `metadata-diagnostic` as a supported artifact, exporter, bundle component, or
+  manifest equality authority.
+
+#### 6. Tests Required
+
+- C++ common construction test proving `metadata-diagnostic` is rejected.
+- C++ plugin emission-plan test proving a supported plan with
+  `metadata-diagnostic` is rejected.
+- C++ Toy and TensorExtLite plugin tests proving construction manifests use
+  unsupported diagnostics while EmitC route materialization remains separate.
+- C++ target artifact export test proving `metadata-diagnostic` exporter
+  registration is rejected.
+- lit coverage proving TensorExtLite target artifact export finds no supported
+  artifact route and combined unsupported-plan plus EmitC-route materialization
+  fails closed.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+construction route metadata -> metadata-diagnostic artifact kind
+metadata-diagnostic emission plan -> target artifact candidate/exporter
+```
+
+Correct:
+
+```text
+construction route metadata -> unsupported diagnostic when no artifact exists
+materialized route proof -> in-memory MLIR EmitC module only
+target artifact export -> object/header artifacts from rebuilt materialized routes
+```
+
 ### Scenario: Deleted RVV Metadata-Only Default Artifacts
 
 #### 1. Scope / Trigger

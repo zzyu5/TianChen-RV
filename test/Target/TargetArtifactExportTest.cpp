@@ -158,7 +158,7 @@ constexpr llvm::StringLiteral kBundleTestUnsupportedEmissionKind(
 llvm::Error registerNoMetadataTestLocalTargetExporter(
     TargetArtifactExporterRegistry &registry) {
   return registry.registerExporter(TargetArtifactExporter(
-      kBundleTestMissingRouteMetadataID, "metadata-diagnostic",
+      kBundleTestMissingRouteMetadataID, "riscv-elf-relocatable-object",
       tianchenrv::plugin::toy::getToyExtensionPluginName(),
       kBundleTestUnsupportedEmissionKind, noopExporter));
 }
@@ -188,12 +188,12 @@ llvm::Error registerNoMetadataTestLocalCompositePluginTargetExporterBundle(
 llvm::Error registerDuplicateTestLocalTargetExporters(
     TargetArtifactExporterRegistry &registry) {
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
-          kBundleTestDuplicateRouteID, "metadata-diagnostic",
+          kBundleTestDuplicateRouteID, "riscv-elf-relocatable-object",
           tianchenrv::plugin::toy::getToyExtensionPluginName(),
           kBundleTestUnsupportedEmissionKind, noopExporter)))
     return error;
   return registry.registerExporter(TargetArtifactExporter(
-      kBundleTestDuplicateRouteID, "metadata-diagnostic",
+      kBundleTestDuplicateRouteID, "riscv-elf-relocatable-object",
       tianchenrv::plugin::toy::getToyExtensionPluginName(),
       kBundleTestUnsupportedEmissionKind, noopExporter));
 }
@@ -1565,7 +1565,7 @@ module {
       runtime_abi_name = "test-runtime-abi-name",
       runtime_glue_role = "test-runtime-glue",
       required_capabilities = [@test_cap],
-      artifact_kind = "metadata-diagnostic",
+      artifact_kind = "riscv-elf-relocatable-object",
       lowering_boundary = "test.lowering_boundary"
     }
   }
@@ -1785,15 +1785,15 @@ module {
       origin = "test-plugin",
       role = "direct variant",
       plan_kind = "plugin-emission-plan",
-      emission_kind = "test-metadata-emission",
-      lowering_pipeline = "bundle-metadata-route",
+      emission_kind = "test-object-emission",
+      lowering_pipeline = "bundle-primary-object-route",
       lowering_boundary = "test.lowering_boundary",
       runtime_abi = "bundle-runtime-abi.v1",
       runtime_abi_kind = "bundle-runtime-kind",
       runtime_abi_name = "bundle-runtime-name",
       runtime_glue_role = "bundle-runtime-glue",
       required_capabilities = [@test_cap],
-      artifact_kind = "metadata-diagnostic"
+      artifact_kind = "riscv-elf-relocatable-object"
     }
   }
 }
@@ -1808,9 +1808,10 @@ module {
 
   TargetArtifactExporterRegistry registry;
   if (!expectSuccess(registry.registerExporter(TargetArtifactExporter(
-                         "bundle-metadata-route", "metadata-diagnostic",
-                         "test-plugin", "test-metadata-emission", noopExporter)),
-                     "register metadata bundle route"))
+                         "bundle-primary-object-route",
+                         "riscv-elf-relocatable-object", "test-plugin",
+                         "test-object-emission", noopExporter)),
+                     "register primary object bundle route"))
     return false;
   if (!expectSuccess(registry.registerCompositeExporter(
                          TargetArtifactCompositeExporter(
@@ -1842,19 +1843,19 @@ module {
     return false;
   }
 
-  const TargetArtifactBundleRecord &metadataRecord = records[0];
-  if (metadataRecord.artifactKind != "metadata-diagnostic" ||
-      metadataRecord.routeID != "bundle-metadata-route" ||
-      metadataRecord.componentRole != "artifact" ||
-      !metadataRecord.componentGroup.empty() ||
-      !metadataRecord.externalABIName.empty() ||
-      metadataRecord.owner != "test-plugin" ||
-      metadataRecord.selectableVia != "tcrv-export-target-artifact" ||
-      !metadataRecord.genericFrontDoorSelectable ||
-      metadataRecord.runtimeABIKind != "bundle-runtime-kind" ||
-      metadataRecord.runtimeABIName != "bundle-runtime-name" ||
-      metadataRecord.evidenceRole != "compiler-artifact") {
-    llvm::errs() << "malformed metadata artifact bundle record\n";
+  const TargetArtifactBundleRecord &primaryObjectRecord = records[0];
+  if (primaryObjectRecord.artifactKind != "riscv-elf-relocatable-object" ||
+      primaryObjectRecord.routeID != "bundle-primary-object-route" ||
+      primaryObjectRecord.componentRole != "object" ||
+      !primaryObjectRecord.componentGroup.empty() ||
+      !primaryObjectRecord.externalABIName.empty() ||
+      primaryObjectRecord.owner != "test-plugin" ||
+      primaryObjectRecord.selectableVia != "tcrv-export-target-artifact" ||
+      !primaryObjectRecord.genericFrontDoorSelectable ||
+      primaryObjectRecord.runtimeABIKind != "bundle-runtime-kind" ||
+      primaryObjectRecord.runtimeABIName != "bundle-runtime-name" ||
+      primaryObjectRecord.evidenceRole != "relocatable-object") {
+    llvm::errs() << "malformed primary object artifact bundle record\n";
     return false;
   }
 
@@ -1899,15 +1900,15 @@ module {
 }
 
 bool expectTargetArtifactBundleFileNames() {
-  TargetArtifactBundleRecord metadataRecord;
-  metadataRecord.artifactKind = "metadata-diagnostic";
-  metadataRecord.routeID = "test-metadata/route";
-  std::string metadataName =
-      deriveTargetArtifactBundleFileName(metadataRecord, /*index=*/7);
-  if (metadataName !=
-      "artifact-7-metadata-diagnostic-test-metadata_route.artifact") {
-    llvm::errs() << "unexpected sanitized metadata bundle file name: "
-                 << metadataName << "\n";
+  TargetArtifactBundleRecord primaryObjectRecord;
+  primaryObjectRecord.artifactKind = "riscv-elf-relocatable-object";
+  primaryObjectRecord.routeID = "test-object/route";
+  std::string primaryObjectName =
+      deriveTargetArtifactBundleFileName(primaryObjectRecord, /*index=*/7);
+  if (primaryObjectName !=
+      "artifact-7-riscv-elf-relocatable-object-test-object_route.o") {
+    llvm::errs() << "unexpected sanitized object bundle file name: "
+                 << primaryObjectName << "\n";
     return false;
   }
 
@@ -1993,7 +1994,7 @@ bool expectTargetArtifactBundleComponentContractValidation() {
           validateTargetArtifactBundleComponentContract(unsupportedArtifact),
           "unsupported dispatch bundle component rejected",
           {"uses unsupported artifact_kind", "unmaterialized-artifact-kind",
-           "metadata, header, or object"}))
+           "header or object"}))
     return false;
 
   llvm::SmallVector<TargetArtifactBundleRecord, 2> missingABI(records);
@@ -2097,11 +2098,6 @@ int main() {
                          "test-plugin", "test-object", noopExporter)),
                      "register valid exporter"))
     return 1;
-  if (!expectSuccess(registry.registerExporter(TargetArtifactExporter(
-                         "tcrv-test-metadata-route", "metadata-diagnostic",
-                         "test-plugin", "test-metadata", noopExporter)),
-                     "register metadata exporter"))
-    return 1;
   if (!expectSuccess(registry.registerCompositeExporter(
                          TargetArtifactCompositeExporter(
                              "tcrv-test-composite-route",
@@ -2127,17 +2123,6 @@ int main() {
     return 1;
   }
 
-  const TargetArtifactExporter *metadataExporter =
-      registry.lookup("tcrv-test-metadata-route");
-  if (!metadataExporter ||
-      metadataExporter->getArtifactKind() != "metadata-diagnostic" ||
-      metadataExporter->getOriginPlugin() != "test-plugin" ||
-      metadataExporter->getEmissionKind() != "test-metadata" ||
-      !metadataExporter->getExportFn()) {
-    llvm::errs() << "lookup returned malformed metadata exporter metadata\n";
-    return 1;
-  }
-
   if (!expectFailure(registry.registerExporter(TargetArtifactExporter(
                          "tcrv-test-route", "riscv-elf-relocatable-object",
                          "test-plugin", "test-object", noopExporter)),
@@ -2157,6 +2142,14 @@ int main() {
                          "missing-callback", "riscv-elf-relocatable-object",
                          "test-plugin", "test-object", nullptr)),
                      "null callback rejected"))
+    return 1;
+  if (!expectErrorContains(
+          registry.registerExporter(TargetArtifactExporter(
+              "tcrv-test-metadata-route", "metadata-diagnostic", "test-plugin",
+              "test-metadata", noopExporter)),
+          "deleted diagnostic artifact exporter rejected",
+          {"unsupported artifact kind", "metadata-diagnostic",
+           "object or header"}))
     return 1;
   if (!expectFailure(registry.registerCompositeExporter(
                          TargetArtifactCompositeExporter(
@@ -2205,7 +2198,7 @@ int main() {
               "test-plugin", "test-placeholder", noopExporter)),
           "unsupported artifact exporter rejected",
           {"unsupported artifact kind", "unmaterialized-artifact-kind",
-           "object, header, or metadata"}))
+           "object or header"}))
     return 1;
   if (!expectErrorContains(
           unsupportedArtifactRegistry.registerCompositeExporter(
@@ -2215,7 +2208,7 @@ int main() {
                   noopExporter)),
           "unsupported artifact composite rejected",
           {"unsupported artifact kind", "unmaterialized-artifact-kind",
-           "object, header, or metadata"}))
+           "object or header"}))
     return 1;
 
   TargetArtifactExporterRegistry compositeSelectionRegistry;

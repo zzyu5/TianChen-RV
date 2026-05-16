@@ -61,7 +61,8 @@ constexpr llvm::StringLiteral kTensorExtLiteRouteID(
     "tensorext-lite-fragment-mma-emitc-route");
 constexpr llvm::StringLiteral kTensorExtLiteEmissionKind(
     "materialized-emitc-cpp-tensorext-lite-fragment-mma-module");
-constexpr llvm::StringLiteral kTensorExtLiteArtifactKind("metadata-diagnostic");
+constexpr llvm::StringLiteral kTensorExtLiteArtifactKind(
+    "unsupported-emission-diagnostic");
 constexpr llvm::StringLiteral kTensorExtLiteRuntimeABI(
     "tensorext-lite-fragment-mma-runtime-c-abi.v1");
 constexpr llvm::StringLiteral kTensorExtLiteRuntimeABIKind(

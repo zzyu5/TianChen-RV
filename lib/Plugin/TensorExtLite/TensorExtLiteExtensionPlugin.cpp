@@ -659,21 +659,12 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
               routeRequest, route))
     return error;
 
-  const tensorext_lite::TensorExtLiteFragmentMmaEmitCConstructionRoute
-      &constructionRoute =
-          tensorext_lite::getTensorExtLiteFragmentMmaEmitCConstructionRoute();
-  out = VariantEmissionPlan::getSupported(
+  out = VariantEmissionPlan::getUnsupported(
       kTensorExtLitePluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      constructionRoute.emissionKind, route.getRouteID(),
-      constructionRoute.runtimeABI, constructionRoute.artifactKind,
       "TensorExtLite selected explicit role sequence materializes an EmitC "
       "module through the common TCRVEmitCLowerableRoute materializer; target "
       "artifact export remains unsupported for this family slice");
-  out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
-  out.setRuntimeABIName(constructionRoute.runtimeABIName);
-  out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);
-  out.setLoweringBoundaryOpName(constructionRoute.loweringBoundaryOpName);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;

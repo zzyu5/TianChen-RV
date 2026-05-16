@@ -38,8 +38,9 @@ enum class ArtifactPlanStatus {
 class UnsupportedArtifactKindPlanPlugin final : public ExtensionPlugin {
 public:
   UnsupportedArtifactKindPlanPlugin(llvm::StringRef name,
-                                    ArtifactPlanStatus status)
-      : name(name.str()), status(status) {}
+                                    ArtifactPlanStatus status,
+                                    llvm::StringRef artifactKind)
+      : name(name.str()), status(status), artifactKind(artifactKind.str()) {}
 
   llvm::StringRef getName() const override { return name; }
 
@@ -60,7 +61,7 @@ public:
           request.getVariant().getSymName(), request.getRole(),
           "unmaterialized-artifact-emission",
           "unmaterialized-artifact-route",
-          "unmaterialized-artifact-abi.v1", "unmaterialized-artifact-kind",
+          "unmaterialized-artifact-abi.v1", artifactKind,
           "unmaterialized artifact plan must fail closed");
       break;
     }
@@ -80,6 +81,7 @@ public:
 private:
   std::string name;
   ArtifactPlanStatus status;
+  std::string artifactKind;
   llvm::SmallVector<PluginCapability, 1> capabilities;
 };
 
@@ -173,21 +175,24 @@ module {
 
   const ArtifactPlanStatus cases[] = {ArtifactPlanStatus::Supported};
   for (ArtifactPlanStatus status : cases) {
-    UnsupportedArtifactKindPlanPlugin plugin("artifact-plan", status);
-    ExtensionPluginRegistry registry;
-    if (int result =
-            expectSuccess(registry.registerPlugin(plugin), "register plugin"))
-      return result;
+    for (llvm::StringRef artifactKind :
+         {"unmaterialized-artifact-kind", "metadata-diagnostic"}) {
+      UnsupportedArtifactKindPlanPlugin plugin("artifact-plan", status,
+                                               artifactKind);
+      ExtensionPluginRegistry registry;
+      if (int result =
+              expectSuccess(registry.registerPlugin(plugin), "register plugin"))
+        return result;
 
-    VariantEmissionPlan plan;
-    VariantEmissionRequest request(variant, kernel, capabilities,
-                                   VariantEmissionRole::DirectVariant);
-    if (int result = expectErrorContains(
-            registry.buildVariantEmissionPlan(request, plan),
-            {"produced invalid emission plan", "artifact kind",
-             "unmaterialized-artifact-kind",
-             "current materialized emission artifact kind"}))
-      return result;
+      VariantEmissionPlan plan;
+      VariantEmissionRequest request(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant);
+      if (int result = expectErrorContains(
+              registry.buildVariantEmissionPlan(request, plan),
+              {"produced invalid emission plan", "artifact kind",
+               artifactKind, "current materialized emission artifact kind"}))
+        return result;
+    }
   }
 
   return 0;

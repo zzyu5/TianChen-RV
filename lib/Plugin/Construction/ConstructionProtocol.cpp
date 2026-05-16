@@ -50,7 +50,6 @@ llvm::Error requireNonEmpty(const ValidationSpec &spec,
 
 bool isCurrentConstructionArtifactKind(llvm::StringRef artifactKind) {
   return artifactKind == "unsupported-emission-diagnostic" ||
-         artifactKind == "metadata-diagnostic" ||
          artifactKind == "runtime-callable-c-header" ||
          artifactKind == "riscv-elf-relocatable-object";
 }
@@ -159,8 +158,8 @@ llvm::Error verifyEmitCMapping(const Manifest &manifest,
         spec, llvm::Twine("EmitC route mapping uses unsupported artifact "
                   "kind '") +
                   actual.artifactKind +
-                  "'; plugin construction routes must use current metadata, "
-                  "object, or header artifact kinds");
+                  "'; plugin construction routes must use current "
+                  "unsupported diagnostic, object, or header artifact kinds");
 
   return llvm::Error::success();
 }

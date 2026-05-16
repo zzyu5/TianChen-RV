@@ -303,10 +303,11 @@ int runRegistrationAndCapabilityMetadataTest() {
           expect(manifest.emitcRoute.routeID == route.routeID &&
                      manifest.emitcRoute.emissionKind == route.emissionKind &&
                      manifest.emitcRoute.artifactKind == route.artifactKind &&
+                     route.artifactKind == "unsupported-emission-diagnostic" &&
                      manifest.evidenceProfile.contains(
                          "materialized_emitc_module"),
-                 "TensorExtLite construction manifest records the active "
-                 "EmitC route"))
+                 "TensorExtLite construction manifest records the EmitC route "
+                 "without target artifact authority"))
     return result;
   if (int result = expectSuccess(
           tianchenrv::plugin::tensorext_lite::
@@ -693,34 +694,25 @@ module {
           "TensorExtLite emission plan is plugin-owned"))
     return result;
   if (int result =
-          expect(emissionPlan.isSupported() &&
+          expect(emissionPlan.isUnsupported() &&
                      emissionPlan.getOriginPlugin() ==
                          tianchenrv::plugin::tensorext_lite::
                              getTensorExtLiteExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() ==
                          tensorext_liteVariant.getSymName() &&
-                     emissionPlan.getLoweringPipeline() ==
-                         routeMetadata.routeID &&
-                     emissionPlan.getEmissionKind() ==
-                         routeMetadata.emissionKind &&
-                     emissionPlan.getArtifactKind() ==
-                         routeMetadata.artifactKind &&
-                     emissionPlan.getRuntimeABI() ==
-                         routeMetadata.runtimeABI &&
-                     emissionPlan.getRuntimeABIKind() ==
-                         routeMetadata.runtimeABIKind &&
-                     emissionPlan.getRuntimeABIName() ==
-                         routeMetadata.runtimeABIName &&
-                     emissionPlan.getRuntimeGlueRole() ==
-                         routeMetadata.runtimeGlueRole &&
-                     emissionPlan.getLoweringBoundaryOpName() ==
-                         routeMetadata.loweringBoundaryOpName &&
+                     emissionPlan.getLoweringPipeline().empty() &&
+                     emissionPlan.getEmissionKind().empty() &&
+                     emissionPlan.getArtifactKind().empty() &&
+                     emissionPlan.getLoweringBoundaryOpName().empty() &&
+                     emissionPlan.getDiagnostic().contains(
+                         "target artifact export remains unsupported") &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::tensorext_lite::
                              getTensorExtLiteFragmentPreferredCapabilitySymbol(),
-                 "TensorExtLite emission plan records active common EmitC route"))
+                 "TensorExtLite emission plan is an unsupported diagnostic "
+                 "while EmitC route materialization remains separate"))
     return result;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute emitcRoute;

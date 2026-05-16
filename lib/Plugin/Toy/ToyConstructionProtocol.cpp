@@ -59,7 +59,8 @@ constexpr llvm::StringLiteral kToyRouteID(
     "toy-template-compute-emitc-route");
 constexpr llvm::StringLiteral kToyEmissionKind(
     "materialized-emitc-cpp-toy-template-module");
-constexpr llvm::StringLiteral kToyArtifactKind("metadata-diagnostic");
+constexpr llvm::StringLiteral kToyArtifactKind(
+    "unsupported-emission-diagnostic");
 constexpr llvm::StringLiteral kToyRuntimeABI(
     "toy-template-compute-runtime-c-abi.v1");
 constexpr llvm::StringLiteral kToyRuntimeABIKind(

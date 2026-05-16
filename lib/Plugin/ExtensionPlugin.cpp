@@ -34,8 +34,6 @@ constexpr llvm::StringLiteral kCompilerEmissionPlanArtifactKind(
     "compiler-emission-plan");
 constexpr llvm::StringLiteral kUnsupportedEmissionDiagnosticArtifactKind(
     "unsupported-emission-diagnostic");
-constexpr llvm::StringLiteral kMetadataDiagnosticArtifactKind(
-    "metadata-diagnostic");
 constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
     "runtime-callable-c-header");
 constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
@@ -119,7 +117,6 @@ bool isBoundedSingleLineEmissionMetadataText(llvm::StringRef value) {
 
 bool isCurrentSupportedEmissionArtifactKind(llvm::StringRef artifactKind) {
   return artifactKind == kCompilerEmissionPlanArtifactKind ||
-         artifactKind == kMetadataDiagnosticArtifactKind ||
          artifactKind == kRuntimeCallableCHeaderArtifactKind ||
          artifactKind == kRiscvELFRelocatableObjectArtifactKind;
 }

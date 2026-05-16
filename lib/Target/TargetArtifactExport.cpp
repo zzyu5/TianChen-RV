@@ -48,8 +48,6 @@ constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
     "runtime-callable-c-header");
 constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
     "riscv-elf-relocatable-object");
-constexpr llvm::StringLiteral kMetadataDiagnosticArtifactKind(
-    "metadata-diagnostic");
 constexpr llvm::StringLiteral kTargetArtifactFrontDoor(
     "tcrv-export-target-artifact");
 constexpr llvm::StringLiteral kTargetHeaderFrontDoor(
@@ -170,13 +168,8 @@ bool isObjectArtifactKind(llvm::StringRef artifactKind) {
   return artifactKind == kRiscvELFRelocatableObjectArtifactKind;
 }
 
-bool isMetadataArtifactKind(llvm::StringRef artifactKind) {
-  return artifactKind == kMetadataDiagnosticArtifactKind;
-}
-
 bool isDefaultGenericArtifactKind(llvm::StringRef artifactKind) {
-  return isObjectArtifactKind(artifactKind) ||
-         isMetadataArtifactKind(artifactKind);
+  return isObjectArtifactKind(artifactKind);
 }
 
 bool isCurrentMaterializedArtifactKind(llvm::StringRef artifactKind) {
@@ -237,7 +230,7 @@ llvm::Error validateCurrentMaterializedArtifactKind(
       kernel, llvm::Twine("target artifact route '") + routeID +
                   "' uses unsupported artifact_kind '" + artifactKind +
                   "'; current target artifact export supports only "
-                  "metadata-diagnostic, runtime-callable-c-header, and "
+                  "runtime-callable-c-header and "
                   "riscv-elf-relocatable-object");
 }
 
@@ -1943,8 +1936,7 @@ llvm::Error validateTargetArtifactBundleComponentContract(
       return makeTargetArtifactBundleExportError(
           llvm::Twine("bundle artifact route '") + record.routeID +
           "' uses unsupported artifact_kind '" + record.artifactKind +
-          "'; current bundle records support only metadata, header, or object "
-          "artifacts");
+          "'; current bundle records support only header or object artifacts");
 
     llvm::StringRef expectedComponentRole =
         getBundleComponentRoleForArtifactKind(record.artifactKind);
@@ -2740,8 +2732,8 @@ llvm::Error TargetArtifactExporterRegistry::registerExporter(
     return makeRegistryError(
         llvm::Twine("exporter route id '") + exporter.getRouteID() +
         "' uses unsupported artifact kind '" + exporter.getArtifactKind() +
-        "'; target artifact exporters must use object, header, or metadata "
-        "artifact kinds");
+        "'; target artifact exporters must use object or header artifact "
+        "kinds");
   if (!exporter.getExportFn())
     return makeRegistryError("exporter callback must be non-null");
 
@@ -2772,8 +2764,8 @@ llvm::Error TargetArtifactExporterRegistry::registerCompositeExporter(
     return makeRegistryError(
         llvm::Twine("composite exporter route id '") + exporter.getRouteID() +
         "' uses unsupported artifact kind '" + exporter.getArtifactKind() +
-        "'; target artifact exporters must use object, header, or metadata "
-        "artifact kinds");
+        "'; target artifact exporters must use object or header artifact "
+        "kinds");
   if (!exporter.getMatchFn())
     return makeRegistryError(
         "composite exporter match callback must be non-null");

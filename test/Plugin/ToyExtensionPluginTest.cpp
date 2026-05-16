@@ -211,9 +211,11 @@ int runRegistrationAndCapabilityMetadataTest() {
           expect(manifest.emitcRoute.routeID == route.routeID &&
                      manifest.emitcRoute.emissionKind == route.emissionKind &&
                      manifest.emitcRoute.artifactKind == route.artifactKind &&
+                     route.artifactKind == "unsupported-emission-diagnostic" &&
                      manifest.evidenceProfile.contains(
                          "materialized_emitc_module"),
-                 "Toy construction manifest records the active EmitC route"))
+                 "Toy construction manifest records the EmitC route without "
+                 "target artifact authority"))
     return result;
   if (int result = expectSuccess(
           tianchenrv::plugin::toy::verifyToyConstructionProtocolReady(),

@@ -257,7 +257,8 @@ int runUnsupportedArtifactKindConstructionTest() {
   };
   const llvm::StringRef requiredEvidence[] = {"emitc_route_mapping"};
 
-  for (llvm::StringRef artifactKind : {"unmaterialized-artifact-kind"}) {
+  for (llvm::StringRef artifactKind :
+       {"unmaterialized-artifact-kind", "metadata-diagnostic"}) {
     Manifest manifest = template_ext::getTemplateConstructionManifest();
     construction::EmitCMapping emitcRoute = manifest.emitcRoute;
     emitcRoute.artifactKind = artifactKind;
@@ -279,7 +280,7 @@ int runUnsupportedArtifactKindConstructionTest() {
     if (int result = expectErrorContains(
             construction::verifyConstructionManifest(manifest, spec),
             {"EmitC route mapping uses unsupported artifact kind",
-             artifactKind, "current metadata, object, or header"},
+             artifactKind, "current unsupported diagnostic, object, or header"},
             "unsupported artifact kind construction route"))
       return result;
   }

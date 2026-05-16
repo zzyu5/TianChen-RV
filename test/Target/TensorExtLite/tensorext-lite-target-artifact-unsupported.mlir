@@ -32,25 +32,19 @@ module {
       target = @tensorext_lite_tile_mma_first_slice
     }
     tcrv.exec.diagnostic {
-      artifact_kind = "metadata-diagnostic",
-      emission_kind = "materialized-emitc-cpp-tensorext-lite-fragment-mma-module",
-      lowering_boundary = "tcrv_tensorext_lite.role_sequence",
-      lowering_pipeline = "tensorext-lite-fragment-mma-emitc-route",
       message = "TensorExtLite selected explicit role sequence materializes an EmitC module through the common TCRVEmitCLowerableRoute materializer; target artifact export remains unsupported for this family slice",
       origin = "tensorext-lite-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",
-      required_capabilities = [@tensorext_lite_tile_mma],
       role = "direct variant",
-      runtime_abi = "tensorext-lite-fragment-mma-runtime-c-abi.v1",
-      runtime_abi_kind = "plugin-owned-runtime-abi",
-      runtime_abi_name = "tensorext-lite-fragment-mma-runtime-c-abi.v1",
-      runtime_glue_role = "emitc-cpp-tensorext-lite-fragment-runtime-glue",
+      runtime_abi_kind = "unsupported-plugin-runtime-abi",
+      runtime_abi_name = "unsupported-emission-runtime-abi",
+      runtime_glue_role = "no-runtime-glue-unsupported",
       severity = "info",
-      status = "supported",
+      status = "unsupported",
       target = @tensorext_lite_tile_mma_first_slice
     }
   }
 }
 
-// CHECK: names unknown target artifact export route id 'tensorext-lite-fragment-mma-emitc-route'
+// CHECK: requires exactly one supported target artifact emission-plan route; found none
