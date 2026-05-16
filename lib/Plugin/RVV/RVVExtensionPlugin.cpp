@@ -46,6 +46,23 @@ bool hasAvailableRVVCapability(const VariantProposalRequest &request) {
          request.getCapabilities().isCapabilityAvailableByID(kRVVCapabilityID);
 }
 
+void addRVVVectorShapeCapabilities(
+    llvm::SmallVectorImpl<PluginCapability> &capabilities,
+    const target::rvv::RVVVectorShapeConfig &config) {
+  capabilities.push_back(PluginCapability(
+      config.sewCapabilityID, "isa-vector-config",
+      "RVV compile-time SEW config capability"));
+  capabilities.push_back(PluginCapability(
+      config.lmulCapabilityID, "isa-vector-config",
+      "RVV compile-time LMUL config capability"));
+  capabilities.push_back(PluginCapability(
+      config.tailPolicyCapabilityID, "isa-vector-config",
+      "RVV compile-time tail policy config capability"));
+  capabilities.push_back(PluginCapability(
+      config.maskPolicyCapabilityID, "isa-vector-config",
+      "RVV compile-time mask policy config capability"));
+}
+
 bool variantContainsExplicitTypedRVVBody(tcrv::exec::VariantOp variant) {
   if (!variant || variant.getBody().empty())
     return false;
@@ -97,48 +114,12 @@ RVVExtensionPlugin::RVVExtensionPlugin() {
       kRVVCapabilityID, kRVVCapabilityKind,
       "RVV first-slice vector ISA capability participation; target "
       "availability is supplied by tcrv.exec.capability metadata"));
-  capabilities.push_back(PluginCapability(
-      rvv::getRVVI32M1SEW32CapabilityID(), "isa-vector-config",
-      "RVV first-slice i32m1 SEW=32 compile-time config capability"));
-  capabilities.push_back(PluginCapability(
-      rvv::getRVVI32M1LMULM1CapabilityID(), "isa-vector-config",
-      "RVV first-slice i32m1 LMUL=m1 compile-time config capability"));
-  capabilities.push_back(PluginCapability(
-      rvv::getRVVI32M1TailAgnosticCapabilityID(), "isa-vector-config",
-      "RVV first-slice tail agnostic policy capability"));
-  capabilities.push_back(PluginCapability(
-      rvv::getRVVI32M1MaskAgnosticCapabilityID(), "isa-vector-config",
-      "RVV first-slice mask agnostic policy capability"));
-  capabilities.push_back(PluginCapability(
-      rvv::getRVVI32M2SEW32CapabilityID(), "isa-vector-config",
-      "RVV i32m2 SEW=32 compile-time config capability"));
-  capabilities.push_back(PluginCapability(
-      rvv::getRVVI32M2LMULM2CapabilityID(), "isa-vector-config",
-      "RVV i32m2 LMUL=m2 compile-time config capability"));
-  capabilities.push_back(PluginCapability(
-      rvv::getRVVI32M2TailAgnosticCapabilityID(), "isa-vector-config",
-      "RVV i32m2 tail agnostic policy capability"));
-  capabilities.push_back(PluginCapability(
-      rvv::getRVVI32M2MaskAgnosticCapabilityID(), "isa-vector-config",
-      "RVV i32m2 mask agnostic policy capability"));
-  capabilities.push_back(PluginCapability(
-      tianchenrv::target::rvv::getI64M1VectorShapeConfig().sewCapabilityID,
-      "isa-vector-config",
-      "RVV i64m1 SEW=64 compile-time config capability"));
-  capabilities.push_back(PluginCapability(
-      tianchenrv::target::rvv::getI64M1VectorShapeConfig().lmulCapabilityID,
-      "isa-vector-config",
-      "RVV i64m1 LMUL=m1 compile-time config capability"));
-  capabilities.push_back(PluginCapability(
-      tianchenrv::target::rvv::getI64M1VectorShapeConfig()
-          .tailPolicyCapabilityID,
-      "isa-vector-config",
-      "RVV i64m1 tail agnostic policy capability"));
-  capabilities.push_back(PluginCapability(
-      tianchenrv::target::rvv::getI64M1VectorShapeConfig()
-          .maskPolicyCapabilityID,
-      "isa-vector-config",
-      "RVV i64m1 mask agnostic policy capability"));
+  for (const target::rvv::RVVI32VectorShapeConfig *config :
+       target::rvv::getFiniteI32VectorShapeConfigs())
+    addRVVVectorShapeCapabilities(capabilities, *config);
+  for (const target::rvv::RVVVectorShapeConfig *config :
+       target::rvv::getFiniteI64VectorShapeConfigs())
+    addRVVVectorShapeCapabilities(capabilities, *config);
   capabilities.push_back(PluginCapability(
       tianchenrv::target::rvv::
           getRVVI32BinarySelectedVectorShapeCapabilityID(),

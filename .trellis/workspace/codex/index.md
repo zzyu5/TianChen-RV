@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-7.md`
-- **Total Sessions**: 83
+- **Total Sessions**: 84
 - **Last Active**: 2026-05-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-7.md` | ~800 | Active |
+| `journal-7.md` | ~833 | Active |
 | `journal-6.md` | ~1973 | Archived |
 | `journal-5.md` | ~1983 | Archived |
 | `journal-4.md` | ~1979 | Archived |
@@ -35,6 +35,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 84 | 2026-05-16 | RVV probe capability route-config erasure | pending | `main` |
 | 83 | 2026-05-16 | Metadata artifact skeleton erasure | pending | `main` |
 | 82 | 2026-05-16 | Generic metadata-only plugin route contract erasure | pending | `main` |
 | 81 | 2026-05-16 | RVV metadata-only first-slice route erasure | - | `main` |

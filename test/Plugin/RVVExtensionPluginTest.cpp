@@ -160,10 +160,18 @@ int runCapabilityProfileTest() {
   if (int result = expect(capabilities.isCapabilityAvailableByID("rvv"),
                           "RVV profile exposes available rvv capability"))
     return result;
-  if (int result = expect(capabilities.isCapabilityAvailableByID(
-                              tianchenrv::plugin::rvv::
-                                  getRVVI32M1SEW32CapabilityID()),
-                          "RVV profile exposes i32m1 SEW capability"))
+  llvm::SmallVector<const tianchenrv::support::CapabilityDescriptor *, 1>
+      configCapabilities;
+  capabilities.collectByKind("isa-vector-config", configCapabilities);
+  if (int result = expect(configCapabilities.empty(),
+                          "RVV probe profile does not manufacture vector "
+                          "config capabilities"))
+    return result;
+  if (int result = expect(
+          !capabilities.isCapabilityAvailableByID(
+              tianchenrv::target::rvv::getI32M1VectorShapeConfig()
+                  .sewCapabilityID),
+          "RVV probe profile does not expose i32m1 SEW config capability"))
     return result;
   return expect(capabilities.isCapabilityAvailableByID(
                     tianchenrv::plugin::rvv::
@@ -191,11 +199,6 @@ module {
       kind = "isa-vector",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
-      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
-      sew_bits = 32 : i64,
-      lmul = "m1",
-      tail_policy = "agnostic",
-      mask_policy = "agnostic",
       status = "available"
     }
     tcrv.exec.capability @rvv_probe_compile_run {
@@ -269,11 +272,6 @@ module {
       kind = "isa-vector",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
-      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
-      sew_bits = 32 : i64,
-      lmul = "m1",
-      tail_policy = "agnostic",
-      mask_policy = "agnostic",
       status = "available"
     }
     tcrv.exec.capability @rvv_hart_count {
@@ -399,11 +397,6 @@ module {
       kind = "isa-vector",
       architecture = "riscv64",
       isa_vector_hints = "rv64gcv_zvl128b",
-      provides = ["rvv.i32_m1.sew32", "rvv.i32_m1.lmul_m1", "rvv.i32_m1.tail_policy.agnostic", "rvv.i32_m1.mask_policy.agnostic"],
-      sew_bits = 32 : i64,
-      lmul = "m1",
-      tail_policy = "agnostic",
-      mask_policy = "agnostic",
       status = "available"
     }
     tcrv.exec.variant @rvv_deleted_metadata_path attributes {

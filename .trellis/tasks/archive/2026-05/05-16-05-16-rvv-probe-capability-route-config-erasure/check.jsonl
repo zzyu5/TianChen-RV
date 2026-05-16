@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global invariants: C++/MLIR stack, no Python compiler core, extension-owned compute semantics, and deletion campaign boundaries."}
+{"file": ".trellis/spec/capability-model/profiles.md", "reason": "Check retained RVV probe facts remain raw evidence rather than route/config authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV-specific logic remains within RVV plugin ownership and does not revive descriptor-driven paths."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check public helpers and plugin consumers do not expose probe-derived finite-family config production."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check test updates remove obsolete behavior instead of preserving it through compatibility fixtures."}

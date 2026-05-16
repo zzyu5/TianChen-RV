@@ -798,3 +798,36 @@ Deleted Template/Toy/TensorExtLite metadata-artifact target skeletons and public
 ### Next Steps
 
 - None - task complete
+
+
+## Session 84: RVV probe capability route-config erasure
+
+**Date**: 2026-05-16
+**Task**: RVV probe capability route-config erasure
+**Branch**: `main`
+
+### Summary
+
+Removed probe-derived RVV SEW/LMUL/tail/mask config authority from RVV capability profile facts and build logic; kept finite vector-shape config under explicit RVV plugin/vector-shape ownership; updated no-body/planning fixtures and probe/spec evidence boundaries; focused checks and check-tianchenrv passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -100,14 +100,16 @@ selected vector-shape attr names:
   tcrv_rvv.selected_setvl_suffix
 ```
 
-RVV capability facts remain profile/replay inputs. They may be validated and
-replayed into `TargetCapabilitySet`, but they do not authorize a compiler route
-unless an explicit typed RVV variant body already exists. Proposal collection
-for a no-body RVV-capable kernel records a recoverable decline and produces no
-RVV proposal. Materialized RVV variant legality is strict: the variant must be
-owned by `origin = "rvv-plugin"` and contain real `tcrv_rvv` operations in its
-body. Metadata-only RVV attributes, finite capability facts, selected vector
-shape facts, or profile evidence alone are not sufficient.
+RVV probe facts remain bounded hardware/toolchain evidence inputs. They may be
+validated into raw `TargetCapabilitySet` evidence facts, but they must not
+manufacture finite SEW/LMUL/tail/mask config capabilities or authorize a
+compiler route unless an explicit typed RVV variant body already exists.
+Proposal collection for a no-body RVV-capable kernel records a recoverable
+decline and produces no RVV proposal. Materialized RVV variant legality is
+strict: the variant must be owned by `origin = "rvv-plugin"` and contain real
+`tcrv_rvv` operations in its body. Metadata-only RVV attributes, finite
+capability facts, selected vector shape facts, or profile evidence alone are
+not sufficient.
 
 The RVV plugin must not create any binary-family proposal from a no-body
 `tcrv.exec.kernel`, from deleted frontend metadata, from finite-family registry
@@ -132,7 +134,7 @@ compiler config facts.
 - C++ capability ids: `rvv.i32_m1.sew32`, `rvv.i32_m1.lmul_m1`,
   `rvv.i32_m1.tail_policy.agnostic`, and
   `rvv.i32_m1.mask_policy.agnostic`.
-- Preferred MLIR symbols from replay/profile fixtures:
+- Preferred MLIR symbols from explicit target/profile fixtures:
   `@rvv_i32_m1_sew32`, `@rvv_i32_m1_lmul_m1`,
   `@rvv_i32_m1_tail_agnostic`, and `@rvv_i32_m1_mask_agnostic`.
 - Variant metadata: `requires` must satisfy `rvv` plus all four first-slice
@@ -341,13 +343,15 @@ Interpretation rules:
   RVV ISA/vector hints, clang and CMake availability, and minimal RVV
   compile/run success. Negative cases must return structured diagnostics rather
   than partial target capabilities.
-- Profile-derived capability identities are stable and plugin-local. Current
-  first profile IDs include `rvv`, `rvv.hart_count`, `rvv.vlenb_bytes`,
-  `rvv.i32_m1_lane_count`, `rvv.i32_m1.sew32`, `rvv.i32_m1.lmul_m1`,
-  `rvv.i32_m1.tail_policy.agnostic`, `rvv.i32_m1.mask_policy.agnostic`,
+- Profile-derived capability identities are stable and plugin-local raw
+  evidence identities. Current probe-derived profile IDs include `rvv`,
+  `rvv.hart_count`, `rvv.vlenb_bytes`, `rvv.i32_m1_lane_count`,
   `rvv.toolchain.clang`, `rvv.toolchain.cmake`, `rvv.probe.compile_run`,
-  `rvv.toolchain.march`, and `rvv.toolchain.mabi`. These identities must not
-  include ssh/provider names, raw command logs, secrets, benchmark names, or
+  `rvv.toolchain.march`, and `rvv.toolchain.mabi`. Finite SEW/LMUL/tail/mask
+  config IDs such as `rvv.i32_m1.sew32` belong to explicit RVV vector-shape
+  config/profile fixtures or plugin-selected variant requirements, not to
+  probe-derived profile construction. These identities must not include
+  ssh/provider names, raw command logs, secrets, benchmark names, or
   performance measurements.
 - The probe does not prove that TianChen-RV generated RVV IR, lowered a
   `tcrv.exec` variant, emitted an object, linked runtime glue, proved compiler
