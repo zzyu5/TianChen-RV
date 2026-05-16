@@ -1330,16 +1330,16 @@ bool expectTargetArtifactBundleComponentContractValidation() {
           {"requires exactly one header and object component_role"}))
     return false;
 
-  llvm::SmallVector<TargetArtifactBundleRecord, 3> sourceArtifact;
-  sourceArtifact.append(records.begin(), records.end());
-  sourceArtifact.push_back(makeDispatchBundleComponentRecord(
-      "future-emitc-source-artifact", "bundle-test-generic-dispatch-source",
-      "source"));
+  llvm::SmallVector<TargetArtifactBundleRecord, 3> unsupportedArtifact;
+  unsupportedArtifact.append(records.begin(), records.end());
+  unsupportedArtifact.push_back(makeDispatchBundleComponentRecord(
+      "unmaterialized-artifact-kind",
+      "bundle-test-generic-dispatch-placeholder", "artifact"));
   if (!expectErrorContains(
-          validateTargetArtifactBundleComponentContract(sourceArtifact),
-          "source artifact dispatch bundle component rejected",
-          {"uses source artifact kind", "future-emitc-source-artifact",
-           "materialized MLIR EmitC"}))
+          validateTargetArtifactBundleComponentContract(unsupportedArtifact),
+          "unsupported dispatch bundle component rejected",
+          {"uses unsupported artifact_kind", "unmaterialized-artifact-kind",
+           "metadata, header, or object"}))
     return false;
 
   llvm::SmallVector<TargetArtifactBundleRecord, 2> missingABI(records);
@@ -1544,24 +1544,24 @@ int main() {
                      "null composite callback rejected"))
     return 1;
 
-  TargetArtifactExporterRegistry sourceArtifactRegistry;
+  TargetArtifactExporterRegistry unsupportedArtifactRegistry;
   if (!expectErrorContains(
-          sourceArtifactRegistry.registerExporter(TargetArtifactExporter(
-              "future-source-artifact-route", "future-emitc-source-artifact",
-              "test-plugin", "test-source", noopExporter)),
-          "source artifact exporter rejected",
-          {"source artifact kind", "future-emitc-source-artifact",
-           "materialized MLIR EmitC source route"}))
+          unsupportedArtifactRegistry.registerExporter(TargetArtifactExporter(
+              "unsupported-artifact-route", "unmaterialized-artifact-kind",
+              "test-plugin", "test-placeholder", noopExporter)),
+          "unsupported artifact exporter rejected",
+          {"unsupported artifact kind", "unmaterialized-artifact-kind",
+           "object, header, or metadata"}))
     return 1;
   if (!expectErrorContains(
-          sourceArtifactRegistry.registerCompositeExporter(
+          unsupportedArtifactRegistry.registerCompositeExporter(
               TargetArtifactCompositeExporter(
-                  "future-source-artifact-composite",
-                  "future-emitc-source-artifact", alwaysMatchComposite,
+                  "unsupported-artifact-composite",
+                  "unmaterialized-artifact-kind", alwaysMatchComposite,
                   noopExporter)),
-          "source artifact composite rejected",
-          {"source artifact kind", "future-emitc-source-artifact",
-           "materialized MLIR EmitC source route"}))
+          "unsupported artifact composite rejected",
+          {"unsupported artifact kind", "unmaterialized-artifact-kind",
+           "object, header, or metadata"}))
     return 1;
 
   TargetArtifactExporterRegistry compositeSelectionRegistry;

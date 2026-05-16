@@ -230,7 +230,7 @@ tcrv.exec.variant @rvv_explicit_profile_body attributes {
 
 The former plugin-local standalone smoke-probe source route is deleted.
 Availability of plugin-local smoke-probe capability facts must not select a
-compiler source artifact path, materialize an executable RVV microkernel,
+compiler generated-source path, materialize an executable RVV microkernel,
 create runtime callable ABI parameters, claim kernel lowering, or produce
 correctness/performance evidence. RVV hardware/toolchain probe evidence belongs
 in separate probe tooling and recorded `ssh rvv` artifacts.
@@ -705,9 +705,9 @@ correctness evidence, or performance evidence.
 The former standalone smoke-probe target export surface is deleted.
 `RVVExtensionPlugin` must not turn plugin-local metadata or route records into
 supported emission readiness, a supported emission plan, or a generic target
-source artifact route for that standalone harness. Built-in target artifact
+generated-source route for that standalone harness. Built-in target artifact
 exporter registration must not publish the former smoke-probe route identity or
-any standalone direct C source artifact kind as a supported RVV source route.
+any standalone direct C output artifact kind as a supported RVV output route.
 
 Historical standalone smoke-probe metadata must not remain as active
 code/spec/test fixtures. The compiler front door must not print

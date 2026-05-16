@@ -56,6 +56,59 @@ Deleted Support-owned I32/RVV runtime ABI contracts and helpers; rewired tests/s
 - None - task complete
 
 
+## Session 87: Future source-artifact placeholder erasure
+
+**Date**: 2026-05-16
+**Task**: Future source-artifact placeholder erasure
+**Branch**: `main`
+
+### Summary
+
+Erased the future source-output placeholder channel from active plugin
+emission-plan validation, construction-protocol validation, target artifact
+export, tests, and specs. Current artifact routing now fails closed through
+explicit materialized artifact kinds instead of preserving a source-token
+blacklist or future route placeholder.
+
+### Main Changes
+
+- Replaced source-token artifact-kind checks with explicit current artifact
+  kind boundaries in plugin emission plans, construction manifests, and target
+  artifact export.
+- Rewrote affected C++ tests to reject unsupported materialized artifact kinds
+  without registering `future-emitc-source-*` or `future-source-artifact-*`
+  routes.
+- Reworded lowering/runtime, plugin-protocol, RVV, and testing specs so they
+  no longer reserve a deleted source-output placeholder as active authority.
+- Created, validated, and archived the deletion-only Trellis task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | chore(target): erase source artifact placeholders |
+
+### Testing
+
+- [OK] focused placeholder ref-scan over active `include`, `lib`, `test`, and
+  `.trellis/spec`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-plugin-emission-plan-test tianchenrv-construction-protocol-common-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-plugin-emission-plan-test`
+- [OK] `build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target check-tianchenrv` (73/73 lit tests)
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-16-future-source-artifact-placeholder-erasure`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 89: Selected-plan metadata channel erasure
 
 **Date**: 2026-05-16

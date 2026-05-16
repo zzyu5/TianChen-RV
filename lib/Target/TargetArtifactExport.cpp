@@ -42,6 +42,8 @@ constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
     "runtime-callable-c-header");
 constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
     "riscv-elf-relocatable-object");
+constexpr llvm::StringLiteral kMetadataDiagnosticArtifactKind(
+    "metadata-diagnostic");
 constexpr llvm::StringLiteral kTargetArtifactFrontDoor(
     "tcrv-export-target-artifact");
 constexpr llvm::StringLiteral kTargetHeaderFrontDoor(
@@ -52,7 +54,6 @@ constexpr llvm::StringLiteral kHeaderDeclarationEvidenceRole(
     "header-declaration");
 constexpr llvm::StringLiteral kRelocatableObjectEvidenceRole(
     "relocatable-object");
-constexpr llvm::StringLiteral kBundleSourceComponentRole("source");
 constexpr llvm::StringLiteral kBundleHeaderComponentRole("header");
 constexpr llvm::StringLiteral kBundleObjectComponentRole("object");
 constexpr llvm::StringLiteral kBundleArtifactComponentRole("artifact");
@@ -139,34 +140,26 @@ llvm::Error makeTargetArtifactFrontDoorError(KernelOp kernel,
                                              llvm::errc::invalid_argument);
 }
 
-bool hasArtifactKindToken(llvm::StringRef artifactKind,
-                          llvm::StringRef token) {
-  std::string lowered = artifactKind.lower();
-  std::string currentToken;
-  for (char character : lowered) {
-    unsigned char byte = static_cast<unsigned char>(character);
-    if (std::isalnum(byte)) {
-      currentToken.push_back(character);
-      continue;
-    }
-    if (llvm::StringRef(currentToken) == token)
-      return true;
-    currentToken.clear();
-  }
-  return llvm::StringRef(currentToken) == token;
-}
-
-bool isSourceArtifactKind(llvm::StringRef artifactKind) {
-  return hasArtifactKindToken(artifactKind, "source");
-}
-
 bool isHeaderArtifactKind(llvm::StringRef artifactKind) {
   return artifactKind == kRuntimeCallableCHeaderArtifactKind;
 }
 
+bool isObjectArtifactKind(llvm::StringRef artifactKind) {
+  return artifactKind == kRiscvELFRelocatableObjectArtifactKind;
+}
+
+bool isMetadataArtifactKind(llvm::StringRef artifactKind) {
+  return artifactKind == kMetadataDiagnosticArtifactKind;
+}
+
 bool isDefaultGenericArtifactKind(llvm::StringRef artifactKind) {
-  return !isSourceArtifactKind(artifactKind) &&
-         !isHeaderArtifactKind(artifactKind);
+  return isObjectArtifactKind(artifactKind) ||
+         isMetadataArtifactKind(artifactKind);
+}
+
+bool isCurrentMaterializedArtifactKind(llvm::StringRef artifactKind) {
+  return isDefaultGenericArtifactKind(artifactKind) ||
+         isHeaderArtifactKind(artifactKind);
 }
 
 bool isAllowedArtifactKind(ArtifactSelectionMode mode,
@@ -211,6 +204,19 @@ llvm::StringRef getFileExtensionForArtifactKind(llvm::StringRef artifactKind) {
   if (artifactKind == kRiscvELFRelocatableObjectArtifactKind)
     return ".o";
   return ".artifact";
+}
+
+llvm::Error validateCurrentMaterializedArtifactKind(
+    KernelOp kernel, llvm::StringRef routeID, llvm::StringRef artifactKind) {
+  if (isCurrentMaterializedArtifactKind(artifactKind))
+    return llvm::Error::success();
+
+  return makeArtifactExportError(
+      kernel, llvm::Twine("target artifact route '") + routeID +
+                  "' uses unsupported artifact_kind '" + artifactKind +
+                  "'; current target artifact export supports only "
+                  "metadata-diagnostic, runtime-callable-c-header, and "
+                  "riscv-elf-relocatable-object");
 }
 
 std::string sanitizeFileNameComponent(llvm::StringRef value) {
@@ -834,6 +840,9 @@ buildSupportedCandidate(KernelOp kernel, const SelectedPath &path,
                                 "supported emission-plan route",
                                 candidate.artifactKind))
     return std::move(error);
+  if (llvm::Error error = validateCurrentMaterializedArtifactKind(
+          kernel, candidate.routeID, candidate.artifactKind))
+    return std::move(error);
 
   if (llvm::Error error =
           requireSafeStringAttr(kernel, diagnostic.getOperation(),
@@ -1419,12 +1428,12 @@ llvm::Error validateTargetArtifactBundleComponentContract(
     if (record.routeID.empty())
       return makeTargetArtifactBundleExportError(
           "bundle artifact record requires non-empty route");
-    if (isSourceArtifactKind(record.artifactKind))
+    if (!isCurrentMaterializedArtifactKind(record.artifactKind))
       return makeTargetArtifactBundleExportError(
           llvm::Twine("bundle artifact route '") + record.routeID +
-          "' uses source artifact kind '" + record.artifactKind +
-          "'; source components require a future materialized MLIR EmitC "
-          "route");
+          "' uses unsupported artifact_kind '" + record.artifactKind +
+          "'; current bundle records support only metadata, header, or object "
+          "artifacts");
 
     llvm::StringRef expectedComponentRole =
         getBundleComponentRoleForArtifactKind(record.artifactKind);
@@ -1537,10 +1546,6 @@ llvm::Error validateTargetArtifactBundleComponentContract(
 
   for (const auto &entry : groups) {
     const ComponentGroupState &state = entry.getValue();
-    if (state.artifactComponentRoles.count(kBundleSourceComponentRole))
-      return makeTargetArtifactBundleExportError(
-          llvm::Twine("bundle component_group '") + entry.getKey() +
-          "' preserves deleted source component_role 'source'");
     if ((state.artifactComponentRoles.count(kBundleHeaderComponentRole) ||
          state.artifactComponentRoles.count(kBundleObjectComponentRole)) &&
         (!state.artifactComponentRoles.count(kBundleHeaderComponentRole) ||
@@ -2205,12 +2210,12 @@ llvm::Error TargetArtifactExporterRegistry::registerExporter(
     return makeRegistryError("exporter route id must be non-empty");
   if (exporter.getArtifactKind().trim().empty())
     return makeRegistryError("exporter artifact kind must be non-empty");
-  if (isSourceArtifactKind(exporter.getArtifactKind()))
+  if (!isCurrentMaterializedArtifactKind(exporter.getArtifactKind()))
     return makeRegistryError(
         llvm::Twine("exporter route id '") + exporter.getRouteID() +
-        "' uses source artifact kind '" + exporter.getArtifactKind() +
+        "' uses unsupported artifact kind '" + exporter.getArtifactKind() +
         "'; target artifact exporters must use object, header, or metadata "
-        "artifacts until a materialized MLIR EmitC source route exists");
+        "artifact kinds");
   if (!exporter.getExportFn())
     return makeRegistryError("exporter callback must be non-null");
 
@@ -2237,12 +2242,12 @@ llvm::Error TargetArtifactExporterRegistry::registerCompositeExporter(
   if (exporter.getArtifactKind().trim().empty())
     return makeRegistryError(
         "composite exporter artifact kind must be non-empty");
-  if (isSourceArtifactKind(exporter.getArtifactKind()))
+  if (!isCurrentMaterializedArtifactKind(exporter.getArtifactKind()))
     return makeRegistryError(
         llvm::Twine("composite exporter route id '") + exporter.getRouteID() +
-        "' uses source artifact kind '" + exporter.getArtifactKind() +
+        "' uses unsupported artifact kind '" + exporter.getArtifactKind() +
         "'; target artifact exporters must use object, header, or metadata "
-        "artifacts until a materialized MLIR EmitC source route exists");
+        "artifact kinds");
   if (!exporter.getMatchFn())
     return makeRegistryError(
         "composite exporter match callback must be non-null");

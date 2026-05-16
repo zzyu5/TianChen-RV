@@ -31,13 +31,14 @@ using tianchenrv::tcrv::exec::VariantOp;
 
 namespace {
 
-enum class SourcePlanStatus {
+enum class ArtifactPlanStatus {
   Supported,
 };
 
-class SourceArtifactPlanPlugin final : public ExtensionPlugin {
+class UnsupportedArtifactKindPlanPlugin final : public ExtensionPlugin {
 public:
-  SourceArtifactPlanPlugin(llvm::StringRef name, SourcePlanStatus status)
+  UnsupportedArtifactKindPlanPlugin(llvm::StringRef name,
+                                    ArtifactPlanStatus status)
       : name(name.str()), status(status) {}
 
   llvm::StringRef getName() const override { return name; }
@@ -53,19 +54,19 @@ public:
   llvm::Error buildVariantEmissionPlan(const VariantEmissionRequest &request,
                                        VariantEmissionPlan &out) const override {
     switch (status) {
-    case SourcePlanStatus::Supported:
+    case ArtifactPlanStatus::Supported:
       out = VariantEmissionPlan::getSupported(
           name, request.getKernel().getSymName(),
           request.getVariant().getSymName(), request.getRole(),
-          "future-emitc-source-probe", "future-emitc-source-route",
-          "future-emitc-source-abi.v1", "future-emitc-source-artifact",
-          "source artifact plan that must fail closed without materialized "
-          "EmitC");
+          "unmaterialized-artifact-emission",
+          "unmaterialized-artifact-route",
+          "unmaterialized-artifact-abi.v1", "unmaterialized-artifact-kind",
+          "unmaterialized artifact plan must fail closed");
       break;
     }
 
     out.setRuntimeABIKind("plugin-owned-runtime-abi");
-    out.setRuntimeABIName("future-emitc-source-abi.v1");
+    out.setRuntimeABIName("unmaterialized-artifact-abi.v1");
     out.setRuntimeGlueRole("plugin-owned-runtime-glue");
     out.addRuntimeABIParameter(RuntimeABIParameter(
         "lhs", "const int32_t *", RuntimeABIParameterRole::LHSInputBuffer,
@@ -78,7 +79,7 @@ public:
 
 private:
   std::string name;
-  SourcePlanStatus status;
+  ArtifactPlanStatus status;
   llvm::SmallVector<PluginCapability, 1> capabilities;
 };
 
@@ -141,16 +142,16 @@ VariantOp findDirectVariant(KernelOp kernel, llvm::StringRef name) {
   return VariantOp();
 }
 
-int runDeletedSourceArtifactPlanTests(mlir::MLIRContext &context) {
+int runUnsupportedArtifactKindPlanTests(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @source_plan_anchor attributes {} {
+  tcrv.exec.kernel @artifact_plan_anchor attributes {} {
     tcrv.exec.capability @generic_exec {
       id = "generic.exec",
       kind = "generic-feature"
     }
-    tcrv.exec.variant @source_path attributes {
-      origin = "source-plan",
+    tcrv.exec.variant @artifact_path attributes {
+      origin = "artifact-plan",
       requires = [@generic_exec]
     } {
     }
@@ -160,19 +161,19 @@ module {
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
-    return fail("failed to parse source artifact emission-plan module");
+    return fail("failed to parse artifact emission-plan module");
 
-  KernelOp kernel = findKernel(*module, "source_plan_anchor");
-  VariantOp variant = findDirectVariant(kernel, "source_path");
-  if (int result = expect(kernel && variant, "source plan kernel is present"))
+  KernelOp kernel = findKernel(*module, "artifact_plan_anchor");
+  VariantOp variant = findDirectVariant(kernel, "artifact_path");
+  if (int result = expect(kernel && variant, "artifact plan kernel is present"))
     return result;
 
   TargetCapabilitySet capabilities =
       TargetCapabilitySet::buildFromKernel(kernel);
 
-  const SourcePlanStatus cases[] = {SourcePlanStatus::Supported};
-  for (SourcePlanStatus status : cases) {
-    SourceArtifactPlanPlugin plugin("source-plan", status);
+  const ArtifactPlanStatus cases[] = {ArtifactPlanStatus::Supported};
+  for (ArtifactPlanStatus status : cases) {
+    UnsupportedArtifactKindPlanPlugin plugin("artifact-plan", status);
     ExtensionPluginRegistry registry;
     if (int result =
             expectSuccess(registry.registerPlugin(plugin), "register plugin"))
@@ -183,9 +184,9 @@ module {
                                    VariantEmissionRole::DirectVariant);
     if (int result = expectErrorContains(
             registry.buildVariantEmissionPlan(request, plan),
-            {"produced invalid emission plan", "source artifact kind",
-             "future-emitc-source-artifact",
-             "materialized MLIR EmitC source route"}))
+            {"produced invalid emission plan", "artifact kind",
+             "unmaterialized-artifact-kind",
+             "current materialized emission artifact kind"}))
       return result;
   }
 
@@ -201,7 +202,7 @@ int main() {
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();
 
-  if (int result = runDeletedSourceArtifactPlanTests(context))
+  if (int result = runUnsupportedArtifactKindPlanTests(context))
     return result;
 
   llvm::outs() << "plugin emission plan smoke test passed\n";

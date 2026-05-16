@@ -45,7 +45,7 @@ materialized MLIR EmitC route exists.
 - Old scalar arithmetic loop expected -> delete or rewrite to unsupported.
 - Old dispatch source/header/object/bundle expected -> delete or rewrite to
   unsupported/no supported artifact route.
-- Script dry-run depends on direct source artifacts -> remove that lit
+- Script dry-run depends on direct generated-source outputs -> remove that lit
   expectation until the Common EmitC rebuild supplies a new artifact authority.
 
 ### 5. Good/Base/Bad Cases
@@ -55,7 +55,7 @@ materialized MLIR EmitC route exists.
 - Base: RVV smoke-probe tests may remain only when they exercise selected RVV
   metadata through current unsupported emission-plan diagnostics without naming
   an old route-name fixture.
-- Bad: a test checks `runtime-callable-c-source`, a direct route id, or an
+- Bad: a test checks raw runtime-callable C output, a direct route id, or an
   `__riscv_` intrinsic as proof that kernel semantic source export or
   smoke-probe source export succeeded.
 
@@ -171,7 +171,7 @@ Use lit/FileCheck for:
   materialized source authority. Tests should cover unsupported diagnostics,
   stale deleted-route inputs, and the fact that deleted wrapper attachments are
   not replacement lowering boundaries.
-- generic target source artifact export routing, including post-planning
+- generic target generated-source export routing, including post-planning
   selected-path/emission-plan consumption, fail-closed coverage for deleted RVV
   direct artifact routes, and fail-closed coverage for deleted non-RVV metadata
   artifact paths, fail-closed diagnostics for unsupported paths, missing
@@ -401,7 +401,7 @@ MLIR. Tests should prove current unsupported RVV emission-plan diagnostics and
 target artifact route shape without preserving the old command or route-name
 fixtures, and no `riscv_vector.h` / `__riscv_` source text may be printed.
 Any future RVV hardware/toolchain smoke evidence belongs in explicit probe
-tooling, not a compiler source artifact frontdoor.
+tooling, not a compiler generated-source front door.
 
 If a future rebuild exports generated C for explicit RVV extension-family
 dataflow, local lit tests must cover the source IR, materialized EmitC route,

@@ -131,7 +131,7 @@ std::string buildInterfaceSummary(const Manifest &manifest) {
   return summary;
 }
 
-int runSourceArtifactKindConstructionTest() {
+int runUnsupportedArtifactKindConstructionTest() {
   namespace template_ext = tianchenrv::plugin::template_ext;
   namespace construction = tianchenrv::plugin::construction;
 
@@ -143,7 +143,7 @@ int runSourceArtifactKindConstructionTest() {
   };
   const llvm::StringRef requiredEvidence[] = {"emitc_route_mapping"};
 
-  for (llvm::StringRef artifactKind : {"future-emitc-source-artifact"}) {
+  for (llvm::StringRef artifactKind : {"unmaterialized-artifact-kind"}) {
     Manifest manifest = template_ext::getTemplateConstructionManifest();
     construction::EmitCMapping emitcRoute = manifest.emitcRoute;
     emitcRoute.artifactKind = artifactKind;
@@ -164,9 +164,9 @@ int runSourceArtifactKindConstructionTest() {
 
     if (int result = expectErrorContains(
             construction::verifyConstructionManifest(manifest, spec),
-            {"EmitC route mapping uses unsupported source artifact kind",
-             artifactKind, "materialized MLIR EmitC source route"},
-            "source artifact kind construction route"))
+            {"EmitC route mapping uses unsupported artifact kind",
+             artifactKind, "current metadata, object, or header"},
+            "unsupported artifact kind construction route"))
       return result;
   }
 
@@ -182,7 +182,7 @@ int main() {
     return result;
   if (int result = runTensorExtLiteCommonValidationTest())
     return result;
-  if (int result = runSourceArtifactKindConstructionTest())
+  if (int result = runUnsupportedArtifactKindConstructionTest())
     return result;
   return 0;
 }

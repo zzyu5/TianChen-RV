@@ -29,6 +29,16 @@ constexpr llvm::StringLiteral kUnsupportedRuntimeABIName(
     "unsupported-emission-runtime-abi");
 constexpr llvm::StringLiteral kUnsupportedRuntimeGlueRole(
     "no-runtime-glue-unsupported");
+constexpr llvm::StringLiteral kCompilerEmissionPlanArtifactKind(
+    "compiler-emission-plan");
+constexpr llvm::StringLiteral kUnsupportedEmissionDiagnosticArtifactKind(
+    "unsupported-emission-diagnostic");
+constexpr llvm::StringLiteral kMetadataDiagnosticArtifactKind(
+    "metadata-diagnostic");
+constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
+    "runtime-callable-c-header");
+constexpr llvm::StringLiteral kRiscvELFRelocatableObjectArtifactKind(
+    "riscv-elf-relocatable-object");
 
 bool shouldIncludePlugin(const ExtensionPlugin &plugin, bool enabledOnly) {
   return !enabledOnly || plugin.isEnabled();
@@ -95,25 +105,15 @@ bool isBoundedSingleLineEmissionMetadataText(llvm::StringRef value) {
   return true;
 }
 
-bool hasArtifactKindToken(llvm::StringRef artifactKind,
-                          llvm::StringRef token) {
-  std::string lowered = artifactKind.lower();
-  std::string currentToken;
-  for (char character : lowered) {
-    unsigned char byte = static_cast<unsigned char>(character);
-    if (std::isalnum(byte)) {
-      currentToken.push_back(character);
-      continue;
-    }
-    if (llvm::StringRef(currentToken) == token)
-      return true;
-    currentToken.clear();
-  }
-  return llvm::StringRef(currentToken) == token;
+bool isCurrentSupportedEmissionArtifactKind(llvm::StringRef artifactKind) {
+  return artifactKind == kCompilerEmissionPlanArtifactKind ||
+         artifactKind == kMetadataDiagnosticArtifactKind ||
+         artifactKind == kRuntimeCallableCHeaderArtifactKind ||
+         artifactKind == kRiscvELFRelocatableObjectArtifactKind;
 }
 
-bool isSourceArtifactKind(llvm::StringRef artifactKind) {
-  return hasArtifactKindToken(artifactKind, "source");
+bool isCurrentUnsupportedEmissionArtifactKind(llvm::StringRef artifactKind) {
+  return artifactKind == kUnsupportedEmissionDiagnosticArtifactKind;
 }
 
 void setDefaultRuntimeOwnershipMetadata(VariantEmissionPlan &plan,
@@ -1659,14 +1659,21 @@ llvm::Error validateCurrentArtifactKindShape(
     tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
     VariantEmissionRole role, const ExtensionPlugin &plugin,
     const VariantEmissionPlan &plan) {
-  if (plan.isSupported() && isSourceArtifactKind(plan.getArtifactKind()))
+  if (plan.getArtifactKind().trim().empty())
+    return llvm::Error::success();
+
+  bool validKind = plan.isSupported()
+                       ? isCurrentSupportedEmissionArtifactKind(
+                             plan.getArtifactKind())
+                       : isCurrentUnsupportedEmissionArtifactKind(
+                             plan.getArtifactKind());
+  if (!validKind)
     return makeVariantEmissionPlanError(
         variant, kernel, role,
         llvm::Twine("origin plugin '") + plugin.getName() +
-            "' produced invalid emission plan: source artifact kind '" +
+            "' produced invalid emission plan: artifact kind '" +
             plan.getArtifactKind() +
-            "' is not legal for supported plugin plans until a materialized "
-            "MLIR EmitC source route exists");
+            "' is not a current materialized emission artifact kind");
 
   return llvm::Error::success();
 }

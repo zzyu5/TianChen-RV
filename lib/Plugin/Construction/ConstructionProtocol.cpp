@@ -48,25 +48,11 @@ llvm::Error requireNonEmpty(const ValidationSpec &spec,
   return llvm::Error::success();
 }
 
-bool hasArtifactKindToken(llvm::StringRef artifactKind,
-                          llvm::StringRef token) {
-  std::string lowered = artifactKind.lower();
-  std::string currentToken;
-  for (char character : lowered) {
-    unsigned char byte = static_cast<unsigned char>(character);
-    if (std::isalnum(byte)) {
-      currentToken.push_back(character);
-      continue;
-    }
-    if (llvm::StringRef(currentToken) == token)
-      return true;
-    currentToken.clear();
-  }
-  return llvm::StringRef(currentToken) == token;
-}
-
-bool isSourceArtifactKind(llvm::StringRef artifactKind) {
-  return hasArtifactKindToken(artifactKind, "source");
+bool isCurrentConstructionArtifactKind(llvm::StringRef artifactKind) {
+  return artifactKind == "unsupported-emission-diagnostic" ||
+         artifactKind == "metadata-diagnostic" ||
+         artifactKind == "runtime-callable-c-header" ||
+         artifactKind == "riscv-elf-relocatable-object";
 }
 
 const RoleExpectation *findRoleExpectation(const ValidationSpec &spec,
@@ -168,14 +154,13 @@ llvm::Error verifyEmitCMapping(const Manifest &manifest,
         spec, llvm::Twine("EmitC route mapping must preserve ") +
                   spec.familyDisplayName + " artifact route fields");
 
-  if (isSourceArtifactKind(actual.artifactKind))
+  if (!isCurrentConstructionArtifactKind(actual.artifactKind))
     return makeConstructionError(
-        spec, llvm::Twine("EmitC route mapping uses unsupported source "
-                  "artifact kind '") +
+        spec, llvm::Twine("EmitC route mapping uses unsupported artifact "
+                  "kind '") +
                   actual.artifactKind +
                   "'; plugin construction routes must use current metadata, "
-                  "object, or header artifacts until a materialized MLIR "
-                  "EmitC source route exists");
+                  "object, or header artifact kinds");
 
   return llvm::Error::success();
 }

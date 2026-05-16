@@ -244,13 +244,12 @@ Rules:
   metadata;
 - carry bounded runtime ABI kind/name metadata and a bounded required runtime
   glue role chosen by the origin plugin;
-- reject `runtime-callable-c-source` as the artifact kind for every plugin
-  emission plan. Structured runtime ABI parameter
-  metadata must not make a direct C source artifact plan legal. Future source
-  output requires a materialized MLIR EmitC module route with a new explicit
-  source artifact contract; until then source-like mentions may appear only in
-  unsupported missing-materialized-EmitC diagnostics or tests proving generic
-  fail-closed behavior;
+- reject direct runtime-callable C output artifact kinds for every plugin
+  emission plan. Structured runtime ABI parameter metadata must not make a
+  direct C output plan legal. Future source output requires a materialized MLIR
+  EmitC module route with a new explicit output contract; until then
+  source-like mentions may appear only in unsupported missing-materialized-EmitC
+  diagnostics or tests proving generic fail-closed behavior;
 - for supported paths, carry required capability symbol refs that are a safe
   subset of the selected variant `requires` metadata;
 - for supported paths, require non-empty emission kind, lowering pipeline
@@ -986,7 +985,7 @@ Future dispatch executable artifact support must be rebuilt through
 extension-family ops, a materialized common EmitC module, and the MLIR C/C++
 emitter. Python evidence helpers may consume compiler-emitted metadata from
 that rebuilt path, but they must not decide route selection, runtime ABI shape,
-artifact kind, source generation, or family semantics.
+artifact-kind selection, generated C text, or family semantics.
 
 Tests for the current deletion state must prove that RVV+scalar dispatch
 source/header/object/self-check route ids are absent from active target
@@ -1253,7 +1252,7 @@ target/export tool to emit a deterministic standalone C smoke program with
 
 This direct source frontdoor is deleted. RVV hardware/toolchain smoke evidence
 belongs in explicit probe tooling and separate `ssh rvv` artifacts; it must not
-be exposed as a compiler source artifact route.
+be exposed as a compiler generated-source route.
 
 ### 2. Signatures
 
@@ -1269,8 +1268,8 @@ llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
 - The former standalone smoke-probe source front door must be absent before
   printing C source.
 - Built-in target artifact exporter registration must not publish the former
-  smoke-probe route identity or any standalone direct C source artifact kind as
-  a supported RVV source route.
+  smoke-probe route identity or any standalone direct C output artifact kind as
+  a supported RVV output route.
 - `RVVExtensionPlugin` must not turn plugin-local smoke-probe metadata or route
   records into supported emission readiness or a supported emission plan.
 - Historical standalone smoke-probe metadata must not remain as active
@@ -1514,7 +1513,7 @@ identity, artifact identity, runtime evidence, or callable emission authority.
   named dispatch availability guard.
 
 It must not own runtime ABI kind/name strings, runtime glue role strings,
-target artifact route ids, artifact kinds, source/header/object selection
+target artifact route ids, artifact-kind sets, generated C/header/object selection
 policy, bundle metadata, descriptor-local metadata, evidence paths, ssh facts,
 target capabilities, selected march/mabi, or performance/correctness claims.
 It also must not publish static selected-family contracts for RVV/scalar
