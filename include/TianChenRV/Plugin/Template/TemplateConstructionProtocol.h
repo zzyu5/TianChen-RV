@@ -23,10 +23,6 @@ using TemplateTypedRoleInterfaceRealization =
     tianchenrv::plugin::construction::TypedRoleInterfaceRealization;
 using TemplateTypedRoleGraphRealization =
     tianchenrv::plugin::construction::TypedRoleGraphRealization;
-using TemplateGeneratedOutputStep =
-    tianchenrv::plugin::construction::GeneratedOutputStep;
-using TemplateGeneratedOutputRoute =
-    tianchenrv::plugin::construction::GeneratedOutputRoute;
 
 llvm::StringRef getTemplateConstructionProtocolVersion();
 llvm::StringRef getTemplateConstructionArchetype();
@@ -63,11 +59,6 @@ llvm::Error verifyTemplateComputeRoleOpInterface(
     const TemplateConstructionManifest &manifest,
     const TemplateTypedRoleGraphRealization &realization,
     mlir::Operation *computeRoleOp);
-llvm::Expected<TemplateGeneratedOutputRoute>
-buildTemplateGeneratedOutputRoute(const TemplateConstructionManifest &manifest);
-llvm::Expected<TemplateGeneratedOutputRoute> buildTemplateGeneratedOutputRoute(
-    const TemplateConstructionManifest &manifest,
-    const TemplateTypedRoleGraphRealization &realization);
 
 } // namespace tianchenrv::plugin::template_ext
 

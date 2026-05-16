@@ -5,9 +5,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
-#include <string>
-#include <vector>
-
 namespace mlir {
 class Operation;
 } // namespace mlir
@@ -44,8 +41,6 @@ struct EmitCMapping {
   llvm::StringRef runtimeABIKind;
   llvm::StringRef runtimeABIName;
   llvm::StringRef runtimeGlueRole;
-  llvm::StringRef requiredHeader;
-  llvm::StringRef roleToCallMap;
 };
 
 struct Manifest {
@@ -66,7 +61,6 @@ struct TypedRoleInterfaceRealization {
   llvm::StringRef commonInterfaces;
   llvm::StringRef roleSpecificInterface;
   llvm::StringRef emitCLowerableInterface;
-  llvm::StringRef emitCCall;
 };
 
 struct TypedRoleGraphRealization {
@@ -77,24 +71,6 @@ struct TypedRoleGraphRealization {
   llvm::StringRef realizationSummary;
   llvm::ArrayRef<TypedRoleInterfaceRealization> roles;
   llvm::StringRef evidenceProfile;
-};
-
-struct GeneratedOutputStep {
-  std::string typedRoleID;
-  std::string role;
-  unsigned order = 0;
-  std::string operationName;
-  std::string commonInterfaces;
-  std::string roleSpecificInterface;
-  std::string emitCLowerableInterface;
-  std::string emitCCall;
-  std::string sourceLine;
-};
-
-struct GeneratedOutputRoute {
-  std::string functionName;
-  std::string requiredHeader;
-  std::vector<GeneratedOutputStep> steps;
 };
 
 struct RoleExpectation {
@@ -121,7 +97,6 @@ struct RoleOpValidationSpec {
   llvm::StringRef operationName;
   llvm::StringRef typedRoleID;
   llvm::StringRef roleSpecificInterface;
-  llvm::StringRef emitCCall;
   llvm::StringRef roleOpDisplayName;
   llvm::StringRef missingRoleOpMessage;
 };
@@ -142,16 +117,8 @@ llvm::Error verifyRoleOpInterface(
     mlir::Operation *roleOp, const ValidationSpec &spec,
     const RoleOpValidationSpec &roleSpec);
 
-llvm::Expected<GeneratedOutputRoute>
-buildGeneratedOutputRoute(const Manifest &manifest,
-                          const TypedRoleGraphRealization &realization,
-                          const ValidationSpec &spec);
-
 void emitTypedRoleGraphRealization(
     llvm::raw_ostream &os, const TypedRoleGraphRealization &realization);
-
-void emitGeneratedOutputRoute(llvm::raw_ostream &os,
-                              const GeneratedOutputRoute &route);
 
 } // namespace tianchenrv::plugin::construction
 

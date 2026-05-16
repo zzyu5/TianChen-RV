@@ -220,7 +220,7 @@ family:
   required_toolchain:
     - clang
   required_runtime:
-    - tensorext_intrinsics
+    - tensorext_runtime_abi
 
 types:
   - name: frag
@@ -277,14 +277,12 @@ ops:
       - TCRVResourceOpInterface
       - TCRVEmitCLowerableInterface
 
-emitc_route:
-  headers:
-    - tensorext_intrinsics.h
-  intrinsic_map:
-    config: __tensorext_config
-    load_frag: __tensorext_load_frag
-    mma: __tensorext_mma
-    store_frag: __tensorext_store_frag
+route_boundary:
+  route_id: tensorext-no-active-emitc-route
+  emission_kind: no-active-route
+  artifact_kind: unsupported-emission-diagnostic
+  runtime_abi: unsupported-emission-runtime-abi
+  runtime_glue_role: no-runtime-glue-unsupported
 
 local_passes:
   - canonicalize-config
@@ -296,8 +294,7 @@ evidence:
   - capability
   - interface
   - selected_boundary_or_route
-  - emitc_lowering
-  - generated_c_compile
+  - emitc_route_mapping
 ```
 
 RAG-assisted extension addition should use this manifest to generate:
@@ -310,23 +307,30 @@ capability provider
 interface implementations
 verifier skeleton
 local pass skeleton
-EmitC lowering skeleton
+fail-closed route metadata checks
 tests
 ```
 
 The manifest should be sufficient for tooling or RAG-assisted generation to
 create a reviewable skeleton, but the generated skeleton is not success by
 itself. A family is accepted only when the evidence profile proves the family
-declaration, interface realization, and EmitC route are executable.
+declaration and interface realization. Executable routes require separate
+materialized EmitC module and runtime ABI evidence; construction metadata must
+not stand in for that route.
 
-## Scenario: Executable Construction Template Manifest
+## Scenario: Construction Template Manifest After Source-Skeleton Deletion
 
 ### 1. Scope / Trigger
 
 Use this contract when the repository exposes a compiler-owned construction
-template for a future extension family. The template must be consumed by C++
-plugin, target/export, and test code; a prose checklist or passive metadata
-file is not enough.
+template for a future extension family after deletion of construction
+metadata-derived source skeletons. The template must be consumed by C++ plugin
+and test code; a prose checklist or passive metadata file is not enough.
+
+This scenario is a construction-surface contract only. It does not authorize a
+construction manifest to synthesize C/C++ source, fake intrinsic headers,
+runtime-call skeletons, source-like call lines, target artifacts, or executable
+plugin output.
 
 ### 2. Signatures
 
@@ -337,12 +341,8 @@ file is not enough.
   TemplateConstructionManifest &manifest)`.
 - Manifest payload:
   protocol version, archetype, semantic role graph, family declaration,
-  semantic roles with common-interface realization, EmitC route mapping, and
-  evidence profile.
-- Generated-output route builder:
-  `llvm::Expected<TemplateGeneratedOutputRoute>
-  buildTemplateGeneratedOutputRoute(const TemplateConstructionManifest
-  &manifest)`.
+  semantic roles with common-interface realization, fail-closed route metadata,
+  and evidence profile.
 - Typed role/interface realization:
   `const TemplateTypedRoleGraphRealization
   &getTemplateTypedRoleGraphRealization()`.
@@ -350,28 +350,19 @@ file is not enough.
   `llvm::Error verifyTemplateTypedRoleGraphRealization(const
   TemplateConstructionManifest &manifest, const
   TemplateTypedRoleGraphRealization &realization)`.
-- Typed-realization generated-output route builder overload:
-  `llvm::Expected<TemplateGeneratedOutputRoute>
-  buildTemplateGeneratedOutputRoute(const TemplateConstructionManifest
-  &manifest, const TemplateTypedRoleGraphRealization &realization)`.
 - Minimal ODS role-op boundary:
   `tcrv_template.compute_skeleton`.
-- Generated role-op interface:
+- Role-op interface:
   `TCRVEmitCLowerableOpInterface`, exposing source op name and source role.
 - ODS/interface-backed role verifier:
   `llvm::Error verifyTemplateComputeRoleOpInterface(const
   TemplateConstructionManifest &manifest, const
   TemplateTypedRoleGraphRealization &realization, mlir::Operation
   *computeRoleOp)`.
-- Generated-output payload:
-  deterministic function name, required header, ordered role steps, each
-  step's semantic role, role order, family operation name, common-interface
-  realization, typed role identity, role-specific interface,
-  EmitC-lowerable interface, EmitC call name, and source-like call line.
 - Role-op payload:
   selected kernel and variant identity, origin plugin, selected-path role,
   role-op status, required capability refs, typed role id, role order, source
-  role, role-specific interface, and EmitC call name.
+  role, and role-specific interface.
 
 ### 3. Contracts
 
@@ -379,30 +370,19 @@ file is not enough.
   fields to the materialized variant.
 - Plugin legality must validate those fields against the C++ manifest before
   readiness or emission planning accepts the variant.
-- Emission planning must serialize construction selected-plan metadata for the
-  protocol, archetype, role graph, common-interface realization, EmitC route,
-  typed role/interface realization, and evidence profile.
-- Target artifact validation must consume the same manifest-derived route
-  metadata and fail closed for stale selected-plan fields.
-- The Template selected-boundary materialization path must materialize the
-  selected lowering boundary and the minimal ODS compute role-op boundary for
-  the same selected variant.
-- Target artifact validation must require exactly one matching
-  `tcrv_template.compute_skeleton` before generated output export.
-- The compute role-op must implement `TCRVEmitCLowerableOpInterface`; target
-  and construction validation must cross-check the generated source op and
-  source role against the typed compute role realization.
-- Generated construction output must be built from a typed role/interface
-  realization that has been cross-checked against the manifest role graph,
-  family operations, common-interface realization, role-specific common
-  interfaces, EmitC mapping, and evidence profile.
-- Generated construction output must print the archetype, role graph, family
-  declaration, interface realization, EmitC mapping, and evidence profile.
-- Generated construction output must also include a deterministic source-like
-  role-graph-to-EmitC skeleton derived from the typed role/interface
-  realization after manifest cross-checking. The skeleton is construction
-  evidence only; it is not runtime ABI glue, linked code, hardware execution,
-  correctness, or performance evidence.
+- Emission planning may serialize construction selected-plan metadata for the
+  protocol, archetype, role graph, common-interface realization, fail-closed
+  route metadata, typed role/interface realization, and evidence profile.
+- The compute role-op must implement `TCRVEmitCLowerableOpInterface`;
+  construction validation must cross-check the source op and source role
+  against the typed compute role realization.
+- Construction protocol code must not expose generated-output route structs,
+  generated-output route builders, source printers, fake required headers,
+  role-to-call maps, direct `__tcrv_*` call names, or source-line fields as
+  active API.
+- Tests must prove the manifest and typed role/interface realization validate
+  as non-source construction declarations. They must not assert source-like
+  skeleton output or generated C/C++ text from construction metadata.
 
 ### 4. Validation & Error Matrix
 
@@ -413,67 +393,46 @@ file is not enough.
   manifest verifier error.
 - Role missing its role-specific common interface, such as config, memory, or
   compute interface -> manifest verifier error.
-- Role-to-EmitC mapping missing a role, reordering roles, duplicating roles, or
-  using a non-C-identifier call name -> generated-output route builder error.
 - Role common-interface data disagreeing with the common-interface realization
   summary -> manifest verifier error.
 - Typed role realization missing a role object, reordering role objects,
-  duplicating typed role ids, using stale family operation identity, using a
-  stale role-specific interface, or disagreeing with the role-to-EmitC mapping
-  -> typed-realization verifier error.
-- Missing `tcrv_template.compute_skeleton` for the selected Template candidate
-  -> target artifact preflight error before generated output.
-- Duplicate matching compute role ops for the selected variant and role ->
-  target artifact preflight error before generated output.
+  duplicating typed role ids, using stale family operation identity, or using a
+  stale role-specific interface -> typed-realization verifier error.
 - Compute role op missing `TCRVEmitCLowerableOpInterface` -> construction
-  verifier error before generated output.
-- Generated interface source op name or source role disagreeing with the typed
-  compute role realization -> construction verifier error before generated
-  output.
+  verifier error.
+- Interface source op name or source role disagreeing with the typed compute
+  role realization -> construction verifier error.
 - Compute role op stale typed role id, role-specific interface, source role, or
-  EmitC call -> dialect verifier or construction verifier error before
-  generated output.
+  selected variant -> dialect verifier or construction verifier error.
 - Materialized variant missing construction metadata -> plugin legality error.
-- Selected-plan metadata value disagrees with route registration metadata ->
-  target artifact preflight error before generated output.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: Template plugin proposal, legality, emission plan, target exporter,
-  and generated artifact all consume one C++ manifest.
+- Good: Template plugin proposal, legality, emission plan, and typed
+  role/interface tests consume one C++ manifest without constructing source
+  output.
 - Base: Existing RVV-specific route mappings remain plugin/target-owned and may
   be used as reference evidence without expanding RVV coverage.
-- Bad: A YAML/Markdown-only manifest, a metadata-only artifact that is not
-  validated by code, or a core pass branch on a concrete extension name.
+- Bad: A YAML/Markdown-only manifest, a generated source skeleton from
+  construction metadata, a fake intrinsic header/call list, or a core pass
+  branch on a concrete extension name.
 
 ### 6. Tests Required
 
 - C++ test asserting the manifest shape and agreement with plugin capability,
   variant, emission-plan, and selected-plan metadata.
-- C++ test asserting the generated-output route's ordered role steps,
-  role-specific common-interface realization, EmitC call mapping, and
-  fail-closed behavior for reordered, missing, or mismatched route data.
 - C++ test asserting typed role/interface realization agreement with the
   manifest and fail-closed behavior for missing, reordered, stale, or
   mismatched typed role/interface data.
 - C++ test asserting ODS role-op interface identity against the manifest,
-  typed role realization, generated `TCRVEmitCLowerableOpInterface` source op
-  and source role, role-specific interface, EmitC call, and missing-interface
-  failure.
+  typed role realization, `TCRVEmitCLowerableOpInterface` source op and source
+  role, role-specific interface, and missing-interface failure.
 - lit/FileCheck test proving `tcrv_template.compute_skeleton` parses/verifies
   and rejects stale source role, stale typed role, stale role-specific
   interface, stale selected variant, or generic compute attributes.
-- lit/FileCheck test proving generated artifact output includes construction
-  protocol, archetype, role graph, family, interface, EmitC route, and evidence
-  fields.
-- lit/FileCheck test proving generated artifact output includes a deterministic
-  source-like role-graph-to-EmitC skeleton derived from the typed
-  role/interface realization after manifest cross-checking, including at least
-  the compute role.
-- lit/FileCheck test proving missing `tcrv_template.compute_skeleton` fails
-  before target artifact export.
-- Target artifact registry/preflight test proving selected-plan route metadata
-  requirements are registered and reject stale values.
+- Focused ref-scan proving generated-output route APIs, fake intrinsic headers,
+  role-to-call maps, direct `__tcrv_*` construction call names, and source-line
+  skeleton output are absent from active construction protocol code and tests.
 - Focused regression that existing built-in plugin registration still reaches
   RVV plugin routes when the Template path changes.
 
@@ -482,7 +441,7 @@ file is not enough.
 Wrong:
 
 ```text
-spec checklist -> passive manifest text -> target artifact prints comments
+construction manifest -> role-to-call map -> source-like C/C++ skeleton
 ```
 
 Correct:
@@ -491,10 +450,9 @@ Correct:
 C++ construction manifest
   -> plugin proposal metadata
   -> plugin legality validation
-  -> ODS role-op boundary with generated interface provenance
+  -> ODS role-op boundary with interface provenance
   -> emission-plan selected metadata
-  -> target route preflight
-  -> generated construction artifact
+  -> fail closed until a future materialized EmitC module route exists
 ```
 
 ## Fast Plugin Addition

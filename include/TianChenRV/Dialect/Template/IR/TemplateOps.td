@@ -81,7 +81,6 @@ def ComputeSkeletonOp : TCRVTemplate_Op<"compute_skeleton",
     I64Attr:$role_order,
     StrAttr:$source_role,
     StrAttr:$role_specific_interface,
-    StrAttr:$emitc_call,
     OptionalAttr<StrAttr>:$template_reason
   );
 

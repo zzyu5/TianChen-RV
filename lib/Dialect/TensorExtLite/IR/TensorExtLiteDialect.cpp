@@ -31,7 +31,6 @@ constexpr llvm::StringLiteral kRoleOrderAttrName("role_order");
 constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
 constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
     "role_specific_interface");
-constexpr llvm::StringLiteral kEmitCCallAttrName("emitc_call");
 constexpr llvm::StringLiteral kTensorExtLitePluginName(
     "tensorext-lite-plugin");
 constexpr llvm::StringLiteral kNoActiveRouteStatusValue("no-active-route");
@@ -47,8 +46,6 @@ constexpr llvm::StringLiteral kExpectedTypedRole(
 constexpr llvm::StringLiteral kExpectedSourceRole("tile_mma");
 constexpr llvm::StringLiteral kExpectedRoleSpecificInterface(
     "TCRVComputeOpInterface");
-constexpr llvm::StringLiteral kExpectedEmitCCall(
-    "__tcrv_tel_tile_mma");
 
 bool hasMissingOrEmptyStringAttr(mlir::Operation *op,
                                  llvm::StringRef attrName) {
@@ -76,7 +73,6 @@ bool isAllowedTensorExtLiteComputeSkeletonAttr(llvm::StringRef attrName) {
          attrName == kRoleOrderAttrName ||
          attrName == kSourceRoleAttrName ||
          attrName == kRoleSpecificInterfaceAttrName ||
-         attrName == kEmitCCallAttrName ||
          attrName == kFragmentReasonAttrName;
 }
 
@@ -306,7 +302,7 @@ mlir::LogicalResult TileMmaSkeletonOp::verify() {
   for (llvm::StringRef attrName :
        {kSourceKernelAttrName, kOriginAttrName, kRoleAttrName, kStatusAttrName,
         kTypedRoleAttrName, kSourceRoleAttrName,
-        kRoleSpecificInterfaceAttrName, kEmitCCallAttrName}) {
+        kRoleSpecificInterfaceAttrName}) {
     if (hasMissingOrEmptyStringAttr(op, attrName))
       return emitOpError()
              << "requires non-empty string attribute '" << attrName << "'";
@@ -355,7 +351,7 @@ mlir::LogicalResult TileMmaSkeletonOp::verify() {
   if (sourceRole.getValue() != kExpectedSourceRole)
     return emitOpError()
            << "source_role must be '" << kExpectedSourceRole
-           << "' for generated TCRVEmitCLowerableOpInterface provenance";
+           << "' for TCRVEmitCLowerableOpInterface provenance";
 
   auto roleSpecificInterface =
       op->getAttrOfType<mlir::StringAttr>(kRoleSpecificInterfaceAttrName);
@@ -363,11 +359,6 @@ mlir::LogicalResult TileMmaSkeletonOp::verify() {
     return emitOpError()
            << "role_specific_interface must be '"
            << kExpectedRoleSpecificInterface << "'";
-
-  auto emitCCall = op->getAttrOfType<mlir::StringAttr>(kEmitCCallAttrName);
-  if (emitCCall.getValue() != kExpectedEmitCCall)
-    return emitOpError()
-           << "emitc_call must be '" << kExpectedEmitCCall << "'";
 
   if (auto reason =
           op->getAttrOfType<mlir::StringAttr>(kFragmentReasonAttrName)) {

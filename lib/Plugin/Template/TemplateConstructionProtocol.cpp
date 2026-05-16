@@ -22,7 +22,7 @@ constexpr llvm::StringLiteral kInterfaceRealization(
     "TCRVEmitCLowerableInterface");
 constexpr llvm::StringLiteral kEvidenceProfile(
     "parse_verify|capability|interface|selected_boundary_or_route|"
-    "emitc_route_mapping|generated_output");
+    "emitc_route_mapping");
 
 constexpr llvm::StringLiteral kProtocolMetadataName(
     "template_construction_protocol");
@@ -67,23 +67,18 @@ constexpr llvm::StringLiteral kTemplateRuntimeABIKind(
     "unsupported-plugin-runtime-abi");
 constexpr llvm::StringLiteral kTemplateRuntimeGlueRole(
     "no-runtime-glue-unsupported");
-constexpr llvm::StringLiteral kTemplateRequiredHeader(
-    "template_extension_intrinsics.h");
-constexpr llvm::StringLiteral kTemplateRoleToCallMap(
-    "configure=__tcrv_template_config;load=__tcrv_template_load;"
-    "compute=__tcrv_template_compute;store=__tcrv_template_store");
 constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "configure:template.role.configure.config_skeleton:"
     "tcrv_template.config_skeleton:TCRVConfigOpInterface:"
-    "__tcrv_template_config;"
+    "TCRVEmitCLowerableInterface;"
     "load:template.role.load.load_skeleton:tcrv_template.load_skeleton:"
-    "TCRVMemoryOpInterface:__tcrv_template_load;"
+    "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;"
     "compute:template.role.compute.compute_skeleton:"
     "tcrv_template.compute_skeleton:TCRVComputeOpInterface:"
-    "__tcrv_template_compute;"
+    "TCRVEmitCLowerableInterface;"
     "store:template.role.store.store_skeleton:"
     "tcrv_template.store_skeleton:TCRVMemoryOpInterface:"
-    "__tcrv_template_store");
+    "TCRVEmitCLowerableInterface");
 constexpr llvm::StringLiteral kTemplateComputeOperationName(
     "tcrv_template.compute_skeleton");
 constexpr llvm::StringLiteral kTemplateComputeTypedRoleID(
@@ -126,9 +121,7 @@ const TemplateConstructionManifest kManifest = {
      kTemplateRuntimeABI,
      kTemplateRuntimeABIKind,
      kTemplateRuntimeABI,
-     kTemplateRuntimeGlueRole,
-     kTemplateRequiredHeader,
-     kTemplateRoleToCallMap},
+     kTemplateRuntimeGlueRole},
     kEvidenceProfile,
 };
 
@@ -140,8 +133,7 @@ const TemplateTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "TCRVExtensionOpInterface+TCRVConfigOpInterface+"
      "TCRVEmitCLowerableInterface",
      "TCRVConfigOpInterface",
-     "TCRVEmitCLowerableInterface",
-     "__tcrv_template_config"},
+     "TCRVEmitCLowerableInterface"},
     {"template.role.load.load_skeleton",
      "load",
      1,
@@ -149,8 +141,7 @@ const TemplateTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface",
-     "__tcrv_template_load"},
+     "TCRVEmitCLowerableInterface"},
     {"template.role.compute.compute_skeleton",
      "compute",
      2,
@@ -158,8 +149,7 @@ const TemplateTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVComputeOpInterface",
-     "TCRVEmitCLowerableInterface",
-     "__tcrv_template_compute"},
+     "TCRVEmitCLowerableInterface"},
     {"template.role.store.store_skeleton",
      "store",
      3,
@@ -167,8 +157,7 @@ const TemplateTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface",
-     "__tcrv_template_store"},
+     "TCRVEmitCLowerableInterface"},
 };
 
 const TemplateTypedRoleGraphRealization kTypedRoleGraphRealization = {
@@ -190,7 +179,7 @@ const construction::RoleExpectation kRoleExpectations[] = {
 
 const llvm::StringRef kRequiredEvidence[] = {
     "parse_verify", "capability", "interface",
-    "selected_boundary_or_route", "emitc_route_mapping", "generated_output"};
+    "selected_boundary_or_route", "emitc_route_mapping"};
 
 construction::ValidationSpec getTemplateConstructionValidationSpec() {
   return {"Template",
@@ -210,9 +199,8 @@ construction::RoleOpValidationSpec getTemplateComputeRoleValidationSpec() {
           kTemplateComputeOperationName,
           kTemplateComputeTypedRoleID,
           "TCRVComputeOpInterface",
-          "__tcrv_template_compute",
           "Template compute role op",
-          "Template compute role op is missing before generated artifact export"};
+          "Template compute role op is missing before construction validation"};
 }
 
 } // namespace
@@ -325,19 +313,6 @@ llvm::Error verifyTemplateComputeRoleOpInterface(
       manifest, realization, computeRoleOp,
       getTemplateConstructionValidationSpec(),
       getTemplateComputeRoleValidationSpec());
-}
-
-llvm::Expected<TemplateGeneratedOutputRoute>
-buildTemplateGeneratedOutputRoute(const TemplateConstructionManifest &manifest) {
-  return buildTemplateGeneratedOutputRoute(
-      manifest, getTemplateTypedRoleGraphRealization());
-}
-
-llvm::Expected<TemplateGeneratedOutputRoute> buildTemplateGeneratedOutputRoute(
-    const TemplateConstructionManifest &manifest,
-    const TemplateTypedRoleGraphRealization &realization) {
-  return construction::buildGeneratedOutputRoute(
-      manifest, realization, getTemplateConstructionValidationSpec());
 }
 
 } // namespace tianchenrv::plugin::template_ext

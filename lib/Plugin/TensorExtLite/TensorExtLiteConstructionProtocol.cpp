@@ -21,7 +21,7 @@ constexpr llvm::StringLiteral kInterfaceRealization(
     "TCRVEmitCLowerableInterface");
 constexpr llvm::StringLiteral kEvidenceProfile(
     "parse_verify|capability|interface|selected_boundary_or_route|"
-    "emitc_route_mapping|generated_output");
+    "emitc_route_mapping");
 
 constexpr llvm::StringLiteral kProtocolMetadataName(
     "tensorext_lite_construction_protocol");
@@ -67,25 +67,18 @@ constexpr llvm::StringLiteral kTensorExtLiteRuntimeABIKind(
     "unsupported-plugin-runtime-abi");
 constexpr llvm::StringLiteral kTensorExtLiteRuntimeGlueRole(
     "no-runtime-glue-unsupported");
-constexpr llvm::StringLiteral kTensorExtLiteRequiredHeader(
-    "tensorext_lite_intrinsics.h");
-constexpr llvm::StringLiteral kTensorExtLiteRoleToCallMap(
-    "configure=__tcrv_tel_config;"
-    "load_frag=__tcrv_tel_load_frag;"
-    "tile_mma=__tcrv_tel_tile_mma;"
-    "store_frag=__tcrv_tel_store_frag");
 constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "configure:tel.role.config:tcrv_tensorext_lite.config_skeleton:"
-    "TCRVConfigOpInterface:__tcrv_tel_config;"
+    "TCRVConfigOpInterface:TCRVEmitCLowerableInterface;"
     "load_frag:tel.role.load_frag:"
     "tcrv_tensorext_lite.load_frag_skeleton:"
-    "TCRVMemoryOpInterface:__tcrv_tel_load_frag;"
+    "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;"
     "tile_mma:tel.role.tile_mma:"
     "tcrv_tensorext_lite.tile_mma_skeleton:TCRVComputeOpInterface:"
-    "__tcrv_tel_tile_mma;"
+    "TCRVEmitCLowerableInterface;"
     "store_frag:tel.role.store_frag:"
     "tcrv_tensorext_lite.store_frag_skeleton:"
-    "TCRVMemoryOpInterface:__tcrv_tel_store_frag");
+    "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface");
 constexpr llvm::StringLiteral kTensorExtLiteComputeOperationName(
     "tcrv_tensorext_lite.tile_mma_skeleton");
 constexpr llvm::StringLiteral kTensorExtLiteComputeTypedRoleID(
@@ -131,9 +124,7 @@ const TensorExtLiteConstructionManifest kManifest = {
      kTensorExtLiteRuntimeABI,
      kTensorExtLiteRuntimeABIKind,
      kTensorExtLiteRuntimeABI,
-     kTensorExtLiteRuntimeGlueRole,
-     kTensorExtLiteRequiredHeader,
-     kTensorExtLiteRoleToCallMap},
+     kTensorExtLiteRuntimeGlueRole},
     kEvidenceProfile,
 };
 
@@ -145,8 +136,7 @@ const TensorExtLiteTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "TCRVExtensionOpInterface+TCRVConfigOpInterface+"
      "TCRVEmitCLowerableInterface",
      "TCRVConfigOpInterface",
-     "TCRVEmitCLowerableInterface",
-     "__tcrv_tel_config"},
+     "TCRVEmitCLowerableInterface"},
     {"tel.role.load_frag",
      "load_frag",
      1,
@@ -154,8 +144,7 @@ const TensorExtLiteTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface",
-     "__tcrv_tel_load_frag"},
+     "TCRVEmitCLowerableInterface"},
     {"tel.role.tile_mma",
      "tile_mma",
      2,
@@ -163,8 +152,7 @@ const TensorExtLiteTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVComputeOpInterface",
-     "TCRVEmitCLowerableInterface",
-     "__tcrv_tel_tile_mma"},
+     "TCRVEmitCLowerableInterface"},
     {"tel.role.store_frag",
      "store_frag",
      3,
@@ -172,8 +160,7 @@ const TensorExtLiteTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface",
-     "__tcrv_tel_store_frag"},
+     "TCRVEmitCLowerableInterface"},
 };
 
 const TensorExtLiteTypedRoleGraphRealization kTypedRoleGraphRealization = {
@@ -195,7 +182,7 @@ const construction::RoleExpectation kRoleExpectations[] = {
 
 const llvm::StringRef kRequiredEvidence[] = {
     "parse_verify", "capability", "interface",
-    "selected_boundary_or_route", "emitc_route_mapping", "generated_output"};
+    "selected_boundary_or_route", "emitc_route_mapping"};
 
 construction::ValidationSpec getTensorExtLiteConstructionValidationSpec() {
   return {"TensorExtLite",
@@ -215,10 +202,9 @@ construction::RoleOpValidationSpec getTensorExtLiteRoleValidationSpec() {
           kTensorExtLiteComputeOperationName,
           kTensorExtLiteComputeTypedRoleID,
           "TCRVComputeOpInterface",
-          "__tcrv_tel_tile_mma",
           "TensorExtLite tile_mma role op",
-          "TensorExtLite tile_mma role op is missing before generated "
-          "artifact export"};
+          "TensorExtLite tile_mma role op is missing before construction "
+          "validation"};
 }
 
 } // namespace
@@ -317,21 +303,6 @@ llvm::Error verifyTensorExtLiteComputeRoleOpInterface(
       manifest, realization, computeRoleOp,
       getTensorExtLiteConstructionValidationSpec(),
       getTensorExtLiteRoleValidationSpec());
-}
-
-llvm::Expected<TensorExtLiteGeneratedOutputRoute>
-buildTensorExtLiteGeneratedOutputRoute(
-    const TensorExtLiteConstructionManifest &manifest) {
-  return buildTensorExtLiteGeneratedOutputRoute(
-      manifest, getTensorExtLiteTypedRoleGraphRealization());
-}
-
-llvm::Expected<TensorExtLiteGeneratedOutputRoute>
-buildTensorExtLiteGeneratedOutputRoute(
-    const TensorExtLiteConstructionManifest &manifest,
-    const TensorExtLiteTypedRoleGraphRealization &realization) {
-  return construction::buildGeneratedOutputRoute(
-      manifest, realization, getTensorExtLiteConstructionValidationSpec());
 }
 
 } // namespace tianchenrv::plugin::tensorext_lite

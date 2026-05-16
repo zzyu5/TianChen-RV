@@ -19,13 +19,12 @@ module {
       tcrv_tensorext_lite.archetype = "fragment-mma-like",
       tcrv_tensorext_lite.semantic_role_graph = "configure->load_frag->tile_mma->store_frag",
       tcrv_tensorext_lite.common_interface_realization = "configure=TCRVExtensionOpInterface+TCRVConfigOpInterface+TCRVEmitCLowerableInterface;load_frag=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;tile_mma=TCRVExtensionOpInterface+TCRVComputeOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;store_frag=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-      tcrv_tensorext_lite.typed_role_realization = "configure:tel.role.config:tcrv_tensorext_lite.config_skeleton:TCRVConfigOpInterface:__tcrv_tel_config;load_frag:tel.role.load_frag:tcrv_tensorext_lite.load_frag_skeleton:TCRVMemoryOpInterface:__tcrv_tel_load_frag;tile_mma:tel.role.tile_mma:tcrv_tensorext_lite.tile_mma_skeleton:TCRVComputeOpInterface:__tcrv_tel_tile_mma;store_frag:tel.role.store_frag:tcrv_tensorext_lite.store_frag_skeleton:TCRVMemoryOpInterface:__tcrv_tel_store_frag",
+      tcrv_tensorext_lite.typed_role_realization = "configure:tel.role.config:tcrv_tensorext_lite.config_skeleton:TCRVConfigOpInterface:TCRVEmitCLowerableInterface;load_frag:tel.role.load_frag:tcrv_tensorext_lite.load_frag_skeleton:TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;tile_mma:tel.role.tile_mma:tcrv_tensorext_lite.tile_mma_skeleton:TCRVComputeOpInterface:TCRVEmitCLowerableInterface;store_frag:tel.role.store_frag:tcrv_tensorext_lite.store_frag_skeleton:TCRVMemoryOpInterface:TCRVEmitCLowerableInterface",
       tcrv_tensorext_lite.emitc_route_mapping = "none-executable-tensorext-lite-fragment-mma-metadata",
-      tcrv_tensorext_lite.evidence_profile = "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|generated_output"
+      tcrv_tensorext_lite.evidence_profile = "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping"
     } {
     }
-    // CHECK: tcrv_tensorext_lite.tile_mma_skeleton {emitc_call = "__tcrv_tel_tile_mma"
-    // CHECK-SAME: origin = "tensorext-lite-plugin"
+    // CHECK: tcrv_tensorext_lite.tile_mma_skeleton {origin = "tensorext-lite-plugin"
     // CHECK-SAME: required_capabilities = [@tensorext_lite_tile_mma]
     // CHECK-SAME: role = "direct variant"
     // CHECK-SAME: role_order = 2 : i64
@@ -36,7 +35,6 @@ module {
     // CHECK-SAME: status = "role-op-boundary"
     // CHECK-SAME: typed_role = "tel.role.tile_mma"
     tcrv_tensorext_lite.tile_mma_skeleton {
-      emitc_call = "__tcrv_tel_tile_mma",
       origin = "tensorext-lite-plugin",
       required_capabilities = [@tensorext_lite_tile_mma],
       role = "direct variant",
@@ -61,8 +59,8 @@ module {
       requires = [@tensorext_lite_tile_mma]
     } {
     }
-    // expected-error@+1 {{source_role must be 'tile_mma' for generated TCRVEmitCLowerableOpInterface provenance}}
-    tcrv_tensorext_lite.tile_mma_skeleton {emitc_call = "__tcrv_tel_tile_mma", origin = "tensorext-lite-plugin", required_capabilities = [@tensorext_lite_tile_mma], role = "direct variant", role_order = 2 : i64, role_specific_interface = "TCRVComputeOpInterface", selected_variant = @tensorext_lite_tile_mma_first_slice, source_kernel = "tensorext_lite_tile_mma_skeleton_wrong_source_role", source_role = "load_frag", status = "role-op-boundary", typed_role = "tel.role.tile_mma"}
+    // expected-error@+1 {{source_role must be 'tile_mma' for TCRVEmitCLowerableOpInterface provenance}}
+    tcrv_tensorext_lite.tile_mma_skeleton {origin = "tensorext-lite-plugin", required_capabilities = [@tensorext_lite_tile_mma], role = "direct variant", role_order = 2 : i64, role_specific_interface = "TCRVComputeOpInterface", selected_variant = @tensorext_lite_tile_mma_first_slice, source_kernel = "tensorext_lite_tile_mma_skeleton_wrong_source_role", source_role = "load_frag", status = "role-op-boundary", typed_role = "tel.role.tile_mma"}
   }
 }
 
@@ -77,7 +75,7 @@ module {
     } {
     }
     // expected-error@+1 {{typed_role must be 'tel.role.tile_mma'}}
-    tcrv_tensorext_lite.tile_mma_skeleton {emitc_call = "__tcrv_tel_tile_mma", origin = "tensorext-lite-plugin", required_capabilities = [@tensorext_lite_tile_mma], role = "direct variant", role_order = 2 : i64, role_specific_interface = "TCRVComputeOpInterface", selected_variant = @tensorext_lite_tile_mma_first_slice, source_kernel = "tensorext_lite_tile_mma_skeleton_stale_typed_role", source_role = "tile_mma", status = "role-op-boundary", typed_role = "tel.role.stale"}
+    tcrv_tensorext_lite.tile_mma_skeleton {origin = "tensorext-lite-plugin", required_capabilities = [@tensorext_lite_tile_mma], role = "direct variant", role_order = 2 : i64, role_specific_interface = "TCRVComputeOpInterface", selected_variant = @tensorext_lite_tile_mma_first_slice, source_kernel = "tensorext_lite_tile_mma_skeleton_stale_typed_role", source_role = "tile_mma", status = "role-op-boundary", typed_role = "tel.role.stale"}
   }
 }
 
@@ -92,7 +90,7 @@ module {
     } {
     }
     // expected-error@+1 {{role_specific_interface must be 'TCRVComputeOpInterface'}}
-    tcrv_tensorext_lite.tile_mma_skeleton {emitc_call = "__tcrv_tel_tile_mma", origin = "tensorext-lite-plugin", required_capabilities = [@tensorext_lite_tile_mma], role = "direct variant", role_order = 2 : i64, role_specific_interface = "TCRVMemoryOpInterface", selected_variant = @tensorext_lite_tile_mma_first_slice, source_kernel = "tensorext_lite_tile_mma_skeleton_wrong_interface", source_role = "tile_mma", status = "role-op-boundary", typed_role = "tel.role.tile_mma"}
+    tcrv_tensorext_lite.tile_mma_skeleton {origin = "tensorext-lite-plugin", required_capabilities = [@tensorext_lite_tile_mma], role = "direct variant", role_order = 2 : i64, role_specific_interface = "TCRVMemoryOpInterface", selected_variant = @tensorext_lite_tile_mma_first_slice, source_kernel = "tensorext_lite_tile_mma_skeleton_wrong_interface", source_role = "tile_mma", status = "role-op-boundary", typed_role = "tel.role.tile_mma"}
   }
 }
 
@@ -107,6 +105,6 @@ module {
     } {
     }
     // expected-error@+1 {{does not accept generic tensor/tile/benchmark or unknown attribute 'shape'}}
-    tcrv_tensorext_lite.tile_mma_skeleton {emitc_call = "__tcrv_tel_tile_mma", origin = "tensorext-lite-plugin", required_capabilities = [@tensorext_lite_tile_mma], role = "direct variant", role_order = 2 : i64, role_specific_interface = "TCRVComputeOpInterface", selected_variant = @tensorext_lite_tile_mma_first_slice, shape = "generic_tensor", source_kernel = "tensorext_lite_tile_mma_skeleton_unknown_attr", source_role = "tile_mma", status = "role-op-boundary", typed_role = "tel.role.tile_mma"}
+    tcrv_tensorext_lite.tile_mma_skeleton {origin = "tensorext-lite-plugin", required_capabilities = [@tensorext_lite_tile_mma], role = "direct variant", role_order = 2 : i64, role_specific_interface = "TCRVComputeOpInterface", selected_variant = @tensorext_lite_tile_mma_first_slice, shape = "generic_tensor", source_kernel = "tensorext_lite_tile_mma_skeleton_unknown_attr", source_role = "tile_mma", status = "role-op-boundary", typed_role = "tel.role.tile_mma"}
   }
 }

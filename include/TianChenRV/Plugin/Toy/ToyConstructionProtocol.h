@@ -23,10 +23,6 @@ using ToyTypedRoleInterfaceRealization =
     tianchenrv::plugin::construction::TypedRoleInterfaceRealization;
 using ToyTypedRoleGraphRealization =
     tianchenrv::plugin::construction::TypedRoleGraphRealization;
-using ToyGeneratedOutputStep =
-    tianchenrv::plugin::construction::GeneratedOutputStep;
-using ToyGeneratedOutputRoute =
-    tianchenrv::plugin::construction::GeneratedOutputRoute;
 
 llvm::StringRef getToyConstructionInterfaceRealization();
 llvm::StringRef getToyTypedRoleRealizationSummary();
@@ -59,11 +55,6 @@ llvm::Error verifyToyComputeRoleOpInterface(
     const ToyConstructionManifest &manifest,
     const ToyTypedRoleGraphRealization &realization,
     mlir::Operation *computeRoleOp);
-llvm::Expected<ToyGeneratedOutputRoute>
-buildToyGeneratedOutputRoute(const ToyConstructionManifest &manifest);
-llvm::Expected<ToyGeneratedOutputRoute> buildToyGeneratedOutputRoute(
-    const ToyConstructionManifest &manifest,
-    const ToyTypedRoleGraphRealization &realization);
 
 } // namespace tianchenrv::plugin::toy
 

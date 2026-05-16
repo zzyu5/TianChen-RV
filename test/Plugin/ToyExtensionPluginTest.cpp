@@ -200,18 +200,15 @@ int runRegistrationAndCapabilityMetadataTest() {
               manifest, realization),
           "Toy typed role graph verifies"))
     return result;
-  llvm::Expected<tianchenrv::plugin::toy::ToyGeneratedOutputRoute> route =
-      tianchenrv::plugin::toy::buildToyGeneratedOutputRoute(manifest,
-                                                            realization);
-  if (!route)
-    return fail("Toy generated output route failed: " +
-                llvm::toString(route.takeError()));
   if (int result =
-          expect(route->steps.size() == 4 &&
-                     route->steps[2].operationName ==
+          expect(realization.roles.size() == 4 &&
+                     realization.roles[2].operationName ==
                          "tcrv_toy.compute_skeleton" &&
-                     route->steps[2].emitCCall == "__tcrv_toy_compute",
-                 "Toy generated route preserves ordered compute role"))
+                     realization.roles[2].roleSpecificInterface ==
+                         "TCRVComputeOpInterface" &&
+                     realization.roles[2].emitCLowerableInterface ==
+                         "TCRVEmitCLowerableInterface",
+                 "Toy typed role graph preserves ordered compute role"))
     return result;
 
   return expectErrorContains(

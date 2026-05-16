@@ -24,10 +24,6 @@ using TensorExtLiteTypedRoleInterfaceRealization =
     tianchenrv::plugin::construction::TypedRoleInterfaceRealization;
 using TensorExtLiteTypedRoleGraphRealization =
     tianchenrv::plugin::construction::TypedRoleGraphRealization;
-using TensorExtLiteGeneratedOutputStep =
-    tianchenrv::plugin::construction::GeneratedOutputStep;
-using TensorExtLiteGeneratedOutputRoute =
-    tianchenrv::plugin::construction::GeneratedOutputRoute;
 
 llvm::StringRef getTensorExtLiteConstructionInterfaceRealization();
 llvm::StringRef getTensorExtLiteTypedRoleRealizationSummary();
@@ -60,11 +56,6 @@ llvm::Error verifyTensorExtLiteComputeRoleOpInterface(
     const TensorExtLiteConstructionManifest &manifest,
     const TensorExtLiteTypedRoleGraphRealization &realization,
     mlir::Operation *computeRoleOp);
-llvm::Expected<TensorExtLiteGeneratedOutputRoute>
-buildTensorExtLiteGeneratedOutputRoute(const TensorExtLiteConstructionManifest &manifest);
-llvm::Expected<TensorExtLiteGeneratedOutputRoute> buildTensorExtLiteGeneratedOutputRoute(
-    const TensorExtLiteConstructionManifest &manifest,
-    const TensorExtLiteTypedRoleGraphRealization &realization);
 
 } // namespace tianchenrv::plugin::tensorext_lite
 

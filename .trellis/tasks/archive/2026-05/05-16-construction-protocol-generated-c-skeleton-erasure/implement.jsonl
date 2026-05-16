@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global stack, descriptor/direct-C deletion, and extension-family boundary rules."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin interface routing and no independent backend or core family-branch semantics."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Construction protocol shape and stale generated-output skeleton contracts to delete."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Direct-C source authority deletion and future materialized EmitC route boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Deletion-campaign test rewrite and fail-closed evidence policy."}

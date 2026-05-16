@@ -881,3 +881,36 @@ Removed probe-derived RVV SEW/LMUL/tail/mask config authority from RVV capabilit
 ### Next Steps
 
 - None - task complete
+
+
+## Session 85: Construction-protocol generated C skeleton erasure
+
+**Date**: 2026-05-16
+**Task**: Construction-protocol generated C skeleton erasure
+**Branch**: `main`
+
+### Summary
+
+Erased construction-protocol generated C/source skeleton authority from common and Template/Toy/TensorExtLite construction surfaces; removed direct call/header/source-line route fields and tests; focused builds, ref-scan, Trellis validation, git diff --check, and check-tianchenrv passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

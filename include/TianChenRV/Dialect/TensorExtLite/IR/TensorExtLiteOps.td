@@ -80,7 +80,6 @@ def TileMmaSkeletonOp : TCRVTensorExtLite_Op<"tile_mma_skeleton",
     I64Attr:$role_order,
     StrAttr:$source_role,
     StrAttr:$role_specific_interface,
-    StrAttr:$emitc_call,
     OptionalAttr<StrAttr>:$fragment_reason
   );
 

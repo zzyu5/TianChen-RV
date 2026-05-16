@@ -255,8 +255,8 @@ int runConstructionManifestTest() {
                          "template.role.compute.compute_skeleton" &&
                      realization.roles[2].roleSpecificInterface ==
                          "TCRVComputeOpInterface" &&
-                     realization.roles[2].emitCCall ==
-                         "__tcrv_template_compute" &&
+                     realization.roles[2].emitCLowerableInterface ==
+                         "TCRVEmitCLowerableInterface" &&
                      tianchenrv::plugin::template_ext::
                          getTemplateTypedRoleRealizationSummary()
                              .contains("compute:template.role.compute"),
@@ -266,63 +266,28 @@ int runConstructionManifestTest() {
   if (int result = expect(
           manifest.emitcRoute.routeID ==
                   "template-extension-no-active-emitc-route" &&
-              manifest.emitcRoute.requiredHeader ==
-                  "template_extension_intrinsics.h" &&
-              manifest.emitcRoute.roleToCallMap.contains(
-                  "compute=__tcrv_template_compute"),
-          "Template manifest exposes plugin-owned EmitC route mapping"))
+              manifest.emitcRoute.artifactKind ==
+                  "unsupported-emission-diagnostic",
+          "Template manifest exposes fail-closed route metadata"))
     return result;
   return expect(
       manifest.evidenceProfile.contains("parse_verify") &&
           manifest.evidenceProfile.contains("interface") &&
           manifest.evidenceProfile.contains("emitc_route_mapping") &&
-          manifest.evidenceProfile.contains("generated_output"),
+          !manifest.evidenceProfile.contains("generated"),
       "Template manifest records focused evidence profile");
 }
 
-int runGeneratedOutputRouteTest() {
+int runTypedRoleGraphValidationTest() {
   namespace template_ext = tianchenrv::plugin::template_ext;
   const auto &manifest = template_ext::getTemplateConstructionManifest();
   const auto &realization =
       template_ext::getTemplateTypedRoleGraphRealization();
 
-  llvm::Expected<template_ext::TemplateGeneratedOutputRoute> route =
-      template_ext::buildTemplateGeneratedOutputRoute(manifest, realization);
-  if (!route)
-    return fail("Template generated output route failed: " +
-                llvm::toString(route.takeError()));
-
-  if (int result =
-          expect(route->functionName ==
-                         "tcrv_template_generated_template_zero_core_first_slice" &&
-                     route->requiredHeader ==
-                         "template_extension_intrinsics.h" &&
-                     route->steps.size() == 4,
-                 "Template generated output route is manifest-derived"))
-    return result;
-  if (int result =
-          expect(route->steps[0].role == "configure" &&
-                     route->steps[0].emitCCall ==
-                         "__tcrv_template_config" &&
-                     route->steps[0].sourceLine ==
-                         "__tcrv_template_config();",
-                 "Template generated output route realizes configure role"))
-    return result;
-  if (int result =
-          expect(route->steps[2].role == "compute" &&
-                     route->steps[2].typedRoleID ==
-                         "template.role.compute.compute_skeleton" &&
-                     route->steps[2].commonInterfaces.find(
-                         "TCRVComputeOpInterface") != std::string::npos &&
-                     route->steps[2].roleSpecificInterface ==
-                         "TCRVComputeOpInterface" &&
-                     route->steps[2].emitCLowerableInterface ==
-                         "TCRVEmitCLowerableInterface" &&
-                     route->steps[2].emitCCall ==
-                         "__tcrv_template_compute" &&
-                     route->steps[2].sourceLine ==
-                         "__tcrv_template_compute();",
-                 "Template generated output route realizes compute role"))
+  if (int result = expectSuccess(
+          template_ext::verifyTemplateTypedRoleGraphRealization(manifest,
+                                                                realization),
+          "Template typed role graph validates without generated output"))
     return result;
 
   {
@@ -334,12 +299,8 @@ int runGeneratedOutputRouteTest() {
     roles[2].order = 2;
     bad.semanticRoles = roles;
 
-    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
-        template_ext::buildTemplateGeneratedOutputRoute(bad);
-    if (badRoute)
-      return fail("reordered Template role graph unexpectedly generated output");
     if (int result = expectErrorContains(
-            badRoute.takeError(),
+            template_ext::verifyTemplateConstructionManifest(bad),
             {"semantic role graph entry", "Template role order"}))
       return result;
   }
@@ -351,12 +312,9 @@ int runGeneratedOutputRouteTest() {
     roles.pop_back();
     bad.roles = roles;
 
-    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
-        template_ext::buildTemplateGeneratedOutputRoute(manifest, bad);
-    if (badRoute)
-      return fail("missing Template typed role unexpectedly generated output");
     if (int result = expectErrorContains(
-            badRoute.takeError(),
+            template_ext::verifyTemplateTypedRoleGraphRealization(manifest,
+                                                                  bad),
             {"typed role realization", "exactly one role object"}))
       return result;
   }
@@ -370,12 +328,9 @@ int runGeneratedOutputRouteTest() {
     roles[2].order = 2;
     bad.roles = roles;
 
-    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
-        template_ext::buildTemplateGeneratedOutputRoute(manifest, bad);
-    if (badRoute)
-      return fail("reordered Template typed roles unexpectedly generated output");
     if (int result = expectErrorContains(
-            badRoute.takeError(),
+            template_ext::verifyTemplateTypedRoleGraphRealization(manifest,
+                                                                  bad),
             {"typed role realization entry", "not ordered"}))
       return result;
   }
@@ -387,13 +342,9 @@ int runGeneratedOutputRouteTest() {
     roles[2].operationName = "tcrv_template.stale_compute_skeleton";
     bad.roles = roles;
 
-    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
-        template_ext::buildTemplateGeneratedOutputRoute(manifest, bad);
-    if (badRoute)
-      return fail("stale Template typed role identity unexpectedly generated "
-                  "output");
     if (int result = expectErrorContains(
-            badRoute.takeError(),
+            template_ext::verifyTemplateTypedRoleGraphRealization(manifest,
+                                                                  bad),
             {"typed role realization entry", "operation",
              "does not match manifest operation"}))
       return result;
@@ -406,66 +357,11 @@ int runGeneratedOutputRouteTest() {
     roles[2].roleSpecificInterface = "TCRVMemoryOpInterface";
     bad.roles = roles;
 
-    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
-        template_ext::buildTemplateGeneratedOutputRoute(manifest, bad);
-    if (badRoute)
-      return fail("mismatched Template typed role interface unexpectedly "
-                  "generated output");
     if (int result = expectErrorContains(
-            badRoute.takeError(),
+            template_ext::verifyTemplateTypedRoleGraphRealization(manifest,
+                                                                  bad),
             {"typed role realization entry",
              "role-specific common interface", "TCRVComputeOpInterface"}))
-      return result;
-  }
-
-  {
-    template_ext::TemplateTypedRoleGraphRealization bad = realization;
-    llvm::SmallVector<template_ext::TemplateTypedRoleInterfaceRealization, 4>
-        roles(realization.roles.begin(), realization.roles.end());
-    roles[2].emitCCall = "__tcrv_template_stale_compute";
-    bad.roles = roles;
-
-    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
-        template_ext::buildTemplateGeneratedOutputRoute(manifest, bad);
-    if (badRoute)
-      return fail("mismatched Template typed EmitC call unexpectedly generated "
-                  "output");
-    if (int result = expectErrorContains(
-            badRoute.takeError(),
-            {"typed role realization entry", "EmitC call",
-             "role-to-call mapping"}))
-      return result;
-  }
-
-  {
-    template_ext::TemplateConstructionManifest bad = manifest;
-    bad.emitcRoute.roleToCallMap =
-        "configure=__tcrv_template_config;load=__tcrv_template_load;"
-        "store=__tcrv_template_store";
-
-    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
-        template_ext::buildTemplateGeneratedOutputRoute(bad);
-    if (badRoute)
-      return fail("missing Template EmitC call unexpectedly generated output");
-    if (int result = expectErrorContains(
-            badRoute.takeError(),
-            {"EmitC role-to-call mapping", "exactly one entry per semantic role"}))
-      return result;
-  }
-
-  {
-    template_ext::TemplateConstructionManifest bad = manifest;
-    bad.emitcRoute.roleToCallMap =
-        "configure=__tcrv_template_config;compute=__tcrv_template_compute;"
-        "load=__tcrv_template_load;store=__tcrv_template_store";
-
-    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
-        template_ext::buildTemplateGeneratedOutputRoute(bad);
-    if (badRoute)
-      return fail("reordered Template EmitC call map unexpectedly generated output");
-    if (int result = expectErrorContains(
-            badRoute.takeError(),
-            {"EmitC role-to-call mapping entry", "not ordered"}))
       return result;
   }
 
@@ -477,31 +373,9 @@ int runGeneratedOutputRouteTest() {
         "TCRVExtensionOpInterface+TCRVEmitCLowerableInterface";
     bad.semanticRoles = roles;
 
-    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
-        template_ext::buildTemplateGeneratedOutputRoute(bad);
-    if (badRoute)
-      return fail("mismatched Template interface mapping unexpectedly generated "
-                  "output");
     if (int result = expectErrorContains(
-            badRoute.takeError(),
+            template_ext::verifyTemplateConstructionManifest(bad),
             {"semantic role 'compute'", "TCRVComputeOpInterface"}))
-      return result;
-  }
-
-  {
-    template_ext::TemplateConstructionManifest bad = manifest;
-    bad.evidenceProfile =
-        "parse_verify|capability|interface|selected_boundary_or_route|"
-        "emitc_route_mapping";
-
-    llvm::Expected<template_ext::TemplateGeneratedOutputRoute> badRoute =
-        template_ext::buildTemplateGeneratedOutputRoute(bad);
-    if (badRoute)
-      return fail("Template route without generated_output evidence "
-                  "unexpectedly generated output");
-    if (int result = expectErrorContains(badRoute.takeError(),
-                                         {"evidence profile missing",
-                                          "generated_output"}))
       return result;
   }
 
@@ -525,7 +399,6 @@ module {
     } {
     }
     tcrv_template.compute_skeleton {
-      emitc_call = "__tcrv_template_compute",
       origin = "template-plugin",
       required_capabilities = [@template_extension],
       role = "direct variant",
@@ -562,15 +435,15 @@ module {
       llvm::dyn_cast<TCRVEmitCLowerableOpInterface>(compute.getOperation());
   if (int result =
           expect(lowerable,
-                 "Template compute role op implements generated "
+                 "Template compute role op implements "
                  "TCRVEmitCLowerableOpInterface"))
     return result;
   if (int result =
           expect(lowerable.getTCRVEmitCLowerableSourceOpName() ==
                          ComputeSkeletonOp::getOperationName() &&
                      lowerable.getTCRVEmitCLowerableSourceRole() == "compute",
-                 "Template compute role op exposes generated interface source "
-                 "op and role"))
+                 "Template compute role op exposes interface source op and "
+                 "role"))
     return result;
 
   const auto &manifest =
@@ -588,8 +461,8 @@ module {
   if (int result = expectErrorContains(
           tianchenrv::plugin::template_ext::
               verifyTemplateComputeRoleOpInterface(manifest, realization,
-                                                   compute.getOperation()),
-          {"generated TCRVEmitCLowerableOpInterface source role", "compute"}))
+                                                  compute.getOperation()),
+          {"TCRVEmitCLowerableOpInterface source role", "compute"}))
     return result;
   compute->setAttr("source_role", mlir::StringAttr::get(&context, "compute"));
 
@@ -611,7 +484,7 @@ module {
           tianchenrv::plugin::template_ext::
               verifyTemplateComputeRoleOpInterface(
                   manifest, realization, kernel.getOperation()),
-          {"must implement generated TCRVEmitCLowerableOpInterface"}))
+          {"must implement TCRVEmitCLowerableOpInterface"}))
     return result;
 
   return 0;
@@ -1052,7 +925,7 @@ int main() {
 
   if (int result = runConstructionManifestTest())
     return result;
-  if (int result = runGeneratedOutputRouteTest())
+  if (int result = runTypedRoleGraphValidationTest())
     return result;
   if (int result = runTemplateComputeRoleOpInterfaceTest(context))
     return result;

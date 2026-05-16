@@ -22,7 +22,7 @@ constexpr llvm::StringLiteral kInterfaceRealization(
     "TCRVEmitCLowerableInterface");
 constexpr llvm::StringLiteral kEvidenceProfile(
     "parse_verify|capability|interface|selected_boundary_or_route|"
-    "emitc_route_mapping|generated_output");
+    "emitc_route_mapping");
 
 constexpr llvm::StringLiteral kProtocolMetadataName(
     "toy_construction_protocol");
@@ -62,21 +62,16 @@ constexpr llvm::StringLiteral kToyRuntimeABI("unsupported-emission-runtime-abi")
 constexpr llvm::StringLiteral kToyRuntimeABIKind(
     "unsupported-plugin-runtime-abi");
 constexpr llvm::StringLiteral kToyRuntimeGlueRole("no-runtime-glue-unsupported");
-constexpr llvm::StringLiteral kToyRequiredHeader(
-    "toy_extension_intrinsics.h");
-constexpr llvm::StringLiteral kToyRoleToCallMap(
-    "configure=__tcrv_toy_config;load=__tcrv_toy_load;"
-    "compute=__tcrv_toy_compute;store=__tcrv_toy_store");
 constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "configure:toy.role.configure.config_skeleton:tcrv_toy.config_skeleton:"
-    "TCRVConfigOpInterface:__tcrv_toy_config;"
+    "TCRVConfigOpInterface:TCRVEmitCLowerableInterface;"
     "load:toy.role.load.load_skeleton:tcrv_toy.load_skeleton:"
-    "TCRVMemoryOpInterface:__tcrv_toy_load;"
+    "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;"
     "compute:toy.role.compute.compute_skeleton:"
     "tcrv_toy.compute_skeleton:TCRVComputeOpInterface:"
-    "__tcrv_toy_compute;"
+    "TCRVEmitCLowerableInterface;"
     "store:toy.role.store.store_skeleton:tcrv_toy.store_skeleton:"
-    "TCRVMemoryOpInterface:__tcrv_toy_store");
+    "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface");
 constexpr llvm::StringLiteral kToyComputeOperationName(
     "tcrv_toy.compute_skeleton");
 constexpr llvm::StringLiteral kToyComputeTypedRoleID(
@@ -119,9 +114,7 @@ const ToyConstructionManifest kManifest = {
      kToyRuntimeABI,
      kToyRuntimeABIKind,
      kToyRuntimeABI,
-     kToyRuntimeGlueRole,
-     kToyRequiredHeader,
-     kToyRoleToCallMap},
+     kToyRuntimeGlueRole},
     kEvidenceProfile,
 };
 
@@ -133,8 +126,7 @@ const ToyTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "TCRVExtensionOpInterface+TCRVConfigOpInterface+"
      "TCRVEmitCLowerableInterface",
      "TCRVConfigOpInterface",
-     "TCRVEmitCLowerableInterface",
-     "__tcrv_toy_config"},
+     "TCRVEmitCLowerableInterface"},
     {"toy.role.load.load_skeleton",
      "load",
      1,
@@ -142,8 +134,7 @@ const ToyTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface",
-     "__tcrv_toy_load"},
+     "TCRVEmitCLowerableInterface"},
     {"toy.role.compute.compute_skeleton",
      "compute",
      2,
@@ -151,8 +142,7 @@ const ToyTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVComputeOpInterface",
-     "TCRVEmitCLowerableInterface",
-     "__tcrv_toy_compute"},
+     "TCRVEmitCLowerableInterface"},
     {"toy.role.store.store_skeleton",
      "store",
      3,
@@ -160,8 +150,7 @@ const ToyTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVMemoryOpInterface",
-     "TCRVEmitCLowerableInterface",
-     "__tcrv_toy_store"},
+     "TCRVEmitCLowerableInterface"},
 };
 
 const ToyTypedRoleGraphRealization kTypedRoleGraphRealization = {
@@ -183,7 +172,7 @@ const construction::RoleExpectation kRoleExpectations[] = {
 
 const llvm::StringRef kRequiredEvidence[] = {
     "parse_verify", "capability", "interface",
-    "selected_boundary_or_route", "emitc_route_mapping", "generated_output"};
+    "selected_boundary_or_route", "emitc_route_mapping"};
 
 construction::ValidationSpec getToyConstructionValidationSpec() {
   return {"Toy",
@@ -203,9 +192,8 @@ construction::RoleOpValidationSpec getToyComputeRoleValidationSpec() {
           kToyComputeOperationName,
           kToyComputeTypedRoleID,
           "TCRVComputeOpInterface",
-          "__tcrv_toy_compute",
           "Toy compute role op",
-          "Toy compute role op is missing before generated artifact export"};
+          "Toy compute role op is missing before construction validation"};
 }
 
 } // namespace
@@ -302,19 +290,6 @@ llvm::Error verifyToyComputeRoleOpInterface(
   return construction::verifyRoleOpInterface(
       manifest, realization, computeRoleOp,
       getToyConstructionValidationSpec(), getToyComputeRoleValidationSpec());
-}
-
-llvm::Expected<ToyGeneratedOutputRoute>
-buildToyGeneratedOutputRoute(const ToyConstructionManifest &manifest) {
-  return buildToyGeneratedOutputRoute(manifest,
-                                      getToyTypedRoleGraphRealization());
-}
-
-llvm::Expected<ToyGeneratedOutputRoute> buildToyGeneratedOutputRoute(
-    const ToyConstructionManifest &manifest,
-    const ToyTypedRoleGraphRealization &realization) {
-  return construction::buildGeneratedOutputRoute(
-      manifest, realization, getToyConstructionValidationSpec());
 }
 
 } // namespace tianchenrv::plugin::toy

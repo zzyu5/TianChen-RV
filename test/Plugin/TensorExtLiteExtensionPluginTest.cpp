@@ -200,20 +200,16 @@ int runRegistrationAndCapabilityMetadataTest() {
               manifest, realization),
           "TensorExtLite typed role graph verifies"))
     return result;
-  llvm::Expected<tianchenrv::plugin::tensorext_lite::TensorExtLiteGeneratedOutputRoute> route =
-      tianchenrv::plugin::tensorext_lite::buildTensorExtLiteGeneratedOutputRoute(manifest,
-                                                            realization);
-  if (!route)
-    return fail("TensorExtLite generated output route failed: " +
-                llvm::toString(route.takeError()));
   if (int result =
-          expect(route->steps.size() == 4 &&
-                     route->steps[2].role == "tile_mma" &&
-                     route->steps[2].operationName ==
+          expect(realization.roles.size() == 4 &&
+                     realization.roles[2].role == "tile_mma" &&
+                     realization.roles[2].operationName ==
                          "tcrv_tensorext_lite.tile_mma_skeleton" &&
-                     route->steps[2].emitCCall ==
-                         "__tcrv_tel_tile_mma",
-                 "TensorExtLite generated route preserves ordered tile_mma role"))
+                     realization.roles[2].roleSpecificInterface ==
+                         "TCRVComputeOpInterface" &&
+                     realization.roles[2].emitCLowerableInterface ==
+                         "TCRVEmitCLowerableInterface",
+                 "TensorExtLite typed role graph preserves ordered tile_mma role"))
     return result;
 
   return expectErrorContains(

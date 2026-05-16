@@ -21,7 +21,6 @@ constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
 constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
 constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
     "role_specific_interface");
-constexpr llvm::StringLiteral kEmitCCallAttrName("emitc_call");
 
 llvm::Error makeConstructionError(const ValidationSpec &spec,
                                   llvm::Twine message) {
@@ -137,43 +136,6 @@ parseInterfaceRealizationSummary(const ValidationSpec &spec,
   return interfacesByRole;
 }
 
-llvm::Expected<llvm::StringMap<std::string>>
-parseRoleToCallMapInManifestOrder(const ValidationSpec &spec,
-                                  llvm::StringRef roleToCallMap,
-                                  llvm::ArrayRef<SemanticRole> semanticRoles) {
-  llvm::SmallVector<llvm::StringRef, 4> entries;
-  roleToCallMap.split(entries, ';', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  if (entries.size() != semanticRoles.size())
-    return makeConstructionError(
-        spec, "EmitC role-to-call mapping must contain exactly one entry per "
-              "semantic role");
-
-  llvm::StringMap<std::string> callsByRole;
-  for (auto [index, entry] : llvm::enumerate(entries)) {
-    auto [role, call] = entry.split('=');
-    role = role.trim();
-    call = call.trim();
-    if (role.empty() || call.empty())
-      return makeConstructionError(
-          spec,
-          "EmitC role-to-call mapping entries require role and call name");
-    if (role != semanticRoles[index].role)
-      return makeConstructionError(
-          spec, llvm::Twine("EmitC role-to-call mapping entry '") + role +
-                    "' is not ordered with semantic role '" +
-                    semanticRoles[index].role + "'");
-    if (!isValidCIdentifier(call))
-      return makeConstructionError(
-          spec, llvm::Twine("EmitC call for role '") + role +
-                    "' must be a valid C identifier");
-    if (!callsByRole.try_emplace(role, call.str()).second)
-      return makeConstructionError(
-          spec,
-          llvm::Twine("duplicate EmitC call mapping for role '") + role + "'");
-  }
-  return callsByRole;
-}
-
 llvm::Error verifyFamilyDeclaration(const Manifest &manifest,
                                     const ValidationSpec &spec) {
   const FamilyDeclaration &actual = manifest.family;
@@ -201,9 +163,7 @@ llvm::Error verifyEmitCMapping(const Manifest &manifest,
       actual.runtimeABI != expected.runtimeABI ||
       actual.runtimeABIKind != expected.runtimeABIKind ||
       actual.runtimeABIName != expected.runtimeABIName ||
-      actual.runtimeGlueRole != expected.runtimeGlueRole ||
-      actual.requiredHeader != expected.requiredHeader ||
-      actual.roleToCallMap.empty())
+      actual.runtimeGlueRole != expected.runtimeGlueRole)
     return makeConstructionError(
         spec, llvm::Twine("EmitC route mapping must preserve ") +
                   spec.familyDisplayName + " route metadata");
@@ -211,17 +171,11 @@ llvm::Error verifyEmitCMapping(const Manifest &manifest,
   if (isSourceArtifactKind(actual.artifactKind))
     return makeConstructionError(
         spec, llvm::Twine("EmitC route mapping uses unsupported source "
-                          "artifact kind '") +
+                  "artifact kind '") +
                   actual.artifactKind +
                   "'; plugin construction routes must use current metadata, "
                   "object, or header artifacts until a materialized MLIR "
                   "EmitC source route exists");
-
-  if (llvm::Expected<llvm::StringMap<std::string>> callsByRole =
-          parseRoleToCallMapInManifestOrder(spec, actual.roleToCallMap,
-                                            manifest.semanticRoles);
-      !callsByRole)
-    return callsByRole.takeError();
 
   return llvm::Error::success();
 }
@@ -428,21 +382,14 @@ verifyTypedRoleGraphRealization(const Manifest &manifest,
         spec, "typed role realization requires exactly one role object per "
               "semantic role");
 
-  llvm::Expected<llvm::StringMap<std::string>> callsByRole =
-      parseRoleToCallMapInManifestOrder(spec, manifest.emitcRoute.roleToCallMap,
-                                        manifest.semanticRoles);
-  if (!callsByRole)
-    return callsByRole.takeError();
-
   if (realization.evidenceProfile != manifest.evidenceProfile)
     return makeConstructionError(
         spec, "typed role realization evidence profile must match the "
               "construction manifest");
-  if (!hasEvidence(realization.evidenceProfile, "interface") ||
-      !hasEvidence(realization.evidenceProfile, "generated_output"))
+  if (!hasEvidence(realization.evidenceProfile, "interface"))
     return makeConstructionError(
-        spec, "typed role realization evidence profile must include interface "
-              "and generated_output");
+        spec,
+        "typed role realization evidence profile must include interface");
 
   llvm::StringSet<> seenTypedRoles;
   for (auto [index, typedRole] : llvm::enumerate(realization.roles)) {
@@ -504,14 +451,6 @@ verifyTypedRoleGraphRealization(const Manifest &manifest,
           spec, llvm::Twine("typed role realization entry '") +
                     typedRole.typedRoleID +
                     "' must expose TCRVEmitCLowerableInterface");
-    auto callIt = callsByRole->find(typedRole.role);
-    if (callIt == callsByRole->end() ||
-        typedRole.emitCCall != callIt->getValue())
-      return makeConstructionError(
-          spec, llvm::Twine("typed role realization entry '") +
-                    typedRole.typedRoleID +
-                    "' EmitC call does not match the manifest role-to-call "
-                    "mapping");
   }
 
   return llvm::Error::success();
@@ -529,7 +468,7 @@ llvm::Error verifyRoleOpInterface(
       return makeConstructionError(spec, roleSpec.missingRoleOpMessage);
     return makeConstructionError(
         spec, llvm::Twine(roleSpec.roleOpDisplayName) +
-                  " is missing before generated artifact export");
+                  " is missing before construction validation");
   }
 
   auto lowerable = llvm::dyn_cast<
@@ -538,7 +477,7 @@ llvm::Error verifyRoleOpInterface(
     return makeConstructionError(
         spec, llvm::Twine(roleSpec.roleOpDisplayName) + " '" +
                   roleOp->getName().getStringRef() +
-                  "' must implement generated TCRVEmitCLowerableOpInterface");
+                  "' must implement TCRVEmitCLowerableOpInterface");
 
   llvm::StringRef sourceOpName =
       lowerable.getTCRVEmitCLowerableSourceOpName();
@@ -554,14 +493,14 @@ llvm::Error verifyRoleOpInterface(
   if (sourceOpName != roleSpec.operationName ||
       sourceOpName != typedRole->operationName)
     return makeConstructionError(
-        spec, llvm::Twine("generated TCRVEmitCLowerableOpInterface source op '") +
+        spec, llvm::Twine("TCRVEmitCLowerableOpInterface source op '") +
                   sourceOpName + "' does not match " +
                   spec.familyDisplayName + " typed " + roleSpec.role +
                   " operation '" + typedRole->operationName + "'");
   if (sourceRole != roleSpec.role || sourceRole != typedRole->role)
     return makeConstructionError(
         spec,
-        llvm::Twine("generated TCRVEmitCLowerableOpInterface source role '") +
+        llvm::Twine("TCRVEmitCLowerableOpInterface source role '") +
             sourceRole + "' does not match " + spec.familyDisplayName +
             " typed " + roleSpec.role + " role");
 
@@ -590,13 +529,6 @@ llvm::Error verifyRoleOpInterface(
                   " role_specific_interface must match " +
                   roleSpec.roleSpecificInterface);
 
-  auto emitCCall = getStringAttr(roleOp, kEmitCCallAttrName);
-  if (!emitCCall || emitCCall.getValue() != typedRole->emitCCall ||
-      emitCCall.getValue() != roleSpec.emitCCall)
-    return makeConstructionError(
-        spec, llvm::Twine(roleSpec.roleOpDisplayName) +
-                  " emitc_call must match the manifest role-to-call mapping");
-
   if (typedRole->emitCLowerableInterface != "TCRVEmitCLowerableInterface")
     return makeConstructionError(
         spec, llvm::Twine(spec.familyDisplayName) + " typed " +
@@ -604,48 +536,6 @@ llvm::Error verifyRoleOpInterface(
                   "TCRVEmitCLowerableInterface");
 
   return llvm::Error::success();
-}
-
-llvm::Expected<GeneratedOutputRoute>
-buildGeneratedOutputRoute(const Manifest &manifest,
-                          const TypedRoleGraphRealization &realization,
-                          const ValidationSpec &spec) {
-  if (llvm::Error error =
-          verifyTypedRoleGraphRealization(manifest, realization, spec))
-    return std::move(error);
-
-  if (!hasEvidence(manifest.evidenceProfile, "generated_output"))
-    return makeConstructionError(
-        spec, llvm::Twine("evidence profile must include generated_output "
-                          "before constructing ") +
-                  spec.familyDisplayName + " generated output");
-
-  GeneratedOutputRoute route;
-  route.functionName =
-      (manifest.family.concreteNamespace + "_generated_" +
-       manifest.family.firstSliceVariantName)
-          .str();
-  route.requiredHeader = manifest.emitcRoute.requiredHeader.str();
-  if (!isValidCIdentifier(route.functionName))
-    return makeConstructionError(
-        spec, "generated output function name must be a valid C identifier");
-
-  route.steps.reserve(realization.roles.size());
-  for (const TypedRoleInterfaceRealization &typedRole : realization.roles) {
-    GeneratedOutputStep step;
-    step.typedRoleID = typedRole.typedRoleID.str();
-    step.role = typedRole.role.str();
-    step.order = typedRole.order;
-    step.operationName = typedRole.operationName.str();
-    step.commonInterfaces = typedRole.commonInterfaces.str();
-    step.roleSpecificInterface = typedRole.roleSpecificInterface.str();
-    step.emitCLowerableInterface = typedRole.emitCLowerableInterface.str();
-    step.emitCCall = typedRole.emitCCall.str();
-    step.sourceLine = step.emitCCall + "();";
-    route.steps.push_back(std::move(step));
-  }
-
-  return route;
 }
 
 void emitTypedRoleGraphRealization(
@@ -661,44 +551,7 @@ void emitTypedRoleGraphRealization(
     printField(os, "  role_specific_interface", role.roleSpecificInterface);
     printField(os, "  emitc_lowerable_interface",
                role.emitCLowerableInterface);
-    printField(os, "  emitc_call", role.emitCCall);
   }
-}
-
-void emitGeneratedOutputRoute(llvm::raw_ostream &os,
-                              const GeneratedOutputRoute &route) {
-  printField(os, "generated_output_kind", "role-graph-emitc-source-skeleton");
-  printField(os, "generated_function", route.functionName);
-  printField(os, "generated_required_header", route.requiredHeader);
-  for (auto [index, step] : llvm::enumerate(route.steps)) {
-    os << "generated_emitc_step[" << index << "]:\n";
-    printField(os, "  role", step.role);
-    os << "  order: " << step.order << "\n";
-    printField(os, "  typed_role", step.typedRoleID);
-    printField(os, "  operation", step.operationName);
-    printField(os, "  common_interfaces", step.commonInterfaces);
-    printField(os, "  role_specific_interface", step.roleSpecificInterface);
-    printField(os, "  emitc_lowerable_interface",
-               step.emitCLowerableInterface);
-    printField(os, "  emitc_call", step.emitCCall);
-    printField(os, "  source_line", step.sourceLine);
-  }
-
-  os << "generated_source:\n";
-  os << "  #include \"";
-  for (char character : route.requiredHeader) {
-    if (character == '\\' || character == '"')
-      os << '\\';
-    os << character;
-  }
-  os << "\"\n";
-  os << "  void " << route.functionName << "(void) {\n";
-  for (const GeneratedOutputStep &step : route.steps) {
-    os << "    /* role[" << step.order << "] " << step.role
-       << " via " << step.operationName << " */\n";
-    os << "    " << step.sourceLine << "\n";
-  }
-  os << "  }\n";
 }
 
 } // namespace tianchenrv::plugin::construction

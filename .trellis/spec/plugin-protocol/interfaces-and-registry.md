@@ -340,7 +340,9 @@ Responsibilities:
 - provide extension-local EmitC lowering mappings through
   `TCRVEmitCLowerableInterface`;
 - declare required headers, intrinsic/runtime call names, operand/result
-  mapping, C type mapping, compiler flags, libraries, and runtime glue;
+  mapping, C type mapping, compiler flags, libraries, and runtime glue only for
+  a materialized extension-local lowering/runtime ABI route, not through
+  construction-manifest source skeleton fields;
 - keep MLIR vector, LLVM scalable vector, LLVM RVV intrinsic IR, inline asm,
   vendor backend patches, and backend adapters as optional future routes unless
   promoted by a family spec and implementation evidence.
