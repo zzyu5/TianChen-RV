@@ -1,6 +1,4 @@
 // RUN: not tcrv-opt %s --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=PLAN-FAIL
-// RUN: not tcrv-translate --tcrv-rvv-i32m1-add-object %s 2>&1 | FileCheck %s --check-prefix=EXPORT-FAIL
-// RUN: not tcrv-translate --tcrv-rvv-i32m1-add-header %s 2>&1 | FileCheck %s --check-prefix=HEADER-FAIL
 
 module {
   tcrv.exec.kernel @rvv_i32_sub_kernel {
@@ -45,11 +43,3 @@ module {
 // PLAN-FAIL: RVV i32m1 object artifact route failed
 // PLAN-FAIL: bounded RVV EmitC route does not support op 'tcrv_rvv.i32_sub'
 // PLAN-FAIL-NOT: riscv-elf-relocatable-object
-
-// EXPORT-FAIL: RVV i32m1 object artifact route failed
-// EXPORT-FAIL: bounded RVV EmitC route does not support op 'tcrv_rvv.i32_sub'
-// EXPORT-FAIL-NOT: riscv-elf-relocatable-object
-
-// HEADER-FAIL: RVV i32m1 object artifact route failed
-// HEADER-FAIL: bounded RVV EmitC route does not support op 'tcrv_rvv.i32_sub'
-// HEADER-FAIL-NOT: runtime-callable-c-header

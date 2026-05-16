@@ -1611,3 +1611,39 @@ Registered an RVV-owned tcrv-translate route that validates materialized EmitC m
 ### Next Steps
 
 - None - task complete
+
+
+## Session 88: RVV selected dispatch artifact handoff
+
+**Date**: 2026-05-16
+**Task**: RVV selected dispatch artifact handoff
+**Branch**: `main`
+
+### Summary
+
+RVV i32m1 add object/header export now consumes selected emission-plan candidates, covers selected dispatch and non-selected sibling paths, and keeps ambiguous/unselected inputs fail-closed.
+
+### Main Changes
+
+- Rewired RVV i32m1 add object/header materialization to resolve the selected variant and role from supported target artifact candidates instead of scanning for one direct variant.
+- Relaxed execution-plan coherence generically so no-boundary plugin routes can hand off through supported emission-plan metadata while preserving stale/duplicate boundary and runtime ABI checks.
+- Added selected-path sibling, selected dispatch, ambiguous multi-variant, and unselected multi-variant lit coverage.
+- Updated lowering-runtime and RVV plugin specs for selected emission-plan to target artifact handoff.
+- Validation: check-tianchenrv passed; focused RVV/coherence lit passed; target artifact and emission readiness C++ tests passed; changed-surface legacy term scan clean.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

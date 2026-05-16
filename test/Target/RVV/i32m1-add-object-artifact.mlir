@@ -2,13 +2,13 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.generic.o
 // RUN: file %t.generic.o | FileCheck %s --check-prefix=OBJECT
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="riscv_vector.h" --implicit-check-not="int main"
-// RUN: tcrv-translate --tcrv-rvv-i32m1-add-header %s | FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="riscv_vector.h" --implicit-check-not="int main"
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-rvv-i32m1-add-header | FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="riscv_vector.h" --implicit-check-not="int main"
 // RUN: rm -rf %t.bundle && mkdir %t.bundle
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.bundle | FileCheck %s --check-prefix=BUNDLE-STATUS
 // RUN: FileCheck %s --check-prefix=BUNDLE-INDEX < %t.bundle/tianchenrv-target-artifact-bundle.index
 // RUN: FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="riscv_vector.h" --implicit-check-not="int main" < %t.bundle/artifact-1-runtime-callable-c-header-tcrv-rvv-i32m1-add-callable-c-header.h
 // RUN: file %t.bundle/artifact-0-riscv-elf-relocatable-object-tcrv-rvv-i32m1-add-riscv-elf-object.o | FileCheck %s --check-prefix=OBJECT
-// RUN: tcrv-translate --tcrv-rvv-i32m1-add-object %s > %t.direct.o
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-rvv-i32m1-add-object > %t.direct.o
 // RUN: file %t.direct.o | FileCheck %s --check-prefix=OBJECT
 // RUN: not tcrv-translate --tcrv-rvv-emitc-to-cpp %s 2>&1 | FileCheck %s --check-prefix=NONEMITC
 

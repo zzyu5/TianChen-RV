@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the final change preserves global TianChen-RV invariants."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify selected artifact handoff still uses the bounded EmitC route and does not restore descriptor export."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin ownership and bounded i32m1 constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/FileCheck coverage expectations for target artifact export."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review target artifact changes for capability-first boundaries."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review that core orchestration did not gain RVV-specific semantic branches."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review that no high-level compute semantics were added to core."}

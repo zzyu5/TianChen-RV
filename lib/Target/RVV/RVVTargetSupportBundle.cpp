@@ -358,38 +358,100 @@ std::string makeHeaderGuard(llvm::StringRef functionName) {
   return guard;
 }
 
-struct DirectVariantTarget {
+llvm::Error validateRVVI32M1AddObjectCandidate(
+    const TargetArtifactCandidate &candidate);
+
+struct SelectedRVVI32M1AddTarget {
   tcrv::exec::KernelOp kernel;
   tcrv::exec::VariantOp variant;
+  plugin::VariantEmissionRole role = plugin::VariantEmissionRole::DirectVariant;
+  TargetArtifactCandidate candidate;
 };
 
-llvm::Expected<DirectVariantTarget>
-findSingleDirectVariantTarget(mlir::ModuleOp module) {
-  llvm::SmallVector<DirectVariantTarget, 2> targets;
-  module->walk([&](tcrv::exec::KernelOp kernel) {
-    if (kernel.getBody().empty())
-      return;
-    for (mlir::Operation &op : kernel.getBody().front()) {
-      if (auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op))
-        targets.push_back({kernel, variant});
-    }
-  });
+llvm::Expected<plugin::VariantEmissionRole>
+parseVariantEmissionRole(llvm::StringRef role) {
+  if (role == plugin::stringifyVariantEmissionRole(
+                  plugin::VariantEmissionRole::DirectVariant))
+    return plugin::VariantEmissionRole::DirectVariant;
+  if (role == plugin::stringifyVariantEmissionRole(
+                  plugin::VariantEmissionRole::DispatchCase))
+    return plugin::VariantEmissionRole::DispatchCase;
+  if (role == plugin::stringifyVariantEmissionRole(
+                  plugin::VariantEmissionRole::DispatchFallback))
+    return plugin::VariantEmissionRole::DispatchFallback;
 
-  if (targets.empty())
+  return makeRVVObjectRouteError(llvm::Twine("selected emission-plan role '") +
+                                 role + "' is not supported by the bounded "
+                                        "RVV i32m1 add artifact route");
+}
+
+tcrv::exec::VariantOp findDirectVariantBySymbol(tcrv::exec::KernelOp kernel,
+                                                llvm::StringRef symbol) {
+  if (!kernel || kernel.getBody().empty())
+    return {};
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op);
+    if (variant && variant.getSymName() == symbol)
+      return variant;
+  }
+  return {};
+}
+
+llvm::Expected<SelectedRVVI32M1AddTarget>
+findSelectedRVVI32M1AddTarget(mlir::ModuleOp module) {
+  llvm::SmallVector<TargetArtifactCandidate, 4> allCandidates;
+  if (llvm::Error error = collectTargetArtifactCandidates(module, allCandidates))
+    return std::move(error);
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> matches;
+  for (const TargetArtifactCandidate &candidate : allCandidates) {
+    if (candidate.routeID != kRVVI32M1AddObjectArtifactRouteID)
+      continue;
+    if (candidate.artifactKind != kRVVI32M1AddObjectArtifactKind)
+      continue;
+    if (candidate.origin != kRVVPluginName)
+      continue;
+    matches.push_back(candidate);
+  }
+
+  if (matches.empty())
     return makeRVVObjectRouteError(
-        "requires exactly one direct tcrv.exec.variant with explicit "
-        "RVV extension-family ops before object export");
-  if (targets.size() != 1)
+        "requires exactly one selected RVV i32m1 add emission-plan candidate "
+        "before object/header export; found none");
+  if (matches.size() != 1)
     return makeRVVObjectRouteError(
-        "currently exports one direct RVV i32m1 variant per module; split "
-        "inputs before running this bounded first-slice object route");
-  return targets.front();
+        "requires exactly one selected RVV i32m1 add emission-plan candidate "
+        "before object/header export; found multiple ambiguous candidates");
+
+  SelectedRVVI32M1AddTarget target;
+  target.candidate = std::move(matches.front());
+  if (llvm::Error error = validateRVVI32M1AddObjectCandidate(target.candidate))
+    return std::move(error);
+
+  llvm::Expected<plugin::VariantEmissionRole> role =
+      parseVariantEmissionRole(target.candidate.role);
+  if (!role)
+    return role.takeError();
+  target.role = *role;
+
+  target.kernel = target.candidate.kernel;
+  target.variant =
+      findDirectVariantBySymbol(target.kernel, target.candidate.selectedVariant);
+  if (!target.variant)
+    return makeRVVObjectRouteError(
+        llvm::Twine("selected emission-plan candidate target @") +
+        target.candidate.selectedVariant +
+        " does not resolve to a direct sibling tcrv.exec.variant before "
+        "object/header export");
+
+  return target;
 }
 
 llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
 materializeRVVI32M1AddEmitCModule(mlir::ModuleOp module) {
-  llvm::Expected<DirectVariantTarget> target =
-      findSingleDirectVariantTarget(module);
+  llvm::Expected<SelectedRVVI32M1AddTarget> target =
+      findSelectedRVVI32M1AddTarget(module);
   if (!target)
     return target.takeError();
 
@@ -401,7 +463,7 @@ materializeRVVI32M1AddEmitCModule(mlir::ModuleOp module) {
   conversion::emitc::TCRVEmitCLowerableRoute route;
   plugin::VariantEmitCLowerableRequest request(
       target->variant, target->kernel, *capabilities,
-      plugin::VariantEmissionRole::DirectVariant);
+      target->role);
   if (llvm::Error error = buildRVVI32M1AddEmitCLowerableRoute(request, route))
     return std::move(error);
   if (llvm::Error error = route.verify())
@@ -415,8 +477,8 @@ materializeRVVI32M1AddEmitCModule(mlir::ModuleOp module) {
 
 llvm::Expected<std::string>
 getValidatedRVVI32M1AddCallableFunctionName(mlir::ModuleOp module) {
-  llvm::Expected<DirectVariantTarget> target =
-      findSingleDirectVariantTarget(module);
+  llvm::Expected<SelectedRVVI32M1AddTarget> target =
+      findSelectedRVVI32M1AddTarget(module);
   if (!target)
     return target.takeError();
 
@@ -428,7 +490,7 @@ getValidatedRVVI32M1AddCallableFunctionName(mlir::ModuleOp module) {
   conversion::emitc::TCRVEmitCLowerableRoute route;
   plugin::VariantEmitCLowerableRequest request(
       target->variant, target->kernel, *capabilities,
-      plugin::VariantEmissionRole::DirectVariant);
+      target->role);
   if (llvm::Error error = buildRVVI32M1AddEmitCLowerableRoute(request, route))
     return std::move(error);
   if (llvm::Error error = route.verify())

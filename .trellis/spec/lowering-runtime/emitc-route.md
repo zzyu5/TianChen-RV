@@ -186,3 +186,103 @@ extension family ops
 Direct handwritten C string emission is not the architecture. Generated C
 should come from EmitC operations or a clearly marked bounded legacy helper
 that is not used as the template for new extension work.
+
+## Scenario: Selected Emission-Plan To Target Artifact Handoff
+
+### 1. Scope / Trigger
+
+Use this contract when a target artifact exporter materializes an object,
+header, bundle, or metadata artifact from a selected execution path. This
+applies to both direct selected-path diagnostics and selected
+`tcrv.exec.dispatch` surfaces.
+
+### 2. Signatures
+
+- Selected path surfaces:
+  `tcrv.exec.diagnostic {reason = "variant-selected", target = @variant}` or
+  `tcrv.exec.dispatch` with `tcrv.exec.case` / `tcrv.exec.fallback` targets.
+- Emission-plan diagnostic reason:
+  `reason = "emission_plan"`.
+- Supported emission-plan fields:
+  `target`, `role`, `origin`, `status = "supported"`, `plan_kind`,
+  `lowering_pipeline`, `emission_kind`, `artifact_kind`,
+  `lowering_boundary`, `runtime_abi`, `runtime_abi_kind`,
+  `runtime_abi_name`, `runtime_glue_role`, `runtime_abi_parameters`, and
+  `required_capabilities`.
+- Target exporter candidate fields:
+  `kernel`, `selectedVariant`, `role`, `origin`, `routeID`,
+  `emissionKind`, `artifactKind`, `loweringBoundary`, `runtimeABI*`, and
+  structured runtime ABI parameters.
+
+### 3. Contracts
+
+- Target artifact exporters must select from supported emission-plan
+  candidates that are selected by the current dispatch or selected-path
+  diagnostic surface.
+- Exporters must resolve the materialized variant from the selected candidate's
+  `selectedVariant` and `role`; they must not infer the target by scanning for
+  exactly one direct `tcrv.exec.variant` in the module.
+- Non-selected sibling variants must not affect target artifact
+  materialization.
+- A selected path may hand off through a supported emission-plan diagnostic
+  without a separate materialized lowering-boundary op when the plugin route
+  consumes explicit typed extension-family IR directly. In that case,
+  `lowering_boundary` remains bounded route metadata owned by the emission
+  plan. If a materialized lowering-boundary op exists, the emission-plan
+  `lowering_boundary` value must match that op name and capability metadata.
+- Runtime ABI ownership metadata and ordered structured runtime ABI parameters
+  must be checked before object/header/bundle output.
+
+### 4. Validation & Error Matrix
+
+- No selected dispatch or selected-path diagnostic -> fail before artifact
+  output.
+- Selected path lacks exactly one emission-plan diagnostic -> fail before
+  artifact output.
+- Emission-plan target/role is stale relative to current selection -> fail.
+- Multiple supported standalone artifact candidates and no registered
+  composite route -> fail as ambiguous.
+- Unknown route id, artifact kind mismatch, origin mismatch, emission kind
+  mismatch, or runtime ABI mismatch -> fail before artifact output.
+- Materialized lowering-boundary op present but not selected, duplicated,
+  stale, origin-mismatched, or capability-mismatched -> fail before artifact
+  output.
+
+### 5. Good/Base/Bad Cases
+
+- Good: selected dispatch case `@rvv_i32_add` has a supported RVV object
+  emission-plan candidate; scalar fallback has an unsupported diagnostic; the
+  object/header bundle is generated from `@rvv_i32_add` only.
+- Base: selected direct-path diagnostic targets one explicit RVV i32m1 add
+  variant; the supported emission-plan candidate drives object/header export.
+- Bad: two direct RVV variants exist and the exporter chooses whichever direct
+  variant happens to be first or only after test reduction.
+
+### 6. Tests Required
+
+- Positive lit coverage for selected-path diagnostic input with a non-selected
+  sibling variant.
+- Positive lit coverage for selected dispatch input and object/header bundle
+  metadata.
+- Negative lit coverage for ambiguous supported multi-variant candidates.
+- Negative lit coverage for unselected multi-variant input.
+- Negative lit coverage for unsupported selected RVV shapes.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+module has exactly one direct variant
+  -> target exporter assumes that variant is selected
+  -> object/header route materializes from module shape
+```
+
+Correct:
+
+```text
+selected dispatch or selected-path diagnostic
+  -> supported emission-plan diagnostic for the selected path
+  -> TargetArtifactCandidate with selected variant, role, route, ABI metadata
+  -> plugin-owned target exporter materializes object/header/bundle
+```

@@ -64,6 +64,24 @@ typed policy attr value: #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
 optional vlenb attr name: tcrv_rvv.vlenb_bytes
 ```
 
+The bounded explicit RVV i32m1 add executable slice is allowed to export a
+callable object/header bundle only through the selected emission-plan target
+artifact handoff:
+
+```text
+selected RVV path
+  -> explicit typed tcrv_rvv i32m1 add body
+  -> RVV-owned EmitC lowerable route
+  -> MLIR EmitC C/C++ emitter
+  -> clang RISC-V relocatable object plus callable C header
+```
+
+This bounded route does not authorize descriptor-driven computation, deleted
+microkernel wrappers, new dtype/LMUL families, or a generic RVV source printer.
+It also does not let target/export code select an RVV artifact by assuming a
+module contains exactly one direct variant; the selected emission-plan
+candidate is the handoff authority.
+
 RVV probe facts remain bounded hardware/toolchain evidence inputs. They may be
 validated into raw `TargetCapabilitySet` evidence facts, but they must not
 manufacture finite SEW/LMUL/tail/mask config capabilities or authorize a
@@ -251,15 +269,15 @@ materialized MLIR EmitC module route, deleted RVV wrapper attachments and
 descriptor-derived callable ABI data are fail-closed historical inputs, not
 active emission authority.
 
-The former microkernel direct C slice is deleted as production authority. If
-the selected `rvv-plugin` path reaches emission planning, `RVVExtensionPlugin`
-must report an unsupported emission plan for runtime-callable source until the
-rebuild provides a materialized MLIR EmitC module route. Target/export code
-must not synthesize RVV compute C bodies from selected metadata, family
-records, route records, or deleted wrapper records. RVV source/object/header
-routes must fail closed instead of producing
-`riscv_vector.h` intrinsic source, relocatable objects, or self-check harnesses
-from the old direct printer path.
+The former microkernel direct C slice is deleted as production authority.
+Outside the bounded explicit RVV i32m1 add EmitC object/header route described
+above, selected `rvv-plugin` paths must report unsupported emission plans until
+the rebuild provides a materialized MLIR EmitC module route for that slice.
+Target/export code must not synthesize RVV compute C bodies from selected
+metadata, family records, route records, or deleted wrapper records. RVV routes
+must fail closed instead of producing `riscv_vector.h` intrinsic source,
+relocatable objects, headers, or self-check harnesses from the old direct
+printer path.
 
 ## Remote Evidence Probe Contract
 

@@ -746,18 +746,10 @@ llvm::Error validateLoweringBoundaries(KernelOp kernel,
     path.loweringBoundary = &op;
   }
 
+  // A selected path may hand off through an emission-plan route directly when
+  // the plugin has no separate materialized lowering-boundary op.
   for (const SelectedPath &path : paths) {
-    if (!path.requiresLoweringBoundary || path.loweringBoundary)
-      continue;
-    return makeCoherenceError(
-        kernel, llvm::Twine("selected path @") + path.variantSymbol +
-                    " as " + path.role +
-                    " requires one materialized plugin lowering boundary "
-                    "before export preflight");
-  }
-
-  for (const SelectedPath &path : paths) {
-    if (!path.requiresLoweringBoundary)
+    if (!path.requiresLoweringBoundary || !path.loweringBoundary)
       continue;
 
     VariantEmissionRole role = VariantEmissionRole::DirectVariant;
@@ -908,7 +900,7 @@ llvm::Error validateSupportedRoute(KernelOp kernel, DiagnosticOp diagnostic,
                             "emission-plan diagnostic", artifactKind))
     return error;
 
-  if (path.requiresLoweringBoundary &&
+  if (path.requiresLoweringBoundary && path.loweringBoundary &&
       loweringBoundary != getOperationName(path.loweringBoundary))
     return makeCoherenceError(
         kernel, llvm::Twine("emission-plan lowering_boundary '") +
@@ -1061,7 +1053,7 @@ llvm::Error validateEmissionPlans(
                                        "emission-plan diagnostic"))
         return error;
 
-      if (path.requiresLoweringBoundary) {
+      if (path.requiresLoweringBoundary && path.loweringBoundary) {
         llvm::SmallVector<std::string, 4> boundaryCapabilities;
         if (llvm::Error error = collectRequiredCapabilitySymbols(
                 kernel, path.loweringBoundary, "selected lowering-boundary",
