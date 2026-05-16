@@ -56,6 +56,65 @@ Deleted Support-owned I32/RVV runtime ABI contracts and helpers; rewired tests/s
 - None - task complete
 
 
+## Session 88: RVV i32m1 object artifact route
+
+**Date**: 2026-05-16
+**Task**: RVV emission plan to object artifact route
+**Branch**: `main`
+
+### Summary
+
+Made the bounded RVV i32m1 add path produce a real registered
+`riscv-elf-relocatable-object` route: explicit RVV ops are checked by the
+RVV-owned slice contract, materialized through the existing EmitC route, emitted
+through the MLIR C/C++ emitter, and compiled by a RISC-V clang target preflight.
+
+### Main Changes
+
+- Moved the bounded RVV i32m1 add EmitC route construction into RVV target
+  support so plugin planning and artifact export share the same legality
+  contract.
+- Registered an RVV plugin-owned target artifact exporter for
+  `tcrv-rvv-i32m1-add-riscv-elf-object`.
+- Made RVV emission readiness/planning report the object route, runtime ABI
+  kind/name/glue role, artifact kind, and ordered ABI parameters for
+  `lhs`, `rhs`, `out`, and `n`.
+- Added an artifact-backed `tcrv-rvv-i32m1-add-object` translate route and kept
+  the existing materialized EmitC to C/C++ handoff route.
+- Relaxed execution-plan coherence only for supported routes that explicitly
+  have no selected lowering-boundary op while preserving capability subset
+  checks.
+- Added focused C++ registry/ABI checks and lit coverage for successful object
+  export, non-materialized EmitC handoff failure, and unsupported RVV shape
+  fail-closed behavior.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | target(rvv): export i32m1 add object artifact |
+
+### Testing
+
+- [OK] `ninja -C build tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'Target/RVV/i32m1'` from `build/test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'Target/RVV/i32m1|ExecutionPlanCoherence'` from `build/test`
+- [OK] `ninja -C build check-tianchenrv` (78/78 lit tests)
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-16-rvv-emission-plan-object-artifact-route`
+- [OK] changed-surface scan for `descriptor|direct-C|direct C|source-export|runtime-callable-c-source`; remaining matches are negative registry/test guards only, not restored production routes
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 87: RVV explicit ops to EmitC materialization
 
 **Date**: 2026-05-16

@@ -908,7 +908,8 @@ llvm::Error validateSupportedRoute(KernelOp kernel, DiagnosticOp diagnostic,
                             "emission-plan diagnostic", artifactKind))
     return error;
 
-  if (loweringBoundary != getOperationName(path.loweringBoundary))
+  if (path.requiresLoweringBoundary &&
+      loweringBoundary != getOperationName(path.loweringBoundary))
     return makeCoherenceError(
         kernel, llvm::Twine("emission-plan lowering_boundary '") +
                     loweringBoundary +
@@ -1060,19 +1061,21 @@ llvm::Error validateEmissionPlans(
                                        "emission-plan diagnostic"))
         return error;
 
-      llvm::SmallVector<std::string, 4> boundaryCapabilities;
-      if (llvm::Error error = collectRequiredCapabilitySymbols(
-              kernel, path.loweringBoundary, "selected lowering-boundary",
-              boundaryCapabilities))
-        return error;
-      if (!sameSymbolSet(planCapabilities, boundaryCapabilities))
-        return makeCoherenceError(
-            kernel,
-            llvm::Twine("emission-plan diagnostic required_capabilities "
-                        "for @") +
-                path.variantSymbol +
-                " do not match selected lowering-boundary "
-                "required_capabilities");
+      if (path.requiresLoweringBoundary) {
+        llvm::SmallVector<std::string, 4> boundaryCapabilities;
+        if (llvm::Error error = collectRequiredCapabilitySymbols(
+                kernel, path.loweringBoundary, "selected lowering-boundary",
+                boundaryCapabilities))
+          return error;
+        if (!sameSymbolSet(planCapabilities, boundaryCapabilities))
+          return makeCoherenceError(
+              kernel,
+              llvm::Twine("emission-plan diagnostic required_capabilities "
+                          "for @") +
+                  path.variantSymbol +
+                  " do not match selected lowering-boundary "
+                  "required_capabilities");
+      }
     }
 
     if (llvm::Error error = validateSupportedRoute(

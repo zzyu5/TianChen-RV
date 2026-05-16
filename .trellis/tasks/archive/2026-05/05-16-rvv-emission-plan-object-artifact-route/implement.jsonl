@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, extension-family, EmitC route, and descriptor/direct-C boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common extension-family ops to EmitC to C/C++ to native compiler route contract."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV explicit typed i32m1 slice, plugin-local responsibility, and fail-closed non-goals."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and target artifact export evidence policy."}

@@ -4,10 +4,13 @@ add_mlir_library(TianChenRVRVVTarget
   LINK_LIBS PUBLIC
   TianChenRVConversionEmitC
   TianChenRVExecDialect
+  TianChenRVPlugin
   TianChenRVRVVDialect
   TianChenRVSupport
+  TianChenRVTransforms
   TianChenRVTarget
   MLIRIR
+  MLIRPass
   MLIRSupport
   MLIRTargetCpp
 )

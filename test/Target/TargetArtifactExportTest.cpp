@@ -207,6 +207,75 @@ bool containsString(llvm::ArrayRef<std::string> values,
   });
 }
 
+bool expectRVVObjectExporterShape(const TargetArtifactExporterRegistry &registry,
+                                  llvm::StringRef context) {
+  const TargetArtifactExporter *exporter = registry.lookup(
+      tianchenrv::target::rvv::getRVVI32M1AddObjectArtifactRouteID());
+  if (!exporter) {
+    llvm::errs() << context << ": missing RVV i32m1 object artifact route\n";
+    return false;
+  }
+  if (exporter->getArtifactKind() != "riscv-elf-relocatable-object" ||
+      exporter->getOriginPlugin() !=
+          tianchenrv::plugin::rvv::getRVVExtensionPluginName() ||
+      exporter->getEmissionKind() !=
+          tianchenrv::target::rvv::getRVVI32M1AddEmissionKind() ||
+      exporter->getHandoffKind() !=
+          "materialized-emitc-cpp-to-riscv-elf-object" ||
+      !exporter->getExportFn()) {
+    llvm::errs() << context << ": malformed RVV object exporter metadata\n";
+    return false;
+  }
+
+  llvm::SmallVector<RuntimeABIParameter, 4> expectedParameters =
+      tianchenrv::target::rvv::getRVVI32M1AddRuntimeABIParameters();
+  if (!expectRuntimeABIParametersEqual(
+          exporter->getRequiredRuntimeABIParameters(), expectedParameters,
+          "RVV object route required ABI parameters"))
+    return false;
+
+  TargetArtifactCandidate candidate;
+  candidate.routeID =
+      tianchenrv::target::rvv::getRVVI32M1AddObjectArtifactRouteID().str();
+  candidate.origin = tianchenrv::plugin::rvv::getRVVExtensionPluginName().str();
+  candidate.emissionKind =
+      tianchenrv::target::rvv::getRVVI32M1AddEmissionKind().str();
+  candidate.artifactKind = "riscv-elf-relocatable-object";
+  candidate.loweringBoundary = "tcrv_rvv.with_vl";
+  candidate.runtimeABIKind = "plugin-owned-runtime-abi";
+  candidate.runtimeABIName =
+      tianchenrv::target::rvv::getRVVI32M1AddRuntimeABIName().str();
+  candidate.runtimeGlueRole =
+      tianchenrv::target::rvv::getRVVI32M1AddRuntimeGlueRole().str();
+  candidate.runtimeABIParameters.append(expectedParameters.begin(),
+                                        expectedParameters.end());
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         candidate, *exporter),
+                     "validate RVV object candidate ABI contract"))
+    return false;
+
+  TargetArtifactCandidate badType = candidate;
+  badType.runtimeABIParameters[3].cType = "uint64_t";
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               badType, *exporter),
+                           "RVV object route rejects mismatched n type",
+                           {"runtime ABI parameter role",
+                            "runtime-element-count", "size_t"}))
+    return false;
+
+  TargetArtifactCandidate badRuntimeABIName = candidate;
+  badRuntimeABIName.runtimeABIName = "wrong-rvv-abi";
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               badRuntimeABIName, *exporter),
+                           "RVV object route rejects runtime ABI name mismatch",
+                           {"runtime ABI name",
+                            tianchenrv::target::rvv::
+                                getRVVI32M1AddRuntimeABIName()}))
+    return false;
+
+  return true;
+}
+
 bool expectBuiltinExtensionBundleFrontDoorRegistration() {
   ExtensionBundleRegistry bundles;
   if (!expectSuccess(registerBuiltinExtensionBundles(bundles),
@@ -319,11 +388,16 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
                                                                    registry),
           "register target artifact exporters through bundle frontdoor"))
     return false;
-  if (registry.size() != 0 || registry.compositeSize() != 0) {
-    llvm::errs()
-        << "extension bundle frontdoor still registers target artifact routes\n";
+  if (registry.size() != 1 || registry.compositeSize() != 0) {
+    llvm::errs() << "extension bundle frontdoor should register only the RVV "
+                    "object artifact route, got standalone="
+                 << registry.size() << " composite=" << registry.compositeSize()
+                 << "\n";
     return false;
   }
+  if (!expectRVVObjectExporterShape(
+          registry, "extension bundle frontdoor RVV object exporter"))
+    return false;
 
   return true;
 }
@@ -491,9 +565,18 @@ bool expectOffloadTargetArtifactExportersAbsent() {
                      "register all built-in target exporters after offload "
                      "executable route erasure"))
     return false;
-  if (allRegistry.size() != 0 || allRegistry.compositeSize() != 0) {
-    llvm::errs() << "built-in target exporters still publish erased plugin "
-                    "artifact routes\n";
+  if (allRegistry.size() != 1 || allRegistry.compositeSize() != 0) {
+    llvm::errs() << "built-in target exporters should publish only the RVV "
+                    "object route after Offload erasure, got standalone="
+                 << allRegistry.size() << " composite="
+                 << allRegistry.compositeSize() << "\n";
+    return false;
+  }
+  if (!expectRVVObjectExporterShape(
+          allRegistry, "all built-in plugin RVV object exporter"))
+    return false;
+  if (allRegistry.lookup("offload-runtime-callable-c-source")) {
+    llvm::errs() << "Offload direct source artifact route was restored\n";
     return false;
   }
 
@@ -508,10 +591,10 @@ bool expectRVVTargetSupportBundleExtractionRegistration() {
                   pluginExporters),
           "register RVV target-support artifact exporter bundles"))
     return false;
-  if (pluginExporters.size() != 0) {
-    llvm::errs() << "RVV target-support bundle still contributes "
-                    "target-artifact exporter bundles without materialized "
-                    "artifact routes\n";
+  if (pluginExporters.size() != 1) {
+    llvm::errs() << "RVV target-support bundle should contribute exactly one "
+                    "plugin-owned target-artifact exporter bundle, got "
+                 << pluginExporters.size() << "\n";
     return false;
   }
   if (!expectSuccess(
@@ -555,12 +638,16 @@ bool expectRVVTargetSupportBundleExtractionRegistration() {
                      "populate RVV target-support exporters"))
     return false;
 
-  if (registry.size() != 0 || registry.compositeSize() != 0) {
-    llvm::errs() << "RVV target-support exporter bundle still registers "
-                    "target-artifact routes without materialized artifact "
-                    "routes\n";
+  if (registry.size() != 1 || registry.compositeSize() != 0) {
+    llvm::errs() << "RVV target-support exporter bundle should register one "
+                    "object route, got standalone="
+                 << registry.size() << " composite=" << registry.compositeSize()
+                 << "\n";
     return false;
   }
+  if (!expectRVVObjectExporterShape(
+          registry, "RVV target-support populated object exporter"))
+    return false;
 
   ExtensionPluginRegistry rvvOnlyPlugins;
   if (!expectSuccess(
@@ -572,11 +659,16 @@ bool expectRVVTargetSupportBundleExtractionRegistration() {
                          rvvOnlyPlugins, rvvOnlyRegistry),
                      "populate RVV-only target-support exporters"))
     return false;
-  if (rvvOnlyRegistry.size() != 0 || rvvOnlyRegistry.compositeSize() != 0) {
-    llvm::errs() << "RVV target-support route was published without the "
-                    "scalar dependency\n";
+  if (rvvOnlyRegistry.size() != 1 || rvvOnlyRegistry.compositeSize() != 0) {
+    llvm::errs() << "RVV target-support route should not depend on scalar; got "
+                    "standalone="
+                 << rvvOnlyRegistry.size() << " composite="
+                 << rvvOnlyRegistry.compositeSize() << "\n";
     return false;
   }
+  if (!expectRVVObjectExporterShape(
+          rvvOnlyRegistry, "RVV-only target-support object exporter"))
+    return false;
 
   return true;
 }
@@ -604,14 +696,20 @@ bool expectRVVPluginManifestTargetSupportActivation() {
           "activate RVV target translate routes through plugin manifest hook"))
     return false;
 
-  if (pluginRoutes.size() != 1) {
-    llvm::errs() << "RVV plugin manifest hook did not publish the single "
-                    "materialized EmitC emitter handoff route\n";
+  if (pluginRoutes.size() != 2) {
+    llvm::errs() << "RVV plugin manifest hook should publish the materialized "
+                    "EmitC handoff route and object artifact route, got "
+                 << pluginRoutes.size() << "\n";
     return false;
   }
   if (!expectTranslateRoute(pluginRoutes, "tcrv-rvv-emitc-to-cpp",
                             /*expectedBinaryStdout=*/false,
                             "MLIR EmitC C/C++ emitter"))
+    return false;
+  if (!expectTranslateRoute(
+          pluginRoutes, "tcrv-rvv-i32m1-add-object",
+          /*expectedBinaryStdout=*/true, "RISC-V relocatable object",
+          tianchenrv::target::rvv::getRVVI32M1AddObjectArtifactRouteID()))
     return false;
 
   TargetTranslateRouteRegistry builtinRoutes;
@@ -619,14 +717,20 @@ bool expectRVVPluginManifestTargetSupportActivation() {
                      "register built-in target translate routes through "
                      "generic plugin manifest aggregation"))
     return false;
-  if (builtinRoutes.size() != 1) {
+  if (builtinRoutes.size() != 2) {
     llvm::errs() << "built-in target translate route aggregation did not "
-                    "publish the single RVV materialized EmitC handoff route\n";
+                    "publish both RVV target translate routes, got "
+                 << builtinRoutes.size() << "\n";
     return false;
   }
   if (!expectTranslateRoute(builtinRoutes, "tcrv-rvv-emitc-to-cpp",
                             /*expectedBinaryStdout=*/false,
                             "MLIR EmitC C/C++ emitter"))
+    return false;
+  if (!expectTranslateRoute(
+          builtinRoutes, "tcrv-rvv-i32m1-add-object",
+          /*expectedBinaryStdout=*/true, "RISC-V relocatable object",
+          tianchenrv::target::rvv::getRVVI32M1AddObjectArtifactRouteID()))
     return false;
 
   return true;
@@ -809,15 +913,20 @@ bool expectTargetTranslateRouteRegistryShape() {
   if (!expectSuccess(registerBuiltinTargetTranslateRoutes(builtinRoutes),
                      "register built-in target translate routes"))
     return false;
-  if (builtinRoutes.size() != 1) {
+  if (builtinRoutes.size() != 2) {
     llvm::errs() << "built-in target translate routes did not expose the "
-                    "single materialized EmitC handoff route, got "
+                    "materialized EmitC handoff and object routes, got "
                  << builtinRoutes.size() << "\n";
     return false;
   }
   if (!expectTranslateRoute(builtinRoutes, "tcrv-rvv-emitc-to-cpp",
                             /*expectedBinaryStdout=*/false,
                             "MLIR EmitC C/C++ emitter"))
+    return false;
+  if (!expectTranslateRoute(
+          builtinRoutes, "tcrv-rvv-i32m1-add-object",
+          /*expectedBinaryStdout=*/true, "RISC-V relocatable object",
+          tianchenrv::target::rvv::getRVVI32M1AddObjectArtifactRouteID()))
     return false;
   return expectSuccess(
       registerBuiltinTargetTranslateRoutes(builtinRoutes),
@@ -1630,9 +1739,9 @@ int main() {
     return 1;
   if (!expectDirectCallableRuntimeABIBinding())
     return 1;
-  if (builtinRegistry.size() != 0) {
-    llvm::errs() << "expected no built-in target artifact routes after "
-                    "route deletion, got "
+  if (builtinRegistry.size() != 1) {
+    llvm::errs() << "expected exactly one built-in RVV target artifact route, "
+                    "got "
                  << builtinRegistry.size() << "\n";
     return 1;
   }
@@ -1643,7 +1752,11 @@ int main() {
     return 1;
   }
   if (!expectSuccess(registerBuiltinTargetArtifactExporters(builtinRegistry),
-                     "re-registering empty built-in exporters remains a no-op"))
+                     "re-registering built-in exporters remains a no-op"))
+    return 1;
+  if (builtinRegistry.size() != 1 ||
+      !expectRVVObjectExporterShape(builtinRegistry,
+                                    "final built-in RVV object exporter"))
     return 1;
 
   return 0;
