@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global architecture and stack boundary for deletion-only compiler work."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin current-slice ownership and deletion-campaign constraints."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Capability/profile parameter layering and i64 profile residue to erase."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "MLIR/lit validation policy for dialect and deletion-campaign tests."}

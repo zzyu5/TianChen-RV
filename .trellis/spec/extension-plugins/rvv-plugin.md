@@ -366,9 +366,8 @@ agnostic|undisturbed>`, the bounded runtime AVL-to-VL control-plane operation
 `tcrv_rvv.setvl`, the bounded VL scope region operation `tcrv_rvv.with_vl`,
 the finite `tcrv_rvv.i32_load`, `tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`,
 `tcrv_rvv.i32_mul`, and `tcrv_rvv.i32_store` ops nested under that scope for
-non-executable i32 dataflow modeling, and the corresponding bounded i64
-dataflow ops. The previous plugin-local selected lowering-boundary operation
-is deleted as active compiler authority. The setvl op
+non-executable i32 dataflow modeling. The previous plugin-local selected
+lowering-boundary operation is deleted as active compiler authority. The setvl op
 consumes a runtime AVL SSA value, produces a `!tcrv_rvv.vl` token, and carries
 only bounded first-slice compile-time config metadata: SEW 32, LMUL m1 or m2,
 and the finite policy attribute. The with_vl op consumes one `!tcrv_rvv.vl` value and

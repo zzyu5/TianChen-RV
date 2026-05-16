@@ -56,6 +56,57 @@ Deleted Support-owned I32/RVV runtime ABI contracts and helpers; rewired tests/s
 - None - task complete
 
 
+## Session 87: Finite RVV i64 family erasure
+
+**Date**: 2026-05-16
+**Task**: Finite RVV i64 family erasure
+**Branch**: `main`
+
+### Summary
+
+Erased the unowned finite RVV i64m1 dataflow/profile slice from active RVV
+dialect source, verifier code, lit coverage, and long-lived specs. The
+surviving current RVV dialect surface remains bounded to `vl`, policy,
+`setvl`, `with_vl`, and explicitly owned i32 m1/m2 dataflow.
+
+### Main Changes
+
+- Removed the `!tcrv_rvv.i64m1` type and `tcrv_rvv.i64_*` dataflow ops from
+  RVV TableGen.
+- Removed i64-only RVV verifier helpers and operation verifier bodies.
+- Narrowed first-slice `setvl` / `with_vl` config verification to SEW32 with
+  LMUL m1 or m2.
+- Deleted i64m1 RVV dataflow and SEW64 setvl lit coverage.
+- Removed spec wording that protected finite RVV i64m1 profile/dataflow
+  authority.
+- Created, validated, finished, and archived the deletion-only Trellis task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(rvv): erase finite i64 family |
+
+### Testing
+
+- [OK] `build/bin/tcrv-opt test/Dialect/RVV/dataflow.mlir --split-input-file --verify-diagnostics | /usr/lib/llvm-20/bin/FileCheck test/Dialect/RVV/dataflow.mlir`
+- [OK] `build/bin/tcrv-opt test/Dialect/RVV/setvl.mlir --split-input-file --verify-diagnostics | /usr/lib/llvm-20/bin/FileCheck test/Dialect/RVV/setvl.mlir`
+- [OK] `cmake --build build --target check-tianchenrv` (71/71 lit tests)
+- [OK] active-surface ref-scan for `I64M1`, `i64m1`,
+  `tcrv_rvv.i64_`, `rvv.i64_m1`, `sew64`, `SEW64`, and finite i64 wording
+  across `include`, `lib`, `test`, and `.trellis/spec`
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-16-05-16-finite-rvv-i64-family-erasure`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 90: Orphan legacy lit executable erasure
 
 **Date**: 2026-05-16

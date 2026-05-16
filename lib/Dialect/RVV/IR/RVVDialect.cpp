@@ -131,26 +131,6 @@ bool isAllowedI32StoreAttr(llvm::StringRef name) {
   return name == kBufferRoleAttrName;
 }
 
-bool isAllowedI64LoadAttr(llvm::StringRef name) {
-  return name == kBufferRoleAttrName;
-}
-
-bool isAllowedI64AddAttr(llvm::StringRef name) {
-  return false;
-}
-
-bool isAllowedI64SubAttr(llvm::StringRef name) {
-  return false;
-}
-
-bool isAllowedI64MulAttr(llvm::StringRef name) {
-  return false;
-}
-
-bool isAllowedI64StoreAttr(llvm::StringRef name) {
-  return name == kBufferRoleAttrName;
-}
-
 bool isForbiddenSetVLParameterAttr(llvm::StringRef name) {
   return name == kAVLAttrName || name == kVLenAttrName ||
          name == kVLenBAttrName || name == kElementCountAttrName ||
@@ -243,22 +223,8 @@ bool isSupportedI32LMUL(llvm::StringRef lmul) {
   return lmul == "m1" || lmul == "m2";
 }
 
-bool isI64M1Vector(mlir::Type type) {
-  return llvm::isa<I64M1VectorType>(type);
-}
-
-llvm::StringRef getI64VectorLMUL(mlir::Type type) {
-  if (isI64M1Vector(type))
-    return "m1";
-  return {};
-}
-
 bool isSupportedRVVFirstSliceConfig(std::int64_t sew, llvm::StringRef lmul) {
-  if (sew == 32)
-    return isSupportedI32LMUL(lmul);
-  if (sew == 64)
-    return lmul == "m1";
-  return false;
+  return sew == 32 && isSupportedI32LMUL(lmul);
 }
 
 mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
@@ -302,51 +268,6 @@ mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
     return op->emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
               "metadata for bounded RVV i32 dataflow";
-
-  return mlir::success();
-}
-
-mlir::LogicalResult verifyI64VectorTypeForWithVL(mlir::Operation *op,
-                                                 mlir::Value value,
-                                                 llvm::StringRef role) {
-  llvm::StringRef valueLMUL = getI64VectorLMUL(value.getType());
-  if (valueLMUL.empty())
-    return op->emitOpError()
-           << "requires " << role << " type to be !tcrv_rvv.i64m1";
-
-  auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
-  if (!withVL)
-    return mlir::success();
-
-  auto expectedSEW =
-      withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
-  if (!expectedSEW)
-    return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
-              "metadata for bounded RVV i64 dataflow";
-  if (expectedSEW.getInt() != 64)
-    return op->emitOpError()
-           << "requires " << role
-           << " type !tcrv_rvv.i64m1 to agree with enclosing "
-              "tcrv_rvv.with_vl SEW metadata '"
-           << expectedSEW.getInt() << "'";
-
-  auto expectedLMUL =
-      withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
-  if (!expectedLMUL)
-    return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit LMUL "
-              "metadata for bounded RVV i64 dataflow";
-  if (expectedLMUL.getValue() != valueLMUL)
-    return op->emitOpError()
-           << "requires " << role << " type " << value.getType()
-           << " to agree with enclosing tcrv_rvv.with_vl LMUL metadata '"
-           << expectedLMUL.getValue() << "'";
-
-  if (!withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName))
-    return op->emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
-              "metadata for bounded RVV i64 dataflow";
 
   return mlir::success();
 }
@@ -423,7 +344,7 @@ mlir::LogicalResult SetVLOp::verify() {
                                       getLmul()))
     return emitOpError()
            << "requires bounded RVV first-slice compile-time config to be "
-              "SEW32 with LMUL \"m1\"/\"m2\" or SEW64 with LMUL \"m1\"";
+              "SEW32 with LMUL \"m1\" or \"m2\"";
 
   if (!getPolicy())
     return emitOpError()
@@ -477,7 +398,7 @@ mlir::LogicalResult WithVLOp::verify() {
       !isSupportedRVVFirstSliceConfig(sew.getInt(), lmul.getValue()))
     return emitOpError()
            << "requires bounded RVV first-slice compile-time config to be "
-              "SEW32 with LMUL \"m1\"/\"m2\" or SEW64 with LMUL \"m1\"";
+              "SEW32 with LMUL \"m1\" or \"m2\"";
   if (sew && !lmul)
     return emitOpError()
            << "requires optional 'lmul' metadata when optional 'sew' "
@@ -739,228 +660,6 @@ mlir::LogicalResult I32StoreOp::verify() {
     return mlir::failure();
 
   return mlir::success();
-}
-
-mlir::LogicalResult I64LoadOp::verify() {
-  mlir::Operation *op = getOperation();
-
-  for (mlir::NamedAttribute attr : op->getAttrs()) {
-    llvm::StringRef attrName = attr.getName().getValue();
-    if (isForbiddenDataflowParameterAttr(attrName))
-      return emitOpError()
-             << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.i64_load keeps SEW/LMUL/policy on "
-                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
-                "control-plane IR, and rejects deleted local element_count "
-                "metadata";
-
-    if (!isAllowedI64LoadAttr(attrName))
-      return emitOpError()
-             << "only accepts finite input buffer runtime ABI role attribute '"
-             << kBufferRoleAttrName
-             << "'; unexpected attribute '" << attr.getName() << "'";
-  }
-
-  if (op->getNumOperands() != 1 || op->getNumResults() != 1)
-    return emitOpError()
-           << "requires exactly one !tcrv_rvv.vl operand and one "
-              "bounded RVV i64 vector result";
-  if (!llvm::isa<VLType>(getVl().getType()))
-    return emitOpError()
-           << "requires runtime VL operand to have !tcrv_rvv.vl type";
-  if (mlir::failed(verifyNestedDataflowOp(op)))
-    return mlir::failure();
-  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
-    return mlir::failure();
-  if (mlir::failed(
-          verifyI64VectorTypeForWithVL(op, getLoaded(), "result")))
-    return mlir::failure();
-
-  llvm::StringSet<> seenRoles;
-  return verifyBoundedDataflowRoleAttr(
-      op, kBufferRoleAttrName,
-      {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
-       tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer},
-      &seenRoles);
-}
-
-mlir::LogicalResult I64AddOp::verify() {
-  mlir::Operation *op = getOperation();
-
-  for (mlir::NamedAttribute attr : op->getAttrs()) {
-    llvm::StringRef attrName = attr.getName().getValue();
-    if (isForbiddenDataflowParameterAttr(attrName))
-      return emitOpError()
-             << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.i64_add keeps SEW/LMUL/policy on setvl/with_vl, "
-                "runtime n/AVL/VL in the surrounding control-plane IR, and "
-                "rejects deleted local element_count metadata";
-
-    if (!isAllowedI64AddAttr(attrName))
-      return emitOpError()
-             << "does not accept dataflow attributes; unexpected attribute '"
-             << attr.getName() << "'";
-  }
-
-  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
-    return emitOpError()
-           << "requires lhs/rhs bounded RVV i64 vector operands, one "
-              "!tcrv_rvv.vl operand, and one bounded RVV i64 vector result";
-  if (!isI64M1Vector(getLhs().getType()) ||
-      !isI64M1Vector(getRhs().getType()) ||
-      !isI64M1Vector(getSum().getType()))
-    return emitOpError()
-           << "requires lhs, rhs, and result types to be !tcrv_rvv.i64m1";
-  if (getLhs().getType() != getRhs().getType() ||
-      getLhs().getType() != getSum().getType())
-    return emitOpError()
-           << "requires lhs, rhs, and result to have the same bounded RVV "
-              "i64 vector type";
-  if (!llvm::isa<VLType>(getVl().getType()))
-    return emitOpError()
-           << "requires runtime VL operand to have !tcrv_rvv.vl type";
-  if (mlir::failed(verifyNestedDataflowOp(op)))
-    return mlir::failure();
-  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
-    return mlir::failure();
-  if (mlir::failed(verifyI64VectorTypeForWithVL(op, getLhs(), "lhs")))
-    return mlir::failure();
-  if (mlir::failed(verifyI64VectorTypeForWithVL(op, getRhs(), "rhs")))
-    return mlir::failure();
-  return verifyI64VectorTypeForWithVL(op, getSum(), "result");
-}
-
-mlir::LogicalResult I64SubOp::verify() {
-  mlir::Operation *op = getOperation();
-
-  for (mlir::NamedAttribute attr : op->getAttrs()) {
-    llvm::StringRef attrName = attr.getName().getValue();
-    if (isForbiddenDataflowParameterAttr(attrName))
-      return emitOpError()
-             << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.i64_sub keeps SEW/LMUL/policy on setvl/with_vl, "
-                "runtime n/AVL/VL in the surrounding control-plane IR, and "
-                "rejects deleted local element_count metadata";
-
-    if (!isAllowedI64SubAttr(attrName))
-      return emitOpError()
-             << "does not accept dataflow attributes; unexpected attribute '"
-             << attr.getName() << "'";
-  }
-
-  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
-    return emitOpError()
-           << "requires lhs/rhs bounded RVV i64 vector operands, one "
-              "!tcrv_rvv.vl operand, and one bounded RVV i64 vector result";
-  if (!isI64M1Vector(getLhs().getType()) ||
-      !isI64M1Vector(getRhs().getType()) ||
-      !isI64M1Vector(getDifference().getType()))
-    return emitOpError()
-           << "requires lhs, rhs, and result types to be !tcrv_rvv.i64m1";
-  if (getLhs().getType() != getRhs().getType() ||
-      getLhs().getType() != getDifference().getType())
-    return emitOpError()
-           << "requires lhs, rhs, and result to have the same bounded RVV "
-              "i64 vector type";
-  if (!llvm::isa<VLType>(getVl().getType()))
-    return emitOpError()
-           << "requires runtime VL operand to have !tcrv_rvv.vl type";
-  if (mlir::failed(verifyNestedDataflowOp(op)))
-    return mlir::failure();
-  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
-    return mlir::failure();
-  if (mlir::failed(verifyI64VectorTypeForWithVL(op, getLhs(), "lhs")))
-    return mlir::failure();
-  if (mlir::failed(verifyI64VectorTypeForWithVL(op, getRhs(), "rhs")))
-    return mlir::failure();
-  return verifyI64VectorTypeForWithVL(op, getDifference(), "result");
-}
-
-mlir::LogicalResult I64MulOp::verify() {
-  mlir::Operation *op = getOperation();
-
-  for (mlir::NamedAttribute attr : op->getAttrs()) {
-    llvm::StringRef attrName = attr.getName().getValue();
-    if (isForbiddenDataflowParameterAttr(attrName))
-      return emitOpError()
-             << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.i64_mul keeps SEW/LMUL/policy on setvl/with_vl, "
-                "runtime n/AVL/VL in the surrounding control-plane IR, and "
-                "rejects deleted local element_count metadata";
-
-    if (!isAllowedI64MulAttr(attrName))
-      return emitOpError()
-             << "does not accept dataflow attributes; unexpected attribute '"
-             << attr.getName() << "'";
-  }
-
-  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
-    return emitOpError()
-           << "requires lhs/rhs bounded RVV i64 vector operands, one "
-              "!tcrv_rvv.vl operand, and one bounded RVV i64 vector result";
-  if (!isI64M1Vector(getLhs().getType()) ||
-      !isI64M1Vector(getRhs().getType()) ||
-      !isI64M1Vector(getProduct().getType()))
-    return emitOpError()
-           << "requires lhs, rhs, and result types to be !tcrv_rvv.i64m1";
-  if (getLhs().getType() != getRhs().getType() ||
-      getLhs().getType() != getProduct().getType())
-    return emitOpError()
-           << "requires lhs, rhs, and result to have the same bounded RVV "
-              "i64 vector type";
-  if (!llvm::isa<VLType>(getVl().getType()))
-    return emitOpError()
-           << "requires runtime VL operand to have !tcrv_rvv.vl type";
-  if (mlir::failed(verifyNestedDataflowOp(op)))
-    return mlir::failure();
-  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
-    return mlir::failure();
-  if (mlir::failed(verifyI64VectorTypeForWithVL(op, getLhs(), "lhs")))
-    return mlir::failure();
-  if (mlir::failed(verifyI64VectorTypeForWithVL(op, getRhs(), "rhs")))
-    return mlir::failure();
-  return verifyI64VectorTypeForWithVL(op, getProduct(), "result");
-}
-
-mlir::LogicalResult I64StoreOp::verify() {
-  mlir::Operation *op = getOperation();
-
-  for (mlir::NamedAttribute attr : op->getAttrs()) {
-    llvm::StringRef attrName = attr.getName().getValue();
-    if (isForbiddenDataflowParameterAttr(attrName))
-      return emitOpError()
-             << "does not accept attribute '" << attr.getName()
-             << "'; tcrv_rvv.i64_store keeps SEW/LMUL/policy on "
-                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
-                "control-plane IR, and rejects deleted local element_count "
-                "metadata";
-
-    if (!isAllowedI64StoreAttr(attrName))
-      return emitOpError()
-             << "only accepts finite output buffer runtime ABI role attribute '"
-             << kBufferRoleAttrName
-             << "'; unexpected attribute '" << attr.getName() << "'";
-  }
-
-  if (op->getNumOperands() != 2 || op->getNumResults() != 0)
-    return emitOpError()
-           << "requires one bounded RVV i64 vector value operand, one "
-              "!tcrv_rvv.vl operand, and no results";
-  if (!llvm::isa<VLType>(getVl().getType()))
-    return emitOpError()
-           << "requires runtime VL operand to have !tcrv_rvv.vl type";
-  if (mlir::failed(verifyNestedDataflowOp(op)))
-    return mlir::failure();
-  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
-    return mlir::failure();
-  if (mlir::failed(verifyI64VectorTypeForWithVL(op, getValue(), "stored value")))
-    return mlir::failure();
-
-  llvm::StringSet<> seenRoles;
-  return verifyBoundedDataflowRoleAttr(
-      op, kBufferRoleAttrName,
-      {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer},
-      &seenRoles);
 }
 
 void TCRVRVVDialect::initialize() {

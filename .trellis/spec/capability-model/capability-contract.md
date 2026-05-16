@@ -111,12 +111,10 @@ or ABI surface that states the new meaning.
    concrete extension. Probe/profile objects must not preserve derived finite
    RVV i32/M1 lane-capacity facts from VLENB as capability identities or
    selected-path metadata; future lane behavior must come from explicit RVV
-   config IR and runtime AVL/VL/ABI surfaces. Finite RVV i64m1 profile facts
-   such as `rvv.i64_m1.sew64`,
-   `rvv.i64_m1.lmul_m1`, `rvv.i64_m1.tail_policy.agnostic`, and
-   `rvv.i64_m1.mask_policy.agnostic` are compile-time capability/profile facts
-   that constrain i64 family legality; they are not runtime `n`, AVL/VL, or
-   deleted local count claims.
+   config IR and runtime AVL/VL/ABI surfaces. Current bounded RVV config
+   identities are compile-time compiler/profile facts for the explicitly owned
+   first slice; they are not runtime `n`, AVL/VL, or deleted local count
+   claims.
 2. Compile-time variant config belongs in plugin-proposed variant metadata,
    selected config, tuning, or lowering-boundary metadata and must be checked
    against target capability. Examples include SEW, LMUL, tail policy, mask

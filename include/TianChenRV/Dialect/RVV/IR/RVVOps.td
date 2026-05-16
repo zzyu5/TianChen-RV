@@ -18,7 +18,7 @@ def TCRV_RVV_Dialect : Dialect {
 
     The current bounded slice exposes the tcrv_rvv.setvl runtime AVL-to-VL
     control-plane surface, the matching tcrv_rvv.with_vl VL scope region, and
-    plugin-local i32/i64 dataflow tokens and ops that may appear only under an
+    plugin-local i32 dataflow tokens and ops that may appear only under an
     explicit with_vl scope. These dataflow surfaces are not executable route,
     ABI, artifact, or exporter authority; future RVV execution must be rebuilt
     through explicit extension-family IR plus a materialized EmitC route.
@@ -117,17 +117,6 @@ def TCRVRVV_I32M2VectorType : TCRVRVV_Type<"I32M2Vector", "i32m2"> {
     sibling of !tcrv_rvv.i32m1, not a generic RVV vector type. The enclosing
     tcrv_rvv.setvl / tcrv_rvv.with_vl metadata remains the source of
     SEW/LMUL/policy truth. This token does not authorize target emission.
-  }];
-}
-
-def TCRVRVV_I64M1VectorType : TCRVRVV_Type<"I64M1Vector", "i64m1"> {
-  let summary = "finite RVV i64 m1 vector dataflow token type";
-  let description = [{
-    A bounded plugin-local vector dataflow token for explicit RVV i64 dataflow
-    when the enclosing control-plane config is SEW 64 and LMUL m1. It is not a
-    generic RVV vector type. The enclosing tcrv_rvv.setvl / tcrv_rvv.with_vl
-    metadata remains the source of SEW/LMUL/policy truth. This token does not
-    authorize target emission.
   }];
 }
 
@@ -309,115 +298,6 @@ def I32StoreOp : TCRVRVV_Op<"i32_store", []> {
     IR-modeled buffers. Runtime n/AVL/VL remains represented by real runtime
     SSA/control surfaces. Deleted local element-count metadata is not accepted
     here.
-  }];
-
-  let arguments = (ins
-    AnyType:$value,
-    AnyType:$vl,
-    StrAttr:$buffer_role
-  );
-
-  let assemblyFormat =
-    "$value `,` $vl attr-dict `:` type($value) `,` type($vl)";
-  let hasVerifier = 1;
-}
-
-def I64LoadOp : TCRVRVV_Op<"i64_load", []> {
-  let summary = "bounded RVV i64 load dataflow op";
-  let description = [{
-    Records one bounded plugin-local RVV i64 load dataflow step. The op is
-    nested directly under tcrv_rvv.with_vl, consumes the same runtime
-    !tcrv_rvv.vl control token as the surrounding scope, carries exactly one
-    input buffer ABI role reference, and produces one bounded !tcrv_rvv.i64m1
-    dataflow token matching the enclosing SEW64/LMUL m1 scope.
-  }];
-
-  let arguments = (ins
-    AnyType:$vl,
-    StrAttr:$buffer_role
-  );
-  let results = (outs AnyType:$loaded);
-
-  let assemblyFormat = "$vl attr-dict `:` type($vl) `->` type($loaded)";
-  let hasVerifier = 1;
-}
-
-def I64AddOp : TCRVRVV_Op<"i64_add",
-    [TCRVEmitCLowerableOpInterface]> {
-  let summary = "bounded RVV i64 add dataflow op";
-  let description = [{
-    Records one bounded plugin-local RVV i64 vector add dataflow step. The op
-    is nested directly under tcrv_rvv.with_vl, consumes two i64m1 dataflow
-    tokens and the same runtime !tcrv_rvv.vl control token as the surrounding
-    scope, and produces one i64m1 dataflow token. This is not generic
-    arithmetic IR and does not authorize RVV artifact emission.
-  }];
-
-  let arguments = (ins
-    AnyType:$lhs,
-    AnyType:$rhs,
-    AnyType:$vl
-  );
-  let results = (outs AnyType:$sum);
-
-  let assemblyFormat =
-    "$lhs `,` $rhs `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($vl) `->` type($sum)";
-  let hasVerifier = 1;
-}
-
-def I64SubOp : TCRVRVV_Op<"i64_sub",
-    [TCRVEmitCLowerableOpInterface]> {
-  let summary = "bounded RVV i64 subtract dataflow op";
-  let description = [{
-    Records one bounded plugin-local RVV i64 vector subtract dataflow step. The
-    op is nested directly under tcrv_rvv.with_vl, consumes two i64m1 dataflow
-    tokens and the same runtime !tcrv_rvv.vl control token as the surrounding
-    scope, and produces one i64m1 dataflow token. This is not generic
-    arithmetic IR and does not authorize RVV artifact emission.
-  }];
-
-  let arguments = (ins
-    AnyType:$lhs,
-    AnyType:$rhs,
-    AnyType:$vl
-  );
-  let results = (outs AnyType:$difference);
-
-  let assemblyFormat =
-    "$lhs `,` $rhs `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($vl) `->` type($difference)";
-  let hasVerifier = 1;
-}
-
-def I64MulOp : TCRVRVV_Op<"i64_mul",
-    [TCRVEmitCLowerableOpInterface]> {
-  let summary = "bounded RVV i64 multiply dataflow op";
-  let description = [{
-    Records one bounded plugin-local RVV i64 vector multiply dataflow step. The
-    op is nested directly under tcrv_rvv.with_vl, consumes two i64m1 dataflow
-    tokens and the same runtime !tcrv_rvv.vl control token as the surrounding
-    scope, and produces one i64m1 dataflow token. This is not generic
-    arithmetic IR and does not authorize RVV artifact emission.
-  }];
-
-  let arguments = (ins
-    AnyType:$lhs,
-    AnyType:$rhs,
-    AnyType:$vl
-  );
-  let results = (outs AnyType:$product);
-
-  let assemblyFormat =
-    "$lhs `,` $rhs `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($vl) `->` type($product)";
-  let hasVerifier = 1;
-}
-
-def I64StoreOp : TCRVRVV_Op<"i64_store", []> {
-  let summary = "bounded RVV i64 store dataflow op";
-  let description = [{
-    Records one bounded plugin-local RVV i64 store dataflow step. The op is
-    nested directly under tcrv_rvv.with_vl, consumes one bounded i64m1 dataflow
-    token and the same runtime !tcrv_rvv.vl control token as the surrounding
-    scope, and carries exactly one output buffer ABI role reference.
   }];
 
   let arguments = (ins

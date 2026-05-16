@@ -59,35 +59,6 @@ module {
 // -----
 
 module {
-  // CHECK-LABEL: tcrv.exec.kernel @rvv_i64_dataflow_valid
-  tcrv.exec.kernel @rvv_i64_dataflow_valid {
-    %avl = "builtin.unrealized_conversion_cast"() : () -> index
-    %vl = tcrv_rvv.setvl %avl {
-      lmul = "m1",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      sew = 64 : i64
-    } : index -> !tcrv_rvv.vl
-    tcrv_rvv.with_vl %vl attributes {
-      lmul = "m1",
-      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-      sew = 64 : i64
-    } {
-      // CHECK: tcrv_rvv.i64_load
-      %lhs = tcrv_rvv.i64_load %vl {buffer_role = "lhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i64m1
-      %rhs = tcrv_rvv.i64_load %vl {buffer_role = "rhs-input-buffer"} : !tcrv_rvv.vl -> !tcrv_rvv.i64m1
-      // CHECK: tcrv_rvv.i64_add
-      %sum = tcrv_rvv.i64_add %lhs, %rhs, %vl : !tcrv_rvv.i64m1, !tcrv_rvv.i64m1, !tcrv_rvv.vl -> !tcrv_rvv.i64m1
-      // CHECK: tcrv_rvv.i64_mul
-      %product = tcrv_rvv.i64_mul %sum, %rhs, %vl : !tcrv_rvv.i64m1, !tcrv_rvv.i64m1, !tcrv_rvv.vl -> !tcrv_rvv.i64m1
-      // CHECK: tcrv_rvv.i64_store
-      tcrv_rvv.i64_store %product, %vl {buffer_role = "output-buffer"} : !tcrv_rvv.i64m1, !tcrv_rvv.vl
-    } : !tcrv_rvv.vl
-  }
-}
-
-// -----
-
-module {
   tcrv.exec.kernel @rvv_dataflow_reject_outside_with_vl {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
     %vl = tcrv_rvv.setvl %avl {
