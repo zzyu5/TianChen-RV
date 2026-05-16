@@ -3,6 +3,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-selected-boundary-seed --tcrv-materialize-emission-plans --tcrv-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC
 // RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline --tcrv-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC
+// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline --tcrv-materialize-emitc-lowerable-routes | tcrv-translate --tcrv-rvv-emitc-to-cpp | FileCheck %s --check-prefix=CPP
 // RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | tcrv-translate --tcrv-export-target-artifact > %t.frontdoor.o
 // RUN: file %t.frontdoor.o | FileCheck %s --check-prefix=OBJECT
 // RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER --implicit-check-not="seed_scalar_fallback"
@@ -114,6 +115,12 @@ module {
 // EMITC: tcrv_emitc.source_op=tcrv_rvv.i32_load role=load op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle32_v_i32m1
 // EMITC: tcrv_emitc.source_op=tcrv_rvv.i32_add role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vadd_vv_i32m1
 // EMITC: tcrv_emitc.source_op=tcrv_rvv.i32_store role=store op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vse32_v_i32m1
+
+// CPP: #include <riscv_vector.h>
+// CPP: void tcrv_emitc_seed_kernel_seed_rvv_i32_add
+// CPP: tcrv_emitc.route_source_op=tcrv_rvv.with_vl role=scope op_interface=TCRVEmitCLowerableOpInterface
+// CPP: tcrv_emitc.source_op=tcrv_rvv.i32_add role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vadd_vv_i32m1
+// CPP: __riscv_vadd_vv_i32m1
 
 // OBJECT: ELF 64-bit LSB relocatable
 // OBJECT-SAME: RISC-V

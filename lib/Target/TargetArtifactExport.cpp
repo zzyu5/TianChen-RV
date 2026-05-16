@@ -8,6 +8,7 @@
 #include "TianChenRV/Support/ArtifactMetadata.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 
+#include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/SymbolTable.h"
@@ -1205,6 +1206,7 @@ buildSelectedEmitCArtifactRoute(
 llvm::Error requireMaterializedEmitCModule(
     mlir::ModuleOp module, llvm::StringRef routeDescription) {
   bool foundEmitCOp = false;
+  bool foundEmitCFunc = false;
   mlir::Operation *unsupported = nullptr;
   module->walk([&](mlir::Operation *op) {
     if (op == module.getOperation())
@@ -1213,6 +1215,8 @@ llvm::Error requireMaterializedEmitCModule(
     llvm::StringRef dialectNamespace = op->getName().getDialectNamespace();
     if (dialectNamespace == "emitc") {
       foundEmitCOp = true;
+      if (llvm::isa<mlir::emitc::FuncOp>(op))
+        foundEmitCFunc = true;
       return mlir::WalkResult::advance();
     }
 
@@ -1231,6 +1235,88 @@ llvm::Error requireMaterializedEmitCModule(
         routeDescription,
         "requires an already materialized EmitC module with at least one "
         "EmitC op");
+  if (!foundEmitCFunc)
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "requires an already materialized EmitC module with an EmitC function "
+        "boundary");
+  return llvm::Error::success();
+}
+
+std::string formatRouteSourceProvenanceComment(
+    const conversion::emitc::TCRVEmitCSourceOpProvenance &source) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  stream << "// tcrv_emitc.route_source_op=" << source.opName
+         << " role=" << source.role;
+  if (!source.opInterface.empty())
+    stream << " op_interface=" << source.opInterface;
+  stream.flush();
+  return text;
+}
+
+std::string formatStepProvenanceComment(
+    const conversion::emitc::TCRVEmitCCallOpaqueStep &step) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  stream << "// tcrv_emitc.source_op=" << step.sourceOp.opName
+         << " role=" << step.sourceOp.role;
+  if (!step.sourceOp.opInterface.empty())
+    stream << " op_interface=" << step.sourceOp.opInterface;
+  stream << " callee=" << step.callee;
+  stream.flush();
+  return text;
+}
+
+bool materializedEmitCModuleContainsVerbatim(mlir::ModuleOp module,
+                                             llvm::StringRef value) {
+  bool found = false;
+  module->walk([&](mlir::emitc::VerbatimOp verbatim) {
+    if (verbatim.getValue() == value) {
+      found = true;
+      return mlir::WalkResult::interrupt();
+    }
+    return mlir::WalkResult::advance();
+  });
+  return found;
+}
+
+llvm::Error requireSelectedEmitCMaterializedHandoff(
+    mlir::ModuleOp module,
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    llvm::StringRef routeDescription) {
+  if (llvm::Error error =
+          requireMaterializedEmitCModule(module, routeDescription))
+    return error;
+
+  if (route.getSourceOpProvenance().empty())
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "requires at least one route source-op provenance entry in the "
+        "materialized EmitC handoff before target artifact packaging");
+
+  for (const conversion::emitc::TCRVEmitCSourceOpProvenance &source :
+       route.getSourceOpProvenance()) {
+    std::string expected = formatRouteSourceProvenanceComment(source);
+    if (!materializedEmitCModuleContainsVerbatim(module, expected))
+      return makeSelectedEmitCArtifactError(
+          routeDescription,
+          llvm::Twine("materialized EmitC handoff is missing route "
+                      "source-op provenance '") +
+              expected + "'");
+  }
+
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+       route.getCallOpaqueSteps()) {
+    std::string expected = formatStepProvenanceComment(step);
+    if (!materializedEmitCModuleContainsVerbatim(module, expected))
+      return makeSelectedEmitCArtifactError(
+          routeDescription,
+          llvm::Twine("materialized EmitC handoff is missing call "
+                      "source-op provenance '") +
+              expected + "'");
+  }
+
   return llvm::Error::success();
 }
 
@@ -1262,8 +1348,18 @@ materializeSelectedEmitCArtifactModule(
   else
     options.functionName =
         makeSelectedEmitCArtifactFunctionName(target->kernel, target->variant);
-  return conversion::emitc::materializeTCRVEmitCLowerableRoute(
-      *module.getContext(), *route, options);
+  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
+      conversion::emitc::materializeTCRVEmitCLowerableRoute(
+          *module.getContext(), *route, options);
+  if (!emitcModule)
+    return emitcModule.takeError();
+
+  llvm::StringRef routeDescription =
+      config.routeDescription.empty() ? config.routeID : config.routeDescription;
+  if (llvm::Error error = requireSelectedEmitCMaterializedHandoff(
+          **emitcModule, *route, routeDescription))
+    return std::move(error);
+  return std::move(*emitcModule);
 }
 
 llvm::Expected<std::string> getSelectedEmitCArtifactFunctionName(

@@ -99,6 +99,33 @@ llvm::Error buildTestSelectedEmitCRoute(
       tianchenrv::support::makeTargetExportABIParameter(
           "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount),
       "n");
+  route.addSourceOpProvenance(
+      {"test.scope", "scope", "TestEmitCLowerableOpInterface"});
+
+  tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep step;
+  step.sourceOp = {"test.compute", "compute",
+                   "TestEmitCLowerableOpInterface"};
+  step.callee = "test_emitc_call";
+  step.operands.push_back({"n", "size_t"});
+  step.result = {"computed", "size_t"};
+  route.addCallOpaqueStep(std::move(step));
+  out = std::move(route);
+  return llvm::Error::success();
+}
+
+llvm::Error buildTestSelectedEmitCRouteWithoutRouteProvenance(
+    const tianchenrv::plugin::VariantEmitCLowerableRequest &request,
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &out) {
+  if (!request.getKernel() || !request.getVariant())
+    return makeTestSelectedEmitCError("missing selected kernel or variant");
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route(
+      "test-selected-emitc-route", "test-extension-family-to-emitc");
+  route.addHeader("stdint.h");
+  route.addABIValueMapping(
+      tianchenrv::support::makeTargetExportABIParameter(
+          "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount),
+      "n");
 
   tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep step;
   step.sourceOp = {"test.compute", "compute",
@@ -1705,6 +1732,9 @@ module {
   if (!sourceRef.contains("#include <stdint.h>") ||
       !sourceRef.contains(
           "void tcrv_emitc_common_selected_emitc_frontdoor_selected(") ||
+      !sourceRef.contains(
+          "tcrv_emitc.route_source_op=test.scope role=scope "
+          "op_interface=TestEmitCLowerableOpInterface") ||
       !sourceRef.contains("test_emitc_call")) {
     llvm::errs() << "common selected EmitC source did not contain expected "
                     "materialized C++ surface:\n"
@@ -1721,6 +1751,22 @@ module {
                            {"requires exactly one selected emission-plan "
                             "candidate",
                             "found none"}))
+    return false;
+
+  SelectedEmitCArtifactRouteConfig missingRouteProvenance = config;
+  missingRouteProvenance.routeBuilderFn =
+      buildTestSelectedEmitCRouteWithoutRouteProvenance;
+  llvm::Expected<std::string> missingProvenanceSource =
+      emitSelectedEmitCArtifactCppSource(*module, missingRouteProvenance);
+  if (missingProvenanceSource) {
+    llvm::errs() << "common selected EmitC front door accepted a route with no "
+                    "route source-op provenance\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          missingProvenanceSource.takeError(),
+          "common selected EmitC missing route provenance fail-closed",
+          {"materialized EmitC handoff", "route source-op provenance"}))
     return false;
 
   return true;

@@ -232,6 +232,13 @@ applies to both direct selected-path diagnostics and selected
   `lowering_boundary` value must match that op name and capability metadata.
 - Runtime ABI ownership metadata and ordered structured runtime ABI parameters
   must be checked before object/header/bundle output.
+- A selected artifact route that emits C/C++ or packages an object from EmitC
+  must materialize the selected extension-family route through the common
+  EmitC materialization helper and verify the materialized module before
+  invoking the MLIR EmitC C/C++ emitter or native compiler. The verified
+  materialized module must contain an EmitC function boundary plus route
+  source-op and call source-op provenance derived from the selected
+  `TCRVEmitCLowerableRoute`.
 
 ### 4. Validation & Error Matrix
 
@@ -247,6 +254,10 @@ applies to both direct selected-path diagnostics and selected
 - Materialized lowering-boundary op present but not selected, duplicated,
   stale, origin-mismatched, or capability-mismatched -> fail before artifact
   output.
+- Selected artifact route materializes an EmitC module without route source-op
+  provenance, without call source-op provenance, without an EmitC function
+  boundary, or with non-EmitC residue -> fail before C/C++ emission or object
+  packaging.
 
 ### 5. Good/Base/Bad Cases
 
@@ -267,6 +278,8 @@ applies to both direct selected-path diagnostics and selected
 - Negative lit coverage for ambiguous supported multi-variant candidates.
 - Negative lit coverage for unselected multi-variant input.
 - Negative lit coverage for unsupported selected RVV shapes.
+- C++ or lit coverage proving selected artifact export fails closed when the
+  common materialized EmitC handoff is missing required route provenance.
 
 ### 7. Wrong vs Correct
 

@@ -492,6 +492,79 @@ Made the RVV i32m1 add source seed consume validated source shape and source-der
 [OK] Completed and archived.
 
 
+## Session 97: Common materialized EmitC handoff for RVV source dispatch
+
+**Date**: 2026-05-17
+**Task**: `rvv-source-dispatch-emitc-handoff`
+**Branch**: `main`
+
+### Summary
+
+Made the existing bounded RVV i32m1 add source-seed selected-dispatch path
+prove a common materialized MLIR EmitC handoff before MLIR EmitC C/C++ emission
+and RVV target artifact packaging.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `05-17-rvv-source-dispatch-emitc-handoff` from the supplied Direction Brief.
+- Added target-side validation in `lib/Target/TargetArtifactExport.cpp` so
+  selected EmitC artifact routes must materialize an EmitC function boundary
+  with route source-op and call source-op provenance before C/C++ emission or
+  object packaging.
+- Kept the common helper extension-neutral; RVV intrinsic/header/runtime details
+  remain in RVV-owned route and target-support code.
+- Extended `test/Target/TargetArtifactExportTest.cpp` to prove common selected
+  EmitC source keeps route provenance and rejects route builders that omit route
+  source-op provenance.
+- Extended the RVV source-seed selected-dispatch fixture to run through
+  materialized EmitC into the MLIR EmitC C/C++ emitter before object/header/
+  bundle export checks.
+- Updated `.trellis/spec/lowering-runtime/emitc-route.md` with the executable
+  selected artifact handoff contract.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`.
+- [OK] C++ tests:
+  `tianchenrv-emission-readiness-test`,
+  `tianchenrv-emitc-lowerable-interface-test`,
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-rvv-dialect-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] Focused lit filter from `build/test`:
+  `rvv-i32m1-selected-boundary-seed|emitc-to-cpp-handoff|i32m1-add-object-artifact|i32m1-selected-dispatch-artifact|i32m1-object-stale-route-op|i32m1-object-missing-contract-metadata|i32m1-artifact-ambiguous-selected|source-seed-artifact-front-door`,
+  11/11 selected tests passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`, 110/110 lit
+  tests passed.
+- [OK] `git diff --check`.
+- [OK] Changed-surface scan: no Python files changed; no descriptor/direct-C/
+  source-export route was added; common target code only adds generic EmitC
+  handoff validation.
+- [OK] Refreshed artifacts under
+  `artifacts/tmp/source_seed_emitc_handoff/20260516T163726Z`.
+- [OK] Real `ssh rvv` link/run:
+  `tcrv_rvv_i32m1_source_emitc_handoff status=PASS n=4 add=[12,6,16,12]`.
+
+### Self-Repair
+
+- `clang-format` was unavailable, so the touched C++ line wrap was manually
+  normalized.
+- Re-ran the final full check with the clean target command after an earlier
+  redundant build-tool suffix.
+
+### Spec Update Judgment
+
+Spec updated because this round changed the executable target/export handoff
+contract: selected artifact routes that emit/package from EmitC must validate
+materialized route provenance before emitter/toolchain steps.
+
+### Status
+
+[OK] Completed and archived.
+
+
 ### Git Commits
 
 | Hash | Message |
