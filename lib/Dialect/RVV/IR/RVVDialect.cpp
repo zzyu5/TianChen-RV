@@ -354,6 +354,14 @@ mlir::LogicalResult verifyDataflowVLOperandMatchesWithVL(mlir::Operation *op,
 
 } // namespace
 
+llvm::StringRef RuntimeABIValueOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef RuntimeABIValueOp::getTCRVEmitCLowerableSourceRole() {
+  return "runtime_abi";
+}
+
 llvm::StringRef SetVLOp::getTCRVEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }

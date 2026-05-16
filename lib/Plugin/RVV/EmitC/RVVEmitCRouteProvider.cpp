@@ -6,6 +6,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
 
 #include "mlir/IR/Attributes.h"
@@ -15,6 +16,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <optional>
@@ -39,23 +41,16 @@ constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
 struct RVVI32M1ArithmeticRouteDescriptor {
   RVVI32M1ArithmeticOp op;
   llvm::StringLiteral mnemonic;
-  llvm::StringLiteral emitCRouteID;
-  llvm::StringLiteral runtimeABIName;
-  llvm::StringLiteral runtimeABIContractName;
   llvm::StringLiteral intrinsic;
   llvm::StringLiteral resultName;
 };
 
 constexpr RVVI32M1ArithmeticRouteDescriptor kRVVI32M1ArithmeticRoutes[] = {
-    {RVVI32M1ArithmeticOp::Add, "add", "rvv-i32m1-add-emitc-route",
-     "rvv-i32m1-add-callable-c-abi.v1", "rvv-i32m1-add-callable-c-abi",
-     "__riscv_vadd_vv_i32m1", "sum_vec"},
-    {RVVI32M1ArithmeticOp::Sub, "sub", "rvv-i32m1-sub-emitc-route",
-     "rvv-i32m1-sub-callable-c-abi.v1", "rvv-i32m1-sub-callable-c-abi",
-     "__riscv_vsub_vv_i32m1", "difference_vec"},
-    {RVVI32M1ArithmeticOp::Mul, "mul", "rvv-i32m1-mul-emitc-route",
-     "rvv-i32m1-mul-callable-c-abi.v1", "rvv-i32m1-mul-callable-c-abi",
-     "__riscv_vmul_vv_i32m1", "product_vec"},
+    {RVVI32M1ArithmeticOp::Add, "add", "__riscv_vadd_vv_i32m1", "sum_vec"},
+    {RVVI32M1ArithmeticOp::Sub, "sub", "__riscv_vsub_vv_i32m1",
+     "difference_vec"},
+    {RVVI32M1ArithmeticOp::Mul, "mul", "__riscv_vmul_vv_i32m1",
+     "product_vec"},
 };
 
 constexpr RVVI32M1ArithmeticOp kRVVI32M1ArithmeticOps[] = {
@@ -69,6 +64,20 @@ getRVVI32M1ArithmeticRouteDescriptor(RVVI32M1ArithmeticOp op) {
     if (descriptor.op == op)
       return descriptor;
   llvm_unreachable("unknown RVV i32m1 arithmetic op");
+}
+
+const RVVI32M1ArithmeticConstructionRoute &
+getRVVI32M1ArithmeticConstructionRouteOrDie(RVVI32M1ArithmeticOp op) {
+  const RVVI32M1ArithmeticRouteDescriptor &descriptor =
+      getRVVI32M1ArithmeticRouteDescriptor(op);
+  llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *> route =
+      lookupRVVI32M1ArithmeticConstructionRouteByMnemonic(
+          descriptor.mnemonic);
+  if (!route) {
+    std::string message = llvm::toString(route.takeError());
+    llvm::report_fatal_error(llvm::StringRef(message));
+  }
+  return **route;
 }
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message) {
@@ -152,6 +161,9 @@ getRuntimeABIParameterBindingFromValue(
         llvm::Twine(context) +
         " must be defined by explicit tcrv_rvv.runtime_abi_value before "
         "RVV EmitC route construction");
+  if (llvm::Error error =
+          verifyRVVRuntimeABIValueRoleOpInterface(binding.getOperation()))
+    return std::move(error);
 
   std::optional<support::RuntimeABIParameterRole> role =
       support::symbolizeRuntimeABIParameterRole(binding.getRole());
@@ -207,7 +219,7 @@ llvm::Error assignRVVLoadBinding(
 
 llvm::Error validateRVVI32M1ArithmeticRuntimeABIParameters(
     RVVI32M1ArithmeticSlice &slice,
-    const RVVI32M1ArithmeticRouteDescriptor &descriptor,
+    const RVVI32M1ArithmeticConstructionRoute &constructionRoute,
     const support::RuntimeABIParameter &runtimeElementCountABI,
     const support::RuntimeABIParameter &outABI) {
   slice.runtimeElementCountABI = runtimeElementCountABI;
@@ -221,7 +233,8 @@ llvm::Error validateRVVI32M1ArithmeticRuntimeABIParameters(
 
   support::FiniteBinaryRuntimeABIContract contract(
       support::FiniteBinaryRuntimeABIContractSpec{
-          descriptor.runtimeABIContractName, "const int32_t *", "int32_t *"});
+          constructionRoute.runtimeABIContractName, "const int32_t *",
+          "int32_t *"});
   llvm::Expected<support::FiniteBinaryCallableRuntimeABIParameterBindings>
       bindings = support::bindFiniteBinaryCallableRuntimeABIParametersByRole(
           ordered, "RVV i32m1 arithmetic explicit runtime ABI values",
@@ -381,8 +394,10 @@ collectRVVI32M1ArithmeticSlice(tcrv::exec::VariantOp variant) {
     return outABI.takeError();
   const RVVI32M1ArithmeticRouteDescriptor &descriptor =
       getRVVI32M1ArithmeticRouteDescriptor(slice.arithmeticKind);
+  const RVVI32M1ArithmeticConstructionRoute &constructionRoute =
+      getRVVI32M1ArithmeticConstructionRouteOrDie(slice.arithmeticKind);
   if (llvm::Error error = validateRVVI32M1ArithmeticRuntimeABIParameters(
-          slice, descriptor, *runtimeElementCountABI, *outABI))
+          slice, constructionRoute, *runtimeElementCountABI, *outABI))
     return error;
   if (slice.arithmeticLhs != slice.lhsLoad.getLoaded() ||
       slice.arithmeticRhs != slice.rhsLoad.getLoaded())
@@ -399,6 +414,9 @@ collectRVVI32M1ArithmeticSlice(tcrv::exec::VariantOp variant) {
 
 llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance>
 getEmitCSourceProvenance(mlir::Operation *op, llvm::StringRef expectedRole) {
+  if (llvm::Error error = verifyRVVRoleOperationInterface(op, expectedRole))
+    return std::move(error);
+
   auto lowerable =
       llvm::dyn_cast<conversion::emitc::TCRVEmitCLowerableOpInterface>(op);
   if (!lowerable)
@@ -454,18 +472,23 @@ llvm::StringRef stringifyRVVI32M1ArithmeticOp(RVVI32M1ArithmeticOp op) {
 
 llvm::Expected<RVVI32M1ArithmeticOp>
 symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(llvm::StringRef routeID) {
+  llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>
+      constructionRoute =
+          lookupRVVI32M1ArithmeticConstructionRouteByEmitCRouteID(routeID);
+  if (!constructionRoute)
+    return constructionRoute.takeError();
   for (const RVVI32M1ArithmeticRouteDescriptor &descriptor :
        kRVVI32M1ArithmeticRoutes)
-    if (routeID == descriptor.emitCRouteID)
+    if ((*constructionRoute)->mnemonic == descriptor.mnemonic)
       return descriptor.op;
   return makeRVVEmitCRouteProviderError(
-      llvm::Twine("unknown RVV i32m1 arithmetic EmitC route id '") +
-      routeID + "'");
+      llvm::Twine("RVV construction route mnemonic '") +
+      (*constructionRoute)->mnemonic + "' has no route provider operation");
 }
 
 llvm::StringRef
 getRVVI32M1ArithmeticEmitCRouteID(RVVI32M1ArithmeticOp op) {
-  return getRVVI32M1ArithmeticRouteDescriptor(op).emitCRouteID;
+  return getRVVI32M1ArithmeticConstructionRouteOrDie(op).emitCRouteID;
 }
 
 llvm::StringRef getRVVI32M1ArithmeticEmissionKind() {
@@ -482,7 +505,7 @@ llvm::StringRef getRVVI32M1ArithmeticRuntimeABIKind() {
 
 llvm::StringRef
 getRVVI32M1ArithmeticRuntimeABIName(RVVI32M1ArithmeticOp op) {
-  return getRVVI32M1ArithmeticRouteDescriptor(op).runtimeABIName;
+  return getRVVI32M1ArithmeticConstructionRouteOrDie(op).runtimeABIName;
 }
 
 llvm::StringRef getRVVI32M1ArithmeticRuntimeGlueRole() {
@@ -491,18 +514,7 @@ llvm::StringRef getRVVI32M1ArithmeticRuntimeGlueRole() {
 
 llvm::SmallVector<support::RuntimeABIParameter, 4>
 getRVVI32M1ArithmeticRuntimeABIParameters() {
-  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
-  parameters.push_back(support::makeTargetExportABIParameter(
-      "lhs", "const int32_t *",
-      support::RuntimeABIParameterRole::LHSInputBuffer));
-  parameters.push_back(support::makeTargetExportABIParameter(
-      "rhs", "const int32_t *",
-      support::RuntimeABIParameterRole::RHSInputBuffer));
-  parameters.push_back(support::makeTargetExportABIParameter(
-      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
-  parameters.push_back(support::makeTargetExportABIParameter(
-      "n", "size_t", support::RuntimeABIParameterRole::RuntimeElementCount));
-  return parameters;
+  return getRVVI32M1ArithmeticConstructionRuntimeABIParameters();
 }
 
 llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
@@ -519,6 +531,8 @@ llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
 
   if (llvm::Error error = requireRVVVariantLegality(request.getVariant()))
     return error;
+  if (llvm::Error error = verifyRVVConstructionProtocolReady())
+    return error;
 
   llvm::Expected<RVVI32M1ArithmeticSlice> slice =
       collectRVVI32M1ArithmeticSlice(request.getVariant());
@@ -531,8 +545,23 @@ llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
         expectedDescriptor.mnemonic + " but variant body contains i32_" +
         stringifyRVVI32M1ArithmeticOp(slice->arithmeticKind));
 
+  const RVVI32M1ArithmeticConstructionRoute &constructionRoute =
+      getRVVI32M1ArithmeticConstructionRouteOrDie(op);
+  if (slice->arithmeticOp->getName().getStringRef() !=
+      constructionRoute.operationName)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("selected RVV i32m1 arithmetic route expected typed op '") +
+        constructionRoute.operationName + "' from the construction mapping");
+  if (llvm::Error error = verifyRVVI32M1ArithmeticConstructionRouteMapping(
+          expectedDescriptor.mnemonic, constructionRoute.operationName,
+          constructionRoute.emitCRouteID,
+          constructionRoute.objectArtifactRouteID,
+          constructionRoute.headerArtifactRouteID,
+          constructionRoute.runtimeABIName))
+    return error;
+
   conversion::emitc::TCRVEmitCLowerableRoute route(
-      expectedDescriptor.emitCRouteID,
+      constructionRoute.emitCRouteID,
       "extension-family-ops-to-emitc-call-opaque");
   route.addHeader("stddef.h");
   route.addHeader("stdint.h");

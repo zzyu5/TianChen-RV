@@ -1,6 +1,7 @@
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
@@ -509,6 +510,16 @@ llvm::Error validateRVVI32M1ArithmeticObjectCandidate(
           candidate.routeID);
   if (!descriptor)
     return descriptor.takeError();
+  if (llvm::Error error =
+          plugin::rvv::verifyRVVI32M1ArithmeticConstructionTargetRouteMapping(
+              (*descriptor)->objectArtifactRouteID,
+              (*descriptor)->headerArtifactRouteID,
+              (*descriptor)->objectTranslateRouteID,
+              (*descriptor)->headerTranslateRouteID,
+              (*descriptor)->callableComponentGroup,
+              plugin::rvv::getRVVI32M1ArithmeticRuntimeABIName(
+                  (*descriptor)->op)))
+    return error;
 
   if (candidate.runtimeABIKind !=
       plugin::rvv::getRVVI32M1ArithmeticRuntimeABIKind())
@@ -616,6 +627,17 @@ llvm::Error registerRVVI32M1ArithmeticObjectExporters(
 
   for (const RVVI32M1ArithmeticTargetRouteDescriptor &descriptor :
        kRVVI32M1ArithmeticTargetRoutes) {
+    if (llvm::Error error =
+            plugin::rvv::verifyRVVI32M1ArithmeticConstructionTargetRouteMapping(
+                descriptor.objectArtifactRouteID,
+                descriptor.headerArtifactRouteID,
+                descriptor.objectTranslateRouteID,
+                descriptor.headerTranslateRouteID,
+                descriptor.callableComponentGroup,
+                plugin::rvv::getRVVI32M1ArithmeticRuntimeABIName(
+                    descriptor.op)))
+      return error;
+
     if (!registry.lookup(descriptor.objectArtifactRouteID)) {
       if (llvm::Error error =
               registry.registerExporter(TargetArtifactExporter(

@@ -135,7 +135,10 @@ def TCRVRVV_I32M2VectorType : TCRVRVV_Type<"I32M2Vector", "i32m2"> {
   }];
 }
 
-def RuntimeABIValueOp : TCRVRVV_Op<"runtime_abi_value"> {
+def RuntimeABIValueOp : TCRVRVV_Op<"runtime_abi_value",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
   let summary = "bounded RVV runtime ABI value binding";
   let description = [{
     Binds one callable runtime ABI value into explicit RVV extension-family IR

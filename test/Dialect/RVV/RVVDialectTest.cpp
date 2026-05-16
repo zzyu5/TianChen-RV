@@ -23,6 +23,7 @@ using tianchenrv::tcrv::rvv::I32LoadOp;
 using tianchenrv::tcrv::rvv::I32StoreOp;
 using tianchenrv::tcrv::rvv::MaskPolicy;
 using tianchenrv::tcrv::rvv::PolicyAttr;
+using tianchenrv::tcrv::rvv::RuntimeABIValueOp;
 using tianchenrv::tcrv::rvv::SetVLOp;
 using tianchenrv::tcrv::rvv::TCRVRVVDialect;
 using tianchenrv::tcrv::rvv::TailPolicy;
@@ -312,6 +313,7 @@ module {
   I32AddOp add;
   I32LoadOp load;
   I32StoreOp store;
+  RuntimeABIValueOp runtimeABIValue;
   SetVLOp setvl;
   WithVLOp withVL;
   module->walk([&](I32AddOp candidate) { add = candidate; });
@@ -320,6 +322,10 @@ module {
       load = candidate;
   });
   module->walk([&](I32StoreOp candidate) { store = candidate; });
+  module->walk([&](RuntimeABIValueOp candidate) {
+    if (!runtimeABIValue)
+      runtimeABIValue = candidate;
+  });
   module->walk([&](SetVLOp candidate) { setvl = candidate; });
   module->walk([&](WithVLOp candidate) { withVL = candidate; });
   if (int result =
@@ -336,6 +342,12 @@ module {
     return result;
   if (int result = expect(static_cast<bool>(store),
                           "module contains tcrv_rvv.i32_store"))
+    return result;
+  if (int result = expect(static_cast<bool>(runtimeABIValue),
+                          "module contains tcrv_rvv.runtime_abi_value"))
+    return result;
+  if (int result = expectEmitCLowerableRole(runtimeABIValue.getOperation(),
+                                            "runtime_abi"))
     return result;
   if (int result = expectEmitCLowerableRole(setvl.getOperation(), "configure"))
     return result;

@@ -8,6 +8,7 @@ add_mlir_library(TianChenRVRVVEmitCRouteProvider
   TianChenRVConversionEmitC
   TianChenRVExecDialect
   TianChenRVPlugin
+  TianChenRVRVVConstructionProtocol
   TianChenRVRVVDialect
   TianChenRVSupport
   MLIRIR

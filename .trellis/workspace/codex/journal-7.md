@@ -162,6 +162,61 @@ route.
 - None - task complete
 
 
+## Session 93: RVV executable construction protocol realization
+
+**Date**: 2026-05-16
+**Task**: `05-16-rvv-executable-construction-protocol`
+**Branch**: `main`
+
+### Summary
+
+Made the existing RVV i32m1 add/sub/mul executable path consume a plugin-local
+Extension-Family Construction Protocol surface. The construction declaration
+now covers the RVV family, role/interface realization, add/sub/mul route ids,
+target artifact ids, runtime ABI fields, and evidence profile.
+
+### Main Changes
+
+- Added `RVVConstructionProtocol` as an RVV plugin-local C++ construction
+  manifest and typed role graph using the shared construction verifier.
+- Added construction route mappings for i32m1 add/sub/mul EmitC routes,
+  object/header routes, translate routes, callable bundle groups, and runtime
+  ABI names.
+- Rewired RVV route construction to validate runtime ABI bindings and
+  setvl/with_vl/load/compute/store provenance against construction typed roles.
+- Rewired RVV emission readiness/planning and RVV target artifact validation to
+  check route/artifact/runtime ABI fields against the construction mapping.
+- Added focused C++ coverage for valid RVV manifest/typed roles, fail-closed
+  stale family fields, missing evidence profile, missing typed role, stale
+  route/op mapping, stale plan artifact route, and missing runtime ABI
+  parameter.
+
+### Testing
+
+- [OK] `cmake --build build --target TianChenRVRVVConstructionProtocol TianChenRVRVVEmitCRouteProvider TianChenRVRVVPlugin TianChenRVRVVTarget tianchenrv-construction-protocol-common-test tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-dialect-test -j2`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-rvv-dialect-test`
+- [OK] focused lit filter for `rvv-with-vl-selected-boundary`,
+  `rvv-first-slice-materialization`, and add/sub/mul selected artifact tests
+  (11/11)
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (92/92)
+- [OK] `git diff --check`
+- [OK] Changed-surface scans: no common/core production file changed; new
+  construction files contain no descriptor/direct-C/source-export terms; RVV
+  intrinsic/header names remain only in RVV-owned provider code.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 
 ## Session 76: Delete support-layer I32 RVV runtime ABI residue
 

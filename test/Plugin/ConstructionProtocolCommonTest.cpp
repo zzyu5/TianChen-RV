@@ -1,8 +1,10 @@
 #include "TianChenRV/Plugin/ConstructionProtocol.h"
+#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
@@ -27,6 +29,9 @@ static_assert(
             TensorExtLiteConstructionManifest,
         Manifest>::value,
     "TensorExtLite manifest must use the common construction model");
+static_assert(std::is_same<tianchenrv::plugin::rvv::RVVConstructionManifest,
+                           Manifest>::value,
+              "RVV manifest must use the common construction model");
 
 static_assert(
     std::is_same<
@@ -43,6 +48,10 @@ static_assert(
             TensorExtLiteTypedRoleGraphRealization,
         TypedRoleGraphRealization>::value,
     "TensorExtLite typed roles must use the common construction model");
+static_assert(
+    std::is_same<tianchenrv::plugin::rvv::RVVTypedRoleGraphRealization,
+                 TypedRoleGraphRealization>::value,
+    "RVV typed roles must use the common construction model");
 
 namespace {
 
@@ -117,6 +126,114 @@ int runTensorExtLiteCommonValidationTest() {
       "TensorExtLite typed roles validate through the shared construction model");
 }
 
+int runRVVCommonValidationTest() {
+  namespace rvv = tianchenrv::plugin::rvv;
+  const auto &manifest = rvv::getRVVConstructionManifest();
+  const auto &realization = rvv::getRVVTypedRoleGraphRealization();
+
+  if (int result = expectSuccess(
+          rvv::verifyRVVConstructionManifest(manifest),
+          "RVV manifest validates through the shared construction model"))
+    return result;
+  if (int result =
+          expectSuccess(rvv::verifyRVVTypedRoleGraphRealization(manifest,
+                                                                realization),
+                        "RVV typed roles validate through the shared "
+                        "construction model"))
+    return result;
+  if (int result = expectSuccess(
+          rvv::verifyRVVConstructionProtocolReady(),
+          "RVV construction protocol ready check validates manifest, typed "
+          "roles, route mapping, and ABI parameters"))
+    return result;
+
+  for (const auto &route : rvv::getRVVI32M1ArithmeticConstructionRoutes()) {
+    if (int result = expectSuccess(
+            rvv::verifyRVVI32M1ArithmeticConstructionRouteMapping(
+                route.mnemonic, route.operationName, route.emitCRouteID,
+                route.objectArtifactRouteID, route.headerArtifactRouteID,
+                route.runtimeABIName),
+            "RVV arithmetic construction route validates"))
+      return result;
+  }
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
+      rvv::getRVVI32M1ArithmeticConstructionRuntimeABIParameters();
+  return expectSuccess(
+      rvv::verifyRVVI32M1ArithmeticConstructionRuntimeABIParameters(
+          parameters),
+      "RVV construction runtime ABI parameters validate");
+}
+
+int runRVVFailClosedConstructionValidationTest() {
+  namespace rvv = tianchenrv::plugin::rvv;
+  namespace construction = tianchenrv::plugin::construction;
+
+  Manifest staleFamily = rvv::getRVVConstructionManifest();
+  construction::FamilyDeclaration staleFamilyFields = staleFamily.family;
+  staleFamilyFields.pluginName = "stale-rvv-plugin";
+  staleFamily.family = staleFamilyFields;
+  if (int result = expectErrorContains(
+          rvv::verifyRVVConstructionManifest(staleFamily),
+          {"family declaration", "RVV extension family"},
+          "RVV construction rejects stale family declaration"))
+    return result;
+
+  Manifest missingEvidence = rvv::getRVVConstructionManifest();
+  missingEvidence.evidenceProfile =
+      "parse_verify|capability|interface|selected_boundary_or_route|"
+      "emitc_route_mapping|target_artifact_route";
+  if (int result = expectErrorContains(
+          rvv::verifyRVVConstructionManifest(missingEvidence),
+          {"evidence profile missing",
+           "ssh_rvv_required_for_runtime_claims"},
+          "RVV construction rejects missing evidence profile requirement"))
+    return result;
+
+  TypedRoleGraphRealization missingTypedRole =
+      rvv::getRVVTypedRoleGraphRealization();
+  llvm::SmallVector<construction::TypedRoleInterfaceRealization, 6> roles(
+      missingTypedRole.roles.begin(), missingTypedRole.roles.end() - 1);
+  missingTypedRole.roles = roles;
+  if (int result = expectErrorContains(
+          rvv::verifyRVVTypedRoleGraphRealization(
+              rvv::getRVVConstructionManifest(), missingTypedRole),
+          {"typed role realization requires exactly one role object per "
+           "semantic role"},
+          "RVV construction rejects missing typed role"))
+    return result;
+
+  const auto *addRoute =
+      *rvv::lookupRVVI32M1ArithmeticConstructionRouteByMnemonic("add");
+  if (int result = expectErrorContains(
+          rvv::verifyRVVI32M1ArithmeticConstructionRouteMapping(
+              "add", "tcrv_rvv.i32_sub", addRoute->emitCRouteID,
+              addRoute->objectArtifactRouteID,
+              addRoute->headerArtifactRouteID, addRoute->runtimeABIName),
+          {"arithmetic operation for route", "tcrv_rvv.i32_add"},
+          "RVV construction rejects stale route/op mapping"))
+    return result;
+
+  if (int result = expectErrorContains(
+          rvv::verifyRVVI32M1ArithmeticConstructionPlanMapping(
+              addRoute->emitCRouteID, "stale-object-route",
+              addRoute->runtimeABIName,
+              rvv::getRVVConstructionManifest().emitcRoute.emissionKind,
+              "tcrv_rvv.with_vl", "plugin-owned-runtime-abi",
+              "emitc-cpp-rvv-intrinsic-runtime-glue"),
+          {"emission plan object route", addRoute->objectArtifactRouteID},
+          "RVV construction rejects stale emission-plan artifact route"))
+    return result;
+
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
+      rvv::getRVVI32M1ArithmeticConstructionRuntimeABIParameters();
+  parameters.pop_back();
+  return expectErrorContains(
+      rvv::verifyRVVI32M1ArithmeticConstructionRuntimeABIParameters(
+          parameters),
+      {"ordered runtime ABI parameters", "lhs, rhs, out, n"},
+      "RVV construction rejects missing runtime ABI parameter");
+}
+
 std::string buildInterfaceSummary(const Manifest &manifest) {
   std::string summary;
   llvm::raw_string_ostream os(summary);
@@ -181,6 +298,10 @@ int main() {
   if (int result = runToyCommonValidationTest())
     return result;
   if (int result = runTensorExtLiteCommonValidationTest())
+    return result;
+  if (int result = runRVVCommonValidationTest())
+    return result;
+  if (int result = runRVVFailClosedConstructionValidationTest())
     return result;
   if (int result = runUnsupportedArtifactKindConstructionTest())
     return result;

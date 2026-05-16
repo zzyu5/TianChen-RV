@@ -194,6 +194,7 @@ add_executable(tianchenrv-construction-protocol-common-test
 target_link_libraries(tianchenrv-construction-protocol-common-test
   PRIVATE
   TianChenRVPluginConstructionProtocol
+  TianChenRVRVVConstructionProtocol
   TianChenRVTemplatePlugin
   TianChenRVTensorExtLitePlugin
   TianChenRVToyPlugin

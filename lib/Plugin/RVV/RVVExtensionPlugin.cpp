@@ -4,6 +4,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
+#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -318,10 +319,20 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
       symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(route.getRouteID());
   if (!arithmeticOp)
     return arithmeticOp.takeError();
+  llvm::StringRef objectRouteID =
+      target::rvv::getRVVI32M1ArithmeticObjectArtifactRouteID(*arithmeticOp);
+  if (llvm::Error error = verifyRVVI32M1ArithmeticConstructionPlanMapping(
+          route.getRouteID(), objectRouteID,
+          getRVVI32M1ArithmeticRuntimeABIName(*arithmeticOp),
+          getRVVI32M1ArithmeticEmissionKind(),
+          getRVVI32M1ArithmeticLoweringBoundaryOpName(),
+          getRVVI32M1ArithmeticRuntimeABIKind(),
+          getRVVI32M1ArithmeticRuntimeGlueRole()))
+    return error;
 
   out = VariantEmissionStatus::getSupported(
       kRVVPluginName, request.getVariant().getSymName(),
-      target::rvv::getRVVI32M1ArithmeticObjectArtifactRouteID(*arithmeticOp));
+      objectRouteID);
   return llvm::Error::success();
 }
 
@@ -363,12 +374,22 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
       symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(route.getRouteID());
   if (!arithmeticOp)
     return arithmeticOp.takeError();
+  llvm::StringRef objectRouteID =
+      target::rvv::getRVVI32M1ArithmeticObjectArtifactRouteID(*arithmeticOp);
+  if (llvm::Error error = verifyRVVI32M1ArithmeticConstructionPlanMapping(
+          route.getRouteID(), objectRouteID,
+          getRVVI32M1ArithmeticRuntimeABIName(*arithmeticOp),
+          getRVVI32M1ArithmeticEmissionKind(),
+          getRVVI32M1ArithmeticLoweringBoundaryOpName(),
+          getRVVI32M1ArithmeticRuntimeABIKind(),
+          getRVVI32M1ArithmeticRuntimeGlueRole()))
+    return error;
 
   out = VariantEmissionPlan::getSupported(
       kRVVPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
       getRVVI32M1ArithmeticEmissionKind(),
-      target::rvv::getRVVI32M1ArithmeticObjectArtifactRouteID(*arithmeticOp),
+      objectRouteID,
       getRVVI32M1ArithmeticRuntimeABIName(*arithmeticOp),
       "riscv-elf-relocatable-object",
       (llvm::Twine("RVV explicit i32m1 ") +

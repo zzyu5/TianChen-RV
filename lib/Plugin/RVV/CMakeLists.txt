@@ -1,3 +1,4 @@
+add_subdirectory(Construction)
 add_subdirectory(EmitC)
 
 add_mlir_library(TianChenRVRVVPlugin
@@ -8,6 +9,7 @@ add_mlir_library(TianChenRVRVVPlugin
   TianChenRVPassesIncGen
 
   LINK_LIBS PUBLIC
+  TianChenRVRVVConstructionProtocol
   TianChenRVRVVEmitCRouteProvider
   TianChenRVRVVDialect
   TianChenRVPlugin

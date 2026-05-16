@@ -2,6 +2,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
+#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
@@ -28,6 +29,7 @@ using tianchenrv::plugin::PluginCapability;
 using tianchenrv::plugin::VariantEmissionPlan;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
+using tianchenrv::plugin::VariantEmissionStatus;
 using tianchenrv::plugin::VariantLegalityRequest;
 using tianchenrv::plugin::VariantLoweringBoundaryRequest;
 using tianchenrv::plugin::VariantLoweringBoundaryResult;
@@ -514,6 +516,61 @@ module {
                     VariantEmissionRole::DirectVariant, withVL)),
             llvm::Twine("validate with_vl selected boundary for @") +
                 variantName))
+      return result;
+
+    VariantEmissionPlan plan;
+    if (int result = expectSuccess(
+            registry.buildVariantEmissionPlan(
+                VariantEmissionRequest(variant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant),
+                plan),
+            llvm::Twine("build construction-checked emission plan for @") +
+                variantName))
+      return result;
+    if (int result =
+            expect(plan.isSupported(),
+                   llvm::Twine("RVV emission plan is supported for @") +
+                       variantName))
+      return result;
+    llvm::Expected<
+        const tianchenrv::plugin::rvv::RVVI32M1ArithmeticConstructionRoute *>
+        constructionRoute =
+            tianchenrv::plugin::rvv::
+                lookupRVVI32M1ArithmeticConstructionRouteByObjectArtifactRouteID(
+                    plan.getLoweringPipeline());
+    if (!constructionRoute)
+      return fail(llvm::Twine("RVV emission plan route is not construction "
+                              "mapped: ") +
+                  llvm::toString(constructionRoute.takeError()));
+    if (int result = expectSuccess(
+            tianchenrv::plugin::rvv::
+                verifyRVVI32M1ArithmeticConstructionPlanMapping(
+                    (*constructionRoute)->emitCRouteID,
+                    plan.getLoweringPipeline(), plan.getRuntimeABIName(),
+                    plan.getEmissionKind(), plan.getLoweringBoundaryOpName(),
+                    plan.getRuntimeABIKind(), plan.getRuntimeGlueRole()),
+            llvm::Twine("RVV emission plan consumes construction mapping for @") +
+                variantName))
+      return result;
+
+    VariantEmissionStatus readiness;
+    if (int result = expectSuccess(
+            registry.checkVariantEmissionReadiness(
+                VariantEmissionRequest(variant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant),
+                readiness),
+            llvm::Twine("check construction-backed emission readiness for @") +
+                variantName))
+      return result;
+    if (int result = expect(readiness.isSupported(),
+                            llvm::Twine("RVV readiness is supported for @") +
+                                variantName))
+      return result;
+    if (int result =
+            expect(readiness.getEmissionPath() == plan.getLoweringPipeline(),
+                   llvm::Twine("RVV readiness path matches construction-"
+                               "checked emission plan for @") +
+                       variantName))
       return result;
   }
 

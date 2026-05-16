@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR architectural invariants and source-of-truth rules."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Construction protocol checklist and plugin/core boundary rules."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Extension manifest as machine-readable construction entry point and unified plugin integration flow."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Construction protocol manifest, typed role realization, EmitC mapping, and evidence profile contracts."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV i32m1 with_vl boundary, config/VL contract, and bounded EmitC route ownership."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC lowerable interface and selected emission-plan to target artifact handoff contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/FileCheck evidence expectations for RVV plugin and target artifact behavior."}
