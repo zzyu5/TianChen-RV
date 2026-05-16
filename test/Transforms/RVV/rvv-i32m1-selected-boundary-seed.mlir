@@ -69,7 +69,17 @@ module {
 
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: artifact_metadata = [{key = "rvv_emitc_lowerable_route", value = "rvv-i32m1-add-emitc-route"}, {key = "rvv_arithmetic_op", value = "add"}]
+// PLAN-SAME: artifact_metadata = [{key = "rvv_emitc_lowerable_route", value = "rvv-i32m1-add-emitc-route"}
+// PLAN-SAME: {key = "rvv_arithmetic_op", value = "add"}
+// PLAN-SAME: {key = "tcrv_rvv.config_contract", value = "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_vl_contract", value = "rvv-runtime-avl-n-setvl-with-vl-same-vl.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_avl_source", value = "runtime_abi:n"}
+// PLAN-SAME: {key = "tcrv_rvv.vl_def", value = "tcrv_rvv.setvl"}
+// PLAN-SAME: {key = "tcrv_rvv.vl_scope", value = "tcrv_rvv.with_vl"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,out,n"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_avl_abi_parameter", value = "n"}
+// PLAN-SAME: {key = "tcrv_rvv.bounded_slice", value = "one-vl-i32m1-arithmetic"}
+// PLAN-SAME: {key = "tcrv_rvv.multi_vl", value = "unsupported"}]
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: lowering_boundary = "tcrv_rvv.with_vl"
 // PLAN-SAME: lowering_pipeline = "rvv-i32m1-arithmetic-emitc-route-family"

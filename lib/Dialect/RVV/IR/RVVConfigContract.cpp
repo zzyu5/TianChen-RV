@@ -17,6 +17,9 @@ constexpr llvm::StringLiteral kRVVI32M1ConfigContract(
     "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1");
 constexpr llvm::StringLiteral kRVVI32M1RuntimeVLContract(
     "rvv-runtime-avl-n-setvl-with-vl-same-vl.v1");
+constexpr llvm::StringLiteral kRVVI32M1BoundedSlice(
+    "one-vl-i32m1-arithmetic");
+constexpr llvm::StringLiteral kRVVI32M1MultiVLSupport("unsupported");
 
 std::string toString(llvm::Twine message) {
   std::string storage;
@@ -158,6 +161,9 @@ getRVVI32M1ArithmeticArtifactMetadata() {
       {"tcrv_rvv.vl_uses",
        "with_vl,i32_load,i32_load,i32_arithmetic,i32_store"},
       {"tcrv_rvv.runtime_abi_order", "lhs,rhs,out,n"},
+      {"tcrv_rvv.runtime_avl_abi_parameter", "n"},
+      {"tcrv_rvv.bounded_slice", kRVVI32M1BoundedSlice},
+      {"tcrv_rvv.multi_vl", kRVVI32M1MultiVLSupport},
   };
   return kMetadata;
 }

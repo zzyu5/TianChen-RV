@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "verify implementation stayed in the C++/MLIR/LLVM stack and did not reintroduce deleted architecture"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify bounded RVV i32m1 runtime AVL/VL route semantics and non-goals"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify selected candidate, materialized EmitC, header, and bundle coherence"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify runtime ABI layering, metadata preflight, and fail-closed behavior"}

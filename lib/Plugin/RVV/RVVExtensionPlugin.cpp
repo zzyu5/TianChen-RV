@@ -380,6 +380,9 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
   out.addArtifactMetadata("rvv_emitc_lowerable_route", route.getRouteID());
   out.addArtifactMetadata("rvv_arithmetic_op",
                           stringifyRVVI32M1ArithmeticOp(*arithmetic));
+  for (const support::ArtifactMetadataEntry &entry :
+       tcrv::rvv::getRVVI32M1ArithmeticArtifactMetadata())
+    out.addArtifactMetadata(entry.key, entry.value);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;

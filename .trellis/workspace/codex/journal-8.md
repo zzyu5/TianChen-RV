@@ -56,6 +56,72 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 98: RVV runtime AVL/VL ABI artifact closure
+
+**Date**: 2026-05-17
+**Task**: RVV runtime AVL/VL ABI artifact closure
+**Branch**: `main`
+
+### Summary
+
+Closed the runtime AVL/VL ABI metadata handoff for the existing bounded RVV
+i32m1 materialized EmitC artifact route. The selected emission plan, target
+candidate validation, declaration-only header, bundle index, and `ssh rvv`
+evidence now agree that ABI parameter `n` is runtime AVL, `tcrv_rvv.setvl`
+produces the VL consumed by `tcrv_rvv.with_vl`, and the current artifact is a
+one-VL i32m1 arithmetic slice with multi-VL support explicitly unsupported.
+
+### Main Changes
+
+- Added bounded-slice and multi-VL support metadata to the RVV i32m1 artifact
+  metadata contract.
+- Published the full RVV config/runtime AVL/VL contract from the supported RVV
+  emission-plan diagnostic.
+- Made RVV object/header/bundle candidate preflight reject missing or stale
+  runtime AVL/VL metadata and descriptor/hardcoded element-count residue.
+- Added runtime AVL/VL boundary comments to the generated declaration-only
+  header from the same selected candidate metadata.
+- Extended C++ and lit coverage for positive plan/header/bundle metadata and
+  fail-closed stale/missing metadata cases.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this-commit` | (see git log) |
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`.
+- [OK] Focused C++:
+  `./build/bin/tianchenrv-target-artifact-export-test`.
+- [OK] Focused lit filter:
+  `rvv-i32m1-selected-boundary-seed|source-seed-target-artifact-header|source-seed-target-artifact-object|rvv-first-slice-vl-contract-negative|rvv-first-slice-config-vl-contract-negative|rvv-first-slice-materialization-missing-abi|rvv-first-slice-materialization-negative`,
+  8/8 selected tests passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`, 106/106 lit
+  tests passed.
+- [OK] `git diff --check`.
+- [OK] Artifact evidence under
+  `artifacts/tmp/rvv_runtime_avl_vl_abi_artifact_closure/20260516T192409Z`.
+  `llvm-readobj -h rvv_target_artifact.o` reports `Format:
+  elf64-littleriscv`, `Arch: riscv64`, and `Type: Relocatable`.
+- [OK] Real `ssh rvv` header/object compile-run:
+  `tcrv_rvv_runtime_avl_vl_header_bundle status=PASS runtime_avl_values=2,4 bounded_slice=one-vl-i32m1-arithmetic`.
+- [OK] Targeted scans found no restored descriptor route authority, direct-C
+  semantic exporter, source-export route, old RVV i32m1 route ids, or
+  descriptor-local/hardcoded artifact element-count metadata in touched
+  surfaces; matches were only negative guard text.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 97: RVV materialized EmitC header and bundle ABI packaging bridge
 
 **Date**: 2026-05-17

@@ -1,6 +1,7 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
@@ -249,6 +250,38 @@ bool expectErrorContains(llvm::Error error, llvm::StringRef context,
   return true;
 }
 
+void appendRVVRuntimeAVLVLArtifactMetadata(TargetArtifactCandidate &candidate) {
+  for (const tianchenrv::support::ArtifactMetadataEntry &entry :
+       tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticArtifactMetadata())
+    candidate.artifactMetadata.push_back(entry);
+}
+
+bool eraseArtifactMetadataKey(TargetArtifactCandidate &candidate,
+                              llvm::StringRef key) {
+  auto *it = llvm::find_if(
+      candidate.artifactMetadata,
+      [&](const tianchenrv::support::ArtifactMetadataEntry &entry) {
+        return entry.key == key;
+      });
+  if (it == candidate.artifactMetadata.end())
+    return false;
+  candidate.artifactMetadata.erase(it);
+  return true;
+}
+
+bool rewriteArtifactMetadataValue(TargetArtifactCandidate &candidate,
+                                  llvm::StringRef key,
+                                  llvm::StringRef value) {
+  for (tianchenrv::support::ArtifactMetadataEntry &entry :
+       candidate.artifactMetadata) {
+    if (entry.key == key) {
+      entry.value = value.str();
+      return true;
+    }
+  }
+  return false;
+}
+
 bool expectRuntimeABIParametersEqual(
     llvm::ArrayRef<RuntimeABIParameter> actual,
     llvm::ArrayRef<RuntimeABIParameter> expected, llvm::StringRef context) {
@@ -388,6 +421,11 @@ TargetArtifactCandidate makeValidRVVTargetArtifactCandidate() {
       "rvv_emitc_lowerable_route",
       tianchenrv::plugin::rvv::getRVVI32M1ArithmeticEmitCRouteID(
           tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Add)));
+  candidate.artifactMetadata.push_back(tianchenrv::support::ArtifactMetadataEntry(
+      "rvv_arithmetic_op",
+      tianchenrv::plugin::rvv::stringifyRVVI32M1ArithmeticOp(
+          tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Add)));
+  appendRVVRuntimeAVLVLArtifactMetadata(candidate);
   return candidate;
 }
 
@@ -443,6 +481,54 @@ bool expectRVVTargetArtifactExporterShape(
                            "RVV artifact rejects stale runtime ABI",
                            {"runtime ABI name",
                             "rvv-i32m1-add-callable-c-abi.v1"}))
+    return false;
+
+  TargetArtifactCandidate missingAVLVLMetadata = candidate;
+  if (!eraseArtifactMetadataKey(missingAVLVLMetadata,
+                                "tcrv_rvv.runtime_avl_source")) {
+    llvm::errs() << "test fixture did not contain runtime AVL metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               missingAVLVLMetadata, *exporter),
+                           "RVV artifact rejects missing runtime AVL metadata",
+                           {"config/runtime-VL artifact metadata"}))
+    return false;
+
+  TargetArtifactCandidate staleABIOrder = candidate;
+  if (!rewriteArtifactMetadataValue(staleABIOrder,
+                                    "tcrv_rvv.runtime_abi_order",
+                                    "lhs,rhs,n,out")) {
+    llvm::errs() << "test fixture did not contain runtime ABI order metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               staleABIOrder, *exporter),
+                           "RVV artifact rejects stale runtime ABI order",
+                           {"runtime_abi_order", "lhs,rhs,out,n"}))
+    return false;
+
+  TargetArtifactCandidate staleVLMetadata = candidate;
+  if (!rewriteArtifactMetadataValue(staleVLMetadata, "tcrv_rvv.vl_scope",
+                                    "descriptor.local_vl")) {
+    llvm::errs() << "test fixture did not contain VL scope metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               staleVLMetadata, *exporter),
+                           "RVV artifact rejects stale VL scope metadata",
+                           {"vl_scope", "tcrv_rvv.with_vl"}))
+    return false;
+
+  TargetArtifactCandidate descriptorElementCount = candidate;
+  descriptorElementCount.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry("tcrv_rvv.element_count",
+                                                 "4"));
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               descriptorElementCount, *exporter),
+                           "RVV artifact rejects descriptor element count "
+                           "metadata",
+                           {"descriptor-local or hardcoded element-count"}))
     return false;
 
   return true;
@@ -528,6 +614,19 @@ bool expectRVVTargetHeaderCompositeShape(
           exporter->getCandidateValidationFn()(missingRouteMetadata),
           "RVV header composite rejects missing EmitC provenance",
           {"rvv_emitc_lowerable_route"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> missingAVLVLMetadata(
+      candidates);
+  if (!eraseArtifactMetadataKey(missingAVLVLMetadata.front(),
+                                "tcrv_rvv.vl_def")) {
+    llvm::errs() << "test fixture did not contain VL def metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          exporter->getCandidateValidationFn()(missingAVLVLMetadata),
+          "RVV header composite rejects missing runtime AVL/VL metadata",
+          {"config/runtime-VL artifact metadata"}))
     return false;
 
   llvm::SmallVector<TargetArtifactCandidate, 2> ambiguous(candidates);

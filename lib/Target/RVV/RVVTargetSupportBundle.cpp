@@ -1,5 +1,6 @@
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 
+#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -69,17 +70,69 @@ llvm::Error requireCandidateField(llvm::StringRef fieldName,
 llvm::Expected<plugin::rvv::RVVI32M1ArithmeticOp>
 getCandidateArithmeticOp(const TargetArtifactCandidate &candidate) {
   llvm::StringRef routeID;
+  llvm::StringRef arithmeticOp;
   for (const support::ArtifactMetadataEntry &entry :
        candidate.artifactMetadata) {
-    if (entry.key == "rvv_emitc_lowerable_route") {
+    if (entry.key == "rvv_emitc_lowerable_route")
       routeID = entry.value;
-      break;
-    }
+    if (entry.key == "rvv_arithmetic_op")
+      arithmeticOp = entry.value;
   }
   if (routeID.empty())
     return makeRVVTargetRouteError(
         "candidate metadata must carry rvv_emitc_lowerable_route provenance");
-  return plugin::rvv::symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(routeID);
+  llvm::Expected<plugin::rvv::RVVI32M1ArithmeticOp> op =
+      plugin::rvv::symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(routeID);
+  if (!op)
+    return op.takeError();
+  if (arithmeticOp.empty())
+    return makeRVVTargetRouteError(
+        "candidate metadata must carry rvv_arithmetic_op provenance");
+  if (arithmeticOp != plugin::rvv::stringifyRVVI32M1ArithmeticOp(*op))
+    return makeRVVTargetRouteError(
+        llvm::Twine("candidate rvv_arithmetic_op metadata must match route '") +
+        routeID + "'");
+  return *op;
+}
+
+llvm::Error rejectForbiddenRVVArtifactMetadata(
+    const TargetArtifactCandidate &candidate) {
+  for (const support::ArtifactMetadataEntry &entry :
+       candidate.artifactMetadata) {
+    llvm::StringRef key(entry.key);
+    std::string lowerKeyStorage = key.lower();
+    llvm::StringRef lowerKey(lowerKeyStorage);
+    if (lowerKey.contains("element_count") ||
+        lowerKey.contains("element-count") || lowerKey.contains("descriptor"))
+      return makeRVVTargetRouteError(
+          llvm::Twine("candidate artifact metadata key '") + key +
+          "' is descriptor-local or hardcoded element-count residue");
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVRuntimeAVLVLArtifactMetadata(
+    const TargetArtifactCandidate &candidate) {
+  if (llvm::Error error = rejectForbiddenRVVArtifactMetadata(candidate))
+    return error;
+
+  llvm::SmallVector<support::ArtifactMetadataEntry, 16> rvvMetadata;
+  for (const support::ArtifactMetadataEntry &entry :
+       candidate.artifactMetadata) {
+    if (llvm::StringRef(entry.key).starts_with("tcrv_rvv."))
+      rvvMetadata.push_back(entry);
+  }
+  return tcrv::rvv::verifyRVVI32M1ArithmeticArtifactMetadata(
+      rvvMetadata, "selected RVV materialized EmitC candidate");
+}
+
+llvm::StringRef lookupArtifactMetadataValue(
+    llvm::ArrayRef<support::ArtifactMetadataEntry> metadata,
+    llvm::StringRef key) {
+  for (const support::ArtifactMetadataEntry &entry : metadata)
+    if (entry.key == key)
+      return entry.value;
+  return {};
 }
 
 llvm::Error validateRVVI32M1ArithmeticTargetArtifactCandidate(
@@ -134,6 +187,8 @@ llvm::Error validateRVVI32M1ArithmeticTargetArtifactCandidate(
     return makeRVVTargetRouteError(
         "candidate runtime ABI parameters must be lhs, rhs, out, n with "
         "stable C types, roles, and target-export ownership");
+  if (llvm::Error error = validateRVVRuntimeAVLVLArtifactMetadata(candidate))
+    return error;
   return llvm::Error::success();
 }
 
@@ -288,7 +343,8 @@ std::string formatCParameter(const support::RuntimeABIParameter &parameter) {
 void printRVVMaterializedEmitCHeaderDeclaration(
     llvm::raw_ostream &os, llvm::StringRef functionName,
     llvm::StringRef objectRouteID, llvm::StringRef runtimeABIName,
-    llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters) {
+    llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
+    llvm::ArrayRef<support::ArtifactMetadataEntry> artifactMetadata) {
   os << "#ifndef TIANCHENRV_RVV_MATERIALIZED_EMITC_HEADER_H\n";
   os << "#define TIANCHENRV_RVV_MATERIALIZED_EMITC_HEADER_H\n";
   os << "\n";
@@ -299,6 +355,27 @@ void printRVVMaterializedEmitCHeaderDeclaration(
   os << "/* tianchenrv.rvv.selected_object_route: " << objectRouteID
      << " */\n";
   os << "/* tianchenrv.rvv.runtime_abi_name: " << runtimeABIName << " */\n";
+  os << "/* tianchenrv.rvv.runtime_avl_source: "
+     << lookupArtifactMetadataValue(artifactMetadata,
+                                    "tcrv_rvv.runtime_avl_source")
+     << " */\n";
+  os << "/* tianchenrv.rvv.runtime_avl_abi_parameter: "
+     << lookupArtifactMetadataValue(artifactMetadata,
+                                    "tcrv_rvv.runtime_avl_abi_parameter")
+     << " */\n";
+  os << "/* tianchenrv.rvv.vl_def: "
+     << lookupArtifactMetadataValue(artifactMetadata, "tcrv_rvv.vl_def")
+     << " */\n";
+  os << "/* tianchenrv.rvv.vl_scope: "
+     << lookupArtifactMetadataValue(artifactMetadata, "tcrv_rvv.vl_scope")
+     << " */\n";
+  os << "/* tianchenrv.rvv.bounded_slice: "
+     << lookupArtifactMetadataValue(artifactMetadata,
+                                    "tcrv_rvv.bounded_slice")
+     << " */\n";
+  os << "/* tianchenrv.rvv.multi_vl: "
+     << lookupArtifactMetadataValue(artifactMetadata, "tcrv_rvv.multi_vl")
+     << " */\n";
   os << "\n";
   os << "void " << functionName << "(";
   for (auto [index, parameter] : llvm::enumerate(runtimeABIParameters)) {
@@ -355,7 +432,8 @@ llvm::Error exportRVVI32M1ArithmeticHeaderArtifact(mlir::ModuleOp module,
 
   printRVVMaterializedEmitCHeaderDeclaration(
       os, *functionName, target->candidate.routeID,
-      target->candidate.runtimeABIName, runtimeABIParameters);
+      target->candidate.runtimeABIName, runtimeABIParameters,
+      target->candidate.artifactMetadata);
   return llvm::Error::success();
 }
 
