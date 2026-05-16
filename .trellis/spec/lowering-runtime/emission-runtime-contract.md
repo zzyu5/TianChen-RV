@@ -402,8 +402,11 @@ emission, or target artifact route.
   in-memory EmitC route identity, but their artifact kind must be an
   unsupported diagnostic, not a supported artifact.
 - TensorExtLite may materialize an in-memory EmitC route through the common
-  `TCRVEmitCLowerableRoute` materializer. Its emission plan remains an
-  unsupported diagnostic until a real target artifact route is rebuilt.
+  `TCRVEmitCLowerableRoute` materializer. Once its first-slice target route is
+  rebuilt, the only supported TensorExtLite target artifact kind is the
+  materialized-EmitC-derived declaration header. TensorExtLite object, bundle,
+  runtime execution, correctness, and performance claims remain unsupported
+  until separately rebuilt and evidenced.
 - Unsupported emission-plan diagnostics still carry bounded unsupported runtime
   ABI ownership metadata: `unsupported-plugin-runtime-abi`,
   `unsupported-emission-runtime-abi`, and `no-runtime-glue-unsupported`.
@@ -419,15 +422,20 @@ emission, or target artifact route.
 - Selected supported emission-plan diagnostic carries `metadata-diagnostic` ->
   target artifact export rejects unsupported `artifact_kind`.
 - Unsupported TensorExtLite plan is followed by selected-plan-driven EmitC route
-  materialization -> fail closed because there is no supported selected
-  emission-plan diagnostic.
+  materialization -> fail closed because unsupported diagnostics are not target
+  artifact candidates.
+- Supported TensorExtLite plan uses any artifact kind other than the rebuilt
+  materialized-EmitC-derived header -> fail closed before target artifact
+  output.
 
 #### 5. Good/Base/Bad Cases
 
 - Good: RVV rebuilt materialized EmitC object/header bundle exports use object
   and header artifact kinds only.
-- Base: Toy and TensorExtLite route materializers can still prove in-memory
-  EmitC materialization without publishing target artifact authority.
+- Base: Toy route materializers can still prove in-memory EmitC
+  materialization without publishing target artifact authority. TensorExtLite
+  may publish only its rebuilt materialized-EmitC-derived declaration header
+  route; all object/runtime claims remain absent.
 - Bad: Toy, TensorExtLite, Offload, Template, or test-local routes publish
   `metadata-diagnostic` as a supported artifact, exporter, bundle component, or
   manifest equality authority.

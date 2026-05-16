@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture boundary and source-of-truth rules"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission plan and target artifact export contracts for materialized EmitC routes"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Selected emission-plan to target artifact handoff and TensorExtLite base case"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Route-order precedent only; do not copy RVV-specific route logic"}
+{"file": ".trellis/tasks/archive/2026-05/05-17-metadata-diagnostic-artifact-kind-authority-erasure/prd.md", "reason": "Previous deletion boundary and metadata-diagnostic non-resurrection constraints"}

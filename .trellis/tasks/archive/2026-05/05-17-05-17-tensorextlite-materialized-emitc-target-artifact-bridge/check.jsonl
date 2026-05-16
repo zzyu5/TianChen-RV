@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariant checklist for review"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Review supported emission-plan and artifact-kind boundaries"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Review common selected EmitC handoff, provenance, and negative cases"}
+{"file": ".trellis/tasks/archive/2026-05/05-17-metadata-diagnostic-artifact-kind-authority-erasure/prd.md", "reason": "Check that deleted metadata diagnostic authority remains deleted"}

@@ -56,6 +56,65 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 99: TensorExtLite materialized EmitC target artifact bridge
+
+**Date**: 2026-05-17
+**Task**: TensorExtLite materialized EmitC target artifact bridge
+**Branch**: `main`
+
+### Summary
+
+Rebuilt the TensorExtLite first-slice selected target artifact bridge as a
+materialized-EmitC-derived declaration header route. The route now goes from
+explicit TensorExtLite role ops through the plugin-owned common EmitC lowerable
+route and the common selected EmitC artifact front door, without restoring
+metadata diagnostic, descriptor, source-export, or object/runtime authority.
+
+### Main Changes
+
+- Changed TensorExtLite construction/emission artifact kind to
+  `runtime-callable-c-header` for the bounded first-slice route.
+- Made TensorExtLite emission planning produce a supported selected header
+  artifact candidate with route ID, emission kind, runtime ABI ownership,
+  lowering-boundary metadata, required capabilities, and EmitC route/role
+  provenance.
+- Added a TensorExtLite target support bundle that registers a standalone
+  header exporter through the built-in extension bundle registry.
+- Implemented the TensorExtLite header exporter through the common selected
+  EmitC artifact front door, then prints only a declaration header and bounded
+  provenance comments.
+- Updated C++ and lit coverage for positive header export, default object
+  fail-closed behavior, missing route provenance, stale descriptor-like
+  metadata, and metadata-diagnostic rejection.
+- Updated lowering-runtime specs to record that TensorExtLite now has exactly
+  one materialized-EmitC-derived header route, while object/runtime evidence
+  remains future rebuild work.
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-17-05-17-tensorextlite-materialized-emitc-target-artifact-bridge`
+- [OK] `cmake --build build --target tianchenrv-tensorext-lite-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused TensorExtLite lit filter:
+  `tensorext-lite-(first-slice-materialization|target-artifact-(unsupported|header))`,
+  5/5 passed.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 100/100 lit
+  tests passed.
+- [OK] Targeted scans over touched plugin/target/test/spec surfaces found no
+  production resurrection of `metadata-diagnostic`, descriptor/direct-C/
+  source-export authority, or RVV route leakage.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 99: Metadata-diagnostic artifact-kind authority erasure
 
 **Date**: 2026-05-17

@@ -7,6 +7,7 @@
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
+#include "TianChenRV/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "llvm/ADT/Twine.h"
@@ -96,6 +97,10 @@ llvm::Error registerTensorExtLiteExtensionBundle(
       plugin::tensorext_lite::getTensorExtLiteExtensionPluginName(),
       plugin::registerTensorExtLiteExtensionPlugin);
   bundle.addRequiredDialectName("tcrv_tensorext_lite");
+  if (llvm::Error error =
+          tensorext_lite::configureTensorExtLiteTargetSupportExtensionBundle(
+              bundle))
+    return error;
   return registry.registerBundle(bundle);
 }
 

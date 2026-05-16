@@ -69,6 +69,10 @@ constexpr llvm::StringLiteral kSelectedPlanCapabilityIDName(
 constexpr llvm::StringLiteral kSelectedPlanFragmentABIName(
     "tensorext_lite_tile_mma_abi");
 constexpr llvm::StringLiteral kSelectedPlanScopeName("tensorext_lite_tile_mma_scope");
+constexpr llvm::StringLiteral kTensorExtLiteRouteArtifactMetadataKey(
+    "tensorext_lite_emitc_lowerable_route");
+constexpr llvm::StringLiteral kTensorExtLiteRoleSequenceArtifactMetadataKey(
+    "tensorext_lite_role_sequence");
 
 struct TensorExtLiteFragmentCapabilityView {
   std::string fragmentABI;
@@ -659,12 +663,28 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
               routeRequest, route))
     return error;
 
-  out = VariantEmissionPlan::getUnsupported(
+  const tensorext_lite::TensorExtLiteConstructionManifest &manifest =
+      tensorext_lite::getTensorExtLiteConstructionManifest();
+  const tensorext_lite::TensorExtLiteFragmentMmaEmitCConstructionRoute
+      &constructionRoute =
+          tensorext_lite::getTensorExtLiteFragmentMmaEmitCConstructionRoute();
+
+  out = VariantEmissionPlan::getSupported(
       kTensorExtLitePluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
+      constructionRoute.emissionKind, constructionRoute.routeID,
+      constructionRoute.runtimeABI, constructionRoute.artifactKind,
       "TensorExtLite selected explicit role sequence materializes an EmitC "
-      "module through the common TCRVEmitCLowerableRoute materializer; target "
-      "artifact export remains unsupported for this family slice");
+      "module through the common TCRVEmitCLowerableRoute materializer and "
+      "exports a declaration-only header artifact for the first slice");
+  out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
+  out.setRuntimeABIName(constructionRoute.runtimeABIName);
+  out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);
+  out.setLoweringBoundaryOpName(constructionRoute.loweringBoundaryOpName);
+  out.addArtifactMetadata(kTensorExtLiteRouteArtifactMetadataKey,
+                          route.getRouteID());
+  out.addArtifactMetadata(kTensorExtLiteRoleSequenceArtifactMetadataKey,
+                          manifest.semanticRoleGraph);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;

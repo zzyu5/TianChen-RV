@@ -280,11 +280,12 @@ applies to both direct selected-path diagnostics and selected
 - Base: TensorExtLite explicit typed bodies may materialize an ordered
   `configure -> load_frag -> tile_mma -> store_frag` role sequence through the
   common `TCRVEmitCLowerableRoute` materializer and produce an MLIR EmitC
-  module. This first slice is an EmitC route proof only: it may report an
-  unsupported emission-plan diagnostic until a target artifact route is rebuilt,
-  but it must not publish metadata-only artifact authority or imply
-  TensorExtLite object/header/bundle target artifact export, hardware
-  execution, correctness, or performance evidence.
+  module. The rebuilt first target artifact slice may publish exactly one
+  selected `runtime-callable-c-header` route derived from that materialized
+  EmitC handoff. This header route is declaration-only: it must not publish
+  metadata-only artifact authority, direct C/source-export bodies, TensorExtLite
+  object/bundle target artifact export, hardware execution, correctness, or
+  performance evidence.
 - Bad: two direct RVV variants exist and the exporter chooses whichever direct
   variant happens to be first or only after test reduction.
 
