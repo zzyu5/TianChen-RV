@@ -49,15 +49,6 @@ using tianchenrv::tcrv::exec::diagnostic::kRuntimeABIParametersAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kRuntimeGlueRoleAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kRequiredCapabilitiesAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kSelectedReasonValue;
-using tianchenrv::tcrv::exec::diagnostic::kSelectedPlanMetadataAttrName;
-using tianchenrv::tcrv::exec::diagnostic::
-    kSelectedPlanMetadataNameAttrName;
-using tianchenrv::tcrv::exec::diagnostic::
-    kSelectedPlanMetadataNoteAttrName;
-using tianchenrv::tcrv::exec::diagnostic::
-    kSelectedPlanMetadataRoleAttrName;
-using tianchenrv::tcrv::exec::diagnostic::
-    kSelectedPlanMetadataValueAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kSelectionKindAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kSeverityAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kStaticSelectionKindValue;
@@ -75,7 +66,6 @@ using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
 using tianchenrv::plugin::VariantEmissionStatus;
 using tianchenrv::plugin::VariantLoweringBoundaryValidationRequest;
-using tianchenrv::plugin::VariantSelectedPlanMetadata;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::DispatchCaseOp;
@@ -1008,36 +998,6 @@ void addRuntimeABIParametersAttribute(mlir::MLIRContext &context,
                      mlir::ArrayAttr::get(&context, entries));
 }
 
-void addSelectedPlanMetadataAttribute(mlir::MLIRContext &context,
-                                      mlir::OperationState &state,
-                                      const VariantEmissionPlan &plan) {
-  llvm::ArrayRef<VariantSelectedPlanMetadata> metadata =
-      plan.getSelectedPlanMetadata();
-  if (metadata.empty())
-    return;
-
-  llvm::SmallVector<mlir::Attribute, 4> entries;
-  for (const VariantSelectedPlanMetadata &entry : metadata) {
-    llvm::SmallVector<mlir::NamedAttribute, 4> fields;
-    fields.push_back(mlir::NamedAttribute(
-        mlir::StringAttr::get(&context, kSelectedPlanMetadataNameAttrName),
-        mlir::StringAttr::get(&context, entry.name)));
-    fields.push_back(mlir::NamedAttribute(
-        mlir::StringAttr::get(&context, kSelectedPlanMetadataValueAttrName),
-        mlir::StringAttr::get(&context, entry.value)));
-    fields.push_back(mlir::NamedAttribute(
-        mlir::StringAttr::get(&context, kSelectedPlanMetadataRoleAttrName),
-        mlir::StringAttr::get(&context, entry.role)));
-    fields.push_back(mlir::NamedAttribute(
-        mlir::StringAttr::get(&context, kSelectedPlanMetadataNoteAttrName),
-        mlir::StringAttr::get(&context, entry.note)));
-    entries.push_back(mlir::DictionaryAttr::get(&context, fields));
-  }
-
-  state.addAttribute(kSelectedPlanMetadataAttrName,
-                     mlir::ArrayAttr::get(&context, entries));
-}
-
 void materializeEmissionPlanDiagnostic(KernelOp kernel,
                                        const VariantEmissionPlan &plan,
                                        mlir::OpBuilder &builder) {
@@ -1075,7 +1035,6 @@ void materializeEmissionPlanDiagnostic(KernelOp kernel,
   addStringAttribute(context, state, kRuntimeABINameAttrName,
                      plan.getRuntimeABIName());
   addRuntimeABIParametersAttribute(context, state, plan);
-  addSelectedPlanMetadataAttribute(context, state, plan);
   addStringAttribute(context, state, kRuntimeGlueRoleAttrName,
                      plan.getRuntimeGlueRole());
   addRequiredCapabilityAttribute(context, state, plan);

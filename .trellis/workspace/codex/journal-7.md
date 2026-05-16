@@ -56,6 +56,64 @@ Deleted Support-owned I32/RVV runtime ABI contracts and helpers; rewired tests/s
 - None - task complete
 
 
+## Session 89: Selected-plan metadata channel erasure
+
+**Date**: 2026-05-16
+**Task**: Selected-plan metadata channel erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the generic `selected_plan_metadata` /
+`VariantSelectedPlanMetadata` conduit as active compiler state. Emission-plan
+diagnostics now keep typed generic fields and runtime ABI parameter metadata,
+without an arbitrary name/value/role/note selected-plan dictionary.
+
+### Main Changes
+
+- Removed `selected_plan_metadata` from `tcrv.exec.diagnostic` ODS and
+  diagnostic convention constants.
+- Removed `VariantSelectedPlanMetadata` storage, accessors, mutators, and
+  validation from `VariantEmissionPlan`.
+- Removed EmissionReadiness materialization of selected-plan metadata arrays.
+- Rewrote plugin tests to stop asserting the deleted channel is empty.
+- Updated lowering-runtime and plugin-protocol specs to require typed fields
+  and plugin-local typed role operations instead of arbitrary plan
+  dictionaries.
+- Created, validated, and prepared to archive the deletion-only Trellis task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(plugin): erase selected-plan metadata channel |
+
+### Testing
+
+- [OK] focused active-surface ref-scan for selected-plan metadata symbols over
+  `include`, `lib`, `test`, `.trellis/spec`, `README.md`, and `scripts`
+- [OK] `ninja -C build tcrv-opt TianChenRVPlugin TianChenRVTransforms tianchenrv-scalar-extension-plugin-test tianchenrv-template-extension-plugin-test tianchenrv-toy-extension-plugin-test tianchenrv-tensorext-lite-extension-plugin-test tianchenrv-offload-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-scalar-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-template-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-toy-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-offload-extension-plugin-test`
+- [OK] `ninja -C build tianchenrv-emission-readiness-test tianchenrv-plugin-emission-plan-test`
+- [OK] `build/bin/tianchenrv-emission-readiness-test`
+- [OK] `build/bin/tianchenrv-plugin-emission-plan-test`
+- [OK] `ninja -C build check-tianchenrv` (73/73 lit tests)
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-16-selected-plan-metadata-erasure`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 88: RVV finite vector-shape metadata erasure
 
 **Date**: 2026-05-16

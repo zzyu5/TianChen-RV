@@ -33,7 +33,6 @@ using tianchenrv::plugin::VariantEmissionStatus;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalDecline;
 using tianchenrv::plugin::VariantProposalRequest;
-using tianchenrv::plugin::VariantSelectedPlanMetadata;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DiagnosticOp;
@@ -163,32 +162,6 @@ int expectProposalStringAttr(const VariantProposal &proposal,
   return expect(attr.getValue() == expectedValue,
                 llvm::Twine("proposal string attribute ") + attrName +
                     " preserves expected value");
-}
-
-const VariantSelectedPlanMetadata *
-findEmissionPlanMetadata(const VariantEmissionPlan &plan,
-                         llvm::StringRef name) {
-  for (const VariantSelectedPlanMetadata &metadata :
-       plan.getSelectedPlanMetadata()) {
-    if (metadata.name == name)
-      return &metadata;
-  }
-  return nullptr;
-}
-
-int expectEmissionPlanMetadata(const VariantEmissionPlan &plan,
-                               llvm::StringRef name,
-                               llvm::StringRef expectedValue,
-                               llvm::StringRef expectedRole) {
-  const VariantSelectedPlanMetadata *metadata =
-      findEmissionPlanMetadata(plan, name);
-  if (int result =
-          expect(metadata, llvm::Twine("emission plan carries metadata ") + name))
-    return result;
-  return expect(metadata->value == expectedValue && metadata->role == expectedRole &&
-                    !metadata->note.empty(),
-                llvm::Twine("emission plan metadata ") + name +
-                    " preserves expected value and role");
 }
 
 int runConstructionManifestTest() {
@@ -894,7 +867,6 @@ module {
                          templateVariant.getSymName() &&
                      emissionPlan.getLoweringPipeline().empty() &&
                      emissionPlan.getArtifactKind().empty() &&
-                     emissionPlan.getSelectedPlanMetadata().empty() &&
                      emissionPlan.getDiagnostic().contains(
                          "no active materialized EmitC lowering") &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&

@@ -97,7 +97,6 @@ int expectScalarUnsupportedEmissionPlan(
                     emissionPlan.getDiagnostic().contains(
                         "no materialized extension-family body") &&
                     emissionPlan.getRuntimeABIParameters().empty() &&
-                    emissionPlan.getSelectedPlanMetadata().empty() &&
                     emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                     emissionPlan.getRequiredCapabilitySymbols().front() ==
                         "scalar_fallback" &&

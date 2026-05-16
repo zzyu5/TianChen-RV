@@ -388,8 +388,8 @@ route after direct C semantic exporter deletion.
 
 - The former i32-vadd default artifact route is deleted as active source
   authority. Generic target artifact candidate preflight must not accept
-  selected-boundary metadata, descriptor mirrors, or selected-plan metadata as
-  sufficient to emit RVV source/header/object artifacts.
+  selected-boundary metadata, descriptor mirrors, or arbitrary plan
+  dictionaries as sufficient to emit RVV source/header/object artifacts.
 - Descriptor-selected route fields such as frontend lowering or default
   typed-body materialization are fail-closed historical inputs until an
   explicit extension-family IR plus materialized MLIR EmitC module route
@@ -412,7 +412,7 @@ route after direct C semantic exporter deletion.
   `tcrv_rvv.*_microkernel` body or callable ABI.
 - Base: direct hand-authored RVV microkernel fixtures may remain parseable only
   for syntax or fail-closed negative coverage.
-- Bad: an emission plan with typed selected-plan metadata, route identity, or
+- Bad: an emission plan with arbitrary plan dictionaries, route identity, or
   descriptor mirrors emits RVV source/header/object artifacts.
 
 #### 6. Tests Required
@@ -1205,16 +1205,13 @@ lowering boundary was consumed, the diagnostic should also carry a generic
 `lowering_boundary` metadata field naming the boundary operation used by the
 plan. That field is a diagnostic link only and does not imply executable
 lowering.
-Plugins may additionally attach bounded `selected_plan_metadata` dictionaries
-to emission-plan diagnostics when the selected plan needs durable
-self-description across the lowering boundary. Each entry must have non-empty
-name, value, role, and note fields. The generic emission-planning layer may
-serialize these entries as diagnostic self-description, but target artifact
-export must not use plugin-specific names such as RVV capacity facts as route
-selection, route preflight, runtime ABI, shape, VL/AVL, or performance
-evidence. For RVV, any capacity metadata must already have been validated by
-the RVV plugin against the selected variant and target capabilities before it
-is serialized as diagnostic metadata.
+Plugins must not attach arbitrary name/value/role/note dictionaries to
+emission-plan diagnostics. Durable selected-path state must use typed
+compiler-visible fields such as selected variant, role, origin,
+lowering-boundary link, runtime ABI ownership, runtime ABI parameters, and
+required capabilities. Target artifact export must not recover route
+selection, route preflight, runtime ABI, shape, VL/AVL, or performance evidence
+from plugin-specific dictionary entries.
 
 The current public `tcrv-opt` built-in registry includes the RVV first-slice
 plugin. Therefore an `origin = "rvv-plugin"` selected path can route through
@@ -1854,10 +1851,9 @@ contract must also publish an ordered runtime ABI signature with
 `runtime_abi_parameter[index].c_name`, `.c_type`, `.role`, and `.ownership`.
 All source/header/object records in that external ABI group must agree on
 runtime ABI kind/name, external ABI name, component selected variants/roles,
-the full ordered runtime ABI signature, and any selected-plan metadata entries.
-Missing signatures, duplicate roles, mismatched name/type/ownership for the
-same role, reordered parameters, malformed selected-plan metadata, or
-mismatched selected-plan metadata fail closed before bundle export. Source,
+and the full ordered runtime ABI signature. Missing signatures, duplicate
+roles, mismatched name/type/ownership for the same role, reordered parameters,
+or malformed typed ABI records fail closed before bundle export. Source,
 header, and object routes must remain separate records. Composite dispatch
 records may be attached to the selected dispatch surface and must preserve the
 component selected variants/roles rather than moving RVV/scalar branch

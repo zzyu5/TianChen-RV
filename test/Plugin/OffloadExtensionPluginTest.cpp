@@ -593,7 +593,6 @@ module {
                      emissionPlan.getLoweringPipeline().empty() &&
                      emissionPlan.getArtifactKind().empty() &&
                      emissionPlan.getRuntimeABIParameters().empty() &&
-                     emissionPlan.getSelectedPlanMetadata().empty() &&
                      emissionPlan.getDiagnostic().contains(
                          "no active executable lowering") &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&

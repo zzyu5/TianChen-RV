@@ -1671,67 +1671,6 @@ llvm::Error validateCurrentArtifactKindShape(
   return llvm::Error::success();
 }
 
-llvm::Error validateSelectedPlanMetadata(
-    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
-    VariantEmissionRole role, const ExtensionPlugin &plugin,
-    const VariantEmissionPlan &plan) {
-  llvm::StringSet<> seenNames;
-  for (const VariantSelectedPlanMetadata &metadata :
-       plan.getSelectedPlanMetadata()) {
-    if (metadata.name.empty())
-      return makeVariantEmissionPlanError(
-          variant, kernel, role,
-          llvm::Twine("origin plugin '") + plugin.getName() +
-              "' produced invalid emission plan: selected plan metadata "
-              "requires non-empty name");
-    if (metadata.value.empty())
-      return makeVariantEmissionPlanError(
-          variant, kernel, role,
-          llvm::Twine("origin plugin '") + plugin.getName() +
-              "' produced invalid emission plan: selected plan metadata '" +
-              metadata.name + "' requires non-empty value");
-    if (metadata.role.empty())
-      return makeVariantEmissionPlanError(
-          variant, kernel, role,
-          llvm::Twine("origin plugin '") + plugin.getName() +
-              "' produced invalid emission plan: selected plan metadata '" +
-              metadata.name + "' requires non-empty role");
-    if (metadata.note.empty())
-      return makeVariantEmissionPlanError(
-          variant, kernel, role,
-          llvm::Twine("origin plugin '") + plugin.getName() +
-              "' produced invalid emission plan: selected plan metadata '" +
-              metadata.name + "' requires non-empty note");
-
-    if (!seenNames.insert(metadata.name).second)
-      return makeVariantEmissionPlanError(
-          variant, kernel, role,
-          llvm::Twine("origin plugin '") + plugin.getName() +
-              "' produced invalid emission plan: duplicate selected plan "
-              "metadata name '" +
-              metadata.name + "'");
-
-    if (llvm::Error error = validateBoundedPlanText(
-            variant, kernel, role, plugin, plan, "selected plan metadata name",
-            metadata.name))
-      return error;
-    if (llvm::Error error = validateBoundedPlanText(
-            variant, kernel, role, plugin, plan, "selected plan metadata value",
-            metadata.value))
-      return error;
-    if (llvm::Error error = validateBoundedPlanText(
-            variant, kernel, role, plugin, plan, "selected plan metadata role",
-            metadata.role))
-      return error;
-    if (llvm::Error error = validateBoundedPlanText(
-            variant, kernel, role, plugin, plan, "selected plan metadata note",
-            metadata.note))
-      return error;
-  }
-
-  return llvm::Error::success();
-}
-
 llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
     const VariantEmissionRequest &request, const ExtensionPlugin &plugin,
     llvm::StringRef origin, const VariantEmissionPlan &plan) const {
@@ -1829,9 +1768,6 @@ llvm::Error ExtensionPluginRegistry::validateVariantEmissionPlan(
       return error;
   if (llvm::Error error =
           validateRuntimeABIParameters(variant, kernel, role, plugin, plan))
-    return error;
-  if (llvm::Error error =
-          validateSelectedPlanMetadata(variant, kernel, role, plugin, plan))
     return error;
 
   if (llvm::Error error =

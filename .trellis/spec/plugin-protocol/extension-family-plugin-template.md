@@ -371,7 +371,8 @@ plugin output.
   fields to the materialized variant.
 - Plugin legality must validate those fields against the C++ manifest before
   readiness or emission planning accepts the variant.
-- Emission planning may serialize construction selected-plan metadata for the
+- Emission planning may serialize construction protocol identity only through
+  typed emission-plan fields and plugin-local typed role operations for the
   protocol, archetype, role graph, common-interface realization, fail-closed
   descriptor-erasure checks, typed role/interface realization, and evidence
   profile.
@@ -422,7 +423,7 @@ plugin output.
 ### 6. Tests Required
 
 - C++ test asserting the manifest shape and agreement with plugin capability,
-  variant, emission-plan, and selected-plan metadata.
+  variant, emission-plan typed fields, and plugin-local typed role operations.
 - C++ test asserting typed role/interface realization agreement with the
   manifest and fail-closed behavior for missing, reordered, stale, or
   mismatched typed role/interface data.

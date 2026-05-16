@@ -327,13 +327,6 @@ private:
   VariantFallbackRole fallbackRole = VariantFallbackRole::None;
 };
 
-struct VariantSelectedPlanMetadata {
-  std::string name;
-  std::string value;
-  std::string role;
-  std::string note;
-};
-
 enum class VariantEmissionSupport {
   Unknown,
   Supported,
@@ -429,10 +422,6 @@ public:
   getRuntimeABIParameters() const {
     return runtimeABIParameters;
   }
-  llvm::ArrayRef<VariantSelectedPlanMetadata>
-  getSelectedPlanMetadata() const {
-    return selectedPlanMetadata;
-  }
 
   void setSupported() { support = VariantEmissionSupport::Supported; }
   void setUnsupported() { support = VariantEmissionSupport::Unsupported; }
@@ -484,12 +473,6 @@ public:
     runtimeABIParameters.append(parameters.begin(), parameters.end());
   }
   void clearRuntimeABIParameters() { runtimeABIParameters.clear(); }
-  void addSelectedPlanMetadata(llvm::StringRef name, llvm::StringRef value,
-                               llvm::StringRef role, llvm::StringRef note) {
-    selectedPlanMetadata.push_back(
-        {name.str(), value.str(), role.str(), note.str()});
-  }
-  void clearSelectedPlanMetadata() { selectedPlanMetadata.clear(); }
   llvm::Error setRequiredCapabilitySymbolsFromVariant(
       tcrv::exec::VariantOp variant);
 
@@ -511,7 +494,6 @@ private:
   std::string explanation;
   llvm::SmallVector<std::string, 4> requiredCapabilitySymbols;
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
-  llvm::SmallVector<VariantSelectedPlanMetadata, 4> selectedPlanMetadata;
 };
 
 enum class VariantLoweringBoundaryStatus {

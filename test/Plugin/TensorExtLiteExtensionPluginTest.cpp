@@ -533,7 +533,6 @@ module {
                          tensorext_liteVariant.getSymName() &&
                      emissionPlan.getLoweringPipeline().empty() &&
                      emissionPlan.getArtifactKind().empty() &&
-                     emissionPlan.getSelectedPlanMetadata().empty() &&
                      emissionPlan.getDiagnostic().contains(
                          "no active materialized EmitC lowering") &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
