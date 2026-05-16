@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final changes preserve global architecture and deletion-campaign boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify tests no longer rely on stale executables or old positive direct-route fixtures."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify no compatibility wrapper or direct exporter route was added."}
+{"file": "test/lit.cfg.py", "reason": "Verify stale substitutions are removed while active tool substitutions remain."}
+{"file": "test/Transforms/LoweringBoundary/rvv-lowering-boundary-missing-selection.mlir", "reason": "Verify active generic lowering-boundary lit coverage still runs after deleting the standalone compatibility executable test."}
+{"file": "test/Transforms/LoweringBoundary/rvv-lowering-boundary-malformed.mlir", "reason": "Verify active malformed-boundary coverage remains independent of the deleted executable test."}

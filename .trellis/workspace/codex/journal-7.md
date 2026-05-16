@@ -56,6 +56,58 @@ Deleted Support-owned I32/RVV runtime ABI contracts and helpers; rewired tests/s
 - None - task complete
 
 
+## Session 90: Orphan legacy lit executable erasure
+
+**Date**: 2026-05-16
+**Task**: Orphan legacy lit executable erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted orphan lit tests and substitutions that still invoked removed i32
+binary-family registry and RVV lowering-boundary compatibility executables.
+After removing stale local build copies of those binaries, affected lit tests
+and `check-tianchenrv` still passed, proving the active suite no longer relies
+on old build artifacts.
+
+### Main Changes
+
+- Removed `tianchenrv-i32-binary-family-registry-test` and
+  `tianchenrv-rvv-lowering-boundary-test` from `test/lit.cfg.py`.
+- Deleted the orphan `test/Target/I32BinaryFamilyRegistry/registry.test` lit
+  entry.
+- Deleted the orphan
+  `test/Transforms/LoweringBoundary/rvv-lowering-boundary.test` lit entry.
+- Created and validated the deletion-only Trellis task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(test): erase orphan legacy lit executables |
+
+### Testing
+
+- [OK] focused active-surface ref-scan for deleted executable/test names over
+  `test`, `include`, `lib`, `cmake`, root `CMakeLists.txt`, and
+  `.trellis/spec`
+- [OK] removed stale local copies from `build/bin` and
+  `artifacts/tmp/tianchenrv-build/bin`, then confirmed they did not reappear
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target Transforms/LoweringBoundary`
+  from `build/test` (14/14 lit tests)
+- [OK] `cmake --build build --target check-tianchenrv` (71/71 lit tests)
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-16-orphan-legacy-lit-executable-erasure`
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 87: RVV element-count and derived lane-capability erasure
 
 **Date**: 2026-05-16

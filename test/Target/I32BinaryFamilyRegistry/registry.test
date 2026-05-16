@@ -1,3 +1,0 @@
-# RUN: tianchenrv-i32-binary-family-registry-test | FileCheck %s
-
-# CHECK: i32 binary family registration registry test passed

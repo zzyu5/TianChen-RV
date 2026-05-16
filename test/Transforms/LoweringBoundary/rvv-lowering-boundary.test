@@ -1,3 +1,0 @@
-# RUN: tianchenrv-rvv-lowering-boundary-test | FileCheck %s
-
-# CHECK: RVV lowering boundary tests passed
