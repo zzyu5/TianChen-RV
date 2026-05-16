@@ -1,3 +1,5 @@
+add_subdirectory(EmitC)
+
 add_mlir_library(TianChenRVRVVPlugin
   RVVCapabilityProfile.cpp
   RVVExtensionPlugin.cpp
@@ -6,6 +8,7 @@ add_mlir_library(TianChenRVRVVPlugin
   TianChenRVPassesIncGen
 
   LINK_LIBS PUBLIC
+  TianChenRVRVVEmitCRouteProvider
   TianChenRVRVVDialect
   TianChenRVPlugin
   TianChenRVRVVTarget

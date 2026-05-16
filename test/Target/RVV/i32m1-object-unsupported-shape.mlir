@@ -40,6 +40,6 @@ module {
   }
 }
 
-// PLAN-FAIL: RVV i32m1 object artifact route failed
+// PLAN-FAIL: RVV plugin-owned EmitC route provider failed
 // PLAN-FAIL: bounded RVV EmitC route does not support op 'tcrv_rvv.i32_sub'
 // PLAN-FAIL-NOT: riscv-elf-relocatable-object

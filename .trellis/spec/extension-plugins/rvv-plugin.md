@@ -782,6 +782,14 @@ stages and are not implied by this route.
 - Materialized EmitC provenance comments must include typed source op names,
   source roles, `TCRVEmitCLowerableOpInterface`, and `emitc.call_opaque`
   callee evidence.
+- Provider header: `TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h`.
+- Provider route builder:
+  `plugin::rvv::buildRVVI32M1AddEmitCLowerableRoute(
+  const plugin::VariantEmitCLowerableRequest &,
+  conversion::emitc::TCRVEmitCLowerableRoute &)`.
+- Provider metadata accessors own the bounded route id, emission kind,
+  lowering-boundary op name, runtime ABI kind/name/glue role, and ordered
+  runtime ABI parameters for this RVV i32m1 add slice.
 
 #### 3. Contracts
 
@@ -796,6 +804,13 @@ stages and are not implied by this route.
 - Materialized EmitC comments are compiler route evidence only; they are not
   runtime correctness, hardware execution, throughput, latency, or performance
   evidence.
+- RVV intrinsic/header names, typed-body shape validation, source-op
+  provenance checks, and ABI value mapping are provider-owned. Target artifact
+  support may consume the provider and package source/header/object artifacts,
+  but it must not duplicate or re-own these RVV route semantics.
+- Common selected EmitC artifact front doors call a route-builder callback and
+  remain generic; they must not contain RVV intrinsic names, RVV header names,
+  or typed RVV body-shape rules.
 
 #### 4. Validation & Error Matrix
 
@@ -807,6 +822,8 @@ stages and are not implied by this route.
 - Missing route callee for any body step -> fail before source output.
 - Stale runtime ABI role/name/type/ownership mirror -> fail before source
   output through the target artifact preflight.
+- Target artifact code contains RVV intrinsic/header names or reconstructs the
+  typed body shape instead of calling the provider -> ownership violation.
 
 #### 5. Good/Base/Bad Cases
 
@@ -819,6 +836,9 @@ stages and are not implied by this route.
 - Bad: stale descriptor mirror metadata says i32 add but the body contains
   `tcrv_rvv.i32_sub`; export must fail instead of printing vadd C from the
   metadata.
+- Bad: Target/RVV artifact packaging directly scans `tcrv_rvv` ops, chooses
+  `riscv_vector.h`, or spells `__riscv_vadd_vv_i32m1` instead of delegating to
+  the RVV provider.
 
 #### 6. Tests Required
 
@@ -828,6 +848,9 @@ stages and are not implied by this route.
   parameters or supported source/header/object routes from selected metadata.
 - Negative coverage must keep stale body, stale descriptor, missing boundary,
   and malformed ABI cases fail-closed before source/header/object output.
+- Target artifact tests must prove the exporter metadata consumes provider-owned
+  runtime ABI fields and that common/target front-door code does not contain
+  RVV intrinsic/header spellings.
 
 #### 7. Wrong vs Correct
 

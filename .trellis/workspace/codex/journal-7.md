@@ -1706,3 +1706,34 @@ RVV i32m1 add object/header export now consumes selected emission-plan candidate
 ### Next Steps
 
 - None - task complete
+
+
+## Session 89: RVV plugin-owned EmitC route provider
+
+**Date**: 2026-05-16
+**Task**: RVV plugin-owned EmitC route provider
+**Branch**: `main`
+
+### Summary
+
+Moved the bounded RVV i32m1 add EmitC route semantics into a plugin-owned provider, thinned Target/RVV to artifact packaging, updated route/provider tests and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

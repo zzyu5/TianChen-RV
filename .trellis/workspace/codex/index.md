@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-7.md`
-- **Total Sessions**: 88
+- **Total Sessions**: 89
 - **Last Active**: 2026-05-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-7.md` | ~1649 | Active |
+| `journal-7.md` | ~1739 | Active |
 | `journal-6.md` | ~1973 | Archived |
 | `journal-5.md` | ~1983 | Archived |
 | `journal-4.md` | ~1979 | Archived |
@@ -35,6 +35,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 89 | 2026-05-16 | RVV plugin-owned EmitC route provider | - | `main` |
 | 88 | 2026-05-16 | RVV selected dispatch artifact handoff | - | `main` |
 | 87 | 2026-05-16 | RVV EmitC to C/C++ emitter handoff | pending | `main` |
 | 86 | 2026-05-16 | Direct-C route absence contract erasure | pending | `main` |

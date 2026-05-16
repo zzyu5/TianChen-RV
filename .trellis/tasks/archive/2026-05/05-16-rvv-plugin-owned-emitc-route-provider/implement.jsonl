@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project stack, unified TCRV boundary, and descriptor/direct-C prohibitions."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Selected emission-plan handoff and common EmitC route ownership contract."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership boundary and bounded i32m1 add EmitC route constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and C++ coverage requirements for target artifact export."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin locality and registry/interface boundary rules."}

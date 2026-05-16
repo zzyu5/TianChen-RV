@@ -1,16 +1,15 @@
-add_mlir_library(TianChenRVRVVTarget
-  RVVTargetSupportBundle.cpp
+add_mlir_library(TianChenRVRVVEmitCRouteProvider
+  RVVEmitCRouteProvider.cpp
+
+  DEPENDS
+  TianChenRVPassesIncGen
 
   LINK_LIBS PUBLIC
   TianChenRVConversionEmitC
   TianChenRVExecDialect
   TianChenRVPlugin
-  TianChenRVRVVEmitCRouteProvider
   TianChenRVRVVDialect
   TianChenRVSupport
-  TianChenRVTransforms
-  TianChenRVTarget
   MLIRIR
-  MLIRPass
   MLIRSupport
 )

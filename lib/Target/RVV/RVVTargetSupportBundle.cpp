@@ -1,15 +1,11 @@
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
-#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
-#include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
 
 #include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/Operation.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -42,14 +38,6 @@ constexpr llvm::StringLiteral kRVVI32M1AddObjectTranslateRouteID(
     "tcrv-rvv-i32m1-add-object");
 constexpr llvm::StringLiteral kRVVI32M1AddHeaderTranslateRouteID(
     "tcrv-rvv-i32m1-add-header");
-constexpr llvm::StringLiteral kRVVI32M1AddEmitCRouteID(
-    "rvv-i32m1-add-emitc-route");
-constexpr llvm::StringLiteral kRVVI32M1AddEmissionKind(
-    "materialized-emitc-cpp-rvv-intrinsic-object");
-constexpr llvm::StringLiteral kRVVI32M1AddRuntimeABIName(
-    "rvv-i32m1-add-callable-c-abi.v1");
-constexpr llvm::StringLiteral kRVVI32M1AddRuntimeGlueRole(
-    "emitc-cpp-rvv-intrinsic-runtime-glue");
 constexpr llvm::StringLiteral kRVVI32M1AddObjectArtifactKind(
     "riscv-elf-relocatable-object");
 constexpr llvm::StringLiteral kRVVI32M1AddHeaderArtifactKind(
@@ -58,253 +46,12 @@ constexpr llvm::StringLiteral kRVVI32M1AddObjectHandoffKind(
     "materialized-emitc-cpp-to-riscv-elf-object");
 constexpr llvm::StringLiteral kRVVI32M1AddCallableComponentGroup(
     "rvv-i32m1-add-callable-artifact-bundle.v1");
-constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
-    "TCRVEmitCLowerableOpInterface");
 
 llvm::Error makeRVVObjectRouteError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
       llvm::Twine("TianChen-RV RVV i32m1 object artifact route failed: ") +
           message,
       llvm::errc::invalid_argument);
-}
-
-bool variantContainsExplicitTypedRVVBody(tcrv::exec::VariantOp variant) {
-  if (!variant || variant.getBody().empty())
-    return false;
-
-  bool found = false;
-  variant.getBody().walk([&](mlir::Operation *op) {
-    if (found || op == variant.getOperation())
-      return;
-    if (op->getName().getDialectNamespace() == "tcrv_rvv")
-      found = true;
-  });
-  return found;
-}
-
-llvm::Error requireRVVVariantLegality(tcrv::exec::VariantOp variant) {
-  if (!variant)
-    return makeRVVObjectRouteError(
-        "requires a materialized tcrv.exec.variant");
-
-  auto originAttr = variant->getAttrOfType<mlir::StringAttr>("origin");
-  if (!originAttr || originAttr.getValue() != kRVVPluginName)
-    return makeRVVObjectRouteError(
-        "materialized RVV variant must be owned by origin 'rvv-plugin'");
-
-  if (variantContainsExplicitTypedRVVBody(variant))
-    return llvm::Error::success();
-
-  return makeRVVObjectRouteError(
-      "materialized RVV variant requires explicit typed RVV "
-      "extension-family body");
-}
-
-struct RVVI32M1AddSlice {
-  tcrv::rvv::SetVLOp setvl;
-  tcrv::rvv::WithVLOp withVL;
-  tcrv::rvv::I32LoadOp lhsLoad;
-  tcrv::rvv::I32LoadOp rhsLoad;
-  tcrv::rvv::I32AddOp add;
-  tcrv::rvv::I32StoreOp store;
-};
-
-llvm::Error requireAgnosticPolicy(tcrv::rvv::PolicyAttr policy,
-                                  llvm::StringRef context) {
-  if (!policy)
-    return makeRVVObjectRouteError(llvm::Twine(context) +
-                                   " requires finite RVV policy metadata");
-  if (policy.getTail() != tcrv::rvv::TailPolicy::Agnostic ||
-      policy.getMask() != tcrv::rvv::MaskPolicy::Agnostic)
-    return makeRVVObjectRouteError(
-        llvm::Twine(context) +
-        " supports only tail agnostic, mask agnostic policy for the bounded "
-        "i32m1 EmitC route");
-  return llvm::Error::success();
-}
-
-llvm::Expected<RVVI32M1AddSlice>
-collectRVVI32M1AddSlice(tcrv::exec::VariantOp variant) {
-  llvm::SmallVector<tcrv::rvv::SetVLOp, 2> setvls;
-  llvm::SmallVector<tcrv::rvv::WithVLOp, 2> withVLs;
-  unsigned rvvOpCount = 0;
-  variant.getBody().walk([&](mlir::Operation *op) {
-    if (op->getName().getDialectNamespace() != "tcrv_rvv")
-      return;
-    ++rvvOpCount;
-    if (auto setvl = llvm::dyn_cast<tcrv::rvv::SetVLOp>(op))
-      setvls.push_back(setvl);
-    if (auto withVL = llvm::dyn_cast<tcrv::rvv::WithVLOp>(op))
-      withVLs.push_back(withVL);
-  });
-
-  if (setvls.size() != 1)
-    return makeRVVObjectRouteError(
-        "bounded RVV EmitC route requires exactly one tcrv_rvv.setvl op");
-  if (withVLs.size() != 1)
-    return makeRVVObjectRouteError(
-        "bounded RVV EmitC route requires exactly one tcrv_rvv.with_vl op");
-
-  RVVI32M1AddSlice slice;
-  slice.setvl = setvls.front();
-  slice.withVL = withVLs.front();
-
-  if (slice.setvl.getSew() != 32 || slice.setvl.getLmul() != "m1")
-    return makeRVVObjectRouteError(
-        "bounded RVV EmitC route supports only SEW32 LMUL m1 i32 add");
-  if (llvm::Error error =
-          requireAgnosticPolicy(slice.setvl.getPolicy(), "tcrv_rvv.setvl"))
-    return std::move(error);
-
-  auto withVLSEW =
-      slice.withVL->getAttrOfType<mlir::IntegerAttr>("sew");
-  auto withVLLMUL =
-      slice.withVL->getAttrOfType<mlir::StringAttr>("lmul");
-  auto withVLPolicy =
-      slice.withVL->getAttrOfType<tcrv::rvv::PolicyAttr>("policy");
-  if (!withVLSEW || withVLSEW.getInt() != 32 || !withVLLMUL ||
-      withVLLMUL.getValue() != "m1")
-    return makeRVVObjectRouteError(
-        "bounded RVV EmitC route requires tcrv_rvv.with_vl SEW32 LMUL m1 "
-        "metadata");
-  if (llvm::Error error =
-          requireAgnosticPolicy(withVLPolicy, "tcrv_rvv.with_vl"))
-    return std::move(error);
-  if (slice.withVL.getVl() != slice.setvl.getVl())
-    return makeRVVObjectRouteError(
-        "bounded RVV EmitC route requires tcrv_rvv.with_vl to consume the "
-        "visible tcrv_rvv.setvl result");
-
-  llvm::SmallVector<tcrv::rvv::I32LoadOp, 2> loads;
-  unsigned addCount = 0;
-  unsigned storeCount = 0;
-  for (mlir::Operation &op : slice.withVL.getBody().front()) {
-    if (auto load = llvm::dyn_cast<tcrv::rvv::I32LoadOp>(op)) {
-      loads.push_back(load);
-      continue;
-    }
-    if (auto add = llvm::dyn_cast<tcrv::rvv::I32AddOp>(op)) {
-      slice.add = add;
-      ++addCount;
-      continue;
-    }
-    if (auto store = llvm::dyn_cast<tcrv::rvv::I32StoreOp>(op)) {
-      slice.store = store;
-      ++storeCount;
-      continue;
-    }
-    return makeRVVObjectRouteError(
-        llvm::Twine("bounded RVV EmitC route does not support op '") +
-        op.getName().getStringRef() +
-        "' inside tcrv_rvv.with_vl; expected load-add-store only");
-  }
-
-  if (loads.size() != 2)
-    return makeRVVObjectRouteError(
-        "bounded RVV EmitC route requires exactly two tcrv_rvv.i32_load ops");
-  if (addCount != 1)
-    return makeRVVObjectRouteError(
-        "bounded RVV EmitC route requires exactly one tcrv_rvv.i32_add op");
-  if (storeCount != 1)
-    return makeRVVObjectRouteError(
-        "bounded RVV EmitC route requires exactly one tcrv_rvv.i32_store op");
-  if (rvvOpCount != 6)
-    return makeRVVObjectRouteError(
-        "bounded RVV EmitC route supports only setvl/with_vl/i32_load/"
-        "i32_load/i32_add/i32_store");
-
-  for (tcrv::rvv::I32LoadOp load : loads) {
-    llvm::StringRef role = load.getBufferRole();
-    if (role == support::stringifyRuntimeABIParameterRole(
-                    support::RuntimeABIParameterRole::LHSInputBuffer)) {
-      if (slice.lhsLoad)
-        return makeRVVObjectRouteError(
-            "bounded RVV EmitC route requires a unique lhs-input-buffer "
-            "load");
-      slice.lhsLoad = load;
-      continue;
-    }
-    if (role == support::stringifyRuntimeABIParameterRole(
-                    support::RuntimeABIParameterRole::RHSInputBuffer)) {
-      if (slice.rhsLoad)
-        return makeRVVObjectRouteError(
-            "bounded RVV EmitC route requires a unique rhs-input-buffer "
-            "load");
-      slice.rhsLoad = load;
-      continue;
-    }
-    return makeRVVObjectRouteError(
-        llvm::Twine("unsupported RVV i32 load role '") + role +
-        "' for bounded EmitC route");
-  }
-
-  if (!slice.lhsLoad || !slice.rhsLoad)
-    return makeRVVObjectRouteError(
-        "bounded RVV EmitC route requires lhs-input-buffer and "
-        "rhs-input-buffer loads");
-  if (slice.store.getBufferRole() !=
-      support::stringifyRuntimeABIParameterRole(
-          support::RuntimeABIParameterRole::OutputBuffer))
-    return makeRVVObjectRouteError(
-        "bounded RVV EmitC route requires output-buffer store role");
-  if (slice.add.getLhs() != slice.lhsLoad.getLoaded() ||
-      slice.add.getRhs() != slice.rhsLoad.getLoaded())
-    return makeRVVObjectRouteError(
-        "bounded RVV EmitC route requires tcrv_rvv.i32_add to consume lhs "
-        "and rhs load results");
-  if (slice.store.getValue() != slice.add.getSum())
-    return makeRVVObjectRouteError(
-        "bounded RVV EmitC route requires tcrv_rvv.i32_store to consume the "
-        "add result");
-
-  return slice;
-}
-
-llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance>
-getEmitCSourceProvenance(mlir::Operation *op, llvm::StringRef expectedRole) {
-  auto lowerable =
-      llvm::dyn_cast<conversion::emitc::TCRVEmitCLowerableOpInterface>(op);
-  if (!lowerable)
-    return makeRVVObjectRouteError(llvm::Twine("operation '") +
-                                   op->getName().getStringRef() +
-                                   "' must implement " +
-                                   kEmitCLowerableOpInterfaceName +
-                                   " before RVV EmitC route construction");
-
-  llvm::StringRef sourceRole =
-      lowerable.getTCRVEmitCLowerableSourceRole();
-  if (sourceRole != expectedRole)
-    return makeRVVObjectRouteError(llvm::Twine("operation '") +
-                                   op->getName().getStringRef() +
-                                   "' reports EmitC source role '" +
-                                   sourceRole + "' but RVV route expected '" +
-                                   expectedRole + "'");
-
-  conversion::emitc::TCRVEmitCSourceOpProvenance source;
-  source.opName = lowerable.getTCRVEmitCLowerableSourceOpName().str();
-  source.role = sourceRole.str();
-  source.opInterface = kEmitCLowerableOpInterfaceName.str();
-  return source;
-}
-
-llvm::Error addCallStepFromSource(
-    conversion::emitc::TCRVEmitCLowerableRoute &route, mlir::Operation *op,
-    llvm::StringRef expectedRole, llvm::StringRef callee,
-    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
-    std::optional<conversion::emitc::TCRVEmitCCallOpaqueResult> result =
-        std::nullopt) {
-  llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance> source =
-      getEmitCSourceProvenance(op, expectedRole);
-  if (!source)
-    return source.takeError();
-
-  conversion::emitc::TCRVEmitCCallOpaqueStep step;
-  step.sourceOp = std::move(*source);
-  step.callee = callee.str();
-  step.operands.append(operands.begin(), operands.end());
-  step.result = std::move(result);
-  route.addCallOpaqueStep(std::move(step));
-  return llvm::Error::success();
 }
 
 std::string makeHeaderGuard(llvm::StringRef functionName) {
@@ -336,7 +83,8 @@ SelectedEmitCArtifactRouteConfig getRVVI32M1AddEmitCArtifactConfig() {
   config.originPlugin = kRVVPluginName;
   config.routeDescription = "RVV i32m1 object artifact route";
   config.candidateValidationFn = validateRVVI32M1AddObjectCandidate;
-  config.routeBuilderFn = buildRVVI32M1AddEmitCLowerableRoute;
+  config.routeBuilderFn =
+      tianchenrv::plugin::rvv::buildRVVI32M1AddEmitCLowerableRoute;
   return config;
 }
 
@@ -569,16 +317,16 @@ llvm::Error exportRVVI32M1AddCallableHeaderArtifact(mlir::ModuleOp module,
   os << "#ifdef __cplusplus\n";
   os << "extern \"C\" {\n";
   os << "#endif\n\n";
-  os << "/* tianchenrv.runtime_abi_name: " << kRVVI32M1AddRuntimeABIName
-     << " */\n";
+  os << "/* tianchenrv.runtime_abi_name: "
+     << tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName() << " */\n";
   os << "/* tianchenrv.runtime_glue_role: "
-     << kRVVI32M1AddRuntimeGlueRole << " */\n";
+     << tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeGlueRole() << " */\n";
   os << "/* tianchenrv.object_route: "
      << kRVVI32M1AddObjectArtifactRouteID << " */\n";
   os << "/* tianchenrv.header_route: "
      << kRVVI32M1AddHeaderArtifactRouteID << " */\n";
   llvm::SmallVector<support::RuntimeABIParameter, 4> parameters =
-      getRVVI32M1AddRuntimeABIParameters();
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIParameters();
   for (auto [index, parameter] : llvm::enumerate(parameters)) {
     os << "/* tianchenrv.runtime_abi_parameter[" << index << "]: "
        << parameter.cName << " : " << parameter.cType << " : "
@@ -605,23 +353,29 @@ llvm::Error exportRVVI32M1AddCallableHeaderArtifact(mlir::ModuleOp module,
 
 llvm::Error validateRVVI32M1AddObjectCandidate(
     const TargetArtifactCandidate &candidate) {
-  if (candidate.runtimeABIKind != "plugin-owned-runtime-abi")
+  if (candidate.runtimeABIKind !=
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIKind())
     return makeRVVObjectRouteError(
-        llvm::Twine("runtime ABI kind must be 'plugin-owned-runtime-abi' for "
-                    "route '") +
+        llvm::Twine("runtime ABI kind must be '") +
+        tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIKind() +
+        "' for route '" +
         kRVVI32M1AddObjectArtifactRouteID + "'");
-  if (candidate.runtimeABIName != kRVVI32M1AddRuntimeABIName)
+  if (candidate.runtimeABIName !=
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName())
     return makeRVVObjectRouteError(
         llvm::Twine("runtime ABI name must be '") +
-        kRVVI32M1AddRuntimeABIName + "'");
-  if (candidate.runtimeGlueRole != kRVVI32M1AddRuntimeGlueRole)
+        tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName() + "'");
+  if (candidate.runtimeGlueRole !=
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeGlueRole())
     return makeRVVObjectRouteError(
         llvm::Twine("runtime glue role must be '") +
-        kRVVI32M1AddRuntimeGlueRole + "'");
-  if (candidate.loweringBoundary != "tcrv_rvv.with_vl")
+        tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeGlueRole() + "'");
+  if (candidate.loweringBoundary !=
+      tianchenrv::plugin::rvv::getRVVI32M1AddLoweringBoundaryOpName())
     return makeRVVObjectRouteError(
-        "lowering boundary metadata must name 'tcrv_rvv.with_vl' for the "
-        "bounded EmitC route");
+        llvm::Twine("lowering boundary metadata must name '") +
+        tianchenrv::plugin::rvv::getRVVI32M1AddLoweringBoundaryOpName() +
+        "' for the bounded EmitC route");
   return llvm::Error::success();
 }
 
@@ -656,15 +410,16 @@ llvm::Error validateRVVI32M1AddCallableHeaderBundle(
 llvm::Error registerRVVI32M1AddObjectExporter(
     TargetArtifactExporterRegistry &registry) {
   llvm::SmallVector<support::RuntimeABIParameter, 4> parameters =
-      getRVVI32M1AddRuntimeABIParameters();
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIParameters();
   if (!registry.lookup(kRVVI32M1AddObjectArtifactRouteID)) {
     if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
             kRVVI32M1AddObjectArtifactRouteID, kRVVI32M1AddObjectArtifactKind,
-            kRVVPluginName, kRVVI32M1AddEmissionKind,
+            kRVVPluginName,
+            tianchenrv::plugin::rvv::getRVVI32M1AddEmissionKind(),
             exportRVVI32M1AddObjectArtifact, parameters,
             kRVVI32M1AddObjectHandoffKind, validateRVVI32M1AddObjectCandidate,
             kRVVI32M1AddCallableComponentGroup,
-            kRVVI32M1AddRuntimeABIName)))
+            tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName())))
       return error;
   }
 
@@ -674,8 +429,10 @@ llvm::Error registerRVVI32M1AddObjectExporter(
       kRVVI32M1AddHeaderArtifactRouteID, kRVVI32M1AddHeaderArtifactKind,
       matchRVVI32M1AddCallableHeaderBundle,
       exportRVVI32M1AddCallableHeaderArtifact, kRVVPluginName,
-      "plugin-owned-runtime-abi", kRVVI32M1AddRuntimeABIName, parameters,
-      kRVVI32M1AddCallableComponentGroup, kRVVI32M1AddRuntimeABIName,
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIKind(),
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName(), parameters,
+      kRVVI32M1AddCallableComponentGroup,
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName(),
       validateRVVI32M1AddCallableHeaderBundle));
 }
 
@@ -689,114 +446,8 @@ llvm::StringRef getRVVI32M1AddHeaderArtifactRouteID() {
   return kRVVI32M1AddHeaderArtifactRouteID;
 }
 
-llvm::StringRef getRVVI32M1AddEmissionKind() {
-  return kRVVI32M1AddEmissionKind;
-}
-
-llvm::StringRef getRVVI32M1AddRuntimeABIName() {
-  return kRVVI32M1AddRuntimeABIName;
-}
-
-llvm::StringRef getRVVI32M1AddRuntimeGlueRole() {
-  return kRVVI32M1AddRuntimeGlueRole;
-}
-
 llvm::StringRef getRVVI32M1AddCallableComponentGroup() {
   return kRVVI32M1AddCallableComponentGroup;
-}
-
-llvm::SmallVector<support::RuntimeABIParameter, 4>
-getRVVI32M1AddRuntimeABIParameters() {
-  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
-  parameters.push_back(support::makeTargetExportABIParameter(
-      "lhs", "const int32_t *",
-      support::RuntimeABIParameterRole::LHSInputBuffer));
-  parameters.push_back(support::makeTargetExportABIParameter(
-      "rhs", "const int32_t *",
-      support::RuntimeABIParameterRole::RHSInputBuffer));
-  parameters.push_back(support::makeTargetExportABIParameter(
-      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
-  parameters.push_back(support::makeTargetExportABIParameter(
-      "n", "size_t", support::RuntimeABIParameterRole::RuntimeElementCount));
-  return parameters;
-}
-
-llvm::Error buildRVVI32M1AddEmitCLowerableRoute(
-    const plugin::VariantEmitCLowerableRequest &request,
-    conversion::emitc::TCRVEmitCLowerableRoute &out) {
-  if (!request.getVariant())
-    return makeRVVObjectRouteError(
-        "EmitC route construction requires a materialized tcrv.exec.variant");
-  if (!request.getKernel())
-    return makeRVVObjectRouteError(
-        "EmitC route construction requires an enclosing tcrv.exec.kernel");
-
-  if (llvm::Error error = requireRVVVariantLegality(request.getVariant()))
-    return error;
-
-  llvm::Expected<RVVI32M1AddSlice> slice =
-      collectRVVI32M1AddSlice(request.getVariant());
-  if (!slice)
-    return slice.takeError();
-
-  conversion::emitc::TCRVEmitCLowerableRoute route(
-      kRVVI32M1AddEmitCRouteID, "extension-family-ops-to-emitc-call-opaque");
-  route.addHeader("stddef.h");
-  route.addHeader("stdint.h");
-  route.addHeader("riscv_vector.h");
-  route.addTypeMapping("!tcrv_rvv.vl", "size_t");
-  route.addTypeMapping("!tcrv_rvv.i32m1", "vint32m1_t");
-  for (const support::RuntimeABIParameter &parameter :
-       getRVVI32M1AddRuntimeABIParameters())
-    route.addABIValueMapping(parameter, parameter.cName);
-
-  llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance>
-      withVLSource =
-          getEmitCSourceProvenance(slice->withVL.getOperation(), "scope");
-  if (!withVLSource)
-    return withVLSource.takeError();
-  route.addSourceOpProvenance(std::move(*withVLSource));
-
-  using conversion::emitc::TCRVEmitCCallOpaqueOperand;
-  using conversion::emitc::TCRVEmitCCallOpaqueResult;
-  if (llvm::Error error = addCallStepFromSource(
-          route, slice->setvl.getOperation(), "configure",
-          "__riscv_vsetvl_e32m1",
-          {TCRVEmitCCallOpaqueOperand{"n", "size_t"}},
-          TCRVEmitCCallOpaqueResult{"vl", "size_t"}))
-    return error;
-  if (llvm::Error error = addCallStepFromSource(
-          route, slice->lhsLoad.getOperation(), "load",
-          "__riscv_vle32_v_i32m1",
-          {TCRVEmitCCallOpaqueOperand{"lhs", "const int32_t *"},
-           TCRVEmitCCallOpaqueOperand{"vl", "size_t"}},
-          TCRVEmitCCallOpaqueResult{"lhs_vec", "vint32m1_t"}))
-    return error;
-  if (llvm::Error error = addCallStepFromSource(
-          route, slice->rhsLoad.getOperation(), "load",
-          "__riscv_vle32_v_i32m1",
-          {TCRVEmitCCallOpaqueOperand{"rhs", "const int32_t *"},
-           TCRVEmitCCallOpaqueOperand{"vl", "size_t"}},
-          TCRVEmitCCallOpaqueResult{"rhs_vec", "vint32m1_t"}))
-    return error;
-  if (llvm::Error error = addCallStepFromSource(
-          route, slice->add.getOperation(), "compute",
-          "__riscv_vadd_vv_i32m1",
-          {TCRVEmitCCallOpaqueOperand{"lhs_vec", "vint32m1_t"},
-           TCRVEmitCCallOpaqueOperand{"rhs_vec", "vint32m1_t"},
-           TCRVEmitCCallOpaqueOperand{"vl", "size_t"}},
-          TCRVEmitCCallOpaqueResult{"sum_vec", "vint32m1_t"}))
-    return error;
-  if (llvm::Error error = addCallStepFromSource(
-          route, slice->store.getOperation(), "store",
-          "__riscv_vse32_v_i32m1",
-          {TCRVEmitCCallOpaqueOperand{"out", "int32_t *"},
-           TCRVEmitCCallOpaqueOperand{"sum_vec", "vint32m1_t"},
-           TCRVEmitCCallOpaqueOperand{"vl", "size_t"}}))
-    return error;
-
-  out = std::move(route);
-  return llvm::Error::success();
 }
 
 llvm::Error registerRVVTargetSupportPluginTargetExporterBundles(

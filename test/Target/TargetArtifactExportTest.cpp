@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
@@ -266,20 +267,20 @@ bool expectRVVObjectExporterShape(const TargetArtifactExporterRegistry &registry
       exporter->getOriginPlugin() !=
           tianchenrv::plugin::rvv::getRVVExtensionPluginName() ||
       exporter->getEmissionKind() !=
-          tianchenrv::target::rvv::getRVVI32M1AddEmissionKind() ||
+          tianchenrv::plugin::rvv::getRVVI32M1AddEmissionKind() ||
       exporter->getHandoffKind() !=
           "materialized-emitc-cpp-to-riscv-elf-object" ||
       exporter->getComponentGroup() !=
           tianchenrv::target::rvv::getRVVI32M1AddCallableComponentGroup() ||
       exporter->getExternalABIName() !=
-          tianchenrv::target::rvv::getRVVI32M1AddRuntimeABIName() ||
+          tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName() ||
       !exporter->getExportFn()) {
     llvm::errs() << context << ": malformed RVV object exporter metadata\n";
     return false;
   }
 
   llvm::SmallVector<RuntimeABIParameter, 4> expectedParameters =
-      tianchenrv::target::rvv::getRVVI32M1AddRuntimeABIParameters();
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIParameters();
   if (!expectRuntimeABIParametersEqual(
           exporter->getRequiredRuntimeABIParameters(), expectedParameters,
           "RVV object route required ABI parameters"))
@@ -290,14 +291,16 @@ bool expectRVVObjectExporterShape(const TargetArtifactExporterRegistry &registry
       tianchenrv::target::rvv::getRVVI32M1AddObjectArtifactRouteID().str();
   candidate.origin = tianchenrv::plugin::rvv::getRVVExtensionPluginName().str();
   candidate.emissionKind =
-      tianchenrv::target::rvv::getRVVI32M1AddEmissionKind().str();
+      tianchenrv::plugin::rvv::getRVVI32M1AddEmissionKind().str();
   candidate.artifactKind = "riscv-elf-relocatable-object";
-  candidate.loweringBoundary = "tcrv_rvv.with_vl";
-  candidate.runtimeABIKind = "plugin-owned-runtime-abi";
+  candidate.loweringBoundary =
+      tianchenrv::plugin::rvv::getRVVI32M1AddLoweringBoundaryOpName().str();
+  candidate.runtimeABIKind =
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIKind().str();
   candidate.runtimeABIName =
-      tianchenrv::target::rvv::getRVVI32M1AddRuntimeABIName().str();
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName().str();
   candidate.runtimeGlueRole =
-      tianchenrv::target::rvv::getRVVI32M1AddRuntimeGlueRole().str();
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeGlueRole().str();
   candidate.runtimeABIParameters.append(expectedParameters.begin(),
                                         expectedParameters.end());
   if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
@@ -320,7 +323,7 @@ bool expectRVVObjectExporterShape(const TargetArtifactExporterRegistry &registry
                                badRuntimeABIName, *exporter),
                            "RVV object route rejects runtime ABI name mismatch",
                            {"runtime ABI name",
-                            tianchenrv::target::rvv::
+                            tianchenrv::plugin::rvv::
                                 getRVVI32M1AddRuntimeABIName()}))
     return false;
 
@@ -339,13 +342,14 @@ bool expectRVVHeaderCompositeExporterShape(
   if (exporter->getArtifactKind() != "runtime-callable-c-header" ||
       exporter->getOwner() !=
           tianchenrv::plugin::rvv::getRVVExtensionPluginName() ||
-      exporter->getRuntimeABIKind() != "plugin-owned-runtime-abi" ||
+      exporter->getRuntimeABIKind() !=
+          tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIKind() ||
       exporter->getRuntimeABIName() !=
-          tianchenrv::target::rvv::getRVVI32M1AddRuntimeABIName() ||
+          tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName() ||
       exporter->getComponentGroup() !=
           tianchenrv::target::rvv::getRVVI32M1AddCallableComponentGroup() ||
       exporter->getExternalABIName() !=
-          tianchenrv::target::rvv::getRVVI32M1AddRuntimeABIName() ||
+          tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName() ||
       !exporter->getMatchFn() || !exporter->getExportFn() ||
       !exporter->getCandidateValidationFn()) {
     llvm::errs() << context << ": malformed RVV callable header metadata\n";
@@ -353,7 +357,7 @@ bool expectRVVHeaderCompositeExporterShape(
   }
 
   llvm::SmallVector<RuntimeABIParameter, 4> expectedParameters =
-      tianchenrv::target::rvv::getRVVI32M1AddRuntimeABIParameters();
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIParameters();
   if (!expectRuntimeABIParametersEqual(
           exporter->getRuntimeABIParameters(), expectedParameters,
           "RVV header route required ABI parameters"))
@@ -364,12 +368,14 @@ bool expectRVVHeaderCompositeExporterShape(
       tianchenrv::target::rvv::getRVVI32M1AddObjectArtifactRouteID().str();
   candidate.origin = tianchenrv::plugin::rvv::getRVVExtensionPluginName().str();
   candidate.artifactKind = "riscv-elf-relocatable-object";
-  candidate.loweringBoundary = "tcrv_rvv.with_vl";
-  candidate.runtimeABIKind = "plugin-owned-runtime-abi";
+  candidate.loweringBoundary =
+      tianchenrv::plugin::rvv::getRVVI32M1AddLoweringBoundaryOpName().str();
+  candidate.runtimeABIKind =
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIKind().str();
   candidate.runtimeABIName =
-      tianchenrv::target::rvv::getRVVI32M1AddRuntimeABIName().str();
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeABIName().str();
   candidate.runtimeGlueRole =
-      tianchenrv::target::rvv::getRVVI32M1AddRuntimeGlueRole().str();
+      tianchenrv::plugin::rvv::getRVVI32M1AddRuntimeGlueRole().str();
   candidate.runtimeABIParameters.append(expectedParameters.begin(),
                                         expectedParameters.end());
   llvm::Expected<bool> matched = exporter->getMatchFn()({candidate});

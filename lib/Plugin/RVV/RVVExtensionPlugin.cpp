@@ -3,6 +3,7 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
@@ -191,8 +192,7 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
   if (llvm::Error error =
-          target::rvv::buildRVVI32M1AddEmitCLowerableRoute(routeRequest,
-                                                           route)) {
+          buildRVVI32M1AddEmitCLowerableRoute(routeRequest, route)) {
     std::string diagnostic = llvm::toString(std::move(error));
     out = VariantEmissionStatus::getUnsupported(
         kRVVPluginName, request.getVariant().getSymName(), diagnostic);
@@ -225,25 +225,24 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
   if (llvm::Error error =
-          target::rvv::buildRVVI32M1AddEmitCLowerableRoute(routeRequest,
-                                                           route))
+          buildRVVI32M1AddEmitCLowerableRoute(routeRequest, route))
     return error;
 
   out = VariantEmissionPlan::getSupported(
       kRVVPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      target::rvv::getRVVI32M1AddEmissionKind(),
+      getRVVI32M1AddEmissionKind(),
       target::rvv::getRVVI32M1AddObjectArtifactRouteID(),
-      target::rvv::getRVVI32M1AddRuntimeABIName(),
+      getRVVI32M1AddRuntimeABIName(),
       "riscv-elf-relocatable-object",
       "RVV explicit i32m1 add route materializes EmitC, emits C/C++ through "
       "MLIR EmitC, and exports a RISC-V relocatable object through the RVV "
       "target artifact route");
-  out.setRuntimeABIKind("plugin-owned-runtime-abi");
-  out.setRuntimeABIName(target::rvv::getRVVI32M1AddRuntimeABIName());
-  out.setRuntimeGlueRole(target::rvv::getRVVI32M1AddRuntimeGlueRole());
-  out.setLoweringBoundaryOpName("tcrv_rvv.with_vl");
-  out.addRuntimeABIParameters(target::rvv::getRVVI32M1AddRuntimeABIParameters());
+  out.setRuntimeABIKind(getRVVI32M1AddRuntimeABIKind());
+  out.setRuntimeABIName(getRVVI32M1AddRuntimeABIName());
+  out.setRuntimeGlueRole(getRVVI32M1AddRuntimeGlueRole());
+  out.setLoweringBoundaryOpName(getRVVI32M1AddLoweringBoundaryOpName());
+  out.addRuntimeABIParameters(getRVVI32M1AddRuntimeABIParameters());
   return out.setRequiredCapabilitySymbolsFromVariant(request.getVariant());
 }
 
@@ -283,7 +282,7 @@ llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
 llvm::Error RVVExtensionPlugin::buildVariantEmitCLowerableRoute(
     const VariantEmitCLowerableRequest &request,
     conversion::emitc::TCRVEmitCLowerableRoute &out) const {
-  return target::rvv::buildRVVI32M1AddEmitCLowerableRoute(request, out);
+  return buildRVVI32M1AddEmitCLowerableRoute(request, out);
 }
 
 llvm::Error RVVExtensionPlugin::configureTargetSupportExtensionBundle(
