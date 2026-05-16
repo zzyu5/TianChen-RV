@@ -12,6 +12,7 @@
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Parser/Parser.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -19,10 +20,12 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <initializer_list>
+#include <memory>
 #include <string>
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
+using tianchenrv::plugin::SourceSeedPassRegistration;
 using tianchenrv::plugin::VariantCostEstimate;
 using tianchenrv::plugin::VariantCostRequest;
 using tianchenrv::plugin::VariantEmitCLowerableRequest;
@@ -168,6 +171,33 @@ int runRegistrationAndCapabilityMetadataTest() {
                          tianchenrv::plugin::toy::
                              getToyTemplateCapabilityKind(),
                  "Toy template capability metadata is registered"))
+    return result;
+
+  llvm::SmallVector<SourceSeedPassRegistration, 2> sourceSeedPasses;
+  if (int result = expectSuccess(registry.collectSourceSeedPasses(
+                                     sourceSeedPasses),
+                                 "Toy source-seed pass registrations collect"))
+    return result;
+  if (int result =
+          expect(sourceSeedPasses.size() == 1,
+                 "Toy plugin contributes one source-seed pass registration"))
+    return result;
+  const SourceSeedPassRegistration &toySeed = sourceSeedPasses.front();
+  if (int result =
+          expect(toySeed.getOwnerPlugin() ==
+                         tianchenrv::plugin::toy::getToyExtensionPluginName() &&
+                     toySeed.getArgument() ==
+                         "tcrv-toy-materialize-template-selected-boundary-seed" &&
+                     toySeed.getDescription().contains("Toy template"),
+                 "Toy source-seed registration preserves bounded public pass "
+                 "metadata"))
+    return result;
+  std::unique_ptr<mlir::Pass> seedPass = toySeed.getFactory()();
+  if (int result = expect(seedPass &&
+                              seedPass->getArgument() ==
+                                  toySeed.getArgument(),
+                          "Toy source-seed factory constructs the registered "
+                          "pass"))
     return result;
 
   const auto &manifest =

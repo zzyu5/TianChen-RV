@@ -203,3 +203,80 @@ Added an RVV-owned bounded vector i32 add source seed pass that materializes sel
 ### Next Steps
 
 - None - task complete
+
+
+## Session 96: Toy source-seed plugin-template proof
+
+**Date**: 2026-05-16
+**Task**: Toy source-seed plugin-template proof
+**Branch**: `main`
+
+### Summary
+
+Added Toy as the second plugin-owned source-seed registry consumer. The new
+bounded Toy seed is registered through `ToyExtensionPlugin::registerSourceSeedPasses`,
+materializes the existing Toy selected `tcrv_toy.compute_skeleton` boundary,
+and feeds the existing Toy EmitC and target artifact route without direct
+`tcrv-opt` wiring or common/core Toy semantic branches.
+
+### Main Changes
+
+- Created Trellis task `05-16-toy-source-seed-plugin-template-proof` from the
+  supplied Direction Brief and wrote the PRD around a Toy-only second consumer.
+- Added `--tcrv-toy-materialize-template-selected-boundary-seed` under the Toy
+  plugin.
+- The seed accepts one explicit source-only marker,
+  `tcrv_toy.lowering_seed = "template_compute"`, on a zero-argument,
+  zero-result `func.func` with one empty return.
+- The seed materializes a Toy `tcrv.exec.kernel`, available `toy.template`
+  capability, selected `origin = "toy-plugin"` variant with the existing Toy
+  construction metadata, selected diagnostic, and `tcrv_toy.compute_skeleton`.
+- Added Toy plugin/unit coverage for source-seed registration metadata and
+  factory construction.
+- Added lit coverage for Toy seed positive boundary, EmitC, target artifact,
+  built-in-disabled fail-closed behavior, unsupported marker/shape/body, stale
+  `tcrv.exec`, and stale `tcrv_toy` residue.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target TianChenRVToyPlugin tcrv-opt tcrv-translate
+  tianchenrv-toy-extension-plugin-test tianchenrv-plugin-registry-test -j2`.
+- [OK] C++ tests:
+  `tianchenrv-toy-extension-plugin-test`,
+  `tianchenrv-plugin-registry-test`.
+- [OK] Focused lit from `build/test`:
+  `toy-template-selected-boundary-seed|toy-template-target-artifact|toy-template-materialization|rvv-i32m1-selected-boundary-seed`,
+  14/14 passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`, 106/106
+  passed.
+- [OK] `git diff --check`.
+- [OK] Tool direct seed-factory scan returned no matches under
+  `tools/tcrv-opt` and `tools/tcrv-translate`.
+- [OK] Common/core source-seed semantic branch scan returned no matches under
+  `include/TianChenRV/Plugin/ExtensionPlugin.h`,
+  `lib/Plugin/ExtensionPlugin.cpp`, `include/TianChenRV/Transforms`, and
+  `lib/Transforms`.
+
+### Self-Repair
+
+- Fixed zero-argument MLIR source syntax in the new Toy lit input.
+- Repaired Toy seed variant metadata to use the existing Toy legality
+  attributes (`tcrv_toy.*`) rather than construction-protocol helper metadata
+  names.
+- Replaced an invalid unknown-op Toy residue test with a legal
+  `tcrv_toy.compute_skeleton` residue.
+
+### Spec Update Judgment
+
+No spec update was needed. Existing plugin-protocol specs already define the
+source-seed registry rule; this round proved a second consumer without adding a
+new durable contract.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

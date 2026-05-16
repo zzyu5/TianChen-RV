@@ -150,6 +150,7 @@ target_link_libraries(tianchenrv-toy-extension-plugin-test
   TianChenRVTransforms
   MLIRIR
   MLIRParser
+  MLIRPass
   MLIRSupport
 )
 

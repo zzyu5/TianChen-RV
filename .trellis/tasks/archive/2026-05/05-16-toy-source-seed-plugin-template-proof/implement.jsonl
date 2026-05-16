@@ -1,0 +1,4 @@
+{"file":".trellis/spec/index.md","reason":"Global TianChen-RV architecture and implementation-stack invariants for this task"}
+{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"SourceSeedPassProvider registry contract and extension-neutral common interface boundaries"}
+{"file":".trellis/spec/plugin-protocol/extension-family-plugin-template.md","reason":"Extension-family construction protocol and plugin locality requirements"}
+{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Bounded source-seed contract and deleted-core-source-front-end boundary"}
