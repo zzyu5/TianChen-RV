@@ -1111,26 +1111,6 @@ void printTargetArtifactRuntimeABIParameters(
   }
 }
 
-void printTargetArtifactSelectedPlanMetadata(
-    llvm::raw_ostream &os, llvm::StringRef indent,
-    llvm::ArrayRef<SelectedPlanMetadataEntry> metadata) {
-  for (auto [index, entry] : llvm::enumerate(metadata)) {
-    os << indent << "    selected_plan_metadata[" << index << "]:\n";
-    os << indent << "      name: ";
-    printQuoted(os, entry.name);
-    os << "\n";
-    os << indent << "      value: ";
-    printQuoted(os, entry.value);
-    os << "\n";
-    os << indent << "      role: ";
-    printQuoted(os, entry.role);
-    os << "\n";
-    os << indent << "      note: ";
-    printQuoted(os, entry.note);
-    os << "\n";
-  }
-}
-
 void printTargetArtifactRecords(
     llvm::raw_ostream &os, llvm::StringRef indent,
     llvm::ArrayRef<TargetArtifactBundleRecord> artifacts) {
@@ -1203,8 +1183,6 @@ void printTargetArtifactRecords(
     }
     printTargetArtifactRuntimeABIParameters(os, indent,
                                             artifact.runtimeABIParameters);
-    printTargetArtifactSelectedPlanMetadata(os, indent,
-                                            artifact.selectedPlanMetadata);
     os << indent << "    evidence_role: ";
     printQuoted(os, artifact.evidenceRole);
     os << "\n";

@@ -3,7 +3,6 @@
 
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
@@ -14,35 +13,6 @@
 #include <string>
 
 namespace tianchenrv::target::rvv {
-
-inline llvm::StringRef getRVVComponentCapacityElementCountMetadataName() {
-  return "tcrv_rvv.component_capacity_element_count";
-}
-
-inline llvm::StringRef getRVVComponentCapacityElementCountMetadataRole() {
-  return "rvv-artifact-local-component-capacity";
-}
-
-inline llvm::StringRef getRVVComponentCapacityElementCountMetadataNote() {
-  return "bounded artifact-local component capacity cross-checked after "
-         "typed selected-plan authority; not compute, ABI, source, runtime "
-         "AVL/VL, hardware capacity, or "
-         "performance authority";
-}
-
-inline llvm::StringRef getRVVRuntimeElementCountCNameMetadataName() {
-  return "tcrv_rvv.runtime_element_count_c_name";
-}
-
-inline llvm::StringRef getRVVRuntimeControlNameMetadataRole() {
-  return "rvv-runtime-control-name-boundary";
-}
-
-inline llvm::StringRef getRVVRuntimeControlNameMetadataNote() {
-  return "runtime ABI/control C name resolved from tcrv.exec runtime boundary; "
-         "not a compile-time vector-shape config or artifact-local component "
-         "capacity";
-}
 
 class RVVRuntimeLengthContract {
 public:
@@ -150,38 +120,6 @@ validateRVVRuntimeLengthContract(const RVVRuntimeLengthContract &contract) {
         "parameter and tcrv_rvv.setvl/tcrv_rvv.with_vl control surface");
 
   return llvm::Error::success();
-}
-
-inline void appendRVVRuntimeLengthSelectedPlanMetadata(
-    const RVVRuntimeLengthContract &contract,
-    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
-  llvm::StringRef runtimeRole = getRVVRuntimeVLBoundaryMetadataRole();
-  llvm::StringRef runtimeNote = getRVVRuntimeVLBoundaryMetadataNote();
-  out.push_back({getRVVRuntimeAVLSourceMetadataName(),
-                 contract.getRuntimeAVLSource(), runtimeRole, runtimeNote,
-                 "runtime AVL source"});
-  out.push_back({getRVVRuntimeAVLRoleMetadataName(),
-                 contract.getRuntimeAVLRole(), runtimeRole, runtimeNote,
-                 "runtime AVL role"});
-  out.push_back({getRVVRuntimeVLSourceMetadataName(),
-                 contract.getRuntimeVLSource(), runtimeRole, runtimeNote,
-                 "runtime VL source"});
-  out.push_back({getRVVRuntimeVLScopeMetadataName(),
-                 contract.getRuntimeVLScope(), runtimeRole, runtimeNote,
-                 "runtime VL scope"});
-}
-
-inline void appendRVVRuntimeLengthComponentCapacityElementCountMetadata(
-    const RVVRuntimeLengthContract &contract,
-    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
-  if (contract.getComponentCapacityElementCount() <= 0)
-    return;
-
-  out.push_back({getRVVComponentCapacityElementCountMetadataName(),
-                 std::to_string(contract.getComponentCapacityElementCount()),
-                 getRVVComponentCapacityElementCountMetadataRole(),
-                 getRVVComponentCapacityElementCountMetadataNote(),
-                 "artifact-local component capacity"});
 }
 
 } // namespace tianchenrv::target::rvv

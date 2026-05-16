@@ -283,8 +283,9 @@ def CheckExecutionPlanCoherence
     origins are registered plugins; selected lowering-boundary metadata matches
     the selected kernel, variant, role, origin, and required capabilities;
     emission-plan diagnostics match the same selected path and carry bounded
-    runtime ABI ownership metadata; and supported artifact route metadata agrees
-    with the registered target artifact exporter.
+    runtime ABI ownership metadata; and supported artifact route id, artifact
+    kind, callback, and runtime ABI parameter contracts agree with the
+    registered target artifact exporter.
 
     The pass is target-neutral and selected-path based. It does not export
     artifacts, lower to LLVM/RISC-V, run a runtime, or claim correctness or

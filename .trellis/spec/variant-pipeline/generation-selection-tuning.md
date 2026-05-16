@@ -192,8 +192,9 @@ kernel-local capability-provider `tcrv.exec.target` anchors, and the one
 module-level capability-provider `tcrv.exec.target` explicitly referenced by
 `target = @profile` plus that target profile's explicit
 `capability_providers` composition. It routes proposal/cost/lowering/emission-plan queries
-through an injected `ExtensionPluginRegistry`, checks final selected
-artifact-route metadata through an injected `TargetArtifactExporterRegistry`,
+through an injected `ExtensionPluginRegistry`, checks final selected artifact
+route id, artifact kind, origin/emission identifiers, callbacks, and runtime
+ABI parameter contracts through an injected `TargetArtifactExporterRegistry`,
 and materializes only compiler-visible planning metadata, including
 plugin-local selected-boundary ops only when a plugin has an active boundary
 surface. RVV and scalar fallback currently remain no-boundary/fail-closed
@@ -261,9 +262,9 @@ or measure performance.
 After emission-plan materialization, the canonical pipeline runs the existing
 execution-plan coherence gate over the same selected-path metadata. This final
 gate validates selected-path, plugin origin, lowering-boundary, runtime ABI
-ownership, emission-plan, and target artifact route metadata against the active
-plugin and target artifact exporter registries before downstream target/export
-front doors consume the planned IR. It reuses the shared
+ownership, emission-plan, and concrete target artifact route fields against the
+active plugin and target artifact exporter registries before downstream
+target/export front doors consume the planned IR. It reuses the shared
 `tcrv-check-execution-plan-coherence` pass and must not duplicate target route
 logic in the pipeline builder.
 

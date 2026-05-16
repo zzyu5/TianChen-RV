@@ -13,7 +13,6 @@
 #include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
 #include "TianChenRV/Target/RVV/RVVRuntimeLengthContract.h"
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
-#include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
 
@@ -167,44 +166,13 @@ bool expectErrorContains(llvm::Error error, llvm::StringRef context,
   return true;
 }
 
-bool expectRVVRuntimeLengthContractMetadata() {
+bool expectRVVRuntimeLengthContractShape() {
   using namespace tianchenrv::target::rvv;
 
   RVVRuntimeLengthContract runtimeLength("len", 16);
   if (!expectSuccess(validateRVVRuntimeLengthContract(runtimeLength),
                      "valid RVV runtime length contract"))
     return false;
-
-  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 4>
-      runtimeMetadata;
-  appendRVVRuntimeLengthSelectedPlanMetadata(runtimeLength, runtimeMetadata);
-  if (runtimeMetadata.size() != 4 ||
-      runtimeMetadata[0].name != getRVVRuntimeAVLSourceMetadataName() ||
-      runtimeMetadata[0].value != getRVVRuntimeAVLSourceMetadataValue() ||
-      runtimeMetadata[1].name != getRVVRuntimeAVLRoleMetadataName() ||
-      runtimeMetadata[1].value != getRVVRuntimeAVLRoleMetadataValue() ||
-      runtimeMetadata[2].name != getRVVRuntimeVLSourceMetadataName() ||
-      runtimeMetadata[2].value != getRVVRuntimeVLSourceMetadataValue() ||
-      runtimeMetadata[3].name != getRVVRuntimeVLScopeMetadataName() ||
-      runtimeMetadata[3].value != getRVVRuntimeVLScopeMetadataValue()) {
-    llvm::errs() << "RVV runtime length contract emitted malformed AVL/VL "
-                    "metadata\n";
-    return false;
-  }
-
-  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 1>
-      descriptorMetadata;
-  appendRVVRuntimeLengthComponentCapacityElementCountMetadata(runtimeLength,
-                                                      descriptorMetadata);
-  if (descriptorMetadata.size() != 1 ||
-      descriptorMetadata[0].name != getRVVComponentCapacityElementCountMetadataName() ||
-      descriptorMetadata[0].value != "16" ||
-      descriptorMetadata[0].role !=
-          getRVVComponentCapacityElementCountMetadataRole()) {
-    llvm::errs() << "RVV runtime length contract emitted malformed "
-                    "artifact-local component capacity metadata\n";
-    return false;
-  }
 
   if (runtimeLength.formatRemainingAVLOperandExpression("offset") !=
       "len - offset") {
@@ -224,57 +192,6 @@ bool expectRuntimeABIParametersEqual(
     return true;
   llvm::errs() << context << ": runtime ABI parameters did not match\n";
   return false;
-}
-
-bool expectGenericCompositeRouteMetadataPreflightRejectsStaleSelectedPlan() {
-  TargetArtifactRouteMetadata metadata("test-runtime-abi.v1",
-                                       "test-runtime-abi-kind",
-                                       "test-runtime-abi-name",
-                                       "test-runtime-glue-role");
-  metadata.addSelectedPlanMetadataRequirement(
-      "test.emitc_body_mapping", "expected-selected-emitc-body-mapping",
-      "typed-emitc-route");
-
-  TargetArtifactExporterRegistry registry;
-  if (!expectSuccess(registry.registerCompositeExporter(
-                         TargetArtifactCompositeExporter(
-                             "test-selected-emitc-composite",
-                             "riscv-elf-relocatable-object", alwaysMatchComposite,
-                             objectMarkerExporter, "test-plugin",
-                             /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
-                             /*componentGroup=*/{},
-                             /*externalABIName=*/{},
-                             /*candidateValidationFn=*/nullptr, metadata)),
-                     "register selected EmitC metadata composite route"))
-    return false;
-
-  TargetArtifactCandidate candidate;
-  candidate.routeID = "test-component-route";
-  candidate.runtimeABI = "test-runtime-abi.v1";
-  candidate.runtimeABIKind = "test-runtime-abi-kind";
-  candidate.runtimeABIName = "test-runtime-abi-name";
-  candidate.runtimeGlueRole = "test-runtime-glue-role";
-  candidate.selectedPlanMetadata.push_back(
-      {"test.emitc_body_mapping", "stale-selected-emitc-body-mapping",
-       "typed-emitc-route",
-       "generic composite metadata preflight stale test"});
-
-  llvm::SmallVector<TargetArtifactCandidate, 1> candidates;
-  candidates.push_back(candidate);
-  llvm::Expected<const TargetArtifactCompositeExporter *> selected =
-      selectTargetArtifactCompositeExporter(candidates, registry);
-  if (selected) {
-    llvm::errs() << "generic composite route metadata preflight accepted stale "
-                    "selected EmitC metadata\n";
-    return false;
-  }
-  return expectErrorContains(
-      selected.takeError(),
-      "stale selected-plan composite route metadata preflight rejected",
-      {"composite target artifact route", "test-selected-emitc-composite",
-       "route metadata preflight failed", "selected_plan_metadata",
-       "test.emitc_body_mapping", "must use value",
-       "expected-selected-emitc-body-mapping"});
 }
 
 bool expectSelectedCompositeRoute(
@@ -325,9 +242,7 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
       !containsString(toyBundle->getRequiredDialectNames(), "tcrv_toy") ||
       !toyBundle->getPluginRegistrationFn() ||
       !toyBundle->getLoweringBoundaryOps().empty() ||
-      toyBundle->getTargetArtifactExporterBundleRegistrationFn() ||
-      toyBundle->requiresTargetArtifactRouteMetadata() ||
-      !toyBundle->getTargetArtifactRouteMetadata().empty()) {
+      toyBundle->getTargetArtifactExporterBundleRegistrationFn()) {
     llvm::errs() << "Toy extension bundle frontdoor is malformed\n";
     return false;
   }
@@ -345,9 +260,7 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
                       "tcrv_template") ||
       !templateBundle->getPluginRegistrationFn() ||
       !templateBundle->getLoweringBoundaryOps().empty() ||
-      templateBundle->getTargetArtifactExporterBundleRegistrationFn() ||
-      templateBundle->requiresTargetArtifactRouteMetadata() ||
-      !templateBundle->getTargetArtifactRouteMetadata().empty()) {
+      templateBundle->getTargetArtifactExporterBundleRegistrationFn()) {
     llvm::errs() << "Template extension bundle frontdoor is malformed\n";
     return false;
   }
@@ -366,9 +279,7 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
                       "tcrv_tensorext_lite") ||
       !tensorExtLiteBundle->getPluginRegistrationFn() ||
       !tensorExtLiteBundle->getLoweringBoundaryOps().empty() ||
-      tensorExtLiteBundle->getTargetArtifactExporterBundleRegistrationFn() ||
-      tensorExtLiteBundle->requiresTargetArtifactRouteMetadata() ||
-      !tensorExtLiteBundle->getTargetArtifactRouteMetadata().empty()) {
+      tensorExtLiteBundle->getTargetArtifactExporterBundleRegistrationFn()) {
     llvm::errs()
         << "TensorExtLite extension bundle frontdoor is malformed\n";
     return false;
@@ -381,26 +292,11 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
     llvm::errs() << "missing RVV extension bundle frontdoor\n";
     return false;
   }
-  if (rvvBundle->requiresTargetArtifactRouteMetadata() ||
-      !rvvBundle->getTargetArtifactRouteMetadata().empty()) {
-    llvm::errs() << "RVV extension bundle frontdoor still publishes "
-                    "target-artifact route metadata without a materialized "
-                    "artifact route\n";
-    return false;
-  }
-
   const ExtensionBundle *scalarBundle =
       bundles.lookupPluginBundle(
           tianchenrv::plugin::scalar::getScalarExtensionPluginName());
   if (!scalarBundle) {
     llvm::errs() << "missing Scalar extension bundle frontdoor\n";
-    return false;
-  }
-  if (scalarBundle->requiresTargetArtifactRouteMetadata() ||
-      !scalarBundle->getTargetArtifactRouteMetadata().empty()) {
-    llvm::errs() << "Scalar extension bundle frontdoor still publishes "
-                    "target-artifact route metadata without a materialized "
-                    "artifact route\n";
     return false;
   }
   if (!scalarBundle->getRequiredDialectNames().empty() ||
@@ -489,23 +385,6 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
   }
 
   {
-    ExtensionBundleRegistry registry;
-    ExtensionBundle missingRouteMetadata(
-        "toy-missing-route-metadata-bundle",
-        tianchenrv::plugin::toy::getToyExtensionPluginName(),
-        tianchenrv::plugin::registerToyExtensionPlugin);
-    missingRouteMetadata.setTargetArtifactExporterBundleRegistrationFn(
-        registerNoMetadataToyPluginTargetExporterBundle);
-    missingRouteMetadata.setRequiresTargetArtifactRouteMetadata();
-    if (!expectErrorContains(
-            registry.registerBundle(missingRouteMetadata),
-            "missing bundle route metadata requirement rejected",
-            {"requires target artifact route metadata",
-             "declares no target artifact route metadata requirements"}))
-      return false;
-  }
-
-  {
     ExtensionBundleRegistry bundles;
     ExtensionBundle noMetadataRoute(
         "toy-no-metadata-route-bundle",
@@ -513,8 +392,6 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
         tianchenrv::plugin::registerToyExtensionPlugin);
     noMetadataRoute.setTargetArtifactExporterBundleRegistrationFn(
         registerNoMetadataToyPluginTargetExporterBundle);
-    noMetadataRoute.addTargetArtifactRouteMetadataRequirement(
-        kBundleTestMissingRouteMetadataID, "metadata-diagnostic");
     if (!expectSuccess(bundles.registerBundle(noMetadataRoute),
                        "register no-metadata-route bundle"))
       return false;
@@ -524,13 +401,16 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
                        "register plugins for no-metadata-route bundle"))
       return false;
     TargetArtifactExporterRegistry exporters;
-    if (!expectErrorContains(
+    if (!expectSuccess(
             bundles.registerTargetArtifactExportersForEnabledPlugins(
                 plugins, exporters),
-            "registered route without TargetArtifactRouteMetadata rejected",
-            {"target artifact route", kBundleTestMissingRouteMetadataID,
-             "requires registered TargetArtifactRouteMetadata"}))
+            "registered route without target artifact descriptor authority"))
       return false;
+    if (!exporters.lookup(kBundleTestMissingRouteMetadataID)) {
+      llvm::errs() << "bundle exporter registration unexpectedly required "
+                      "target artifact descriptor authority\n";
+      return false;
+    }
   }
 
   {
@@ -541,8 +421,6 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
         tianchenrv::plugin::registerToyExtensionPlugin);
     noMetadataCompositeRoute.setTargetArtifactExporterBundleRegistrationFn(
         registerNoMetadataToyCompositePluginTargetExporterBundle);
-    noMetadataCompositeRoute.addTargetArtifactRouteMetadataRequirement(
-        kBundleTestNoMetadataCompositeRouteID, "riscv-elf-relocatable-object");
     if (!expectSuccess(bundles.registerBundle(noMetadataCompositeRoute),
                        "register no-metadata-composite-route bundle"))
       return false;
@@ -553,35 +431,17 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
                        "bundle"))
       return false;
     TargetArtifactExporterRegistry exporters;
-    if (!expectErrorContains(
+    if (!expectSuccess(
             bundles.registerTargetArtifactExportersForEnabledPlugins(
                 plugins, exporters),
-            "registered composite route without TargetArtifactRouteMetadata "
-            "rejected",
-            {"target artifact route", kBundleTestNoMetadataCompositeRouteID,
-             "requires registered TargetArtifactRouteMetadata"}))
+            "registered composite route without target artifact descriptor "
+            "authority"))
       return false;
-  }
-
-  {
-    TargetArtifactRouteMetadata metadata;
-    metadata.addClaimField("performance_claim", "none");
-    metadata.addClaimField("performance_claim", "none");
-    TargetArtifactExporterRegistry registry;
-    if (!expectErrorContains(
-            registry.registerCompositeExporter(TargetArtifactCompositeExporter(
-                "bundle-test-duplicate-composite-claim",
-                "riscv-elf-relocatable-object", alwaysMatchComposite,
-                noopExporter, "toy-plugin",
-                /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
-                /*componentGroup=*/{},
-                /*externalABIName=*/{},
-                /*candidateValidationFn=*/nullptr, metadata)),
-            "duplicate composite route claim field rejected",
-            {"composite exporter route id",
-             "bundle-test-duplicate-composite-claim",
-             "duplicate route claim field", "performance_claim"}))
+    if (!exporters.lookupComposite(kBundleTestNoMetadataCompositeRouteID)) {
+      llvm::errs() << "bundle composite exporter registration unexpectedly "
+                      "required target artifact descriptor authority\n";
       return false;
+    }
   }
 
   {
@@ -689,12 +549,9 @@ bool expectRVVTargetSupportBundleExtractionRegistration() {
                     "registration\n";
     return false;
   }
-  if (bundle.requiresTargetArtifactRouteMetadata() ||
-      !bundle.getTargetArtifactRouteMetadata().empty() ||
-      !bundle.getLoweringBoundaryOps().empty()) {
-    llvm::errs() << "RVV target-support bundle still owns boundary or "
-                    "target-artifact route metadata requirements without a "
-                    "materialized artifact route\n";
+  if (!bundle.getLoweringBoundaryOps().empty()) {
+    llvm::errs() << "RVV target-support bundle still owns lowering-boundary "
+                    "requirements without a materialized artifact route\n";
     return false;
   }
 
@@ -749,8 +606,7 @@ bool expectRVVPluginManifestTargetSupportActivation() {
     return false;
   if (!containsString(bundle.getRequiredDialectNames(), "tcrv_rvv") ||
       !bundle.getLoweringBoundaryOps().empty() ||
-      !bundle.getTargetArtifactExporterBundleRegistrationFn() ||
-      bundle.requiresTargetArtifactRouteMetadata()) {
+      !bundle.getTargetArtifactExporterBundleRegistrationFn()) {
     llvm::errs() << "RVV plugin manifest hook did not configure the "
                     "target-support extension bundle\n";
     return false;
@@ -1600,7 +1456,7 @@ int main() {
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();
 
-  if (!expectRVVRuntimeLengthContractMetadata())
+  if (!expectRVVRuntimeLengthContractShape())
     return 1;
 
   TargetArtifactExporterRegistry registry;
@@ -1747,8 +1603,6 @@ int main() {
   if (!expectSelectedCompositeRoute(
           selectTargetArtifactCompositeExporter({}, compositeSelectionRegistry),
           "object-composite", "artifact-kind composite selection"))
-    return 1;
-  if (!expectGenericCompositeRouteMetadataPreflightRejectsStaleSelectedPlan())
     return 1;
   if (!expectGenericHeaderArtifactRouteSelection(context))
     return 1;

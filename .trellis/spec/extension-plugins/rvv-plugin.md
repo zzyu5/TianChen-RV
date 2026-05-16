@@ -41,7 +41,7 @@ preference through `ExtensionPluginRegistry`.
 The deleted metadata-only proposal route is not active compiler authority:
 bare high-level/no-body RVV capability evidence must not produce an RVV
 proposal, selected variant, lowering boundary, emission plan, runtime ABI,
-artifact route, or route metadata. A selected RVV variant is legal only when it
+artifact route, or metadata-only artifact authority. A selected RVV variant is legal only when it
 already contains explicit typed `tcrv_rvv` extension-family IR. That typed IR
 is still non-executable until a future EmitC/runtime route is implemented.
 
@@ -115,7 +115,7 @@ The RVV plugin must not create any binary-family proposal from a no-body
 `tcrv.exec.kernel`, from deleted frontend metadata, from finite-family registry
 metadata, or from hand-authored microkernel names alone. Kernel-based
 executable planning requires a future explicit extension-family op contract
-and a materialized EmitC route before selecting family, dtype, route metadata,
+and a materialized EmitC route before selecting family, dtype, artifact route,
 callable ABI, artifact kind, or emitted body.
 
 ## Scenario: Capability-Backed RVV i32m1 Config Policy Slice
@@ -165,7 +165,7 @@ compiler config facts.
   legality error.
 - Capability/profile facts may still be validated for replay and typed-body
   checks, but they must not create proposal, boundary, emission-plan, runtime
-  ABI, artifact, or route metadata authority by themselves.
+  ABI, artifact, or metadata-only route authority by themselves.
 
 ### 5. Good/Base/Bad Cases
 
@@ -798,7 +798,7 @@ route before printing RVV intrinsic C/C++.
   tcrv_rvv.<dtype>_store`.
 - Route plan: an explicit EmitC intrinsic route object with standard headers,
   source op names, `emitc.call_opaque` callee names, and one setvl callee.
-- Exported route metadata comments must include `emitc_route`,
+- Exported EmitC provenance comments must include `emitc_route`,
   `emitc_route_headers`, `emitc_route_source_ops`, and indexed
   `emitc.call_opaque[...]` entries.
 

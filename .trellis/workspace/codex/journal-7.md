@@ -56,6 +56,61 @@ Deleted Support-owned I32/RVV runtime ABI contracts and helpers; rewired tests/s
 - None - task complete
 
 
+## Session 87: Target artifact route-metadata authority erasure
+
+**Date**: 2026-05-16
+**Task**: Target artifact route-metadata authority erasure
+**Branch**: `main`
+
+### Summary
+
+Erased target artifact route metadata and selected-plan metadata as
+artifact-route authority. Target artifact export now validates concrete route
+ids, artifact kinds, callbacks, origin/emission identifiers, runtime ABI
+fields/parameters, duplicate route IDs, and bundle shape without requiring
+extension bundles or exporters to publish route metadata descriptors.
+
+### Main Changes
+
+- Removed `TargetArtifactRouteMetadata`, extension-bundle route metadata
+  requirement APIs, route claim fields, and route metadata preflight from the
+  target artifact exporter API and implementation.
+- Stopped target artifact export and execution-plan coherence from collecting
+  or validating `selected_plan_metadata` as artifact route authority.
+- Deleted RVV selected-plan metadata descriptor helpers from target RVV support
+  headers because they no longer feed exporter/route authority.
+- Rewrote focused target artifact export tests and directly affected spec/pass
+  wording around concrete artifact route fields rather than metadata
+  descriptors.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(target): erase route metadata authority |
+
+### Testing
+
+- [OK] focused active-surface ref-scan for Hermes brief terms; remaining
+  `selected_plan_metadata` hits are only the generic `tcrv.exec.diagnostic`
+  attribute definition, not target/export consumption
+- [OK] `ninja -C build tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-template-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `ninja -C build check-tianchenrv` (74/74 lit tests)
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-16-target-artifact-route-metadata-authority-erasure`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 85: RVV deleted metadata-route diagnostic erasure
 
 **Date**: 2026-05-16

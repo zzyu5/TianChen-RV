@@ -50,79 +50,6 @@ using TargetArtifactCompositeRuntimeABIParametersFn =
     llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>> (*)(
         llvm::ArrayRef<TargetArtifactCandidate> candidates);
 
-struct TargetArtifactRouteClaimField {
-  TargetArtifactRouteClaimField() = default;
-  TargetArtifactRouteClaimField(llvm::StringRef name, llvm::StringRef value);
-
-  std::string name;
-  std::string value;
-};
-
-struct TargetArtifactSelectedPlanMetadataRequirement {
-  TargetArtifactSelectedPlanMetadataRequirement() = default;
-  TargetArtifactSelectedPlanMetadataRequirement(llvm::StringRef name,
-                                                llvm::StringRef value,
-                                                llvm::StringRef role,
-                                                bool requireExactValue = true);
-
-  std::string name;
-  std::string value;
-  std::string role;
-  bool requireExactValue = true;
-};
-
-class TargetArtifactRouteMetadata {
-public:
-  TargetArtifactRouteMetadata() = default;
-  TargetArtifactRouteMetadata(llvm::StringRef runtimeABI,
-                              llvm::StringRef runtimeABIKind,
-                              llvm::StringRef runtimeABIName,
-                              llvm::StringRef runtimeGlueRole);
-
-  llvm::StringRef getRuntimeABI() const { return runtimeABI; }
-  llvm::StringRef getRuntimeABIKind() const { return runtimeABIKind; }
-  llvm::StringRef getRuntimeABIName() const { return runtimeABIName; }
-  llvm::StringRef getRuntimeGlueRole() const { return runtimeGlueRole; }
-  llvm::ArrayRef<TargetArtifactSelectedPlanMetadataRequirement>
-  getSelectedPlanMetadataRequirements() const {
-    return selectedPlanMetadataRequirements;
-  }
-  llvm::ArrayRef<TargetArtifactRouteClaimField> getClaimFields() const {
-    return claimFields;
-  }
-
-  bool hasRuntimeABIMetadata() const {
-    return !runtimeABI.empty() || !runtimeABIKind.empty() ||
-           !runtimeABIName.empty() || !runtimeGlueRole.empty();
-  }
-
-  void setRuntimeABI(llvm::StringRef value) { runtimeABI = value.str(); }
-  void setRuntimeABIKind(llvm::StringRef value) {
-    runtimeABIKind = value.str();
-  }
-  void setRuntimeABIName(llvm::StringRef value) {
-    runtimeABIName = value.str();
-  }
-  void setRuntimeGlueRole(llvm::StringRef value) {
-    runtimeGlueRole = value.str();
-  }
-  void addSelectedPlanMetadataRequirement(llvm::StringRef name,
-                                          llvm::StringRef value,
-                                          llvm::StringRef role);
-  void addSelectedPlanMetadataPresenceRequirement(llvm::StringRef name,
-                                                  llvm::StringRef role);
-  void addClaimField(llvm::StringRef name, llvm::StringRef value);
-
-private:
-  std::string runtimeABI;
-  std::string runtimeABIKind;
-  std::string runtimeABIName;
-  std::string runtimeGlueRole;
-  llvm::SmallVector<TargetArtifactSelectedPlanMetadataRequirement, 4>
-      selectedPlanMetadataRequirements;
-  llvm::SmallVector<TargetArtifactRouteClaimField, 4> claimFields;
-};
-
 class TargetArtifactExporter {
 public:
   TargetArtifactExporter() = default;
@@ -137,8 +64,7 @@ public:
                          TargetArtifactCandidateValidationFn
                              candidateValidationFn = nullptr,
                          llvm::StringRef componentGroup = {},
-                         llvm::StringRef externalABIName = {},
-                         const TargetArtifactRouteMetadata &routeMetadata = {});
+                         llvm::StringRef externalABIName = {});
 
   llvm::StringRef getRouteID() const { return routeID; }
   llvm::StringRef getArtifactKind() const { return artifactKind; }
@@ -155,9 +81,6 @@ public:
   TargetArtifactCandidateValidationFn getCandidateValidationFn() const {
     return candidateValidationFn;
   }
-  const TargetArtifactRouteMetadata &getRouteMetadata() const {
-    return routeMetadata;
-  }
 
 private:
   std::string routeID;
@@ -171,14 +94,6 @@ private:
   llvm::SmallVector<support::RuntimeABIParameter, 5>
       requiredRuntimeABIParameters;
   TargetArtifactCandidateValidationFn candidateValidationFn = nullptr;
-  TargetArtifactRouteMetadata routeMetadata;
-};
-
-struct SelectedPlanMetadataEntry {
-  std::string name;
-  std::string value;
-  std::string role;
-  std::string note;
 };
 
 struct TargetArtifactCandidate {
@@ -195,7 +110,6 @@ struct TargetArtifactCandidate {
   std::string runtimeABIName;
   std::string runtimeGlueRole;
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
-  llvm::SmallVector<SelectedPlanMetadataEntry, 4> selectedPlanMetadata;
 };
 
 struct TargetArtifactCompositeBundleMetadata {
@@ -203,7 +117,6 @@ struct TargetArtifactCompositeBundleMetadata {
   std::string runtimeABIName;
   std::string componentGroup;
   std::string externalABIName;
-  llvm::SmallVector<SelectedPlanMetadataEntry, 4> selectedPlanMetadata;
 };
 
 using TargetArtifactCompositeBundleMetadataFn =
@@ -228,8 +141,6 @@ struct TargetArtifactBundleRecord {
   std::string runtimeABIKind;
   std::string runtimeABIName;
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
-  llvm::SmallVector<SelectedPlanMetadataEntry, 4> selectedPlanMetadata;
-  llvm::SmallVector<TargetArtifactRouteClaimField, 4> routeClaimFields;
   std::string handoffKind;
   std::string evidenceRole;
 };
@@ -248,8 +159,6 @@ public:
                                   llvm::StringRef externalABIName = {},
                                   TargetArtifactCompositeCandidateValidationFn
                                       candidateValidationFn = nullptr,
-                                  const TargetArtifactRouteMetadata
-                                      &routeMetadata = {},
                                   TargetArtifactCompositeBundleMetadataFn
                                       bundleMetadataFn = nullptr);
   TargetArtifactCompositeExporter(
@@ -262,7 +171,6 @@ public:
       llvm::StringRef externalABIName = {},
       TargetArtifactCompositeCandidateValidationFn candidateValidationFn =
           nullptr,
-      const TargetArtifactRouteMetadata &routeMetadata = {},
       TargetArtifactCompositeBundleMetadataFn bundleMetadataFn = nullptr);
   TargetArtifactCompositeExporter(
       llvm::StringRef routeID, llvm::StringRef artifactKind,
@@ -274,7 +182,6 @@ public:
       llvm::StringRef externalABIName = {},
       TargetArtifactCompositeCandidateValidationFn candidateValidationFn =
           nullptr,
-      const TargetArtifactRouteMetadata &routeMetadata = {},
       TargetArtifactCompositeBundleMetadataFn bundleMetadataFn = nullptr);
 
   llvm::StringRef getRouteID() const { return routeID; }
@@ -300,9 +207,6 @@ public:
   TargetArtifactCompositeBundleMetadataFn getBundleMetadataFn() const {
     return bundleMetadataFn;
   }
-  const TargetArtifactRouteMetadata &getRouteMetadata() const {
-    return routeMetadata;
-  }
 
 private:
   std::string routeID;
@@ -319,7 +223,6 @@ private:
       nullptr;
   TargetArtifactCompositeCandidateValidationFn candidateValidationFn = nullptr;
   TargetArtifactCompositeBundleMetadataFn bundleMetadataFn = nullptr;
-  TargetArtifactRouteMetadata routeMetadata;
 };
 
 class TargetArtifactExporterRegistry {
@@ -386,20 +289,6 @@ private:
       bundlesByPlugin;
 };
 
-struct ExtensionBundleTargetArtifactRouteMetadata {
-  ExtensionBundleTargetArtifactRouteMetadata() = default;
-  ExtensionBundleTargetArtifactRouteMetadata(llvm::StringRef routeID,
-                                             llvm::StringRef artifactKind,
-                                             bool requireRouteMetadata = true,
-                                             llvm::ArrayRef<llvm::StringRef>
-                                                 requiredPluginNames = {});
-
-  std::string routeID;
-  std::string artifactKind;
-  bool requireRouteMetadata = true;
-  llvm::SmallVector<std::string, 2> requiredPluginNames;
-};
-
 class ExtensionBundle {
 public:
   ExtensionBundle() = default;
@@ -421,25 +310,11 @@ public:
   getTargetArtifactExporterBundleRegistrationFn() const {
     return targetArtifactExporterBundleRegistrationFn;
   }
-  bool requiresTargetArtifactRouteMetadata() const {
-    return requireTargetArtifactRouteMetadata;
-  }
-  llvm::ArrayRef<ExtensionBundleTargetArtifactRouteMetadata>
-  getTargetArtifactRouteMetadata() const {
-    return targetArtifactRouteMetadata;
-  }
 
   void addRequiredDialectName(llvm::StringRef dialectName);
   void addLoweringBoundaryOp(llvm::StringRef opName);
   void setTargetArtifactExporterBundleRegistrationFn(
       PluginTargetArtifactExporterBundleRegistrationFn registrationFn);
-  void setRequiresTargetArtifactRouteMetadata(bool required = true) {
-    requireTargetArtifactRouteMetadata = required;
-  }
-  void addTargetArtifactRouteMetadataRequirement(
-      llvm::StringRef routeID, llvm::StringRef artifactKind,
-      bool requireRouteMetadata = true,
-      llvm::ArrayRef<llvm::StringRef> requiredPluginNames = {});
 
 private:
   std::string bundleID;
@@ -449,9 +324,6 @@ private:
   llvm::SmallVector<std::string, 2> loweringBoundaryOps;
   PluginTargetArtifactExporterBundleRegistrationFn
       targetArtifactExporterBundleRegistrationFn = nullptr;
-  bool requireTargetArtifactRouteMetadata = false;
-  llvm::SmallVector<ExtensionBundleTargetArtifactRouteMetadata, 2>
-      targetArtifactRouteMetadata;
 };
 
 class ExtensionBundleRegistry {

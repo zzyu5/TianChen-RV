@@ -166,7 +166,7 @@ llvm::Error verifyEmitCMapping(const Manifest &manifest,
       actual.runtimeGlueRole != expected.runtimeGlueRole)
     return makeConstructionError(
         spec, llvm::Twine("EmitC route mapping must preserve ") +
-                  spec.familyDisplayName + " route metadata");
+                  spec.familyDisplayName + " artifact route fields");
 
   if (isSourceArtifactKind(actual.artifactKind))
     return makeConstructionError(

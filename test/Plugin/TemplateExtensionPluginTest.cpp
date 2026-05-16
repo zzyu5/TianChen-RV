@@ -268,7 +268,7 @@ int runConstructionManifestTest() {
                   "template-extension-no-active-emitc-route" &&
               manifest.emitcRoute.artifactKind ==
                   "unsupported-emission-diagnostic",
-          "Template manifest exposes fail-closed route metadata"))
+          "Template manifest exposes fail-closed artifact route fields"))
     return result;
   return expect(
       manifest.evidenceProfile.contains("parse_verify") &&

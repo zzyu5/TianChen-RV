@@ -609,8 +609,8 @@ not export artifacts, lower to LLVM/RISC-V, emit extension instructions, create
 runtime ABI glue, run hardware, or claim correctness or performance.
 
 The verifier must fail closed when selected-path, dispatch/fallback,
-lowering-boundary, runtime ABI ownership, emission-plan, and artifact route
-metadata are stale or contradictory. Required failure cases include selected
+lowering-boundary, runtime ABI ownership, emission-plan, and concrete artifact
+route fields are stale or contradictory. Required failure cases include selected
 variant references that no longer resolve to the current direct variant, origin
 plugins that are missing or unregistered, dispatch or selected-marker origin
 mismatch, lowering-boundary source kernel / selected variant / origin mismatch,
@@ -621,20 +621,12 @@ ambiguous supported artifact candidates.
 
 The generic preflight verifier may use the existing `ExtensionPluginRegistry`
 to validate origin ownership and the generic target artifact exporter registry
-to validate route metadata. Target-specific proof of a concrete microkernel,
-descriptor body, toolchain, or runtime remains target-owned and must not move
-into the shared transform.
-Registry-owned route metadata is not limited to standalone routes. Composite
-target artifact exporters may also carry `TargetArtifactRouteMetadata` for
-route-level claim fields and bounded metadata-shape validation. Generic
-registry code may validate the shape of those fields, copy route claim fields
-into bundle records, and let extension bundles require metadata for composite
-route ids, but it must not interpret RVV/scalar/offload family semantics from
-that metadata.
-If a route metadata requirement depends on an additional enabled plugin, such
-as RVV-owned RVV+scalar dispatch routes that also require `scalar-plugin`, the
-requirement must declare that plugin dependency and is enforced only when the
-dependency is enabled.
+to validate concrete route id, artifact kind, origin/emission identifiers,
+export callbacks, and runtime ABI parameter contracts. Target-specific proof
+of a concrete microkernel, descriptor body, toolchain, or runtime remains
+target-owned and must not move into the shared transform. Extension bundles
+must not require standalone or composite exporters to publish selected-plan
+metadata descriptors as target artifact route authority.
 When a registered target artifact route declares required runtime ABI roles or
 a route-local ABI validation callback, this same preflight verifier must reject
 missing or inconsistent compiler-owned ABI contracts before source, header,
@@ -1220,13 +1212,14 @@ plan. That field is a diagnostic link only and does not imply executable
 lowering.
 Plugins may additionally attach bounded `selected_plan_metadata` dictionaries
 to emission-plan diagnostics when the selected plan needs durable
-self-description across the lowering/export boundary. Each entry must have
-non-empty name, value, role, and note fields. The generic layer validates and
-serializes these entries but does not interpret plugin-specific names such as
-RVV capacity facts. For RVV, any capacity metadata must already have been
-validated by the RVV plugin against the selected variant and target
-capabilities; generic emission/export code must not turn it into runtime ABI,
-shape, VL/AVL, or performance evidence.
+self-description across the lowering boundary. Each entry must have non-empty
+name, value, role, and note fields. The generic emission-planning layer may
+serialize these entries as diagnostic self-description, but target artifact
+export must not use plugin-specific names such as RVV capacity facts as route
+selection, route preflight, runtime ABI, shape, VL/AVL, or performance
+evidence. For RVV, any capacity metadata must already have been validated by
+the RVV plugin against the selected variant and target capabilities before it
+is serialized as diagnostic metadata.
 
 The current public `tcrv-opt` built-in registry includes the RVV first-slice
 plugin. Therefore an `origin = "rvv-plugin"` selected path can route through

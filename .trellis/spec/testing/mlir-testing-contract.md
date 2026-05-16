@@ -175,7 +175,7 @@ Use lit/FileCheck for:
   selected-path/emission-plan consumption, fail-closed coverage for deleted RVV
   direct artifact routes, and fail-closed coverage for deleted non-RVV metadata
   artifact paths, fail-closed diagnostics for unsupported paths, missing
-  plan/route metadata, unknown route ids, unsupported artifact kinds, stale
+  plan diagnostics, unknown route ids, unsupported artifact kinds, stale
   selected paths, missing lowering boundaries, missing microkernels, ambiguous
   multiple supported artifacts, and scalar/offload paths not being routed
   through the RVV exporter.
@@ -517,7 +517,7 @@ RVV runtime-callable C source/header/object/bundle evidence.
   no RVV intrinsic body.
 - Base: RVV smoke-probe tests remain allowed only as current unsupported RVV
   emission-plan coverage without old route-name fixtures.
-- Bad: a script treats route metadata plus selected-family fields as enough to
+- Bad: a script treats descriptor metadata plus selected-family fields as enough to
   produce executable C evidence.
 
 ### 6. Tests Required

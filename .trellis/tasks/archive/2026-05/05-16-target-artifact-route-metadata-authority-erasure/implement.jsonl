@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and deletion-campaign architecture boundary."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export and emission-runtime contracts containing route metadata authority wording."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Current extension-family ops to EmitC route and descriptor/direct-C boundary."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry/interface locality and no independent backend or metadata authority."}
+{"file": "include/TianChenRV/Target/TargetArtifactExport.h", "reason": "Public target artifact export API surface to erase route metadata authority from."}
+{"file": "lib/Target/TargetArtifactExport.cpp", "reason": "Target artifact export implementation and extension bundle route metadata preflight logic."}
+{"file": "include/TianChenRV/Target/RVV/RVVVectorShape.h", "reason": "RVV selected-plan metadata descriptor helpers named in the deletion brief."}
+{"file": "include/TianChenRV/Target/RVV/RVVRuntimeLengthContract.h", "reason": "RVV runtime length metadata helpers feeding selected-plan metadata descriptors."}
+{"file": "include/TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h", "reason": "selected_plan_metadata diagnostic convention boundary."}
+{"file": "include/TianChenRV/Dialect/Exec/IR/ExecOps.td", "reason": "Diagnostic op selected_plan_metadata field definition."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused C++ target artifact export tests protecting the old metadata authority behavior."}
+{"file": "lib/Transforms/ExecutionPlanCoherence.cpp", "reason": "Execution-plan coherence consumes target artifact candidate validation before export."}
+{"file": "include/TianChenRV/Transforms/Passes.td", "reason": "Pass wording currently mentions supported artifact route metadata authority."}

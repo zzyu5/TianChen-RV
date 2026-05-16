@@ -36,7 +36,6 @@ using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::VariantEmissionRole;
 using tianchenrv::plugin::VariantLoweringBoundaryValidationRequest;
 using tianchenrv::support::TargetCapabilitySet;
-using tianchenrv::target::SelectedPlanMetadataEntry;
 using tianchenrv::target::TargetArtifactCandidate;
 using tianchenrv::target::TargetArtifactExporter;
 using tianchenrv::target::TargetArtifactExporterRegistry;
@@ -875,63 +874,6 @@ llvm::Error collectRuntimeABIParameters(
   return llvm::Error::success();
 }
 
-llvm::Error collectSelectedPlanMetadata(
-    KernelOp kernel, DiagnosticOp diagnostic,
-    llvm::SmallVectorImpl<SelectedPlanMetadataEntry> &out) {
-  auto metadata = diagnostic->getAttrOfType<mlir::ArrayAttr>(
-      execDiagnostic::kSelectedPlanMetadataAttrName);
-  if (!metadata)
-    return llvm::Error::success();
-
-  llvm::StringSet<> seenNames;
-  for (auto [index, attr] : llvm::enumerate(metadata)) {
-    auto dict = llvm::dyn_cast<mlir::DictionaryAttr>(attr);
-    if (!dict)
-      return makeCoherenceError(
-          kernel, llvm::Twine("selected_plan_metadata[") +
-                      llvm::Twine(index) + "] must be a dictionary attribute");
-
-    auto name = dict.getAs<mlir::StringAttr>(
-        execDiagnostic::kSelectedPlanMetadataNameAttrName);
-    auto value = dict.getAs<mlir::StringAttr>(
-        execDiagnostic::kSelectedPlanMetadataValueAttrName);
-    auto role = dict.getAs<mlir::StringAttr>(
-        execDiagnostic::kSelectedPlanMetadataRoleAttrName);
-    auto note = dict.getAs<mlir::StringAttr>(
-        execDiagnostic::kSelectedPlanMetadataNoteAttrName);
-    if (!name || name.getValue().trim().empty())
-      return makeCoherenceError(
-          kernel, llvm::Twine("selected_plan_metadata[") +
-                      llvm::Twine(index) + "] requires non-empty name");
-    if (!value || value.getValue().trim().empty())
-      return makeCoherenceError(
-          kernel, llvm::Twine("selected_plan_metadata[") +
-                      llvm::Twine(index) + "] requires non-empty value");
-    if (!role || role.getValue().trim().empty())
-      return makeCoherenceError(
-          kernel, llvm::Twine("selected_plan_metadata[") +
-                      llvm::Twine(index) + "] requires non-empty role");
-    if (!note || note.getValue().trim().empty())
-      return makeCoherenceError(
-          kernel, llvm::Twine("selected_plan_metadata[") +
-                      llvm::Twine(index) + "] requires non-empty note");
-
-    llvm::StringRef nameValue = name.getValue().trim();
-    llvm::StringRef metadataValue = value.getValue().trim();
-    llvm::StringRef roleValue = role.getValue().trim();
-    llvm::StringRef noteValue = note.getValue().trim();
-    if (!seenNames.insert(nameValue).second)
-      return makeCoherenceError(
-          kernel, llvm::Twine("duplicate selected_plan_metadata name '") +
-                      nameValue + "'");
-
-    out.push_back({nameValue.str(), metadataValue.str(), roleValue.str(),
-                   noteValue.str()});
-  }
-
-  return llvm::Error::success();
-}
-
 llvm::Error validateSupportedRoute(KernelOp kernel, DiagnosticOp diagnostic,
                                    SelectedPath &path, llvm::StringRef status,
                                    llvm::StringRef loweringBoundary,
@@ -986,10 +928,6 @@ llvm::Error validateSupportedRoute(KernelOp kernel, DiagnosticOp diagnostic,
   if (llvm::Error error =
           collectRuntimeABIParameters(kernel, diagnostic,
                                       candidate.runtimeABIParameters))
-    return error;
-  if (llvm::Error error =
-          collectSelectedPlanMetadata(kernel, diagnostic,
-                                      candidate.selectedPlanMetadata))
     return error;
 
   if (llvm::Error error =

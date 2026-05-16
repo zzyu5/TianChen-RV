@@ -2,12 +2,9 @@
 #define TIANCHENRV_TARGET_RVV_RVVVECTORSHAPE_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 
 #include <cstdint>
-#include <string>
-
 namespace tianchenrv::target::rvv {
 
 struct RVVVectorShapeConfig {
@@ -30,26 +27,6 @@ struct RVVVectorShapeConfig {
 
 using RVVSelectedVectorShapeConfig = RVVVectorShapeConfig;
 using RVVI32VectorShapeConfig = RVVSelectedVectorShapeConfig;
-
-struct RVVVectorShapeSelectedPlanMetadataDescriptor {
-  RVVVectorShapeSelectedPlanMetadataDescriptor() = default;
-  RVVVectorShapeSelectedPlanMetadataDescriptor(llvm::StringRef name,
-                                               llvm::StringRef value,
-                                               llvm::StringRef role,
-                                               llvm::StringRef note,
-                                               llvm::StringRef diagnosticSpelling)
-      : name(name.str()), value(value.str()), role(role.str()),
-        note(note.str()), diagnosticSpelling(diagnosticSpelling.str()) {}
-
-  std::string name;
-  std::string value;
-  std::string role;
-  std::string note;
-  std::string diagnosticSpelling;
-};
-
-using RVVI32VectorShapeSelectedPlanMetadataDescriptor =
-    RVVVectorShapeSelectedPlanMetadataDescriptor;
 
 inline const RVVI32VectorShapeConfig &getI32M1VectorShapeConfig() {
   static const RVVI32VectorShapeConfig config{
@@ -202,61 +179,6 @@ inline llvm::StringRef getRVVSelectedMaskPolicyCapabilityAttrName() {
   return "tcrv_rvv.selected_mask_policy_capability";
 }
 
-inline llvm::StringRef getSelectedRVVVectorShapeMetadataRole() {
-  return "selected-rvv-vector-shape-config";
-}
-
-inline llvm::StringRef getSelectedRVVI32VectorShapeMetadataRole() {
-  return getSelectedRVVVectorShapeMetadataRole();
-}
-
-inline llvm::StringRef getSelectedRVVVectorShapeMetadataNote() {
-  return "compile-time RVV vector-shape config selected by the RVV "
-         "plugin and validated against capabilities; not base lane capacity, "
-         "runtime AVL/VL, or artifact-local component capacity";
-}
-
-inline llvm::StringRef getSelectedRVVI32VectorShapeMetadataNote() {
-  return getSelectedRVVVectorShapeMetadataNote();
-}
-
-inline llvm::StringRef getSelectedRVVVectorShapeCapabilityMetadataRole() {
-  return "selected-rvv-vector-shape-capability";
-}
-
-inline llvm::StringRef getSelectedRVVVectorShapeCapabilityMetadataNote() {
-  return "capability id backing the selected RVV vector-shape config; "
-         "compile-time capability evidence, not runtime AVL/VL or "
-         "artifact-local component capacity";
-}
-
-inline llvm::StringRef getRVVRuntimeVLBoundaryMetadataRole() {
-  return "rvv-runtime-vl-avl-boundary";
-}
-
-inline llvm::StringRef getRVVRuntimeVLBoundaryMetadataNote() {
-  return "runtime AVL enters through the target/export-owned runtime element-count "
-         "ABI parameter; runtime VL is produced by tcrv_rvv.setvl and consumed by "
-         "tcrv_rvv.with_vl; neither value is a target capability fact or "
-         "artifact-local component capacity";
-}
-
-inline llvm::StringRef getRVVRuntimeAVLSourceMetadataName() {
-  return "tcrv_rvv.runtime_avl_source";
-}
-
-inline llvm::StringRef getRVVRuntimeAVLRoleMetadataName() {
-  return "tcrv_rvv.runtime_avl_role";
-}
-
-inline llvm::StringRef getRVVRuntimeVLSourceMetadataName() {
-  return "tcrv_rvv.runtime_vl_source";
-}
-
-inline llvm::StringRef getRVVRuntimeVLScopeMetadataName() {
-  return "tcrv_rvv.runtime_vl_scope";
-}
-
 inline llvm::StringRef getRVVRuntimeAVLSourceMetadataValue() {
   return "runtime-element-count-abi-parameter";
 }
@@ -271,89 +193,6 @@ inline llvm::StringRef getRVVRuntimeVLSourceMetadataValue() {
 
 inline llvm::StringRef getRVVRuntimeVLScopeMetadataValue() {
   return "tcrv_rvv.with_vl";
-}
-
-inline llvm::StringRef
-getRVVVectorShapeSEWMetadataValue(const RVVVectorShapeConfig &config) {
-  if (config.sewBits == 32)
-    return "32";
-  if (config.sewBits == 64)
-    return "64";
-  return {};
-}
-
-inline llvm::StringRef
-getRVVI32VectorShapeSEWMetadataValue(const RVVI32VectorShapeConfig &config) {
-  return getRVVVectorShapeSEWMetadataValue(config);
-}
-
-inline void appendRVVVectorShapeSelectedPlanMetadata(
-    const RVVVectorShapeConfig &config,
-    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
-  llvm::StringRef role = getSelectedRVVVectorShapeMetadataRole();
-  llvm::StringRef note = getSelectedRVVVectorShapeMetadataNote();
-  out.push_back({getRVVSelectedVectorShapeAttrName(), config.shapeID, role,
-                 note, "shape"});
-  out.push_back({getRVVSelectedVectorSEWAttrName(),
-                 getRVVVectorShapeSEWMetadataValue(config), role, note,
-                 "sew"});
-  out.push_back({getRVVSelectedVectorLMULAttrName(), config.lmul, role, note,
-                 "lmul"});
-  out.push_back({getRVVSelectedTailPolicyAttrName(), config.tailPolicy, role,
-                 note, "tail policy"});
-  out.push_back({getRVVSelectedMaskPolicyAttrName(), config.maskPolicy, role,
-                 note, "mask policy"});
-  out.push_back({getRVVSelectedVectorTypeAttrName(), config.vectorType, role,
-                 note, "vector type"});
-  out.push_back({getRVVSelectedVectorSuffixAttrName(), config.vectorSuffix,
-                 role, note, "vector suffix"});
-  out.push_back({getRVVSelectedSetVLSuffixAttrName(), config.setvlSuffix, role,
-                 note, "setvl suffix"});
-
-  llvm::StringRef capabilityRole =
-      getSelectedRVVVectorShapeCapabilityMetadataRole();
-  llvm::StringRef capabilityNote =
-      getSelectedRVVVectorShapeCapabilityMetadataNote();
-  out.push_back({getRVVSelectedVectorSEWCapabilityAttrName(),
-                 config.sewCapabilityID, capabilityRole, capabilityNote,
-                 "SEW capability id"});
-  out.push_back({getRVVSelectedVectorLMULCapabilityAttrName(),
-                 config.lmulCapabilityID, capabilityRole, capabilityNote,
-                 "LMUL capability id"});
-  out.push_back({getRVVSelectedTailPolicyCapabilityAttrName(),
-                 config.tailPolicyCapabilityID, capabilityRole, capabilityNote,
-                 "tail-policy capability id"});
-  out.push_back({getRVVSelectedMaskPolicyCapabilityAttrName(),
-                 config.maskPolicyCapabilityID, capabilityRole, capabilityNote,
-                 "mask-policy capability id"});
-}
-
-inline void appendRVVRuntimeVLBoundarySelectedPlanMetadata(
-    llvm::SmallVectorImpl<RVVVectorShapeSelectedPlanMetadataDescriptor> &out) {
-  llvm::StringRef role = getRVVRuntimeVLBoundaryMetadataRole();
-  llvm::StringRef note = getRVVRuntimeVLBoundaryMetadataNote();
-  out.push_back({getRVVRuntimeAVLSourceMetadataName(),
-                 getRVVRuntimeAVLSourceMetadataValue(), role, note,
-                 "runtime AVL source"});
-  out.push_back({getRVVRuntimeAVLRoleMetadataName(),
-                 getRVVRuntimeAVLRoleMetadataValue(), role, note,
-                 "runtime AVL role"});
-  out.push_back({getRVVRuntimeVLSourceMetadataName(),
-                 getRVVRuntimeVLSourceMetadataValue(), role, note,
-                 "runtime VL source"});
-  out.push_back({getRVVRuntimeVLScopeMetadataName(),
-                 getRVVRuntimeVLScopeMetadataValue(), role, note,
-                 "runtime VL scope"});
-}
-
-inline void appendRVVI32VectorShapeSelectedPlanMetadata(
-    const RVVI32VectorShapeConfig &config,
-    llvm::SmallVectorImpl<RVVI32VectorShapeSelectedPlanMetadataDescriptor>
-        &out) {
-  llvm::SmallVector<RVVVectorShapeSelectedPlanMetadataDescriptor, 12>
-      genericOut;
-  appendRVVVectorShapeSelectedPlanMetadata(config, genericOut);
-  out.append(genericOut.begin(), genericOut.end());
 }
 
 } // namespace tianchenrv::target::rvv

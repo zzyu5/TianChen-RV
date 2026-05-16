@@ -257,7 +257,7 @@ reward preserving descriptor-driven tests when the active task is to remove
 descriptor authority from a default path. For RVV migration work, Hermes should
 prefer extension family ops as source of truth, common EmitC route use,
 production/default path rewiring, and deletion of obsolete
-descriptor-driven behavior over finite-family coverage, route metadata checks,
+descriptor-driven behavior over finite-family coverage, descriptor checks,
 helper-only tests, smoke tests, or standalone ssh-evidence rounds.
 
 ## Wrong Logic Deletion Campaign

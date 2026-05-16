@@ -307,7 +307,7 @@ capability provider
 interface implementations
 verifier skeleton
 local pass skeleton
-fail-closed route metadata checks
+fail-closed descriptor-erasure checks
 tests
 ```
 
@@ -341,7 +341,8 @@ plugin output.
   TemplateConstructionManifest &manifest)`.
 - Manifest payload:
   protocol version, archetype, semantic role graph, family declaration,
-  semantic roles with common-interface realization, fail-closed route metadata,
+  semantic roles with common-interface realization, fail-closed descriptor
+  erasure checks,
   and evidence profile.
 - Typed role/interface realization:
   `const TemplateTypedRoleGraphRealization
@@ -372,7 +373,8 @@ plugin output.
   readiness or emission planning accepts the variant.
 - Emission planning may serialize construction selected-plan metadata for the
   protocol, archetype, role graph, common-interface realization, fail-closed
-  route metadata, typed role/interface realization, and evidence profile.
+  descriptor-erasure checks, typed role/interface realization, and evidence
+  profile.
 - The compute role-op must implement `TCRVEmitCLowerableOpInterface`;
   construction validation must cross-check the source op and source role
   against the typed compute role realization.
