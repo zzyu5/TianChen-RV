@@ -429,8 +429,9 @@ selected lowering-boundary materialization. Current bounded source materializers
 produce selected `tcrv.exec.variant` surfaces and selected extension-family
 boundary IR themselves. Re-running proposal/selection would compete with that
 selected surface, and unconditionally materializing boundaries would duplicate
-plugin-owned source boundaries such as RVV `tcrv_rvv.with_vl` or Toy
-`tcrv_toy.compute_skeleton`.
+plugin-owned source boundaries such as RVV `tcrv_rvv.with_vl`. Plugins without
+an active source materializer do not contribute source-seed boundaries through
+this front door.
 
 The artifact front door stops at emission-plan/coherence-checked TianChen-RV
 IR. Existing target translate routes, such as

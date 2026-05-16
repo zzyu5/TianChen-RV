@@ -26,7 +26,6 @@ add_mlir_library(TianChenRVToyEmitCRouteProvider
 
 add_mlir_library(TianChenRVToyPlugin
   ToyExtensionPlugin.cpp
-  ToySelectedBoundarySeed.cpp
 
   PARTIAL_SOURCES_INTENDED
 

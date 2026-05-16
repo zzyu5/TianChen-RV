@@ -1114,3 +1114,58 @@ Activated one plugin-owned TensorExtLite explicit role sequence through the comm
 ### Next Steps
 
 - None - task complete
+
+
+## Session 98: Toy source-seed metadata authority erasure
+
+**Date**: 2026-05-17
+**Task**: Toy source-seed metadata authority erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the Toy metadata-seed selected-boundary route, removed the Toy source-seed pass and positive seed tests, updated SourceSeed/Toy negative coverage, refreshed the source-seed spec, and verified focused plus full check-tianchenrv.
+
+### Main Changes
+
+- Removed the Toy source-seed public pass registration, build entry, header, and
+  implementation for `tcrv-toy-materialize-template-selected-boundary-seed`.
+- Deleted Toy lit tests that treated `tcrv_toy.lowering_seed =
+  "template_compute"` as a positive selected-boundary, EmitC, or artifact
+  source.
+- Added negative coverage proving the deleted Toy pass option is unknown and
+  stale Toy seed metadata fails closed through the common source-seed front
+  door without materializing `tcrv_toy.compute_skeleton`.
+- Updated SourceSeed/RVV-focused tests so RVV unseeded structural source
+  materialization remains covered while Toy seed success is no longer required.
+- Refreshed the variant-pipeline spec to state that plugins without an active
+  source materializer contribute no source-seed boundaries.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-toy-extension-plugin-test tcrv-opt tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-toy-extension-plugin-test`
+- [OK] focused lit set for Toy deletion, SourceSeed fail-closed, RVV source
+  materializer, and RVV source-seed target artifacts: 8/8 passed.
+- [OK] `cmake --build build --target tianchenrv-plugin-registry-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-plugin-registry-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused plugin lit set: 3/3 passed.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 105/105 lit tests
+  passed.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-17-toy-source-seed-authority-erasure`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -6,7 +6,6 @@
 #include "TianChenRV/Plugin/Toy/ToyEmitCRouteProvider.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/Toy/ToyTargetSupportBundle.h"
-#include "TianChenRV/Plugin/Toy/ToySelectedBoundarySeed.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -537,17 +536,6 @@ llvm::ArrayRef<PluginCapability> ToyExtensionPlugin::getCapabilities() const {
 void ToyExtensionPlugin::registerDialects(
     mlir::DialectRegistry &registry) const {
   registry.insert<tcrv::toy::TCRVToyDialect>();
-}
-
-llvm::Error ToyExtensionPlugin::registerSourceSeedPasses(
-    llvm::SmallVectorImpl<SourceSeedPassRegistration> &out) const {
-  out.push_back(SourceSeedPassRegistration(
-      kToyPluginName,
-      "tcrv-toy-materialize-template-selected-boundary-seed",
-      "Materialize one bounded Toy template source seed into the Toy "
-      "selected-boundary compute_skeleton form",
-      [] { return createMaterializeToyTemplateSelectedBoundarySeedPass(); }));
-  return llvm::Error::success();
 }
 
 bool ToyExtensionPlugin::supportsOperation(

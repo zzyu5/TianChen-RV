@@ -27,8 +27,6 @@ public:
   llvm::StringRef getVersion() const override;
   llvm::ArrayRef<PluginCapability> getCapabilities() const override;
   void registerDialects(mlir::DialectRegistry &registry) const override;
-  llvm::Error registerSourceSeedPasses(
-      llvm::SmallVectorImpl<SourceSeedPassRegistration> &out) const override;
   bool supportsOperation(const VariantProposalRequest &request) const override;
   llvm::Error
   proposeVariants(const VariantProposalRequest &request,

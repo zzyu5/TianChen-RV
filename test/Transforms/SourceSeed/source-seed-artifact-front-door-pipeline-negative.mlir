@@ -28,12 +28,3 @@ module {
     return
   }
 }
-
-// -----
-
-module {
-  // expected-error@+1 {{bounded Toy template selected-boundary seed failed: unsupported Toy lowering seed attribute value}}
-  func.func @unsupported_toy_marker() attributes {tcrv_toy.lowering_seed = "wrong_seed"} {
-    return
-  }
-}
