@@ -31,16 +31,20 @@ module {
 // BOUNDARY: = tcrv_rvv.runtime_abi_value
 // BOUNDARY-SAME: c_name = "lhs"
 // BOUNDARY-SAME: c_type = "const int32_t *"
+// BOUNDARY-SAME: purpose = "source-arg-0:lhs"
 // BOUNDARY-SAME: role = "lhs-input-buffer"
 // BOUNDARY: = tcrv_rvv.runtime_abi_value
 // BOUNDARY-SAME: c_name = "rhs"
+// BOUNDARY-SAME: purpose = "source-arg-1:rhs"
 // BOUNDARY-SAME: role = "rhs-input-buffer"
 // BOUNDARY: = tcrv_rvv.runtime_abi_value
 // BOUNDARY-SAME: c_name = "out"
+// BOUNDARY-SAME: purpose = "source-arg-2:out"
 // BOUNDARY-SAME: role = "output-buffer"
 // BOUNDARY: = tcrv_rvv.runtime_abi_value
 // BOUNDARY-SAME: c_name = "n"
 // BOUNDARY-SAME: c_type = "size_t"
+// BOUNDARY-SAME: purpose = "source-arg-3:n"
 // BOUNDARY-SAME: role = "runtime-element-count"
 // BOUNDARY: tcrv_rvv.setvl
 // BOUNDARY-SAME: lmul = "m1"

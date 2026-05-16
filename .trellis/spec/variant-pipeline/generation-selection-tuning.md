@@ -154,6 +154,14 @@ restoration of the deleted core linalg/vector RVV source frontend family.
   `tcrv_rvv.runtime_abi_value` operands for `lhs`, `rhs`, `out`, and `n` ->
   `tcrv_rvv.setvl` -> selected `tcrv_rvv.with_vl` -> RVV
   `i32_load` / `i32_add` / `i32_store`.
+- The accepted source function ABI is positional for this first slice:
+  source arguments 0, 1, 2, and 3 map to `lhs`, `rhs`, `out`, and `n`. The
+  produced `tcrv_rvv.runtime_abi_value` ops must preserve that source-derived
+  mapping in bounded provenance, using purpose strings
+  `source-arg-0:lhs`, `source-arg-1:rhs`, `source-arg-2:out`, and
+  `source-arg-3:n`. These purpose strings are provenance only; computation
+  semantics still come from the accepted source body and the materialized
+  `tcrv_rvv` extension-family ops.
 - The produced variant must require `@rvv` and must keep computation semantics
   in `tcrv_rvv` extension-family ops. `tcrv.exec` remains the execution
   envelope and selection surface only.
@@ -171,6 +179,8 @@ restoration of the deleted core linalg/vector RVV source frontend family.
   wrong rank, or wrong vector chunk shape -> fail before materialization.
 - Missing `scf.for`, extra source compute, wrong operation order, wrong load or
   store operands, or source store not using the `arith.addi` result -> fail.
+- `scf.for` with loop-carried `iter_args`, yielded values, unsupported lower
+  bound, unsupported upper bound, or unsupported step -> fail.
 - Pre-existing `tcrv.exec`/`tcrv_rvv` operations in the same seed input -> fail
   as stale selected-boundary or unselected variant residue.
 - Unsupported seed marker values -> fail; they must not silently fall back to a
@@ -191,12 +201,16 @@ restoration of the deleted core linalg/vector RVV source frontend family.
 
 - Positive lit/FileCheck coverage for source seed -> selected
   `tcrv.exec.variant` containing explicit runtime ABI bindings,
-  `tcrv_rvv.with_vl`, and `tcrv_rvv.i32_add`.
+  source-argument provenance purpose strings, `tcrv_rvv.with_vl`, and
+  `tcrv_rvv.i32_add`.
 - Positive route-consumption coverage proving the seed output reaches existing
   RVV emission-plan and EmitC materialization.
 - Negative lit/FileCheck coverage for missing ABI operands, unsupported
   dtype/rank/shape, malformed source body, unsupported marker values, and stale
   pre-existing `tcrv.exec`/`tcrv_rvv` residue.
+- Negative source-shape coverage must include wrong arithmetic op, wrong
+  buffer role/use, missing or extra runtime `n`, unsupported loop bounds/step,
+  loop-carried values, and marker-with-empty or unrelated body.
 - Existing explicit RVV i32m1 construction/EmitC/target tests must continue to
   pass so the seed is proven to feed the current route instead of replacing it.
 

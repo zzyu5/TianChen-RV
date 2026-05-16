@@ -448,3 +448,64 @@ and MLIR testing specs already cover this boundary and evidence policy.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 95: Bounded source-vector-to-RVV selected-boundary lowering
+
+**Date**: 2026-05-16
+**Task**: Bounded source-vector-to-RVV selected-boundary lowering
+**Branch**: `main`
+
+### Summary
+
+Made the RVV i32m1 add source seed consume validated source shape and source-derived ABI provenance before materializing the selected boundary.
+
+### Main Changes
+
+### Main Changes
+
+- Created and archived Trellis task `05-16-05-16-bounded-source-vector-to-rvv-selected-boundary-lowering` from the supplied Direction Brief.
+- Reworked the RVV selected-boundary source seed matcher to return a recognized `BoundedI32AddSourceSeed` before materialization.
+- Materialization now consumes source-derived ABI argument mapping and emits `tcrv_rvv.runtime_abi_value` purpose provenance: `source-arg-0:lhs`, `source-arg-1:rhs`, `source-arg-2:out`, and `source-arg-3:n`.
+- Tightened source-shape validation to reject loop-carried `scf.for` values before RVV boundary creation.
+- Expanded negative lit coverage for unsupported marker, missing/extra `n`, wrong arithmetic op, wrong output buffer use, unsupported loop bounds/step, loop-carried values, unrelated/empty body, and stale `tcrv.exec`/`tcrv_rvv` residue.
+- Updated the variant-pipeline spec with the source-argument provenance and loop-carried rejection contract.
+
+### Testing
+
+- [OK] Focused build for RVV dialect/plugin/target, `tcrv-opt`, `tcrv-translate`, and RVV/target C++ tests.
+- [OK] C++ tests: `tianchenrv-rvv-extension-plugin-test`, `tianchenrv-construction-protocol-common-test`, `tianchenrv-rvv-dialect-test`, `tianchenrv-target-artifact-export-test`.
+- [OK] Focused lit filter: `rvv-i32m1-selected-boundary-seed|source-seed-artifact-front-door|i32m1-add-object-artifact`, 6/6 passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`, 110/110 passed.
+- [OK] `git diff --check`.
+- [OK] Changed-surface scans: no common/core/tooling files changed; no descriptor/direct-C/source-export/Python compiler-core route terms in changed RVV seed/test diff.
+- [OK] New artifacts under `artifacts/tmp/bounded_source_vector_to_rvv_selected_boundary/20260516T153540Z`.
+- [OK] Real `ssh rvv` link/run: `tcrv_rvv_i32m1_selected_boundary_seed status=PASS n=4 add=[12,6,16,12]`.
+
+### Self-Repair
+
+- Fixed a const erase compile error in the matched seed cleanup loop.
+- Fixed the loop-carried negative test to reach the intended `scf.for iter_args` source-shape gate.
+
+### Status
+
+[OK] Completed and archived.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
