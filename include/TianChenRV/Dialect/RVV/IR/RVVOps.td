@@ -120,7 +120,10 @@ def TCRVRVV_I32M2VectorType : TCRVRVV_Type<"I32M2Vector", "i32m2"> {
   }];
 }
 
-def SetVLOp : TCRVRVV_Op<"setvl", []> {
+def SetVLOp : TCRVRVV_Op<"setvl",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
   let summary = "bounded RVV runtime AVL to VL control-plane op";
   let description = [{
     Models the first plugin-local RVV runtime vector-length control-plane
@@ -151,7 +154,10 @@ def SetVLOp : TCRVRVV_Op<"setvl", []> {
 }
 
 def WithVLOp : TCRVRVV_Op<"with_vl",
-    [NoRegionArguments, NoTerminator, SingleBlock]> {
+    [NoRegionArguments, NoTerminator, SingleBlock,
+     DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
   let summary = "bounded RVV VL scope control-plane region";
   let description = [{
     Creates a plugin-local RVV control-plane scope for work that is governed by
@@ -182,7 +188,10 @@ def WithVLOp : TCRVRVV_Op<"with_vl",
   let hasVerifier = 1;
 }
 
-def I32LoadOp : TCRVRVV_Op<"i32_load", []> {
+def I32LoadOp : TCRVRVV_Op<"i32_load",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
   let summary = "bounded RVV i32 load dataflow op";
   let description = [{
     Records one bounded plugin-local RVV i32 load dataflow step. The op is
@@ -285,7 +294,10 @@ def I32MulOp : TCRVRVV_Op<"i32_mul",
   let hasVerifier = 1;
 }
 
-def I32StoreOp : TCRVRVV_Op<"i32_store", []> {
+def I32StoreOp : TCRVRVV_Op<"i32_store",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
   let summary = "bounded RVV i32 store dataflow op";
   let description = [{
     Records one bounded plugin-local RVV i32 store dataflow step. The op is

@@ -204,6 +204,18 @@ makeVariantLoweringBoundaryError(tcrv::exec::VariantOp variant,
   return makePluginRegistryError(stream.str());
 }
 
+llvm::Error makeVariantEmitCLowerableError(tcrv::exec::VariantOp variant,
+                                           tcrv::exec::KernelOp kernel,
+                                           VariantEmissionRole role,
+                                           llvm::Twine message) {
+  std::string description;
+  llvm::raw_string_ostream stream(description);
+  stream << "TianChen-RV EmitC lowerable route construction failed for ";
+  appendVariantContext(stream, variant, kernel);
+  stream << " as " << stringifyVariantEmissionRole(role) << ": " << message;
+  return makePluginRegistryError(stream.str());
+}
+
 llvm::Error makeVariantProposalError(const ExtensionPlugin &plugin,
                                      const VariantProposal &proposal,
                                      llvm::Twine message) {
@@ -355,6 +367,11 @@ VariantLoweringBoundaryValidationRequest::
         VariantEmissionRole role, mlir::Operation *boundary)
     : variant(variant), kernel(kernel), capabilities(capabilities), role(role),
       boundary(boundary) {}
+
+VariantEmitCLowerableRequest::VariantEmitCLowerableRequest(
+    tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+    const support::TargetCapabilitySet &capabilities, VariantEmissionRole role)
+    : variant(variant), kernel(kernel), capabilities(capabilities), role(role) {}
 
 VariantProposal::VariantProposal(llvm::StringRef variantName,
                                  llvm::StringRef originPlugin)
@@ -615,6 +632,16 @@ llvm::Error ExtensionPlugin::validateSelectedLoweringBoundary(
     const VariantLoweringBoundaryValidationRequest &request) const {
   (void)request;
   return llvm::Error::success();
+}
+
+llvm::Error ExtensionPlugin::buildVariantEmitCLowerableRoute(
+    const VariantEmitCLowerableRequest &request,
+    conversion::emitc::TCRVEmitCLowerableRoute &out) const {
+  (void)request;
+  (void)out;
+  return makePluginRegistryError(
+      llvm::Twine("origin plugin '") + getName() +
+      "' does not provide an EmitC lowerable route");
 }
 
 llvm::Error ExtensionPlugin::configureTargetSupportExtensionBundle(
@@ -1167,6 +1194,58 @@ llvm::Error ExtensionPluginRegistry::validateSelectedLoweringBoundary(
   }
 
   (void)origin;
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionPluginRegistry::buildVariantEmitCLowerableRoute(
+    const VariantEmitCLowerableRequest &request,
+    conversion::emitc::TCRVEmitCLowerableRoute &out) const {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  VariantEmissionRole role = request.getRole();
+
+  if (!variant)
+    return makeVariantEmitCLowerableError(
+        variant, kernel, role, "requires a materialized tcrv.exec.variant");
+
+  if (!kernel)
+    return makeVariantEmitCLowerableError(
+        variant, kernel, role, "requires an enclosing tcrv.exec.kernel");
+
+  if (variant->getParentOp() != kernel.getOperation())
+    return makeVariantEmitCLowerableError(
+        variant, kernel, role,
+        "variant is not directly enclosed by the request tcrv.exec.kernel");
+
+  auto originAttr =
+      variant->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (!originAttr || originAttr.getValue().trim().empty())
+    return makeVariantEmitCLowerableError(
+        variant, kernel, role,
+        llvm::Twine("requires non-empty string attribute '") +
+            kOriginAttrName + "'");
+
+  llvm::StringRef origin = originAttr.getValue();
+  const ExtensionPlugin *plugin = lookupPlugin(origin);
+  if (!plugin)
+    return makeVariantEmitCLowerableError(
+        variant, kernel, role,
+        llvm::Twine("unknown origin plugin '") + origin + "'");
+
+  if (!plugin->isEnabled())
+    return makeVariantEmitCLowerableError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + origin + "' is disabled");
+
+  if (llvm::Error error =
+          plugin->buildVariantEmitCLowerableRoute(request, out)) {
+    std::string pluginMessage = llvm::toString(std::move(error));
+    return makeVariantEmitCLowerableError(
+        variant, kernel, role,
+        llvm::Twine("origin plugin '") + plugin->getName() +
+            "' failed EmitC lowerable route construction: " + pluginMessage);
+  }
+
   return llvm::Error::success();
 }
 

@@ -56,6 +56,63 @@ Deleted Support-owned I32/RVV runtime ABI contracts and helpers; rewired tests/s
 - None - task complete
 
 
+## Session 87: RVV explicit ops to EmitC materialization
+
+**Date**: 2026-05-16
+**Task**: RVV explicit ops to EmitC materialization
+**Branch**: `main`
+
+### Summary
+
+Built the first bounded RVV explicit-op to MLIR EmitC materialization path.
+The new generic pass routes a direct `tcrv.exec.variant` to its origin plugin
+for a `TCRVEmitCLowerableRoute`; the RVV plugin owns the i32m1
+setvl/with_vl/load/add/store recognition and intrinsic call mapping. The pass
+materializes a parseable MLIR EmitC module only; runtime ABI handoff, C/C++
+emission, target artifact export, and `ssh rvv` evidence remain later gaps.
+
+### Main Changes
+
+- Added `VariantEmitCLowerableRequest` and registry/plugin dispatch for
+  extension-owned EmitC lowerable routes.
+- Added `--tcrv-materialize-emitc-lowerable-routes` as an extension-neutral
+  common materialization pass.
+- Added route-level source-op provenance comments to the common EmitC
+  materializer.
+- Made RVV `setvl`, `with_vl`, `i32_load`, and `i32_store` expose generated
+  `TCRVEmitCLowerableOpInterface` roles; RVV arithmetic already exposed the
+  compute role.
+- Added RVV i32m1 add route construction, positive lit coverage, and
+  fail-closed m2/missing-store negative coverage.
+- Updated RVV/testing specs to distinguish bounded MLIR EmitC materialization
+  from C/C++ emission, target artifacts, runtime correctness, or performance.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | lower(rvv): materialize explicit ops to emitc |
+
+### Testing
+
+- [OK] `ninja -C build tcrv-opt tianchenrv-rvv-dialect-test`
+- [OK] `build/bin/tianchenrv-rvv-dialect-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-emitc-lowerable-interface-test`
+- [OK] focused lit filter `rvv-first-slice-materialization|rvv-dialect`
+- [OK] `ninja -C build check-tianchenrv` (74/74 lit tests)
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Rebuild the next handoff from materialized EmitC MLIR to C/C++ emitter /
+  target artifact route and only then collect bounded `ssh rvv` evidence.
+
+
 ## Session 87: Finite RVV i64 family erasure
 
 **Date**: 2026-05-16

@@ -26,6 +26,10 @@ class ExtensionBundle;
 class TargetTranslateRouteRegistry;
 } // namespace tianchenrv::target
 
+namespace tianchenrv::conversion::emitc {
+class TCRVEmitCLowerableRoute;
+} // namespace tianchenrv::conversion::emitc
+
 namespace tianchenrv::plugin {
 
 inline constexpr llvm::StringLiteral kVariantFallbackRoleAttrName(
@@ -183,6 +187,27 @@ private:
   const support::TargetCapabilitySet &capabilities;
   VariantEmissionRole role = VariantEmissionRole::DirectVariant;
   mlir::Operation *boundary = nullptr;
+};
+
+class VariantEmitCLowerableRequest {
+public:
+  VariantEmitCLowerableRequest(
+      tcrv::exec::VariantOp variant, tcrv::exec::KernelOp kernel,
+      const support::TargetCapabilitySet &capabilities,
+      VariantEmissionRole role);
+
+  tcrv::exec::VariantOp getVariant() const { return variant; }
+  tcrv::exec::KernelOp getKernel() const { return kernel; }
+  const support::TargetCapabilitySet &getCapabilities() const {
+    return capabilities;
+  }
+  VariantEmissionRole getRole() const { return role; }
+
+private:
+  tcrv::exec::VariantOp variant;
+  tcrv::exec::KernelOp kernel;
+  const support::TargetCapabilitySet &capabilities;
+  VariantEmissionRole role = VariantEmissionRole::DirectVariant;
 };
 
 class VariantProposal {
@@ -607,6 +632,9 @@ public:
       VariantLoweringBoundaryResult &out) const;
   virtual llvm::Error validateSelectedLoweringBoundary(
       const VariantLoweringBoundaryValidationRequest &request) const;
+  virtual llvm::Error buildVariantEmitCLowerableRoute(
+      const VariantEmitCLowerableRequest &request,
+      conversion::emitc::TCRVEmitCLowerableRoute &out) const;
   virtual llvm::Error
   configureTargetSupportExtensionBundle(target::ExtensionBundle &bundle) const;
   virtual llvm::Error registerTargetSupportTranslateRoutes(
@@ -666,6 +694,9 @@ public:
       VariantLoweringBoundaryResult &out) const;
   llvm::Error validateSelectedLoweringBoundary(
       const VariantLoweringBoundaryValidationRequest &request) const;
+  llvm::Error buildVariantEmitCLowerableRoute(
+      const VariantEmitCLowerableRequest &request,
+      conversion::emitc::TCRVEmitCLowerableRoute &out) const;
   llvm::Error checkKernelEmissionReadiness(tcrv::exec::KernelOp kernel) const;
   llvm::Error
   checkKernelEmissionReadiness(tcrv::exec::KernelOp kernel,

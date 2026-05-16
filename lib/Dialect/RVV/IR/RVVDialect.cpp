@@ -300,6 +300,38 @@ mlir::LogicalResult verifyDataflowVLOperandMatchesWithVL(mlir::Operation *op,
 
 } // namespace
 
+llvm::StringRef SetVLOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef SetVLOp::getTCRVEmitCLowerableSourceRole() {
+  return "configure";
+}
+
+llvm::StringRef WithVLOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef WithVLOp::getTCRVEmitCLowerableSourceRole() {
+  return "scope";
+}
+
+llvm::StringRef I32LoadOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef I32LoadOp::getTCRVEmitCLowerableSourceRole() {
+  return "load";
+}
+
+llvm::StringRef I32StoreOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef I32StoreOp::getTCRVEmitCLowerableSourceRole() {
+  return "store";
+}
+
 mlir::LogicalResult SetVLOp::verify() {
   mlir::Operation *op = getOperation();
 

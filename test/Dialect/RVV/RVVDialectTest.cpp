@@ -1,4 +1,5 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
@@ -15,12 +16,17 @@
 using tianchenrv::plugin::ExtensionPlugin;
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
+using tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface;
 using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::rvv::I32AddOp;
+using tianchenrv::tcrv::rvv::I32LoadOp;
+using tianchenrv::tcrv::rvv::I32StoreOp;
 using tianchenrv::tcrv::rvv::MaskPolicy;
 using tianchenrv::tcrv::rvv::PolicyAttr;
+using tianchenrv::tcrv::rvv::SetVLOp;
 using tianchenrv::tcrv::rvv::TCRVRVVDialect;
 using tianchenrv::tcrv::rvv::TailPolicy;
+using tianchenrv::tcrv::rvv::WithVLOp;
 using tianchenrv::tcrv::rvv::VLType;
 
 namespace {
@@ -121,6 +127,20 @@ int expectRVVPolicyAttr(VariantOp variant, TailPolicy expectedTail,
     return result;
   return expect(policy.getMask() == expectedMask,
                 "typed RVV policy mask value is preserved");
+}
+
+int expectEmitCLowerableRole(mlir::Operation *op, llvm::StringRef role) {
+  auto lowerable = llvm::dyn_cast<TCRVEmitCLowerableOpInterface>(op);
+  if (int result = expect(static_cast<bool>(lowerable),
+                          "RVV source op implements EmitC lowerable interface"))
+    return result;
+  if (int result =
+          expect(lowerable.getTCRVEmitCLowerableSourceOpName() ==
+                     op->getName().getStringRef(),
+                 "EmitC lowerable source op name reflects typed RVV op"))
+    return result;
+  return expect(lowerable.getTCRVEmitCLowerableSourceRole() == role,
+                "EmitC lowerable source role reflects RVV op role");
 }
 
 int runPluginDialectRegistrationRoundTripTest() {
@@ -287,9 +307,42 @@ module {
     return fail("failed to parse RVV i32 vector-add dataflow ops");
 
   I32AddOp add;
+  I32LoadOp load;
+  I32StoreOp store;
+  SetVLOp setvl;
+  WithVLOp withVL;
   module->walk([&](I32AddOp candidate) { add = candidate; });
+  module->walk([&](I32LoadOp candidate) {
+    if (!load)
+      load = candidate;
+  });
+  module->walk([&](I32StoreOp candidate) { store = candidate; });
+  module->walk([&](SetVLOp candidate) { setvl = candidate; });
+  module->walk([&](WithVLOp candidate) { withVL = candidate; });
   if (int result =
           expect(static_cast<bool>(add), "module contains tcrv_rvv.i32_add"))
+    return result;
+  if (int result =
+          expect(static_cast<bool>(setvl), "module contains tcrv_rvv.setvl"))
+    return result;
+  if (int result = expect(static_cast<bool>(withVL),
+                          "module contains tcrv_rvv.with_vl"))
+    return result;
+  if (int result =
+          expect(static_cast<bool>(load), "module contains tcrv_rvv.i32_load"))
+    return result;
+  if (int result = expect(static_cast<bool>(store),
+                          "module contains tcrv_rvv.i32_store"))
+    return result;
+  if (int result = expectEmitCLowerableRole(setvl.getOperation(), "configure"))
+    return result;
+  if (int result = expectEmitCLowerableRole(withVL.getOperation(), "scope"))
+    return result;
+  if (int result = expectEmitCLowerableRole(load.getOperation(), "load"))
+    return result;
+  if (int result = expectEmitCLowerableRole(add.getOperation(), "compute"))
+    return result;
+  if (int result = expectEmitCLowerableRole(store.getOperation(), "store"))
     return result;
 
   std::string printedStorage;

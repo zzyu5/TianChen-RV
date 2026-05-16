@@ -91,6 +91,11 @@ void TCRVEmitCLowerableRoute::addABIValueMapping(
   abiMappings.push_back({parameter, valueName.str()});
 }
 
+void TCRVEmitCLowerableRoute::addSourceOpProvenance(
+    TCRVEmitCSourceOpProvenance sourceOp) {
+  sourceOpProvenance.push_back(std::move(sourceOp));
+}
+
 void TCRVEmitCLowerableRoute::addCallOpaqueStep(
     TCRVEmitCCallOpaqueStep step) {
   callOpaqueSteps.push_back(std::move(step));
@@ -125,8 +130,22 @@ llvm::Error TCRVEmitCLowerableRoute::verify() const {
             validateABIParameter(routeID, mapping.parameter, "ABI mapping"))
       return error;
     if (llvm::Error error =
-            validateText(routeID, "ABI mapping value name", mapping.valueName))
+              validateText(routeID, "ABI mapping value name", mapping.valueName))
+        return error;
+  }
+
+  for (const TCRVEmitCSourceOpProvenance &sourceOp : sourceOpProvenance) {
+    if (llvm::Error error =
+            validateText(routeID, "source op name", sourceOp.opName))
       return error;
+    if (llvm::Error error =
+            validateText(routeID, "source op role", sourceOp.role))
+      return error;
+    if (!sourceOp.opInterface.empty())
+      if (llvm::Error error =
+              validateText(routeID, "source op interface",
+                           sourceOp.opInterface))
+        return error;
   }
 
   for (const TCRVEmitCCallOpaqueStep &step : callOpaqueSteps) {

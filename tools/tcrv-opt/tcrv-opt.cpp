@@ -69,6 +69,10 @@ void registerTianChenRVOptPasses(
     return tianchenrv::transforms::
         createMaterializeSelectedLoweringBoundariesPass(plugins);
   });
+  mlir::registerPass([&plugins] {
+    return tianchenrv::transforms::createMaterializeEmitCLowerableRoutesPass(
+        plugins);
+  });
   mlir::registerPass([&plugins, &targetExporters] {
     return tianchenrv::transforms::createCheckExecutionPlanCoherencePass(
         plugins, targetExporters);

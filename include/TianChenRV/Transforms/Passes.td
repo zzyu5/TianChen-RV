@@ -273,6 +273,32 @@ def MaterializeSelectedLoweringBoundaries
   ];
 }
 
+def MaterializeEmitCLowerableRoutes
+    : Pass<"tcrv-materialize-emitc-lowerable-routes", "::mlir::ModuleOp"> {
+  let summary = "Materialize plugin-owned EmitC lowerable routes through the common route interface";
+  let description = [{
+    Finds a bounded direct tcrv.exec.variant, builds target capabilities from
+    the enclosing kernel, asks the variant origin plugin for an
+    extension-family EmitC lowerable route, and replaces the module with the
+    materialized MLIR EmitC module produced by the common
+    TCRVEmitCLowerableRoute materializer.
+
+    The pass is extension-neutral. It routes by the generic origin plugin and
+    does not branch on RVV, scalar, IME, offload, vendor, dtype, LMUL,
+    intrinsic spelling, runtime ABI roles, or artifact route metadata. Family
+    semantics and intrinsic/runtime-call mapping stay in the origin plugin.
+    This pass materializes EmitC IR only; it does not print C/C++, export
+    target artifacts, compile objects, run hardware, prove correctness, or
+    claim performance.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeEmitCLowerableRoutesPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect",
+    "::mlir::emitc::EmitCDialect"
+  ];
+}
+
 def CheckExecutionPlanCoherence
     : Pass<"tcrv-check-execution-plan-coherence", "::mlir::ModuleOp"> {
   let summary = "Check selected execution-plan metadata before target artifact export";

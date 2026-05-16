@@ -55,6 +55,9 @@ std::unique_ptr<::mlir::Pass> createMaterializeSelectedLoweringBoundariesPass();
 std::unique_ptr<::mlir::Pass>
 createMaterializeSelectedLoweringBoundariesPass(
     const plugin::ExtensionPluginRegistry &registry);
+std::unique_ptr<::mlir::Pass> createMaterializeEmitCLowerableRoutesPass();
+std::unique_ptr<::mlir::Pass> createMaterializeEmitCLowerableRoutesPass(
+    const plugin::ExtensionPluginRegistry &registry);
 std::unique_ptr<::mlir::Pass> createCheckExecutionPlanCoherencePass();
 std::unique_ptr<::mlir::Pass> createCheckExecutionPlanCoherencePass(
     const plugin::ExtensionPluginRegistry &plugins,

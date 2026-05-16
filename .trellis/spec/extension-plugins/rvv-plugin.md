@@ -675,21 +675,28 @@ preference record is returned.
 Current slice:
 
 ```text
-rvv-plugin explicit typed RVV variant -> readiness unsupported
-rvv-plugin explicit typed RVV variant -> emission plan fail-closed
+rvv-plugin explicit typed RVV i32m1 add variant
+  -> common EmitC lowerable route
+  -> parseable MLIR EmitC module
+rvv-plugin explicit typed RVV variant -> runtime/artifact readiness unsupported
+rvv-plugin explicit typed RVV variant -> target emission plan fail-closed
 bare RVV capability/no-body input -> no RVV proposal and no RVV route
 ```
 
-The unsupported readiness result records that no materialized EmitC lowering,
-runtime, or executable path exists yet. It must not be upgraded into an
-emission plan, runtime ABI, artifact route, hardware execution, correctness
-result, or performance evidence.
+The bounded current materialized route is MLIR EmitC IR only. It proves that
+explicit RVV extension-family ops can construct a common
+`TCRVEmitCLowerableRoute` and materialize `emitc.include`, `emitc.func`, and
+`emitc.call_opaque` operations with interface-backed provenance. It does not
+print C/C++, export source/header/object artifacts, compile, run hardware, or
+prove correctness/performance. Runtime/artifact readiness remains unsupported
+until runtime ABI, C/C++ emitter handoff, and target artifact routes are built.
 
 Public `tcrv-opt` registers the built-in RVV plugin at the tool boundary, so
 materialized variants with `origin = "rvv-plugin"` can route through
-`RVVExtensionPlugin` for emission-readiness diagnostics. Emission planning
-fails closed until a materialized EmitC route exists. Unknown origins must
-still fail through the generic unregistered-origin registry diagnostic.
+`RVVExtensionPlugin` for emission-readiness diagnostics and through the common
+EmitC lowerable materialization pass. Target emission planning still fails
+closed after the bounded EmitC module step. Unknown origins must still fail
+through the generic unregistered-origin registry diagnostic.
 Tests that need the historical empty-registry parser surface should pass
 `--tcrv-disable-builtin-plugins`.
 
@@ -713,12 +720,14 @@ code/spec/test fixtures. The compiler front door must not print
 RVV hardware/toolchain smoke evidence belongs in explicit probe tooling and
 separate `ssh rvv` artifacts.
 
-### Deleted RVV Boundary And Future EmitC Route
+### Deleted RVV Boundary And Bounded EmitC Route
 
 The current selected RVV plugin path is non-executable and fail-closed for
-emission. It must not materialize selected-boundary metadata, RVV microkernel
-bodies, callable ABI parameters, source/header/object artifacts, self-check
-helpers, or intrinsic C/C++ output.
+target emission. It must not materialize selected-boundary metadata, RVV
+microkernel bodies, source/header/object artifacts, self-check helpers, or
+intrinsic C/C++ output. The bounded i32m1 add path may materialize an MLIR
+EmitC module from explicit RVV ops through the common lowerable route; that
+module is not a target artifact route or hardware evidence.
 
 The intended rebuild route is:
 
@@ -734,26 +743,27 @@ backend patches are optional future routes. They are not the current RVV system
 definition and should not be described as the mainline until promoted by a
 separate spec and implementation evidence.
 
-### Scenario: Future RVV Extension-Family EmitC Intrinsic Route
+### Scenario: Current Bounded RVV Extension-Family EmitC Intrinsic Route
 
 #### 1. Scope / Trigger
 
-This scenario applies only after a future rebuild introduces explicit RVV
-extension-family ops and a materialized EmitC module route. The route must
-consume verified RVV family ops and lower them through a shared EmitC intrinsic
-route before printing RVV intrinsic C/C++.
+This scenario applies to the current bounded RVV i32m1 add materialization
+route. The route consumes verified RVV family ops and lowers them through the
+shared EmitC lowerable route into an MLIR EmitC module. Printing C/C++,
+compiling, target artifact packaging, and `ssh rvv` runtime evidence are later
+stages and are not implied by this route.
 
 #### 2. Signatures
 
 - Source family body:
-  `tcrv_rvv.setvl -> tcrv_rvv.with_vl -> tcrv_rvv.<dtype>_load ->
-  tcrv_rvv.<dtype>_load -> tcrv_rvv.<dtype>_<add|sub|mul> ->
-  tcrv_rvv.<dtype>_store`.
+  `tcrv_rvv.setvl -> tcrv_rvv.with_vl -> tcrv_rvv.i32_load ->
+  tcrv_rvv.i32_load -> tcrv_rvv.i32_add -> tcrv_rvv.i32_store`
+  for SEW32 LMUL m1 with agnostic policy.
 - Route plan: an explicit EmitC intrinsic route object with standard headers,
   source op names, `emitc.call_opaque` callee names, and one setvl callee.
-- Exported EmitC provenance comments must include `emitc_route`,
-  `emitc_route_headers`, `emitc_route_source_ops`, and indexed
-  `emitc.call_opaque[...]` entries.
+- Materialized EmitC provenance comments must include typed source op names,
+  source roles, `TCRVEmitCLowerableOpInterface`, and `emitc.call_opaque`
+  callee evidence.
 
 #### 3. Contracts
 
@@ -765,7 +775,7 @@ route before printing RVV intrinsic C/C++.
   setvl maps to the selected vsetvl intrinsic; load, arithmetic, and store map
   to the selected RVV load, arithmetic, and store intrinsics.
 - Runtime `n` remains the IR-backed runtime-element-count ABI parameter.
-- Generated source comments are compile/export evidence only; they are not
+- Materialized EmitC comments are compiler route evidence only; they are not
   runtime correctness, hardware execution, throughput, latency, or performance
   evidence.
 

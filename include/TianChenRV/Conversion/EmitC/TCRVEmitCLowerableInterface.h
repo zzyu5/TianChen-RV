@@ -67,6 +67,9 @@ public:
   llvm::ArrayRef<TCRVEmitCABIValueMapping> getABIMappings() const {
     return abiMappings;
   }
+  llvm::ArrayRef<TCRVEmitCSourceOpProvenance> getSourceOpProvenance() const {
+    return sourceOpProvenance;
+  }
   llvm::ArrayRef<TCRVEmitCCallOpaqueStep> getCallOpaqueSteps() const {
     return callOpaqueSteps;
   }
@@ -75,6 +78,7 @@ public:
   void addTypeMapping(llvm::StringRef sourceType, llvm::StringRef cType);
   void addABIValueMapping(const support::RuntimeABIParameter &parameter,
                           llvm::StringRef valueName);
+  void addSourceOpProvenance(TCRVEmitCSourceOpProvenance sourceOp);
   void addCallOpaqueStep(TCRVEmitCCallOpaqueStep step);
 
   llvm::Error verify() const;
@@ -85,6 +89,7 @@ private:
   llvm::SmallVector<TCRVEmitCHeaderRequirement, 4> headers;
   llvm::SmallVector<TCRVEmitCTypeMapping, 4> typeMappings;
   llvm::SmallVector<TCRVEmitCABIValueMapping, 6> abiMappings;
+  llvm::SmallVector<TCRVEmitCSourceOpProvenance, 8> sourceOpProvenance;
   llvm::SmallVector<TCRVEmitCCallOpaqueStep, 8> callOpaqueSteps;
 };
 

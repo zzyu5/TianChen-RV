@@ -128,6 +128,18 @@ std::string makeStepProvenanceComment(const TCRVEmitCCallOpaqueStep &step) {
   return text;
 }
 
+std::string
+makeRouteSourceProvenanceComment(const TCRVEmitCSourceOpProvenance &source) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << "// tcrv_emitc.route_source_op=" << source.opName
+     << " role=" << source.role;
+  if (!source.opInterface.empty())
+    os << " op_interface=" << source.opInterface;
+  os.flush();
+  return text;
+}
+
 mlir::Location makeStepLocation(mlir::OpBuilder &builder,
                                 const TCRVEmitCCallOpaqueStep &step) {
   std::string name;
@@ -135,6 +147,18 @@ mlir::Location makeStepLocation(mlir::OpBuilder &builder,
   os << "tcrv_emitc." << step.sourceOp.opName << "." << step.sourceOp.role;
   if (!step.sourceOp.opInterface.empty())
     os << "." << step.sourceOp.opInterface;
+  os.flush();
+  return mlir::NameLoc::get(builder.getStringAttr(name),
+                            builder.getUnknownLoc());
+}
+
+mlir::Location makeRouteSourceLocation(
+    mlir::OpBuilder &builder, const TCRVEmitCSourceOpProvenance &source) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "tcrv_emitc.route_source." << source.opName << "." << source.role;
+  if (!source.opInterface.empty())
+    os << "." << source.opInterface;
   os.flush();
   return mlir::NameLoc::get(builder.getStringAttr(name),
                             builder.getUnknownLoc());
@@ -199,6 +223,10 @@ public:
 
     builder.setInsertionPointToStart(entry);
     initializeValueMap(entry);
+    for (const TCRVEmitCSourceOpProvenance &sourceOp :
+         route.getSourceOpProvenance())
+      if (llvm::Error error = materializeSourceProvenance(sourceOp))
+        return std::move(error);
     for (const TCRVEmitCCallOpaqueStep &step : route.getCallOpaqueSteps())
       if (llvm::Error error = materializeStep(step))
         return std::move(error);
@@ -343,6 +371,16 @@ private:
             operands);
     if (step.result)
       valueMap[step.result->name] = call->getResult(0);
+    return llvm::Error::success();
+  }
+
+  llvm::Error
+  materializeSourceProvenance(const TCRVEmitCSourceOpProvenance &sourceOp) {
+    if (llvm::Error error = validateSafeProvenance(route, sourceOp))
+      return error;
+    builder.create<mlir::emitc::VerbatimOp>(
+        makeRouteSourceLocation(builder, sourceOp),
+        makeRouteSourceProvenanceComment(sourceOp));
     return llvm::Error::success();
   }
 

@@ -399,17 +399,22 @@ compiler tests, not by Python-generated compiler IR.
 The repository must not export generated RVV smoke-probe C from post-planning
 MLIR. Tests should prove current unsupported RVV emission-plan diagnostics and
 target artifact route shape without preserving the old command or route-name
-fixtures, and no `riscv_vector.h` / `__riscv_` source text may be printed.
+fixtures. A bounded MLIR EmitC materialization test may contain
+`emitc.include <"riscv_vector.h">` and `emitc.call_opaque "__riscv_*"`
+evidence derived from explicit RVV ops, but no C/C++ source artifact, header,
+object, harness, runtime success, or performance text may be printed from the
+old direct exporter path.
 Any future RVV hardware/toolchain smoke evidence belongs in explicit probe
 tooling, not a compiler generated-source front door.
 
-If a future rebuild exports generated C for explicit RVV extension-family
-dataflow, local lit tests must cover the source IR, materialized EmitC route,
-and exporter without requiring `ssh rvv`. Any remote compile/run of the source
-must be reported separately as bounded route evidence only for that explicit
-source, selected flags, and generated runtime `n` cases. It must not be
-reported as generic TianChen-RV lowering correctness, arbitrary RVV emission
-support, full runtime integration, or performance evidence.
+For the current bounded RVV explicit-op EmitC materialization route, local lit
+tests must cover the source IR, the materialized MLIR EmitC module, and
+fail-closed unsupported shapes without requiring `ssh rvv`. Any future
+generated C/C++ export or remote compile/run of that source must be reported
+separately as bounded route evidence only for that explicit source, selected
+flags, and generated runtime `n` cases. It must not be reported as generic
+TianChen-RV lowering correctness, arbitrary RVV emission support, full runtime
+integration, or performance evidence.
 
 If the repository exports a generated RVV+scalar dispatch self-check C harness,
 local lit tests must cover the harness structure without requiring `ssh rvv`.

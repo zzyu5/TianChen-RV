@@ -1,6 +1,7 @@
 add_mlir_library(TianChenRVTransforms
   CheckCapabilityRequires.cpp
   DispatchRuntimeGuard.cpp
+  EmitCLowerableMaterialization.cpp
   EmissionReadiness.cpp
   ExecutionPlanCoherence.cpp
   ExecutionPlanningPipeline.cpp
@@ -15,6 +16,7 @@ add_mlir_library(TianChenRVTransforms
   TianChenRVPassesIncGen
 
   LINK_LIBS PUBLIC
+  TianChenRVConversionEmitC
   TianChenRVExecDialect
   TianChenRVPlugin
   TianChenRVSupport
