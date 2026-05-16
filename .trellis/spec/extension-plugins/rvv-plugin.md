@@ -82,9 +82,12 @@ This bounded route does not authorize descriptor-driven computation, deleted
 microkernel wrappers, new dtype/LMUL families, or a generic RVV source printer.
 It also does not let target/export code select an RVV artifact by assuming a
 module contains exactly one direct variant; the selected emission-plan
-candidate is the handoff authority. Historical header and bundle route ids
-remain deleted until they are rebuilt through the same materialized EmitC
-authority.
+candidate is the handoff authority. The rebuilt header route is declaration
+only and derives its function name and ordered callable ABI parameters from the
+same selected materialized EmitC candidate as the object route. The rebuilt
+bundle route packages the object and header as one selected-variant component
+group. Historical header and bundle route ids remain deleted and must not be
+used as compatibility aliases.
 
 RVV probe facts remain bounded hardware/toolchain evidence inputs. They may be
 validated into raw `TargetCapabilitySet` evidence facts, but they must not
@@ -297,15 +300,16 @@ descriptor-derived callable ABI data are fail-closed historical inputs, not
 active emission authority.
 
 The former microkernel direct C slice and finite RVV target object/header route
-slice are deleted as production authority. Selected `rvv-plugin` target
-artifact paths must report unsupported emission plans until the rebuild provides
-a non-descriptor artifact route that consumes the materialized MLIR EmitC module
-for that slice.
+slice are deleted as production authority. The only active bounded RVV target
+artifact route is the materialized EmitC i32m1 arithmetic route family: object
+export compiles the MLIR EmitC C/C++ emitter output, header export emits only a
+callable declaration for that materialized function boundary, and bundle export
+packages the object and header under one selected-variant ABI component group.
 Target/export code must not synthesize RVV compute C bodies from selected
 metadata, family records, route records, or deleted wrapper records. RVV routes
 must fail closed instead of producing `riscv_vector.h` intrinsic source,
-relocatable objects, headers, or self-check harnesses from the old direct
-printer path.
+relocatable objects, headers, bundles, or self-check harnesses from the old
+direct printer path.
 
 ## Remote Evidence Probe Contract
 

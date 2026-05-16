@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global project invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV route remains materialized EmitC only"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify no descriptor/direct-C source authority returns"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify selected candidate, header, object, and bundle coherence"}
+{"file": ".trellis/spec/testing/index.md", "reason": "focused checks and evidence policy"}

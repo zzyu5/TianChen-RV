@@ -105,7 +105,8 @@ Correct:
 
 ```text
 selected route metadata -> unsupported missing-materialized-EmitC diagnostic
-future rebuild -> materialized MLIR EmitC module -> C/C++ emitter
+materialized rebuild -> materialized MLIR EmitC module -> C/C++ emitter
+  -> declaration-only header / object / coherent object+header bundle
 ```
 
 ## Scenario: Common EmitC Source-Authority Exporter Deleted

@@ -150,6 +150,7 @@ struct TargetArtifactCompositeBundleMetadata {
   std::string runtimeABIName;
   std::string componentGroup;
   std::string externalABIName;
+  std::string handoffKind;
 };
 
 using TargetArtifactCompositeBundleMetadataFn =

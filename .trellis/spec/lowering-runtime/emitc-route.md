@@ -266,8 +266,10 @@ applies to both direct selected-path diagnostics and selected
   unsupported diagnostics; artifact output materializes only from the selected
   non-fallback candidate.
 - Base: RVV explicit typed bodies may materialize through the common EmitC
-  route and then the MLIR EmitC C/C++ emitter, while RVV target object/header
-  artifact export remains unsupported until a non-descriptor route is rebuilt.
+  route and then the MLIR EmitC C/C++ emitter. The bounded rebuilt RVV target
+  artifact path may export a RISC-V object, a declaration-only header, and a
+  coherent object+header bundle only from the selected materialized EmitC
+  candidate.
 - Bad: two direct RVV variants exist and the exporter chooses whichever direct
   variant happens to be first or only after test reduction.
 

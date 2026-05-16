@@ -5,7 +5,9 @@
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
 
+#include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
@@ -24,8 +26,14 @@ namespace {
 
 constexpr llvm::StringLiteral kRVVEmitCToCppRouteID(
     "tcrv-rvv-emitc-to-cpp");
+constexpr llvm::StringLiteral kRVVMaterializedEmitCHeaderRouteID(
+    "rvv-i32m1-arithmetic-emitc-route-family.header");
+constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
+    "runtime-callable-c-header");
 constexpr llvm::StringLiteral kRVVI32M1ArithmeticObjectHandoffKind(
     "materialized-emitc-cpp-rvv-intrinsic-object");
+constexpr llvm::StringLiteral kRVVMaterializedEmitCBundleComponentGroup(
+    "rvv-i32m1-arithmetic-materialized-emitc-bundle.v1");
 
 struct ScopedTempPath {
   llvm::SmallString<128> path;
@@ -242,6 +250,67 @@ SelectedEmitCArtifactRouteConfig getRVVI32M1ArithmeticArtifactConfig() {
   return config;
 }
 
+llvm::Expected<mlir::emitc::FuncOp>
+getSingleMaterializedEmitCFunction(mlir::ModuleOp module,
+                                   llvm::StringRef expectedFunctionName) {
+  mlir::emitc::FuncOp selectedFunc;
+  unsigned functionCount = 0;
+  module->walk([&](mlir::emitc::FuncOp func) {
+    ++functionCount;
+    if (func.getSymName() == expectedFunctionName)
+      selectedFunc = func;
+  });
+
+  if (!selectedFunc)
+    return makeRVVTargetRouteError(
+        llvm::Twine("materialized EmitC header route requires EmitC function "
+                    "boundary '") +
+        expectedFunctionName + "'");
+  if (functionCount != 1)
+    return makeRVVTargetRouteError(
+        "materialized EmitC header route requires exactly one EmitC function "
+        "boundary");
+  return selectedFunc;
+}
+
+std::string formatCParameter(const support::RuntimeABIParameter &parameter) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << parameter.cType;
+  llvm::StringRef cType(parameter.cType);
+  if (!cType.ends_with("*") && !cType.ends_with("&"))
+    os << " ";
+  os << parameter.cName;
+  os.flush();
+  return text;
+}
+
+void printRVVMaterializedEmitCHeaderDeclaration(
+    llvm::raw_ostream &os, llvm::StringRef functionName,
+    llvm::StringRef objectRouteID, llvm::StringRef runtimeABIName,
+    llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters) {
+  os << "#ifndef TIANCHENRV_RVV_MATERIALIZED_EMITC_HEADER_H\n";
+  os << "#define TIANCHENRV_RVV_MATERIALIZED_EMITC_HEADER_H\n";
+  os << "\n";
+  os << "#include <stddef.h>\n";
+  os << "#include <stdint.h>\n";
+  os << "\n";
+  os << "/* tianchenrv.rvv.materialized_emitc_header.version: 1 */\n";
+  os << "/* tianchenrv.rvv.selected_object_route: " << objectRouteID
+     << " */\n";
+  os << "/* tianchenrv.rvv.runtime_abi_name: " << runtimeABIName << " */\n";
+  os << "\n";
+  os << "void " << functionName << "(";
+  for (auto [index, parameter] : llvm::enumerate(runtimeABIParameters)) {
+    if (index != 0)
+      os << ", ";
+    os << formatCParameter(parameter);
+  }
+  os << ");\n";
+  os << "\n";
+  os << "#endif /* TIANCHENRV_RVV_MATERIALIZED_EMITC_HEADER_H */\n";
+}
+
 llvm::Error exportRVVI32M1ArithmeticTargetArtifact(mlir::ModuleOp module,
                                                    llvm::raw_ostream &os) {
   llvm::Expected<std::string> source = emitSelectedEmitCArtifactCppSource(
@@ -251,29 +320,170 @@ llvm::Error exportRVVI32M1ArithmeticTargetArtifact(mlir::ModuleOp module,
   return compileRVVGeneratedSourceToObject(*source, os);
 }
 
+llvm::Error exportRVVI32M1ArithmeticHeaderArtifact(mlir::ModuleOp module,
+                                                   llvm::raw_ostream &os) {
+  SelectedEmitCArtifactRouteConfig config =
+      getRVVI32M1ArithmeticArtifactConfig();
+
+  llvm::Expected<SelectedEmitCArtifactTarget> target =
+      selectSelectedEmitCArtifactTarget(module, config);
+  if (!target)
+    return target.takeError();
+
+  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
+      materializeSelectedEmitCArtifactModule(module, config);
+  if (!emitcModule)
+    return emitcModule.takeError();
+
+  llvm::Expected<std::string> functionName =
+      getSelectedEmitCArtifactFunctionName(module, config);
+  if (!functionName)
+    return functionName.takeError();
+
+  llvm::Expected<mlir::emitc::FuncOp> func =
+      getSingleMaterializedEmitCFunction(**emitcModule, *functionName);
+  if (!func)
+    return func.takeError();
+
+  llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters =
+      target->candidate.runtimeABIParameters;
+  if ((*func).getFunctionType().getNumInputs() !=
+      runtimeABIParameters.size())
+    return makeRVVTargetRouteError(
+        "materialized EmitC header route function boundary arity must match "
+        "the selected ordered runtime ABI parameter signature");
+
+  printRVVMaterializedEmitCHeaderDeclaration(
+      os, *functionName, target->candidate.routeID,
+      target->candidate.runtimeABIName, runtimeABIParameters);
+  return llvm::Error::success();
+}
+
+bool isRVVMaterializedEmitCArtifactCandidate(
+    const TargetArtifactCandidate &candidate) {
+  const plugin::rvv::RVVConstructionManifest &manifest = getRVVManifest();
+  return candidate.origin == manifest.family.pluginName ||
+         candidate.routeID == manifest.emitcRoute.routeID;
+}
+
+llvm::Expected<const TargetArtifactCandidate *>
+selectSingleRVVMaterializedEmitCCandidate(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  llvm::SmallVector<const TargetArtifactCandidate *, 2> rvvCandidates;
+  for (const TargetArtifactCandidate &candidate : candidates) {
+    if (isRVVMaterializedEmitCArtifactCandidate(candidate))
+      rvvCandidates.push_back(&candidate);
+  }
+
+  if (rvvCandidates.empty())
+    return static_cast<const TargetArtifactCandidate *>(nullptr);
+  if (rvvCandidates.size() != 1 || candidates.size() != 1)
+    return makeRVVTargetRouteError(
+        "RVV materialized EmitC header/bundle route requires exactly one "
+        "selected supported RVV materialized EmitC candidate");
+
+  if (llvm::Error error =
+          validateRVVI32M1ArithmeticTargetArtifactCandidate(
+              *rvvCandidates.front()))
+    return std::move(error);
+  return rvvCandidates.front();
+}
+
+llvm::Expected<bool> matchRVVI32M1ArithmeticHeaderArtifact(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  llvm::Expected<const TargetArtifactCandidate *> selected =
+      selectSingleRVVMaterializedEmitCCandidate(candidates);
+  if (!selected)
+    return selected.takeError();
+  return *selected != nullptr;
+}
+
+llvm::Error validateRVVI32M1ArithmeticHeaderArtifactCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  llvm::Expected<const TargetArtifactCandidate *> selected =
+      selectSingleRVVMaterializedEmitCCandidate(candidates);
+  if (!selected)
+    return selected.takeError();
+  if (!*selected)
+    return makeRVVTargetRouteError(
+        "RVV materialized EmitC header route requires a selected supported "
+        "RVV materialized EmitC candidate");
+  return llvm::Error::success();
+}
+
+llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>>
+getRVVI32M1ArithmeticHeaderRuntimeABIParameters(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  if (llvm::Error error =
+          validateRVVI32M1ArithmeticHeaderArtifactCandidates(candidates))
+    return std::move(error);
+
+  llvm::SmallVector<support::RuntimeABIParameter, 5> parameters =
+      plugin::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
+  return parameters;
+}
+
+llvm::Expected<TargetArtifactCompositeBundleMetadata>
+getRVVI32M1ArithmeticHeaderBundleMetadata(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  if (llvm::Error error =
+          validateRVVI32M1ArithmeticHeaderArtifactCandidates(candidates))
+    return std::move(error);
+
+  TargetArtifactCompositeBundleMetadata metadata;
+  metadata.componentGroup = kRVVMaterializedEmitCBundleComponentGroup.str();
+  metadata.handoffKind = kRVVI32M1ArithmeticObjectHandoffKind.str();
+  return metadata;
+}
+
 llvm::Error registerRVVI32M1ArithmeticTargetArtifactExporter(
     TargetArtifactExporterRegistry &registry) {
   if (llvm::Error error = plugin::rvv::verifyRVVConstructionProtocolReady())
     return error;
 
   const plugin::rvv::RVVConstructionManifest &manifest = getRVVManifest();
-  if (registry.lookup(manifest.emitcRoute.routeID))
-    return llvm::Error::success();
 
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters =
       plugin::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
-  return registry.registerExporter(TargetArtifactExporter(
-      manifest.emitcRoute.routeID, manifest.emitcRoute.artifactKind,
-      manifest.family.pluginName, manifest.emitcRoute.emissionKind,
-      exportRVVI32M1ArithmeticTargetArtifact, runtimeABIParameters,
-      kRVVI32M1ArithmeticObjectHandoffKind,
-      validateRVVI32M1ArithmeticTargetArtifactCandidate));
+  if (!registry.lookup(manifest.emitcRoute.routeID)) {
+    if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
+            manifest.emitcRoute.routeID, manifest.emitcRoute.artifactKind,
+            manifest.family.pluginName, manifest.emitcRoute.emissionKind,
+            exportRVVI32M1ArithmeticTargetArtifact, runtimeABIParameters,
+            kRVVI32M1ArithmeticObjectHandoffKind,
+            validateRVVI32M1ArithmeticTargetArtifactCandidate,
+            kRVVMaterializedEmitCBundleComponentGroup)))
+      return error;
+  }
+
+  if (!registry.lookupComposite(kRVVMaterializedEmitCHeaderRouteID)) {
+    if (llvm::Error error = registry.registerCompositeExporter(
+            TargetArtifactCompositeExporter(
+                kRVVMaterializedEmitCHeaderRouteID,
+                kRuntimeCallableCHeaderArtifactKind,
+                matchRVVI32M1ArithmeticHeaderArtifact,
+                exportRVVI32M1ArithmeticHeaderArtifact,
+                manifest.family.pluginName,
+                /*runtimeABIKind=*/{}, /*runtimeABIName=*/{},
+                getRVVI32M1ArithmeticHeaderRuntimeABIParameters,
+                kRVVMaterializedEmitCBundleComponentGroup,
+                /*externalABIName=*/{},
+                validateRVVI32M1ArithmeticHeaderArtifactCandidates,
+                getRVVI32M1ArithmeticHeaderBundleMetadata)))
+      return error;
+  }
+
+  return llvm::Error::success();
 }
 
 } // namespace
 
 llvm::StringRef getRVVMaterializedEmitCTargetArtifactRouteID() {
   return getRVVManifest().emitcRoute.routeID;
+}
+
+llvm::StringRef getRVVMaterializedEmitCHeaderArtifactRouteID() {
+  return kRVVMaterializedEmitCHeaderRouteID;
 }
 
 llvm::Error registerRVVTargetSupportPluginTargetExporterBundles(

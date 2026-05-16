@@ -56,6 +56,80 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 97: RVV materialized EmitC header and bundle ABI packaging bridge
+
+**Date**: 2026-05-17
+**Task**: RVV materialized EmitC header and bundle ABI packaging bridge
+**Branch**: `main`
+
+### Summary
+
+Rebuilt the RVV declaration-only header route and object+header artifact bundle
+around the existing selected materialized EmitC object bridge, without
+restoring descriptor/direct-C/source-export route authority.
+
+### Main Changes
+
+- Added `rvv-i32m1-arithmetic-emitc-route-family.header` as a composite header
+  artifact route matched from the existing RVV materialized EmitC object
+  candidate.
+- Put the RVV object route and header route into the shared bundle component
+  group `rvv-i32m1-arithmetic-materialized-emitc-bundle.v1`.
+- Header export now materializes the selected EmitC module, verifies the single
+  `emitc.func` boundary and ordered runtime ABI arity, then emits only a
+  callable declaration with `<stddef.h>` and `<stdint.h>`.
+- Extended composite bundle metadata with `handoffKind` so the bundle index
+  records the same materialized object handoff identity for the header
+  component.
+- Updated RVV/lowering-runtime specs to document the bounded active
+  object/header/bundle route while keeping historical header/bundle route ids
+  deleted.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`.
+- [OK] Focused C++:
+  `./build/bin/tianchenrv-target-artifact-export-test`.
+- [OK] Focused lit filter:
+  `source-seed-target-artifact-header|source-seed-target-artifact-object|rvv-i32m1-selected-boundary-seed|emitc-to-cpp-handoff|emitc-to-cpp-non-materialized`,
+  6/6 passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`, 102/102 lit
+  tests passed.
+- [OK] `git diff --check`.
+- [OK] Artifact evidence under
+  `artifacts/tmp/rvv_materialized_emitc_header_bundle_bridge/20260516T181607Z`.
+  `/usr/lib/llvm-20/bin/llvm-readobj -h rvv_target_artifact.o` reports
+  `Format: elf64-littleriscv`, `Arch: riscv64`, and `Type: Relocatable`.
+- [OK] Real `ssh rvv` header+object compile/link/run:
+  `tcrv_rvv_materialized_emitc_header_bundle status=PASS n=4 add=[12,6,16,12]`.
+- [OK] Targeted scans: no restored
+  `RVVI32M1ArithmeticTargetRouteDescriptor`,
+  `kRVVI32M1ArithmeticTargetRoutes`, old
+  `getRVVI32M1Arithmetic{Object,Header,Bundle,Target}*RouteID`, historical
+  `tcrv-rvv-i32m1-{add,sub,mul}` header/object/bundle route strings, or
+  descriptor/direct-C/source-export/source-authority residue in RVV
+  target/plugin/test surfaces; generated headers contain no RVV intrinsic body,
+  `main`, runtime logs, ssh text, credentials, or performance/correctness
+  claims.
+
+### Self-Repair
+
+- The first local readobj evidence command used `llvm-readobj` from the normal
+  shell `PATH`; regenerated the readobj evidence with
+  `/usr/lib/llvm-20/bin/llvm-readobj`.
+
+### Status
+
+[OK] Complete; ready to archive and commit.
+
+
 ## Session 98: RVV target descriptor-route authority erasure
 
 **Date**: 2026-05-17
