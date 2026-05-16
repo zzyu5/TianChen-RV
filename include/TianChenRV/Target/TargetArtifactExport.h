@@ -5,6 +5,7 @@
 #include "TianChenRV/Support/RuntimeABI.h"
 
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/OwningOpRef.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
@@ -26,8 +27,15 @@ class PluginTargetArtifactExporterRegistry;
 
 } // namespace tianchenrv::target
 
+namespace tianchenrv::conversion::emitc {
+class TCRVEmitCLowerableRoute;
+} // namespace tianchenrv::conversion::emitc
+
 namespace tianchenrv::plugin {
 class ExtensionPluginRegistry;
+class VariantEmitCLowerableRequest;
+
+enum class VariantEmissionRole;
 } // namespace tianchenrv::plugin
 
 namespace tianchenrv::target {
@@ -49,6 +57,12 @@ using TargetArtifactCompositeCandidateValidationFn = llvm::Error (*)(
 using TargetArtifactCompositeRuntimeABIParametersFn =
     llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>> (*)(
         llvm::ArrayRef<TargetArtifactCandidate> candidates);
+using SelectedEmitCArtifactRouteBuilderFn = llvm::Error (*)(
+    const plugin::VariantEmitCLowerableRequest &request,
+    conversion::emitc::TCRVEmitCLowerableRoute &out);
+using SelectedEmitCArtifactFunctionNameFn =
+    std::string (*)(tcrv::exec::KernelOp kernel,
+                    tcrv::exec::VariantOp variant);
 
 class TargetArtifactExporter {
 public:
@@ -110,6 +124,23 @@ struct TargetArtifactCandidate {
   std::string runtimeABIName;
   std::string runtimeGlueRole;
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
+};
+
+struct SelectedEmitCArtifactRouteConfig {
+  llvm::StringRef routeID;
+  llvm::StringRef artifactKind;
+  llvm::StringRef originPlugin;
+  llvm::StringRef routeDescription;
+  TargetArtifactCandidateValidationFn candidateValidationFn = nullptr;
+  SelectedEmitCArtifactRouteBuilderFn routeBuilderFn = nullptr;
+  SelectedEmitCArtifactFunctionNameFn functionNameFn = nullptr;
+};
+
+struct SelectedEmitCArtifactTarget {
+  tcrv::exec::KernelOp kernel;
+  tcrv::exec::VariantOp variant;
+  plugin::VariantEmissionRole role;
+  TargetArtifactCandidate candidate;
 };
 
 struct TargetArtifactCompositeBundleMetadata {
@@ -371,6 +402,27 @@ llvm::Expected<const TargetArtifactCompositeExporter *>
 selectTargetArtifactCompositeExporter(
     llvm::ArrayRef<TargetArtifactCandidate> candidates,
     const TargetArtifactExporterRegistry &registry);
+
+std::string makeSelectedEmitCArtifactFunctionName(
+    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant);
+
+llvm::Expected<SelectedEmitCArtifactTarget>
+selectSelectedEmitCArtifactTarget(
+    mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config);
+
+llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
+materializeSelectedEmitCArtifactModule(
+    mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config);
+
+llvm::Expected<std::string> getSelectedEmitCArtifactFunctionName(
+    mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config);
+
+llvm::Expected<std::string> emitSelectedEmitCArtifactCppSource(
+    mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config);
+
+llvm::Error exportMaterializedEmitCModuleToCpp(
+    mlir::ModuleOp module, llvm::raw_ostream &os,
+    llvm::StringRef routeDescription = "EmitC C/C++ translate route");
 
 llvm::Error exportTargetArtifact(
     mlir::ModuleOp module, const TargetArtifactExporterRegistry &registry,

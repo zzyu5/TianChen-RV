@@ -1,18 +1,15 @@
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
-#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
-#include "mlir/Target/Cpp/CppEmitter.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -63,13 +60,6 @@ constexpr llvm::StringLiteral kRVVI32M1AddCallableComponentGroup(
     "rvv-i32m1-add-callable-artifact-bundle.v1");
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
     "TCRVEmitCLowerableOpInterface");
-
-llvm::Error makeRVVEmitCToCppRouteError(llvm::Twine message) {
-  return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV EmitC C/C++ translate route failed: ") +
-          message,
-      llvm::errc::invalid_argument);
-}
 
 llvm::Error makeRVVObjectRouteError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -317,34 +307,6 @@ llvm::Error addCallStepFromSource(
   return llvm::Error::success();
 }
 
-std::string sanitizeIdentifierPart(llvm::StringRef value) {
-  std::string sanitized;
-  sanitized.reserve(value.size());
-  for (char c : value) {
-    unsigned char byte = static_cast<unsigned char>(c);
-    if (std::isalnum(byte) || c == '_')
-      sanitized.push_back(c);
-    else
-      sanitized.push_back('_');
-  }
-  if (sanitized.empty())
-    return "unnamed";
-  if (!std::isalpha(static_cast<unsigned char>(sanitized.front())) &&
-      sanitized.front() != '_')
-    sanitized.insert(sanitized.begin(), '_');
-  return sanitized;
-}
-
-std::string makeEmitCFunctionName(tcrv::exec::KernelOp kernel,
-                                  tcrv::exec::VariantOp variant) {
-  std::string name;
-  llvm::raw_string_ostream os(name);
-  os << "tcrv_emitc_" << sanitizeIdentifierPart(kernel.getSymName()) << "_"
-     << sanitizeIdentifierPart(variant.getSymName());
-  os.flush();
-  return name;
-}
-
 std::string makeHeaderGuard(llvm::StringRef functionName) {
   std::string guard("TIANCHENRV_RVV_I32M1_ADD_CALLABLE_");
   for (char c : functionName) {
@@ -361,201 +323,26 @@ std::string makeHeaderGuard(llvm::StringRef functionName) {
 llvm::Error validateRVVI32M1AddObjectCandidate(
     const TargetArtifactCandidate &candidate);
 
-struct SelectedRVVI32M1AddTarget {
-  tcrv::exec::KernelOp kernel;
-  tcrv::exec::VariantOp variant;
-  plugin::VariantEmissionRole role = plugin::VariantEmissionRole::DirectVariant;
-  TargetArtifactCandidate candidate;
-};
-
-llvm::Expected<plugin::VariantEmissionRole>
-parseVariantEmissionRole(llvm::StringRef role) {
-  if (role == plugin::stringifyVariantEmissionRole(
-                  plugin::VariantEmissionRole::DirectVariant))
-    return plugin::VariantEmissionRole::DirectVariant;
-  if (role == plugin::stringifyVariantEmissionRole(
-                  plugin::VariantEmissionRole::DispatchCase))
-    return plugin::VariantEmissionRole::DispatchCase;
-  if (role == plugin::stringifyVariantEmissionRole(
-                  plugin::VariantEmissionRole::DispatchFallback))
-    return plugin::VariantEmissionRole::DispatchFallback;
-
-  return makeRVVObjectRouteError(llvm::Twine("selected emission-plan role '") +
-                                 role + "' is not supported by the bounded "
-                                        "RVV i32m1 add artifact route");
-}
-
-tcrv::exec::VariantOp findDirectVariantBySymbol(tcrv::exec::KernelOp kernel,
-                                                llvm::StringRef symbol) {
-  if (!kernel || kernel.getBody().empty())
-    return {};
-
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op);
-    if (variant && variant.getSymName() == symbol)
-      return variant;
-  }
-  return {};
-}
-
-llvm::Expected<SelectedRVVI32M1AddTarget>
-findSelectedRVVI32M1AddTarget(mlir::ModuleOp module) {
-  llvm::SmallVector<TargetArtifactCandidate, 4> allCandidates;
-  if (llvm::Error error = collectTargetArtifactCandidates(module, allCandidates))
-    return std::move(error);
-
-  llvm::SmallVector<TargetArtifactCandidate, 2> matches;
-  for (const TargetArtifactCandidate &candidate : allCandidates) {
-    if (candidate.routeID != kRVVI32M1AddObjectArtifactRouteID)
-      continue;
-    if (candidate.artifactKind != kRVVI32M1AddObjectArtifactKind)
-      continue;
-    if (candidate.origin != kRVVPluginName)
-      continue;
-    matches.push_back(candidate);
-  }
-
-  if (matches.empty())
-    return makeRVVObjectRouteError(
-        "requires exactly one selected RVV i32m1 add emission-plan candidate "
-        "before object/header export; found none");
-  if (matches.size() != 1)
-    return makeRVVObjectRouteError(
-        "requires exactly one selected RVV i32m1 add emission-plan candidate "
-        "before object/header export; found multiple ambiguous candidates");
-
-  SelectedRVVI32M1AddTarget target;
-  target.candidate = std::move(matches.front());
-  if (llvm::Error error = validateRVVI32M1AddObjectCandidate(target.candidate))
-    return std::move(error);
-
-  llvm::Expected<plugin::VariantEmissionRole> role =
-      parseVariantEmissionRole(target.candidate.role);
-  if (!role)
-    return role.takeError();
-  target.role = *role;
-
-  target.kernel = target.candidate.kernel;
-  target.variant =
-      findDirectVariantBySymbol(target.kernel, target.candidate.selectedVariant);
-  if (!target.variant)
-    return makeRVVObjectRouteError(
-        llvm::Twine("selected emission-plan candidate target @") +
-        target.candidate.selectedVariant +
-        " does not resolve to a direct sibling tcrv.exec.variant before "
-        "object/header export");
-
-  return target;
-}
-
-llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
-materializeRVVI32M1AddEmitCModule(mlir::ModuleOp module) {
-  llvm::Expected<SelectedRVVI32M1AddTarget> target =
-      findSelectedRVVI32M1AddTarget(module);
-  if (!target)
-    return target.takeError();
-
-  llvm::Expected<support::TargetCapabilitySet> capabilities =
-      support::TargetCapabilitySet::buildFromKernelChecked(target->kernel);
-  if (!capabilities)
-    return capabilities.takeError();
-
-  conversion::emitc::TCRVEmitCLowerableRoute route;
-  plugin::VariantEmitCLowerableRequest request(
-      target->variant, target->kernel, *capabilities,
-      target->role);
-  if (llvm::Error error = buildRVVI32M1AddEmitCLowerableRoute(request, route))
-    return std::move(error);
-  if (llvm::Error error = route.verify())
-    return std::move(error);
-
-  conversion::emitc::TCRVEmitCMaterializationOptions options;
-  options.functionName = makeEmitCFunctionName(target->kernel, target->variant);
-  return conversion::emitc::materializeTCRVEmitCLowerableRoute(
-      *module.getContext(), route, options);
-}
-
-llvm::Expected<std::string>
-getValidatedRVVI32M1AddCallableFunctionName(mlir::ModuleOp module) {
-  llvm::Expected<SelectedRVVI32M1AddTarget> target =
-      findSelectedRVVI32M1AddTarget(module);
-  if (!target)
-    return target.takeError();
-
-  llvm::Expected<support::TargetCapabilitySet> capabilities =
-      support::TargetCapabilitySet::buildFromKernelChecked(target->kernel);
-  if (!capabilities)
-    return capabilities.takeError();
-
-  conversion::emitc::TCRVEmitCLowerableRoute route;
-  plugin::VariantEmitCLowerableRequest request(
-      target->variant, target->kernel, *capabilities,
-      target->role);
-  if (llvm::Error error = buildRVVI32M1AddEmitCLowerableRoute(request, route))
-    return std::move(error);
-  if (llvm::Error error = route.verify())
-    return std::move(error);
-
-  return makeEmitCFunctionName(target->kernel, target->variant);
-}
-
-llvm::Error requireMaterializedEmitCModule(mlir::ModuleOp module) {
-  bool foundEmitCOp = false;
-  mlir::Operation *unsupported = nullptr;
-  module->walk([&](mlir::Operation *op) {
-    if (op == module.getOperation())
-      return mlir::WalkResult::advance();
-
-    llvm::StringRef dialectNamespace = op->getName().getDialectNamespace();
-    if (dialectNamespace == "emitc") {
-      foundEmitCOp = true;
-      return mlir::WalkResult::advance();
-    }
-
-    unsupported = op;
-    return mlir::WalkResult::interrupt();
-  });
-
-  if (unsupported)
-    return makeRVVEmitCToCppRouteError(
-        llvm::Twine("requires an already materialized EmitC module; found "
-                    "non-EmitC op '") +
-        unsupported->getName().getStringRef() + "'");
-  if (!foundEmitCOp)
-    return makeRVVEmitCToCppRouteError(
-        "requires an already materialized EmitC module with at least one "
-        "EmitC op");
-  return llvm::Error::success();
-}
-
 llvm::Error exportMaterializedRVVEmitCToCpp(mlir::ModuleOp module,
                                             llvm::raw_ostream &os) {
-  if (llvm::Error error = requireMaterializedEmitCModule(module))
-    return error;
-  if (mlir::failed(mlir::emitc::translateToCpp(module.getOperation(), os)))
-    return makeRVVEmitCToCppRouteError(
-        "upstream MLIR EmitC C/C++ emitter rejected the materialized EmitC "
-        "module");
-  return llvm::Error::success();
+  return exportMaterializedEmitCModuleToCpp(
+      module, os, "RVV EmitC C/C++ translate route");
+}
+
+SelectedEmitCArtifactRouteConfig getRVVI32M1AddEmitCArtifactConfig() {
+  SelectedEmitCArtifactRouteConfig config;
+  config.routeID = kRVVI32M1AddObjectArtifactRouteID;
+  config.artifactKind = kRVVI32M1AddObjectArtifactKind;
+  config.originPlugin = kRVVPluginName;
+  config.routeDescription = "RVV i32m1 object artifact route";
+  config.candidateValidationFn = validateRVVI32M1AddObjectCandidate;
+  config.routeBuilderFn = buildRVVI32M1AddEmitCLowerableRoute;
+  return config;
 }
 
 llvm::Expected<std::string> emitRVVI32M1AddCppSource(mlir::ModuleOp module) {
-  mlir::OwningOpRef<mlir::ModuleOp> clonedModule(module.clone());
-  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
-      materializeRVVI32M1AddEmitCModule(*clonedModule);
-  if (!emitcModule)
-    return emitcModule.takeError();
-
-  std::string generatedSource;
-  llvm::raw_string_ostream sourceOS(generatedSource);
-  if (llvm::Error error = exportMaterializedRVVEmitCToCpp(**emitcModule,
-                                                          sourceOS))
-    return std::move(error);
-  sourceOS.flush();
-  if (generatedSource.empty())
-    return makeRVVObjectRouteError(
-        "generated C/C++ source is empty before object compile preflight");
-  return generatedSource;
+  return emitSelectedEmitCArtifactCppSource(
+      module, getRVVI32M1AddEmitCArtifactConfig());
 }
 
 llvm::Expected<std::string> findRVVClangTool() {
@@ -769,7 +556,8 @@ llvm::Error exportRVVI32M1AddObjectArtifact(mlir::ModuleOp module,
 llvm::Error exportRVVI32M1AddCallableHeaderArtifact(mlir::ModuleOp module,
                                                     llvm::raw_ostream &os) {
   llvm::Expected<std::string> functionName =
-      getValidatedRVVI32M1AddCallableFunctionName(module);
+      getSelectedEmitCArtifactFunctionName(
+          module, getRVVI32M1AddEmitCArtifactConfig());
   if (!functionName)
     return functionName.takeError();
 

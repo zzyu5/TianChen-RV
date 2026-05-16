@@ -61,6 +61,65 @@ with expected `[8,4,1000,42]` and actual `[8,4,1000,42]`.
 - None - task complete
 
 
+## Session 90: Common selected-emission-plan EmitC artifact front door
+
+**Date**: 2026-05-16
+**Task**: Common selected-emission-plan EmitC artifact front door
+**Branch**: `main`
+
+### Summary
+
+Extracted the reusable selected-emission-plan to EmitC/C++ artifact
+orchestration into the common target artifact layer, and rewired the existing
+RVV i32m1 add object/header bundle to consume it as the first plugin-owned
+route.
+
+### Main Changes
+
+- Added common selected EmitC artifact APIs in `TargetArtifactExport` for
+  selected candidate resolution, role parsing, capability-backed route request,
+  EmitC materialization, C++ emission, and stable function-name derivation.
+- Kept RVV-specific ownership in RVV target support: i32m1 shape legality,
+  intrinsic names, runtime ABI details, clang RISC-V object compilation,
+  callable header text, and route registration metadata.
+- Removed RVV-local duplicate selected-candidate lookup, direct variant lookup,
+  role parsing, EmitC materialization, and MLIR EmitC C++ emitter plumbing.
+- Added target artifact C++ unit coverage using a non-RVV mock route to prove
+  the common front door handles selected candidate selection, materialization,
+  C++ emission, and fail-closed origin filtering.
+- Created, validated, completed, and archived the Trellis task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | target: add common selected emitc artifact front door |
+
+### Testing
+
+- [OK] `ninja -C build tianchenrv-target-artifact-export-test tcrv-translate tcrv-opt`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused RVV lit for selected dispatch, selected-path sibling,
+  ambiguous/unselected fail-closed, unsupported shape, and EmitC-to-C++ handoff
+  (7/7)
+- [OK] focused target artifact registry lit (1/1)
+- [OK] `ninja -C build check-tianchenrv` (82/82 tests)
+- [OK] `git diff --check`
+- [OK] changed-source legacy scan for descriptor/direct-C/source-export/
+  microkernel residue returned no matches
+- [OK] common target front-door scan for RVV/intrinsic names returned no
+  matches
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-16-common-selected-emitc-artifact-front-door`
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete
+
+
 
 ## Session 76: Delete support-layer I32 RVV runtime ABI residue
 

@@ -12,5 +12,4 @@ add_mlir_library(TianChenRVRVVTarget
   MLIRIR
   MLIRPass
   MLIRSupport
-  MLIRTargetCpp
 )

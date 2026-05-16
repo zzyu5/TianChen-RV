@@ -1,12 +1,16 @@
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Support/CapabilityModel.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/SymbolTable.h"
+#include "mlir/Target/Cpp/CppEmitter.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSet.h"
@@ -140,6 +144,22 @@ llvm::Error makeTargetArtifactFrontDoorError(KernelOp kernel,
                                              llvm::errc::invalid_argument);
 }
 
+llvm::Error makeSelectedEmitCArtifactError(llvm::StringRef routeDescription,
+                                           llvm::Twine message) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  stream << "TianChen-RV ";
+  if (routeDescription.trim().empty())
+    stream << "selected EmitC artifact front door";
+  else
+    stream << routeDescription;
+  stream << " failed: ";
+  message.print(stream);
+  stream.flush();
+  return llvm::make_error<llvm::StringError>(text,
+                                             llvm::errc::invalid_argument);
+}
+
 bool isHeaderArtifactKind(llvm::StringRef artifactKind) {
   return artifactKind == kRuntimeCallableCHeaderArtifactKind;
 }
@@ -237,6 +257,24 @@ std::string sanitizeFileNameComponent(llvm::StringRef value) {
   if (result.empty())
     result = "artifact";
   return result;
+}
+
+std::string sanitizeIdentifierPart(llvm::StringRef value) {
+  std::string sanitized;
+  sanitized.reserve(value.size());
+  for (char c : value) {
+    unsigned char byte = static_cast<unsigned char>(c);
+    if (std::isalnum(byte) || c == '_')
+      sanitized.push_back(c);
+    else
+      sanitized.push_back('_');
+  }
+  if (sanitized.empty())
+    return "unnamed";
+  if (!std::isalpha(static_cast<unsigned char>(sanitized.front())) &&
+      sanitized.front() != '_')
+    sanitized.insert(sanitized.begin(), '_');
+  return sanitized;
 }
 
 bool hasKernelBody(KernelOp kernel) {
@@ -945,6 +983,287 @@ selectTargetArtifactCompositeExporter(
     const TargetArtifactExporterRegistry &registry) {
   return selectCompositeExporter(candidates, registry,
                                  ArtifactSelectionMode::DefaultArtifact);
+}
+
+std::string makeSelectedEmitCArtifactFunctionName(
+    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "tcrv_emitc_";
+  if (kernel)
+    os << sanitizeIdentifierPart(kernel.getSymName());
+  else
+    os << "missing_kernel";
+  os << "_";
+  if (variant)
+    os << sanitizeIdentifierPart(variant.getSymName());
+  else
+    os << "missing_variant";
+  os.flush();
+  return name;
+}
+
+namespace {
+
+llvm::Error validateSelectedEmitCArtifactRouteConfig(
+    const SelectedEmitCArtifactRouteConfig &config) {
+  llvm::StringRef routeDescription =
+      config.routeDescription.empty() ? config.routeID : config.routeDescription;
+  if (config.routeID.trim().empty())
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "requires a non-empty selected emission-plan route id");
+  if (config.artifactKind.trim().empty())
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "requires a non-empty selected emission-plan artifact kind");
+  if (config.originPlugin.trim().empty())
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "requires a non-empty selected emission-plan origin plugin");
+  if (!config.routeBuilderFn)
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "requires a plugin-owned EmitC lowerable route builder callback");
+  return llvm::Error::success();
+}
+
+llvm::Expected<plugin::VariantEmissionRole>
+parseSelectedEmitCArtifactRole(llvm::StringRef role,
+                               llvm::StringRef routeDescription) {
+  if (role == plugin::stringifyVariantEmissionRole(
+                  plugin::VariantEmissionRole::DirectVariant))
+    return plugin::VariantEmissionRole::DirectVariant;
+  if (role == plugin::stringifyVariantEmissionRole(
+                  plugin::VariantEmissionRole::DispatchCase))
+    return plugin::VariantEmissionRole::DispatchCase;
+  if (role == plugin::stringifyVariantEmissionRole(
+                  plugin::VariantEmissionRole::DispatchFallback))
+    return plugin::VariantEmissionRole::DispatchFallback;
+
+  return makeSelectedEmitCArtifactError(
+      routeDescription,
+      llvm::Twine("selected emission-plan role '") + role +
+          "' is not supported by the common EmitC artifact front door");
+}
+
+tcrv::exec::VariantOp findDirectVariantBySymbol(tcrv::exec::KernelOp kernel,
+                                                llvm::StringRef symbol) {
+  if (!hasKernelBody(kernel))
+    return {};
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op);
+    if (variant && variant.getSymName() == symbol)
+      return variant;
+  }
+  return {};
+}
+
+llvm::Expected<SelectedEmitCArtifactTarget>
+selectSelectedEmitCArtifactTargetImpl(
+    mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config) {
+  if (llvm::Error error = validateSelectedEmitCArtifactRouteConfig(config))
+    return std::move(error);
+
+  llvm::SmallVector<TargetArtifactCandidate, 4> allCandidates;
+  if (llvm::Error error = collectTargetArtifactCandidates(module, allCandidates))
+    return std::move(error);
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> matches;
+  for (const TargetArtifactCandidate &candidate : allCandidates) {
+    if (candidate.routeID != config.routeID)
+      continue;
+    if (candidate.artifactKind != config.artifactKind)
+      continue;
+    if (candidate.origin != config.originPlugin)
+      continue;
+    matches.push_back(candidate);
+  }
+
+  llvm::StringRef routeDescription =
+      config.routeDescription.empty() ? config.routeID : config.routeDescription;
+  if (matches.empty())
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        llvm::Twine("requires exactly one selected emission-plan candidate "
+                    "for route '") +
+            config.routeID + "' before EmitC artifact export; found none");
+  if (matches.size() != 1)
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        llvm::Twine("requires exactly one selected emission-plan candidate "
+                    "for route '") +
+            config.routeID +
+            "' before EmitC artifact export; found multiple ambiguous "
+            "candidates");
+
+  SelectedEmitCArtifactTarget target;
+  target.candidate = std::move(matches.front());
+  if (config.candidateValidationFn)
+    if (llvm::Error error = config.candidateValidationFn(target.candidate))
+      return std::move(error);
+
+  llvm::Expected<plugin::VariantEmissionRole> role =
+      parseSelectedEmitCArtifactRole(target.candidate.role, routeDescription);
+  if (!role)
+    return role.takeError();
+  target.role = *role;
+
+  target.kernel = target.candidate.kernel;
+  target.variant =
+      findDirectVariantBySymbol(target.kernel, target.candidate.selectedVariant);
+  if (!target.variant)
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        llvm::Twine("selected emission-plan candidate target @") +
+            target.candidate.selectedVariant +
+            " does not resolve to a direct sibling tcrv.exec.variant before "
+            "EmitC artifact export");
+
+  return target;
+}
+
+llvm::Expected<conversion::emitc::TCRVEmitCLowerableRoute>
+buildSelectedEmitCArtifactRoute(
+    const SelectedEmitCArtifactTarget &target,
+    const SelectedEmitCArtifactRouteConfig &config) {
+  llvm::StringRef routeDescription =
+      config.routeDescription.empty() ? config.routeID : config.routeDescription;
+  llvm::Expected<support::TargetCapabilitySet> capabilities =
+      support::TargetCapabilitySet::buildFromKernelChecked(target.kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+
+  conversion::emitc::TCRVEmitCLowerableRoute route;
+  plugin::VariantEmitCLowerableRequest request(
+      target.variant, target.kernel, *capabilities, target.role);
+  if (llvm::Error error = config.routeBuilderFn(request, route))
+    return std::move(error);
+  if (llvm::Error error = route.verify())
+    return std::move(error);
+  if (route.getRouteID().trim().empty())
+    return makeSelectedEmitCArtifactError(
+        routeDescription, "plugin-owned EmitC lowerable route id is empty");
+  return std::move(route);
+}
+
+llvm::Error requireMaterializedEmitCModule(
+    mlir::ModuleOp module, llvm::StringRef routeDescription) {
+  bool foundEmitCOp = false;
+  mlir::Operation *unsupported = nullptr;
+  module->walk([&](mlir::Operation *op) {
+    if (op == module.getOperation())
+      return mlir::WalkResult::advance();
+
+    llvm::StringRef dialectNamespace = op->getName().getDialectNamespace();
+    if (dialectNamespace == "emitc") {
+      foundEmitCOp = true;
+      return mlir::WalkResult::advance();
+    }
+
+    unsupported = op;
+    return mlir::WalkResult::interrupt();
+  });
+
+  if (unsupported)
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        llvm::Twine("requires an already materialized EmitC module; found "
+                    "non-EmitC op '") +
+            unsupported->getName().getStringRef() + "'");
+  if (!foundEmitCOp)
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "requires an already materialized EmitC module with at least one "
+        "EmitC op");
+  return llvm::Error::success();
+}
+
+} // namespace
+
+llvm::Expected<SelectedEmitCArtifactTarget>
+selectSelectedEmitCArtifactTarget(
+    mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config) {
+  return selectSelectedEmitCArtifactTargetImpl(module, config);
+}
+
+llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
+materializeSelectedEmitCArtifactModule(
+    mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config) {
+  llvm::Expected<SelectedEmitCArtifactTarget> target =
+      selectSelectedEmitCArtifactTargetImpl(module, config);
+  if (!target)
+    return target.takeError();
+
+  llvm::Expected<conversion::emitc::TCRVEmitCLowerableRoute> route =
+      buildSelectedEmitCArtifactRoute(*target, config);
+  if (!route)
+    return route.takeError();
+
+  conversion::emitc::TCRVEmitCMaterializationOptions options;
+  if (config.functionNameFn)
+    options.functionName = config.functionNameFn(target->kernel,
+                                                 target->variant);
+  else
+    options.functionName =
+        makeSelectedEmitCArtifactFunctionName(target->kernel, target->variant);
+  return conversion::emitc::materializeTCRVEmitCLowerableRoute(
+      *module.getContext(), *route, options);
+}
+
+llvm::Expected<std::string> getSelectedEmitCArtifactFunctionName(
+    mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config) {
+  llvm::Expected<SelectedEmitCArtifactTarget> target =
+      selectSelectedEmitCArtifactTargetImpl(module, config);
+  if (!target)
+    return target.takeError();
+
+  llvm::Expected<conversion::emitc::TCRVEmitCLowerableRoute> route =
+      buildSelectedEmitCArtifactRoute(*target, config);
+  if (!route)
+    return route.takeError();
+
+  if (config.functionNameFn)
+    return config.functionNameFn(target->kernel, target->variant);
+  return makeSelectedEmitCArtifactFunctionName(target->kernel, target->variant);
+}
+
+llvm::Error exportMaterializedEmitCModuleToCpp(
+    mlir::ModuleOp module, llvm::raw_ostream &os,
+    llvm::StringRef routeDescription) {
+  if (llvm::Error error =
+          requireMaterializedEmitCModule(module, routeDescription))
+    return error;
+  if (mlir::failed(mlir::emitc::translateToCpp(module.getOperation(), os)))
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "upstream MLIR EmitC C/C++ emitter rejected the materialized EmitC "
+        "module");
+  return llvm::Error::success();
+}
+
+llvm::Expected<std::string> emitSelectedEmitCArtifactCppSource(
+    mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config) {
+  mlir::OwningOpRef<mlir::ModuleOp> clonedModule(module.clone());
+  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
+      materializeSelectedEmitCArtifactModule(*clonedModule, config);
+  if (!emitcModule)
+    return emitcModule.takeError();
+
+  std::string generatedSource;
+  llvm::raw_string_ostream sourceOS(generatedSource);
+  llvm::StringRef routeDescription =
+      config.routeDescription.empty() ? config.routeID : config.routeDescription;
+  if (llvm::Error error = exportMaterializedEmitCModuleToCpp(
+          **emitcModule, sourceOS, routeDescription))
+    return std::move(error);
+  sourceOS.flush();
+  if (generatedSource.empty())
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "generated C/C++ source is empty before target artifact packaging");
+  return generatedSource;
 }
 
 llvm::Error collectTargetArtifactCandidates(

@@ -1,4 +1,5 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
@@ -19,6 +20,7 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Parser/Parser.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -56,6 +58,51 @@ llvm::Error objectMarkerExporter(mlir::ModuleOp, llvm::raw_ostream &os) {
 
 llvm::Error headerMarkerExporter(mlir::ModuleOp, llvm::raw_ostream &os) {
   os << "header-artifact\n";
+  return llvm::Error::success();
+}
+
+llvm::Error makeTestSelectedEmitCError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("test selected EmitC front door failed: ") + message,
+      llvm::errc::invalid_argument);
+}
+
+llvm::Error validateTestSelectedEmitCCandidate(
+    const TargetArtifactCandidate &candidate) {
+  if (candidate.loweringBoundary != "test.lowering_boundary")
+    return makeTestSelectedEmitCError(
+        "candidate did not preserve test lowering boundary");
+  if (candidate.runtimeABIName != "test-runtime-abi-name")
+    return makeTestSelectedEmitCError(
+        "candidate did not preserve test runtime ABI name");
+  return llvm::Error::success();
+}
+
+llvm::Error buildTestSelectedEmitCRoute(
+    const tianchenrv::plugin::VariantEmitCLowerableRequest &request,
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &out) {
+  if (!request.getKernel() || !request.getVariant())
+    return makeTestSelectedEmitCError("missing selected kernel or variant");
+  if (request.getRole() !=
+      tianchenrv::plugin::VariantEmissionRole::DirectVariant)
+    return makeTestSelectedEmitCError("expected direct selected variant role");
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route(
+      "test-selected-emitc-route", "test-extension-family-to-emitc");
+  route.addHeader("stdint.h");
+  route.addABIValueMapping(
+      tianchenrv::support::makeTargetExportABIParameter(
+          "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount),
+      "n");
+
+  tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep step;
+  step.sourceOp = {"test.compute", "compute",
+                   "TestEmitCLowerableOpInterface"};
+  step.callee = "test_emitc_call";
+  step.operands.push_back({"n", "size_t"});
+  step.result = {"computed", "size_t"};
+  route.addCallOpaqueStep(std::move(step));
+  out = std::move(route);
   return llvm::Error::success();
 }
 
@@ -1333,6 +1380,124 @@ module {
   return true;
 }
 
+bool expectCommonSelectedEmitCArtifactFrontDoor(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @common_selected_emitc_frontdoor {
+    tcrv.exec.capability @test_cap {id = "test.capability", kind = "test", status = "available"}
+    tcrv.exec.variant @selected attributes {origin = "test-plugin", requires = [@test_cap]} {
+    }
+    tcrv.exec.diagnostic {
+      reason = "variant-selected",
+      message = "selected static test route",
+      severity = "note",
+      status = "selected",
+      target = @selected,
+      selection_kind = "static-variant"
+    }
+    tcrv.exec.diagnostic {
+      reason = "emission_plan",
+      message = "supported common selected EmitC route",
+      severity = "info",
+      status = "supported",
+      target = @selected,
+      origin = "test-plugin",
+      role = "direct variant",
+      plan_kind = "plugin-emission-plan",
+      emission_kind = "test-selected-emitc-emission",
+      lowering_pipeline = "test-selected-emitc-object",
+      runtime_abi = "test-runtime-abi.v1",
+      runtime_abi_kind = "test-runtime-abi-kind",
+      runtime_abi_name = "test-runtime-abi-name",
+      runtime_glue_role = "test-runtime-glue",
+      required_capabilities = [@test_cap],
+      runtime_abi_parameters = [
+        {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}
+      ],
+      artifact_kind = "riscv-elf-relocatable-object",
+      lowering_boundary = "test.lowering_boundary"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  if (!module) {
+    llvm::errs() << "common selected EmitC front-door fixture failed to "
+                    "parse\n";
+    return false;
+  }
+
+  SelectedEmitCArtifactRouteConfig config;
+  config.routeID = "test-selected-emitc-object";
+  config.artifactKind = "riscv-elf-relocatable-object";
+  config.originPlugin = "test-plugin";
+  config.routeDescription = "test selected EmitC artifact route";
+  config.candidateValidationFn = validateTestSelectedEmitCCandidate;
+  config.routeBuilderFn = buildTestSelectedEmitCRoute;
+
+  llvm::Expected<SelectedEmitCArtifactTarget> selected =
+      selectSelectedEmitCArtifactTarget(*module, config);
+  if (!selected) {
+    llvm::errs() << "common selected EmitC candidate selection failed: "
+                 << llvm::toString(selected.takeError()) << "\n";
+    return false;
+  }
+  if (selected->candidate.selectedVariant != "selected" ||
+      selected->candidate.routeID != "test-selected-emitc-object" ||
+      selected->role != tianchenrv::plugin::VariantEmissionRole::DirectVariant) {
+    llvm::errs() << "common selected EmitC front door selected malformed "
+                    "candidate metadata\n";
+    return false;
+  }
+
+  llvm::Expected<std::string> functionName =
+      getSelectedEmitCArtifactFunctionName(*module, config);
+  if (!functionName) {
+    llvm::errs() << "common selected EmitC function-name validation failed: "
+                 << llvm::toString(functionName.takeError()) << "\n";
+    return false;
+  }
+  if (*functionName != "tcrv_emitc_common_selected_emitc_frontdoor_selected") {
+    llvm::errs() << "common selected EmitC front door derived unexpected "
+                    "function name: "
+                 << *functionName << "\n";
+    return false;
+  }
+
+  llvm::Expected<std::string> sourceText =
+      emitSelectedEmitCArtifactCppSource(*module, config);
+  if (!sourceText) {
+    llvm::errs() << "common selected EmitC C++ source emission failed: "
+                 << llvm::toString(sourceText.takeError()) << "\n";
+    return false;
+  }
+  llvm::StringRef sourceRef(*sourceText);
+  if (!sourceRef.contains("#include <stdint.h>") ||
+      !sourceRef.contains(
+          "void tcrv_emitc_common_selected_emitc_frontdoor_selected(") ||
+      !sourceRef.contains("test_emitc_call")) {
+    llvm::errs() << "common selected EmitC source did not contain expected "
+                    "materialized C++ surface:\n"
+                 << *sourceText << "\n";
+    return false;
+  }
+
+  SelectedEmitCArtifactRouteConfig wrongOrigin = config;
+  wrongOrigin.originPlugin = "other-plugin";
+  if (!expectErrorContains(selectSelectedEmitCArtifactTarget(*module,
+                                                            wrongOrigin)
+                               .takeError(),
+                           "common selected EmitC wrong-origin fail-closed",
+                           {"requires exactly one selected emission-plan "
+                            "candidate",
+                            "found none"}))
+    return false;
+
+  return true;
+}
+
 bool expectTargetArtifactBundleDiscovery(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -1808,6 +1973,8 @@ int main() {
           "object-composite", "artifact-kind composite selection"))
     return 1;
   if (!expectGenericHeaderArtifactRouteSelection(context))
+    return 1;
+  if (!expectCommonSelectedEmitCArtifactFrontDoor(context))
     return 1;
   if (!expectTargetArtifactBundleDiscovery(context))
     return 1;

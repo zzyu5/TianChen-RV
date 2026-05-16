@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants for final review"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify selected emission-plan and EmitC front-door compliance"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV-specific details remain plugin-owned"}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Verify common code has no extension semantic branch"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify lit/C++/ssh evidence scope"}

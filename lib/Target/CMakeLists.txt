@@ -6,10 +6,13 @@ add_mlir_library(TianChenRVTarget
   TargetTranslateRegistration.cpp
 
   LINK_LIBS PUBLIC
+  TianChenRVConversionEmitC
   TianChenRVExecDialect
   TianChenRVPlugin
+  TianChenRVSupport
   MLIRIR
   MLIRSupport
+  MLIRTargetCpp
 )
 
 add_subdirectory(Builtin)
