@@ -38,14 +38,14 @@ constexpr llvm::StringLiteral kRVVI32M1ArithmeticRuntimeGlueRole(
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
     "TCRVEmitCLowerableOpInterface");
 
-struct RVVI32M1ArithmeticRouteDescriptor {
+struct RVVI32M1ArithmeticRouteSpec {
   RVVI32M1ArithmeticOp op;
   llvm::StringLiteral mnemonic;
   llvm::StringLiteral intrinsic;
   llvm::StringLiteral resultName;
 };
 
-constexpr RVVI32M1ArithmeticRouteDescriptor kRVVI32M1ArithmeticRoutes[] = {
+constexpr RVVI32M1ArithmeticRouteSpec kRVVI32M1ArithmeticRoutes[] = {
     {RVVI32M1ArithmeticOp::Add, "add", "__riscv_vadd_vv_i32m1", "sum_vec"},
     {RVVI32M1ArithmeticOp::Sub, "sub", "__riscv_vsub_vv_i32m1",
      "difference_vec"},
@@ -57,22 +57,22 @@ constexpr RVVI32M1ArithmeticOp kRVVI32M1ArithmeticOps[] = {
     RVVI32M1ArithmeticOp::Add, RVVI32M1ArithmeticOp::Sub,
     RVVI32M1ArithmeticOp::Mul};
 
-const RVVI32M1ArithmeticRouteDescriptor &
-getRVVI32M1ArithmeticRouteDescriptor(RVVI32M1ArithmeticOp op) {
-  for (const RVVI32M1ArithmeticRouteDescriptor &descriptor :
+const RVVI32M1ArithmeticRouteSpec &
+getRVVI32M1ArithmeticRouteSpec(RVVI32M1ArithmeticOp op) {
+  for (const RVVI32M1ArithmeticRouteSpec &spec :
        kRVVI32M1ArithmeticRoutes)
-    if (descriptor.op == op)
-      return descriptor;
+    if (spec.op == op)
+      return spec;
   llvm_unreachable("unknown RVV i32m1 arithmetic op");
 }
 
 const RVVI32M1ArithmeticConstructionRoute &
 getRVVI32M1ArithmeticConstructionRouteOrDie(RVVI32M1ArithmeticOp op) {
-  const RVVI32M1ArithmeticRouteDescriptor &descriptor =
-      getRVVI32M1ArithmeticRouteDescriptor(op);
+  const RVVI32M1ArithmeticRouteSpec &spec =
+      getRVVI32M1ArithmeticRouteSpec(op);
   llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *> route =
       lookupRVVI32M1ArithmeticConstructionRouteByMnemonic(
-          descriptor.mnemonic);
+          spec.mnemonic);
   if (!route) {
     std::string message = llvm::toString(route.takeError());
     llvm::report_fatal_error(llvm::StringRef(message));
@@ -392,8 +392,8 @@ collectRVVI32M1ArithmeticSlice(tcrv::exec::VariantOp variant) {
           {support::RuntimeABIParameterRole::OutputBuffer});
   if (!outABI)
     return outABI.takeError();
-  const RVVI32M1ArithmeticRouteDescriptor &descriptor =
-      getRVVI32M1ArithmeticRouteDescriptor(slice.arithmeticKind);
+  const RVVI32M1ArithmeticRouteSpec &spec =
+      getRVVI32M1ArithmeticRouteSpec(slice.arithmeticKind);
   const RVVI32M1ArithmeticConstructionRoute &constructionRoute =
       getRVVI32M1ArithmeticConstructionRouteOrDie(slice.arithmeticKind);
   if (llvm::Error error = validateRVVI32M1ArithmeticRuntimeABIParameters(
@@ -403,7 +403,7 @@ collectRVVI32M1ArithmeticSlice(tcrv::exec::VariantOp variant) {
       slice.arithmeticRhs != slice.rhsLoad.getLoaded())
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("bounded RVV EmitC route requires tcrv_rvv.i32_") +
-        descriptor.mnemonic + " to consume lhs and rhs load results");
+        spec.mnemonic + " to consume lhs and rhs load results");
   if (slice.store.getValue() != slice.arithmeticResult)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires tcrv_rvv.i32_store to consume the "
@@ -440,8 +440,9 @@ getEmitCSourceProvenance(mlir::Operation *op, llvm::StringRef expectedRole) {
   return source;
 }
 
-llvm::Error addCallStepFromSource(
-    conversion::emitc::TCRVEmitCLowerableRoute &route, mlir::Operation *op,
+llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep>
+makeCallStepFromSource(
+    mlir::Operation *op,
     llvm::StringRef expectedRole, llvm::StringRef callee,
     llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
     std::optional<conversion::emitc::TCRVEmitCCallOpaqueResult> result =
@@ -456,7 +457,21 @@ llvm::Error addCallStepFromSource(
   step.callee = callee.str();
   step.operands.append(operands.begin(), operands.end());
   step.result = std::move(result);
-  route.addCallOpaqueStep(std::move(step));
+  return step;
+}
+
+llvm::Error addCallStepFromSource(
+    conversion::emitc::TCRVEmitCLowerableRoute &route, mlir::Operation *op,
+    llvm::StringRef expectedRole, llvm::StringRef callee,
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
+    std::optional<conversion::emitc::TCRVEmitCCallOpaqueResult> result =
+        std::nullopt) {
+  llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> step =
+      makeCallStepFromSource(op, expectedRole, callee, operands,
+                             std::move(result));
+  if (!step)
+    return step.takeError();
+  route.addCallOpaqueStep(std::move(*step));
   return llvm::Error::success();
 }
 
@@ -467,7 +482,7 @@ llvm::ArrayRef<RVVI32M1ArithmeticOp> getRVVI32M1ArithmeticOps() {
 }
 
 llvm::StringRef stringifyRVVI32M1ArithmeticOp(RVVI32M1ArithmeticOp op) {
-  return getRVVI32M1ArithmeticRouteDescriptor(op).mnemonic;
+  return getRVVI32M1ArithmeticRouteSpec(op).mnemonic;
 }
 
 llvm::Expected<RVVI32M1ArithmeticOp>
@@ -477,10 +492,10 @@ symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(llvm::StringRef routeID) {
           lookupRVVI32M1ArithmeticConstructionRouteByEmitCRouteID(routeID);
   if (!constructionRoute)
     return constructionRoute.takeError();
-  for (const RVVI32M1ArithmeticRouteDescriptor &descriptor :
+  for (const RVVI32M1ArithmeticRouteSpec &spec :
        kRVVI32M1ArithmeticRoutes)
-    if ((*constructionRoute)->mnemonic == descriptor.mnemonic)
-      return descriptor.op;
+    if ((*constructionRoute)->mnemonic == spec.mnemonic)
+      return spec.op;
   return makeRVVEmitCRouteProviderError(
       llvm::Twine("RVV construction route mnemonic '") +
       (*constructionRoute)->mnemonic + "' has no route provider operation");
@@ -520,8 +535,8 @@ getRVVI32M1ArithmeticRuntimeABIParameters() {
 llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
     RVVI32M1ArithmeticOp op, const VariantEmitCLowerableRequest &request,
     conversion::emitc::TCRVEmitCLowerableRoute &out) {
-  const RVVI32M1ArithmeticRouteDescriptor &expectedDescriptor =
-      getRVVI32M1ArithmeticRouteDescriptor(op);
+  const RVVI32M1ArithmeticRouteSpec &expectedSpec =
+      getRVVI32M1ArithmeticRouteSpec(op);
   if (!request.getVariant())
     return makeRVVEmitCRouteProviderError(
         "EmitC route construction requires a materialized tcrv.exec.variant");
@@ -542,7 +557,7 @@ llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
   if (slice->arithmeticKind != op)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected RVV i32m1 arithmetic route expected i32_") +
-        expectedDescriptor.mnemonic + " but variant body contains i32_" +
+        expectedSpec.mnemonic + " but variant body contains i32_" +
         stringifyRVVI32M1ArithmeticOp(slice->arithmeticKind));
 
   const RVVI32M1ArithmeticConstructionRoute &constructionRoute =
@@ -553,7 +568,7 @@ llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
         llvm::Twine("selected RVV i32m1 arithmetic route expected typed op '") +
         constructionRoute.operationName + "' from the construction mapping");
   if (llvm::Error error = verifyRVVI32M1ArithmeticConstructionRouteMapping(
-          expectedDescriptor.mnemonic, constructionRoute.operationName,
+          expectedSpec.mnemonic, constructionRoute.operationName,
           constructionRoute.emitCRouteID, constructionRoute.runtimeABIName))
     return error;
 
@@ -586,41 +601,63 @@ llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
           {TCRVEmitCCallOpaqueOperand{
               slice->runtimeElementCountABI.cName,
               slice->runtimeElementCountABI.cType}},
+          TCRVEmitCCallOpaqueResult{"full_chunk_vl", "size_t"}))
+    return error;
+
+  conversion::emitc::TCRVEmitCForLoop loop;
+  loop.inductionVarName = "offset";
+  loop.lowerBound = TCRVEmitCCallOpaqueOperand{"0", "size_t"};
+  loop.upperBound = TCRVEmitCCallOpaqueOperand{
+      slice->runtimeElementCountABI.cName, slice->runtimeElementCountABI.cType};
+  loop.step = TCRVEmitCCallOpaqueOperand{"full_chunk_vl", "size_t"};
+
+  auto addLoopStep = [&](mlir::Operation *op, llvm::StringRef role,
+                         llvm::StringRef callee,
+                         llvm::ArrayRef<TCRVEmitCCallOpaqueOperand> operands,
+                         std::optional<TCRVEmitCCallOpaqueResult> result =
+                             std::nullopt) -> llvm::Error {
+    llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> step =
+        makeCallStepFromSource(op, role, callee, operands, std::move(result));
+    if (!step)
+      return step.takeError();
+    loop.bodySteps.push_back(std::move(*step));
+    return llvm::Error::success();
+  };
+
+  if (llvm::Error error = addLoopStep(
+          slice->setvl.getOperation(), "configure", "__riscv_vsetvl_e32m1",
+          {TCRVEmitCCallOpaqueOperand{"n - offset", "size_t"}},
           TCRVEmitCCallOpaqueResult{"vl", "size_t"}))
     return error;
-  if (llvm::Error error = addCallStepFromSource(
-          route, slice->lhsLoad.getOperation(), "load",
-          "__riscv_vle32_v_i32m1",
-          {TCRVEmitCCallOpaqueOperand{slice->lhsABI.cName,
-                                      slice->lhsABI.cType},
+  if (llvm::Error error = addLoopStep(
+          slice->lhsLoad.getOperation(), "load", "__riscv_vle32_v_i32m1",
+          {TCRVEmitCCallOpaqueOperand{"lhs + offset", slice->lhsABI.cType},
            TCRVEmitCCallOpaqueOperand{"vl", "size_t"}},
           TCRVEmitCCallOpaqueResult{"lhs_vec", "vint32m1_t"}))
     return error;
-  if (llvm::Error error = addCallStepFromSource(
-          route, slice->rhsLoad.getOperation(), "load",
-          "__riscv_vle32_v_i32m1",
-          {TCRVEmitCCallOpaqueOperand{slice->rhsABI.cName,
-                                      slice->rhsABI.cType},
+  if (llvm::Error error = addLoopStep(
+          slice->rhsLoad.getOperation(), "load", "__riscv_vle32_v_i32m1",
+          {TCRVEmitCCallOpaqueOperand{"rhs + offset", slice->rhsABI.cType},
            TCRVEmitCCallOpaqueOperand{"vl", "size_t"}},
           TCRVEmitCCallOpaqueResult{"rhs_vec", "vint32m1_t"}))
     return error;
-  if (llvm::Error error = addCallStepFromSource(
-          route, slice->arithmeticOp, "compute", expectedDescriptor.intrinsic,
+  if (llvm::Error error = addLoopStep(
+          slice->arithmeticOp, "compute", expectedSpec.intrinsic,
           {TCRVEmitCCallOpaqueOperand{"lhs_vec", "vint32m1_t"},
            TCRVEmitCCallOpaqueOperand{"rhs_vec", "vint32m1_t"},
            TCRVEmitCCallOpaqueOperand{"vl", "size_t"}},
-          TCRVEmitCCallOpaqueResult{expectedDescriptor.resultName.str(),
+          TCRVEmitCCallOpaqueResult{expectedSpec.resultName.str(),
                                     "vint32m1_t"}))
     return error;
-  if (llvm::Error error = addCallStepFromSource(
-          route, slice->store.getOperation(), "store",
-          "__riscv_vse32_v_i32m1",
-          {TCRVEmitCCallOpaqueOperand{slice->outABI.cName,
-                                      slice->outABI.cType},
-           TCRVEmitCCallOpaqueOperand{expectedDescriptor.resultName.str(),
+  if (llvm::Error error = addLoopStep(
+          slice->store.getOperation(), "store", "__riscv_vse32_v_i32m1",
+          {TCRVEmitCCallOpaqueOperand{"out + offset", slice->outABI.cType},
+           TCRVEmitCCallOpaqueOperand{expectedSpec.resultName.str(),
                                       "vint32m1_t"},
            TCRVEmitCCallOpaqueOperand{"vl", "size_t"}}))
     return error;
+
+  route.addForLoop(std::move(loop));
 
   out = std::move(route);
   return llvm::Error::success();

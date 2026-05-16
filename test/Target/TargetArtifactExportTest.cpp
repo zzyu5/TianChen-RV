@@ -520,6 +520,29 @@ bool expectRVVTargetArtifactExporterShape(
                            {"vl_scope", "tcrv_rvv.with_vl"}))
     return false;
 
+  TargetArtifactCandidate missingLoopMetadata = candidate;
+  if (!eraseArtifactMetadataKey(missingLoopMetadata, "tcrv_rvv.emitc_loop")) {
+    llvm::errs() << "test fixture did not contain EmitC loop metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               missingLoopMetadata, *exporter),
+                           "RVV artifact rejects missing EmitC loop metadata",
+                           {"config/runtime-VL artifact metadata"}))
+    return false;
+
+  TargetArtifactCandidate staleMultiVLClaim = candidate;
+  if (!rewriteArtifactMetadataValue(staleMultiVLClaim, "tcrv_rvv.multi_vl",
+                                    "unsupported")) {
+    llvm::errs() << "test fixture did not contain multi-VL metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               staleMultiVLClaim, *exporter),
+                           "RVV artifact rejects stale multi-VL metadata",
+                           {"multi_vl", "supported"}))
+    return false;
+
   TargetArtifactCandidate descriptorElementCount = candidate;
   descriptorElementCount.artifactMetadata.push_back(
       tianchenrv::support::ArtifactMetadataEntry("tcrv_rvv.element_count",
@@ -626,6 +649,19 @@ bool expectRVVTargetHeaderCompositeShape(
   if (!expectErrorContains(
           exporter->getCandidateValidationFn()(missingAVLVLMetadata),
           "RVV header composite rejects missing runtime AVL/VL metadata",
+          {"config/runtime-VL artifact metadata"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> missingLoopMetadata(
+      candidates);
+  if (!eraseArtifactMetadataKey(missingLoopMetadata.front(),
+                                "tcrv_rvv.emitc_loop")) {
+    llvm::errs() << "test fixture did not contain EmitC loop metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          exporter->getCandidateValidationFn()(missingLoopMetadata),
+          "RVV header composite rejects missing EmitC loop metadata",
           {"config/runtime-VL artifact metadata"}))
     return false;
 

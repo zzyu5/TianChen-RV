@@ -101,6 +101,49 @@ void TCRVEmitCLowerableRoute::addCallOpaqueStep(
   callOpaqueSteps.push_back(std::move(step));
 }
 
+void TCRVEmitCLowerableRoute::addForLoop(TCRVEmitCForLoop loop) {
+  forLoops.push_back(std::move(loop));
+}
+
+static llvm::Error validateCallOpaqueStep(llvm::StringRef routeID,
+                                          const TCRVEmitCCallOpaqueStep &step) {
+  if (llvm::Error error =
+          validateText(routeID, "call_opaque callee", step.callee))
+    return error;
+  if (llvm::Error error =
+          validateText(routeID, "source op name", step.sourceOp.opName))
+    return error;
+  if (llvm::Error error =
+          validateText(routeID, "source op role", step.sourceOp.role))
+    return error;
+  if (!step.sourceOp.opInterface.empty())
+    if (llvm::Error error =
+            validateText(routeID, "source op interface",
+                         step.sourceOp.opInterface))
+      return error;
+  for (const TCRVEmitCCallOpaqueOperand &operand : step.operands) {
+    if (llvm::Error error =
+            validateText(routeID, "call_opaque operand expression",
+                         operand.expression))
+      return error;
+    if (llvm::Error error =
+            validateText(routeID, "call_opaque operand C type",
+                         operand.cType))
+      return error;
+  }
+  if (step.result) {
+    if (llvm::Error error =
+            validateText(routeID, "call_opaque result name",
+                         step.result->name))
+      return error;
+    if (llvm::Error error =
+            validateText(routeID, "call_opaque result C type",
+                         step.result->cType))
+      return error;
+  }
+  return llvm::Error::success();
+}
+
 llvm::Error TCRVEmitCLowerableRoute::verify() const {
   if (llvm::Error error = validateText(routeID, "route id", routeID))
     return error;
@@ -109,9 +152,11 @@ llvm::Error TCRVEmitCLowerableRoute::verify() const {
   if (headers.empty())
     return makeRouteError(routeID,
                           "requires at least one header requirement");
-  if (callOpaqueSteps.empty())
+  if (callOpaqueSteps.empty() && forLoops.empty())
     return makeRouteError(
-        routeID, "requires at least one emitc.call_opaque construction step");
+        routeID,
+        "requires at least one emitc.call_opaque construction step or "
+        "structured EmitC loop");
 
   for (const TCRVEmitCHeaderRequirement &header : headers)
     if (llvm::Error error = validateHeader(routeID, header))
@@ -148,41 +193,41 @@ llvm::Error TCRVEmitCLowerableRoute::verify() const {
         return error;
   }
 
-  for (const TCRVEmitCCallOpaqueStep &step : callOpaqueSteps) {
-    if (llvm::Error error =
-            validateText(routeID, "call_opaque callee", step.callee))
+  for (const TCRVEmitCCallOpaqueStep &step : callOpaqueSteps)
+    if (llvm::Error error = validateCallOpaqueStep(routeID, step))
+      return error;
+
+  for (const TCRVEmitCForLoop &loop : forLoops) {
+    if (llvm::Error error = validateText(routeID, "loop induction variable",
+                                         loop.inductionVarName))
       return error;
     if (llvm::Error error =
-            validateText(routeID, "source op name", step.sourceOp.opName))
+            validateText(routeID, "loop lower-bound expression",
+                         loop.lowerBound.expression))
+      return error;
+    if (llvm::Error error = validateText(routeID, "loop lower-bound C type",
+                                         loop.lowerBound.cType))
       return error;
     if (llvm::Error error =
-            validateText(routeID, "source op role", step.sourceOp.role))
+            validateText(routeID, "loop upper-bound expression",
+                         loop.upperBound.expression))
       return error;
-    if (!step.sourceOp.opInterface.empty())
-      if (llvm::Error error =
-              validateText(routeID, "source op interface",
-                           step.sourceOp.opInterface))
+    if (llvm::Error error = validateText(routeID, "loop upper-bound C type",
+                                         loop.upperBound.cType))
+      return error;
+    if (llvm::Error error = validateText(routeID, "loop step expression",
+                                         loop.step.expression))
+      return error;
+    if (llvm::Error error = validateText(routeID, "loop step C type",
+                                         loop.step.cType))
+      return error;
+    if (loop.bodySteps.empty())
+      return makeRouteError(routeID,
+                            "structured EmitC loop requires at least one "
+                            "call_opaque body step");
+    for (const TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
+      if (llvm::Error error = validateCallOpaqueStep(routeID, step))
         return error;
-    for (const TCRVEmitCCallOpaqueOperand &operand : step.operands) {
-      if (llvm::Error error =
-              validateText(routeID, "call_opaque operand expression",
-                           operand.expression))
-        return error;
-      if (llvm::Error error =
-              validateText(routeID, "call_opaque operand C type",
-                           operand.cType))
-        return error;
-    }
-    if (step.result) {
-      if (llvm::Error error =
-              validateText(routeID, "call_opaque result name",
-                           step.result->name))
-        return error;
-      if (llvm::Error error =
-              validateText(routeID, "call_opaque result C type",
-                           step.result->cType))
-        return error;
-    }
   }
 
   return llvm::Error::success();

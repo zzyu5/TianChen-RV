@@ -12,6 +12,7 @@
 #include <cctype>
 #include <cstddef>
 #include <string>
+#include <tuple>
 #include <utility>
 
 namespace tianchenrv::conversion::emitc {
@@ -106,8 +107,6 @@ llvm::Error validateSafeProvenance(const TCRVEmitCLowerableRoute &route,
 mlir::Type getEmitCTypeForCType(mlir::MLIRContext &context,
                                 llvm::StringRef cType) {
   cType = cType.trim();
-  if (cType == "size_t")
-    return mlir::emitc::SizeTType::get(&context);
   if (cType.ends_with("*")) {
     llvm::StringRef pointee = cType.drop_back().rtrim();
     return mlir::emitc::PointerType::get(&context,
@@ -185,6 +184,22 @@ void collectExpressionIdentifiers(llvm::StringRef expression,
   }
 }
 
+std::optional<std::tuple<llvm::StringRef, char, llvm::StringRef>>
+parseSimpleBinaryExpression(llvm::StringRef expression) {
+  for (llvm::StringRef separator : {" + ", " - "}) {
+    std::pair<llvm::StringRef, llvm::StringRef> parts =
+        expression.split(separator);
+    if (parts.second.empty())
+      continue;
+    if (parts.first.empty() || parts.second.empty())
+      return std::nullopt;
+    char op = separator[1];
+    return std::tuple<llvm::StringRef, char, llvm::StringRef>(
+        parts.first.trim(), op, parts.second.trim());
+  }
+  return std::nullopt;
+}
+
 class RouteMaterializer {
 public:
   RouteMaterializer(mlir::MLIRContext &context,
@@ -229,6 +244,9 @@ public:
         return std::move(error);
     for (const TCRVEmitCCallOpaqueStep &step : route.getCallOpaqueSteps())
       if (llvm::Error error = materializeStep(step))
+        return std::move(error);
+    for (const TCRVEmitCForLoop &loop : route.getForLoops())
+      if (llvm::Error error = materializeForLoop(loop))
         return std::move(error);
     builder.create<mlir::emitc::ReturnOp>(loc, mlir::Value());
 
@@ -312,6 +330,32 @@ private:
               expression + "'");
     }
 
+    if (std::optional<std::tuple<llvm::StringRef, char, llvm::StringRef>>
+            binary = parseSimpleBinaryExpression(expression)) {
+      llvm::StringRef lhsName = std::get<0>(*binary);
+      char op = std::get<1>(*binary);
+      llvm::StringRef rhsName = std::get<2>(*binary);
+      mlir::Value lhs = valueMap.lookup(lhsName);
+      mlir::Value rhs = valueMap.lookup(rhsName);
+      if (!lhs || !rhs)
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("operand expression '") + expression +
+                "' references values that are not materialized in the "
+                "current EmitC scope");
+      mlir::Type resultType = getEmitCTypeForCType(context, operand.cType);
+      if (op == '+')
+        return builder
+            .create<mlir::emitc::AddOp>(builder.getUnknownLoc(), resultType,
+                                        lhs, rhs)
+            .getResult();
+      if (op == '-')
+        return builder
+            .create<mlir::emitc::SubOp>(builder.getUnknownLoc(), resultType,
+                                        lhs, rhs)
+            .getResult();
+    }
+
     llvm::SmallVector<llvm::StringRef, 4> identifiers;
     collectExpressionIdentifiers(expression, identifiers);
     for (llvm::StringRef identifier : identifiers) {
@@ -328,6 +372,43 @@ private:
             builder.getUnknownLoc(),
             getEmitCTypeForCType(context, operand.cType), expression)
         .getResult();
+  }
+
+  llvm::Error materializeForLoop(const TCRVEmitCForLoop &loop) {
+    if (llvm::Error error = validateSafeIdentifier(
+            route.getRouteID(), "loop induction variable",
+            loop.inductionVarName))
+      return error;
+
+    llvm::Expected<mlir::Value> lower =
+        materializeOperandExpression(loop.lowerBound);
+    if (!lower)
+      return lower.takeError();
+    llvm::Expected<mlir::Value> upper =
+        materializeOperandExpression(loop.upperBound);
+    if (!upper)
+      return upper.takeError();
+    llvm::Expected<mlir::Value> step =
+        materializeOperandExpression(loop.step);
+    if (!step)
+      return step.takeError();
+
+    mlir::emitc::ForOp forOp = builder.create<mlir::emitc::ForOp>(
+        builder.getUnknownLoc(), *lower, *upper, *step,
+        /*bodyBuilder=*/nullptr);
+
+    llvm::StringMap<mlir::Value> savedValueMap = valueMap;
+    valueMap[loop.inductionVarName] = forOp.getInductionVar();
+
+    mlir::OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToStart(forOp.getBody());
+    for (const TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
+      if (llvm::Error error = materializeStep(step)) {
+        valueMap = std::move(savedValueMap);
+        return error;
+      }
+    valueMap = std::move(savedValueMap);
+    return llvm::Error::success();
   }
 
   llvm::Error materializeStep(const TCRVEmitCCallOpaqueStep &step) {

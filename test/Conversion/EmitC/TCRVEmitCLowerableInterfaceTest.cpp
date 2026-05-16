@@ -215,6 +215,87 @@ int expectLowerableRouteBuildFails(
                     expectedDiagnostic + "'");
 }
 
+TCRVEmitCLowerableRoute makeStructuredLoopRoute() {
+  TCRVEmitCLowerableRoute route(
+      "test-structured-loop-route", "extension-family-ops-to-emitc-loop");
+  route.addHeader("stddef.h");
+  addStandardABI(route);
+  route.addSourceOpProvenance(
+      {"test.common.scope", "scope", kCommonInterfaceName.str()});
+
+  TCRVEmitCCallOpaqueStep fullChunkVL;
+  fullChunkVL.sourceOp = {"test.common.configure", "configure",
+                          kCommonInterfaceName.str()};
+  fullChunkVL.callee = "test_setvl";
+  fullChunkVL.operands.push_back({"n", "size_t"});
+  fullChunkVL.result = TCRVEmitCCallOpaqueResult{"full_chunk_vl", "size_t"};
+  route.addCallOpaqueStep(std::move(fullChunkVL));
+
+  TCRVEmitCForLoop loop;
+  loop.inductionVarName = "offset";
+  loop.lowerBound = {"0", "size_t"};
+  loop.upperBound = {"n", "size_t"};
+  loop.step = {"full_chunk_vl", "size_t"};
+
+  TCRVEmitCCallOpaqueStep chunkVL;
+  chunkVL.sourceOp = {"test.common.configure", "configure",
+                      kCommonInterfaceName.str()};
+  chunkVL.callee = "test_setvl";
+  chunkVL.operands.push_back({"n - offset", "size_t"});
+  chunkVL.result = TCRVEmitCCallOpaqueResult{"vl", "size_t"};
+  loop.bodySteps.push_back(std::move(chunkVL));
+
+  TCRVEmitCCallOpaqueStep compute;
+  compute.sourceOp = {"test.common.compute", "compute",
+                      kCommonInterfaceName.str()};
+  compute.callee = "test_compute_chunk";
+  compute.operands.push_back({"lhs + offset", "const int32_t *"});
+  compute.operands.push_back({"vl", "size_t"});
+  compute.result = TCRVEmitCCallOpaqueResult{"chunk_result", "int32_t"};
+  loop.bodySteps.push_back(std::move(compute));
+
+  route.addForLoop(std::move(loop));
+  return route;
+}
+
+int expectStructuredLoopRouteMaterializes(mlir::MLIRContext &context) {
+  TCRVEmitCLowerableRoute route = makeStructuredLoopRoute();
+  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> module =
+      materializeTCRVEmitCLowerableRoute(
+          context, route, makeMaterializerOptions("tcrv_emitc_loop_route"));
+  if (!module)
+    return fail(llvm::Twine("expected structured loop route to materialize: ") +
+                llvm::toString(module.takeError()));
+
+  unsigned forCount = 0;
+  unsigned callOpaqueCount = 0;
+  module->get().walk([&](mlir::emitc::ForOp) { ++forCount; });
+  module->get().walk(
+      [&](mlir::emitc::CallOpaqueOp) { ++callOpaqueCount; });
+  if (int result =
+          expect(forCount == 1,
+                 "structured route materializes one emitc.for loop"))
+    return result;
+  if (int result =
+          expect(callOpaqueCount == 3,
+                 "structured route materializes top-level and loop body calls"))
+    return result;
+
+  std::string ir;
+  llvm::raw_string_ostream os(ir);
+  module->get().print(os);
+  os.flush();
+  if (int result =
+          expect(llvm::StringRef(ir).contains(" sub "),
+                 "structured route materializes remaining AVL subtraction"))
+    return result;
+  if (int result =
+          expect(llvm::StringRef(ir).contains(" add "),
+                 "structured route materializes pointer/index advancement"))
+    return result;
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -261,6 +342,9 @@ int main() {
           *route, "tcrv_emitc_verified_common_route"))
     return fail(llvm::Twine("expected materialization verifier to pass: ") +
                 llvm::toString(std::move(error)));
+
+  if (int result = expectStructuredLoopRouteMaterializes(context))
+    return result;
 
   if (int result = expectMaterializationFails(
           makeGenericRoute("test-bad-unknown-value", "missing_lhs", "sum"),

@@ -43,9 +43,16 @@ module {
 // CHECK: tcrv_emitc.route_source_op=tcrv_rvv.with_vl role=scope op_interface=TCRVEmitCLowerableOpInterface
 // CHECK: tcrv_emitc.source_op=tcrv_rvv.setvl role=configure op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e32m1
 // CHECK: call_opaque "__riscv_vsetvl_e32m1"
+// CHECK: for
+// CHECK-SAME: step
+// CHECK: tcrv_emitc.source_op=tcrv_rvv.setvl role=configure op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e32m1
+// CHECK: sub
+// CHECK: call_opaque "__riscv_vsetvl_e32m1"
 // CHECK: tcrv_emitc.source_op=tcrv_rvv.i32_load role=load op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle32_v_i32m1
+// CHECK: add
 // CHECK: call_opaque "__riscv_vle32_v_i32m1"
 // CHECK: tcrv_emitc.source_op=tcrv_rvv.i32_add role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vadd_vv_i32m1
 // CHECK: call_opaque "__riscv_vadd_vv_i32m1"
 // CHECK: tcrv_emitc.source_op=tcrv_rvv.i32_store role=store op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vse32_v_i32m1
+// CHECK: add
 // CHECK: call_opaque "__riscv_vse32_v_i32m1"

@@ -11,7 +11,12 @@
 // HEADER: tianchenrv.rvv.runtime_avl_abi_parameter: n
 // HEADER: tianchenrv.rvv.vl_def: tcrv_rvv.setvl
 // HEADER: tianchenrv.rvv.vl_scope: tcrv_rvv.with_vl
-// HEADER: tianchenrv.rvv.bounded_slice: one-vl-i32m1-arithmetic
-// HEADER: tianchenrv.rvv.multi_vl: unsupported
+// HEADER: tianchenrv.rvv.emitc_loop: emitc.for
+// HEADER: tianchenrv.rvv.loop_induction: offset
+// HEADER: tianchenrv.rvv.loop_step: full_chunk_vl
+// HEADER: tianchenrv.rvv.remaining_avl: n-offset
+// HEADER: tianchenrv.rvv.pointer_advance: offset
+// HEADER: tianchenrv.rvv.bounded_slice: multi-vl-i32m1-arithmetic
+// HEADER: tianchenrv.rvv.multi_vl: supported
 // HEADER: void tcrv_emitc_seed_kernel_seed_rvv_i32_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
 // HEADER: #endif

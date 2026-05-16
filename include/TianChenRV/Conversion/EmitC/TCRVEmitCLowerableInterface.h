@@ -50,6 +50,14 @@ struct TCRVEmitCCallOpaqueStep {
   std::optional<TCRVEmitCCallOpaqueResult> result;
 };
 
+struct TCRVEmitCForLoop {
+  std::string inductionVarName;
+  TCRVEmitCCallOpaqueOperand lowerBound;
+  TCRVEmitCCallOpaqueOperand upperBound;
+  TCRVEmitCCallOpaqueOperand step;
+  llvm::SmallVector<TCRVEmitCCallOpaqueStep, 8> bodySteps;
+};
+
 class TCRVEmitCLowerableRoute {
 public:
   TCRVEmitCLowerableRoute() = default;
@@ -73,6 +81,7 @@ public:
   llvm::ArrayRef<TCRVEmitCCallOpaqueStep> getCallOpaqueSteps() const {
     return callOpaqueSteps;
   }
+  llvm::ArrayRef<TCRVEmitCForLoop> getForLoops() const { return forLoops; }
 
   void addHeader(llvm::StringRef header);
   void addTypeMapping(llvm::StringRef sourceType, llvm::StringRef cType);
@@ -80,6 +89,7 @@ public:
                           llvm::StringRef valueName);
   void addSourceOpProvenance(TCRVEmitCSourceOpProvenance sourceOp);
   void addCallOpaqueStep(TCRVEmitCCallOpaqueStep step);
+  void addForLoop(TCRVEmitCForLoop loop);
 
   llvm::Error verify() const;
 
@@ -91,6 +101,7 @@ private:
   llvm::SmallVector<TCRVEmitCABIValueMapping, 6> abiMappings;
   llvm::SmallVector<TCRVEmitCSourceOpProvenance, 8> sourceOpProvenance;
   llvm::SmallVector<TCRVEmitCCallOpaqueStep, 8> callOpaqueSteps;
+  llvm::SmallVector<TCRVEmitCForLoop, 2> forLoops;
 };
 
 class TCRVEmitCLowerableInterface {

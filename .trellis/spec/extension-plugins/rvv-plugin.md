@@ -438,6 +438,19 @@ correctness evidence, or performance evidence. `tcrv_rvv`
 is the concrete MLIR dialect namespace because MLIR dialect namespaces cannot
 contain `.` characters; the architectural extension family remains `tcrv.rvv`.
 
+For the bounded i32m1 arithmetic route, runtime `n` may drive repeated RVV
+chunks only through the RVV extension-family route and the common materialized
+EmitC path. A supported multi-VL route must materialize a real `emitc.for`
+boundary with an induction value, compute remaining AVL from `n - offset`,
+derive the per-iteration VL from `tcrv_rvv.setvl` ownership, advance lhs/rhs/out
+pointers or indices by the induction value, and place load/compute/store calls
+inside that structured loop. Artifact metadata such as `multi_vl`, loop
+induction, step, remaining-AVL, or pointer-advance keys is evidence and
+preflight input only; it must match the materialized EmitC loop and must not
+synthesize RVV compute bodies, intrinsic calls, loop source text, or route
+semantics in target/export code. Headers, objects, and bundles must fail closed
+when they claim multi-VL support without that materialized loop.
+
 ## Capability Fields
 
 RVV plugin should register the base plugin capability and may query explicit

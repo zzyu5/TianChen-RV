@@ -502,6 +502,12 @@ preserve parameter layering:
   mirror that IR-backed plan, while runtime ABI strings and glue roles come
   from plugin/target-owned route construction. Runtime `n` remains a runtime
   ABI/control value, not deleted local count residue;
+- RVV multi-VL execution over runtime `n` is valid only when selected
+  `tcrv_rvv` runtime AVL/VL control and the plugin-owned EmitC route materialize
+  the repeated chunk loop as IR. The loop must use a real induction value,
+  remaining-AVL calculation, per-chunk `setvl`, and lhs/rhs/out advancement in
+  materialized EmitC, not a descriptor, route comment, source string, target
+  helper, or bundle metadata field;
 - emission-plan-backed RVV+scalar dispatch export must resolve callable
   parameters from the same IR-backed callable ABI plan for both the selected RVV
   candidate and the selected scalar fallback candidate. The bounded dispatch
@@ -1884,5 +1890,8 @@ semantics into `tcrv.exec` or generic manifest code. Deleted direct RVV
 selected-config/runtime AVL contracts are not active bundle authority. A future
 RVV+scalar dispatch exporter must consume explicit extension-family IR plus a
 materialized EmitC/runtime route before deriving dispatch source/header/object
-or bundle records. Unsupported selected paths must omit target artifact records
-instead of fabricating route data.
+or bundle records. Multi-VL RVV bundle records may claim support only when the
+selected materialized EmitC module contains the structured loop required by the
+route contract and the loop metadata agrees with that module. Unsupported
+selected paths must omit target artifact records instead of fabricating route
+data.

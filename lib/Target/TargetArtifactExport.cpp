@@ -1316,6 +1316,31 @@ llvm::Error requireSelectedEmitCMaterializedHandoff(
                       "source-op provenance '") +
               expected + "'");
   }
+  for (const conversion::emitc::TCRVEmitCForLoop &loop :
+       route.getForLoops()) {
+    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         loop.bodySteps) {
+      std::string expected = formatStepProvenanceComment(step);
+      if (!materializedEmitCModuleContainsVerbatim(module, expected))
+        return makeSelectedEmitCArtifactError(
+            routeDescription,
+            llvm::Twine("materialized EmitC loop handoff is missing call "
+                        "source-op provenance '") +
+                expected + "'");
+    }
+  }
+  if (!route.getForLoops().empty()) {
+    bool foundFor = false;
+    module->walk([&](mlir::emitc::ForOp) {
+      foundFor = true;
+      return mlir::WalkResult::interrupt();
+    });
+    if (!foundFor)
+      return makeSelectedEmitCArtifactError(
+          routeDescription,
+          "materialized EmitC handoff is missing the structured emitc.for "
+          "loop required by the selected route");
+  }
 
   return llvm::Error::success();
 }

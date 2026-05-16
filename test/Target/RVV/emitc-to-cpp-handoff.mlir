@@ -49,6 +49,10 @@ module {
 // SOURCE-SAME: size_t
 // SOURCE: tcrv_emitc.route_source_op=tcrv_rvv.with_vl role=scope op_interface=TCRVEmitCLowerableOpInterface
 // SOURCE: __riscv_vsetvl_e32m1
+// SOURCE: for (size_t
+// SOURCE-SAME: +=
+// SOURCE: __riscv_vsetvl_e32m1
+// SOURCE: -
 // SOURCE: __riscv_vle32_v_i32m1
 // SOURCE: tcrv_emitc.source_op=tcrv_rvv.i32_add role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vadd_vv_i32m1
 // SOURCE: __riscv_vadd_vv_i32m1

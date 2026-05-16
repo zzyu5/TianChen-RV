@@ -37,6 +37,8 @@ module {
 
 // CHECK: emitc.include <"riscv_vector.h">
 // CHECK: emitc.func @tcrv_emitc_rvv_i32_sub_kernel_rvv_i32_sub
+// CHECK: for
+// CHECK: call_opaque "__riscv_vsetvl_e32m1"
 // CHECK: tcrv_emitc.source_op=tcrv_rvv.i32_sub role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsub_vv_i32m1
 // CHECK: call_opaque "__riscv_vsub_vv_i32m1"
 // CHECK: tcrv_emitc.source_op=tcrv_rvv.i32_store role=store op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vse32_v_i32m1

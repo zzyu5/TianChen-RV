@@ -369,6 +369,24 @@ void printRVVMaterializedEmitCHeaderDeclaration(
   os << "/* tianchenrv.rvv.vl_scope: "
      << lookupArtifactMetadataValue(artifactMetadata, "tcrv_rvv.vl_scope")
      << " */\n";
+  os << "/* tianchenrv.rvv.emitc_loop: "
+     << lookupArtifactMetadataValue(artifactMetadata, "tcrv_rvv.emitc_loop")
+     << " */\n";
+  os << "/* tianchenrv.rvv.loop_induction: "
+     << lookupArtifactMetadataValue(artifactMetadata,
+                                    "tcrv_rvv.loop_induction")
+     << " */\n";
+  os << "/* tianchenrv.rvv.loop_step: "
+     << lookupArtifactMetadataValue(artifactMetadata, "tcrv_rvv.loop_step")
+     << " */\n";
+  os << "/* tianchenrv.rvv.remaining_avl: "
+     << lookupArtifactMetadataValue(artifactMetadata,
+                                    "tcrv_rvv.remaining_avl")
+     << " */\n";
+  os << "/* tianchenrv.rvv.pointer_advance: "
+     << lookupArtifactMetadataValue(artifactMetadata,
+                                    "tcrv_rvv.pointer_advance")
+     << " */\n";
   os << "/* tianchenrv.rvv.bounded_slice: "
      << lookupArtifactMetadataValue(artifactMetadata,
                                     "tcrv_rvv.bounded_slice")

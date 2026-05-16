@@ -270,6 +270,13 @@ applies to both direct selected-path diagnostics and selected
   artifact path may export a RISC-V object, a declaration-only header, and a
   coherent object+header bundle only from the selected materialized EmitC
   candidate.
+- Base: A bounded RVV multi-VL claim is valid only when the selected
+  extension-family route owns a structured EmitC loop payload that materializes
+  as `emitc.for`, derives per-iteration remaining AVL through EmitC values, and
+  keeps pointer/index advancement and intrinsic calls inside the materialized
+  loop. Target artifact export may validate route provenance and package the
+  materialized result, but it must not print loop source, choose RVV intrinsics,
+  or infer route semantics from metadata.
 - Base: TensorExtLite explicit typed bodies may materialize an ordered
   `configure -> load_frag -> tile_mma -> store_frag` role sequence through the
   common `TCRVEmitCLowerableRoute` materializer and produce an MLIR EmitC

@@ -56,6 +56,76 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 98: RVV runtime AVL multi-VL EmitC loop
+
+**Date**: 2026-05-17
+**Task**: RVV runtime AVL multi-VL EmitC loop
+**Branch**: `main`
+
+### Summary
+
+Replaced the bounded RVV i32m1 arithmetic one-VL artifact limit with a
+materialized runtime multi-VL EmitC loop through the existing RVV
+extension-family ops and common EmitC route.
+
+### Main Changes
+
+- Added structured loop payload support to `TCRVEmitCLowerableRoute` and
+  materialized it as `emitc.for`.
+- Rewired the RVV i32m1 add/sub/mul EmitC route to loop over runtime `n`,
+  recompute per-chunk VL from remaining AVL, advance lhs/rhs/out by `offset`,
+  and place RVV intrinsic load/compute/store calls inside the loop.
+- Updated RVV runtime AVL/VL artifact metadata from
+  `multi_vl = unsupported` to supported multi-VL metadata for the materialized
+  loop route.
+- Hardened target artifact export so multi-VL claims require materialized
+  `emitc.for` route provenance.
+- Updated header/object/bundle tests, materialization tests, target artifact
+  negatives, and Trellis specs for the durable multi-VL boundary.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this-commit` | (see git log) |
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test tianchenrv-emitc-lowerable-interface-test tcrv-opt tcrv-translate -j2`.
+- [OK] Focused C++ tests:
+  `tianchenrv-target-artifact-export-test`,
+  `tianchenrv-rvv-extension-plugin-test`, and
+  `tianchenrv-emitc-lowerable-interface-test`.
+- [OK] Focused lit filter:
+  `rvv-first-slice-materialization|rvv-i32m1-selected-boundary-seed|emitc-to-cpp-handoff|source-seed-target-artifact-header|source-seed-target-artifact-object`,
+  11/11 selected tests passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`, 106/106 lit
+  tests passed.
+- [OK] Artifact evidence under
+  `artifacts/tmp/rvv_runtime_avl_multivl_emitc_loop/20260516T200010Z`.
+  Generated C++ contains `emitc.for` lowered to a C++ `for`, `n - offset`,
+  pointer advancement by `offset`, and repeated `__riscv_vsetvl_e32m1`.
+  `llvm-readobj -h rvv_target_artifact.o` reports
+  `Format: elf64-littleriscv`, `Arch: riscv64`, and `Type: Relocatable`.
+- [OK] Real `ssh rvv` compile/run from generated header/object:
+  `vlmax_e32m1=4`, `n=4 PASS`, `n=5 PASS`, `n=11 PASS`,
+  `multi_vl_tail_status=PASS`.
+- [OK] Targeted scans: no stale one-VL unsupported markers and no restored
+  descriptor/direct-C/source-export authority in implementation surfaces. The
+  only remaining `descriptor` hit is target preflight rejecting descriptor-local
+  or hardcoded element-count residue.
+- [OK] `git diff --check`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 98: RVV runtime AVL/VL ABI artifact closure
 
 **Date**: 2026-05-17
