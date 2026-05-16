@@ -551,27 +551,47 @@ module {
             llvm::Twine("build construction-checked emission plan for @") +
                 variantName))
       return result;
-    if (int result =
-            expect(plan.isUnsupported(),
-                   llvm::Twine("RVV emission plan is unsupported for @") +
-                       variantName))
+    if (int result = expect(plan.isSupported(),
+                            llvm::Twine("RVV emission plan is supported for @") +
+                                variantName))
       return result;
     if (int result = expect(
-            llvm::StringRef(plan.getDiagnostic())
-                .contains("target artifact route authority has been deleted"),
-            llvm::Twine("RVV emission plan reports deleted target artifact "
-                        "route for @") +
+            plan.getLoweringPipeline() ==
+                tianchenrv::plugin::rvv::getRVVConstructionManifest()
+                    .emitcRoute.routeID,
+            llvm::Twine("RVV emission plan uses the materialized EmitC target "
+                        "artifact route for @") +
+                variantName))
+      return result;
+    if (int result = expect(
+            plan.getArtifactKind() == "riscv-elf-relocatable-object",
+            llvm::Twine("RVV emission plan advertises object artifact for @") +
+                variantName))
+      return result;
+    if (int result = expect(
+            plan.getRuntimeABIParameters().size() == 4,
+            llvm::Twine("RVV emission plan carries callable ABI parameters "
+                        "for @") +
                 variantName))
       return result;
 
     VariantEmissionStatus readiness;
-    if (int result = expectErrorContains(
+    if (int result = expectSuccess(
             registry.checkVariantEmissionReadiness(
                 VariantEmissionRequest(variant, kernel, capabilities,
                                        VariantEmissionRole::DirectVariant),
                 readiness),
-            {"reported unsupported emission path",
-             "target artifact route authority has been deleted"}))
+            llvm::Twine("RVV emission readiness succeeds for @") +
+                variantName))
+      return result;
+    if (int result = expect(
+            readiness.isSupported() &&
+                readiness.getEmissionPath() ==
+                    tianchenrv::plugin::rvv::getRVVConstructionManifest()
+                        .emitcRoute.routeID,
+            llvm::Twine("RVV emission readiness names the materialized EmitC "
+                        "target artifact route for @") +
+                variantName))
       return result;
   }
 

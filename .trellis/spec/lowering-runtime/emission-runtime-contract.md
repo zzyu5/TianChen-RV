@@ -1331,9 +1331,12 @@ Trigger: historical post-planning MLIR would previously have selected an RVV
 path and a bounded RVV wrapper attachment, then exported executable C directly
 from selected metadata and target records.
 
-This boundary is deleted. RVV direct microkernel source/header/object and
-self-check exports must fail closed until a future route materializes a real
-MLIR EmitC module and emits C/C++ through the MLIR emitter.
+This boundary is deleted for historical direct microkernel source/header/object
+and self-check exports. It does not authorize direct C semantic export. The
+only bounded RVV object rebuild allowed under this boundary is the explicit
+typed RVV i32m1 arithmetic route that materializes a real MLIR EmitC module,
+emits C/C++ through the MLIR EmitC emitter, and packages that emitted source as
+a RISC-V relocatable object.
 
 ### 2. Signatures
 
@@ -1366,7 +1369,9 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   RVV plugin to materialize a wrapper, callable ABI, generated C source,
   correctness coverage, performance, or broad microarchitecture semantics.
 - The deleted RVV selected-boundary route must not be required or accepted as
-  source/export authority for the selected path.
+  source/export authority for the selected path. The accepted authority is the
+  selected emission-plan candidate for the family-level materialized EmitC
+  route plus the provider-built `TCRVEmitCLowerableRoute`.
 - Deleted direct child `tcrv_rvv.*_microkernel` wrappers are no longer
   parseable active RVV dialect inputs. Historical references to those wrappers
   are fail-closed evidence only and must not be treated as
@@ -1375,8 +1380,10 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
 - RVV selected emission planning must not resolve lhs-input-buffer,
   rhs-input-buffer, output-buffer, or runtime-element-count ABI parameters from
   `selectedPlan.descriptor` or finite family records.
-- Output must be no executable C source, no header, no object, and no
-  self-check harness.
+- Historical metadata/direct-wrapper output must be no executable C source, no
+  header, no object, and no self-check harness. The bounded rebuilt output may
+  be a RISC-V relocatable object only after materialized EmitC handoff
+  validation and MLIR C/C++ emission.
 - Historical selected metadata may remain parseable only as fail-closed input
   for unsupported missing-materialized-EmitC diagnostics.
 - Output must not include timestamps, absolute paths, raw logs, credentials,
@@ -1386,11 +1393,11 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
 
 - Missing selected RVV path, scalar-only path, offload-only path, or
   fallback-only path -> export fails before source output.
-- Missing future EmitC route authority, stale selected-boundary metadata, or
-  mismatched selected-path metadata -> export fails.
+- Missing materialized EmitC route authority, stale selected-boundary metadata,
+  or mismatched selected-path metadata -> export fails.
 - Deleted RVV wrapper references, missing or stale selected-path metadata,
   malformed structured control/dataflow body, setvl/with_vl policy mismatch,
-  or missing future EmitC route authority -> deleted-route/fail-closed
+  or missing materialized EmitC route authority -> deleted-route/fail-closed
   behavior; no source/header/object bytes are emitted.
 - Missing, unavailable, non-symbol, non-RVV, or unknown selected variant
   requirements -> export fails.
@@ -1401,29 +1408,42 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
 
 ### 5. Evidence Interpretation
 
-This deleted route produces no source, self-check harness, object, runtime
-execution, correctness evidence, or performance evidence. Future RVV evidence
-must start from a materialized MLIR EmitC module route and then record separate
-real `ssh rvv` compile/run evidence for the concrete artifact under test.
+The historical direct route produces no source, self-check harness, object,
+runtime execution, correctness evidence, or performance evidence. Rebuilt RVV
+object evidence must start from a materialized MLIR EmitC module route and
+then record separate real `ssh rvv` compile/run evidence for the concrete
+artifact under test when runtime correctness or object usability is claimed.
 
 ### 6. Emission Plan / Manifest Handoff
 
 When historical selected RVV metadata reaches emission planning, the RVV plugin
-must return an unsupported deleted-route plan:
+must return an unsupported deleted-route plan. When an explicit typed RVV i32m1
+arithmetic body reaches emission planning, the RVV plugin may return the
+supported materialized EmitC object plan:
 
 ```text
-status: unsupported
-emission kind: rvv-runtime-callable-direct-c-source-exporter-deleted
-lowering pipeline: deleted-direct-c-source-route
-runtime ABI: unsupported-emission-runtime-abi
-runtime ABI kind: unsupported-plugin-runtime-abi
-runtime ABI name: unsupported-emission-runtime-abi
-runtime glue role: no-runtime-glue-unsupported
-artifact kind: unsupported-deleted-direct-c-route
+historical metadata:
+  status: unsupported
+  emission kind: rvv-runtime-callable-direct-c-source-exporter-deleted
+  lowering pipeline: deleted-direct-c-source-route
+  runtime ABI: unsupported-emission-runtime-abi
+  runtime ABI kind: unsupported-plugin-runtime-abi
+  runtime ABI name: unsupported-emission-runtime-abi
+  runtime glue role: no-runtime-glue-unsupported
+  artifact kind: unsupported-deleted-direct-c-route
+
+explicit typed RVV i32m1 arithmetic:
+  status: supported
+  emission kind: materialized-emitc-cpp-rvv-intrinsic-object
+  lowering pipeline: rvv-i32m1-arithmetic-emitc-route-family
+  runtime ABI: rvv-i32m1-{add,sub,mul}-callable-c-abi.v1
+  runtime ABI kind: plugin-owned-runtime-abi
+  runtime glue role: emitc-cpp-rvv-intrinsic-runtime-glue
+  artifact kind: riscv-elf-relocatable-object
 ```
 
-This plan is a deletion diagnostic only. It is not a compiler handoff to a C
-source exporter.
+The supported plan is a compiler handoff to the common selected EmitC artifact
+bridge, not a handoff to a direct C source exporter.
 
 ## Scalar Fallback Unsupported Boundary
 
@@ -1642,15 +1662,18 @@ object routes.
 
 Direct RVV binary source/header/object route ownership is deleted as production
 route authority. Historical RVV direct microkernel route families must not be
-registered as supported target artifact exporters until a future EmitC-module
-source route replaces direct C semantic export.
+registered as supported target artifact exporters. A bounded RVV target
+artifact exporter may be registered only when its authority is a selected
+family-level materialized EmitC route, not direct C semantic export.
 
 Required tests for changes to this contract:
 
 - C++ tests must prove deleted RVV direct route ids are absent from active
-  target artifact exporter registration;
-- lit tests must prove generic source/header/object front doors fail closed
-  without printing direct RVV C source, headers, objects, or bundle outputs.
+  target artifact exporter registration and that any rebuilt RVV exporter is
+  family-level materialized EmitC authority;
+- lit tests must prove generic source/header front doors remain fail-closed for
+  deleted direct RVV paths, while the bounded explicit typed RVV object path
+  emits only through materialized EmitC and MLIR C/C++ emission.
 
 ## Deleted Host RVV + Scalar Dispatch Direct C Artifact Boundary
 
@@ -1748,9 +1771,11 @@ the stated selected runtime ABI values.
 Historical RVV+scalar dispatch object and self-check-object helpers compiled
 direct-printer generated C. Those object helpers are deleted with the direct C
 semantic exporter path. The generic `--tcrv-export-target-artifact` front door
-must not select a dispatch object route until a future EmitC-module source
-route supplies the artifact authority. Historical object route ids must not be
-used as active selection authority, test API, or diagnostic API.
+must not select any historical dispatch object route. It may select the bounded
+explicit typed RVV dispatch-case object route only when the selected
+emission-plan candidate names the family-level materialized EmitC artifact
+route and the scalar fallback remains unsupported. Historical object route ids
+must not be used as active selection authority, test API, or diagnostic API.
 
 ### Deleted Dispatch Self-Check Executable Evidence Bridge
 

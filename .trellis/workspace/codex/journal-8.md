@@ -723,3 +723,74 @@ plugin-protocol, and MLIR testing specs already cover this bounded path.
 ### Status
 
 [OK] Completed and archived.
+
+
+## Session 96: RVV materialized EmitC target artifact bridge
+
+**Date**: 2026-05-17
+**Task**: RVV materialized EmitC target artifact bridge
+**Branch**: `main`
+
+### Summary
+
+Rebuilt the bounded RVV selected target artifact bridge through provider-owned EmitC route materialization, MLIR EmitC C/C++ emission, clang RISC-V object packaging, focused checks, and ssh rvv compile/run evidence.
+
+### Main Changes
+
+- Rebuilt the RVV selected emission plan as a supported family-level route:
+  `rvv-i32m1-arithmetic-emitc-route-family`.
+- Registered one Target/RVV materialized EmitC target artifact exporter that
+  consumes selected emission-plan candidates and provider-owned
+  `TCRVEmitCLowerableRoute` payloads; old descriptor/table route ids and
+  per-op target route tables remain absent.
+- Reused the common selected EmitC artifact bridge to materialize verified
+  MLIR EmitC, invoke the MLIR EmitC C/C++ emitter, and package a RISC-V RVV
+  relocatable object with clang.
+- Added RVV target artifact preflight for origin, emission kind, artifact kind,
+  lowering boundary, runtime ABI identity, ordered ABI parameters, and
+  `rvv_emitc_lowerable_route` provenance.
+- Updated RVV/lowering-runtime specs so historical direct/descriptor routes
+  remain deleted while the bounded explicit RVV i32m1 object route is the only
+  active rebuilt artifact authority.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test tianchenrv-construction-protocol-common-test tcrv-opt tcrv-translate -j2`.
+- [OK] Focused C++ tests:
+  `tianchenrv-target-artifact-export-test`,
+  `tianchenrv-rvv-extension-plugin-test`, and
+  `tianchenrv-construction-protocol-common-test`.
+- [OK] Focused lit filter:
+  `rvv-i32m1-selected-boundary-seed|source-seed-target-artifact-object|emitc-to-cpp-handoff|emitc-to-cpp-non-materialized|source-seed-artifact-front-door|toy-template-target-artifact`,
+  14/14 passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`, 101/101 lit
+  tests passed.
+- [OK] `git diff --check`.
+- [OK] Targeted scans: no restored
+  `RVVI32M1ArithmeticTargetRouteDescriptor`,
+  `kRVVI32M1ArithmeticTargetRoutes`, old
+  `getRVVI32M1Arithmetic*Target*RouteID`, old
+  `tcrv-rvv-i32m1-{add,sub,mul}` target route strings, deleted-route
+  diagnostic text, source-authority APIs, or direct C semantic exporter residue
+  in touched code/test surfaces.
+- [OK] Artifact evidence under
+  `artifacts/tmp/rvv_materialized_emitc_target_artifact_bridge/20260516T174758Z-ok`.
+  `llvm-readobj -h rvv_target_artifact.o` reports
+  `Format: elf64-littleriscv`, `Arch: riscv64`, and `Type: Relocatable`.
+- [OK] Real `ssh rvv` compile/run:
+  `tcrv_rvv_materialized_emitc_target_artifact status=PASS n=4 add=[12,6,16,12]`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

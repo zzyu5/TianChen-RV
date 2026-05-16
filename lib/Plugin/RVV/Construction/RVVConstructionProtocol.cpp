@@ -34,7 +34,7 @@ constexpr llvm::StringLiteral kInterfaceRealization(
     "TCRVEmitCLowerableInterface");
 constexpr llvm::StringLiteral kEvidenceProfile(
     "parse_verify|capability|interface|selected_boundary_or_route|"
-    "emitc_route_mapping|target_artifact_route_deleted|"
+    "emitc_route_mapping|materialized_target_artifact|"
     "ssh_rvv_required_for_runtime_claims");
 constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "runtime_abi:rvv.role.runtime_abi.runtime_abi_value:"
@@ -62,7 +62,7 @@ constexpr llvm::StringLiteral kRVVArithmeticRouteFamilyID(
 constexpr llvm::StringLiteral kRVVI32M1ArithmeticEmissionKind(
     "materialized-emitc-cpp-rvv-intrinsic-object");
 constexpr llvm::StringLiteral kRVVI32M1ArithmeticArtifactKind(
-    "unsupported-emission-diagnostic");
+    "riscv-elf-relocatable-object");
 constexpr llvm::StringLiteral kRVVI32M1ArithmeticLoweringBoundaryOpName(
     "tcrv_rvv.with_vl");
 constexpr llvm::StringLiteral kRVVI32M1ArithmeticRuntimeABIFamily(
@@ -218,7 +218,7 @@ const llvm::StringRef kRequiredEvidence[] = {
     "interface",
     "selected_boundary_or_route",
     "emitc_route_mapping",
-    "target_artifact_route_deleted",
+    "materialized_target_artifact",
     "ssh_rvv_required_for_runtime_claims"};
 
 llvm::Error makeRVVConstructionError(llvm::Twine message) {

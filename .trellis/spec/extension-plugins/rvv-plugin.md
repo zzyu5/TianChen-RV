@@ -43,7 +43,8 @@ bare high-level/no-body RVV capability evidence must not produce an RVV
 proposal, selected variant, lowering boundary, emission plan, runtime ABI,
 artifact route, or metadata-only artifact authority. A selected RVV variant is legal only when it
 already contains explicit typed `tcrv_rvv` extension-family IR. That typed IR
-is still non-executable until a future EmitC/runtime route is implemented.
+becomes executable only through the bounded selected EmitC artifact bridge
+described below; typed IR alone is not runtime or performance evidence.
 
 Stable current names:
 
@@ -65,8 +66,8 @@ optional vlenb attr name: tcrv_rvv.vlenb_bytes
 ```
 
 The bounded explicit RVV i32m1 add/sub/mul executable slice is allowed to
-export a callable object/header bundle only through the selected emission-plan
-target artifact handoff:
+export a relocatable object only through the selected emission-plan target
+artifact handoff:
 
 ```text
 selected RVV path
@@ -74,14 +75,16 @@ selected RVV path
   -> validated tcrv_rvv.with_vl selected lowering boundary
   -> RVV-owned EmitC lowerable route
   -> MLIR EmitC C/C++ emitter
-  -> clang RISC-V relocatable object plus callable C header
+  -> clang RISC-V relocatable object
 ```
 
 This bounded route does not authorize descriptor-driven computation, deleted
 microkernel wrappers, new dtype/LMUL families, or a generic RVV source printer.
 It also does not let target/export code select an RVV artifact by assuming a
 module contains exactly one direct variant; the selected emission-plan
-candidate is the handoff authority.
+candidate is the handoff authority. Historical header and bundle route ids
+remain deleted until they are rebuilt through the same materialized EmitC
+authority.
 
 RVV probe facts remain bounded hardware/toolchain evidence inputs. They may be
 validated into raw `TargetCapabilitySet` evidence facts, but they must not
@@ -776,12 +779,14 @@ separate `ssh rvv` artifacts.
 
 ### Deleted RVV Boundary And Bounded EmitC Route
 
-The current selected RVV plugin path is non-executable and fail-closed for
-target emission. It must not materialize selected-boundary metadata, RVV
-microkernel bodies, source/header/object artifacts, self-check helpers, or
-intrinsic C/C++ output. The bounded i32m1 add path may materialize an MLIR
-EmitC module from explicit RVV ops through the common lowerable route; that
-module is not a target artifact route or hardware evidence.
+The historical metadata/direct-wrapper RVV selected-boundary path remains
+deleted and fail-closed for target emission. It must not materialize
+selected-boundary metadata, RVV microkernel bodies, direct source/header/object
+artifacts, self-check helpers, or intrinsic C/C++ output. The bounded i32m1
+add/sub/mul path may materialize an MLIR EmitC module from explicit RVV ops
+through the common lowerable route; a selected target artifact may package that
+module only after the selected emission-plan candidate and materialized EmitC
+handoff are verified.
 
 The intended rebuild route is:
 
@@ -805,7 +810,8 @@ This scenario applies to the current bounded RVV i32m1 add/sub/mul
 materialization route. The route consumes verified RVV family ops and lowers
 them through the shared EmitC lowerable route into an MLIR EmitC module.
 Printing C/C++, compiling, target artifact packaging, and `ssh rvv` runtime
-evidence are later stages and are not implied by this route.
+evidence are separate stages. A target artifact bridge may invoke them only
+after this provider-owned route has been built and verified.
 
 #### 2. Signatures
 
@@ -833,6 +839,13 @@ evidence are later stages and are not implied by this route.
 - Provider metadata accessors own the bounded route id, emission kind,
   lowering-boundary op name, runtime ABI kind/name/glue role, and ordered
   runtime ABI parameters for this RVV i32m1 arithmetic slice.
+- Selected target artifact route id:
+  `rvv-i32m1-arithmetic-emitc-route-family`.
+- Supported artifact kind: `riscv-elf-relocatable-object`.
+- Target handoff kind:
+  `materialized-emitc-cpp-rvv-intrinsic-object`.
+- Target route API:
+  `target::rvv::getRVVMaterializedEmitCTargetArtifactRouteID()`.
 
 #### 3. Contracts
 
@@ -860,6 +873,14 @@ evidence are later stages and are not implied by this route.
 - Common selected EmitC artifact front doors call a route-builder callback and
   remain generic; they must not contain RVV intrinsic names, RVV header names,
   or typed RVV body-shape rules.
+- Target/RVV artifact support registers one family-level materialized EmitC
+  exporter for the selected RVV i32m1 arithmetic object route. It must not
+  register per-op target route tables, descriptor adapters, old object/header/
+  bundle route ids, or compatibility wrappers.
+- Target/RVV artifact support may compile the MLIR-emitted C/C++ source to a
+  RISC-V relocatable object with clang. It must not synthesize the C/C++ source
+  from metadata, selected-path records, route ids, family registries, or
+  descriptors.
 
 #### 4. Validation & Error Matrix
 
@@ -872,18 +893,24 @@ evidence are later stages and are not implied by this route.
   boundary shape -> fail before route payload construction or source output.
 - Missing, duplicate, malformed, or unsupported explicit runtime ABI value
   binding for `lhs`, `rhs`, `out`, or `n` -> fail before source output.
-- Missing route callee for any body step -> fail before source output.
+- Missing route callee for any body step -> fail before source or object
+  output.
 - Stale runtime ABI role/name/type/ownership mirror -> fail before source
   output through the target artifact preflight.
 - Target artifact code contains RVV intrinsic/header names or reconstructs the
   typed body shape instead of calling the provider -> ownership violation.
+- Missing `rvv_emitc_lowerable_route` artifact metadata, stale selected
+  runtime ABI identity, non-materialized EmitC handoff, missing route/call
+  provenance, or clang object-packaging failure -> fail before claiming a
+  target artifact.
 
 #### 5. Good/Base/Bad Cases
 
-- Good: future rebuilt i32 add/sub/mul emits the matching
+- Good: rebuilt i32 add/sub/mul emits the matching
   `tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`, or `tcrv_rvv.i32_mul`, the route
-  records the matching `emitc.call_opaque` arithmetic intrinsic, and generated
-  C calls that intrinsic.
+  records the matching `emitc.call_opaque` arithmetic intrinsic, generated C
+  calls that intrinsic, and the target bridge packages the MLIR-emitted source
+  as a RISC-V relocatable object.
 - Base: a hand-authored bounded RVV explicit dataflow body with the same
   verified `setvl` / `with_vl` / load-arithmetic-store sequence can use the
   same route after selected-path and ABI preflight pass.
@@ -900,12 +927,15 @@ evidence are later stages and are not implied by this route.
   not auto-create an RVV family body from descriptor/family records.
 - Tests must show RVV selected emission planning does not build callable ABI
   parameters or supported source/header/object routes from selected metadata.
+- Tests must show explicit typed RVV source/extension-op paths produce a
+  supported family-level object artifact plan and that the generic target
+  artifact front door can emit a RISC-V relocatable object through the common
+  selected EmitC artifact bridge.
 - Negative coverage must keep stale body, stale descriptor, missing boundary,
   and malformed ABI cases fail-closed before source/header/object output.
-- Target artifact tests must prove RVV target artifact exporters and
-  artifact-backed translate routes are absent until a non-descriptor route is
-  rebuilt; retained EmitC materialization tests may still prove provider-owned
-  intrinsic/header spelling reaches MLIR EmitC and C/C++ emitter output.
+- Target artifact tests must prove RVV target artifact exporters use the
+  materialized EmitC family route, keep deleted direct route ids absent, and
+  reject missing route provenance or stale runtime ABI metadata.
 
 #### 7. Wrong vs Correct
 
@@ -918,10 +948,12 @@ stale descriptor metadata -> generated microkernel body -> direct C/intrinsic so
 Correct:
 
 ```text
-selected RVV metadata boundary
-  -> unsupported/deleted-route diagnostic
-future rebuild:
-explicit extension-family ops -> materialized MLIR EmitC module -> C/C++
+explicit extension-family ops
+  -> selected family-level EmitC artifact plan
+  -> provider-owned TCRVEmitCLowerableRoute
+  -> materialized MLIR EmitC module
+  -> MLIR EmitC C/C++ emitter
+  -> clang RISC-V relocatable object
 ```
 
 ## Hart Parallelism

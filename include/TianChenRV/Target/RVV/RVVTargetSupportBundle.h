@@ -1,6 +1,7 @@
 #ifndef TIANCHENRV_TARGET_RVV_RVVTARGETSUPPORTBUNDLE_H
 #define TIANCHENRV_TARGET_RVV_RVVTARGETSUPPORTBUNDLE_H
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
 namespace tianchenrv::target {
@@ -10,6 +11,8 @@ class TargetTranslateRouteRegistry;
 } // namespace tianchenrv::target
 
 namespace tianchenrv::target::rvv {
+
+llvm::StringRef getRVVMaterializedEmitCTargetArtifactRouteID();
 
 llvm::Error
 configureRVVTargetSupportExtensionBundle(ExtensionBundle &bundle);

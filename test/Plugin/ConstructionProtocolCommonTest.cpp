@@ -180,7 +180,7 @@ int runRVVFailClosedConstructionValidationTest() {
   Manifest missingEvidence = rvv::getRVVConstructionManifest();
   missingEvidence.evidenceProfile =
       "parse_verify|capability|interface|selected_boundary_or_route|"
-      "emitc_route_mapping|target_artifact_route_deleted";
+      "emitc_route_mapping|materialized_target_artifact";
   if (int result = expectErrorContains(
           rvv::verifyRVVConstructionManifest(missingEvidence),
           {"evidence profile missing",

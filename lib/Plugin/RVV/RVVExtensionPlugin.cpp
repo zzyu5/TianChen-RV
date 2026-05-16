@@ -316,11 +316,9 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
     return llvm::Error::success();
   }
 
-  out = VariantEmissionStatus::getUnsupported(
+  out = VariantEmissionStatus::getSupported(
       kRVVPluginName, request.getVariant().getSymName(),
-      "RVV target artifact route authority has been deleted; the selected "
-      "typed RVV body may still materialize through the common EmitC route, "
-      "but object/header artifact export awaits a non-descriptor rebuild");
+      getRVVConstructionManifest().emitcRoute.routeID);
   return llvm::Error::success();
 }
 
@@ -350,13 +348,42 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
           validateSelectedRVVI32M1WithVLBoundary(boundaryRequest))
     return error;
 
-  out = VariantEmissionPlan::getUnsupported(
+  conversion::emitc::TCRVEmitCLowerableRoute route;
+  VariantEmitCLowerableRequest routeRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole());
+  if (llvm::Error error =
+          buildRVVI32M1ArithmeticEmitCLowerableRoute(routeRequest, route))
+    return error;
+
+  llvm::Expected<RVVI32M1ArithmeticOp> arithmetic =
+      symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(route.getRouteID());
+  if (!arithmetic)
+    return arithmetic.takeError();
+
+  const RVVConstructionManifest &manifest = getRVVConstructionManifest();
+  llvm::StringRef runtimeABIName =
+      getRVVI32M1ArithmeticRuntimeABIName(*arithmetic);
+  out = VariantEmissionPlan::getSupported(
       kRVVPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      "RVV target artifact route authority has been deleted; materialized "
-      "EmitC remains available, but object/header artifact export must be "
-      "rebuilt without descriptor-owned add/sub/mul target routes");
-  return out.setRequiredCapabilitySymbolsFromVariant(request.getVariant());
+      getRVVI32M1ArithmeticEmissionKind(), manifest.emitcRoute.routeID,
+      runtimeABIName, manifest.emitcRoute.artifactKind,
+      "RVV selected i32m1 arithmetic route materializes a verified EmitC "
+      "module through the common TCRVEmitCLowerableRoute materializer, then "
+      "uses the MLIR EmitC C/C++ emitter before RISC-V object packaging");
+  out.setRuntimeABIKind(getRVVI32M1ArithmeticRuntimeABIKind());
+  out.setRuntimeABIName(runtimeABIName);
+  out.setRuntimeGlueRole(getRVVI32M1ArithmeticRuntimeGlueRole());
+  out.setLoweringBoundaryOpName(getRVVI32M1ArithmeticLoweringBoundaryOpName());
+  out.addRuntimeABIParameters(getRVVI32M1ArithmeticRuntimeABIParameters());
+  out.addArtifactMetadata("rvv_emitc_lowerable_route", route.getRouteID());
+  out.addArtifactMetadata("rvv_arithmetic_op",
+                          stringifyRVVI32M1ArithmeticOp(*arithmetic));
+  if (llvm::Error error =
+          out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
+    return error;
+  return llvm::Error::success();
 }
 
 llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
