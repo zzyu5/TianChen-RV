@@ -2,6 +2,7 @@
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 
 #include "mlir/IR/DialectRegistry.h"
+#include "mlir/Pass/Pass.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -14,6 +15,7 @@
 using tianchenrv::plugin::ExtensionPlugin;
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
+using tianchenrv::plugin::SourceSeedPassRegistration;
 
 namespace {
 
@@ -21,10 +23,14 @@ class MockPlugin final : public ExtensionPlugin {
 public:
   MockPlugin(llvm::StringRef name, llvm::StringRef version,
              std::initializer_list<PluginCapability> capabilities,
-             bool enabled = true)
+             bool enabled = true,
+             std::initializer_list<llvm::StringRef> sourceSeedPassArguments =
+                 {})
       : name(name.str()), version(version.str()), enabled(enabled) {
     for (const PluginCapability &capability : capabilities)
       this->capabilities.push_back(capability);
+    for (llvm::StringRef argument : sourceSeedPassArguments)
+      this->sourceSeedPassArguments.push_back(argument.str());
   }
 
   llvm::StringRef getName() const override { return name; }
@@ -41,6 +47,16 @@ public:
 
   bool isEnabled() const override { return enabled; }
 
+  llvm::Error registerSourceSeedPasses(
+      llvm::SmallVectorImpl<SourceSeedPassRegistration> &out) const override {
+    for (const std::string &argument : sourceSeedPassArguments) {
+      out.push_back(SourceSeedPassRegistration(
+          getName(), argument, "mock source-seed pass",
+          [] { return std::unique_ptr<mlir::Pass>(); }));
+    }
+    return llvm::Error::success();
+  }
+
   unsigned getDialectRegistrationCalls() const {
     return dialectRegistrationCalls;
   }
@@ -49,6 +65,7 @@ private:
   std::string name;
   std::string version;
   llvm::SmallVector<PluginCapability, 4> capabilities;
+  llvm::SmallVector<std::string, 2> sourceSeedPassArguments;
   bool enabled;
   mutable unsigned dialectRegistrationCalls = 0;
 };
@@ -94,14 +111,16 @@ int main() {
                    {PluginCapability("alpha.vector", "isa-vector",
                                      "mock vector capability"),
                     PluginCapability("alpha.toolchain", "toolchain",
-                                     "mock toolchain capability")});
+                                     "mock toolchain capability")},
+                   true, {"alpha-source-seed"});
   MockPlugin beta("beta", "1.0",
                   {PluginCapability("beta.runtime", "runtime-offload",
                                     "mock runtime capability")},
-                  false);
+                  false, {"beta-source-seed"});
   MockPlugin gamma("gamma", "1.0",
                    {PluginCapability("gamma.memory", "memory",
-                                     "mock memory capability")});
+                                     "mock memory capability")},
+                   true, {"gamma-source-seed"});
   MockPlugin duplicateAlpha("alpha", "2.0",
                             {PluginCapability("alpha.duplicate", "toolchain")});
 
@@ -186,6 +205,27 @@ int main() {
   registry.collectCapabilities(allCapabilities, false);
   if (int result =
           expect(allCapabilities.size() == 4, "all capabilities are collected"))
+    return result;
+
+  llvm::SmallVector<SourceSeedPassRegistration, 4> sourceSeedPasses;
+  if (int result = expectSuccess(registry.collectSourceSeedPasses(
+                                     sourceSeedPasses),
+                                 "collect source-seed pass registrations"))
+    return result;
+  if (int result =
+          expect(sourceSeedPasses.size() == 2,
+                 "source-seed pass collection sees enabled plugins only"))
+    return result;
+  if (int result = expect(sourceSeedPasses[0].getOwnerPlugin() == "alpha" &&
+                              sourceSeedPasses[0].getArgument() ==
+                                  "alpha-source-seed" &&
+                              sourceSeedPasses[1].getOwnerPlugin() == "gamma" &&
+                              sourceSeedPasses[1].getArgument() ==
+                                  "gamma-source-seed",
+                          "source-seed pass order follows enabled plugin order"))
+    return result;
+  if (int result = expect(static_cast<bool>(sourceSeedPasses[0].getFactory()),
+                          "source-seed pass factory is preserved"))
     return result;
 
   llvm::outs() << "plugin registry smoke test passed\n";

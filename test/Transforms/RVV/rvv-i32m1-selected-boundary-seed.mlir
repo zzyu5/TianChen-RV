@@ -1,6 +1,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-selected-boundary-seed | FileCheck %s --check-prefix=BOUNDARY --implicit-check-not="func.func"
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-selected-boundary-seed --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-selected-boundary-seed --tcrv-materialize-emission-plans --tcrv-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC
+// RUN: not tcrv-opt %s --tcrv-disable-builtin-plugins --tcrv-rvv-materialize-i32m1-selected-boundary-seed 2>&1 | FileCheck %s --check-prefix=NO-BUILTIN
 
 module {
   func.func @seed(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) attributes {tcrv_rvv.lowering_seed = "i32m1_add"} {
@@ -73,3 +74,6 @@ module {
 // EMITC: tcrv_emitc.source_op=tcrv_rvv.i32_load role=load op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle32_v_i32m1
 // EMITC: tcrv_emitc.source_op=tcrv_rvv.i32_add role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vadd_vv_i32m1
 // EMITC: tcrv_emitc.source_op=tcrv_rvv.i32_store role=store op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vse32_v_i32m1
+
+// NO-BUILTIN: Unknown command line argument
+// NO-BUILTIN-SAME: tcrv-rvv-materialize-i32m1-selected-boundary-seed

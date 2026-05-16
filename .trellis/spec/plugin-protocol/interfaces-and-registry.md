@@ -53,6 +53,47 @@ Concrete ODS/C++ directory splits are implementation organization only. They
 must share TCRV capability, registry, common interfaces, common orchestration
 passes, and common EmitC route framework.
 
+### SourceSeedPassProvider
+
+Bounded source-to-selected-boundary seeds are plugin-owned entry points. A
+plugin may expose one or more public MLIR pass factories through the common
+extension plugin registry when the seed is part of that extension family's
+durable contract.
+
+```cpp
+class SourceSeedPassRegistration {
+public:
+  StringRef getOwnerPlugin() const;
+  StringRef getArgument() const;
+  StringRef getDescription() const;
+  std::function<std::unique_ptr<mlir::Pass>()> getFactory() const;
+};
+
+class ExtensionPlugin {
+public:
+  virtual Error registerSourceSeedPasses(
+      SmallVectorImpl<SourceSeedPassRegistration> &out) const;
+};
+```
+
+The registration object is pass plumbing only. It may name the owning plugin,
+the public pass argument, a bounded description, and a factory for the
+plugin-owned pass. It must not carry computation semantics, target-family
+semantic branches, descriptor fields, route ids, runtime ABI identities,
+artifact kinds, tuning state, or source-export payloads.
+
+Public tools such as `tcrv-opt` may collect source-seed pass registrations from
+enabled plugins and register those pass factories at the tool/front-door
+boundary. If built-in plugins are disabled or a plugin is not registered, that
+plugin's source-seed passes are not public command-line options. Default empty
+registries remain fail-closed for embedded users and tests.
+
+The common registry validates registration shape and deterministic ordering,
+but it does not inspect the source dialect body or decide RVV, IME, offload,
+scalar, vendor, dtype, shape, runtime, toolchain, or microarchitecture
+semantics. The concrete plugin pass remains responsible for its own narrow
+source contract, fail-closed diagnostics, and selected-boundary materialization.
+
 ### TCRV Common Operation Interfaces
 
 Long-term extension family ops should implement shared interfaces where

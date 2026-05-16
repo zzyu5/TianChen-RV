@@ -1,6 +1,5 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
-#include "TianChenRV/Plugin/RVV/RVVSelectedBoundarySeed.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Transforms/Passes.h"
@@ -8,6 +7,7 @@
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
@@ -36,7 +36,7 @@ bool shouldDisableBuiltinPlugins(int argc, char **argv) {
   return false;
 }
 
-void registerTianChenRVOptPasses(
+llvm::Error registerTianChenRVOptPasses(
     const tianchenrv::plugin::ExtensionPluginRegistry &plugins,
     const tianchenrv::target::TargetArtifactExporterRegistry
         &targetExporters) {
@@ -74,16 +74,23 @@ void registerTianChenRVOptPasses(
     return tianchenrv::transforms::createMaterializeEmitCLowerableRoutesPass(
         plugins);
   });
-  mlir::registerPass([] {
-    return tianchenrv::plugin::rvv::
-        createMaterializeRVVI32M1SelectedBoundarySeedPass();
-  });
+  llvm::SmallVector<tianchenrv::plugin::SourceSeedPassRegistration, 4>
+      sourceSeedPasses;
+  if (llvm::Error error = plugins.collectSourceSeedPasses(sourceSeedPasses))
+    return error;
+  for (const tianchenrv::plugin::SourceSeedPassRegistration &sourceSeedPass :
+       sourceSeedPasses) {
+    mlir::registerPass([sourceSeedPass] {
+      return sourceSeedPass.getFactory()();
+    });
+  }
   mlir::registerPass([&plugins, &targetExporters] {
     return tianchenrv::transforms::createCheckExecutionPlanCoherencePass(
         plugins, targetExporters);
   });
   tianchenrv::transforms::registerExecutionPlanningPipeline(plugins,
                                                             targetExporters);
+  return llvm::Error::success();
 }
 
 } // namespace
@@ -110,7 +117,12 @@ int main(int argc, char **argv) {
       return 1;
     }
   }
-  registerTianChenRVOptPasses(plugins, targetExporters);
+  if (llvm::Error error =
+          registerTianChenRVOptPasses(plugins, targetExporters)) {
+    llvm::errs() << "failed to register TianChen-RV optimizer passes: "
+                 << llvm::toString(std::move(error)) << "\n";
+    return 1;
+  }
 
   mlir::DialectRegistry registry;
   tianchenrv::registerAllDialects(registry);

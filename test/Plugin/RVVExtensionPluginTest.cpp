@@ -26,6 +26,7 @@
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
+using tianchenrv::plugin::SourceSeedPassRegistration;
 using tianchenrv::plugin::VariantEmissionPlan;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
@@ -154,8 +155,31 @@ int runRegistrationAndCapabilityMetadataTest() {
   if (int result = expect(capabilities.size() == 1,
                           "RVV plugin exposes only the base RVV capability"))
     return result;
-  return expect(registry.lookupCapabilityByID("rvv") != nullptr,
-                "RVV capability id lookup succeeds");
+  if (int result = expect(registry.lookupCapabilityByID("rvv") != nullptr,
+                          "RVV capability id lookup succeeds"))
+    return result;
+
+  llvm::SmallVector<SourceSeedPassRegistration, 2> sourceSeedPasses;
+  if (int result = expectSuccess(
+          registry.collectSourceSeedPasses(sourceSeedPasses),
+          "collect RVV source-seed pass registrations"))
+    return result;
+  if (int result =
+          expect(sourceSeedPasses.size() == 1,
+                 "RVV plugin exposes one source-seed pass registration"))
+    return result;
+  if (int result = expect(sourceSeedPasses.front().getOwnerPlugin() ==
+                              tianchenrv::plugin::rvv::
+                                  getRVVExtensionPluginName(),
+                          "RVV source-seed pass is owned by RVV plugin"))
+    return result;
+  if (int result =
+          expect(sourceSeedPasses.front().getArgument() ==
+                     "tcrv-rvv-materialize-i32m1-selected-boundary-seed",
+                 "RVV source-seed pass keeps the public pass argument"))
+    return result;
+  return expect(static_cast<bool>(sourceSeedPasses.front().getFactory()),
+                "RVV source-seed pass factory is present");
 }
 
 int runCapabilityProfileTest() {

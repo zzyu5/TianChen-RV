@@ -6,6 +6,7 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "TianChenRV/Plugin/RVV/RVVSelectedBoundarySeed.h"
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
@@ -15,6 +16,7 @@
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OperationSupport.h"
+#include "mlir/Pass/Pass.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
@@ -198,6 +200,17 @@ RVVExtensionPlugin::getCapabilities() const {
 void RVVExtensionPlugin::registerDialects(
     mlir::DialectRegistry &registry) const {
   registry.insert<tcrv::rvv::TCRVRVVDialect>();
+}
+
+llvm::Error RVVExtensionPlugin::registerSourceSeedPasses(
+    llvm::SmallVectorImpl<SourceSeedPassRegistration> &out) const {
+  out.push_back(SourceSeedPassRegistration(
+      kRVVPluginName,
+      "tcrv-rvv-materialize-i32m1-selected-boundary-seed",
+      "Materialize one bounded MLIR vector i32 add seed into the RVV i32m1 "
+      "selected-boundary form",
+      [] { return createMaterializeRVVI32M1SelectedBoundarySeedPass(); }));
+  return llvm::Error::success();
 }
 
 bool RVVExtensionPlugin::supportsOperation(

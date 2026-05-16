@@ -13,12 +13,15 @@
 #include "llvm/Support/Error.h"
 
 #include <cstddef>
+#include <functional>
+#include <memory>
 #include <string>
 
 namespace mlir {
 class DialectRegistry;
 class Operation;
 class OpBuilder;
+class Pass;
 } // namespace mlir
 
 namespace tianchenrv::target {
@@ -51,6 +54,27 @@ private:
   std::string id;
   std::string kind;
   std::string description;
+};
+
+class SourceSeedPassRegistration {
+public:
+  using Factory = std::function<std::unique_ptr<mlir::Pass>()>;
+
+  SourceSeedPassRegistration() = default;
+  SourceSeedPassRegistration(llvm::StringRef ownerPlugin,
+                             llvm::StringRef argument,
+                             llvm::StringRef description, Factory factory);
+
+  llvm::StringRef getOwnerPlugin() const { return ownerPlugin; }
+  llvm::StringRef getArgument() const { return argument; }
+  llvm::StringRef getDescription() const { return description; }
+  const Factory &getFactory() const { return factory; }
+
+private:
+  std::string ownerPlugin;
+  std::string argument;
+  std::string description;
+  Factory factory;
 };
 
 class VariantProposalRequest {
@@ -609,6 +633,8 @@ public:
   virtual llvm::ArrayRef<PluginCapability> getCapabilities() const = 0;
   virtual void registerDialects(mlir::DialectRegistry &registry) const = 0;
   virtual bool isEnabled() const { return true; }
+  virtual llvm::Error registerSourceSeedPasses(
+      llvm::SmallVectorImpl<SourceSeedPassRegistration> &out) const;
   virtual bool supportsOperation(const VariantProposalRequest &request) const;
   virtual llvm::Error
   proposeVariants(const VariantProposalRequest &request,
@@ -668,6 +694,8 @@ public:
   void collectCapabilitiesByKind(llvm::StringRef kind,
                                  llvm::SmallVectorImpl<PluginCapability> &out,
                                  bool enabledOnly = true) const;
+  llvm::Error collectSourceSeedPasses(
+      llvm::SmallVectorImpl<SourceSeedPassRegistration> &out) const;
   llvm::Error
   collectVariantProposals(const VariantProposalRequest &request,
                           llvm::SmallVectorImpl<VariantProposal> &out) const;
