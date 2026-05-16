@@ -222,6 +222,10 @@ bool expectRVVObjectExporterShape(const TargetArtifactExporterRegistry &registry
           tianchenrv::target::rvv::getRVVI32M1AddEmissionKind() ||
       exporter->getHandoffKind() !=
           "materialized-emitc-cpp-to-riscv-elf-object" ||
+      exporter->getComponentGroup() !=
+          tianchenrv::target::rvv::getRVVI32M1AddCallableComponentGroup() ||
+      exporter->getExternalABIName() !=
+          tianchenrv::target::rvv::getRVVI32M1AddRuntimeABIName() ||
       !exporter->getExportFn()) {
     llvm::errs() << context << ": malformed RVV object exporter metadata\n";
     return false;
@@ -271,6 +275,69 @@ bool expectRVVObjectExporterShape(const TargetArtifactExporterRegistry &registry
                            {"runtime ABI name",
                             tianchenrv::target::rvv::
                                 getRVVI32M1AddRuntimeABIName()}))
+    return false;
+
+  return true;
+}
+
+bool expectRVVHeaderCompositeExporterShape(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef context) {
+  const TargetArtifactCompositeExporter *exporter = registry.lookupComposite(
+      tianchenrv::target::rvv::getRVVI32M1AddHeaderArtifactRouteID());
+  if (!exporter) {
+    llvm::errs() << context << ": missing RVV i32m1 callable header route\n";
+    return false;
+  }
+
+  if (exporter->getArtifactKind() != "runtime-callable-c-header" ||
+      exporter->getOwner() !=
+          tianchenrv::plugin::rvv::getRVVExtensionPluginName() ||
+      exporter->getRuntimeABIKind() != "plugin-owned-runtime-abi" ||
+      exporter->getRuntimeABIName() !=
+          tianchenrv::target::rvv::getRVVI32M1AddRuntimeABIName() ||
+      exporter->getComponentGroup() !=
+          tianchenrv::target::rvv::getRVVI32M1AddCallableComponentGroup() ||
+      exporter->getExternalABIName() !=
+          tianchenrv::target::rvv::getRVVI32M1AddRuntimeABIName() ||
+      !exporter->getMatchFn() || !exporter->getExportFn() ||
+      !exporter->getCandidateValidationFn()) {
+    llvm::errs() << context << ": malformed RVV callable header metadata\n";
+    return false;
+  }
+
+  llvm::SmallVector<RuntimeABIParameter, 4> expectedParameters =
+      tianchenrv::target::rvv::getRVVI32M1AddRuntimeABIParameters();
+  if (!expectRuntimeABIParametersEqual(
+          exporter->getRuntimeABIParameters(), expectedParameters,
+          "RVV header route required ABI parameters"))
+    return false;
+
+  TargetArtifactCandidate candidate;
+  candidate.routeID =
+      tianchenrv::target::rvv::getRVVI32M1AddObjectArtifactRouteID().str();
+  candidate.origin = tianchenrv::plugin::rvv::getRVVExtensionPluginName().str();
+  candidate.artifactKind = "riscv-elf-relocatable-object";
+  candidate.loweringBoundary = "tcrv_rvv.with_vl";
+  candidate.runtimeABIKind = "plugin-owned-runtime-abi";
+  candidate.runtimeABIName =
+      tianchenrv::target::rvv::getRVVI32M1AddRuntimeABIName().str();
+  candidate.runtimeGlueRole =
+      tianchenrv::target::rvv::getRVVI32M1AddRuntimeGlueRole().str();
+  candidate.runtimeABIParameters.append(expectedParameters.begin(),
+                                        expectedParameters.end());
+  llvm::Expected<bool> matched = exporter->getMatchFn()({candidate});
+  if (!matched) {
+    llvm::errs() << context << ": header match callback failed: "
+                 << llvm::toString(matched.takeError()) << "\n";
+    return false;
+  }
+  if (!*matched) {
+    llvm::errs() << context << ": header route did not match RVV object "
+                    "candidate\n";
+    return false;
+  }
+  if (!expectSuccess(exporter->getCandidateValidationFn()({candidate}),
+                     "validate RVV header candidate ABI contract"))
     return false;
 
   return true;
@@ -388,15 +455,19 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
                                                                    registry),
           "register target artifact exporters through bundle frontdoor"))
     return false;
-  if (registry.size() != 1 || registry.compositeSize() != 0) {
+  if (registry.size() != 1 || registry.compositeSize() != 1) {
     llvm::errs() << "extension bundle frontdoor should register only the RVV "
-                    "object artifact route, got standalone="
+                    "object artifact route plus callable header composite, "
+                    "got standalone="
                  << registry.size() << " composite=" << registry.compositeSize()
                  << "\n";
     return false;
   }
   if (!expectRVVObjectExporterShape(
           registry, "extension bundle frontdoor RVV object exporter"))
+    return false;
+  if (!expectRVVHeaderCompositeExporterShape(
+          registry, "extension bundle frontdoor RVV header exporter"))
     return false;
 
   return true;
@@ -565,15 +636,19 @@ bool expectOffloadTargetArtifactExportersAbsent() {
                      "register all built-in target exporters after offload "
                      "executable route erasure"))
     return false;
-  if (allRegistry.size() != 1 || allRegistry.compositeSize() != 0) {
+  if (allRegistry.size() != 1 || allRegistry.compositeSize() != 1) {
     llvm::errs() << "built-in target exporters should publish only the RVV "
-                    "object route after Offload erasure, got standalone="
+                    "object route and callable header route after Offload "
+                    "erasure, got standalone="
                  << allRegistry.size() << " composite="
                  << allRegistry.compositeSize() << "\n";
     return false;
   }
   if (!expectRVVObjectExporterShape(
           allRegistry, "all built-in plugin RVV object exporter"))
+    return false;
+  if (!expectRVVHeaderCompositeExporterShape(
+          allRegistry, "all built-in plugin RVV header exporter"))
     return false;
   if (allRegistry.lookup("offload-runtime-callable-c-source")) {
     llvm::errs() << "Offload direct source artifact route was restored\n";
@@ -638,15 +713,19 @@ bool expectRVVTargetSupportBundleExtractionRegistration() {
                      "populate RVV target-support exporters"))
     return false;
 
-  if (registry.size() != 1 || registry.compositeSize() != 0) {
+  if (registry.size() != 1 || registry.compositeSize() != 1) {
     llvm::errs() << "RVV target-support exporter bundle should register one "
-                    "object route, got standalone="
+                    "object route and one callable header composite, got "
+                    "standalone="
                  << registry.size() << " composite=" << registry.compositeSize()
                  << "\n";
     return false;
   }
   if (!expectRVVObjectExporterShape(
           registry, "RVV target-support populated object exporter"))
+    return false;
+  if (!expectRVVHeaderCompositeExporterShape(
+          registry, "RVV target-support populated header exporter"))
     return false;
 
   ExtensionPluginRegistry rvvOnlyPlugins;
@@ -659,7 +738,7 @@ bool expectRVVTargetSupportBundleExtractionRegistration() {
                          rvvOnlyPlugins, rvvOnlyRegistry),
                      "populate RVV-only target-support exporters"))
     return false;
-  if (rvvOnlyRegistry.size() != 1 || rvvOnlyRegistry.compositeSize() != 0) {
+  if (rvvOnlyRegistry.size() != 1 || rvvOnlyRegistry.compositeSize() != 1) {
     llvm::errs() << "RVV target-support route should not depend on scalar; got "
                     "standalone="
                  << rvvOnlyRegistry.size() << " composite="
@@ -668,6 +747,9 @@ bool expectRVVTargetSupportBundleExtractionRegistration() {
   }
   if (!expectRVVObjectExporterShape(
           rvvOnlyRegistry, "RVV-only target-support object exporter"))
+    return false;
+  if (!expectRVVHeaderCompositeExporterShape(
+          rvvOnlyRegistry, "RVV-only target-support header exporter"))
     return false;
 
   return true;
@@ -696,9 +778,10 @@ bool expectRVVPluginManifestTargetSupportActivation() {
           "activate RVV target translate routes through plugin manifest hook"))
     return false;
 
-  if (pluginRoutes.size() != 2) {
+  if (pluginRoutes.size() != 3) {
     llvm::errs() << "RVV plugin manifest hook should publish the materialized "
-                    "EmitC handoff route and object artifact route, got "
+                    "EmitC handoff, object artifact, and callable header "
+                    "routes, got "
                  << pluginRoutes.size() << "\n";
     return false;
   }
@@ -711,15 +794,20 @@ bool expectRVVPluginManifestTargetSupportActivation() {
           /*expectedBinaryStdout=*/true, "RISC-V relocatable object",
           tianchenrv::target::rvv::getRVVI32M1AddObjectArtifactRouteID()))
     return false;
+  if (!expectTranslateRoute(
+          pluginRoutes, "tcrv-rvv-i32m1-add-header",
+          /*expectedBinaryStdout=*/false, "callable C header",
+          tianchenrv::target::rvv::getRVVI32M1AddHeaderArtifactRouteID()))
+    return false;
 
   TargetTranslateRouteRegistry builtinRoutes;
   if (!expectSuccess(registerBuiltinTargetTranslateRoutes(builtinRoutes),
                      "register built-in target translate routes through "
                      "generic plugin manifest aggregation"))
     return false;
-  if (builtinRoutes.size() != 2) {
+  if (builtinRoutes.size() != 3) {
     llvm::errs() << "built-in target translate route aggregation did not "
-                    "publish both RVV target translate routes, got "
+                    "publish all RVV target translate routes, got "
                  << builtinRoutes.size() << "\n";
     return false;
   }
@@ -731,6 +819,11 @@ bool expectRVVPluginManifestTargetSupportActivation() {
           builtinRoutes, "tcrv-rvv-i32m1-add-object",
           /*expectedBinaryStdout=*/true, "RISC-V relocatable object",
           tianchenrv::target::rvv::getRVVI32M1AddObjectArtifactRouteID()))
+    return false;
+  if (!expectTranslateRoute(
+          builtinRoutes, "tcrv-rvv-i32m1-add-header",
+          /*expectedBinaryStdout=*/false, "callable C header",
+          tianchenrv::target::rvv::getRVVI32M1AddHeaderArtifactRouteID()))
     return false;
 
   return true;
@@ -913,9 +1006,10 @@ bool expectTargetTranslateRouteRegistryShape() {
   if (!expectSuccess(registerBuiltinTargetTranslateRoutes(builtinRoutes),
                      "register built-in target translate routes"))
     return false;
-  if (builtinRoutes.size() != 2) {
+  if (builtinRoutes.size() != 3) {
     llvm::errs() << "built-in target translate routes did not expose the "
-                    "materialized EmitC handoff and object routes, got "
+                    "materialized EmitC handoff, object, and header routes, "
+                    "got "
                  << builtinRoutes.size() << "\n";
     return false;
   }
@@ -927,6 +1021,11 @@ bool expectTargetTranslateRouteRegistryShape() {
           builtinRoutes, "tcrv-rvv-i32m1-add-object",
           /*expectedBinaryStdout=*/true, "RISC-V relocatable object",
           tianchenrv::target::rvv::getRVVI32M1AddObjectArtifactRouteID()))
+    return false;
+  if (!expectTranslateRoute(
+          builtinRoutes, "tcrv-rvv-i32m1-add-header",
+          /*expectedBinaryStdout=*/false, "callable C header",
+          tianchenrv::target::rvv::getRVVI32M1AddHeaderArtifactRouteID()))
     return false;
   return expectSuccess(
       registerBuiltinTargetTranslateRoutes(builtinRoutes),
@@ -1745,9 +1844,9 @@ int main() {
                  << builtinRegistry.size() << "\n";
     return 1;
   }
-  if (builtinRegistry.compositeSize() != 0) {
-    llvm::errs() << "expected no built-in composite target artifact routes, "
-                    "got "
+  if (builtinRegistry.compositeSize() != 1) {
+    llvm::errs() << "expected one built-in callable header composite target "
+                    "artifact route, got "
                  << builtinRegistry.compositeSize() << "\n";
     return 1;
   }
@@ -1755,8 +1854,11 @@ int main() {
                      "re-registering built-in exporters remains a no-op"))
     return 1;
   if (builtinRegistry.size() != 1 ||
+      builtinRegistry.compositeSize() != 1 ||
       !expectRVVObjectExporterShape(builtinRegistry,
-                                    "final built-in RVV object exporter"))
+                                    "final built-in RVV object exporter") ||
+      !expectRVVHeaderCompositeExporterShape(
+          builtinRegistry, "final built-in RVV header exporter"))
     return 1;
 
   return 0;

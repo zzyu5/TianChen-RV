@@ -39,8 +39,12 @@ constexpr llvm::StringLiteral kRVVEmitCToCppRouteID(
     "tcrv-rvv-emitc-to-cpp");
 constexpr llvm::StringLiteral kRVVI32M1AddObjectArtifactRouteID(
     "tcrv-rvv-i32m1-add-riscv-elf-object");
+constexpr llvm::StringLiteral kRVVI32M1AddHeaderArtifactRouteID(
+    "tcrv-rvv-i32m1-add-callable-c-header");
 constexpr llvm::StringLiteral kRVVI32M1AddObjectTranslateRouteID(
     "tcrv-rvv-i32m1-add-object");
+constexpr llvm::StringLiteral kRVVI32M1AddHeaderTranslateRouteID(
+    "tcrv-rvv-i32m1-add-header");
 constexpr llvm::StringLiteral kRVVI32M1AddEmitCRouteID(
     "rvv-i32m1-add-emitc-route");
 constexpr llvm::StringLiteral kRVVI32M1AddEmissionKind(
@@ -51,8 +55,12 @@ constexpr llvm::StringLiteral kRVVI32M1AddRuntimeGlueRole(
     "emitc-cpp-rvv-intrinsic-runtime-glue");
 constexpr llvm::StringLiteral kRVVI32M1AddObjectArtifactKind(
     "riscv-elf-relocatable-object");
+constexpr llvm::StringLiteral kRVVI32M1AddHeaderArtifactKind(
+    "runtime-callable-c-header");
 constexpr llvm::StringLiteral kRVVI32M1AddObjectHandoffKind(
     "materialized-emitc-cpp-to-riscv-elf-object");
+constexpr llvm::StringLiteral kRVVI32M1AddCallableComponentGroup(
+    "rvv-i32m1-add-callable-artifact-bundle.v1");
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
     "TCRVEmitCLowerableOpInterface");
 
@@ -337,6 +345,19 @@ std::string makeEmitCFunctionName(tcrv::exec::KernelOp kernel,
   return name;
 }
 
+std::string makeHeaderGuard(llvm::StringRef functionName) {
+  std::string guard("TIANCHENRV_RVV_I32M1_ADD_CALLABLE_");
+  for (char c : functionName) {
+    unsigned char byte = static_cast<unsigned char>(c);
+    if (std::isalnum(byte))
+      guard.push_back(static_cast<char>(std::toupper(byte)));
+    else
+      guard.push_back('_');
+  }
+  guard.append("_H");
+  return guard;
+}
+
 struct DirectVariantTarget {
   tcrv::exec::KernelOp kernel;
   tcrv::exec::VariantOp variant;
@@ -390,6 +411,30 @@ materializeRVVI32M1AddEmitCModule(mlir::ModuleOp module) {
   options.functionName = makeEmitCFunctionName(target->kernel, target->variant);
   return conversion::emitc::materializeTCRVEmitCLowerableRoute(
       *module.getContext(), route, options);
+}
+
+llvm::Expected<std::string>
+getValidatedRVVI32M1AddCallableFunctionName(mlir::ModuleOp module) {
+  llvm::Expected<DirectVariantTarget> target =
+      findSingleDirectVariantTarget(module);
+  if (!target)
+    return target.takeError();
+
+  llvm::Expected<support::TargetCapabilitySet> capabilities =
+      support::TargetCapabilitySet::buildFromKernelChecked(target->kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+
+  conversion::emitc::TCRVEmitCLowerableRoute route;
+  plugin::VariantEmitCLowerableRequest request(
+      target->variant, target->kernel, *capabilities,
+      plugin::VariantEmissionRole::DirectVariant);
+  if (llvm::Error error = buildRVVI32M1AddEmitCLowerableRoute(request, route))
+    return std::move(error);
+  if (llvm::Error error = route.verify())
+    return std::move(error);
+
+  return makeEmitCFunctionName(target->kernel, target->variant);
 }
 
 llvm::Error requireMaterializedEmitCModule(mlir::ModuleOp module) {
@@ -659,6 +704,55 @@ llvm::Error exportRVVI32M1AddObjectArtifact(mlir::ModuleOp module,
   return llvm::Error::success();
 }
 
+llvm::Error exportRVVI32M1AddCallableHeaderArtifact(mlir::ModuleOp module,
+                                                    llvm::raw_ostream &os) {
+  llvm::Expected<std::string> functionName =
+      getValidatedRVVI32M1AddCallableFunctionName(module);
+  if (!functionName)
+    return functionName.takeError();
+
+  std::string guard = makeHeaderGuard(*functionName);
+  os << "#ifndef " << guard << "\n";
+  os << "#define " << guard << "\n\n";
+  os << "#include <stddef.h>\n";
+  os << "#include <stdint.h>\n\n";
+  os << "#ifdef __cplusplus\n";
+  os << "extern \"C\" {\n";
+  os << "#endif\n\n";
+  os << "/* tianchenrv.runtime_abi_name: " << kRVVI32M1AddRuntimeABIName
+     << " */\n";
+  os << "/* tianchenrv.runtime_glue_role: "
+     << kRVVI32M1AddRuntimeGlueRole << " */\n";
+  os << "/* tianchenrv.object_route: "
+     << kRVVI32M1AddObjectArtifactRouteID << " */\n";
+  os << "/* tianchenrv.header_route: "
+     << kRVVI32M1AddHeaderArtifactRouteID << " */\n";
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters =
+      getRVVI32M1AddRuntimeABIParameters();
+  for (auto [index, parameter] : llvm::enumerate(parameters)) {
+    os << "/* tianchenrv.runtime_abi_parameter[" << index << "]: "
+       << parameter.cName << " : " << parameter.cType << " : "
+       << support::stringifyRuntimeABIParameterRole(parameter.role) << " */\n";
+  }
+
+  os << "void " << *functionName << "(";
+  for (auto [index, parameter] : llvm::enumerate(parameters)) {
+    if (index != 0)
+      os << ", ";
+    os << parameter.cType;
+    llvm::StringRef cType(parameter.cType);
+    if (!cType.ends_with("*") && !cType.ends_with("&"))
+      os << " ";
+    os << parameter.cName;
+  }
+  os << ");\n\n";
+  os << "#ifdef __cplusplus\n";
+  os << "}\n";
+  os << "#endif\n\n";
+  os << "#endif /* " << guard << " */\n";
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVI32M1AddObjectCandidate(
     const TargetArtifactCandidate &candidate) {
   if (candidate.runtimeABIKind != "plugin-owned-runtime-abi")
@@ -681,23 +775,68 @@ llvm::Error validateRVVI32M1AddObjectCandidate(
   return llvm::Error::success();
 }
 
+llvm::Expected<bool> matchRVVI32M1AddCallableHeaderBundle(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  if (candidates.size() != 1)
+    return false;
+  const TargetArtifactCandidate &candidate = candidates.front();
+  return candidate.routeID == kRVVI32M1AddObjectArtifactRouteID &&
+         candidate.artifactKind == kRVVI32M1AddObjectArtifactKind &&
+         candidate.origin == kRVVPluginName;
+}
+
+llvm::Error validateRVVI32M1AddCallableHeaderBundle(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  if (candidates.size() != 1)
+    return makeRVVObjectRouteError(
+        "callable header bundle route requires exactly one RVV i32m1 add "
+        "object candidate");
+  const TargetArtifactCandidate &candidate = candidates.front();
+  if (candidate.routeID != kRVVI32M1AddObjectArtifactRouteID)
+    return makeRVVObjectRouteError(
+        llvm::Twine("callable header bundle route requires object route '") +
+        kRVVI32M1AddObjectArtifactRouteID + "'");
+  if (candidate.artifactKind != kRVVI32M1AddObjectArtifactKind)
+    return makeRVVObjectRouteError(
+        llvm::Twine("callable header bundle route requires artifact_kind '") +
+        kRVVI32M1AddObjectArtifactKind + "'");
+  return validateRVVI32M1AddObjectCandidate(candidate);
+}
+
 llvm::Error registerRVVI32M1AddObjectExporter(
     TargetArtifactExporterRegistry &registry) {
-  if (registry.lookup(kRVVI32M1AddObjectArtifactRouteID))
-    return llvm::Error::success();
   llvm::SmallVector<support::RuntimeABIParameter, 4> parameters =
       getRVVI32M1AddRuntimeABIParameters();
-  return registry.registerExporter(TargetArtifactExporter(
-      kRVVI32M1AddObjectArtifactRouteID, kRVVI32M1AddObjectArtifactKind,
-      kRVVPluginName, kRVVI32M1AddEmissionKind,
-      exportRVVI32M1AddObjectArtifact, parameters,
-      kRVVI32M1AddObjectHandoffKind, validateRVVI32M1AddObjectCandidate));
+  if (!registry.lookup(kRVVI32M1AddObjectArtifactRouteID)) {
+    if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
+            kRVVI32M1AddObjectArtifactRouteID, kRVVI32M1AddObjectArtifactKind,
+            kRVVPluginName, kRVVI32M1AddEmissionKind,
+            exportRVVI32M1AddObjectArtifact, parameters,
+            kRVVI32M1AddObjectHandoffKind, validateRVVI32M1AddObjectCandidate,
+            kRVVI32M1AddCallableComponentGroup,
+            kRVVI32M1AddRuntimeABIName)))
+      return error;
+  }
+
+  if (registry.lookupComposite(kRVVI32M1AddHeaderArtifactRouteID))
+    return llvm::Error::success();
+  return registry.registerCompositeExporter(TargetArtifactCompositeExporter(
+      kRVVI32M1AddHeaderArtifactRouteID, kRVVI32M1AddHeaderArtifactKind,
+      matchRVVI32M1AddCallableHeaderBundle,
+      exportRVVI32M1AddCallableHeaderArtifact, kRVVPluginName,
+      "plugin-owned-runtime-abi", kRVVI32M1AddRuntimeABIName, parameters,
+      kRVVI32M1AddCallableComponentGroup, kRVVI32M1AddRuntimeABIName,
+      validateRVVI32M1AddCallableHeaderBundle));
 }
 
 } // namespace
 
 llvm::StringRef getRVVI32M1AddObjectArtifactRouteID() {
   return kRVVI32M1AddObjectArtifactRouteID;
+}
+
+llvm::StringRef getRVVI32M1AddHeaderArtifactRouteID() {
+  return kRVVI32M1AddHeaderArtifactRouteID;
 }
 
 llvm::StringRef getRVVI32M1AddEmissionKind() {
@@ -710,6 +849,10 @@ llvm::StringRef getRVVI32M1AddRuntimeABIName() {
 
 llvm::StringRef getRVVI32M1AddRuntimeGlueRole() {
   return kRVVI32M1AddRuntimeGlueRole;
+}
+
+llvm::StringRef getRVVI32M1AddCallableComponentGroup() {
+  return kRVVI32M1AddCallableComponentGroup;
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 4>
@@ -829,6 +972,17 @@ configureRVVTargetSupportExtensionBundle(ExtensionBundle &bundle) {
 
 llvm::Error registerRVVTargetSupportTargetTranslateRoutes(
     TargetTranslateRouteRegistry &registry) {
+  auto registerHeaderRoute = [&registry]() -> llvm::Error {
+    if (registry.lookup(kRVVI32M1AddHeaderTranslateRouteID))
+      return llvm::Error::success();
+    return registry.registerRoute(TargetTranslateRoute(
+        kRVVI32M1AddHeaderTranslateRouteID,
+        "export a selected RVV i32m1 add callable C header for the generated "
+        "RISC-V relocatable object ABI",
+        exportRVVI32M1AddCallableHeaderArtifact,
+        /*requiresBinaryStdout=*/false, kRVVI32M1AddHeaderArtifactRouteID));
+  };
+
   if (!registry.lookup(kRVVEmitCToCppRouteID)) {
     if (llvm::Error error = registry.registerRoute(TargetTranslateRoute(
             kRVVEmitCToCppRouteID,
@@ -838,13 +992,15 @@ llvm::Error registerRVVTargetSupportTargetTranslateRoutes(
       return error;
   }
   if (registry.lookup(kRVVI32M1AddObjectTranslateRouteID))
-    return llvm::Error::success();
-  return registry.registerRoute(TargetTranslateRoute(
+    return registerHeaderRoute();
+  if (llvm::Error error = registry.registerRoute(TargetTranslateRoute(
       kRVVI32M1AddObjectTranslateRouteID,
       "export a selected RVV i32m1 add path through EmitC, the MLIR EmitC "
       "C/C++ emitter, and clang RISC-V relocatable object compilation",
       exportRVVI32M1AddObjectArtifact,
-      /*requiresBinaryStdout=*/true, kRVVI32M1AddObjectArtifactRouteID));
+      /*requiresBinaryStdout=*/true, kRVVI32M1AddObjectArtifactRouteID)))
+    return error;
+  return registerHeaderRoute();
 }
 
 } // namespace tianchenrv::target::rvv

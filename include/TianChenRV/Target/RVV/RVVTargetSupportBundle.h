@@ -24,9 +24,11 @@ class VariantEmitCLowerableRequest;
 namespace tianchenrv::target::rvv {
 
 llvm::StringRef getRVVI32M1AddObjectArtifactRouteID();
+llvm::StringRef getRVVI32M1AddHeaderArtifactRouteID();
 llvm::StringRef getRVVI32M1AddEmissionKind();
 llvm::StringRef getRVVI32M1AddRuntimeABIName();
 llvm::StringRef getRVVI32M1AddRuntimeGlueRole();
+llvm::StringRef getRVVI32M1AddCallableComponentGroup();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVI32M1AddRuntimeABIParameters();
 

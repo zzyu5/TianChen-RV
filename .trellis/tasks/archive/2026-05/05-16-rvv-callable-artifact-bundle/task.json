@@ -1,0 +1,31 @@
+{
+  "id": "rvv-callable-artifact-bundle",
+  "name": "rvv-callable-artifact-bundle",
+  "title": "RVV callable artifact bundle with ssh rvv correctness evidence",
+  "description": "Package the existing bounded RVV i32m1 add object route with its declared callable C ABI, then link and run a minimal correctness harness on ssh rvv.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "RVV first-slice runtime ABI packaging and real-hardware correctness",
+  "package": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-16",
+  "completedAt": "2026-05-16",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".trellis/spec/lowering-runtime/emitc-route.md",
+    ".trellis/spec/lowering-runtime/emission-runtime-contract.md",
+    ".trellis/spec/extension-plugins/rvv-plugin.md",
+    ".trellis/spec/testing/mlir-testing-contract.md"
+  ],
+  "notes": "Created from Hermes direction brief. Current HEAD dc96794 already exports a bounded RVV i32m1 add RISC-V relocatable object through explicit RVV ops -> EmitC -> MLIR C/C++ emitter -> clang. This task adds the callable ABI surface/bundle and real ssh rvv correctness evidence without restoring descriptor/direct-C/source-export authority.",
+  "meta": {}
+}

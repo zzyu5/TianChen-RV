@@ -5,6 +5,61 @@
 
 ---
 
+## Session 89: RVV callable artifact bundle ssh evidence
+
+**Date**: 2026-05-16
+**Task**: RVV callable artifact bundle with ssh rvv correctness evidence
+**Branch**: `main`
+
+### Summary
+
+Packaged the bounded RVV i32m1 add object route with a runtime-callable C
+header and bundle component metadata, then linked and ran an external caller on
+`ssh rvv` through the declared ABI. The remote result was `PASS` for `n = 4`
+with expected `[8,4,1000,42]` and actual `[8,4,1000,42]`.
+
+### Main Changes
+
+- Added an RVV-owned `runtime-callable-c-header` composite artifact route
+  paired with the existing `riscv-elf-relocatable-object` route.
+- Added a shared bundle component group
+  `rvv-i32m1-add-callable-artifact-bundle.v1` and preserved matching
+  `external_abi_name`, runtime ABI kind/name, and ordered parameters
+  `lhs`, `rhs`, `out`, `n` on the object and header records.
+- Added exact translate route `tcrv-rvv-i32m1-add-header` while keeping the
+  default generic artifact front door on the object route.
+- Extended focused lit/C++ coverage for header export, bundle index metadata,
+  object bytes, and unsupported-shape fail-closed diagnostics.
+
+### Evidence
+
+- [OK] Remote host: `ssh rvv`, `riscv64`, Linux `6.12.23`, clang `18.1.3`.
+- [OK] Remote link:
+  `clang -march=rv64gcv -mabi=lp64d rvv_i32m1_add_harness.c artifact-0-riscv-elf-relocatable-object-tcrv-rvv-i32m1-add-riscv-elf-object.o -o rvv_i32m1_add_harness`
+- [OK] Remote run:
+  `rvv_i32m1_add_callable n=4 expected=[8,4,1000,42] actual=[8,4,1000,42] status=PASS`
+- Evidence log:
+  `artifacts/tmp/rvv_i32m1_add_callable_bundle/20260516T075151Z/ssh_rvv_link_run.log`
+
+### Testing
+
+- [OK] `cmake --build build --target TianChenRVRVVTarget TianChenRVTarget tcrv-translate tcrv-opt tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'Target/RVV/i32m1'` from `build/test`
+- [OK] `ninja -C build check-tianchenrv` (78/78 lit tests)
+- [OK] Real `ssh rvv` link/run evidence for the generated header/object bundle
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-16-rvv-callable-artifact-bundle`
+- [OK] Changed-surface scan found only pre-existing negative descriptor/direct-source guards and task-boundary text; no descriptor/direct-C/source-export production route was added.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
 
 
 ## Session 76: Delete support-layer I32 RVV runtime ABI residue
