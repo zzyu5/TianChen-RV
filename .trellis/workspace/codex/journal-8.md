@@ -56,6 +56,64 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 99: Common extension target artifact bundle registration seam
+
+**Date**: 2026-05-17
+**Task**: Common extension target artifact bundle registration seam
+**Branch**: `main`
+
+### Summary
+
+Moved plugin-owned target artifact exporter bundle discovery behind the common
+extension-bundle front door so built-in target exporter registration no longer
+directly includes or calls extension target-support bundle helpers.
+
+### Main Changes
+
+- Added a reusable
+  `ExtensionBundleRegistry::registerTargetArtifactExporterBundles` seam and
+  rewired enabled-plugin target exporter registration through it.
+- Collapsed built-in extension bundle registration to one generic manifest
+  spec list, with target-support metadata coming from plugin manifest hooks.
+- Moved TensorExtLite target-support bundle configuration into the
+  TensorExtLite plugin hook, and moved Offload/Template required dialect bundle
+  metadata into their plugin hooks.
+- Split TensorExtLite construction protocol and EmitC route provider sources
+  into dedicated CMake sublibraries so TensorExtLite target support can depend
+  on route providers without depending on the full TensorExtLite plugin.
+- Added C++ coverage proving RVV/TensorExtLite plugin-owned target exporter
+  bundles are collected through the common front door, Toy/Template/Offload/
+  Scalar remain no-route where expected, and invalid plugin exporter bundle
+  registration fails closed with generic diagnostics.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-tensorext-lite-extension-plugin-test tianchenrv-rvv-extension-plugin-test tcrv-translate -j2`.
+- [OK] Focused C++ tests:
+  `./build/bin/tianchenrv-target-artifact-export-test`,
+  `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`, and
+  `./build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused lit target artifact routes: 8/8 passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`: 100/100 lit
+  tests passed.
+- [OK] `git diff --check`.
+- [OK] Trellis validation:
+  `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-17-common-extension-target-artifact-bundle-registration-seam`.
+- [OK] Targeted scans: no extension target-support header/direct helper calls
+  remain in built-in target exporter code; descriptor/direct-C/source-export
+  matches are negative tests or deletion-rule checks.
+- [WARN] `clang-format` was not available in PATH.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 99: TensorExtLite materialized EmitC target artifact bridge
 
 **Date**: 2026-05-17

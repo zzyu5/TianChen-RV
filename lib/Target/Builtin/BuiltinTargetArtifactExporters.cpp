@@ -7,7 +7,6 @@
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
-#include "TianChenRV/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "llvm/ADT/Twine.h"
@@ -31,6 +30,21 @@ llvm::Error registerBuiltinNonPluginTargetArtifactExporters(
   (void)registry;
   return llvm::Error::success();
 }
+
+struct BuiltinExtensionBundleSpec {
+  llvm::StringLiteral bundleID;
+  ExtensionPluginRegistrationFn registrationFn = nullptr;
+};
+
+constexpr BuiltinExtensionBundleSpec kBuiltinExtensionBundles[] = {
+    {"rvv-extension-bundle", plugin::registerRVVExtensionPlugin},
+    {"offload-extension-bundle", plugin::registerOffloadExtensionPlugin},
+    {"toy-extension-bundle", plugin::registerToyExtensionPlugin},
+    {"template-extension-bundle", plugin::registerTemplateExtensionPlugin},
+    {"tensorext-lite-extension-bundle",
+     plugin::registerTensorExtLiteExtensionPlugin},
+    {"scalar-extension-bundle", plugin::registerScalarExtensionPlugin},
+};
 
 llvm::Expected<const plugin::ExtensionPlugin *>
 registerSingleManifestPlugin(ExtensionPluginRegistrationFn registrationFn,
@@ -66,66 +80,15 @@ llvm::Error registerManifestOwnedExtensionBundle(
   return registry.registerBundle(bundle);
 }
 
-llvm::Error registerOffloadExtensionBundle(
-    ExtensionBundleRegistry &registry) {
-  ExtensionBundle bundle("offload-extension-bundle",
-                         plugin::offload::getOffloadExtensionPluginName(),
-                         plugin::registerOffloadExtensionPlugin);
-  bundle.addRequiredDialectName("tcrv_offload");
-  return registry.registerBundle(bundle);
-}
-
-llvm::Error registerToyExtensionBundle(ExtensionBundleRegistry &registry) {
-  return registerManifestOwnedExtensionBundle(
-      registry, "toy-extension-bundle", plugin::registerToyExtensionPlugin);
-}
-
-llvm::Error registerTemplateExtensionBundle(
-    ExtensionBundleRegistry &registry) {
-  ExtensionBundle bundle(
-      "template-extension-bundle",
-      plugin::template_ext::getTemplateExtensionPluginName(),
-      plugin::registerTemplateExtensionPlugin);
-  bundle.addRequiredDialectName("tcrv_template");
-  return registry.registerBundle(bundle);
-}
-
-llvm::Error registerTensorExtLiteExtensionBundle(
-    ExtensionBundleRegistry &registry) {
-  ExtensionBundle bundle(
-      "tensorext-lite-extension-bundle",
-      plugin::tensorext_lite::getTensorExtLiteExtensionPluginName(),
-      plugin::registerTensorExtLiteExtensionPlugin);
-  bundle.addRequiredDialectName("tcrv_tensorext_lite");
-  if (llvm::Error error =
-          tensorext_lite::configureTensorExtLiteTargetSupportExtensionBundle(
-              bundle))
-    return error;
-  return registry.registerBundle(bundle);
-}
-
-llvm::Error registerScalarExtensionBundle(ExtensionBundleRegistry &registry) {
-  ExtensionBundle bundle("scalar-extension-bundle",
-                         plugin::scalar::getScalarExtensionPluginName(),
-                         plugin::registerScalarExtensionPlugin);
-  return registry.registerBundle(bundle);
-}
-
 } // namespace
 
 llvm::Error registerBuiltinExtensionBundles(ExtensionBundleRegistry &registry) {
-  if (llvm::Error error = registerManifestOwnedExtensionBundle(
-          registry, "rvv-extension-bundle", plugin::registerRVVExtensionPlugin))
-    return error;
-  if (llvm::Error error = registerOffloadExtensionBundle(registry))
-    return error;
-  if (llvm::Error error = registerToyExtensionBundle(registry))
-    return error;
-  if (llvm::Error error = registerTemplateExtensionBundle(registry))
-    return error;
-  if (llvm::Error error = registerTensorExtLiteExtensionBundle(registry))
-    return error;
-  return registerScalarExtensionBundle(registry);
+  for (const BuiltinExtensionBundleSpec &spec : kBuiltinExtensionBundles) {
+    if (llvm::Error error = registerManifestOwnedExtensionBundle(
+            registry, spec.bundleID, spec.registrationFn))
+      return error;
+  }
+  return llvm::Error::success();
 }
 
 llvm::Error registerBuiltinExtensionBundlePlugins(

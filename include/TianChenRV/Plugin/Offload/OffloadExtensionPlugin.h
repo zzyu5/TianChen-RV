@@ -47,6 +47,9 @@ public:
   llvm::Error materializeSelectedLoweringBoundary(
       const VariantLoweringBoundaryRequest &request,
       VariantLoweringBoundaryResult &out) const override;
+  llvm::Error
+  configureTargetSupportExtensionBundle(target::ExtensionBundle &bundle)
+      const override;
 
 private:
   llvm::SmallVector<PluginCapability, 1> capabilities;

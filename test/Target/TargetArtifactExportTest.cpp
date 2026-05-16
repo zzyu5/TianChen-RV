@@ -208,6 +208,12 @@ llvm::Error registerDuplicateTestLocalPluginTargetExporterBundle(
       registerDuplicateTestLocalTargetExporters));
 }
 
+llvm::Error registerInvalidTestLocalPluginTargetExporterBundle(
+    PluginTargetArtifactExporterRegistry &registry) {
+  return registry.registerBundle(PluginTargetArtifactExporterBundle(
+      /*pluginName=*/{}, registerNoMetadataTestLocalTargetExporter));
+}
+
 llvm::Expected<bool>
 neverMatchComposite(llvm::ArrayRef<TargetArtifactCandidate>) {
   return false;
@@ -949,6 +955,37 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
     return false;
   }
 
+  PluginTargetArtifactExporterRegistry pluginExporterBundles;
+  if (!expectSuccess(
+          bundles.registerTargetArtifactExporterBundles(pluginExporterBundles),
+          "collect built-in plugin-owned target artifact exporter bundles "
+          "through extension bundle frontdoor"))
+    return false;
+  if (pluginExporterBundles.size() != 2) {
+    llvm::errs() << "built-in extension bundle frontdoor should publish only "
+                    "RVV and TensorExtLite target artifact exporter bundles, "
+                    "got "
+                 << pluginExporterBundles.size() << "\n";
+    return false;
+  }
+  if (!pluginExporterBundles.lookup(
+          tianchenrv::plugin::rvv::getRVVExtensionPluginName()) ||
+      !pluginExporterBundles.lookup(
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteExtensionPluginName()) ||
+      pluginExporterBundles.lookup(
+          tianchenrv::plugin::toy::getToyExtensionPluginName()) ||
+      pluginExporterBundles.lookup(tianchenrv::plugin::template_ext::
+                                       getTemplateExtensionPluginName()) ||
+      pluginExporterBundles.lookup(
+          tianchenrv::plugin::offload::getOffloadExtensionPluginName()) ||
+      pluginExporterBundles.lookup(
+          tianchenrv::plugin::scalar::getScalarExtensionPluginName())) {
+    llvm::errs() << "plugin-owned target artifact exporter bundle frontdoor "
+                    "did not preserve the current rebuilt route set\n";
+    return false;
+  }
+
   TargetArtifactExporterRegistry registry;
   if (!expectSuccess(
           bundles.registerTargetArtifactExportersForEnabledPlugins(plugins,
@@ -1079,6 +1116,29 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
                       "required target artifact descriptor authority\n";
       return false;
     }
+  }
+
+  {
+    ExtensionBundleRegistry bundles;
+    ExtensionBundle invalidPluginExporterBundle(
+        "test-local-invalid-plugin-exporter-bundle",
+        tianchenrv::plugin::toy::getToyExtensionPluginName(),
+        tianchenrv::plugin::registerToyExtensionPlugin);
+    invalidPluginExporterBundle.setTargetArtifactExporterBundleRegistrationFn(
+        registerInvalidTestLocalPluginTargetExporterBundle);
+    if (!expectSuccess(bundles.registerBundle(invalidPluginExporterBundle),
+                       "register invalid plugin-exporter bundle holder"))
+      return false;
+
+    PluginTargetArtifactExporterRegistry pluginExporters;
+    if (!expectErrorContains(
+            bundles.registerTargetArtifactExporterBundles(pluginExporters),
+            "invalid plugin target exporter bundle rejected through "
+            "extension bundle frontdoor",
+            {"test-local-invalid-plugin-exporter-bundle",
+             "plugin-owned target exporter bundle plugin name must be "
+             "non-empty"}))
+      return false;
   }
 
   {

@@ -8,7 +8,8 @@ add_mlir_library(TianChenRVTensorExtLiteTarget
   TianChenRVSupport
   TianChenRVTarget
   TianChenRVTensorExtLiteDialect
-  TianChenRVTensorExtLitePlugin
+  TianChenRVTensorExtLiteConstructionProtocol
+  TianChenRVTensorExtLiteEmitCRouteProvider
   MLIREmitCDialect
   MLIRIR
   MLIRSupport

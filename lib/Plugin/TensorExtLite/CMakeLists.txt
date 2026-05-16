@@ -1,14 +1,17 @@
+add_subdirectory(Construction)
+add_subdirectory(EmitC)
+
 add_mlir_library(TianChenRVTensorExtLitePlugin
-  TensorExtLiteConstructionProtocol.cpp
-  TensorExtLiteEmitCRouteProvider.cpp
   TensorExtLiteExtensionPlugin.cpp
 
   LINK_LIBS PUBLIC
   TianChenRVConversionEmitC
   TianChenRVPlugin
-  TianChenRVPluginConstructionProtocol
   TianChenRVSupport
+  TianChenRVTensorExtLiteConstructionProtocol
   TianChenRVTensorExtLiteDialect
+  TianChenRVTensorExtLiteEmitCRouteProvider
+  TianChenRVTensorExtLiteTarget
   MLIRIR
   MLIRSupport
 )

@@ -4,6 +4,8 @@
 #include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteEmitCRouteProvider.h"
+#include "TianChenRV/Target/TargetArtifactExport.h"
+#include "TianChenRV/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -799,6 +801,14 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmitCLowerableRoute(
 
   return tensorext_lite::buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
       request, out);
+}
+
+llvm::Error
+TensorExtLiteExtensionPlugin::configureTargetSupportExtensionBundle(
+    target::ExtensionBundle &bundle) const {
+  bundle.addRequiredDialectName("tcrv_tensorext_lite");
+  return target::tensorext_lite::
+      configureTensorExtLiteTargetSupportExtensionBundle(bundle);
 }
 
 } // namespace tensorext_lite

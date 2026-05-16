@@ -52,6 +52,9 @@ public:
   llvm::Error buildVariantEmitCLowerableRoute(
       const VariantEmitCLowerableRequest &request,
       conversion::emitc::TCRVEmitCLowerableRoute &out) const override;
+  llvm::Error
+  configureTargetSupportExtensionBundle(target::ExtensionBundle &bundle)
+      const override;
 
 private:
   llvm::SmallVector<PluginCapability, 1> capabilities;

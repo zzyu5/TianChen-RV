@@ -373,6 +373,9 @@ public:
   llvm::Error
   registerExtensionPlugins(plugin::ExtensionPluginRegistry &plugins) const;
 
+  llvm::Error registerTargetArtifactExporterBundles(
+      PluginTargetArtifactExporterRegistry &registry) const;
+
   llvm::Error registerTargetArtifactExportersForEnabledPlugins(
       const plugin::ExtensionPluginRegistry &plugins,
       TargetArtifactExporterRegistry &registry) const;

@@ -3126,17 +3126,15 @@ llvm::Error ExtensionBundleRegistry::registerExtensionPlugins(
 }
 
 llvm::Error ExtensionBundleRegistry::
-    registerTargetArtifactExportersForEnabledPlugins(
-        const plugin::ExtensionPluginRegistry &plugins,
-        TargetArtifactExporterRegistry &registry) const {
-  PluginTargetArtifactExporterRegistry pluginExporters;
+    registerTargetArtifactExporterBundles(
+        PluginTargetArtifactExporterRegistry &registry) const {
   for (const ExtensionBundle &bundle : bundles) {
     PluginTargetArtifactExporterBundleRegistrationFn registrationFn =
         bundle.getTargetArtifactExporterBundleRegistrationFn();
     if (!registrationFn)
       continue;
 
-    if (llvm::Error error = registrationFn(pluginExporters)) {
+    if (llvm::Error error = registrationFn(registry)) {
       std::string message = llvm::toString(std::move(error));
       return makeExtensionBundleRegistryError(
           llvm::Twine("extension bundle '") + bundle.getBundleID() +
@@ -3145,6 +3143,18 @@ llvm::Error ExtensionBundleRegistry::
           message);
     }
   }
+
+  return llvm::Error::success();
+}
+
+llvm::Error ExtensionBundleRegistry::
+    registerTargetArtifactExportersForEnabledPlugins(
+        const plugin::ExtensionPluginRegistry &plugins,
+        TargetArtifactExporterRegistry &registry) const {
+  PluginTargetArtifactExporterRegistry pluginExporters;
+  if (llvm::Error error =
+          registerTargetArtifactExporterBundles(pluginExporters))
+    return error;
 
   if (llvm::Error error =
           pluginExporters.registerExportersForEnabledPlugins(plugins,
