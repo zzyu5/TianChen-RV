@@ -1,0 +1,33 @@
+{
+  "id": "rvv-emitc-emitter-handoff",
+  "name": "rvv-emitc-emitter-handoff",
+  "title": "RVV EmitC to C/C++ emitter handoff",
+  "description": "Register a bounded RVV target translate route that hands an already materialized EmitC module to the MLIR EmitC C/C++ emitter.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-16",
+  "completedAt": "2026-05-16",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "lib/Target/RVV/RVVTargetSupportBundle.cpp",
+    "lib/Target/RVV/CMakeLists.txt",
+    "tools/tcrv-translate/tcrv-translate.cpp",
+    "test/Target/TargetArtifactExportTest.cpp",
+    "test/Target/RVV/emitc-to-cpp-handoff.mlir",
+    "test/Target/RVV/emitc-to-cpp-non-materialized.mlir"
+  ],
+  "notes": "Implemented RVV materialized EmitC-to-C++ translate route through MLIR EmitC emitter; focused route tests and check-tianchenrv passed.",
+  "meta": {}
+}

@@ -9,4 +9,5 @@ add_mlir_library(TianChenRVRVVTarget
   TianChenRVTarget
   MLIRIR
   MLIRSupport
+  MLIRTargetCpp
 )

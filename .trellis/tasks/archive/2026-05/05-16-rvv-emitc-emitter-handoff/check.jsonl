@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify implementation stays within C++/MLIR/LLVM/TableGen/CMake/lit boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify generated source is produced by MLIR EmitC emitter handoff, not direct C semantics."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV-specific behavior remains plugin-local and bounded to explicit RVV first slice."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify tests cover materialize-to-EmitC and emitter handoff without RVV runtime claims."}

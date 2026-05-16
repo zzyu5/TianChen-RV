@@ -13,6 +13,7 @@
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Tools/mlir-translate/MlirTranslateMain.h"
 #include "mlir/Tools/mlir-translate/Translation.h"
@@ -61,6 +62,7 @@ mlir::LogicalResult populateBuiltinPlanningRegistries(
 
 void registerTianChenRVTranslateDialects(mlir::DialectRegistry &registry) {
   tianchenrv::registerAllDialects(registry);
+  registry.insert<mlir::emitc::EmitCDialect>();
 
   tianchenrv::plugin::ExtensionPluginRegistry plugins;
   if (llvm::Error error =

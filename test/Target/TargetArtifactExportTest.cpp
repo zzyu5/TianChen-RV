@@ -62,6 +62,12 @@ llvm::Error headerMarkerExporter(mlir::ModuleOp, llvm::raw_ostream &os) {
 llvm::Expected<bool>
 alwaysMatchComposite(llvm::ArrayRef<TargetArtifactCandidate>);
 
+bool expectTranslateRoute(const TargetTranslateRouteRegistry &registry,
+                          llvm::StringRef routeID,
+                          bool expectedBinaryStdout,
+                          llvm::StringRef expectedDescriptionFragment,
+                          llvm::StringRef expectedTargetArtifactRouteID = {});
+
 constexpr llvm::StringLiteral kBundleTestMissingRouteMetadataID(
     "bundle-test-no-metadata-route");
 constexpr llvm::StringLiteral kBundleTestNoMetadataCompositeRouteID(
@@ -598,22 +604,30 @@ bool expectRVVPluginManifestTargetSupportActivation() {
           "activate RVV target translate routes through plugin manifest hook"))
     return false;
 
-  if (pluginRoutes.size() != 0) {
-    llvm::errs() << "RVV plugin manifest hook still publishes deleted "
-                    "artifact-backed translate routes\n";
+  if (pluginRoutes.size() != 1) {
+    llvm::errs() << "RVV plugin manifest hook did not publish the single "
+                    "materialized EmitC emitter handoff route\n";
     return false;
   }
+  if (!expectTranslateRoute(pluginRoutes, "tcrv-rvv-emitc-to-cpp",
+                            /*expectedBinaryStdout=*/false,
+                            "MLIR EmitC C/C++ emitter"))
+    return false;
 
   TargetTranslateRouteRegistry builtinRoutes;
   if (!expectSuccess(registerBuiltinTargetTranslateRoutes(builtinRoutes),
                      "register built-in target translate routes through "
                      "generic plugin manifest aggregation"))
     return false;
-  if (builtinRoutes.size() != 0) {
-    llvm::errs() << "built-in target translate route aggregation still "
-                    "publishes deleted RVV target-support routes\n";
+  if (builtinRoutes.size() != 1) {
+    llvm::errs() << "built-in target translate route aggregation did not "
+                    "publish the single RVV materialized EmitC handoff route\n";
     return false;
   }
+  if (!expectTranslateRoute(builtinRoutes, "tcrv-rvv-emitc-to-cpp",
+                            /*expectedBinaryStdout=*/false,
+                            "MLIR EmitC C/C++ emitter"))
+    return false;
 
   return true;
 }
@@ -712,7 +726,7 @@ bool expectTranslateRoute(const TargetTranslateRouteRegistry &registry,
                           llvm::StringRef routeID,
                           bool expectedBinaryStdout,
                           llvm::StringRef expectedDescriptionFragment,
-                          llvm::StringRef expectedTargetArtifactRouteID = {}) {
+                          llvm::StringRef expectedTargetArtifactRouteID) {
   const TargetTranslateRoute *route = registry.lookup(routeID);
   if (!route) {
     llvm::errs() << "missing target translate route '" << routeID << "'\n";
@@ -795,12 +809,16 @@ bool expectTargetTranslateRouteRegistryShape() {
   if (!expectSuccess(registerBuiltinTargetTranslateRoutes(builtinRoutes),
                      "register built-in target translate routes"))
     return false;
-  if (builtinRoutes.size() != 0) {
-    llvm::errs() << "built-in target translate routes still expose route "
-                    "manifests without materialized artifact routes, got "
+  if (builtinRoutes.size() != 1) {
+    llvm::errs() << "built-in target translate routes did not expose the "
+                    "single materialized EmitC handoff route, got "
                  << builtinRoutes.size() << "\n";
     return false;
   }
+  if (!expectTranslateRoute(builtinRoutes, "tcrv-rvv-emitc-to-cpp",
+                            /*expectedBinaryStdout=*/false,
+                            "MLIR EmitC C/C++ emitter"))
+    return false;
   return expectSuccess(
       registerBuiltinTargetTranslateRoutes(builtinRoutes),
       "repeat built-in target translate route no-op registration");

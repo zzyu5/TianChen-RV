@@ -1450,3 +1450,50 @@ test authority.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 87: RVV EmitC to C/C++ emitter handoff
+
+**Date**: 2026-05-16
+**Task**: RVV EmitC to C/C++ emitter handoff
+**Branch**: `main`
+
+### Summary
+
+Registered an RVV-owned tcrv-translate route that validates materialized EmitC modules, hands them to the upstream MLIR EmitC C/C++ emitter, and added focused positive/negative route coverage plus registry assertions.
+
+### Main Changes
+
+- Added an RVV-owned non artifact-backed `tcrv-rvv-emitc-to-cpp`
+  translate route in the target support bundle.
+- The route validates that input is already a materialized EmitC module and
+  delegates source generation to upstream MLIR `emitc::translateToCpp`.
+- Registered EmitC dialect parsing in `tcrv-translate` so piped
+  `tcrv-opt --tcrv-materialize-emitc-lowerable-routes` output is accepted.
+- Updated C++ route registry coverage and added lit positive/negative route
+  tests.
+- Created, validated, completed, and archived the Trellis task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] `ninja -C build tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'Target/RVV/emitc-to-cpp'` from `build/test`
+- [OK] `ninja -C build check-tianchenrv` (76/76 lit tests)
+- [OK] `git diff --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-16-rvv-emitc-emitter-handoff`
+- [OK] changed-file legacy scan for descriptor/direct-C/source-export/microkernel residue returned no matches
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

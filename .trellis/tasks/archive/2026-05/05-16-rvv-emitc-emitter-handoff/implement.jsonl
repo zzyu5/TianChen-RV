@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, EmitC route, and descriptor/direct-C boundaries for this implementation round."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Defines the extension-family ops to EmitC to C/C++ emitter route and descriptor boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin ownership, explicit first-slice RVV ops, and forbidden direct/export residue."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines focused lit/FileCheck and RVV evidence boundaries for materialized EmitC routes."}
