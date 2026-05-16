@@ -1,9 +1,9 @@
 // RUN: not tcrv-translate --tcrv-rvv-i32m1-add-object %s 2>&1 | FileCheck %s
 
 module {
-  tcrv.exec.kernel @rvv_stale_add_route_sub_body {
+  tcrv.exec.kernel @rvv_missing_contract_metadata {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @rvv_i32_sub attributes {
+    tcrv.exec.variant @rvv_i32_add attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
@@ -16,8 +16,8 @@ module {
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
         %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %diff = tcrv_rvv.i32_sub %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        tcrv_rvv.i32_store %out_ptr, %diff, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        tcrv_rvv.i32_store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
     tcrv.exec.diagnostic {
@@ -25,7 +25,7 @@ module {
       emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object",
       lowering_boundary = "tcrv_rvv.with_vl",
       lowering_pipeline = "tcrv-rvv-i32m1-add-riscv-elf-object",
-      message = "stale selected add route points at sub body",
+      message = "selected add route missing config/runtime-VL artifact metadata",
       origin = "rvv-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",
@@ -40,32 +40,20 @@ module {
         {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"},
         {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}
       ],
-      artifact_metadata = [
-        {key = "tcrv_rvv.config_contract", value = "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"},
-        {key = "tcrv_rvv.sew", value = "32"},
-        {key = "tcrv_rvv.lmul", value = "m1"},
-        {key = "tcrv_rvv.tail_policy", value = "agnostic"},
-        {key = "tcrv_rvv.mask_policy", value = "agnostic"},
-        {key = "tcrv_rvv.runtime_vl_contract", value = "rvv-runtime-avl-n-setvl-with-vl-same-vl.v1"},
-        {key = "tcrv_rvv.runtime_avl_source", value = "runtime_abi:n"},
-        {key = "tcrv_rvv.vl_def", value = "tcrv_rvv.setvl"},
-        {key = "tcrv_rvv.vl_scope", value = "tcrv_rvv.with_vl"},
-        {key = "tcrv_rvv.vl_uses", value = "with_vl,i32_load,i32_load,i32_arithmetic,i32_store"},
-        {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,out,n"}
-      ],
       runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue",
       status = "supported",
-      target = @rvv_i32_sub
+      target = @rvv_i32_add
     }
     tcrv.exec.diagnostic {
-      message = "selected stale add route fixture",
+      message = "selected fixture",
       reason = "variant-selected",
       selection_kind = "fallback-only",
       severity = "note",
       status = "selected",
-      target = @rvv_i32_sub
+      target = @rvv_i32_add
     }
   }
 }
 
-// CHECK: selected RVV i32m1 arithmetic route expected i32_add but variant body contains i32_sub
+// CHECK: RVV artifact metadata invalid
+// CHECK: must carry exactly 11 RVV i32m1 config/runtime-VL artifact metadata entries

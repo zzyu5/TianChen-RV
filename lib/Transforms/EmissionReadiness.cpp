@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
+#include "TianChenRV/Support/ArtifactMetadata.h"
 #include "TianChenRV/Transforms/Passes.h"
 
 #include "mlir/IR/Attributes.h"
@@ -28,6 +29,7 @@ namespace tianchenrv::transforms {
 namespace {
 
 using tianchenrv::tcrv::exec::diagnostic::kArtifactKindAttrName;
+using tianchenrv::tcrv::exec::diagnostic::kArtifactMetadataAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kEmissionKindAttrName;
 using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanPlanKindValue;
 using tianchenrv::tcrv::exec::diagnostic::kEmissionPlanReasonValue;
@@ -1003,6 +1005,32 @@ void addRuntimeABIParametersAttribute(mlir::MLIRContext &context,
                      mlir::ArrayAttr::get(&context, entries));
 }
 
+void addArtifactMetadataAttribute(mlir::MLIRContext &context,
+                                  mlir::OperationState &state,
+                                  const VariantEmissionPlan &plan) {
+  llvm::ArrayRef<support::ArtifactMetadataEntry> metadata =
+      plan.getArtifactMetadata();
+  if (metadata.empty())
+    return;
+
+  llvm::SmallVector<mlir::Attribute, 8> entries;
+  for (const support::ArtifactMetadataEntry &entry : metadata) {
+    llvm::SmallVector<mlir::NamedAttribute, 2> fields;
+    fields.push_back(mlir::NamedAttribute(
+        mlir::StringAttr::get(&context,
+                              support::kArtifactMetadataKeyAttrName),
+        mlir::StringAttr::get(&context, entry.key)));
+    fields.push_back(mlir::NamedAttribute(
+        mlir::StringAttr::get(&context,
+                              support::kArtifactMetadataValueAttrName),
+        mlir::StringAttr::get(&context, entry.value)));
+    entries.push_back(mlir::DictionaryAttr::get(&context, fields));
+  }
+
+  state.addAttribute(kArtifactMetadataAttrName,
+                     mlir::ArrayAttr::get(&context, entries));
+}
+
 void materializeEmissionPlanDiagnostic(KernelOp kernel,
                                        const VariantEmissionPlan &plan,
                                        mlir::OpBuilder &builder) {
@@ -1056,6 +1084,7 @@ void materializeEmissionPlanDiagnostic(KernelOp kernel,
   if (plan.isSupported() || !plan.getArtifactKind().empty())
     addStringAttribute(context, state, kArtifactKindAttrName,
                        plan.getArtifactKind());
+  addArtifactMetadataAttribute(context, state, plan);
 
   builder.create(state);
 }

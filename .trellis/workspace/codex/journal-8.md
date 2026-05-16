@@ -363,3 +363,88 @@ new durable contract.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 98: RVV selected-boundary runtime-VL contract
+
+**Date**: 2026-05-16
+**Task**: RVV selected-boundary config and runtime-VL contract
+**Branch**: `main`
+
+### Summary
+
+Defined and enforced one explicit RVV i32m1 config/runtime-VL contract across
+the existing source-seed add route, selected emission-plan diagnostics, target
+artifact candidates, generated headers, and bundle metadata. The RVV-specific
+contract stays in RVV-owned code; common emission readiness, coherence, and
+target export only carry generic bounded key/value artifact metadata.
+
+### Main Changes
+
+- Created Trellis task
+  `05-16-rvv-selected-boundary-runtime-vl-contract` from the supplied
+  Direction Brief and wrote the PRD around the existing RVV i32m1 source-seed
+  proof path.
+- Added a small generic `ArtifactMetadataEntry` support type and threaded
+  artifact metadata through `VariantEmissionPlan`, `tcrv.exec.diagnostic`,
+  target artifact candidates, and target artifact bundle records.
+- Extended `RVVConfigContract` with the exact i32m1 metadata contract:
+  SEW32, LMUL m1, tail/mask agnostic policy, runtime AVL from ABI `n`,
+  `setvl`/`with_vl` boundary identity, same-VL dataflow uses, and callable ABI
+  order `lhs,rhs,out,n`.
+- Made RVV emission plans emit the metadata and made RVV target artifact export
+  validate it before producing object/header/bundle artifacts.
+- Updated RVV source-seed, selected-dispatch, target artifact, bundle, and C++
+  target export tests for positive propagation plus fail-closed missing or
+  mismatched metadata.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target TianChenRVRVVDialect TianChenRVRVVPlugin
+  TianChenRVTarget tcrv-opt tcrv-translate
+  tianchenrv-target-artifact-export-test -j2`.
+- [OK] Focused RVV/plugin build:
+  `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-construction-protocol-common-test
+  tianchenrv-rvv-dialect-test -j2`.
+- [OK] C++ tests:
+  `tianchenrv-target-artifact-export-test`,
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-construction-protocol-common-test`, and
+  `tianchenrv-rvv-dialect-test`.
+- [OK] Focused lit from `build/test`:
+  `rvv-i32m1-selected-boundary-seed|i32m1-add-object-artifact|i32m1-selected-dispatch-artifact|i32m1-sub-selected-dispatch-artifact|i32m1-mul-selected-dispatch-artifact|i32m1-object-stale-route-op|i32m1-object-missing-contract-metadata|i32m1-artifact-ambiguous-selected|source-seed-artifact-front-door`,
+  12/12 passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`, 110/110
+  passed.
+- [OK] `git diff --check`.
+- [OK] Generated RVV source-seed artifacts under
+  `artifacts/tmp/rvv_selected_boundary_runtime_vl_contract/20260516T150644Z`.
+- [OK] `ssh rvv` link/run passed:
+  `tcrv_rvv_i32m1_selected_boundary_seed status=PASS n=4 add=[12,6,16,12]`.
+- [OK] Changed-surface scans showed no new descriptor/direct-C/Python
+  compiler-core route and no RVV semantic branch in common/core orchestration.
+
+### Self-Repair
+
+- Kept common metadata parsing and printing extension-neutral after rejecting
+  RVV-specific handling in common transforms/target export as the wrong
+  ownership boundary.
+- Updated existing hand-authored RVV emission-plan fixtures so they model the
+  same explicit contract as plugin-generated emission plans.
+- Added a missing-contract RVV target export negative test to prove fail-closed
+  behavior for stale or incomplete artifact candidates.
+
+### Spec Update Judgment
+
+No spec update was needed. Existing RVV plugin, EmitC route, variant pipeline,
+and MLIR testing specs already cover this boundary and evidence policy.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -1,6 +1,7 @@
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -466,6 +467,12 @@ llvm::Error exportRVVI32M1ArithmeticCallableHeaderArtifact(
        << parameter.cName << " : " << parameter.cType << " : "
        << support::stringifyRuntimeABIParameterRole(parameter.role) << " */\n";
   }
+  llvm::ArrayRef<support::ArtifactMetadataEntry> artifactMetadata =
+      tcrv::rvv::getRVVI32M1ArithmeticArtifactMetadata();
+  for (auto [index, entry] : llvm::enumerate(artifactMetadata)) {
+    os << "/* tianchenrv.artifact_metadata[" << index << "]: "
+       << entry.key << " = " << entry.value << " */\n";
+  }
 
   os << "void " << *functionName << "(";
   for (auto [index, parameter] : llvm::enumerate(parameters)) {
@@ -544,6 +551,11 @@ llvm::Error validateRVVI32M1ArithmeticObjectCandidate(
         llvm::Twine("lowering boundary metadata must name '") +
         plugin::rvv::getRVVI32M1ArithmeticLoweringBoundaryOpName() +
         "' for the bounded EmitC route");
+  if (llvm::Error error =
+          tcrv::rvv::verifyRVVI32M1ArithmeticArtifactMetadata(
+              candidate.artifactMetadata,
+              (*descriptor)->objectArtifactRouteID))
+    return error;
   return llvm::Error::success();
 }
 

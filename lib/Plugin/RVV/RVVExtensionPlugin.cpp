@@ -416,6 +416,8 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
   out.setRuntimeGlueRole(getRVVI32M1ArithmeticRuntimeGlueRole());
   out.setLoweringBoundaryOpName(getRVVI32M1ArithmeticLoweringBoundaryOpName());
   out.addRuntimeABIParameters(getRVVI32M1ArithmeticRuntimeABIParameters());
+  out.addArtifactMetadataEntries(
+      tcrv::rvv::getRVVI32M1ArithmeticArtifactMetadata());
   return out.setRequiredCapabilitySymbolsFromVariant(request.getVariant());
 }
 

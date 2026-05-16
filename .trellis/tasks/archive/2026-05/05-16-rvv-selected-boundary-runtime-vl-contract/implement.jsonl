@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin ownership, bounded i32m1 config policy, and fail-closed route validation expectations."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Defines the extension-family ops to common EmitC route and selected emission-plan to target artifact handoff."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines the bounded RVV source seed and source-seed artifact front-door pipeline boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines focused lit/FileCheck, C++ tests, target artifact metadata, and ssh rvv evidence policy."}

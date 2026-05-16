@@ -71,6 +71,19 @@ module {
         {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"},
         {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}
       ],
+      artifact_metadata = [
+        {key = "tcrv_rvv.config_contract", value = "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"},
+        {key = "tcrv_rvv.sew", value = "32"},
+        {key = "tcrv_rvv.lmul", value = "m1"},
+        {key = "tcrv_rvv.tail_policy", value = "agnostic"},
+        {key = "tcrv_rvv.mask_policy", value = "agnostic"},
+        {key = "tcrv_rvv.runtime_vl_contract", value = "rvv-runtime-avl-n-setvl-with-vl-same-vl.v1"},
+        {key = "tcrv_rvv.runtime_avl_source", value = "runtime_abi:n"},
+        {key = "tcrv_rvv.vl_def", value = "tcrv_rvv.setvl"},
+        {key = "tcrv_rvv.vl_scope", value = "tcrv_rvv.with_vl"},
+        {key = "tcrv_rvv.vl_uses", value = "with_vl,i32_load,i32_load,i32_arithmetic,i32_store"},
+        {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,out,n"}
+      ],
       runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue",
       status = "supported",
       target = @rvv_i32_add

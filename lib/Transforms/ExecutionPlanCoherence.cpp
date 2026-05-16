@@ -3,6 +3,7 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Support/ArtifactMetadata.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Transforms/Passes.h"
@@ -871,6 +872,70 @@ llvm::Error collectRuntimeABIParameters(
   return llvm::Error::success();
 }
 
+llvm::Error validateArtifactMetadataText(KernelOp kernel,
+                                         llvm::StringRef label,
+                                         llvm::StringRef value) {
+  if (value.empty())
+    return makeCoherenceError(
+        kernel, llvm::Twine("artifact metadata ") + label +
+                    " must be non-empty");
+  if (value.size() > 512 || value.contains('\n') || value.contains('\r') ||
+      value.contains('\0'))
+    return makeCoherenceError(
+        kernel, llvm::Twine("artifact metadata ") + label +
+                    " must be bounded single-line text");
+  return llvm::Error::success();
+}
+
+llvm::Error collectArtifactMetadata(
+    KernelOp kernel, DiagnosticOp diagnostic,
+    llvm::SmallVectorImpl<support::ArtifactMetadataEntry> &out) {
+  auto metadata =
+      diagnostic->getAttrOfType<mlir::ArrayAttr>(
+          execDiagnostic::kArtifactMetadataAttrName);
+  if (!metadata)
+    return llvm::Error::success();
+
+  llvm::StringSet<> seenKeys;
+  for (auto [index, attr] : llvm::enumerate(metadata)) {
+    auto dict = llvm::dyn_cast<mlir::DictionaryAttr>(attr);
+    if (!dict)
+      return makeCoherenceError(
+          kernel, llvm::Twine("artifact_metadata[") + llvm::Twine(index) +
+                      "] must be a dictionary attribute");
+
+    auto key =
+        dict.getAs<mlir::StringAttr>(support::kArtifactMetadataKeyAttrName);
+    auto value =
+        dict.getAs<mlir::StringAttr>(support::kArtifactMetadataValueAttrName);
+    if (!key || key.getValue().trim().empty())
+      return makeCoherenceError(
+          kernel, llvm::Twine("artifact_metadata[") + llvm::Twine(index) +
+                      "] requires non-empty key");
+    if (!value || value.getValue().trim().empty())
+      return makeCoherenceError(
+          kernel, llvm::Twine("artifact_metadata[") + llvm::Twine(index) +
+                      "] requires non-empty value");
+
+    llvm::StringRef keyValue = key.getValue().trim();
+    llvm::StringRef metadataValue = value.getValue().trim();
+    if (llvm::Error error =
+            validateArtifactMetadataText(kernel, "key", keyValue))
+      return error;
+    if (llvm::Error error =
+            validateArtifactMetadataText(kernel, "value", metadataValue))
+      return error;
+    if (!seenKeys.insert(keyValue).second)
+      return makeCoherenceError(
+          kernel, llvm::Twine("duplicate artifact metadata key '") +
+                      keyValue + "'");
+
+    out.push_back(support::ArtifactMetadataEntry(keyValue, metadataValue));
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateSupportedRoute(KernelOp kernel, DiagnosticOp diagnostic,
                                    SelectedPath &path, llvm::StringRef status,
                                    llvm::StringRef loweringBoundary,
@@ -926,6 +991,10 @@ llvm::Error validateSupportedRoute(KernelOp kernel, DiagnosticOp diagnostic,
   if (llvm::Error error =
           collectRuntimeABIParameters(kernel, diagnostic,
                                       candidate.runtimeABIParameters))
+    return error;
+  if (llvm::Error error =
+          collectArtifactMetadata(kernel, diagnostic,
+                                  candidate.artifactMetadata))
     return error;
 
   if (llvm::Error error =

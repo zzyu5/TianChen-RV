@@ -1,6 +1,7 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
@@ -311,6 +312,9 @@ bool expectRVVObjectExporterShape(const TargetArtifactExporterRegistry &registry
       tianchenrv::plugin::rvv::getRVVI32M1ArithmeticRuntimeGlueRole().str();
   candidate.runtimeABIParameters.append(expectedParameters.begin(),
                                         expectedParameters.end());
+  candidate.artifactMetadata.append(
+      tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticArtifactMetadata().begin(),
+      tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticArtifactMetadata().end());
   if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
                          candidate, *exporter),
                      "validate RVV object candidate ABI contract"))
@@ -333,6 +337,15 @@ bool expectRVVObjectExporterShape(const TargetArtifactExporterRegistry &registry
                            {"runtime ABI name",
                             tianchenrv::plugin::rvv::
                                 getRVVI32M1ArithmeticRuntimeABIName(op)}))
+    return false;
+
+  TargetArtifactCandidate badArtifactMetadata = candidate;
+  badArtifactMetadata.artifactMetadata[1].value = "64";
+  if (!expectErrorContains(
+          validateTargetArtifactCandidateAgainstExporter(badArtifactMetadata,
+                                                        *exporter),
+          "RVV object route rejects config contract metadata mismatch",
+          {"artifact_metadata[1]", "tcrv_rvv.sew", "32"}))
     return false;
 
   return true;
@@ -392,6 +405,9 @@ bool expectRVVHeaderCompositeExporterShape(
       tianchenrv::plugin::rvv::getRVVI32M1ArithmeticRuntimeGlueRole().str();
   candidate.runtimeABIParameters.append(expectedParameters.begin(),
                                         expectedParameters.end());
+  candidate.artifactMetadata.append(
+      tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticArtifactMetadata().begin(),
+      tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticArtifactMetadata().end());
   llvm::Expected<bool> matched = exporter->getMatchFn()({candidate});
   if (!matched) {
     llvm::errs() << context << ": header match callback failed: "

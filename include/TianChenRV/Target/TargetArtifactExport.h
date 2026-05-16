@@ -2,6 +2,7 @@
 #define TIANCHENRV_TARGET_TARGETARTIFACTEXPORT_H
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Support/ArtifactMetadata.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 
 #include "mlir/IR/BuiltinOps.h"
@@ -124,6 +125,7 @@ struct TargetArtifactCandidate {
   std::string runtimeABIName;
   std::string runtimeGlueRole;
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
+  llvm::SmallVector<support::ArtifactMetadataEntry, 8> artifactMetadata;
 };
 
 struct SelectedEmitCArtifactRouteConfig {
@@ -172,6 +174,7 @@ struct TargetArtifactBundleRecord {
   std::string runtimeABIKind;
   std::string runtimeABIName;
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
+  llvm::SmallVector<support::ArtifactMetadataEntry, 8> artifactMetadata;
   std::string handoffKind;
   std::string evidenceRole;
 };

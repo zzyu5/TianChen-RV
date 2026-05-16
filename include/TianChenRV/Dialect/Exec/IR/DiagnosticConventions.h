@@ -6,6 +6,8 @@
 namespace tianchenrv::tcrv::exec::diagnostic {
 
 inline constexpr llvm::StringLiteral kArtifactKindAttrName("artifact_kind");
+inline constexpr llvm::StringLiteral kArtifactMetadataAttrName(
+    "artifact_metadata");
 inline constexpr llvm::StringLiteral kEmissionKindAttrName("emission_kind");
 inline constexpr llvm::StringLiteral kLoweringPipelineAttrName(
     "lowering_pipeline");

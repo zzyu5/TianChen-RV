@@ -59,6 +59,17 @@ module {
 }
 
 // PLAN: tcrv.exec.diagnostic {artifact_kind = "riscv-elf-relocatable-object"
+// PLAN-SAME: artifact_metadata = [{key = "tcrv_rvv.config_contract", value = "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"}
+// PLAN-SAME: key = "tcrv_rvv.sew", value = "32"
+// PLAN-SAME: key = "tcrv_rvv.lmul", value = "m1"
+// PLAN-SAME: key = "tcrv_rvv.tail_policy", value = "agnostic"
+// PLAN-SAME: key = "tcrv_rvv.mask_policy", value = "agnostic"
+// PLAN-SAME: key = "tcrv_rvv.runtime_vl_contract", value = "rvv-runtime-avl-n-setvl-with-vl-same-vl.v1"
+// PLAN-SAME: key = "tcrv_rvv.runtime_avl_source", value = "runtime_abi:n"
+// PLAN-SAME: key = "tcrv_rvv.vl_def", value = "tcrv_rvv.setvl"
+// PLAN-SAME: key = "tcrv_rvv.vl_scope", value = "tcrv_rvv.with_vl"
+// PLAN-SAME: key = "tcrv_rvv.vl_uses", value = "with_vl,i32_load,i32_load,i32_arithmetic,i32_store"
+// PLAN-SAME: key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,out,n"
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: lowering_boundary = "tcrv_rvv.with_vl"
 // PLAN-SAME: lowering_pipeline = "tcrv-rvv-i32m1-add-riscv-elf-object"
@@ -97,6 +108,9 @@ module {
 // HEADER: tianchenrv.runtime_abi_parameter[1]: rhs : const int32_t * : rhs-input-buffer
 // HEADER: tianchenrv.runtime_abi_parameter[2]: out : int32_t * : output-buffer
 // HEADER: tianchenrv.runtime_abi_parameter[3]: n : size_t : runtime-element-count
+// HEADER: tianchenrv.artifact_metadata[0]: tcrv_rvv.config_contract = rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1
+// HEADER: tianchenrv.artifact_metadata[5]: tcrv_rvv.runtime_vl_contract = rvv-runtime-avl-n-setvl-with-vl-same-vl.v1
+// HEADER: tianchenrv.artifact_metadata[10]: tcrv_rvv.runtime_abi_order = lhs,rhs,out,n
 // HEADER: void tcrv_emitc_rvv_i32_add_kernel_rvv_i32_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
 
 // BUNDLE-STATUS: tianchenrv.target_artifact_bundle_export: complete
@@ -119,6 +133,12 @@ module {
 // BUNDLE-INDEX: c_name: "out"
 // BUNDLE-INDEX: runtime_abi_parameter[3]:
 // BUNDLE-INDEX: c_name: "n"
+// BUNDLE-INDEX: artifact_metadata[0]:
+// BUNDLE-INDEX: key: "tcrv_rvv.config_contract"
+// BUNDLE-INDEX: value: "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
+// BUNDLE-INDEX: artifact_metadata[5]:
+// BUNDLE-INDEX: key: "tcrv_rvv.runtime_vl_contract"
+// BUNDLE-INDEX: value: "rvv-runtime-avl-n-setvl-with-vl-same-vl.v1"
 // BUNDLE-INDEX: evidence_role: "relocatable-object"
 // BUNDLE-INDEX: file_name: "artifact-1-runtime-callable-c-header-tcrv-rvv-i32m1-add-callable-c-header.h"
 // BUNDLE-INDEX: component_group: "rvv-i32m1-add-callable-artifact-bundle.v1"

@@ -191,6 +191,7 @@ def DiagnosticOp : TCRVExec_Op<"exec.diagnostic", []> {
                    OptionalAttr<ArrayAttr>:$runtime_abi_parameters,
                    OptionalAttr<StrAttr>:$runtime_glue_role,
                    OptionalAttr<StrAttr>:$artifact_kind,
+                   OptionalAttr<ArrayAttr>:$artifact_metadata,
                    OptionalAttr<StrAttr>:$lowering_boundary,
                    OptionalAttr<ArrayAttr>:$required_capabilities,
                    OptionalAttr<BoolAttr>:$preference_available,

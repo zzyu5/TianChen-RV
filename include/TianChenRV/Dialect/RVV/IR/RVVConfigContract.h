@@ -2,8 +2,11 @@
 #define TIANCHENRV_DIALECT_RVV_IR_RVVCONFIGCONTRACT_H
 
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Support/ArtifactMetadata.h"
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
 
 #include <cstdint>
 #include <optional>
@@ -42,6 +45,13 @@ bool areRVVCompileTimeConfigsEqual(const RVVCompileTimeConfig &lhs,
 
 RVVConfigContractDiagnostic
 validateRVVI32M1ArithmeticConfigVLContract(SetVLOp setvl, WithVLOp withVL);
+
+llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry>
+getRVVI32M1ArithmeticArtifactMetadata();
+
+llvm::Error verifyRVVI32M1ArithmeticArtifactMetadata(
+    llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
+    llvm::StringRef context);
 
 } // namespace tianchenrv::tcrv::rvv
 

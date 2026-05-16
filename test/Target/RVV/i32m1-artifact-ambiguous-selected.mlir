@@ -56,8 +56,80 @@ module {
       tcrv.exec.case @rvv_i32_add_b
       tcrv.exec.fallback @scalar_fallback_first_slice
     }
-    tcrv.exec.diagnostic {artifact_kind = "riscv-elf-relocatable-object", emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object", lowering_boundary = "tcrv_rvv.with_vl", lowering_pipeline = "tcrv-rvv-i32m1-add-riscv-elf-object", message = "first supported dispatch case", origin = "rvv-plugin", plan_kind = "plugin-emission-plan", reason = "emission_plan", required_capabilities = [@rvv], role = "dispatch case", runtime_abi = "rvv-i32m1-add-callable-c-abi.v1", runtime_abi_kind = "plugin-owned-runtime-abi", runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1", runtime_abi_parameters = [{c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"}, {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"}, {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"}, {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}], runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue", status = "supported", target = @rvv_i32_add_a}
-    tcrv.exec.diagnostic {artifact_kind = "riscv-elf-relocatable-object", emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object", lowering_boundary = "tcrv_rvv.with_vl", lowering_pipeline = "tcrv-rvv-i32m1-add-riscv-elf-object", message = "second supported dispatch case", origin = "rvv-plugin", plan_kind = "plugin-emission-plan", reason = "emission_plan", required_capabilities = [@rvv], role = "dispatch case", runtime_abi = "rvv-i32m1-add-callable-c-abi.v1", runtime_abi_kind = "plugin-owned-runtime-abi", runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1", runtime_abi_parameters = [{c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"}, {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"}, {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"}, {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}], runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue", status = "supported", target = @rvv_i32_add_b}
+    tcrv.exec.diagnostic {
+      artifact_kind = "riscv-elf-relocatable-object",
+      artifact_metadata = [
+        {key = "tcrv_rvv.config_contract", value = "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"},
+        {key = "tcrv_rvv.sew", value = "32"},
+        {key = "tcrv_rvv.lmul", value = "m1"},
+        {key = "tcrv_rvv.tail_policy", value = "agnostic"},
+        {key = "tcrv_rvv.mask_policy", value = "agnostic"},
+        {key = "tcrv_rvv.runtime_vl_contract", value = "rvv-runtime-avl-n-setvl-with-vl-same-vl.v1"},
+        {key = "tcrv_rvv.runtime_avl_source", value = "runtime_abi:n"},
+        {key = "tcrv_rvv.vl_def", value = "tcrv_rvv.setvl"},
+        {key = "tcrv_rvv.vl_scope", value = "tcrv_rvv.with_vl"},
+        {key = "tcrv_rvv.vl_uses", value = "with_vl,i32_load,i32_load,i32_arithmetic,i32_store"},
+        {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,out,n"}
+      ],
+      emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object",
+      lowering_boundary = "tcrv_rvv.with_vl",
+      lowering_pipeline = "tcrv-rvv-i32m1-add-riscv-elf-object",
+      message = "first supported dispatch case",
+      origin = "rvv-plugin",
+      plan_kind = "plugin-emission-plan",
+      reason = "emission_plan",
+      required_capabilities = [@rvv],
+      role = "dispatch case",
+      runtime_abi = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_abi_kind = "plugin-owned-runtime-abi",
+      runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_abi_parameters = [
+        {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"},
+        {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"},
+        {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"},
+        {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}
+      ],
+      runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue",
+      status = "supported",
+      target = @rvv_i32_add_a
+    }
+    tcrv.exec.diagnostic {
+      artifact_kind = "riscv-elf-relocatable-object",
+      artifact_metadata = [
+        {key = "tcrv_rvv.config_contract", value = "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"},
+        {key = "tcrv_rvv.sew", value = "32"},
+        {key = "tcrv_rvv.lmul", value = "m1"},
+        {key = "tcrv_rvv.tail_policy", value = "agnostic"},
+        {key = "tcrv_rvv.mask_policy", value = "agnostic"},
+        {key = "tcrv_rvv.runtime_vl_contract", value = "rvv-runtime-avl-n-setvl-with-vl-same-vl.v1"},
+        {key = "tcrv_rvv.runtime_avl_source", value = "runtime_abi:n"},
+        {key = "tcrv_rvv.vl_def", value = "tcrv_rvv.setvl"},
+        {key = "tcrv_rvv.vl_scope", value = "tcrv_rvv.with_vl"},
+        {key = "tcrv_rvv.vl_uses", value = "with_vl,i32_load,i32_load,i32_arithmetic,i32_store"},
+        {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,out,n"}
+      ],
+      emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object",
+      lowering_boundary = "tcrv_rvv.with_vl",
+      lowering_pipeline = "tcrv-rvv-i32m1-add-riscv-elf-object",
+      message = "second supported dispatch case",
+      origin = "rvv-plugin",
+      plan_kind = "plugin-emission-plan",
+      reason = "emission_plan",
+      required_capabilities = [@rvv],
+      role = "dispatch case",
+      runtime_abi = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_abi_kind = "plugin-owned-runtime-abi",
+      runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_abi_parameters = [
+        {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"},
+        {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"},
+        {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"},
+        {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}
+      ],
+      runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue",
+      status = "supported",
+      target = @rvv_i32_add_b
+    }
     tcrv.exec.diagnostic {artifact_kind = "unsupported-emission-diagnostic", emission_kind = "scalar-fallback-unsupported-emission", lowering_pipeline = "scalar-fallback-no-materialized-emitc-route", message = "fallback unsupported", origin = "scalar-plugin", plan_kind = "plugin-emission-plan", reason = "emission_plan", required_capabilities = [@scalar_fallback], role = "dispatch fallback", runtime_abi = "scalar-fallback-no-runtime-abi", runtime_abi_kind = "unsupported-plugin-runtime-abi", runtime_abi_name = "unsupported-emission-runtime-abi", runtime_glue_role = "no-runtime-glue-unsupported", severity = "error", status = "unsupported", target = @scalar_fallback_first_slice}
   }
 }

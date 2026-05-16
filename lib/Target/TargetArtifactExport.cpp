@@ -5,6 +5,7 @@
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Support/ArtifactMetadata.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 
 #include "mlir/IR/Attributes.h"
@@ -788,6 +789,55 @@ llvm::Error collectRuntimeABIParameters(
   return llvm::Error::success();
 }
 
+llvm::Error collectArtifactMetadata(
+    KernelOp kernel, DiagnosticOp diagnostic,
+    llvm::SmallVectorImpl<support::ArtifactMetadataEntry> &out) {
+  auto metadata =
+      diagnostic->getAttrOfType<mlir::ArrayAttr>(
+          execDiagnostic::kArtifactMetadataAttrName);
+  if (!metadata)
+    return llvm::Error::success();
+
+  llvm::StringSet<> seenKeys;
+  for (auto [index, attr] : llvm::enumerate(metadata)) {
+    auto dict = llvm::dyn_cast<mlir::DictionaryAttr>(attr);
+    if (!dict)
+      return makeArtifactExportError(
+          kernel, llvm::Twine("artifact_metadata[") + llvm::Twine(index) +
+                      "] must be a dictionary attribute");
+
+    auto key =
+        dict.getAs<mlir::StringAttr>(support::kArtifactMetadataKeyAttrName);
+    auto value =
+        dict.getAs<mlir::StringAttr>(support::kArtifactMetadataValueAttrName);
+    if (!key || key.getValue().trim().empty())
+      return makeArtifactExportError(
+          kernel, llvm::Twine("artifact_metadata[") + llvm::Twine(index) +
+                      "] requires non-empty key");
+    if (!value || value.getValue().trim().empty())
+      return makeArtifactExportError(
+          kernel, llvm::Twine("artifact_metadata[") + llvm::Twine(index) +
+                      "] requires non-empty value");
+
+    llvm::StringRef keyValue = key.getValue().trim();
+    llvm::StringRef metadataValue = value.getValue().trim();
+    if (llvm::Error error =
+            validateBoundedText(kernel, "artifact metadata key", keyValue))
+      return error;
+    if (llvm::Error error = validateBoundedText(
+            kernel, "artifact metadata value", metadataValue))
+      return error;
+    if (!seenKeys.insert(keyValue).second)
+      return makeArtifactExportError(
+          kernel, llvm::Twine("duplicate artifact metadata key '") +
+                      keyValue + "'");
+
+    out.push_back(support::ArtifactMetadataEntry(keyValue, metadataValue));
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Expected<std::optional<TargetArtifactCandidate>>
 buildSupportedCandidate(KernelOp kernel, const SelectedPath &path,
                         DiagnosticOp diagnostic) {
@@ -915,6 +965,10 @@ buildSupportedCandidate(KernelOp kernel, const SelectedPath &path,
   if (llvm::Error error =
           collectRuntimeABIParameters(kernel, diagnostic,
                                       candidate.runtimeABIParameters))
+    return std::move(error);
+  if (llvm::Error error =
+          collectArtifactMetadata(kernel, diagnostic,
+                                  candidate.artifactMetadata))
     return std::move(error);
 
   return std::optional<TargetArtifactCandidate>(std::move(candidate));
@@ -1366,9 +1420,22 @@ std::string describeTargetArtifactCandidates(
 void appendComponentMetadata(
     llvm::ArrayRef<TargetArtifactCandidate> candidates,
     TargetArtifactBundleRecord &record) {
+  llvm::StringMap<std::string> metadataByKey;
   for (const TargetArtifactCandidate &candidate : candidates) {
     record.componentVariants.push_back(candidate.selectedVariant);
     record.componentRoles.push_back(candidate.role);
+    for (const support::ArtifactMetadataEntry &entry :
+         candidate.artifactMetadata) {
+      auto [it, inserted] = metadataByKey.try_emplace(entry.key, entry.value);
+      if (inserted)
+        record.artifactMetadata.push_back(entry);
+      else if (it->getValue() != entry.value)
+        record.artifactMetadata.push_back(support::ArtifactMetadataEntry(
+            (llvm::Twine(entry.key) + ".component." +
+             candidate.selectedVariant)
+                .str(),
+            entry.value));
+    }
   }
 }
 
@@ -1523,6 +1590,8 @@ llvm::Error appendSingleCandidateBundleRecord(
   record.runtimeABIName = candidate.runtimeABIName;
   record.runtimeABIParameters.append(candidate.runtimeABIParameters.begin(),
                                      candidate.runtimeABIParameters.end());
+  record.artifactMetadata.append(candidate.artifactMetadata.begin(),
+                                 candidate.artifactMetadata.end());
   record.handoffKind = exporter->getHandoffKind().str();
   record.componentGroup = exporter->getComponentGroup().str();
   if (!record.componentGroup.empty())
@@ -2072,6 +2141,20 @@ void printBundleRuntimeABIParameters(
   }
 }
 
+void printBundleArtifactMetadata(
+    llvm::raw_ostream &os,
+    llvm::ArrayRef<support::ArtifactMetadataEntry> metadata) {
+  for (auto [index, entry] : llvm::enumerate(metadata)) {
+    os << "  artifact_metadata[" << index << "]:\n";
+    os << "    key: ";
+    printBundleQuoted(os, entry.key);
+    os << "\n";
+    os << "    value: ";
+    printBundleQuoted(os, entry.value);
+    os << "\n";
+  }
+}
+
 void printTargetArtifactBundleIndex(
     llvm::raw_ostream &os,
     llvm::ArrayRef<TargetArtifactBundleRecord> records,
@@ -2138,6 +2221,7 @@ void printTargetArtifactBundleIndex(
     printBundleQuoted(os, record.runtimeABIName);
     os << "\n";
     printBundleRuntimeABIParameters(os, record.runtimeABIParameters);
+    printBundleArtifactMetadata(os, record.artifactMetadata);
     if (!record.handoffKind.empty()) {
       os << "  handoff_kind: ";
       printBundleQuoted(os, record.handoffKind);
