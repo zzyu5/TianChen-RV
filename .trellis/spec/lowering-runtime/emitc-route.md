@@ -261,23 +261,27 @@ applies to both direct selected-path diagnostics and selected
 
 ### 5. Good/Base/Bad Cases
 
-- Good: selected dispatch case `@rvv_i32_add` has a supported RVV object
-  emission-plan candidate; scalar fallback has an unsupported diagnostic; the
-  object/header bundle is generated from `@rvv_i32_add` only.
-- Base: selected direct-path diagnostic targets one explicit RVV i32m1 add
-  variant; the supported emission-plan candidate drives object/header export.
+- Good: a rebuilt extension target artifact route has a supported
+  emission-plan candidate selected by dispatch; fallback paths have
+  unsupported diagnostics; artifact output materializes only from the selected
+  non-fallback candidate.
+- Base: RVV explicit typed bodies may materialize through the common EmitC
+  route and then the MLIR EmitC C/C++ emitter, while RVV target object/header
+  artifact export remains unsupported until a non-descriptor route is rebuilt.
 - Bad: two direct RVV variants exist and the exporter chooses whichever direct
   variant happens to be first or only after test reduction.
 
 ### 6. Tests Required
 
-- Positive lit coverage for selected-path diagnostic input with a non-selected
-  sibling variant.
-- Positive lit coverage for selected dispatch input and object/header bundle
-  metadata.
+- Positive lit coverage for a retained selected-path target artifact route with
+  a non-selected sibling variant when such a route exists.
+- Positive lit coverage for current RVV explicit typed bodies reaching
+  materialized EmitC and the MLIR EmitC C/C++ emitter without object/header
+  artifact route authority.
 - Negative lit coverage for ambiguous supported multi-variant candidates.
 - Negative lit coverage for unselected multi-variant input.
-- Negative lit coverage for unsupported selected RVV shapes.
+- Negative lit coverage for unsupported selected RVV target artifact export
+  after descriptor-route erasure.
 - C++ or lit coverage proving selected artifact export fails closed when the
   common materialized EmitC handoff is missing required route provenance.
 

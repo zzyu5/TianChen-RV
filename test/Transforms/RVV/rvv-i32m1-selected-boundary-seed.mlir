@@ -1,15 +1,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-selected-boundary-seed | FileCheck %s --check-prefix=BOUNDARY --implicit-check-not="func.func"
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-selected-boundary-seed --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-selected-boundary-seed --tcrv-materialize-emission-plans --tcrv-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC
-// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
-// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline --tcrv-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC
-// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline --tcrv-materialize-emitc-lowerable-routes | tcrv-translate --tcrv-rvv-emitc-to-cpp | FileCheck %s --check-prefix=CPP
-// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | tcrv-translate --tcrv-export-target-artifact > %t.frontdoor.o
-// RUN: file %t.frontdoor.o | FileCheck %s --check-prefix=OBJECT
-// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER --implicit-check-not="seed_scalar_fallback"
-// RUN: rm -rf %t.bundle && mkdir %t.bundle
-// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.bundle | FileCheck %s --check-prefix=BUNDLE-STATUS
-// RUN: FileCheck %s --check-prefix=BUNDLE-INDEX < %t.bundle/tianchenrv-target-artifact-bundle.index
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-selected-boundary-seed --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN --implicit-check-not="riscv-elf-relocatable-object"
+// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN --implicit-check-not="riscv-elf-relocatable-object"
+// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | not tcrv-translate --tcrv-export-target-artifact 2>&1 | FileCheck %s --check-prefix=ARTIFACT-DELETED
 // RUN: not tcrv-opt %s --tcrv-disable-builtin-plugins --tcrv-rvv-materialize-i32m1-selected-boundary-seed 2>&1 | FileCheck %s --check-prefix=NO-BUILTIN
 
 module {
@@ -76,30 +68,16 @@ module {
 // BOUNDARY-SAME: fallback_role = "conservative"
 // BOUNDARY-SAME: origin = "scalar-plugin"
 
-// PLAN: tcrv.exec.diagnostic {artifact_kind = "riscv-elf-relocatable-object"
-// PLAN-SAME: artifact_metadata = [{key = "tcrv_rvv.config_contract", value = "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"}
-// PLAN-SAME: key = "tcrv_rvv.sew", value = "32"
-// PLAN-SAME: key = "tcrv_rvv.lmul", value = "m1"
-// PLAN-SAME: key = "tcrv_rvv.tail_policy", value = "agnostic"
-// PLAN-SAME: key = "tcrv_rvv.mask_policy", value = "agnostic"
-// PLAN-SAME: key = "tcrv_rvv.runtime_vl_contract", value = "rvv-runtime-avl-n-setvl-with-vl-same-vl.v1"
-// PLAN-SAME: key = "tcrv_rvv.runtime_avl_source", value = "runtime_abi:n"
-// PLAN-SAME: key = "tcrv_rvv.vl_def", value = "tcrv_rvv.setvl"
-// PLAN-SAME: key = "tcrv_rvv.vl_scope", value = "tcrv_rvv.with_vl"
-// PLAN-SAME: key = "tcrv_rvv.vl_uses", value = "with_vl,i32_load,i32_load,i32_arithmetic,i32_store"
-// PLAN-SAME: key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,out,n"
-// PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
-// PLAN-SAME: lowering_boundary = "tcrv_rvv.with_vl"
-// PLAN-SAME: lowering_pipeline = "tcrv-rvv-i32m1-add-riscv-elf-object"
+// PLAN: tcrv.exec.diagnostic
+// PLAN-SAME: message = "RVV target artifact route authority has been deleted
+// PLAN-SAME: origin = "rvv-plugin"
+// PLAN-SAME: reason = "emission_plan"
+// PLAN-SAME: required_capabilities = [@rvv]
 // PLAN-SAME: role = "dispatch case"
-// PLAN-SAME: runtime_abi_kind = "plugin-owned-runtime-abi"
-// PLAN-SAME: runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1"
-// PLAN-SAME: runtime_abi_parameters = [{c_name = "lhs"
-// PLAN-SAME: c_name = "rhs"
-// PLAN-SAME: c_name = "out"
-// PLAN-SAME: c_name = "n"
-// PLAN-SAME: runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue"
-// PLAN-SAME: status = "supported"
+// PLAN-SAME: runtime_abi_kind = "unsupported-plugin-runtime-abi"
+// PLAN-SAME: runtime_abi_name = "unsupported-emission-runtime-abi"
+// PLAN-SAME: runtime_glue_role = "no-runtime-glue-unsupported"
+// PLAN-SAME: status = "unsupported"
 // PLAN-SAME: target = @seed_rvv_i32_add
 // PLAN: tcrv.exec.diagnostic {artifact_kind = "unsupported-emission-diagnostic"
 // PLAN-SAME: emission_kind = "scalar-fallback-unsupported-emission"
@@ -108,32 +86,8 @@ module {
 // PLAN-SAME: status = "unsupported"
 // PLAN-SAME: target = @seed_scalar_fallback
 
-// EMITC: emitc.include <"riscv_vector.h">
-// EMITC: emitc.func @tcrv_emitc_seed_kernel_seed_rvv_i32_add
-// EMITC: tcrv_emitc.route_source_op=tcrv_rvv.with_vl role=scope op_interface=TCRVEmitCLowerableOpInterface
-// EMITC: tcrv_emitc.source_op=tcrv_rvv.setvl role=configure op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e32m1
-// EMITC: tcrv_emitc.source_op=tcrv_rvv.i32_load role=load op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle32_v_i32m1
-// EMITC: tcrv_emitc.source_op=tcrv_rvv.i32_add role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vadd_vv_i32m1
-// EMITC: tcrv_emitc.source_op=tcrv_rvv.i32_store role=store op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vse32_v_i32m1
-
-// CPP: #include <riscv_vector.h>
-// CPP: void tcrv_emitc_seed_kernel_seed_rvv_i32_add
-// CPP: tcrv_emitc.route_source_op=tcrv_rvv.with_vl role=scope op_interface=TCRVEmitCLowerableOpInterface
-// CPP: tcrv_emitc.source_op=tcrv_rvv.i32_add role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vadd_vv_i32m1
-// CPP: __riscv_vadd_vv_i32m1
-
-// OBJECT: ELF 64-bit LSB relocatable
-// OBJECT-SAME: RISC-V
-
-// HEADER: void tcrv_emitc_seed_kernel_seed_rvv_i32_add
-
-// BUNDLE-STATUS: tianchenrv.target_artifact_bundle_export: complete
-
-// BUNDLE-INDEX: artifact_count: 2
-// BUNDLE-INDEX: selected_variant: @seed_rvv_i32_add
-// BUNDLE-INDEX-NOT: seed_scalar_fallback
-// BUNDLE-INDEX: route: "tcrv-rvv-i32m1-add-riscv-elf-object"
-// BUNDLE-INDEX: route: "tcrv-rvv-i32m1-add-callable-c-header"
+// ARTIFACT-DELETED: TianChen-RV target artifact export failed:
+// ARTIFACT-DELETED: requires exactly one supported target artifact emission-plan route; found none
 
 // NO-BUILTIN: Unknown command line argument
 // NO-BUILTIN-SAME: tcrv-rvv-materialize-i32m1-selected-boundary-seed

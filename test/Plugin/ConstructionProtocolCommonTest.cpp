@@ -151,7 +151,6 @@ int runRVVCommonValidationTest() {
     if (int result = expectSuccess(
             rvv::verifyRVVI32M1ArithmeticConstructionRouteMapping(
                 route.mnemonic, route.operationName, route.emitCRouteID,
-                route.objectArtifactRouteID, route.headerArtifactRouteID,
                 route.runtimeABIName),
             "RVV arithmetic construction route validates"))
       return result;
@@ -181,7 +180,7 @@ int runRVVFailClosedConstructionValidationTest() {
   Manifest missingEvidence = rvv::getRVVConstructionManifest();
   missingEvidence.evidenceProfile =
       "parse_verify|capability|interface|selected_boundary_or_route|"
-      "emitc_route_mapping|target_artifact_route";
+      "emitc_route_mapping|target_artifact_route_deleted";
   if (int result = expectErrorContains(
           rvv::verifyRVVConstructionManifest(missingEvidence),
           {"evidence profile missing",
@@ -207,21 +206,19 @@ int runRVVFailClosedConstructionValidationTest() {
   if (int result = expectErrorContains(
           rvv::verifyRVVI32M1ArithmeticConstructionRouteMapping(
               "add", "tcrv_rvv.i32_sub", addRoute->emitCRouteID,
-              addRoute->objectArtifactRouteID,
-              addRoute->headerArtifactRouteID, addRoute->runtimeABIName),
+              addRoute->runtimeABIName),
           {"arithmetic operation for route", "tcrv_rvv.i32_add"},
           "RVV construction rejects stale route/op mapping"))
     return result;
 
   if (int result = expectErrorContains(
           rvv::verifyRVVI32M1ArithmeticConstructionPlanMapping(
-              addRoute->emitCRouteID, "stale-object-route",
-              addRoute->runtimeABIName,
+              addRoute->emitCRouteID, "stale-runtime-abi",
               rvv::getRVVConstructionManifest().emitcRoute.emissionKind,
               "tcrv_rvv.with_vl", "plugin-owned-runtime-abi",
               "emitc-cpp-rvv-intrinsic-runtime-glue"),
-          {"emission plan object route", addRoute->objectArtifactRouteID},
-          "RVV construction rejects stale emission-plan artifact route"))
+          {"emission plan runtime ABI", addRoute->runtimeABIName},
+          "RVV construction rejects stale emission-plan runtime ABI"))
     return result;
 
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =

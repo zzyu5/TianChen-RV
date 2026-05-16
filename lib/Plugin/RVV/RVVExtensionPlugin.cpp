@@ -316,36 +316,11 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
     return llvm::Error::success();
   }
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
-  VariantEmitCLowerableRequest routeRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole());
-  if (llvm::Error error =
-          buildRVVI32M1ArithmeticEmitCLowerableRoute(routeRequest, route)) {
-    std::string diagnostic = llvm::toString(std::move(error));
-    out = VariantEmissionStatus::getUnsupported(
-        kRVVPluginName, request.getVariant().getSymName(), diagnostic);
-    return llvm::Error::success();
-  }
-
-  llvm::Expected<RVVI32M1ArithmeticOp> arithmeticOp =
-      symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(route.getRouteID());
-  if (!arithmeticOp)
-    return arithmeticOp.takeError();
-  llvm::StringRef objectRouteID =
-      target::rvv::getRVVI32M1ArithmeticObjectArtifactRouteID(*arithmeticOp);
-  if (llvm::Error error = verifyRVVI32M1ArithmeticConstructionPlanMapping(
-          route.getRouteID(), objectRouteID,
-          getRVVI32M1ArithmeticRuntimeABIName(*arithmeticOp),
-          getRVVI32M1ArithmeticEmissionKind(),
-          getRVVI32M1ArithmeticLoweringBoundaryOpName(),
-          getRVVI32M1ArithmeticRuntimeABIKind(),
-          getRVVI32M1ArithmeticRuntimeGlueRole()))
-    return error;
-
-  out = VariantEmissionStatus::getSupported(
+  out = VariantEmissionStatus::getUnsupported(
       kRVVPluginName, request.getVariant().getSymName(),
-      objectRouteID);
+      "RVV target artifact route authority has been deleted; the selected "
+      "typed RVV body may still materialize through the common EmitC route, "
+      "but object/header artifact export awaits a non-descriptor rebuild");
   return llvm::Error::success();
 }
 
@@ -375,49 +350,12 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
           validateSelectedRVVI32M1WithVLBoundary(boundaryRequest))
     return error;
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
-  VariantEmitCLowerableRequest routeRequest(
-      request.getVariant(), request.getKernel(), request.getCapabilities(),
-      request.getRole());
-  if (llvm::Error error =
-          buildRVVI32M1ArithmeticEmitCLowerableRoute(routeRequest, route))
-    return error;
-
-  llvm::Expected<RVVI32M1ArithmeticOp> arithmeticOp =
-      symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(route.getRouteID());
-  if (!arithmeticOp)
-    return arithmeticOp.takeError();
-  llvm::StringRef objectRouteID =
-      target::rvv::getRVVI32M1ArithmeticObjectArtifactRouteID(*arithmeticOp);
-  if (llvm::Error error = verifyRVVI32M1ArithmeticConstructionPlanMapping(
-          route.getRouteID(), objectRouteID,
-          getRVVI32M1ArithmeticRuntimeABIName(*arithmeticOp),
-          getRVVI32M1ArithmeticEmissionKind(),
-          getRVVI32M1ArithmeticLoweringBoundaryOpName(),
-          getRVVI32M1ArithmeticRuntimeABIKind(),
-          getRVVI32M1ArithmeticRuntimeGlueRole()))
-    return error;
-
-  out = VariantEmissionPlan::getSupported(
+  out = VariantEmissionPlan::getUnsupported(
       kRVVPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      getRVVI32M1ArithmeticEmissionKind(),
-      objectRouteID,
-      getRVVI32M1ArithmeticRuntimeABIName(*arithmeticOp),
-      "riscv-elf-relocatable-object",
-      (llvm::Twine("RVV explicit i32m1 ") +
-       stringifyRVVI32M1ArithmeticOp(*arithmeticOp) +
-       " route materializes EmitC, emits C/C++ through MLIR EmitC, and "
-       "exports a RISC-V relocatable object through the RVV target artifact "
-       "route")
-          .str());
-  out.setRuntimeABIKind(getRVVI32M1ArithmeticRuntimeABIKind());
-  out.setRuntimeABIName(getRVVI32M1ArithmeticRuntimeABIName(*arithmeticOp));
-  out.setRuntimeGlueRole(getRVVI32M1ArithmeticRuntimeGlueRole());
-  out.setLoweringBoundaryOpName(getRVVI32M1ArithmeticLoweringBoundaryOpName());
-  out.addRuntimeABIParameters(getRVVI32M1ArithmeticRuntimeABIParameters());
-  out.addArtifactMetadataEntries(
-      tcrv::rvv::getRVVI32M1ArithmeticArtifactMetadata());
+      "RVV target artifact route authority has been deleted; materialized "
+      "EmitC remains available, but object/header artifact export must be "
+      "rebuilt without descriptor-owned add/sub/mul target routes");
   return out.setRequiredCapabilitySymbolsFromVariant(request.getVariant());
 }
 

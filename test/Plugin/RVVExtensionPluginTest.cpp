@@ -552,49 +552,26 @@ module {
                 variantName))
       return result;
     if (int result =
-            expect(plan.isSupported(),
-                   llvm::Twine("RVV emission plan is supported for @") +
+            expect(plan.isUnsupported(),
+                   llvm::Twine("RVV emission plan is unsupported for @") +
                        variantName))
       return result;
-    llvm::Expected<
-        const tianchenrv::plugin::rvv::RVVI32M1ArithmeticConstructionRoute *>
-        constructionRoute =
-            tianchenrv::plugin::rvv::
-                lookupRVVI32M1ArithmeticConstructionRouteByObjectArtifactRouteID(
-                    plan.getLoweringPipeline());
-    if (!constructionRoute)
-      return fail(llvm::Twine("RVV emission plan route is not construction "
-                              "mapped: ") +
-                  llvm::toString(constructionRoute.takeError()));
-    if (int result = expectSuccess(
-            tianchenrv::plugin::rvv::
-                verifyRVVI32M1ArithmeticConstructionPlanMapping(
-                    (*constructionRoute)->emitCRouteID,
-                    plan.getLoweringPipeline(), plan.getRuntimeABIName(),
-                    plan.getEmissionKind(), plan.getLoweringBoundaryOpName(),
-                    plan.getRuntimeABIKind(), plan.getRuntimeGlueRole()),
-            llvm::Twine("RVV emission plan consumes construction mapping for @") +
+    if (int result = expect(
+            llvm::StringRef(plan.getDiagnostic())
+                .contains("target artifact route authority has been deleted"),
+            llvm::Twine("RVV emission plan reports deleted target artifact "
+                        "route for @") +
                 variantName))
       return result;
 
     VariantEmissionStatus readiness;
-    if (int result = expectSuccess(
+    if (int result = expectErrorContains(
             registry.checkVariantEmissionReadiness(
                 VariantEmissionRequest(variant, kernel, capabilities,
                                        VariantEmissionRole::DirectVariant),
                 readiness),
-            llvm::Twine("check construction-backed emission readiness for @") +
-                variantName))
-      return result;
-    if (int result = expect(readiness.isSupported(),
-                            llvm::Twine("RVV readiness is supported for @") +
-                                variantName))
-      return result;
-    if (int result =
-            expect(readiness.getEmissionPath() == plan.getLoweringPipeline(),
-                   llvm::Twine("RVV readiness path matches construction-"
-                               "checked emission plan for @") +
-                       variantName))
+            {"reported unsupported emission path",
+             "target artifact route authority has been deleted"}))
       return result;
   }
 

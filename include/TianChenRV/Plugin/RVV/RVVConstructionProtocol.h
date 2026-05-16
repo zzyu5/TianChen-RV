@@ -32,11 +32,6 @@ struct RVVI32M1ArithmeticConstructionRoute {
   llvm::StringRef operationName;
   llvm::StringRef typedRoleID;
   llvm::StringRef emitCRouteID;
-  llvm::StringRef objectArtifactRouteID;
-  llvm::StringRef headerArtifactRouteID;
-  llvm::StringRef objectTranslateRouteID;
-  llvm::StringRef headerTranslateRouteID;
-  llvm::StringRef callableComponentGroup;
   llvm::StringRef runtimeABIName;
   llvm::StringRef runtimeABIContractName;
 };
@@ -73,9 +68,6 @@ lookupRVVI32M1ArithmeticConstructionRouteByOperationName(
 llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>
 lookupRVVI32M1ArithmeticConstructionRouteByEmitCRouteID(
     llvm::StringRef emitCRouteID);
-llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>
-lookupRVVI32M1ArithmeticConstructionRouteByObjectArtifactRouteID(
-    llvm::StringRef objectArtifactRouteID);
 
 llvm::Error verifyRVVRoleOperationInterface(mlir::Operation *roleOp,
                                             llvm::StringRef role);
@@ -88,18 +80,12 @@ llvm::Error verifyRVVStoreRoleOpInterface(mlir::Operation *roleOp);
 
 llvm::Error verifyRVVI32M1ArithmeticConstructionRouteMapping(
     llvm::StringRef mnemonic, llvm::StringRef operationName,
-    llvm::StringRef emitCRouteID, llvm::StringRef objectArtifactRouteID,
-    llvm::StringRef headerArtifactRouteID, llvm::StringRef runtimeABIName);
+    llvm::StringRef emitCRouteID, llvm::StringRef runtimeABIName);
 llvm::Error verifyRVVI32M1ArithmeticConstructionPlanMapping(
-    llvm::StringRef emitCRouteID, llvm::StringRef objectArtifactRouteID,
-    llvm::StringRef runtimeABIName, llvm::StringRef emissionKind,
+    llvm::StringRef emitCRouteID, llvm::StringRef runtimeABIName,
+    llvm::StringRef emissionKind,
     llvm::StringRef loweringBoundaryOpName, llvm::StringRef runtimeABIKind,
     llvm::StringRef runtimeGlueRole);
-llvm::Error verifyRVVI32M1ArithmeticConstructionTargetRouteMapping(
-    llvm::StringRef objectArtifactRouteID, llvm::StringRef headerArtifactRouteID,
-    llvm::StringRef objectTranslateRouteID,
-    llvm::StringRef headerTranslateRouteID,
-    llvm::StringRef callableComponentGroup, llvm::StringRef runtimeABIName);
 
 } // namespace tianchenrv::plugin::rvv
 

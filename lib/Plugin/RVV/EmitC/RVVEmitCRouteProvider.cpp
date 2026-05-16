@@ -554,10 +554,7 @@ llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
         constructionRoute.operationName + "' from the construction mapping");
   if (llvm::Error error = verifyRVVI32M1ArithmeticConstructionRouteMapping(
           expectedDescriptor.mnemonic, constructionRoute.operationName,
-          constructionRoute.emitCRouteID,
-          constructionRoute.objectArtifactRouteID,
-          constructionRoute.headerArtifactRouteID,
-          constructionRoute.runtimeABIName))
+          constructionRoute.emitCRouteID, constructionRoute.runtimeABIName))
     return error;
 
   conversion::emitc::TCRVEmitCLowerableRoute route(

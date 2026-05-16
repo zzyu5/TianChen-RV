@@ -293,11 +293,11 @@ materialized MLIR EmitC module route, deleted RVV wrapper attachments and
 descriptor-derived callable ABI data are fail-closed historical inputs, not
 active emission authority.
 
-The former microkernel direct C slice is deleted as production authority.
-Outside the bounded explicit RVV i32m1 add/sub/mul EmitC object/header route
-described above, selected `rvv-plugin` paths must report unsupported emission
-plans until the rebuild provides a materialized MLIR EmitC module route for
-that slice.
+The former microkernel direct C slice and finite RVV target object/header route
+slice are deleted as production authority. Selected `rvv-plugin` target
+artifact paths must report unsupported emission plans until the rebuild provides
+a non-descriptor artifact route that consumes the materialized MLIR EmitC module
+for that slice.
 Target/export code must not synthesize RVV compute C bodies from selected
 metadata, family records, route records, or deleted wrapper records. RVV routes
 must fail closed instead of producing `riscv_vector.h` intrinsic source,
@@ -902,9 +902,10 @@ evidence are later stages and are not implied by this route.
   parameters or supported source/header/object routes from selected metadata.
 - Negative coverage must keep stale body, stale descriptor, missing boundary,
   and malformed ABI cases fail-closed before source/header/object output.
-- Target artifact tests must prove the exporter metadata consumes provider-owned
-  runtime ABI fields and that common/target front-door code does not contain
-  RVV intrinsic/header spellings.
+- Target artifact tests must prove RVV target artifact exporters and
+  artifact-backed translate routes are absent until a non-descriptor route is
+  rebuilt; retained EmitC materialization tests may still prove provider-owned
+  intrinsic/header spelling reaches MLIR EmitC and C/C++ emitter output.
 
 #### 7. Wrong vs Correct
 

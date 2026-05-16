@@ -56,6 +56,73 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 98: RVV target descriptor-route authority erasure
+
+**Date**: 2026-05-17
+**Task**: `rvv-target-descriptor-route-erasure`
+**Branch**: `main`
+
+### Summary
+
+Deleted RVV target-support descriptor/table authority for finite i32m1
+add/sub/mul object/header/translate artifact routes. RVV selected artifact
+planning now reports an unsupported deleted-route diagnostic; the retained RVV
+EmitC-to-C++ route only accepts an already materialized EmitC module.
+
+### Main Changes
+
+- Created Trellis task `05-17-rvv-target-descriptor-route-erasure` and wrote a
+  deletion-only PRD from the supplied Direction Brief.
+- Replaced `lib/Target/RVV/RVVTargetSupportBundle.cpp` with a minimal
+  materialized EmitC-to-C++ translate route registration; no RVV artifact
+  exporter bundle is installed.
+- Removed RVV construction-protocol object/header/translate route fields and
+  updated construction tests accordingly.
+- Changed RVV emission readiness/planning to fail closed after validating the
+  explicit typed RVV body, instead of naming a supported object/header route.
+- Deleted old RVV target object/header/bundle lit fixtures and rewrote the
+  source-seed fixture to assert unsupported/deleted-route diagnostics and
+  target artifact export failure.
+- Updated lowering-runtime and RVV plugin specs to stop treating finite RVV
+  object/header target routes as current production behavior.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test tianchenrv-construction-protocol-common-test tcrv-opt tcrv-translate -j2`.
+- [OK] Focused C++:
+  `tianchenrv-target-artifact-export-test`,
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-construction-protocol-common-test`.
+- [OK] Focused lit filter:
+  `rvv-i32m1-selected-boundary-seed|emitc-to-cpp-handoff|emitc-to-cpp-non-materialized|rvv-first-slice-materialization|source-seed-artifact-front-door`,
+  13/13 passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`, 100/100 lit
+  tests passed.
+- [OK] `git diff --check`.
+- [OK] Targeted scans found no RVV target descriptor/table names, old finite
+  RVV target route ids, construction object/header/translate route fields, or
+  RVV target artifact direct exporter residue in the touched target/test
+  surfaces. Retained `riscv_vector.h` and `__riscv_vadd_vv_i32m1` evidence is
+  limited to the materialized EmitC-to-C++ handoff fixture.
+
+### Self-Repair
+
+- Narrowed the source-seed fixture after the initial lit run correctly showed
+  that EmitC materialization cannot select a supported non-fallback emission
+  plan once RVV artifact route authority is deleted.
+
+### Spec Update Judgment
+
+Spec updates were required because the current RVV target artifact route state
+changed from supported finite object/header export to unsupported deleted-route
+diagnostics pending a non-descriptor rebuild.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+
 ## Session 97: Registry-composed source-seed-to-artifact front door
 
 **Date**: 2026-05-16

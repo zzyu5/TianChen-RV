@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that the final diff stays in C++/MLIR stack and does not restore descriptor-driven computation."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that deleted RVV target routes do not get replaced by descriptor-to-C or direct source export behavior."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV-specific fail-closed behavior and retained materialized EmitC coverage."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check that tests no longer preserve old command/route fixtures and still cover retained EmitC materialization."}

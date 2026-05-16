@@ -24,7 +24,8 @@ constexpr llvm::StringLiteral kSourceSeedArtifactFrontDoorPipelineName(
 constexpr llvm::StringLiteral kSourceSeedArtifactFrontDoorPipelineDescription(
     "Compose enabled plugin source-seed materialization passes with TianChen-RV "
     "generic legality, capability, emission-plan, and execution-plan coherence "
-    "checks so bounded source seeds can enter existing target artifact routes");
+    "checks so bounded source seeds reach selected emission diagnostics before "
+    "any supported target artifact export");
 
 } // namespace
 

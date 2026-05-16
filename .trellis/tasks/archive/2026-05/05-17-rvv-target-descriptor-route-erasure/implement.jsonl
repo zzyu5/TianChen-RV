@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, descriptor-deletion, and extension-family route boundaries for this deletion-only task."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Defines the valid extension-family ops to EmitC route and marks descriptor-based microkernel dispatch/direct C exporters as deletion targets."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines plugin-local target support hooks and forbids target-family branches in common/core orchestration."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV-specific contract for provider-owned EmitC routes and unsupported/deleted target artifact route diagnostics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing policy for retained RVV EmitC materialization coverage after old target artifact routes are deleted."}
