@@ -56,6 +56,54 @@ Deleted Support-owned I32/RVV runtime ABI contracts and helpers; rewired tests/s
 - None - task complete
 
 
+## Session 83: RVV Python probe-to-MLIR route erasure
+
+**Date**: 2026-05-16
+**Task**: RVV Python probe-to-MLIR route erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the Python RVV probe replay route that emitted `tcrv.exec` MLIR from
+probe JSON; removed its lit/fixture coverage; narrowed `rvv_remote_probe.py`
+schema to evidence-only capability facts; updated specs so Python probe tooling
+cannot authorize compiler capability/target/kernel/route modeling.
+
+### Main Changes
+
+- Removed `scripts/rvv_probe_to_mlir.py`.
+- Removed `test/Scripts/rvv-probe-to-mlir.test` and replay-only fixtures under
+  `test/Fixtures/rvv_probe/`.
+- Bumped retained remote probe schema to evidence-only version 4 and removed
+  fabricated first-slice/I64 route config facts from emitted
+  `capability_facts`.
+- Updated RVV plugin, capability profile, MLIR testing specs, and the tracked
+  grill consensus note to mark the Python replay route as deleted.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(rvv): erase python probe replay route |
+
+### Testing
+
+- [OK] `python3 scripts/rvv_remote_probe.py --self-test`
+- [OK] `git diff --check`
+- [OK] `ninja -C build tcrv-opt tcrv-translate`
+- [OK] `ninja -C build check-tianchenrv` (75/75 lit tests)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Continue deletion only if another Python/compiler-core replay or descriptor
+  authority surface remains; do not rebuild RVV emission until the campaign
+  exits deletion mode.
+
+
 ## Session 78: Direct-C source artifact kind erasure
 
 **Date**: 2026-05-15

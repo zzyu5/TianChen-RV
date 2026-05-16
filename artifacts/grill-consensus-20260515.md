@@ -70,9 +70,9 @@ Use these labels when reading output directories:
 
 - `machine probe record`: output from tools like `rvv_remote_probe.py`; records
   remote RVV hardware/toolchain facts, not compiler/runtime success.
-- `capability replay input`: output from tools like `rvv_probe_to_mlir.py`;
-  turns probe facts into bounded `tcrv.exec` capability MLIR input, not a runtime
-  artifact.
+- `capability replay input`: historical Python probe-to-MLIR output; this route
+  is deleted as active compiler authority and must not be treated as a live
+  source of `tcrv.exec` capability MLIR input.
 - `compiler test fixture`: most `test/**/*.mlir`; input used to exercise parser,
   verifier, pass, exporter, or fail-closed behavior.
 - `boundary note / diagnostic artifact`: metadata or diagnostic output that

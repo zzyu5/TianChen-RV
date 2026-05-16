@@ -123,8 +123,9 @@ callable ABI, artifact kind, or emitted body.
 This scenario applies when the RVV plugin proposes, materializes, verifies, or
 exports the bounded i32 add/sub/mul first slice. It is a cross-layer contract:
 target capability profile facts, variant `requires`, selected
-lowering-boundary validation, emission readiness, and probe replay must agree
-on the same SEW/LMUL/tail/mask policy ids.
+lowering-boundary validation, and emission readiness must agree on the same
+SEW/LMUL/tail/mask policy ids. Remote probe output does not create those
+compiler config facts.
 
 ### 2. Signatures
 
@@ -316,8 +317,8 @@ The JSON artifact records a bounded schema:
 - hardware/toolchain facts for `uname`, architecture, hart count, clang,
   cmake, bounded RISC-V/vector hints from `/proc/cpuinfo`, and non-interactive
   sudo availability as a boolean capability fact;
-- a sanitized `capability_facts` section containing only bounded
-  compiler-facing facts: architecture, hart count, optional vlenb bytes and
+- a sanitized `capability_facts` section containing only bounded evidence
+  facts: architecture, hart count, optional vlenb bytes and
   derived i32 m1 lane count, ISA/vector hint string, clang and CMake
   availability/version facts, minimal RVV compile/run success, selected
   march/mabi, and optional source/binary digests;
@@ -359,41 +360,29 @@ Interpretation rules:
   named `ssh rvv` evidence; probe artifacts alone do not create broader
   supported RVV emission.
 
-## Remote Evidence Replay Contract
+## Deleted Remote Evidence Replay Route
 
-The repo may provide a Python artifact parser such as
-`scripts/rvv_probe_to_mlir.py` to replay sanitized `rvv_probe_evidence.json`
-facts into a bounded `tcrv.exec` MLIR fixture. This helper is allowed to parse
-the probe JSON, reject secret-like or unbounded compiler-facing facts, and emit
-existing `tcrv.exec.capability` ops with the stable plugin-local capability IDs
-used by the C++ RVV plugin:
+The Python RVV probe-to-MLIR replay route is deleted as active compiler
+authority. Repo-owned Python probe tooling may collect, sanitize, validate, and
+record bounded RVV hardware/toolchain evidence, but it must not translate probe
+JSON into `tcrv.exec` MLIR capability, target, kernel, variant, selected route,
+or scalar fallback modeling.
+
+Compiler-visible RVV capability/profile behavior must be implemented by the
+C++/MLIR RVV extension-family/plugin path. The transition from a probe artifact
+to compiler capabilities is:
 
 ```text
-rvv
-rvv.hart_count
-rvv.vlenb_bytes
-rvv.i32_m1_lane_count
-rvv.i32_m1.sew32
-rvv.i32_m1.lmul_m1
-rvv.i32_m1.tail_policy.agnostic
-rvv.i32_m1.mask_policy.agnostic
-rvv.toolchain.clang
-rvv.toolchain.cmake
-rvv.probe.compile_run
-rvv.toolchain.march
-rvv.toolchain.mabi
+sanitized evidence artifact
+  -> plugin-local C++ RVV capability profile validation
+  -> TargetCapabilitySet
 ```
 
-The replayed MLIR is a capability fixture, not a compiler decision. The helper
-must not decide RVV proposal availability, legality, selection, lowering,
-emission, runtime ABI, correctness, or performance. Those decisions remain in
-`RVVExtensionPlugin`, the plugin-local C++ RVV capability profile, and the
-generic C++/MLIR planning pipeline. Malformed or failed RVV probe facts may
-therefore produce replay MLIR that the C++ RVV plugin declines or diagnoses,
-and an explicitly present `scalar.fallback` capability may still allow the
-scalar fallback plugin to provide coverage. This is the expected boundary: the
-Python helper preserves sanitized evidence facts; it does not invent RVV
-support.
+There is no supported Python fallback route, hidden compatibility mode, or
+schema adapter that preserves the old replay helper. Tests must not pipe
+Python-generated RVV replay MLIR into `tcrv-opt` as compiler-path evidence.
+First-slice SEW/LMUL/tail/mask policy facts are plugin-selected compiler config
+facts, not remote-probe output fields.
 
 `registerDialects` now registers the minimal RVV dialect skeleton through the
 RVV plugin path. The default `registerAllDialects` path remains core-only; RVV

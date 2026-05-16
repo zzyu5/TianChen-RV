@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global stack boundary: Python cannot implement core IR, capability model, lowering, or emission."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Defines tcrv.exec as C++/MLIR execution-envelope dialect, not Python pseudo-IR."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV probe and plugin boundaries; contains stale replay-helper permission to delete."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin capability/legality/selection/emission authority must be C++ compiler interfaces."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Deletion-campaign boundary for direct/source authority and future EmitC rebuild route."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "MLIR/lit/FileCheck policy and stale Python replay test guidance to update."}
+{"file": ".trellis/spec/capability-model/profiles.md", "reason": "Target profile/probe-derived capability boundary; contains stale replay-helper permission to delete."}

@@ -23,7 +23,7 @@ from typing import Any
 
 
 PROBE_NAME = "tianchenrv-rvv-remote-probe"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 DEFAULT_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_probe")
 DEFAULT_SSH_TARGET = "rvv"
 DEFAULT_TIMEOUT_SECONDS = 30
@@ -249,30 +249,6 @@ def build_capability_facts(
         "hart_count": hart_count_value,
         "vlenb_bytes": vlenb_bytes,
         "i32_m1_lane_count": i32_m1_lane_count,
-        "first_slice_sew_bits": 32
-        if compile_run.get("status") == "success"
-        else 0,
-        "first_slice_lmul": "m1"
-        if compile_run.get("status") == "success"
-        else "",
-        "first_slice_tail_policy": "agnostic"
-        if compile_run.get("status") == "success"
-        else "",
-        "first_slice_mask_policy": "agnostic"
-        if compile_run.get("status") == "success"
-        else "",
-        "i64_m1_sew_bits": 64
-        if compile_run.get("status") == "success"
-        else 0,
-        "i64_m1_lmul": "m1"
-        if compile_run.get("status") == "success"
-        else "",
-        "i64_m1_tail_policy": "agnostic"
-        if compile_run.get("status") == "success"
-        else "",
-        "i64_m1_mask_policy": "agnostic"
-        if compile_run.get("status") == "success"
-        else "",
         "isa_vector_hints": extract_isa_vector_hints(facts),
         "clang_available": bool(facts.get("clang", {}).get("available")),
         "clang_version": bounded_fact_value(facts.get("clang", {}).get("version", "")),
@@ -640,14 +616,6 @@ def validate_evidence_artifact(artifact: dict[str, Any]) -> list[str]:
         "hart_count": int,
         "vlenb_bytes": int,
         "i32_m1_lane_count": int,
-        "first_slice_sew_bits": int,
-        "first_slice_lmul": str,
-        "first_slice_tail_policy": str,
-        "first_slice_mask_policy": str,
-        "i64_m1_sew_bits": int,
-        "i64_m1_lmul": str,
-        "i64_m1_tail_policy": str,
-        "i64_m1_mask_policy": str,
         "isa_vector_hints": str,
         "clang_available": bool,
         "clang_version": str,
@@ -855,38 +823,20 @@ def run_self_test() -> None:
         capability_facts["i32_m1_lane_count"] == 4,
         "capability facts i32 m1 lane count missing",
     )
-    assert_self_test(
-        capability_facts["first_slice_sew_bits"] == 32,
-        "capability facts first-slice SEW missing",
-    )
-    assert_self_test(
-        capability_facts["first_slice_lmul"] == "m1",
-        "capability facts first-slice LMUL missing",
-    )
-    assert_self_test(
-        capability_facts["first_slice_tail_policy"] == "agnostic",
-        "capability facts first-slice tail policy missing",
-    )
-    assert_self_test(
-        capability_facts["first_slice_mask_policy"] == "agnostic",
-        "capability facts first-slice mask policy missing",
-    )
-    assert_self_test(
-        capability_facts["i64_m1_sew_bits"] == 64,
-        "capability facts i64m1 SEW missing",
-    )
-    assert_self_test(
-        capability_facts["i64_m1_lmul"] == "m1",
-        "capability facts i64m1 LMUL missing",
-    )
-    assert_self_test(
-        capability_facts["i64_m1_tail_policy"] == "agnostic",
-        "capability facts i64m1 tail policy missing",
-    )
-    assert_self_test(
-        capability_facts["i64_m1_mask_policy"] == "agnostic",
-        "capability facts i64m1 mask policy missing",
-    )
+    for deleted_key in (
+        "first_slice_sew_bits",
+        "first_slice_lmul",
+        "first_slice_tail_policy",
+        "first_slice_mask_policy",
+        "i64_m1_sew_bits",
+        "i64_m1_lmul",
+        "i64_m1_tail_policy",
+        "i64_m1_mask_policy",
+    ):
+        assert_self_test(
+            deleted_key not in capability_facts,
+            f"capability facts retained deleted route config key {deleted_key}",
+        )
     assert_self_test(
         "rv64imafdcv" in capability_facts["isa_vector_hints"],
         "capability facts vector hint missing",

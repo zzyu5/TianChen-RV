@@ -382,23 +382,18 @@ must validate the sanitized `capability_facts` artifact section and redaction
 behavior, but compiler-facing capability mapping remains covered by C++ plugin
 tests rather than Python.
 
-If the repository provides an RVV probe replay helper, it must also be tested as
-Python tooling and as MLIR pipeline input. Required coverage:
+The Python RVV probe-to-MLIR replay route is deleted. Tests must not keep a
+Python helper, fixture, or lit pipeline whose purpose is to convert sanitized
+RVV probe JSON into `tcrv.exec` MLIR capability, target, kernel, selected
+route, or scalar fallback modeling. In particular, no active lit test may pipe
+Python-generated RVV replay MLIR into `tcrv-opt` as compiler-path evidence.
 
-- a sanitized probe fixture converts to parseable `tcrv.exec` MLIR capability
-  ops with the field names consumed by `RVVExtensionPlugin`, including optional
-  vlenb bytes and derived i32 m1 lane-count capabilities when present;
-- the replayed MLIR can drive `tcrv-opt --tcrv-execution-planning-pipeline` to
-  materialize RVV proposal metadata, selected lowering-boundary metadata, and
-  boundary-linked emission-plan diagnostics when the required RVV facts are
-  present, including selected RVV capacity metadata preserved as diagnostic
-  self-description rather than runtime input or performance evidence;
-- missing, malformed, failed, secret-like, or unbounded probe facts do not
-  invent RVV support;
-- scalar fallback remains available when an explicit `scalar.fallback`
-  capability is included and RVV evidence is unavailable or declined;
-- helper tests must not use raw credentials, private keys, tokens, unbounded
-  command dumps, correctness claims, runtime claims, or performance claims.
+Coverage for retained Python RVV tooling is limited to evidence-tool behavior:
+schema shape, bounded hardware/toolchain facts, sanitizer/redaction behavior,
+artifact layout, and fail-closed diagnostics. Compiler-facing RVV capability
+profile validation, relation construction, legality, selection, lowering, and
+emission behavior must be covered by C++/MLIR plugin tests and lit/FileCheck
+compiler tests, not by Python-generated compiler IR.
 
 The repository must not export generated RVV smoke-probe C from post-planning
 MLIR. Tests should prove current unsupported RVV emission-plan diagnostics and

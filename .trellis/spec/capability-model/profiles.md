@@ -29,20 +29,18 @@ Rules:
 - This is the current real hardware mainline.
 - RVV correctness, runtime, or performance claims require real `ssh rvv` evidence.
 - RVV evidence should include probe output for relevant facts such as host identity, RISC-V architecture, core count, RVV/toolchain availability, CMake availability, and sudo behavior when relevant.
-- Probe artifacts may expose a sanitized `capability_facts` section for compiler-facing ingestion. That section is evidence-tool output only; the authoritative capability relation is the plugin-local C++ RVV capability profile that validates those facts and populates `TargetCapabilitySet`.
-- A replay helper may translate sanitized `capability_facts` into
-  `tcrv.exec.capability` fixture MLIR for deterministic planning tests. The
-  replay helper remains artifact parsing tooling: it must not implement
-  capability relations, RVV legality, variant selection, lowering, emission, or
-  runtime decisions.
-- RVV replay fixtures may also package sanitized capability facts through a
-  module-level `tcrv.exec.target` profile and explicit `capability_providers`
-  composition. For the finite i64m1 binary slice, replay/profile facts may
-  preserve `rvv.i64_m1.sew64`, `rvv.i64_m1.lmul_m1`,
-  `rvv.i64_m1.tail_policy.agnostic`, and
-  `rvv.i64_m1.mask_policy.agnostic`; compiler legality, family selection,
-  lowering-boundary materialization, emission planning, and artifact export
-  remain owned by C++/MLIR plugin and target code.
+- Probe artifacts may expose a sanitized `capability_facts` section as bounded
+  evidence-tool output. Python probe tooling must not translate that section
+  into `tcrv.exec` MLIR capability, target, kernel, selected route, or scalar
+  fallback modeling.
+- The authoritative transition from RVV probe evidence to compiler-visible
+  capabilities is plugin-local C++ RVV capability profile validation followed
+  by `TargetCapabilitySet` population. Python must not implement capability
+  relations, RVV legality, variant selection, lowering, emission, runtime ABI,
+  target profile generation, or fallback selection.
+- Remote probe output must not fabricate compiler-route config facts such as
+  first-slice SEW, LMUL, tail policy, or mask policy. Such finite config facts
+  are plugin-selected compiler facts, not raw hardware/toolchain evidence.
 - Required positive facts for the RVV probe-derived profile include `riscv64` architecture, `hart_count > 0`, bounded RVV ISA/vector hints, clang and CMake availability/version facts, minimal hand-written RVV compile/run success, and selected march/mabi facts when emitted by the probe.
 - Stable profile capability identities must remain plugin-local and generic,
   such as `rv64`, `rvv`, `rvv.hart_count`, `riscv.toolchain.march`,
