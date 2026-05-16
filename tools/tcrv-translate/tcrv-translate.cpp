@@ -1,6 +1,7 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
@@ -40,11 +41,18 @@ llvm::cl::opt<std::string> targetArtifactBundleOutputDirectory(
     llvm::cl::desc("output directory for target artifact bundle export"),
     llvm::cl::value_desc("directory"), llvm::cl::init(""));
 
+llvm::Error populateBuiltinExtensionFrontDoor(
+    tianchenrv::plugin::ExtensionBundleRegistry &bundles,
+    tianchenrv::plugin::ExtensionPluginRegistry &plugins) {
+  return tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(bundles,
+                                                                   plugins);
+}
+
 mlir::LogicalResult populateBuiltinPlanningRegistries(
     mlir::ModuleOp module, tianchenrv::plugin::ExtensionPluginRegistry &plugins,
     tianchenrv::target::TargetArtifactExporterRegistry &exporters) {
-  if (llvm::Error error =
-          tianchenrv::plugin::registerBuiltinExtensionPlugins(plugins)) {
+  tianchenrv::plugin::ExtensionBundleRegistry bundles;
+  if (llvm::Error error = populateBuiltinExtensionFrontDoor(bundles, plugins)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();
@@ -52,7 +60,7 @@ mlir::LogicalResult populateBuiltinPlanningRegistries(
 
   if (llvm::Error error =
           tianchenrv::target::registerBuiltinTargetArtifactExporters(
-              exporters, plugins)) {
+              exporters, bundles, plugins)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();
@@ -65,12 +73,12 @@ void registerTianChenRVTranslateDialects(mlir::DialectRegistry &registry) {
   tianchenrv::registerAllDialects(registry);
   registry.insert<mlir::emitc::EmitCDialect>();
 
+  tianchenrv::plugin::ExtensionBundleRegistry bundles;
   tianchenrv::plugin::ExtensionPluginRegistry plugins;
-  if (llvm::Error error =
-          tianchenrv::plugin::registerBuiltinExtensionPlugins(plugins)) {
+  if (llvm::Error error = populateBuiltinExtensionFrontDoor(bundles, plugins)) {
     llvm::report_fatal_error(
         llvm::Twine("failed to register TianChen-RV built-in extension "
-                    "bundle plugins for tcrv-translate: ") +
+                    "bundle front door for tcrv-translate: ") +
         llvm::toString(std::move(error)));
   }
   tianchenrv::registerPluginDialects(plugins, registry);
@@ -78,9 +86,9 @@ void registerTianChenRVTranslateDialects(mlir::DialectRegistry &registry) {
 
 mlir::LogicalResult exportEmissionManifest(mlir::ModuleOp module,
                                            llvm::raw_ostream &os) {
+  tianchenrv::plugin::ExtensionBundleRegistry bundles;
   tianchenrv::plugin::ExtensionPluginRegistry plugins;
-  if (llvm::Error error =
-          tianchenrv::plugin::registerBuiltinExtensionPlugins(plugins)) {
+  if (llvm::Error error = populateBuiltinExtensionFrontDoor(bundles, plugins)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();
@@ -89,7 +97,7 @@ mlir::LogicalResult exportEmissionManifest(mlir::ModuleOp module,
   tianchenrv::target::TargetArtifactExporterRegistry exporters;
   if (llvm::Error error =
           tianchenrv::target::registerBuiltinTargetArtifactExporters(
-              exporters, plugins)) {
+              exporters, bundles, plugins)) {
     std::string message = llvm::toString(std::move(error));
     module.emitError() << message;
     return mlir::failure();

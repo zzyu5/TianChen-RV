@@ -161,6 +161,82 @@ constexpr llvm::StringLiteral kBundleTestDuplicateRouteID(
     "bundle-test-duplicate-route");
 constexpr llvm::StringLiteral kBundleTestUnsupportedEmissionKind(
     "bundle-test-unsupported-emission");
+constexpr llvm::StringLiteral kMissingTranslatePluginName(
+    "missing-translate-plugin");
+constexpr llvm::StringLiteral kDisabledTranslatePluginName(
+    "disabled-translate-plugin");
+constexpr llvm::StringLiteral kFailingTranslatePluginName(
+    "failing-translate-plugin");
+
+class TestTranslatePlugin final : public tianchenrv::plugin::ExtensionPlugin {
+public:
+  TestTranslatePlugin(llvm::StringRef name, bool enabled, bool failOnRegister)
+      : name(name.str()), enabled(enabled), failOnRegister(failOnRegister) {}
+
+  llvm::StringRef getName() const override { return name; }
+  llvm::ArrayRef<PluginCapability> getCapabilities() const override {
+    return capabilities;
+  }
+  void registerDialects(mlir::DialectRegistry &) const override {}
+  bool isEnabled() const override { return enabled; }
+
+  llvm::Error registerTargetSupportTranslateRoutes(
+      TargetTranslateRouteRegistry &registry) const override {
+    if (!enabled)
+      return llvm::make_error<llvm::StringError>(
+          llvm::Twine("disabled test translate plugin '") + name +
+              "' should have been skipped",
+          llvm::errc::invalid_argument);
+    if (failOnRegister)
+      return llvm::make_error<llvm::StringError>(
+          llvm::Twine("intentional target translate failure for ") + name,
+          llvm::errc::invalid_argument);
+    if (registry.lookup("test-translate-plugin-route"))
+      return llvm::Error::success();
+    return registry.registerRoute(TargetTranslateRoute(
+        "test-translate-plugin-route", "test translate plugin route",
+        noopExporter));
+  }
+
+private:
+  std::string name;
+  bool enabled = true;
+  bool failOnRegister = false;
+  llvm::SmallVector<PluginCapability, 1> capabilities;
+};
+
+TestTranslatePlugin &getMissingTranslatePlugin() {
+  static TestTranslatePlugin plugin(kMissingTranslatePluginName,
+                                    /*enabled=*/true,
+                                    /*failOnRegister=*/false);
+  return plugin;
+}
+
+TestTranslatePlugin &getDisabledTranslatePlugin() {
+  static TestTranslatePlugin plugin(kDisabledTranslatePluginName,
+                                    /*enabled=*/false,
+                                    /*failOnRegister=*/false);
+  return plugin;
+}
+
+TestTranslatePlugin &getFailingTranslatePlugin() {
+  static TestTranslatePlugin plugin(kFailingTranslatePluginName,
+                                    /*enabled=*/true,
+                                    /*failOnRegister=*/true);
+  return plugin;
+}
+
+llvm::Error registerMissingTranslatePlugin(ExtensionPluginRegistry &registry) {
+  return registry.registerPlugin(getMissingTranslatePlugin());
+}
+
+llvm::Error registerDisabledTranslatePlugin(ExtensionPluginRegistry &registry) {
+  return registry.registerPlugin(getDisabledTranslatePlugin());
+}
+
+llvm::Error registerFailingTranslatePlugin(ExtensionPluginRegistry &registry) {
+  return registry.registerPlugin(getFailingTranslatePlugin());
+}
 
 llvm::Error registerNoMetadataTestLocalTargetExporter(
     TargetArtifactExporterRegistry &registry) {
@@ -960,6 +1036,31 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
     return false;
   }
 
+  ExtensionBundleRegistry helperBundles;
+  ExtensionPluginRegistry helperPlugins;
+  if (!expectSuccess(tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+                         helperBundles, helperPlugins),
+                     "register built-in extension plugins through canonical "
+                     "bundle frontdoor helper"))
+    return false;
+  if (helperBundles.size() != 6 || helperPlugins.size() != 6) {
+    llvm::errs() << "built-in bundle frontdoor helper changed built-in "
+                    "bundle/plugin counts\n";
+    return false;
+  }
+
+  ExtensionPluginRegistry compatibilityPlugins;
+  if (!expectSuccess(tianchenrv::plugin::registerBuiltinExtensionPlugins(
+                         compatibilityPlugins),
+                     "legacy built-in plugin registration delegates through "
+                     "bundle frontdoor"))
+    return false;
+  if (compatibilityPlugins.size() != 6) {
+    llvm::errs() << "legacy built-in plugin registration delegate changed "
+                    "plugin count\n";
+    return false;
+  }
+
   PluginTargetArtifactExporterRegistry pluginExporterBundles;
   if (!expectSuccess(
           bundles.registerTargetArtifactExporterBundles(pluginExporterBundles),
@@ -1167,7 +1268,9 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
             registerTargetArtifactExportersForEnabledExtensionBundles(
                 bundles, plugins, exporters),
             "duplicate route through bundle rejected",
-            {"duplicate exporter route id", kBundleTestDuplicateRouteID}))
+            {"test-local-duplicate-route-bundle",
+             tianchenrv::plugin::toy::getToyExtensionPluginName(),
+             "duplicate exporter route id", kBundleTestDuplicateRouteID}))
       return false;
   }
 
@@ -1617,6 +1720,103 @@ bool expectTargetTranslateRouteRegistryShape() {
   return expectSuccess(
       registerBuiltinTargetTranslateRoutes(builtinRoutes),
       "repeat built-in target translate route no-op registration");
+}
+
+bool expectBundleDrivenTargetTranslateRouteRegistration() {
+  ExtensionBundleRegistry builtinBundles;
+  ExtensionPluginRegistry builtinPlugins;
+  if (!expectSuccess(tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+                         builtinBundles, builtinPlugins),
+                     "build built-in bundle frontdoor for target translate"))
+    return false;
+
+  TargetTranslateRouteRegistry builtinRoutes;
+  if (!expectSuccess(registerBuiltinTargetTranslateRoutes(
+                         builtinRoutes, builtinBundles, builtinPlugins),
+                     "register built-in target translate routes through "
+                     "extension bundle frontdoor"))
+    return false;
+  if (builtinRoutes.size() != 1) {
+    llvm::errs() << "bundle-driven built-in target translate routes expected "
+                    "one RVV EmitC route, got "
+                 << builtinRoutes.size() << "\n";
+    return false;
+  }
+  if (!expectRVVEmitCTranslateRoute(
+          builtinRoutes, "bundle-driven built-in target translate routes"))
+    return false;
+
+  {
+    ExtensionBundleRegistry bundles;
+    ExtensionBundle missingBundle("missing-translate-bundle",
+                                  kMissingTranslatePluginName,
+                                  registerMissingTranslatePlugin);
+    if (!expectSuccess(bundles.registerBundle(missingBundle),
+                       "register missing-plugin translate bundle"))
+      return false;
+
+    ExtensionPluginRegistry plugins;
+    TargetTranslateRouteRegistry routes;
+    if (!expectSuccess(registerBuiltinTargetTranslateRoutes(routes, bundles,
+                                                            plugins),
+                       "missing target translate plugin is fail-closed"))
+      return false;
+    if (routes.size() != 0) {
+      llvm::errs() << "missing target translate plugin unexpectedly "
+                      "published routes\n";
+      return false;
+    }
+  }
+
+  {
+    ExtensionBundleRegistry bundles;
+    ExtensionBundle disabledBundle("disabled-translate-bundle",
+                                   kDisabledTranslatePluginName,
+                                   registerDisabledTranslatePlugin);
+    if (!expectSuccess(bundles.registerBundle(disabledBundle),
+                       "register disabled-plugin translate bundle"))
+      return false;
+
+    ExtensionPluginRegistry plugins;
+    if (!expectSuccess(bundles.registerExtensionPlugins(plugins),
+                       "register disabled target translate plugin"))
+      return false;
+    TargetTranslateRouteRegistry routes;
+    if (!expectSuccess(registerBuiltinTargetTranslateRoutes(routes, bundles,
+                                                            plugins),
+                       "disabled target translate plugin is fail-closed"))
+      return false;
+    if (routes.size() != 0) {
+      llvm::errs() << "disabled target translate plugin unexpectedly "
+                      "published routes\n";
+      return false;
+    }
+  }
+
+  {
+    ExtensionBundleRegistry bundles;
+    ExtensionBundle failingBundle("failing-translate-bundle",
+                                  kFailingTranslatePluginName,
+                                  registerFailingTranslatePlugin);
+    if (!expectSuccess(bundles.registerBundle(failingBundle),
+                       "register failing translate bundle"))
+      return false;
+
+    ExtensionPluginRegistry plugins;
+    if (!expectSuccess(bundles.registerExtensionPlugins(plugins),
+                       "register failing target translate plugin"))
+      return false;
+    TargetTranslateRouteRegistry routes;
+    if (!expectErrorContains(
+            registerBuiltinTargetTranslateRoutes(routes, bundles, plugins),
+            "target translate route error names bundle and plugin",
+            {"failing-translate-bundle", kFailingTranslatePluginName,
+             "failed to register target translate routes",
+             "intentional target translate failure"}))
+      return false;
+  }
+
+  return true;
 }
 
 bool expectRuntimeABIParameterRoleLookup() {
@@ -2556,6 +2756,8 @@ int main() {
   if (!expectFiniteBinaryRuntimeABIContractShape())
     return 1;
   if (!expectTargetTranslateRouteRegistryShape())
+    return 1;
+  if (!expectBundleDrivenTargetTranslateRouteRegistration())
     return 1;
   if (!expectRuntimeABIParameterRoleLookup())
     return 1;

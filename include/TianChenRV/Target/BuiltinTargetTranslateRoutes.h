@@ -7,8 +7,22 @@ namespace tianchenrv::target {
 
 class TargetTranslateRouteRegistry;
 
+} // namespace tianchenrv::target
+
+namespace tianchenrv::plugin {
+class ExtensionBundleRegistry;
+class ExtensionPluginRegistry;
+} // namespace tianchenrv::plugin
+
+namespace tianchenrv::target {
+
 llvm::Error
 registerBuiltinTargetTranslateRoutes(TargetTranslateRouteRegistry &registry);
+
+llvm::Error registerBuiltinTargetTranslateRoutes(
+    TargetTranslateRouteRegistry &registry,
+    const plugin::ExtensionBundleRegistry &bundles,
+    const plugin::ExtensionPluginRegistry &plugins);
 
 } // namespace tianchenrv::target
 

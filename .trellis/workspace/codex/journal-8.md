@@ -56,6 +56,75 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 101: Extension bundle registry default plugin front door
+
+**Date**: 2026-05-17
+**Task**: Extension bundle registry default plugin front door
+**Branch**: `main`
+
+### Summary
+
+Rewired the default built-in extension construction path so tools and target
+front doors now build plugins through `plugin::ExtensionBundleRegistry`.
+Target artifact exporter and target translate route registries remain
+target-owned consumers, but the built-in default construction authority is now
+the bundle catalog -> bundle registry -> enabled plugin registry path.
+
+### Main Changes
+
+- Added `registerBuiltinExtensionBundlePlugins` as the canonical built-in
+  bundle front-door helper.
+- Made `registerBuiltinExtensionPlugins` delegate through the bundle registry
+  instead of looping the concrete built-in plugin catalog directly.
+- Rewired `tcrv-opt` and `tcrv-translate` default initialization to keep an
+  `ExtensionBundleRegistry`, populate plugins through it, and register dialects,
+  passes, target artifact exporters, and target translate routes from the
+  bundle-owned plugin registry.
+- Added target artifact exporter and target translate route overloads that
+  consume `ExtensionBundleRegistry + ExtensionPluginRegistry`.
+- Preserved empty-registry behavior when `tcrv-opt` disables built-in plugins.
+- Improved target artifact exporter and target translate route diagnostics so
+  failures name the responsible bundle/plugin.
+- Added focused C++ coverage for bundle-front-door plugin registration,
+  target artifact exporter registration, target translate route registration,
+  missing/disabled plugin fail-closed behavior, and error context.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-tensorext-lite-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- [OK] `./build/bin/tcrv-opt test/Transforms/RVV/rvv-i32m1-selected-boundary-seed.mlir --tcrv-source-seed-artifact-front-door-pipeline`
+- [OK] `./build/bin/tcrv-opt test/Transforms/RVV/rvv-i32m1-selected-boundary-seed.mlir --tcrv-disable-builtin-plugins --tcrv-rvv-materialize-i32m1-selected-boundary-seed 2>&1 | rg "Unknown command line argument|tcrv-rvv-materialize-i32m1-selected-boundary-seed"`
+- [OK] `./build/bin/tcrv-translate --help | rg "tcrv-rvv-emitc-to-cpp|tcrv-export-target-artifact|tcrv-export-target-header-artifact|tcrv-export-target-artifact-bundle"`
+- [OK] focused lit filter for source-seed target artifacts, RVV EmitC handoff,
+  TensorExtLite target artifact, and RVV source seed: 5/5 passed.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 100/100 lit tests
+  passed.
+- [OK] `git diff --check`
+- [OK] targeted scans proving no concrete plugin catalog was reintroduced under
+  `lib/Target/Builtin`, no `target::ExtensionBundle` resurrection occurred, no
+  descriptor/direct-C/source-export/Python compiler-core diff was added, and no
+  independent default `registerBuiltinExtensionPlugins` production loop remains.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-17-extension-bundle-registry-default-plugin-front-door`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 99: Built-in extension catalog target-layer decoupling
 
 **Date**: 2026-05-17

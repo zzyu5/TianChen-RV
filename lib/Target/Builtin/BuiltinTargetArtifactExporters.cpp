@@ -19,12 +19,19 @@ llvm::Error registerBuiltinNonPluginTargetArtifactExporters(
 llvm::Error registerBuiltinTargetArtifactExporters(
     TargetArtifactExporterRegistry &registry,
     const plugin::ExtensionPluginRegistry &plugins) {
-  if (llvm::Error error =
-          registerBuiltinNonPluginTargetArtifactExporters(registry))
-    return error;
-
   plugin::ExtensionBundleRegistry bundles;
   if (llvm::Error error = plugin::registerBuiltinExtensionBundles(bundles))
+    return error;
+
+  return registerBuiltinTargetArtifactExporters(registry, bundles, plugins);
+}
+
+llvm::Error registerBuiltinTargetArtifactExporters(
+    TargetArtifactExporterRegistry &registry,
+    const plugin::ExtensionBundleRegistry &bundles,
+    const plugin::ExtensionPluginRegistry &plugins) {
+  if (llvm::Error error =
+          registerBuiltinNonPluginTargetArtifactExporters(registry))
     return error;
 
   return registerTargetArtifactExportersForEnabledExtensionBundles(
@@ -33,11 +40,13 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 
 llvm::Error registerBuiltinTargetArtifactExporters(
     TargetArtifactExporterRegistry &registry) {
+  plugin::ExtensionBundleRegistry bundles;
   plugin::ExtensionPluginRegistry plugins;
-  if (llvm::Error error = plugin::registerBuiltinExtensionPlugins(plugins))
+  if (llvm::Error error =
+          plugin::registerBuiltinExtensionBundlePlugins(bundles, plugins))
     return error;
 
-  return registerBuiltinTargetArtifactExporters(registry, plugins);
+  return registerBuiltinTargetArtifactExporters(registry, bundles, plugins);
 }
 
 } // namespace tianchenrv::target

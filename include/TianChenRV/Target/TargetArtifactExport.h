@@ -311,6 +311,10 @@ public:
   llvm::Error registerExportersForEnabledPlugins(
       const plugin::ExtensionPluginRegistry &plugins,
       TargetArtifactExporterRegistry &registry) const;
+  llvm::Error registerExportersForEnabledPlugin(
+      const plugin::ExtensionPluginRegistry &plugins,
+      llvm::StringRef pluginName,
+      TargetArtifactExporterRegistry &registry) const;
   llvm::Error registerExportersForPlugin(
       const plugin::ExtensionPluginRegistry &plugins,
       llvm::StringRef pluginName,

@@ -10,6 +10,7 @@ class TargetArtifactExporterRegistry;
 } // namespace tianchenrv::target
 
 namespace tianchenrv::plugin {
+class ExtensionBundleRegistry;
 class ExtensionPluginRegistry;
 } // namespace tianchenrv::plugin
 
@@ -20,6 +21,11 @@ llvm::Error registerBuiltinTargetArtifactExporters(
 
 llvm::Error registerBuiltinTargetArtifactExporters(
     TargetArtifactExporterRegistry &registry,
+    const plugin::ExtensionPluginRegistry &plugins);
+
+llvm::Error registerBuiltinTargetArtifactExporters(
+    TargetArtifactExporterRegistry &registry,
+    const plugin::ExtensionBundleRegistry &bundles,
     const plugin::ExtensionPluginRegistry &plugins);
 
 } // namespace tianchenrv::target

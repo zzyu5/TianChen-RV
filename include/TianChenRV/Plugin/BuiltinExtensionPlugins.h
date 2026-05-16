@@ -12,6 +12,9 @@ class ExtensionPluginRegistry;
 
 namespace tianchenrv::plugin {
 
+llvm::Error registerBuiltinExtensionBundlePlugins(
+    ExtensionBundleRegistry &bundles, ExtensionPluginRegistry &registry);
+
 llvm::Error registerBuiltinExtensionPlugins(ExtensionPluginRegistry &registry);
 
 llvm::Error registerBuiltinExtensionBundles(ExtensionBundleRegistry &registry);

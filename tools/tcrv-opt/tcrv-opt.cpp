@@ -1,5 +1,6 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
@@ -100,19 +101,21 @@ llvm::Error registerTianChenRVOptPasses(
 
 int main(int argc, char **argv) {
   bool useBuiltinPlugins = !shouldDisableBuiltinPlugins(argc, argv);
+  tianchenrv::plugin::ExtensionBundleRegistry bundles;
   tianchenrv::plugin::ExtensionPluginRegistry plugins;
   tianchenrv::target::TargetArtifactExporterRegistry targetExporters;
   if (useBuiltinPlugins) {
     if (llvm::Error error =
-            tianchenrv::plugin::registerBuiltinExtensionPlugins(plugins)) {
+            tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+                bundles, plugins)) {
       llvm::errs() << "failed to register TianChen-RV built-in extension "
-                      "bundle plugins: "
+                      "bundle front door: "
                    << llvm::toString(std::move(error)) << "\n";
       return 1;
     }
     if (llvm::Error error =
             tianchenrv::target::registerBuiltinTargetArtifactExporters(
-                targetExporters, plugins)) {
+                targetExporters, bundles, plugins)) {
       llvm::errs() << "failed to register TianChen-RV built-in target "
                       "artifact exporters: "
                    << llvm::toString(std::move(error)) << "\n";

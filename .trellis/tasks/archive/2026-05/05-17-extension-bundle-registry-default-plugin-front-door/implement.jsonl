@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and stack invariants for this default-path rewiring."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry/interface ownership and bundle front-door contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Ensures target artifact/translate consumers do not regain descriptor/direct-C authority."}
+{"file": ".trellis/tasks/archive/2026-05/05-17-extension-bundle-interface-target-layer-extraction/prd.md", "reason": "Previous completed extraction that this round makes production-default."}

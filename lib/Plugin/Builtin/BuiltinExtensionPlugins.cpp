@@ -76,11 +76,8 @@ llvm::Error registerManifestOwnedExtensionBundle(
 } // namespace
 
 llvm::Error registerBuiltinExtensionPlugins(ExtensionPluginRegistry &registry) {
-  for (const BuiltinExtensionBundleSpec &spec : kBuiltinExtensionBundles) {
-    if (llvm::Error error = spec.registrationFn(registry))
-      return error;
-  }
-  return llvm::Error::success();
+  ExtensionBundleRegistry bundles;
+  return registerBuiltinExtensionBundlePlugins(bundles, registry);
 }
 
 llvm::Error
@@ -91,6 +88,13 @@ registerBuiltinExtensionBundles(ExtensionBundleRegistry &registry) {
       return error;
   }
   return llvm::Error::success();
+}
+
+llvm::Error registerBuiltinExtensionBundlePlugins(
+    ExtensionBundleRegistry &bundles, ExtensionPluginRegistry &registry) {
+  if (llvm::Error error = registerBuiltinExtensionBundles(bundles))
+    return error;
+  return bundles.registerExtensionPlugins(registry);
 }
 
 } // namespace tianchenrv::plugin
