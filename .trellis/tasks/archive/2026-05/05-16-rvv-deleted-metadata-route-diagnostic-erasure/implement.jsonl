@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global compiler stack, descriptor deletion, and extension-family boundary rules for this deletion-only round."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin boundary, typed IR requirement, and deleted metadata-only route absence contract."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin interface routing rules and prohibition on family-specific core semantics."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission readiness/runtime contract and missing materialized EmitC route boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck ownership and deletion-campaign test rewrite rules."}

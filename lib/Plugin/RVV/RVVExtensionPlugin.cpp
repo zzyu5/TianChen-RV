@@ -82,8 +82,7 @@ llvm::Error requireExplicitTypedRVVBody(tcrv::exec::VariantOp variant) {
     return llvm::Error::success();
   return makeRVVPluginError(
       "materialized RVV variant requires explicit typed RVV "
-      "extension-family body; metadata-only RVV first-slice route has been "
-      "deleted");
+      "extension-family body");
 }
 
 const rvv::RVVExtensionPlugin &getBuiltinRVVExtensionPlugin() {
@@ -166,9 +165,8 @@ llvm::Error RVVExtensionPlugin::collectVariantProposals(
 
   out.addRecoverableDecline(
       kRVVPluginName,
-      "RVV automatic metadata-only first-slice proposal route was deleted; "
-      "provide explicit typed tcrv_rvv extension-family IR before selecting "
-      "an RVV variant");
+      "RVV proposal requires explicit typed tcrv_rvv extension-family IR "
+      "before selecting an RVV variant");
   return llvm::Error::success();
 }
 
@@ -221,7 +219,7 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
   out = VariantEmissionStatus::getUnsupported(
       kRVVPluginName, request.getVariant().getSymName(),
       "RVV selected path has no materialized EmitC lowering, runtime ABI, or "
-      "artifact route after metadata-only first-slice route deletion");
+      "artifact route");
   return llvm::Error::success();
 }
 
@@ -242,9 +240,8 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
 
   (void)out;
   return makeRVVPluginError(
-      "RVV emission planning requires a materialized EmitC route; deleted "
-      "metadata-only first-slice route must not produce emission-plan, runtime "
-      "ABI, or artifact metadata");
+      "RVV emission planning requires a materialized EmitC route for explicit "
+      "typed RVV IR; no runtime ABI or artifact metadata is available");
 }
 
 llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
@@ -267,8 +264,8 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
   out = VariantLoweringBoundaryResult::getNoBoundary(
       kRVVPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      "RVV metadata-only lowering-boundary route was deleted; explicit "
-      "typed RVV IR requires a future materialized EmitC lowering route");
+      "RVV explicit typed IR requires a future materialized EmitC lowering "
+      "route");
   return llvm::Error::success();
 }
 
@@ -276,8 +273,8 @@ llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
     const VariantLoweringBoundaryValidationRequest &request) const {
   (void)request;
   return makeRVVPluginError(
-      "RVV selected lowering-boundary validation route was deleted; "
-      "tcrv_rvv.lowering_boundary is not active compiler authority");
+      "RVV selected lowering-boundary validation requires a materialized "
+      "plugin lowering boundary for explicit typed RVV IR");
 }
 
 llvm::Error RVVExtensionPlugin::configureTargetSupportExtensionBundle(

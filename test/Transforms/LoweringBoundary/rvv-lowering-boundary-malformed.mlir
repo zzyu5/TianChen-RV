@@ -7,23 +7,22 @@ module {
       kind = "isa-vector",
       status = "available"
     }
-    tcrv.exec.variant @rvv_deleted_metadata_path attributes {
+    tcrv.exec.variant @rvv_missing_typed_body attributes {
       origin = "rvv-plugin",
       requires = [@rvv]
     } {
     }
     tcrv.exec.diagnostic {
-      message = "select deleted RVV metadata path",
+      message = "select RVV path without typed body",
       reason = "variant-selected",
       selection_kind = "static-variant",
       severity = "note",
       status = "selected",
-      target = @rvv_deleted_metadata_path
+      target = @rvv_missing_typed_body
     }
   }
 }
 
 // CHECK: TianChen-RV selected lowering-boundary materialization failed
 // CHECK-SAME: origin plugin 'rvv-plugin' failed lowering-boundary materialization
-// CHECK: explicit typed RVV extension-family body
-// CHECK: metadata-only RVV first-slice route has been deleted
+// CHECK: materialized RVV variant requires explicit typed RVV extension-family body

@@ -26,4 +26,4 @@ module {
 
 // CHECK: collected no viable plugin proposals
 // CHECK-SAME: rvv-plugin:
-// CHECK-SAME: metadata-only first-slice proposal route was deleted
+// CHECK-SAME: explicit typed tcrv_rvv extension-family IR

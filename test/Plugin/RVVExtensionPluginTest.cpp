@@ -247,19 +247,19 @@ module {
                                      availableRVVNoBody,
                                      availableRVVCapabilities),
               proposals, &declines),
-          "collect deleted RVV no-body proposal decline"))
+          "collect RVV no-body proposal decline"))
     return result;
   if (int result = expect(proposals.empty() && !declines.empty(),
                           "available RVV no-body input is a recoverable RVV "
                           "decline"))
     return result;
   return expect(llvm::StringRef(declines.front().getReason())
-                    .contains("metadata-only first-slice proposal route was "
-                              "deleted"),
-                "decline reason explains deleted no-body proposal route");
+                    .contains("explicit typed tcrv_rvv extension-family IR"),
+                "decline reason explains explicit typed RVV IR requirement");
 }
 
-int runDeletedProposalAndRouteTest(mlir::MLIRContext &context) {
+int runCapabilityOnlyProposalAndTypedBodyRequirementTest(
+    mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
   func.func @high_level_placeholder() {
@@ -306,16 +306,15 @@ module {
     }
   }
 
-  tcrv.exec.kernel @rvv_stale_metadata_variant {
+  tcrv.exec.kernel @rvv_missing_typed_body_variant {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
       status = "available"
     }
-    tcrv.exec.variant @rvv_deleted_metadata_path attributes {
+    tcrv.exec.variant @rvv_missing_typed_body attributes {
       origin = "rvv-plugin",
-      requires = [@rvv],
-      policy = "deleted_metadata_route"
+      requires = [@rvv]
     } {
     }
   }
@@ -324,7 +323,7 @@ module {
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
-    return fail("failed to parse deleted RVV route module");
+    return fail("failed to parse RVV capability-only module");
   KernelOp kernel = findKernel(*module, "rvv_no_body_capability_only");
   mlir::func::FuncOp highLevel = findHighLevelPlaceholder(*module);
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
@@ -332,7 +331,7 @@ module {
   ExtensionPluginRegistry registry;
   if (int result =
           expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
-                        "register RVV plugin for deleted route test"))
+                        "register RVV plugin for typed-body requirement test"))
     return result;
 
   VariantProposalRequest request(highLevel.getOperation(), kernel, capabilities);
@@ -340,7 +339,7 @@ module {
   llvm::SmallVector<VariantProposalDecline, 1> declines;
   if (int result = expectSuccess(
           registry.collectVariantProposals(request, proposals, &declines),
-          "collect deleted RVV proposal surface"))
+          "collect RVV capability-only proposal surface"))
     return result;
   if (int result =
           expect(proposals.empty(), "RVV no-body capability produces no proposal"))
@@ -348,9 +347,9 @@ module {
   if (int result =
           expect(!declines.empty() &&
                      llvm::StringRef(declines.front().getReason())
-                         .contains("metadata-only first-slice proposal route "
-                                   "was deleted"),
-                 "RVV decline explains deleted metadata-only proposal route"))
+                         .contains("explicit typed tcrv_rvv "
+                                   "extension-family IR"),
+                 "RVV decline explains explicit typed IR requirement"))
     return result;
 
   mlir::OpBuilder builder(module->getContext());
@@ -359,20 +358,19 @@ module {
           expectErrorContains(
               tianchenrv::transforms::collectAndMaterializeVariantProposals(
                   builder, registry, request, &materialized),
-              {"no viable plugin proposals", "metadata-only first-slice "
-                                             "proposal route was deleted"}))
+              {"no viable plugin proposals",
+               "explicit typed tcrv_rvv extension-family IR"}))
     return result;
 
-  KernelOp staleKernel = findKernel(*module, "rvv_stale_metadata_variant");
+  KernelOp staleKernel = findKernel(*module, "rvv_missing_typed_body_variant");
   TargetCapabilitySet staleCapabilities =
       TargetCapabilitySet::buildFromKernel(staleKernel);
-  VariantOp staleVariant = findVariant(staleKernel, "rvv_deleted_metadata_path");
+  VariantOp staleVariant = findVariant(staleKernel, "rvv_missing_typed_body");
   if (int result =
           expectErrorContains(
               registry.verifyVariantLegality(VariantLegalityRequest(
                   staleVariant, staleKernel, staleCapabilities)),
-              {"explicit typed RVV extension-family body",
-               "metadata-only RVV first-slice route has been deleted"}))
+              {"explicit typed RVV extension-family body"}))
     return result;
   VariantEmissionPlan stalePlan;
   if (int result = expectErrorContains(
@@ -381,17 +379,16 @@ module {
                                      staleCapabilities,
                                      VariantEmissionRole::DirectVariant),
               stalePlan),
-          {"explicit typed RVV extension-family body",
-           "metadata-only RVV first-slice route has been deleted"}))
+          {"explicit typed RVV extension-family body"}))
     return result;
 
   return 0;
 }
 
-int runMetadataVariantLegalityRejectionTest(mlir::MLIRContext &context) {
+int runMetadataOnlyVariantLegalityRejectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
-  tcrv.exec.kernel @stale_metadata_variant {
+  tcrv.exec.kernel @metadata_without_typed_body_variant {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
@@ -399,7 +396,7 @@ module {
       isa_vector_hints = "rv64gcv_zvl128b",
       status = "available"
     }
-    tcrv.exec.variant @rvv_deleted_metadata_path attributes {
+    tcrv.exec.variant @rvv_metadata_without_typed_body attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
       tcrv_rvv.policy = "not_a_typed_policy",
@@ -420,15 +417,14 @@ module {
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
     return fail("failed to parse RVV metadata rejection module");
-  KernelOp kernel = findKernel(*module, "stale_metadata_variant");
-  VariantOp variant = findVariant(kernel, "rvv_deleted_metadata_path");
+  KernelOp kernel = findKernel(*module, "metadata_without_typed_body_variant");
+  VariantOp variant = findVariant(kernel, "rvv_metadata_without_typed_body");
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
   tianchenrv::plugin::rvv::RVVExtensionPlugin plugin;
   return expectErrorContains(
       plugin.verifyVariantLegality(
           VariantLegalityRequest(variant, kernel, capabilities)),
-      {"explicit typed RVV extension-family body",
-       "metadata-only RVV first-slice route has been deleted"});
+      {"explicit typed RVV extension-family body"});
 }
 
 } // namespace
@@ -445,9 +441,10 @@ int main() {
     return result;
   if (int result = runMissingAndDeclineProposalTest(context))
     return result;
-  if (int result = runDeletedProposalAndRouteTest(context))
+  if (int result =
+          runCapabilityOnlyProposalAndTypedBodyRequirementTest(context))
     return result;
-  if (int result = runMetadataVariantLegalityRejectionTest(context))
+  if (int result = runMetadataOnlyVariantLegalityRejectionTest(context))
     return result;
 
   llvm::outs() << "RVV extension plugin smoke test passed\n";

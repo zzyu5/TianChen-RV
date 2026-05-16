@@ -19,14 +19,14 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{metadata-only RVV first-slice route has been deleted}}
-  tcrv.exec.kernel @legality_rvv_deleted_metadata_route {
+  // expected-error@+1 {{materialized RVV variant requires explicit typed RVV extension-family body}}
+  tcrv.exec.kernel @legality_rvv_missing_typed_body {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
       status = "available"
     }
-    tcrv.exec.variant @rvv_deleted_metadata_path attributes {
+    tcrv.exec.variant @rvv_missing_typed_body attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>

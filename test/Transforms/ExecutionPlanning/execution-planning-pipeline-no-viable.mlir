@@ -11,5 +11,4 @@ module {
 }
 
 // CHECK: error: TianChen-RV plugin variant materialization for kernel @pipeline_no_viable_after_rvv_decline collected no viable plugin proposals; recoverable plugin declines in registration order: rvv-plugin:
-// CHECK-SAME: metadata-only first-slice proposal route was deleted
 // CHECK-SAME: explicit typed tcrv_rvv extension-family IR

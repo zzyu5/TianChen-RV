@@ -60,40 +60,38 @@ surfaces such as `!tcrv_rvv.vl`, `#tcrv_rvv.policy`, `tcrv_rvv.setvl` for
 bounded runtime AVL-to-VL control, and `tcrv_rvv.with_vl` for the matching
 bounded VL scope region, plus finite `tcrv_rvv.i32_load`,
 `tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`, `tcrv_rvv.i32_mul`, and
-`tcrv_rvv.i32_store` dataflow ops for the current i32 add/sub/mul
-microkernel export routes and
-`tcrv_rvv.lowering_boundary` for selected RVV variants. The setvl surface is
-control-plane IR only: it consumes a runtime AVL
-SSA value, returns a `!tcrv_rvv.vl` token, and carries bounded first-slice
-SEW/LMUL/policy metadata. The with_vl surface consumes that runtime VL token and
-creates a single-block plugin-local region. Its first bounded dataflow payload
-is exactly the i32 add/sub/mul lhs-load, rhs-load, arithmetic, output-store
-sequence consumed by the RVV exporter; this is not a generic RVV memory model,
-arbitrary vector lowering, full runtime ABI, or evidence. The lowering boundary is
-pre-executable compiler metadata only: these
-RVV surfaces do not by themselves lower to LLVM/RISC-V, create runtime ABI glue,
-generate objects, run hardware, prove correctness, or measure performance.
+`tcrv_rvv.i32_store` dataflow ops for the current non-executable explicit
+extension-family IR surface. The setvl surface is control-plane IR only: it
+consumes a runtime AVL SSA value, returns a `!tcrv_rvv.vl` token, and carries
+bounded first-slice SEW/LMUL/policy metadata. The with_vl surface consumes that
+runtime VL token and creates a single-block plugin-local region. Its first
+bounded dataflow payload is the i32 add/sub/mul lhs-load, rhs-load,
+arithmetic, output-store sequence, but it is not a generic RVV memory model,
+arbitrary vector lowering, full runtime ABI, exporter contract, or evidence.
+These RVV surfaces do not by themselves lower to LLVM/RISC-V, create runtime
+ABI glue, generate objects, run hardware, prove correctness, or measure
+performance.
 
 Selected-path lowering-boundary materialization is routed through the generic
 extension plugin registry. The public `tcrv-opt` pass
 `--tcrv-materialize-selected-lowering-boundaries` delegates selected direct,
 dispatch-case, and dispatch-fallback variant references to their origin plugin.
-RVV materializes `tcrv_rvv.lowering_boundary` for selected RVV paths; scalar
-fallback remains a generic dispatch/fallback envelope and does not currently
-materialize a scalar plugin-local selected-boundary operation. RVV boundary
-metadata is compiler metadata only and does not claim executable lowering.
+RVV currently requires an explicit typed `tcrv_rvv` variant body before it will
+accept legality, but selected RVV lowering-boundary materialization still
+returns a no-boundary result until a future materialized EmitC lowering route
+exists. Scalar fallback remains a generic dispatch/fallback envelope and does
+not currently materialize a scalar plugin-local selected-boundary operation.
 
 Emission-plan materialization also routes through the selected variant's origin
 plugin. The resulting `tcrv.exec.diagnostic {reason = "emission_plan"}`
 metadata records bounded plugin-owned runtime ABI ownership fields such as
 runtime ABI kind/name, runtime glue role, selected variant, lowering boundary,
-status, required capability refs, and structured `runtime_abi_parameters` for
-supported callable C source exports. For the bounded i32-vadd RVV/scalar
-callable routes, those entries are derived from direct `tcrv.exec.mem_window`
-buffer ABI boundaries plus direct `tcrv.exec.runtime_param` scalar ABI/control
-boundaries and are validated mirrors of that IR-backed callable plan. These
-diagnostics are compiler-decision metadata only: they are not executable code,
-runtime ABI glue, correctness evidence, or performance evidence.
+status, required capability refs, and structured `runtime_abi_parameters` when
+a future plugin route supports them. RVV selected paths currently fail closed
+without supported runtime ABI metadata because no materialized EmitC route
+exists. These diagnostics are compiler-decision metadata only: they are not
+executable code, runtime ABI glue, correctness evidence, or performance
+evidence.
 
 The `tcrv-translate --tcrv-export-emission-manifest` tool exports a
 deterministic compiler handoff manifest from post-planning MLIR that already
@@ -109,18 +107,19 @@ linalg RVV, linalg i32 compatibility, or vector i32 arithmetic source adapter
 options, and those option spellings are not preserved as active route
 contracts. Current planning starts from already materialized TianChen-RV
 execution surfaces such as `tcrv.exec.kernel`, capability-provider scope,
-selected boundaries, `tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, and
-plugin-local extension family ops. Any future high-level frontend rebuild must
-be plugin/interface owned and must not restore core transforms that inspect
-finite RVV linalg/vector source bodies or query RVV family records to
-materialize `tcrv.exec`.
+selected-path diagnostics or future materialized boundaries,
+`tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, and plugin-local extension
+family ops. Any future high-level frontend rebuild must be plugin/interface
+owned and must not restore core transforms that inspect finite RVV
+linalg/vector source bodies or query RVV family records to materialize
+`tcrv.exec`.
 
 The former RVV standalone smoke-probe compiler front doors are deleted.
-Selected RVV metadata and `tcrv_rvv.lowering_boundary` are not enough to
-synthesize a standalone C harness through `tcrv-translate`; the generic
-source-only artifact export entrypoint is deleted. Explicit RVV
-hardware/toolchain probes belong in separate probe tooling and recorded
-`ssh rvv` artifacts, not in a compiler source-artifact entrypoint.
+Selected RVV metadata or typed RVV IR without a materialized EmitC route is not
+enough to synthesize a standalone C harness through `tcrv-translate`; the
+generic source-only artifact export entrypoint is deleted. Explicit RVV
+hardware/toolchain probes belong in separate probe tooling and recorded `ssh
+rvv` artifacts, not in a compiler source-artifact entrypoint.
 
 The historical RVV, scalar, and RVV+scalar runtime-callable direct C semantic
 exporters are deleted production routes. Selected metadata, family records,
@@ -183,11 +182,11 @@ Python remains evidence/artifact tooling and is not the compiler capability
 model.
 
 The former compiler-owned RVV smoke-probe source export route is deleted.
-Post-planning metadata and `tcrv_rvv.lowering_boundary` must not be used to
-print a standalone probe program, intrinsic C body, or source-to-toolchain
-evidence artifact. RVV hardware/toolchain evidence remains the responsibility
-of explicit probe tooling such as `scripts/rvv_remote_probe.py` plus recorded
-`ssh rvv` artifacts.
+Post-planning metadata and typed RVV IR without a materialized EmitC route must
+not be used to print a standalone probe program, intrinsic C body, or
+source-to-toolchain evidence artifact. RVV hardware/toolchain evidence remains
+the responsibility of explicit probe tooling such as
+`scripts/rvv_remote_probe.py` plus recorded `ssh rvv` artifacts.
 
 The previous hand-written/test `linalg.generic` frontend slice and its
 `tcrv-opt` lowering flags are deleted. Run the execution-planning pipeline only

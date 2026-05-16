@@ -56,6 +56,56 @@ Deleted Support-owned I32/RVV runtime ABI contracts and helpers; rewired tests/s
 - None - task complete
 
 
+## Session 85: RVV deleted metadata-route diagnostic erasure
+
+**Date**: 2026-05-16
+**Task**: RVV deleted metadata-route diagnostic erasure
+**Branch**: `main`
+
+### Summary
+
+Removed active RVV deleted metadata-route diagnostic wording from plugin
+proposal, legality, emission, and lowering-boundary behavior; rewrote tests to
+assert the current explicit typed RVV IR requirement and missing materialized
+EmitC route gap; removed the stale `tcrv_rvv.lowering_boundary` dialect
+absence fixture; updated README to stop describing that boundary as active RVV
+behavior.
+
+### Main Changes
+
+- RVV plugin diagnostics now fail closed through explicit typed RVV IR and
+  materialized EmitC route requirements instead of old metadata-route names.
+- RVV plugin C++ and lit fixtures no longer use
+  `rvv_deleted_metadata_path`, `deleted_metadata_route`, or deleted
+  metadata-route names as active contracts.
+- The no-body variant materialization fixture was renamed to capability-only
+  no-proposal coverage.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] `ninja -C build tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] targeted lit filter for changed Transform/Target files: 7/7 passed
+- [OK] `ninja -C build check-tianchenrv`: 74/74 passed
+- [OK] `git diff --check`
+- [OK] Trellis context validation
+- [OK] focused stale-string ref-scan
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 83: RVV Python probe-to-MLIR route erasure
 
 **Date**: 2026-05-16
