@@ -2,6 +2,7 @@
 #define TIANCHENRV_TRANSFORMS_PASSES_H
 
 #include "mlir/Pass/Pass.h"
+#include "llvm/ADT/ArrayRef.h"
 
 #include <memory>
 
@@ -9,6 +10,7 @@ namespace tianchenrv {
 
 namespace plugin {
 class ExtensionPluginRegistry;
+class SourceSeedPassRegistration;
 } // namespace plugin
 
 namespace target {
@@ -25,10 +27,19 @@ void buildExecutionPlanningPipeline(
     ::mlir::OpPassManager &pm,
     const plugin::ExtensionPluginRegistry &registry,
     const target::TargetArtifactExporterRegistry &targetExporters);
+void buildSourceSeedArtifactFrontDoorPipeline(
+    ::mlir::OpPassManager &pm,
+    llvm::ArrayRef<plugin::SourceSeedPassRegistration> sourceSeedPasses,
+    const plugin::ExtensionPluginRegistry &registry,
+    const target::TargetArtifactExporterRegistry &targetExporters);
 void registerExecutionPlanningPipeline();
 void registerExecutionPlanningPipeline(
     const plugin::ExtensionPluginRegistry &registry);
 void registerExecutionPlanningPipeline(
+    const plugin::ExtensionPluginRegistry &registry,
+    const target::TargetArtifactExporterRegistry &targetExporters);
+void registerSourceSeedArtifactFrontDoorPipeline(
+    llvm::ArrayRef<plugin::SourceSeedPassRegistration> sourceSeedPasses,
     const plugin::ExtensionPluginRegistry &registry,
     const target::TargetArtifactExporterRegistry &targetExporters);
 

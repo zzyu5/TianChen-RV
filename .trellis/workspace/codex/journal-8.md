@@ -56,6 +56,89 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 97: Registry-composed source-seed-to-artifact front door
+
+**Date**: 2026-05-16
+**Task**: Registry-composed source-seed-to-artifact front door
+**Branch**: `main`
+
+### Summary
+
+Added an explicit `tcrv-opt` source-seed artifact front-door pipeline. The new
+pipeline collects plugin-registered source-seed materialization passes in
+registry order, then runs generic legality/capability, emission-plan, and
+execution-plan coherence gates so bounded RVV and Toy source seeds can feed the
+existing target artifact routes without direct Toy/RVV wiring in public tools or
+common transforms.
+
+### Main Changes
+
+- Created Trellis task
+  `05-16-registry-composed-source-seed-front-door` from the supplied Direction
+  Brief and wrote the PRD around a registry-composed front door.
+- Added `--tcrv-source-seed-artifact-front-door-pipeline`.
+- The pipeline runs enabled plugin source-seed passes, then
+  `tcrv-check-hart-parallel-capabilities`,
+  `tcrv-verify-plugin-variant-legality`,
+  `tcrv-check-capability-requires`, `tcrv-materialize-emission-plans`, and
+  `tcrv-check-execution-plan-coherence`.
+- Kept the ordinary `tcrv-execution-planning-pipeline` unchanged; source-seed
+  outputs already contain selected variant/boundary surfaces and should not be
+  sent through proposal/selection again.
+- Added RVV/Toy positive lit coverage proving both source seeds exercise the
+  same pipeline and feed the existing target artifact routes.
+- Added negative lit coverage for disabled built-ins, unsupported source seed
+  markers, stale residue, and mixed incompatible RVV+Toy seed inputs.
+- Updated the variant-pipeline spec with the durable public contract for the
+  source-seed artifact front-door pipeline.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target TianChenRVTransforms TianChenRVPlugin
+  TianChenRVRVVPlugin TianChenRVToyPlugin tcrv-opt tcrv-translate
+  tianchenrv-plugin-registry-test tianchenrv-rvv-extension-plugin-test
+  tianchenrv-toy-extension-plugin-test -j2`.
+- [OK] C++ tests:
+  `tianchenrv-plugin-registry-test`,
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-toy-extension-plugin-test`.
+- [OK] Focused lit from `build/test`:
+  `source-seed-artifact-front-door|rvv-i32m1-selected-boundary-seed|toy-template-selected-boundary-seed|i32m1-add-object-artifact`,
+  8/8 passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`, 109/109
+  passed.
+- [OK] `git diff --check`.
+- [OK] Tool direct seed-factory scan returned no matches under
+  `tools/tcrv-opt` and `tools/tcrv-translate`.
+- [OK] Common/core source-seed semantic branch scan returned no matches under
+  `include/TianChenRV/Transforms`, `lib/Transforms`,
+  `include/TianChenRV/Plugin/ExtensionPlugin.h`, and
+  `lib/Plugin/ExtensionPlugin.cpp`.
+- [OK] RVV front-door artifacts generated under
+  `artifacts/tmp/rvv_selected_boundary_seed_frontdoor/20260516T143133Z`.
+- [OK] `ssh rvv` link/run printed
+  `tcrv_rvv_i32m1_selected_boundary_seed status=PASS n=4 add=[12,6,16,12]`.
+
+### Self-Repair
+
+- Avoided composing source seeds with `tcrv-execution-planning-pipeline` after a
+  live probe showed the proposal stage correctly rejects already selected seed
+  variants.
+- Avoided unconditional selected lowering-boundary materialization after a live
+  probe showed it duplicates the Toy seed boundary.
+- Repaired the disabled-builtins negative test to expect the final generic
+  coherence fail-closed diagnostic.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 95: Plugin-owned source seed registration interface
 
 **Date**: 2026-05-16

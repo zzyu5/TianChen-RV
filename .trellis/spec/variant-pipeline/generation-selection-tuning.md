@@ -367,6 +367,64 @@ pre-existing lowering-boundary metadata, mismatched materialized variants, or
 emission-plan diagnostics must produce the existing bounded diagnostics rather
 than duplicating symbols or silently appending stale metadata.
 
+## Public Source-Seed Artifact Front-Door Pipeline
+
+Bounded source-seed materialization has a separate explicit `tcrv-opt` front
+door:
+
+```text
+--tcrv-source-seed-artifact-front-door-pipeline
+```
+
+This pipeline is for plugin-owned source seeds that already materialize a
+selected extension-family boundary. It is not a replacement for the ordinary
+execution-planning pipeline and must not be invoked silently by default
+planning/export commands.
+
+The pipeline composes existing registered pass factories in this order:
+
+```text
+all enabled plugin-registered source-seed materialization passes
+  -> tcrv-check-hart-parallel-capabilities
+  -> tcrv-verify-plugin-variant-legality
+  -> tcrv-check-capability-requires
+  -> tcrv-materialize-emission-plans
+  -> tcrv-check-execution-plan-coherence
+```
+
+The source-seed pass list comes from
+`ExtensionPluginRegistry::collectSourceSeedPasses` in deterministic enabled
+plugin order. Common/tool code may collect, validate, register, and sequence
+those pass factories, but it must not inspect source seed marker names, source
+operation shapes, arithmetic, template semantics, route ids, runtime ABI names,
+intrinsic names, artifact kinds, or target-family details.
+
+This pipeline intentionally does not run
+`tcrv-materialize-plugin-variants`, `tcrv-select-variants`, or unconditional
+selected lowering-boundary materialization. Current bounded source seeds
+produce selected `tcrv.exec.variant` surfaces and selected extension-family
+boundary IR themselves. Re-running proposal/selection would compete with that
+selected surface, and unconditionally materializing boundaries would duplicate
+plugin-owned seed boundaries such as Toy `tcrv_toy.compute_skeleton`.
+
+The artifact front door stops at emission-plan/coherence-checked TianChen-RV
+IR. Existing target translate routes, such as
+`tcrv-translate --tcrv-export-target-artifact` or route-specific artifact
+translations, remain responsible for consuming the selected emission plan and
+materializing target artifacts. If a caller wants textual EmitC evidence, it
+may explicitly append `--tcrv-materialize-emitc-lowerable-routes` after the
+front-door pipeline; this is a separate lowering step and must not replace
+target artifact route validation.
+
+Disabled built-in plugins leave the source-seed pass list empty. Source inputs
+must then fail closed in the generic gates rather than being lowered through
+hidden global plugin state.
+
+The pipeline must preserve the fail-closed behavior of each plugin-owned seed:
+unsupported marker values, malformed source shapes, stale pre-existing
+`tcrv.exec`/extension-boundary residue, and mixed incompatible seed inputs must
+not be merged into one source program or repaired by common code.
+
 ## Plugin-Driven Proposal
 
 For each high-level op, core asks enabled plugins:

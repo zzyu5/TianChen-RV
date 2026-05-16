@@ -5,6 +5,9 @@
 
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
+#include "llvm/ADT/SmallVector.h"
+
+#include <utility>
 
 namespace tianchenrv::transforms {
 namespace {
@@ -16,6 +19,12 @@ constexpr llvm::StringLiteral kExecutionPlanningPipelineDescription(
     "checking, generic selection/dispatch planning, selected lowering-boundary "
     "materialization, emission-plan diagnostics, and execution-plan coherence "
     "checking");
+constexpr llvm::StringLiteral kSourceSeedArtifactFrontDoorPipelineName(
+    "tcrv-source-seed-artifact-front-door-pipeline");
+constexpr llvm::StringLiteral kSourceSeedArtifactFrontDoorPipelineDescription(
+    "Compose enabled plugin source-seed materialization passes with TianChen-RV "
+    "generic legality, capability, emission-plan, and execution-plan coherence "
+    "checks so bounded source seeds can enter existing target artifact routes");
 
 } // namespace
 
@@ -45,6 +54,22 @@ void buildExecutionPlanningPipeline(
   pm.addPass(createCheckExecutionPlanCoherencePass(registry, targetExporters));
 }
 
+void buildSourceSeedArtifactFrontDoorPipeline(
+    mlir::OpPassManager &pm,
+    llvm::ArrayRef<plugin::SourceSeedPassRegistration> sourceSeedPasses,
+    const plugin::ExtensionPluginRegistry &registry,
+    const target::TargetArtifactExporterRegistry &targetExporters) {
+  for (const plugin::SourceSeedPassRegistration &sourceSeedPass :
+       sourceSeedPasses)
+    pm.addPass(sourceSeedPass.getFactory()());
+
+  pm.addPass(createCheckHartParallelCapabilitiesPass());
+  pm.addPass(createVerifyPluginVariantLegalityPass(registry));
+  pm.addPass(createCheckCapabilityRequiresPass());
+  pm.addPass(createMaterializeEmissionPlansPass(registry));
+  pm.addPass(createCheckExecutionPlanCoherencePass(registry, targetExporters));
+}
+
 void registerExecutionPlanningPipeline() {
   static const plugin::ExtensionPluginRegistry emptyRegistry;
   registerExecutionPlanningPipeline(emptyRegistry);
@@ -63,6 +88,24 @@ void registerExecutionPlanningPipeline(
       kExecutionPlanningPipelineName, kExecutionPlanningPipelineDescription,
       [&registry, &targetExporters](mlir::OpPassManager &pm) {
         buildExecutionPlanningPipeline(pm, registry, targetExporters);
+      });
+  (void)registration;
+}
+
+void registerSourceSeedArtifactFrontDoorPipeline(
+    llvm::ArrayRef<plugin::SourceSeedPassRegistration> sourceSeedPasses,
+    const plugin::ExtensionPluginRegistry &registry,
+    const target::TargetArtifactExporterRegistry &targetExporters) {
+  llvm::SmallVector<plugin::SourceSeedPassRegistration, 4>
+      capturedSourceSeedPasses(sourceSeedPasses.begin(),
+                               sourceSeedPasses.end());
+  mlir::PassPipelineRegistration<> registration(
+      kSourceSeedArtifactFrontDoorPipelineName,
+      kSourceSeedArtifactFrontDoorPipelineDescription,
+      [capturedSourceSeedPasses = std::move(capturedSourceSeedPasses),
+       &registry, &targetExporters](mlir::OpPassManager &pm) {
+        buildSourceSeedArtifactFrontDoorPipeline(
+            pm, capturedSourceSeedPasses, registry, targetExporters);
       });
   (void)registration;
 }

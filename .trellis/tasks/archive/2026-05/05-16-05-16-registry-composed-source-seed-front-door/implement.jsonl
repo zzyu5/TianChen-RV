@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Defines plugin-owned source-seed pass registrations and the extension-neutral registry boundary."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Defines extension-family plugin construction and the common interface/EmitC route boundary."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Defines the public execution planning pipeline, deleted core source frontend boundary, and bounded RVV seed scenario."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Defines selected emission-plan to target artifact handoff and the current EmitC route."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Defines required lit/FileCheck, C++ tests, target artifact, and RVV evidence policy."}

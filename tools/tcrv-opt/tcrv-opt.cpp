@@ -88,6 +88,8 @@ llvm::Error registerTianChenRVOptPasses(
     return tianchenrv::transforms::createCheckExecutionPlanCoherencePass(
         plugins, targetExporters);
   });
+  tianchenrv::transforms::registerSourceSeedArtifactFrontDoorPipeline(
+      sourceSeedPasses, plugins, targetExporters);
   tianchenrv::transforms::registerExecutionPlanningPipeline(plugins,
                                                             targetExporters);
   return llvm::Error::success();

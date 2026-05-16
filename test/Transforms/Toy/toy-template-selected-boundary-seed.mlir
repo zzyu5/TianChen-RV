@@ -1,6 +1,8 @@
 // RUN: tcrv-opt %s --tcrv-toy-materialize-template-selected-boundary-seed | FileCheck %s --check-prefix=BOUNDARY --implicit-check-not="func.func"
 // RUN: tcrv-opt %s --tcrv-toy-materialize-template-selected-boundary-seed --tcrv-materialize-emission-plans --tcrv-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC
 // RUN: tcrv-opt %s --tcrv-toy-materialize-template-selected-boundary-seed --tcrv-materialize-emission-plans | tcrv-translate --tcrv-toy-template-artifact | FileCheck %s --check-prefix=ARTIFACT
+// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline --tcrv-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC
+// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | tcrv-translate --tcrv-export-target-artifact | FileCheck %s --check-prefix=ARTIFACT
 // RUN: not tcrv-opt %s --tcrv-disable-builtin-plugins --tcrv-toy-materialize-template-selected-boundary-seed 2>&1 | FileCheck %s --check-prefix=NO-BUILTIN
 
 module {

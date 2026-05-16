@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check that the front door stays source-seed pass plumbing and does not carry extension semantics."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check that the new front door is explicit and does not restore deleted core source frontend behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that target artifact handoff remains selected-path and emission-plan driven."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/build/RVV evidence expectations for the changed compiler behavior."}

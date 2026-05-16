@@ -1,6 +1,9 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
+// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.generic.o
+// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | tcrv-translate --tcrv-export-target-artifact > %t.frontdoor-explicit.o
 // RUN: file %t.generic.o | FileCheck %s --check-prefix=OBJECT
+// RUN: file %t.frontdoor-explicit.o | FileCheck %s --check-prefix=OBJECT
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="riscv_vector.h" --implicit-check-not="int main"
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-rvv-i32m1-add-header | FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="riscv_vector.h" --implicit-check-not="int main"
 // RUN: rm -rf %t.bundle && mkdir %t.bundle
