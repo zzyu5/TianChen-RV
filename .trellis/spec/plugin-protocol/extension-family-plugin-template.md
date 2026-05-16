@@ -458,6 +458,108 @@ C++ construction manifest
   -> fail closed until a future materialized EmitC module route exists
 ```
 
+## Scenario: Executable EmitC Construction Template
+
+### 1. Scope / Trigger
+
+Use this contract when a construction-template extension family graduates one
+bounded selected path from passive construction metadata to a materialized common
+EmitC module. The route must remain plugin-owned and must consume typed
+role/interface realization before route construction.
+
+This scenario stops at a verified common EmitC module unless target/export work
+is explicitly part of the task. A materialized EmitC module is not a runtime,
+correctness, performance, object-export, or hardware execution claim.
+
+### 2. Signatures
+
+- Plugin route hook:
+  `llvm::Error buildVariantEmitCLowerableRoute(const
+  VariantEmitCLowerableRequest &, TCRVEmitCLowerableRoute &)`.
+- Selected role-op boundary:
+  an ODS extension-family operation implementing
+  `TCRVEmitCLowerableOpInterface`.
+- Route payload:
+  `TCRVEmitCLowerableRoute` with route id, source-op provenance, headers, and
+  bounded `emitc.call_opaque` steps.
+- Route verifier/materializer:
+  `verifyTCRVEmitCLowerableRouteMaterializesToEmitC(...)` and the common
+  EmitC lowerable materialization pass.
+
+### 3. Contracts
+
+- The materialized variant must carry construction protocol, archetype, semantic
+  role graph, common-interface realization, typed-role realization, route
+  mapping, and evidence-profile metadata.
+- Plugin legality must reject missing or stale construction metadata before
+  readiness, boundary materialization, emission planning, or route building.
+- The selected lowering boundary must be a typed plugin-local role op with
+  selected kernel/variant identity, selected-path role, required capabilities,
+  typed role id, source role, role order, and role-specific interface.
+- Common/core boundary discovery may recognize the selected role op only through
+  `TCRVEmitCLowerableOpInterface` plus generic selected-path attrs. It must not
+  branch on a concrete extension family.
+- The plugin route builder must validate the typed role/interface realization
+  and selected boundary before constructing `TCRVEmitCLowerableRoute`.
+- Unsupported legacy template boundaries, stale route mappings, wrong typed
+  roles, wrong interfaces, duplicate selected boundaries, or missing selected
+  boundaries must fail closed.
+
+### 4. Validation & Error Matrix
+
+- Missing construction metadata on selected variant -> plugin legality error.
+- Stale route mapping -> selected-boundary or route-construction error before
+  EmitC materialization.
+- Selected role op missing, duplicated, or mismatched by selected variant/role ->
+  route-construction error.
+- Selected role op stale typed role, source role, role-specific interface, role
+  order, or required capabilities -> dialect/construction validation error.
+- Legacy `*.lowering_boundary` for the template family without the typed role op
+  -> unsupported route error, not a compatibility fallback.
+- Route materializes to EmitC but no target artifact exporter exists -> target
+  front-door/coherence must fail at the target-export boundary.
+
+### 5. Good/Base/Bad Cases
+
+- Good: selected variant -> typed role-op boundary ->
+  `TCRVEmitCLowerableRoute` -> common EmitC module.
+- Base: route omits target object export and hardware claims when the bounded
+  task only proves common EmitC materialization.
+- Bad: construction metadata directly prints C/C++, core code checks `if Toy` or
+  `if RVV`, or a legacy no-active-route boundary is treated as executable.
+
+### 6. Tests Required
+
+- C++ test proving the plugin manifest, typed-role realization, selected role
+  op, route mapping, and route materializer agree.
+- lit/FileCheck positive proving the selected path reaches a materialized EmitC
+  module through the common materializer.
+- lit/FileCheck negatives for missing boundary, wrong typed role/interface,
+  stale route mapping, unsupported legacy boundary, and target/export boundary
+  absence when export is intentionally out of scope.
+- Changed-surface scan proving descriptor-driven computation, direct C source
+  printers, Python compiler-core logic, and family-name branches in common/core
+  orchestration were not introduced.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+construction metadata -> direct C/source exporter -> target claim
+```
+
+Correct:
+
+```text
+construction manifest
+  -> plugin legality
+  -> typed role-op boundary via common interface
+  -> plugin-owned TCRVEmitCLowerableRoute
+  -> common EmitC module
+  -> separate target/export validation if required
+```
+
 ## Fast Plugin Addition
 
 "Fast" plugin addition means reducing architecture decision search. It does

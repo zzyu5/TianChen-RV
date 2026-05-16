@@ -1,5 +1,7 @@
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 
+#include "llvm/Support/Errc.h"
+
 namespace tianchenrv::plugin::toy {
 namespace {
 
@@ -22,7 +24,7 @@ constexpr llvm::StringLiteral kInterfaceRealization(
     "TCRVEmitCLowerableInterface");
 constexpr llvm::StringLiteral kEvidenceProfile(
     "parse_verify|capability|interface|selected_boundary_or_route|"
-    "emitc_route_mapping");
+    "emitc_route_mapping|materialized_emitc_module");
 
 constexpr llvm::StringLiteral kProtocolMetadataName(
     "toy_construction_protocol");
@@ -54,14 +56,22 @@ constexpr llvm::StringLiteral kToyCapabilityID("toy.template");
 constexpr llvm::StringLiteral kToyCapabilityKind("extension-template");
 constexpr llvm::StringLiteral kToyVariantName("toy_template_first_slice");
 constexpr llvm::StringLiteral kToyRouteID(
-    "toy-template-no-active-emitc-route");
+    "toy-template-compute-emitc-route");
 constexpr llvm::StringLiteral kToyEmissionKind(
-    "toy-template-unsupported-emission");
-constexpr llvm::StringLiteral kToyArtifactKind("unsupported-emission-diagnostic");
-constexpr llvm::StringLiteral kToyRuntimeABI("unsupported-emission-runtime-abi");
+    "materialized-emitc-cpp-toy-template-module");
+constexpr llvm::StringLiteral kToyArtifactKind("metadata-diagnostic");
+constexpr llvm::StringLiteral kToyRuntimeABI(
+    "toy-template-compute-runtime-c-abi.v1");
 constexpr llvm::StringLiteral kToyRuntimeABIKind(
-    "unsupported-plugin-runtime-abi");
-constexpr llvm::StringLiteral kToyRuntimeGlueRole("no-runtime-glue-unsupported");
+    "plugin-owned-runtime-abi");
+constexpr llvm::StringLiteral kToyRuntimeGlueRole(
+    "emitc-cpp-toy-template-runtime-glue");
+constexpr llvm::StringLiteral kToyLoweringBoundaryOpName(
+    "tcrv_toy.compute_skeleton");
+constexpr llvm::StringLiteral kToyTemplateComputeCallee(
+    "tcrv_toy_template_compute");
+constexpr llvm::StringLiteral kToyTemplateComputeResultName("toy_value");
+constexpr llvm::StringLiteral kToyTemplateComputeResultCType("int32_t");
 constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "configure:toy.role.configure.config_skeleton:tcrv_toy.config_skeleton:"
     "TCRVConfigOpInterface:TCRVEmitCLowerableInterface;"
@@ -172,7 +182,28 @@ const construction::RoleExpectation kRoleExpectations[] = {
 
 const llvm::StringRef kRequiredEvidence[] = {
     "parse_verify", "capability", "interface",
-    "selected_boundary_or_route", "emitc_route_mapping"};
+    "selected_boundary_or_route", "emitc_route_mapping",
+    "materialized_emitc_module"};
+
+const ToyTemplateEmitCConstructionRoute kTemplateEmitCRoute = {
+    kToyRouteID,
+    kToyEmissionKind,
+    kToyArtifactKind,
+    kToyLoweringBoundaryOpName,
+    kToyRuntimeABI,
+    kToyRuntimeABIKind,
+    kToyRuntimeABI,
+    kToyRuntimeGlueRole,
+    kToyTemplateComputeCallee,
+    kToyTemplateComputeResultName,
+    kToyTemplateComputeResultCType};
+
+llvm::Error makeToyConstructionProtocolError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV Toy construction protocol invalid: ") +
+          message,
+      llvm::errc::invalid_argument);
+}
 
 construction::ValidationSpec getToyConstructionValidationSpec() {
   return {"Toy",
@@ -270,6 +301,11 @@ const ToyTypedRoleGraphRealization &getToyTypedRoleGraphRealization() {
   return kTypedRoleGraphRealization;
 }
 
+const ToyTemplateEmitCConstructionRoute
+    &getToyTemplateEmitCConstructionRoute() {
+  return kTemplateEmitCRoute;
+}
+
 llvm::Error
 verifyToyConstructionManifest(const ToyConstructionManifest &manifest) {
   return construction::verifyConstructionManifest(
@@ -281,6 +317,62 @@ llvm::Error verifyToyTypedRoleGraphRealization(
     const ToyTypedRoleGraphRealization &realization) {
   return construction::verifyTypedRoleGraphRealization(
       manifest, realization, getToyConstructionValidationSpec());
+}
+
+llvm::Error verifyToyConstructionProtocolReady() {
+  if (llvm::Error error = verifyToyConstructionManifest(kManifest))
+    return error;
+  if (llvm::Error error =
+          verifyToyTypedRoleGraphRealization(kManifest,
+                                             kTypedRoleGraphRealization))
+    return error;
+  return verifyToyTemplateEmitCConstructionRouteMapping(
+      kTemplateEmitCRoute.routeID, kTemplateEmitCRoute.emissionKind,
+      kTemplateEmitCRoute.artifactKind,
+      kTemplateEmitCRoute.loweringBoundaryOpName,
+      kTemplateEmitCRoute.runtimeABI, kTemplateEmitCRoute.runtimeABIKind,
+      kTemplateEmitCRoute.runtimeABIName,
+      kTemplateEmitCRoute.runtimeGlueRole);
+}
+
+llvm::Error verifyToyTemplateEmitCConstructionRouteMapping(
+    llvm::StringRef routeID, llvm::StringRef emissionKind,
+    llvm::StringRef artifactKind, llvm::StringRef loweringBoundaryOpName,
+    llvm::StringRef runtimeABI, llvm::StringRef runtimeABIKind,
+    llvm::StringRef runtimeABIName, llvm::StringRef runtimeGlueRole) {
+  const ToyTemplateEmitCConstructionRoute &expected =
+      getToyTemplateEmitCConstructionRoute();
+  if (routeID != expected.routeID)
+    return makeToyConstructionProtocolError(
+        llvm::Twine("Toy EmitC route id must be '") + expected.routeID + "'");
+  if (emissionKind != expected.emissionKind)
+    return makeToyConstructionProtocolError(
+        llvm::Twine("Toy emission kind must be '") +
+        expected.emissionKind + "'");
+  if (artifactKind != expected.artifactKind)
+    return makeToyConstructionProtocolError(
+        llvm::Twine("Toy artifact kind must be '") +
+        expected.artifactKind + "'");
+  if (loweringBoundaryOpName != expected.loweringBoundaryOpName)
+    return makeToyConstructionProtocolError(
+        llvm::Twine("Toy lowering boundary must be '") +
+        expected.loweringBoundaryOpName + "'");
+  if (runtimeABI != expected.runtimeABI)
+    return makeToyConstructionProtocolError(
+        llvm::Twine("Toy runtime ABI must be '") + expected.runtimeABI + "'");
+  if (runtimeABIKind != expected.runtimeABIKind)
+    return makeToyConstructionProtocolError(
+        llvm::Twine("Toy runtime ABI kind must be '") +
+        expected.runtimeABIKind + "'");
+  if (runtimeABIName != expected.runtimeABIName)
+    return makeToyConstructionProtocolError(
+        llvm::Twine("Toy runtime ABI name must be '") +
+        expected.runtimeABIName + "'");
+  if (runtimeGlueRole != expected.runtimeGlueRole)
+    return makeToyConstructionProtocolError(
+        llvm::Twine("Toy runtime glue role must be '") +
+        expected.runtimeGlueRole + "'");
+  return llvm::Error::success();
 }
 
 llvm::Error verifyToyComputeRoleOpInterface(

@@ -24,6 +24,20 @@ using ToyTypedRoleInterfaceRealization =
 using ToyTypedRoleGraphRealization =
     tianchenrv::plugin::construction::TypedRoleGraphRealization;
 
+struct ToyTemplateEmitCConstructionRoute {
+  llvm::StringRef routeID;
+  llvm::StringRef emissionKind;
+  llvm::StringRef artifactKind;
+  llvm::StringRef loweringBoundaryOpName;
+  llvm::StringRef runtimeABI;
+  llvm::StringRef runtimeABIKind;
+  llvm::StringRef runtimeABIName;
+  llvm::StringRef runtimeGlueRole;
+  llvm::StringRef callee;
+  llvm::StringRef resultName;
+  llvm::StringRef resultCType;
+};
+
 llvm::StringRef getToyConstructionInterfaceRealization();
 llvm::StringRef getToyTypedRoleRealizationSummary();
 
@@ -45,12 +59,20 @@ llvm::StringRef getToyEvidenceProfileMetadataRole();
 
 const ToyConstructionManifest &getToyConstructionManifest();
 const ToyTypedRoleGraphRealization &getToyTypedRoleGraphRealization();
+const ToyTemplateEmitCConstructionRoute
+    &getToyTemplateEmitCConstructionRoute();
 
 llvm::Error
 verifyToyConstructionManifest(const ToyConstructionManifest &manifest);
 llvm::Error verifyToyTypedRoleGraphRealization(
     const ToyConstructionManifest &manifest,
     const ToyTypedRoleGraphRealization &realization);
+llvm::Error verifyToyConstructionProtocolReady();
+llvm::Error verifyToyTemplateEmitCConstructionRouteMapping(
+    llvm::StringRef routeID, llvm::StringRef emissionKind,
+    llvm::StringRef artifactKind, llvm::StringRef loweringBoundaryOpName,
+    llvm::StringRef runtimeABI, llvm::StringRef runtimeABIKind,
+    llvm::StringRef runtimeABIName, llvm::StringRef runtimeGlueRole);
 llvm::Error verifyToyComputeRoleOpInterface(
     const ToyConstructionManifest &manifest,
     const ToyTypedRoleGraphRealization &realization,

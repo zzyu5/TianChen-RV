@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack, unified extension-family, descriptor-boundary, and source-of-truth constraints."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Construction protocol shape, manifest/typed role/interface rules, and Toy-like construction template boundaries."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry, common interfaces, legality, emission readiness, and EmitC route provider contracts."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Plugin-locality and no core family-specific branch constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Executable RVV exemplar for construction-protocol-backed selected boundary and EmitC route consumption."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common extension-family ops to EmitC route and generated interface provenance contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck and C++ testing coverage for plugin, boundary, EmitC, and deletion residue behavior."}

@@ -7,16 +7,17 @@ include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.td"
 def TCRV_Toy_Dialect : Dialect {
   let name = "tcrv_toy";
   let cppNamespace = "::tianchenrv::tcrv::toy";
-  let summary = "TianChen-RV Toy extension metadata dialect";
+  let summary = "TianChen-RV Toy extension construction-template dialect";
   let description = [{
     The Toy dialect is a plugin-local extension template surface. The
     architectural family is tcrv.toy; the concrete MLIR dialect namespace is
     tcrv_toy because MLIR dialect namespaces cannot contain '.' characters.
 
-    This dialect intentionally exposes only selected lowering-boundary metadata
-    plus a minimal ODS-backed role-op boundary for plugin integration tests. It
-    does not model tensor/tile computation, executable lowering, runtime calls,
-    binary artifacts, correctness, or performance.
+    This dialect intentionally exposes a minimal ODS-backed role-op boundary
+    for plugin integration tests. The compute skeleton can be consumed by the
+    Toy plugin's bounded EmitC lowerable route, but it does not model
+    tensor/tile computation, target object export, runtime correctness, or
+    performance.
   }];
 }
 
@@ -63,10 +64,10 @@ def ComputeSkeletonOp : TCRVToy_Op<"compute_skeleton",
     MLIR role operation implementing the generated EmitC-lowerable provenance
     interface and have Toy construction validation consume that IR identity.
 
-    This op is a construction-protocol role boundary only. It does not model
-    tensor/tile computation, executable lowering, runtime ABI values, generated
-    objects, correctness, or performance. Configure, load, and store are
-    manifest-ordered staged roles for this minimal Toy slice.
+    This op is a construction-protocol role boundary consumed by the bounded
+    Toy EmitC route. It does not model tensor/tile computation, runtime ABI
+    values, generated objects, correctness, or performance. Configure, load,
+    and store are manifest-ordered staged roles for this minimal Toy slice.
   }];
 
   let arguments = (ins

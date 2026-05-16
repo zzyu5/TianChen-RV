@@ -1,7 +1,9 @@
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Dialect/Toy/IR/ToyDialect.h"
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
+#include "TianChenRV/Plugin/Toy/ToyEmitCRouteProvider.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -46,7 +48,7 @@ constexpr llvm::StringLiteral kExpectedTemplateABI(
     "toy-metadata-boundary.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind("toy-lowering-template");
 constexpr llvm::StringLiteral kToyTemplatePolicy(
-    "no_active_route_toy_template_first_slice");
+    "toy_template_emitc_route_requires_selected_compute_boundary");
 constexpr llvm::StringLiteral kToyTemplateCondition(
     "toy_template_capability_available");
 constexpr llvm::StringLiteral kToyTemplateGuard(
@@ -59,14 +61,18 @@ constexpr llvm::StringLiteral kRoleAttrName("role");
 constexpr llvm::StringLiteral kStatusAttrName("status");
 constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
     "required_capabilities");
-constexpr llvm::StringLiteral kTemplateABIAttrName("template_abi");
-constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
-constexpr llvm::StringLiteral kNoActiveRouteStatusValue("no-active-route");
-constexpr llvm::StringLiteral kSelectedPlanCapabilityIDName(
-    "toy_template_capability_id");
-constexpr llvm::StringLiteral kSelectedPlanTemplateABIName(
-    "toy_template_abi");
-constexpr llvm::StringLiteral kSelectedPlanScopeName("toy_template_scope");
+constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
+constexpr llvm::StringLiteral kRoleOrderAttrName("role_order");
+constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
+constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
+    "role_specific_interface");
+constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
+constexpr llvm::StringLiteral kToyComputeTypedRoleID(
+    "toy.role.compute.compute_skeleton");
+constexpr llvm::StringLiteral kToyComputeSourceRole("compute");
+constexpr llvm::StringLiteral kToyComputeRoleSpecificInterface(
+    "TCRVComputeOpInterface");
+constexpr int64_t kToyComputeRoleOrder = 2;
 
 struct ToyTemplateCapabilityView {
   std::string templateABI;
@@ -81,8 +87,7 @@ llvm::Error makeToyPluginError(llvm::Twine message) {
 }
 
 llvm::Error verifyToyConstructionProtocolReady() {
-  return toy::verifyToyConstructionManifest(
-      toy::getToyConstructionManifest());
+  return toy::verifyToyConstructionProtocolReady();
 }
 
 bool hasAvailableToyTemplateCapability(
@@ -435,6 +440,39 @@ const toy::ToyExtensionPlugin &getBuiltinToyExtensionPlugin() {
   return plugin;
 }
 
+mlir::Operation *materializeToyComputeSkeletonBoundary(
+    const VariantLoweringBoundaryRequest &request) {
+  mlir::OpBuilder &builder = request.getBuilder();
+  mlir::MLIRContext *context = builder.getContext();
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+
+  auto variantRequires =
+      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+  mlir::OperationState state(variant.getLoc(), "tcrv_toy.compute_skeleton");
+  state.addAttribute(kSourceKernelAttrName,
+                     builder.getStringAttr(kernel.getSymName()));
+  state.addAttribute(kSelectedVariantAttrName,
+                     mlir::FlatSymbolRefAttr::get(context,
+                                                  variant.getSymName()));
+  state.addAttribute(kOriginAttrName, builder.getStringAttr(kToyPluginName));
+  state.addAttribute(kRoleAttrName,
+                     builder.getStringAttr(
+                         stringifyVariantEmissionRole(request.getRole())));
+  state.addAttribute(kStatusAttrName,
+                     builder.getStringAttr(kRoleOpBoundaryStatusValue));
+  state.addAttribute(kRequiredCapabilitiesAttrName, variantRequires);
+  state.addAttribute(kTypedRoleAttrName,
+                     builder.getStringAttr(kToyComputeTypedRoleID));
+  state.addAttribute(kRoleOrderAttrName,
+                     builder.getI64IntegerAttr(kToyComputeRoleOrder));
+  state.addAttribute(kSourceRoleAttrName,
+                     builder.getStringAttr(kToyComputeSourceRole));
+  state.addAttribute(kRoleSpecificInterfaceAttrName,
+                     builder.getStringAttr(kToyComputeRoleSpecificInterface));
+  return builder.create(state);
+}
+
 } // namespace
 
 namespace toy {
@@ -581,7 +619,8 @@ llvm::Error ToyExtensionPlugin::estimateVariantCost(
   out.setOriginPlugin(kToyPluginName);
   out.setVariantSymbol(request.getVariant().getSymName());
   out.setExplanation(
-      "Toy extension template placeholder; no materialized EmitC route, "
+      "Toy extension template first slice; route materializes an EmitC module "
+      "when a selected compute_skeleton boundary is present, without runtime, "
       "correctness, or performance claim");
   out.setPolicy("prefer Toy only when explicit toy.template capability "
                 "metadata is available");
@@ -607,10 +646,20 @@ llvm::Error ToyExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  out = VariantEmissionStatus::getUnsupported(
-      kToyPluginName, request.getVariant().getSymName(),
-      "Toy extension has no active materialized EmitC lowering or target "
-      "artifact route");
+  conversion::emitc::TCRVEmitCLowerableRoute route;
+  VariantEmitCLowerableRequest routeRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole());
+  if (llvm::Error error =
+          toy::buildToyTemplateEmitCLowerableRoute(routeRequest, route)) {
+    std::string diagnostic = llvm::toString(std::move(error));
+    out = VariantEmissionStatus::getUnsupported(
+        kToyPluginName, request.getVariant().getSymName(), diagnostic);
+    return llvm::Error::success();
+  }
+
+  out = VariantEmissionStatus::getSupported(
+      kToyPluginName, request.getVariant().getSymName(), route.getRouteID());
   return llvm::Error::success();
 }
 
@@ -634,11 +683,28 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  out = VariantEmissionPlan::getUnsupported(
+  conversion::emitc::TCRVEmitCLowerableRoute route;
+  VariantEmitCLowerableRequest routeRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole());
+  if (llvm::Error error =
+          toy::buildToyTemplateEmitCLowerableRoute(routeRequest, route))
+    return error;
+
+  const toy::ToyTemplateEmitCConstructionRoute &constructionRoute =
+      toy::getToyTemplateEmitCConstructionRoute();
+  out = VariantEmissionPlan::getSupported(
       kToyPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      "Toy extension has no active materialized EmitC lowering, runtime ABI, "
-      "or target artifact route");
+      constructionRoute.emissionKind, route.getRouteID(),
+      constructionRoute.runtimeABI, constructionRoute.artifactKind,
+      "Toy selected compute_skeleton route materializes an EmitC module "
+      "through the common TCRVEmitCLowerableRoute materializer; target "
+      "artifact export remains out of scope for this bounded template");
+  out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
+  out.setRuntimeABIName(constructionRoute.runtimeABIName);
+  out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);
+  out.setLoweringBoundaryOpName(constructionRoute.loweringBoundaryOpName);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
@@ -668,21 +734,25 @@ llvm::Error ToyExtensionPlugin::materializeSelectedLoweringBoundary(
         " failed plugin legality before boundary materialization: " + message);
   }
 
-  out = VariantLoweringBoundaryResult::getNoBoundary(
+  mlir::Operation *boundary = materializeToyComputeSkeletonBoundary(request);
+  VariantLoweringBoundaryValidationRequest validationRequest(
+      variant, kernel, request.getCapabilities(), request.getRole(), boundary);
+  if (llvm::Error error = validateSelectedLoweringBoundary(validationRequest))
+    return error;
+
+  out = VariantLoweringBoundaryResult::getMaterialized(
       kToyPluginName, kernel.getSymName(), variant.getSymName(),
-      request.getRole(),
-      "Toy extension has no active selected lowering-boundary route");
+      request.getRole(), boundary);
   return llvm::Error::success();
 }
 
 llvm::Error ToyExtensionPlugin::validateSelectedLoweringBoundary(
     const VariantLoweringBoundaryValidationRequest &request) const {
-  auto boundary =
-      llvm::dyn_cast_if_present<tcrv::toy::LoweringBoundaryOp>(
-          request.getBoundary());
+  auto boundary = llvm::dyn_cast_if_present<tcrv::toy::ComputeSkeletonOp>(
+      request.getBoundary());
   if (!boundary)
     return makeToyPluginError(
-        "selected Toy path requires a tcrv_toy.lowering_boundary operation");
+        "selected Toy path requires a tcrv_toy.compute_skeleton operation");
 
   if (llvm::Error error =
           validateBoundaryStringAttr(boundary.getOperation(),
@@ -700,17 +770,17 @@ llvm::Error ToyExtensionPlugin::validateSelectedLoweringBoundary(
     return error;
   if (llvm::Error error =
           validateBoundaryStringAttr(boundary.getOperation(), kStatusAttrName,
-                                     kNoActiveRouteStatusValue))
+                                     kRoleOpBoundaryStatusValue))
     return error;
-  if (llvm::Error error =
-          validateBoundaryStringAttr(boundary.getOperation(),
-                                     kTemplateABIAttrName,
-                                     kExpectedTemplateABI))
+  if (llvm::Error error = validateBoundaryStringAttr(
+          boundary.getOperation(), kTypedRoleAttrName, kToyComputeTypedRoleID))
     return error;
-  if (llvm::Error error =
-          validateBoundaryStringAttr(boundary.getOperation(),
-                                     kHandoffKindAttrName,
-                                     kExpectedHandoffKind))
+  if (llvm::Error error = validateBoundaryStringAttr(
+          boundary.getOperation(), kSourceRoleAttrName, kToyComputeSourceRole))
+    return error;
+  if (llvm::Error error = validateBoundaryStringAttr(
+          boundary.getOperation(), kRoleSpecificInterfaceAttrName,
+          kToyComputeRoleSpecificInterface))
     return error;
 
   auto selectedVariant =
@@ -731,7 +801,37 @@ llvm::Error ToyExtensionPlugin::validateSelectedLoweringBoundary(
         "Toy lowering-boundary required_capabilities must match selected "
         "variant requires metadata");
 
+  auto roleOrder =
+      boundary->getAttrOfType<mlir::IntegerAttr>(kRoleOrderAttrName);
+  if (!roleOrder || roleOrder.getInt() != kToyComputeRoleOrder)
+    return makeToyPluginError(
+        "Toy compute_skeleton role_order must match the construction "
+        "typed-role realization");
+
+  if (llvm::Error error = toy::verifyToyComputeRoleOpInterface(
+          toy::getToyConstructionManifest(),
+          toy::getToyTypedRoleGraphRealization(), boundary.getOperation()))
+    return error;
+
   return llvm::Error::success();
+}
+
+llvm::Error ToyExtensionPlugin::buildVariantEmitCLowerableRoute(
+    const VariantEmitCLowerableRequest &request,
+    conversion::emitc::TCRVEmitCLowerableRoute &out) const {
+  if (!request.getVariant())
+    return makeToyPluginError(
+        "EmitC route construction requires a materialized tcrv.exec.variant");
+  if (!request.getKernel())
+    return makeToyPluginError(
+        "EmitC route construction requires an enclosing tcrv.exec.kernel");
+
+  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  request.getCapabilities());
+  if (llvm::Error error = verifyVariantLegality(legality))
+    return error;
+
+  return toy::buildToyTemplateEmitCLowerableRoute(request, out);
 }
 
 } // namespace toy

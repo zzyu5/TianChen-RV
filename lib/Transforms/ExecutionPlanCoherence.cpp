@@ -1,5 +1,6 @@
 #include "TianChenRV/Transforms/ExecutionPlanCoherence.h"
 
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Support/RuntimeABIParam.h"
@@ -560,6 +561,10 @@ bool isSelectedLoweringBoundaryCandidate(mlir::Operation &op) {
     return false;
 
   if (op.getName().getStringRef().ends_with(".lowering_boundary"))
+    return true;
+
+  if (llvm::isa<tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface>(
+          op))
     return true;
 
   if (auto diagnostic = llvm::dyn_cast<DiagnosticOp>(op)) {

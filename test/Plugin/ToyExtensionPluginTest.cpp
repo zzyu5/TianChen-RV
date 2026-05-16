@@ -1,4 +1,6 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Dialect/Toy/IR/ToyDialect.h"
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
@@ -23,6 +25,7 @@ using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
 using tianchenrv::plugin::VariantCostEstimate;
 using tianchenrv::plugin::VariantCostRequest;
+using tianchenrv::plugin::VariantEmitCLowerableRequest;
 using tianchenrv::plugin::VariantEmissionPlan;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
@@ -35,7 +38,6 @@ using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::toy::ComputeSkeletonOp;
-using tianchenrv::tcrv::toy::LoweringBoundaryOp;
 using tianchenrv::transforms::VariantSelectionKind;
 using tianchenrv::transforms::VariantSelectionPlan;
 
@@ -96,25 +98,6 @@ VariantOp findVariant(KernelOp kernel, llvm::StringRef symbolName) {
     if (variant.getSymName() == symbolName)
       result = variant;
   });
-  return result;
-}
-
-LoweringBoundaryOp findToyBoundary(KernelOp kernel,
-                                   llvm::StringRef selectedVariantSymbol) {
-  LoweringBoundaryOp result;
-  if (!kernel || kernel.getBody().empty())
-    return result;
-
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto boundary = llvm::dyn_cast<LoweringBoundaryOp>(op);
-    if (!boundary)
-      continue;
-
-    auto selectedVariant =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
-      result = boundary;
-  }
   return result;
 }
 
@@ -209,6 +192,39 @@ int runRegistrationAndCapabilityMetadataTest() {
                      realization.roles[2].emitCLowerableInterface ==
                          "TCRVEmitCLowerableInterface",
                  "Toy typed role graph preserves ordered compute role"))
+    return result;
+
+  const auto &route =
+      tianchenrv::plugin::toy::getToyTemplateEmitCConstructionRoute();
+  if (int result =
+          expect(manifest.emitcRoute.routeID == route.routeID &&
+                     manifest.emitcRoute.emissionKind == route.emissionKind &&
+                     manifest.emitcRoute.artifactKind == route.artifactKind &&
+                     manifest.evidenceProfile.contains(
+                         "materialized_emitc_module"),
+                 "Toy construction manifest records the active EmitC route"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::toy::verifyToyConstructionProtocolReady(),
+          "Toy construction protocol ready check validates active route"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::toy::
+              verifyToyTemplateEmitCConstructionRouteMapping(
+                  route.routeID, route.emissionKind, route.artifactKind,
+                  route.loweringBoundaryOpName, route.runtimeABI,
+                  route.runtimeABIKind, route.runtimeABIName,
+                  route.runtimeGlueRole),
+          "Toy active EmitC route mapping validates"))
+    return result;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::toy::
+              verifyToyTemplateEmitCConstructionRouteMapping(
+                  "stale-toy-route", route.emissionKind, route.artifactKind,
+                  route.loweringBoundaryOpName, route.runtimeABI,
+                  route.runtimeABIKind, route.runtimeABIName,
+                  route.runtimeGlueRole),
+          {"Toy EmitC route id", route.routeID}))
     return result;
 
   return expectErrorContains(
@@ -486,31 +502,37 @@ module {
           "materialize Toy selected boundary"))
     return result;
 
-  LoweringBoundaryOp boundary =
-      findToyBoundary(kernel, toyVariant.getSymName());
-  if (int result =
-          expect(!boundary,
-                 "Toy selected path does not materialize a route boundary"))
-    return result;
-  if (int result = expect(mlir::succeeded(mlir::verify(*module)),
-                          "Toy no-boundary module verifies"))
-    return result;
-
   ComputeSkeletonOp computeRole =
       findToyComputeRole(kernel, toyVariant.getSymName());
   if (int result =
-          expect(!computeRole,
-                 "Toy selected path does not materialize a compute role op"))
+          expect(computeRole,
+                 "Toy selected path materializes a compute role boundary"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::toy::verifyToyComputeRoleOpInterface(
+              tianchenrv::plugin::toy::getToyConstructionManifest(),
+              tianchenrv::plugin::toy::getToyTypedRoleGraphRealization(),
+              computeRole.getOperation()),
+          "Toy selected compute role validates against construction protocol"))
+    return result;
+  if (int result = expect(mlir::succeeded(mlir::verify(*module)),
+                          "Toy boundary module verifies"))
     return result;
 
   VariantEmissionStatus status;
-  if (int result = expectErrorContains(
+  if (int result = expectSuccess(
           registry.checkVariantEmissionReadiness(
               VariantEmissionRequest(toyVariant, kernel, capabilities,
                                      VariantEmissionRole::DirectVariant),
               status),
-          {"reported unsupported emission path",
-           "no active materialized EmitC"}))
+          "Toy emission readiness routes through active EmitC provider"))
+    return result;
+  const auto &routeSpec =
+      tianchenrv::plugin::toy::getToyTemplateEmitCConstructionRoute();
+  if (int result =
+          expect(status.isSupported() &&
+                     status.getEmissionPath() == routeSpec.routeID,
+                 "Toy emission readiness reports supported EmitC route"))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -522,22 +544,59 @@ module {
           "Toy emission plan is plugin-owned"))
     return result;
   if (int result =
-          expect(emissionPlan.isUnsupported() &&
+          expect(emissionPlan.isSupported() &&
                      emissionPlan.getOriginPlugin() ==
                          tianchenrv::plugin::toy::
                              getToyExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() ==
                          toyVariant.getSymName() &&
-                     emissionPlan.getLoweringPipeline().empty() &&
-                     emissionPlan.getArtifactKind().empty() &&
-                     emissionPlan.getDiagnostic().contains(
-                         "no active materialized EmitC lowering") &&
+                     emissionPlan.getLoweringPipeline() == routeSpec.routeID &&
+                     emissionPlan.getEmissionKind() ==
+                         routeSpec.emissionKind &&
+                     emissionPlan.getArtifactKind() ==
+                         routeSpec.artifactKind &&
+                     emissionPlan.getLoweringBoundaryOpName() ==
+                         routeSpec.loweringBoundaryOpName &&
+                     emissionPlan.getRuntimeABI() == routeSpec.runtimeABI &&
+                     emissionPlan.getRuntimeABIKind() ==
+                         routeSpec.runtimeABIKind &&
+                     emissionPlan.getRuntimeABIName() ==
+                         routeSpec.runtimeABIName &&
+                     emissionPlan.getRuntimeGlueRole() ==
+                         routeSpec.runtimeGlueRole &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::toy::
                              getToyTemplatePreferredCapabilitySymbol(),
-                 "Toy emission plan fails closed without exportable route"))
+                 "Toy emission plan advertises the bounded EmitC module route"))
+    return result;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+  if (int result = expectSuccess(
+          registry.buildVariantEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(toyVariant, kernel, capabilities,
+                                           VariantEmissionRole::DirectVariant),
+              route),
+          "Toy plugin builds active EmitC lowerable route"))
+    return result;
+  if (int result =
+          expect(route.getRouteID() == routeSpec.routeID &&
+                     route.getSourceOpProvenance().size() == 1 &&
+                     route.getCallOpaqueSteps().size() == 1 &&
+                     route.getCallOpaqueSteps().front().callee ==
+                         routeSpec.callee,
+                 "Toy EmitC route consumes compute role provenance"))
+    return result;
+  std::string emitcFunctionName =
+      (llvm::Twine("tcrv_emitc_toy_template_kernel_") +
+       toyVariant.getSymName())
+          .str();
+  if (int result = expectSuccess(
+          tianchenrv::conversion::emitc::
+              verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
+                  route, emitcFunctionName),
+          "Toy active route materializes through the common EmitC materializer"))
     return result;
 
   return 0;

@@ -505,11 +505,12 @@ planning after readiness, without generating executable artifacts:
   selected path, validate it before plugin plan routing and require exactly one
   matching direct kernel-child boundary for each selected reference;
 - treat selected lowering-boundary candidates as actual plugin-local
-  `*.lowering_boundary` operations or explicit lowering-boundary diagnostic
-  metadata only. Other plugin-local selected-path attachments, such as an RVV
-  executable microkernel op, may carry `selected_variant`, `role`, and
-  `source_kernel` for their own validation, but core emission planning must not
-  count them as competing lowering boundaries;
+  `*.lowering_boundary` operations, explicit lowering-boundary diagnostic
+  metadata, or typed plugin-local role operations implementing
+  `TCRVEmitCLowerableOpInterface`. Interface-backed role ops may carry
+  `selected_variant`, `role`, and `source_kernel` as selected-path boundary
+  identity, but core emission planning must recognize them through the common
+  interface and generic attrs only, never through Toy/RVV/family-name branches;
 - reject selected-boundary absence, stale selected-variant references, role
   mismatches, origin mismatches, required-capability mismatches, and duplicate
   competing boundaries generically before materializing emission-plan

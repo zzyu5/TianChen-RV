@@ -1,9 +1,9 @@
 // RUN: not tcrv-opt %s --split-input-file --tcrv-execution-planning-pipeline 2>&1 | FileCheck %s --check-prefix=PIPE
 
 module {
-  // PIPE: TianChen-RV emission path check failed for kernel @pipeline_toy_template
-  // PIPE-SAME: selected lowering-boundary validation failed before plugin emission routing
-  // PIPE-SAME: selected path @toy_template_first_slice as direct variant requires one materialized plugin lowering boundary before emission planning
+  // PIPE: TianChen-RV execution plan coherence check failed for kernel @pipeline_toy_template
+  // PIPE-SAME: selected target artifact front door @toy_template_first_slice as direct variant route 'toy-template-compute-emitc-route'
+  // PIPE-SAME: names unknown target artifact export route id 'toy-template-compute-emitc-route'
   tcrv.exec.kernel @pipeline_toy_template {
     tcrv.exec.capability @toy_template {
       id = "toy.template",

@@ -1,5 +1,6 @@
 add_mlir_library(TianChenRVToyPlugin
   ToyConstructionProtocol.cpp
+  ToyEmitCRouteProvider.cpp
   ToyExtensionPlugin.cpp
 
   LINK_LIBS PUBLIC
