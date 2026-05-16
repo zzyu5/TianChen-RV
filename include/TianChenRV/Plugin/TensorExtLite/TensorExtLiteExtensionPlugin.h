@@ -18,11 +18,6 @@ llvm::StringRef getTensorExtLiteHandoffKindAttrName();
 llvm::StringRef getTensorExtLiteExpectedFragmentABI();
 llvm::StringRef getTensorExtLiteExpectedHandoffKind();
 llvm::StringRef getTensorExtLiteFragmentPolicy();
-llvm::StringRef getTensorExtLiteMetadataRouteID();
-llvm::StringRef getTensorExtLiteMetadataEmissionKind();
-llvm::StringRef getTensorExtLiteMetadataArtifactKind();
-llvm::StringRef getTensorExtLiteMetadataRuntimeABIKind();
-llvm::StringRef getTensorExtLiteMetadataRuntimeGlueRole();
 
 class TensorExtLiteExtensionPlugin final : public ExtensionPlugin {
 public:

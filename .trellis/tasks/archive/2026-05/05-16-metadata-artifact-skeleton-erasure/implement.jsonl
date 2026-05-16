@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and deletion-campaign architecture invariants"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry and target artifact route ownership boundaries"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Fail-closed target artifact/export route contract and no descriptor/direct-C replacement rule"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required MLIR/C++ testing shape and deleted metadata route test ownership"}

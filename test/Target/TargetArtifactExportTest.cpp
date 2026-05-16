@@ -16,7 +16,6 @@
 #include "TianChenRV/Target/RVV/RVVVectorShape.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
-#include "TianChenRV/Target/Toy/ToyMetadataArtifact.h"
 
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
@@ -32,7 +31,6 @@ using namespace tianchenrv::target;
 
 namespace {
 
-using tianchenrv::plugin::ExtensionPlugin;
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
 using tianchenrv::support::FiniteBinaryCallableRuntimeABIParameterBindings;
@@ -66,19 +64,21 @@ llvm::Error headerMarkerExporter(mlir::ModuleOp, llvm::raw_ostream &os) {
 llvm::Expected<bool>
 alwaysMatchComposite(llvm::ArrayRef<TargetArtifactCandidate>);
 
-constexpr llvm::StringLiteral kBundleTestNoMetadataRouteID(
+constexpr llvm::StringLiteral kBundleTestMissingRouteMetadataID(
     "bundle-test-no-metadata-route");
 constexpr llvm::StringLiteral kBundleTestNoMetadataCompositeRouteID(
     "bundle-test-no-metadata-composite-route");
 constexpr llvm::StringLiteral kBundleTestDuplicateRouteID(
     "bundle-test-duplicate-route");
+constexpr llvm::StringLiteral kBundleTestUnsupportedEmissionKind(
+    "bundle-test-unsupported-emission");
 
 llvm::Error registerNoMetadataToyTargetExporter(
     TargetArtifactExporterRegistry &registry) {
   return registry.registerExporter(TargetArtifactExporter(
-      kBundleTestNoMetadataRouteID, "metadata-diagnostic",
+      kBundleTestMissingRouteMetadataID, "metadata-diagnostic",
       tianchenrv::plugin::toy::getToyExtensionPluginName(),
-      tianchenrv::plugin::toy::getToyMetadataEmissionKind(), noopExporter));
+      kBundleTestUnsupportedEmissionKind, noopExporter));
 }
 
 llvm::Error registerNoMetadataToyPluginTargetExporterBundle(
@@ -108,12 +108,12 @@ llvm::Error registerDuplicateToyTargetExporters(
   if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
           kBundleTestDuplicateRouteID, "metadata-diagnostic",
           tianchenrv::plugin::toy::getToyExtensionPluginName(),
-          tianchenrv::plugin::toy::getToyMetadataEmissionKind(), noopExporter)))
+          kBundleTestUnsupportedEmissionKind, noopExporter)))
     return error;
   return registry.registerExporter(TargetArtifactExporter(
       kBundleTestDuplicateRouteID, "metadata-diagnostic",
       tianchenrv::plugin::toy::getToyExtensionPluginName(),
-      tianchenrv::plugin::toy::getToyMetadataEmissionKind(), noopExporter));
+      kBundleTestUnsupportedEmissionKind, noopExporter));
 }
 
 llvm::Error registerDuplicateToyPluginTargetExporterBundle(
@@ -122,23 +122,6 @@ llvm::Error registerDuplicateToyPluginTargetExporterBundle(
       tianchenrv::plugin::toy::getToyExtensionPluginName(),
       registerDuplicateToyTargetExporters));
 }
-
-class DisabledToyTargetExporterPlugin final : public ExtensionPlugin {
-public:
-  llvm::StringRef getName() const override {
-    return tianchenrv::plugin::toy::getToyExtensionPluginName();
-  }
-
-  llvm::ArrayRef<PluginCapability> getCapabilities() const override {
-    return {};
-  }
-
-  void registerDialects(mlir::DialectRegistry &registry) const override {
-    (void)registry;
-  }
-
-  bool isEnabled() const override { return false; }
-};
 
 llvm::Expected<bool>
 neverMatchComposite(llvm::ArrayRef<TargetArtifactCandidate>) {
@@ -529,7 +512,7 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
     noMetadataRoute.setTargetArtifactExporterBundleRegistrationFn(
         registerNoMetadataToyPluginTargetExporterBundle);
     noMetadataRoute.addTargetArtifactRouteMetadataRequirement(
-        kBundleTestNoMetadataRouteID, "metadata-diagnostic");
+        kBundleTestMissingRouteMetadataID, "metadata-diagnostic");
     if (!expectSuccess(bundles.registerBundle(noMetadataRoute),
                        "register no-metadata-route bundle"))
       return false;
@@ -543,7 +526,7 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
             bundles.registerTargetArtifactExportersForEnabledPlugins(
                 plugins, exporters),
             "registered route without TargetArtifactRouteMetadata rejected",
-            {"target artifact route", kBundleTestNoMetadataRouteID,
+            {"target artifact route", kBundleTestMissingRouteMetadataID,
              "requires registered TargetArtifactRouteMetadata"}))
       return false;
   }
@@ -627,84 +610,6 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
   return true;
 }
 
-
-bool expectPluginOwnedToyTargetExporterRegistration() {
-  PluginTargetArtifactExporterRegistry pluginExporters;
-  if (!expectSuccess(
-          tianchenrv::target::toy::
-              registerToyMetadataArtifactPluginTargetExporterBundle(
-                  pluginExporters),
-          "Toy artifact exporter registration is fail-closed"))
-    return false;
-  if (!expectSuccess(
-          tianchenrv::target::toy::
-              registerToyMetadataArtifactPluginTargetExporterBundle(
-                  pluginExporters),
-          "duplicate Toy fail-closed exporter registration remains no-op"))
-    return false;
-
-  ExtensionPluginRegistry plugins;
-  if (!expectSuccess(tianchenrv::plugin::registerToyExtensionPlugin(plugins),
-                     "register Toy extension plugin for target exporters"))
-    return false;
-
-  TargetArtifactExporterRegistry registry;
-  if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
-                         plugins, registry),
-                     "populate target exporters from enabled Toy plugin"))
-    return false;
-  if (registry.size() != 0 || registry.compositeSize() != 0) {
-    llvm::errs() << "Toy fail-closed target exporter registered a route\n";
-    return false;
-  }
-
-  if (!expectErrorContains(
-          pluginExporters.registerExportersForPlugin(
-              plugins, tianchenrv::plugin::toy::getToyExtensionPluginName(),
-              registry),
-          "Toy fail-closed per-plugin exporter registration is absent",
-          {"no registered target artifact exporter bundle", "toy-plugin"}))
-    return false;
-
-  DisabledToyTargetExporterPlugin disabledToy;
-  ExtensionPluginRegistry disabledPlugins;
-  if (!expectSuccess(disabledPlugins.registerPlugin(disabledToy),
-                     "register disabled Toy plugin"))
-    return false;
-
-  TargetArtifactExporterRegistry disabledRegistry;
-  if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
-                         disabledPlugins, disabledRegistry),
-                     "skip target exporters for disabled Toy plugin"))
-    return false;
-  if (disabledRegistry.size() != 0 || disabledRegistry.compositeSize() != 0) {
-    llvm::errs() << "disabled Toy plugin unexpectedly registered a target "
-                    "artifact exporter\n";
-    return false;
-  }
-
-  if (!expectErrorContains(
-          pluginExporters.registerExportersForPlugin(
-              disabledPlugins,
-              tianchenrv::plugin::toy::getToyExtensionPluginName(),
-              disabledRegistry),
-          "explicit disabled Toy target exporter registration rejected",
-          {"disabled extension plugin", "toy-plugin"}))
-    return false;
-
-  ExtensionPluginRegistry missingPlugins;
-  TargetArtifactExporterRegistry missingRegistry;
-  if (!expectErrorContains(
-          pluginExporters.registerExportersForPlugin(
-              missingPlugins,
-              tianchenrv::plugin::toy::getToyExtensionPluginName(),
-              missingRegistry),
-          "explicit missing Toy target exporter registration rejected",
-          {"unknown extension plugin", "toy-plugin"}))
-    return false;
-
-  return true;
-}
 
 bool expectOffloadTargetArtifactExportersAbsent() {
   ExtensionPluginRegistry offloadOnlyPlugins;
@@ -1851,8 +1756,6 @@ int main() {
   if (!expectBuiltinExtensionBundleFrontDoorRegistration())
     return 1;
   if (!expectExtensionBundleFrontDoorFailClosedDiagnostics())
-    return 1;
-  if (!expectPluginOwnedToyTargetExporterRegistration())
     return 1;
   if (!expectOffloadTargetArtifactExportersAbsent())
     return 1;

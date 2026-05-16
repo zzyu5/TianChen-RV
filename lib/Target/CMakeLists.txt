@@ -12,7 +12,4 @@ add_mlir_library(TianChenRVTarget
   MLIRSupport
 )
 
-add_subdirectory(Template)
-add_subdirectory(TensorExtLite)
-add_subdirectory(Toy)
 add_subdirectory(Builtin)

@@ -62,16 +62,6 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
 constexpr llvm::StringLiteral kTemplateABIAttrName("template_abi");
 constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
 constexpr llvm::StringLiteral kNoActiveRouteStatusValue("no-active-route");
-constexpr llvm::StringLiteral kToyMetadataRouteID(
-    "toy-template-no-active-emitc-route");
-constexpr llvm::StringLiteral kToyMetadataEmissionKind(
-    "toy-template-unsupported-emission");
-constexpr llvm::StringLiteral kToyMetadataArtifactKind(
-    "unsupported-emission-diagnostic");
-constexpr llvm::StringLiteral kToyRuntimeABIKind(
-    "unsupported-plugin-runtime-abi");
-constexpr llvm::StringLiteral kToyRuntimeGlueRole(
-    "no-runtime-glue-unsupported");
 constexpr llvm::StringLiteral kSelectedPlanCapabilityIDName(
     "toy_template_capability_id");
 constexpr llvm::StringLiteral kSelectedPlanTemplateABIName(
@@ -482,24 +472,6 @@ llvm::StringRef getToyExpectedTemplateABI() { return kExpectedTemplateABI; }
 llvm::StringRef getToyExpectedHandoffKind() { return kExpectedHandoffKind; }
 
 llvm::StringRef getToyTemplatePolicy() { return kToyTemplatePolicy; }
-
-llvm::StringRef getToyMetadataRouteID() { return kToyMetadataRouteID; }
-
-llvm::StringRef getToyMetadataEmissionKind() {
-  return kToyMetadataEmissionKind;
-}
-
-llvm::StringRef getToyMetadataArtifactKind() {
-  return kToyMetadataArtifactKind;
-}
-
-llvm::StringRef getToyMetadataRuntimeABIKind() {
-  return kToyRuntimeABIKind;
-}
-
-llvm::StringRef getToyMetadataRuntimeGlueRole() {
-  return kToyRuntimeGlueRole;
-}
 
 ToyExtensionPlugin::ToyExtensionPlugin() {
   capabilities.push_back(PluginCapability(

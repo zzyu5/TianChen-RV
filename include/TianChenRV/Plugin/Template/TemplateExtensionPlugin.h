@@ -18,11 +18,6 @@ llvm::StringRef getTemplateHandoffKindAttrName();
 llvm::StringRef getTemplateExpectedIntegrationContract();
 llvm::StringRef getTemplateExpectedHandoffKind();
 llvm::StringRef getTemplateExtensionPolicy();
-llvm::StringRef getTemplateMetadataRouteID();
-llvm::StringRef getTemplateMetadataEmissionKind();
-llvm::StringRef getTemplateMetadataArtifactKind();
-llvm::StringRef getTemplateMetadataRuntimeABIKind();
-llvm::StringRef getTemplateMetadataRuntimeGlueRole();
 
 class TemplateExtensionPlugin final : public ExtensionPlugin {
 public:

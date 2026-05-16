@@ -765,3 +765,36 @@ Deleted generic metadata-only plugin emission/artifact route authority; Template
 ### Next Steps
 
 - None - task complete
+
+
+## Session 83: Metadata artifact skeleton erasure
+
+**Date**: 2026-05-16
+**Task**: Metadata artifact skeleton erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted Template/Toy/TensorExtLite metadata-artifact target skeletons and public metadata-route helper APIs; updated target/plugin tests; focused builds and check-tianchenrv passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

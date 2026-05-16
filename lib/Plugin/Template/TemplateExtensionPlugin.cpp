@@ -64,16 +64,6 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
 constexpr llvm::StringLiteral kIntegrationContractAttrName("integration_contract");
 constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
 constexpr llvm::StringLiteral kNoActiveRouteStatusValue("no-active-route");
-constexpr llvm::StringLiteral kTemplateMetadataRouteID(
-    "template-extension-no-active-emitc-route");
-constexpr llvm::StringLiteral kTemplateMetadataEmissionKind(
-    "template-extension-unsupported-emission");
-constexpr llvm::StringLiteral kTemplateMetadataArtifactKind(
-    "unsupported-emission-diagnostic");
-constexpr llvm::StringLiteral kTemplateRuntimeABIKind(
-    "unsupported-plugin-runtime-abi");
-constexpr llvm::StringLiteral kTemplateRuntimeGlueRole(
-    "no-runtime-glue-unsupported");
 constexpr llvm::StringLiteral kSelectedPlanCapabilityIDName(
     "template_extension_capability_id");
 constexpr llvm::StringLiteral kSelectedPlanIntegrationContractName(
@@ -490,24 +480,6 @@ llvm::StringRef getTemplateExpectedIntegrationContract() { return kExpectedInteg
 llvm::StringRef getTemplateExpectedHandoffKind() { return kExpectedHandoffKind; }
 
 llvm::StringRef getTemplateExtensionPolicy() { return kTemplateExtensionPolicy; }
-
-llvm::StringRef getTemplateMetadataRouteID() { return kTemplateMetadataRouteID; }
-
-llvm::StringRef getTemplateMetadataEmissionKind() {
-  return kTemplateMetadataEmissionKind;
-}
-
-llvm::StringRef getTemplateMetadataArtifactKind() {
-  return kTemplateMetadataArtifactKind;
-}
-
-llvm::StringRef getTemplateMetadataRuntimeABIKind() {
-  return kTemplateRuntimeABIKind;
-}
-
-llvm::StringRef getTemplateMetadataRuntimeGlueRole() {
-  return kTemplateRuntimeGlueRole;
-}
 
 TemplateExtensionPlugin::TemplateExtensionPlugin() {
   capabilities.push_back(PluginCapability(

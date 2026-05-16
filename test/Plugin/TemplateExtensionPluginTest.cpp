@@ -265,8 +265,7 @@ int runConstructionManifestTest() {
     return result;
   if (int result = expect(
           manifest.emitcRoute.routeID ==
-                  tianchenrv::plugin::template_ext::
-                      getTemplateMetadataRouteID() &&
+                  "template-extension-no-active-emitc-route" &&
               manifest.emitcRoute.requiredHeader ==
                   "template_extension_intrinsics.h" &&
               manifest.emitcRoute.roleToCallMap.contains(
@@ -786,7 +785,8 @@ module {
     return result;
   if (int result = expectProposalStringAttr(
           proposal, "tcrv_template.emitc_route_mapping",
-          tianchenrv::plugin::template_ext::getTemplateMetadataRouteID()))
+          tianchenrv::plugin::template_ext::getTemplateConstructionManifest()
+              .emitcRoute.routeID))
     return result;
   if (int result = expectProposalStringAttr(
           proposal, "tcrv_template.evidence_profile",

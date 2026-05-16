@@ -62,16 +62,6 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
 constexpr llvm::StringLiteral kFragmentABIAttrName("fragment_abi");
 constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
 constexpr llvm::StringLiteral kNoActiveRouteStatusValue("no-active-route");
-constexpr llvm::StringLiteral kTensorExtLiteMetadataRouteID(
-    "tensorext-lite-fragment-mma-no-active-emitc-route");
-constexpr llvm::StringLiteral kTensorExtLiteMetadataEmissionKind(
-    "tensorext-lite-fragment-mma-unsupported-emission");
-constexpr llvm::StringLiteral kTensorExtLiteMetadataArtifactKind(
-    "unsupported-emission-diagnostic");
-constexpr llvm::StringLiteral kTensorExtLiteRuntimeABIKind(
-    "unsupported-plugin-runtime-abi");
-constexpr llvm::StringLiteral kTensorExtLiteRuntimeGlueRole(
-    "no-runtime-glue-unsupported");
 constexpr llvm::StringLiteral kSelectedPlanCapabilityIDName(
     "tensorext_lite_tile_mma_capability_id");
 constexpr llvm::StringLiteral kSelectedPlanFragmentABIName(
@@ -482,24 +472,6 @@ llvm::StringRef getTensorExtLiteExpectedFragmentABI() { return kExpectedFragment
 llvm::StringRef getTensorExtLiteExpectedHandoffKind() { return kExpectedHandoffKind; }
 
 llvm::StringRef getTensorExtLiteFragmentPolicy() { return kTensorExtLiteFragmentPolicy; }
-
-llvm::StringRef getTensorExtLiteMetadataRouteID() { return kTensorExtLiteMetadataRouteID; }
-
-llvm::StringRef getTensorExtLiteMetadataEmissionKind() {
-  return kTensorExtLiteMetadataEmissionKind;
-}
-
-llvm::StringRef getTensorExtLiteMetadataArtifactKind() {
-  return kTensorExtLiteMetadataArtifactKind;
-}
-
-llvm::StringRef getTensorExtLiteMetadataRuntimeABIKind() {
-  return kTensorExtLiteRuntimeABIKind;
-}
-
-llvm::StringRef getTensorExtLiteMetadataRuntimeGlueRole() {
-  return kTensorExtLiteRuntimeGlueRole;
-}
 
 TensorExtLiteExtensionPlugin::TensorExtLiteExtensionPlugin() {
   capabilities.push_back(PluginCapability(
