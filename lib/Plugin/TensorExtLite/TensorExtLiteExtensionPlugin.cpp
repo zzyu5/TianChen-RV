@@ -1,7 +1,9 @@
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
+#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteEmitCRouteProvider.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -46,7 +48,7 @@ constexpr llvm::StringLiteral kExpectedFragmentABI(
     "tensorext-lite-fragment-boundary.v1");
 constexpr llvm::StringLiteral kExpectedHandoffKind("tensorext-lite-fragment-mma-template");
 constexpr llvm::StringLiteral kTensorExtLiteFragmentPolicy(
-    "no_active_route_tensorext_lite_tile_mma_first_slice");
+    "tensorext_lite_fragment_mma_emitc_route_requires_explicit_role_sequence");
 constexpr llvm::StringLiteral kTensorExtLiteFragmentCondition(
     "tensorext_lite_tile_mma_capability_available");
 constexpr llvm::StringLiteral kTensorExtLiteFragmentGuard(
@@ -81,8 +83,7 @@ llvm::Error makeTensorExtLitePluginError(llvm::Twine message) {
 }
 
 llvm::Error verifyTensorExtLiteConstructionProtocolReady() {
-  return tensorext_lite::verifyTensorExtLiteConstructionManifest(
-      tensorext_lite::getTensorExtLiteConstructionManifest());
+  return tensorext_lite::verifyTensorExtLiteConstructionProtocolReady();
 }
 
 bool hasAvailableTensorExtLiteFragmentCapability(
@@ -581,8 +582,10 @@ llvm::Error TensorExtLiteExtensionPlugin::estimateVariantCost(
   out.setOriginPlugin(kTensorExtLitePluginName);
   out.setVariantSymbol(request.getVariant().getSymName());
   out.setExplanation(
-      "TensorExtLite extension fragment placeholder; no materialized EmitC "
-      "route, correctness, or performance claim");
+      "TensorExtLite extension fragment first slice; route materializes an "
+      "EmitC module from an explicit configure/load_frag/tile_mma/store_frag "
+      "role sequence, without target artifact, correctness, or performance "
+      "claim");
   out.setPolicy("prefer TensorExtLite only when explicit tensorext_lite.tile_mma capability "
                 "metadata is available");
   return llvm::Error::success();
@@ -607,10 +610,23 @@ llvm::Error TensorExtLiteExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  out = VariantEmissionStatus::getUnsupported(
+  conversion::emitc::TCRVEmitCLowerableRoute route;
+  VariantEmitCLowerableRequest routeRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole());
+  if (llvm::Error error =
+          tensorext_lite::buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
+              routeRequest, route)) {
+    std::string diagnostic = llvm::toString(std::move(error));
+    out = VariantEmissionStatus::getUnsupported(
+        kTensorExtLitePluginName, request.getVariant().getSymName(),
+        diagnostic);
+    return llvm::Error::success();
+  }
+
+  out = VariantEmissionStatus::getSupported(
       kTensorExtLitePluginName, request.getVariant().getSymName(),
-      "TensorExtLite extension has no active materialized EmitC lowering or "
-      "target artifact route");
+      route.getRouteID());
   return llvm::Error::success();
 }
 
@@ -634,11 +650,30 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  out = VariantEmissionPlan::getUnsupported(
+  conversion::emitc::TCRVEmitCLowerableRoute route;
+  VariantEmitCLowerableRequest routeRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole());
+  if (llvm::Error error =
+          tensorext_lite::buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
+              routeRequest, route))
+    return error;
+
+  const tensorext_lite::TensorExtLiteFragmentMmaEmitCConstructionRoute
+      &constructionRoute =
+          tensorext_lite::getTensorExtLiteFragmentMmaEmitCConstructionRoute();
+  out = VariantEmissionPlan::getSupported(
       kTensorExtLitePluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      "TensorExtLite extension has no active materialized EmitC lowering, "
-      "runtime ABI, or target artifact route");
+      constructionRoute.emissionKind, route.getRouteID(),
+      constructionRoute.runtimeABI, constructionRoute.artifactKind,
+      "TensorExtLite selected explicit role sequence materializes an EmitC "
+      "module through the common TCRVEmitCLowerableRoute materializer; target "
+      "artifact export remains unsupported for this family slice");
+  out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
+  out.setRuntimeABIName(constructionRoute.runtimeABIName);
+  out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);
+  out.setLoweringBoundaryOpName(constructionRoute.loweringBoundaryOpName);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
@@ -671,7 +706,9 @@ llvm::Error TensorExtLiteExtensionPlugin::materializeSelectedLoweringBoundary(
   out = VariantLoweringBoundaryResult::getNoBoundary(
       kTensorExtLitePluginName, kernel.getSymName(), variant.getSymName(),
       request.getRole(),
-      "TensorExtLite extension has no active selected lowering-boundary route");
+      "TensorExtLite active EmitC route consumes an explicit typed role "
+      "sequence inside the selected variant body and does not synthesize a "
+      "separate selected lowering-boundary op");
   return llvm::Error::success();
 }
 
@@ -732,6 +769,25 @@ llvm::Error TensorExtLiteExtensionPlugin::validateSelectedLoweringBoundary(
         "variant requires metadata");
 
   return llvm::Error::success();
+}
+
+llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmitCLowerableRoute(
+    const VariantEmitCLowerableRequest &request,
+    conversion::emitc::TCRVEmitCLowerableRoute &out) const {
+  if (!request.getVariant())
+    return makeTensorExtLitePluginError(
+        "EmitC route construction requires a materialized tcrv.exec.variant");
+  if (!request.getKernel())
+    return makeTensorExtLitePluginError(
+        "EmitC route construction requires an enclosing tcrv.exec.kernel");
+
+  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  request.getCapabilities());
+  if (llvm::Error error = verifyVariantLegality(legality))
+    return error;
+
+  return tensorext_lite::buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
+      request, out);
 }
 
 } // namespace tensorext_lite

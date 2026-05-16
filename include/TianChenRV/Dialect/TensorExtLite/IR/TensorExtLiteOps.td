@@ -52,21 +52,22 @@ def LoweringBoundaryOp : TCRVTensorExtLite_Op<"lowering_boundary", []> {
   let hasVerifier = 1;
 }
 
-def TileMmaSkeletonOp : TCRVTensorExtLite_Op<"tile_mma_skeleton",
+class TensorExtLiteRoleSkeletonOp<string mnemonic, string roleName>
+    : TCRVTensorExtLite_Op<mnemonic,
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",
        "getTCRVEmitCLowerableSourceRole"]>]> {
-  let summary = "minimal TensorExtLite ODS tile_mma role-op boundary";
+  let summary = "minimal TensorExtLite ODS " # roleName # " role-op boundary";
   let description = [{
-    Records the minimal TensorExtLite extension-family tile_mma role op in ODS. The op
-    proves that a concrete non-RVV extension family can materialize a typed
-    MLIR role operation implementing the generated EmitC-lowerable provenance
-    interface and have TensorExtLite construction validation consume that IR identity.
+    Records a minimal TensorExtLite extension-family role op in ODS. The op
+    proves that a concrete non-RVV extension family can materialize typed MLIR
+    role operations implementing the generated EmitC-lowerable provenance
+    interface and have TensorExtLite construction validation consume that IR
+    identity.
 
-    This op is a construction-protocol role boundary only. It does not model
-    tensor/tile computation, executable lowering, runtime ABI values, generated
-    objects, correctness, or performance. Configure, load, and store are
-    manifest-ordered staged roles for this minimal TensorExtLite slice.
+    This op is a construction-protocol role boundary consumed by the bounded
+    TensorExtLite EmitC route. It does not model tensor/tile computation,
+    target artifact export, runtime correctness, or performance.
   }];
 
   let arguments = (ins
@@ -86,5 +87,14 @@ def TileMmaSkeletonOp : TCRVTensorExtLite_Op<"tile_mma_skeleton",
   let assemblyFormat = "attr-dict";
   let hasVerifier = 1;
 }
+
+def ConfigSkeletonOp : TensorExtLiteRoleSkeletonOp<
+    "config_skeleton", "config">;
+def LoadFragSkeletonOp : TensorExtLiteRoleSkeletonOp<
+    "load_frag_skeleton", "load_frag">;
+def TileMmaSkeletonOp : TensorExtLiteRoleSkeletonOp<
+    "tile_mma_skeleton", "tile_mma">;
+def StoreFragSkeletonOp : TensorExtLiteRoleSkeletonOp<
+    "store_frag_skeleton", "store_frag">;
 
 #endif // TIANCHENRV_DIALECT_TENSOREXTLITE_IR_TENSOREXTLITEOPS_TD

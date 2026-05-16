@@ -41,11 +41,25 @@ constexpr llvm::StringLiteral kExpectedHandoffKind(
     "tensorext-lite-fragment-mma-template");
 constexpr llvm::StringLiteral kDirectVariantRoleValue("direct variant");
 constexpr llvm::StringLiteral kDispatchCaseRoleValue("dispatch case");
-constexpr llvm::StringLiteral kExpectedTypedRole(
-    "tel.role.tile_mma");
-constexpr llvm::StringLiteral kExpectedSourceRole("tile_mma");
-constexpr llvm::StringLiteral kExpectedRoleSpecificInterface(
-    "TCRVComputeOpInterface");
+
+struct TensorExtLiteRoleOpSpec {
+  llvm::StringLiteral operationName;
+  llvm::StringLiteral typedRole;
+  llvm::StringLiteral sourceRole;
+  llvm::StringLiteral roleSpecificInterface;
+  int64_t roleOrder = 0;
+};
+
+constexpr TensorExtLiteRoleOpSpec kTensorExtLiteRoleOpSpecs[] = {
+    {"tcrv_tensorext_lite.config_skeleton", "tel.role.config", "configure",
+     "TCRVConfigOpInterface", 0},
+    {"tcrv_tensorext_lite.load_frag_skeleton", "tel.role.load_frag",
+     "load_frag", "TCRVMemoryOpInterface", 1},
+    {"tcrv_tensorext_lite.tile_mma_skeleton", "tel.role.tile_mma",
+     "tile_mma", "TCRVComputeOpInterface", 2},
+    {"tcrv_tensorext_lite.store_frag_skeleton", "tel.role.store_frag",
+     "store_frag", "TCRVMemoryOpInterface", 3},
+};
 
 bool hasMissingOrEmptyStringAttr(mlir::Operation *op,
                                  llvm::StringRef attrName) {
@@ -63,7 +77,7 @@ bool isAllowedLoweringBoundaryRole(llvm::StringRef role) {
   return role == kDirectVariantRoleValue || role == kDispatchCaseRoleValue;
 }
 
-bool isAllowedTensorExtLiteComputeSkeletonAttr(llvm::StringRef attrName) {
+bool isAllowedTensorExtLiteRoleSkeletonAttr(llvm::StringRef attrName) {
   return attrName == kSourceKernelAttrName ||
          attrName == kSelectedVariantAttrName ||
          attrName == kOriginAttrName || attrName == kRoleAttrName ||
@@ -74,6 +88,14 @@ bool isAllowedTensorExtLiteComputeSkeletonAttr(llvm::StringRef attrName) {
          attrName == kSourceRoleAttrName ||
          attrName == kRoleSpecificInterfaceAttrName ||
          attrName == kFragmentReasonAttrName;
+}
+
+const TensorExtLiteRoleOpSpec *
+lookupTensorExtLiteRoleOpSpec(llvm::StringRef operationName) {
+  for (const TensorExtLiteRoleOpSpec &spec : kTensorExtLiteRoleOpSpecs)
+    if (operationName == spec.operationName)
+      return &spec;
+  return nullptr;
 }
 
 bool containsExecutableClaimWording(llvm::StringRef text) {
@@ -119,11 +141,19 @@ verifyTensorExtLiteSelectedPathAttrs(mlir::Operation *op,
 
   auto kernel = op->getParentOfType<tianchenrv::tcrv::exec::KernelOp>();
   if (!kernel) {
-    diag << "must be nested directly in a tcrv.exec.kernel";
+    diag << "must be nested in a tcrv.exec.kernel";
     return mlir::failure();
   }
-  if (op->getParentOp() != kernel.getOperation()) {
-    diag << "must be a direct child of the enclosing tcrv.exec.kernel";
+
+  auto enclosingVariant =
+      op->getParentOfType<tianchenrv::tcrv::exec::VariantOp>();
+  bool directKernelChild = op->getParentOp() == kernel.getOperation();
+  bool directVariantChild =
+      enclosingVariant && op->getParentOp() == enclosingVariant.getOperation() &&
+      enclosingVariant->getParentOp() == kernel.getOperation();
+  if (!directKernelChild && !directVariantChild) {
+    diag << "must be a direct child of the enclosing tcrv.exec.kernel or the "
+            "selected tcrv.exec.variant body";
     return mlir::failure();
   }
 
@@ -152,13 +182,15 @@ verifyTensorExtLiteSelectedPathAttrs(mlir::Operation *op,
   const tianchenrv::support::TargetCapabilitySet &capabilities =
       *capabilitiesOrError;
 
-  tianchenrv::tcrv::exec::VariantOp resolvedVariant;
-  for (mlir::Operation &sibling : kernel.getBody().front()) {
-    if (auto variant =
-            llvm::dyn_cast<tianchenrv::tcrv::exec::VariantOp>(sibling)) {
-      if (variant.getSymName() == selectedVariant.getValue()) {
-        resolvedVariant = variant;
-        break;
+  tianchenrv::tcrv::exec::VariantOp resolvedVariant = enclosingVariant;
+  if (!resolvedVariant) {
+    for (mlir::Operation &sibling : kernel.getBody().front()) {
+      if (auto variant =
+              llvm::dyn_cast<tianchenrv::tcrv::exec::VariantOp>(sibling)) {
+        if (variant.getSymName() == selectedVariant.getValue()) {
+          resolvedVariant = variant;
+          break;
+        }
       }
     }
   }
@@ -167,6 +199,12 @@ verifyTensorExtLiteSelectedPathAttrs(mlir::Operation *op,
     diag << "selected_variant @" << selectedVariant.getValue()
          << " must resolve to a direct sibling tcrv.exec.variant in the "
             "enclosing tcrv.exec.kernel";
+    return mlir::failure();
+  }
+  if (resolvedVariant.getSymName() != selectedVariant.getValue()) {
+    diag << "selected_variant @" << selectedVariant.getValue()
+         << " must match the enclosing tcrv.exec.variant @"
+         << resolvedVariant.getSymName();
     return mlir::failure();
   }
 
@@ -195,6 +233,100 @@ verifyTensorExtLiteSelectedPathAttrs(mlir::Operation *op,
   }
 
   return resolvedVariant;
+}
+
+llvm::StringRef getTensorExtLiteRoleSourceRole(mlir::Operation *op) {
+  auto sourceRole =
+      op->getAttrOfType<mlir::StringAttr>(kSourceRoleAttrName);
+  return sourceRole ? sourceRole.getValue() : llvm::StringRef();
+}
+
+mlir::LogicalResult verifyTensorExtLiteRoleSkeletonOp(
+    mlir::Operation *op, const TensorExtLiteRoleOpSpec &spec) {
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    if (!isAllowedTensorExtLiteRoleSkeletonAttr(attr.getName().getValue()))
+      return op->emitOpError()
+             << "does not accept generic tensor/tile/benchmark or unknown "
+                "attribute '"
+             << attr.getName().getValue() << "'";
+  }
+
+  for (llvm::StringRef attrName :
+       {kSourceKernelAttrName, kOriginAttrName, kRoleAttrName, kStatusAttrName,
+        kTypedRoleAttrName, kSourceRoleAttrName,
+        kRoleSpecificInterfaceAttrName}) {
+    if (hasMissingOrEmptyStringAttr(op, attrName))
+      return op->emitOpError()
+             << "requires non-empty string attribute '" << attrName << "'";
+  }
+  if (hasPresentButEmptyStringAttr(op, kFragmentReasonAttrName))
+    return op->emitOpError()
+           << "requires non-empty string attribute '" << kFragmentReasonAttrName
+           << "' when present";
+
+  auto origin = op->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
+  if (origin.getValue() != kTensorExtLitePluginName)
+    return op->emitOpError()
+           << "origin must be '" << kTensorExtLitePluginName
+           << "' because this is the TensorExtLite plugin role-op surface";
+
+  auto role = op->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
+  if (!isAllowedLoweringBoundaryRole(role.getValue()))
+    return op->emitOpError()
+           << "role must be '" << kDirectVariantRoleValue << "' or '"
+           << kDispatchCaseRoleValue
+           << "'; TensorExtLite role ops are not dispatch fallback boundaries";
+
+  auto status = op->getAttrOfType<mlir::StringAttr>(kStatusAttrName);
+  if (status.getValue() != kRoleOpBoundaryStatusValue)
+    return op->emitOpError()
+           << "status must be '" << kRoleOpBoundaryStatusValue
+           << "' because TensorExtLite skeleton ops are ODS role-op "
+              "boundaries";
+
+  auto typedRole = op->getAttrOfType<mlir::StringAttr>(kTypedRoleAttrName);
+  if (typedRole.getValue() != spec.typedRole)
+    return op->emitOpError()
+           << "typed_role must be '" << spec.typedRole << "'";
+
+  auto roleOrder = op->getAttrOfType<mlir::IntegerAttr>(kRoleOrderAttrName);
+  if (!roleOrder)
+    return op->emitOpError()
+           << "requires integer attribute '" << kRoleOrderAttrName << "'";
+  if (roleOrder.getInt() != spec.roleOrder)
+    return op->emitOpError()
+           << "role_order must be " << spec.roleOrder
+           << " for the TensorExtLite " << spec.sourceRole
+           << " role in configure->load_frag->tile_mma->store_frag";
+
+  auto sourceRole =
+      op->getAttrOfType<mlir::StringAttr>(kSourceRoleAttrName);
+  if (sourceRole.getValue() != spec.sourceRole)
+    return op->emitOpError()
+           << "source_role must be '" << spec.sourceRole
+           << "' for TCRVEmitCLowerableOpInterface provenance";
+
+  auto roleSpecificInterface =
+      op->getAttrOfType<mlir::StringAttr>(kRoleSpecificInterfaceAttrName);
+  if (roleSpecificInterface.getValue() != spec.roleSpecificInterface)
+    return op->emitOpError()
+           << "role_specific_interface must be '"
+           << spec.roleSpecificInterface << "'";
+
+  if (auto reason =
+          op->getAttrOfType<mlir::StringAttr>(kFragmentReasonAttrName)) {
+    if (containsExecutableClaimWording(reason.getValue()))
+      return op->emitOpError()
+             << "fragment_reason must not claim executable lowering, "
+                "correctness, or performance evidence";
+  }
+
+  mlir::InFlightDiagnostic diag = op->emitOpError();
+  if (mlir::failed(verifyTensorExtLiteSelectedPathAttrs(op, diag)))
+    return mlir::failure();
+  diag.abandon();
+
+  return mlir::success();
 }
 
 } // namespace
@@ -278,102 +410,64 @@ mlir::LogicalResult LoweringBoundaryOp::verify() {
   return mlir::success();
 }
 
+llvm::StringRef ConfigSkeletonOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef ConfigSkeletonOp::getTCRVEmitCLowerableSourceRole() {
+  return getTensorExtLiteRoleSourceRole(getOperation());
+}
+
+mlir::LogicalResult ConfigSkeletonOp::verify() {
+  const TensorExtLiteRoleOpSpec *spec =
+      lookupTensorExtLiteRoleOpSpec(getOperation()->getName().getStringRef());
+  assert(spec && "missing TensorExtLite config role spec");
+  return verifyTensorExtLiteRoleSkeletonOp(getOperation(), *spec);
+}
+
+llvm::StringRef LoadFragSkeletonOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef LoadFragSkeletonOp::getTCRVEmitCLowerableSourceRole() {
+  return getTensorExtLiteRoleSourceRole(getOperation());
+}
+
+mlir::LogicalResult LoadFragSkeletonOp::verify() {
+  const TensorExtLiteRoleOpSpec *spec =
+      lookupTensorExtLiteRoleOpSpec(getOperation()->getName().getStringRef());
+  assert(spec && "missing TensorExtLite load_frag role spec");
+  return verifyTensorExtLiteRoleSkeletonOp(getOperation(), *spec);
+}
+
 llvm::StringRef TileMmaSkeletonOp::getTCRVEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
 llvm::StringRef TileMmaSkeletonOp::getTCRVEmitCLowerableSourceRole() {
-  auto sourceRole =
-      getOperation()->getAttrOfType<mlir::StringAttr>(kSourceRoleAttrName);
-  return sourceRole ? sourceRole.getValue() : llvm::StringRef();
+  return getTensorExtLiteRoleSourceRole(getOperation());
 }
 
 mlir::LogicalResult TileMmaSkeletonOp::verify() {
-  mlir::Operation *op = getOperation();
+  const TensorExtLiteRoleOpSpec *spec =
+      lookupTensorExtLiteRoleOpSpec(getOperation()->getName().getStringRef());
+  assert(spec && "missing TensorExtLite tile_mma role spec");
+  return verifyTensorExtLiteRoleSkeletonOp(getOperation(), *spec);
+}
 
-  for (mlir::NamedAttribute attr : op->getAttrs()) {
-    if (!isAllowedTensorExtLiteComputeSkeletonAttr(attr.getName().getValue()))
-      return emitOpError()
-             << "does not accept generic tensor/tile/benchmark or unknown "
-                "attribute '"
-             << attr.getName().getValue() << "'";
-  }
+llvm::StringRef StoreFragSkeletonOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
 
-  for (llvm::StringRef attrName :
-       {kSourceKernelAttrName, kOriginAttrName, kRoleAttrName, kStatusAttrName,
-        kTypedRoleAttrName, kSourceRoleAttrName,
-        kRoleSpecificInterfaceAttrName}) {
-    if (hasMissingOrEmptyStringAttr(op, attrName))
-      return emitOpError()
-             << "requires non-empty string attribute '" << attrName << "'";
-  }
-  if (hasPresentButEmptyStringAttr(op, kFragmentReasonAttrName))
-    return emitOpError()
-           << "requires non-empty string attribute '" << kFragmentReasonAttrName
-           << "' when present";
+llvm::StringRef StoreFragSkeletonOp::getTCRVEmitCLowerableSourceRole() {
+  return getTensorExtLiteRoleSourceRole(getOperation());
+}
 
-  auto origin = op->getAttrOfType<mlir::StringAttr>(kOriginAttrName);
-  if (origin.getValue() != kTensorExtLitePluginName)
-    return emitOpError()
-           << "origin must be '" << kTensorExtLitePluginName
-           << "' because this is the TensorExtLite plugin role-op surface";
-
-  auto role = op->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
-  if (!isAllowedLoweringBoundaryRole(role.getValue()))
-    return emitOpError()
-           << "role must be '" << kDirectVariantRoleValue << "' or '"
-           << kDispatchCaseRoleValue
-           << "'; TensorExtLite tile_mma role ops are not dispatch fallback boundaries";
-
-  auto status = op->getAttrOfType<mlir::StringAttr>(kStatusAttrName);
-  if (status.getValue() != kRoleOpBoundaryStatusValue)
-    return emitOpError()
-           << "status must be '" << kRoleOpBoundaryStatusValue
-           << "' because tcrv_tensorext_lite.tile_mma_skeleton is an ODS role-op "
-              "boundary";
-
-  auto typedRole = op->getAttrOfType<mlir::StringAttr>(kTypedRoleAttrName);
-  if (typedRole.getValue() != kExpectedTypedRole)
-    return emitOpError()
-           << "typed_role must be '" << kExpectedTypedRole << "'";
-
-  auto roleOrder = op->getAttrOfType<mlir::IntegerAttr>(kRoleOrderAttrName);
-  if (!roleOrder)
-    return emitOpError()
-           << "requires integer attribute '" << kRoleOrderAttrName << "'";
-  if (roleOrder.getInt() != 2)
-    return emitOpError()
-           << "role_order must be 2 for the TensorExtLite tile_mma role in "
-              "configure->load_frag->tile_mma->store_frag";
-
-  auto sourceRole =
-      op->getAttrOfType<mlir::StringAttr>(kSourceRoleAttrName);
-  if (sourceRole.getValue() != kExpectedSourceRole)
-    return emitOpError()
-           << "source_role must be '" << kExpectedSourceRole
-           << "' for TCRVEmitCLowerableOpInterface provenance";
-
-  auto roleSpecificInterface =
-      op->getAttrOfType<mlir::StringAttr>(kRoleSpecificInterfaceAttrName);
-  if (roleSpecificInterface.getValue() != kExpectedRoleSpecificInterface)
-    return emitOpError()
-           << "role_specific_interface must be '"
-           << kExpectedRoleSpecificInterface << "'";
-
-  if (auto reason =
-          op->getAttrOfType<mlir::StringAttr>(kFragmentReasonAttrName)) {
-    if (containsExecutableClaimWording(reason.getValue()))
-      return emitOpError()
-             << "fragment_reason must not claim executable lowering, "
-                "correctness, or performance evidence";
-  }
-
-  mlir::InFlightDiagnostic diag = emitOpError();
-  if (mlir::failed(verifyTensorExtLiteSelectedPathAttrs(op, diag)))
-    return mlir::failure();
-  diag.abandon();
-
-  return mlir::success();
+mlir::LogicalResult StoreFragSkeletonOp::verify() {
+  const TensorExtLiteRoleOpSpec *spec =
+      lookupTensorExtLiteRoleOpSpec(getOperation()->getName().getStringRef());
+  assert(spec && "missing TensorExtLite store_frag role spec");
+  return verifyTensorExtLiteRoleSkeletonOp(getOperation(), *spec);
 }
 
 void TCRVTensorExtLiteDialect::initialize() {

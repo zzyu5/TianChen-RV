@@ -270,6 +270,13 @@ applies to both direct selected-path diagnostics and selected
   artifact path may export a RISC-V object, a declaration-only header, and a
   coherent object+header bundle only from the selected materialized EmitC
   candidate.
+- Base: TensorExtLite explicit typed bodies may materialize an ordered
+  `configure -> load_frag -> tile_mma -> store_frag` role sequence through the
+  common `TCRVEmitCLowerableRoute` materializer and produce an MLIR EmitC
+  module. This first slice is an EmitC route proof only: it may report a
+  supported compiler emission plan with `metadata-diagnostic` artifact kind,
+  but it must not imply TensorExtLite object/header/bundle target artifact
+  export, hardware execution, correctness, or performance evidence.
 - Bad: two direct RVV variants exist and the exporter chooses whichever direct
   variant happens to be first or only after test reduction.
 

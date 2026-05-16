@@ -25,6 +25,21 @@ using TensorExtLiteTypedRoleInterfaceRealization =
 using TensorExtLiteTypedRoleGraphRealization =
     tianchenrv::plugin::construction::TypedRoleGraphRealization;
 
+struct TensorExtLiteFragmentMmaEmitCConstructionRoute {
+  llvm::StringRef routeID;
+  llvm::StringRef emissionKind;
+  llvm::StringRef artifactKind;
+  llvm::StringRef runtimeABI;
+  llvm::StringRef runtimeABIKind;
+  llvm::StringRef runtimeABIName;
+  llvm::StringRef runtimeGlueRole;
+  llvm::StringRef loweringBoundaryOpName;
+  llvm::StringRef configCallee;
+  llvm::StringRef loadFragCallee;
+  llvm::StringRef tileMmaCallee;
+  llvm::StringRef storeFragCallee;
+};
+
 llvm::StringRef getTensorExtLiteConstructionInterfaceRealization();
 llvm::StringRef getTensorExtLiteTypedRoleRealizationSummary();
 
@@ -46,12 +61,24 @@ llvm::StringRef getTensorExtLiteEvidenceProfileMetadataRole();
 
 const TensorExtLiteConstructionManifest &getTensorExtLiteConstructionManifest();
 const TensorExtLiteTypedRoleGraphRealization &getTensorExtLiteTypedRoleGraphRealization();
+const TensorExtLiteFragmentMmaEmitCConstructionRoute
+    &getTensorExtLiteFragmentMmaEmitCConstructionRoute();
 
 llvm::Error
 verifyTensorExtLiteConstructionManifest(const TensorExtLiteConstructionManifest &manifest);
 llvm::Error verifyTensorExtLiteTypedRoleGraphRealization(
     const TensorExtLiteConstructionManifest &manifest,
     const TensorExtLiteTypedRoleGraphRealization &realization);
+llvm::Error verifyTensorExtLiteConstructionProtocolReady();
+llvm::Error verifyTensorExtLiteFragmentMmaEmitCConstructionRouteMapping(
+    llvm::StringRef routeID, llvm::StringRef emissionKind,
+    llvm::StringRef artifactKind, llvm::StringRef runtimeABI,
+    llvm::StringRef runtimeABIKind, llvm::StringRef runtimeABIName,
+    llvm::StringRef runtimeGlueRole);
+llvm::Error verifyTensorExtLiteRoleOpInterface(
+    const TensorExtLiteConstructionManifest &manifest,
+    const TensorExtLiteTypedRoleGraphRealization &realization,
+    mlir::Operation *roleOp, llvm::StringRef sourceRole);
 llvm::Error verifyTensorExtLiteComputeRoleOpInterface(
     const TensorExtLiteConstructionManifest &manifest,
     const TensorExtLiteTypedRoleGraphRealization &realization,

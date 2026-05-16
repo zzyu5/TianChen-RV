@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global stack and invalid descriptor/direct-C/Python compiler-core boundaries."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Check plugin protocol quality constraints and no core extension-specific branches."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check construction protocol, role graph, interface realization, and EmitC mapping coverage."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check registry/interface consumption and fail-closed behavior."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Check plugin-local integration boundary and target-artifact non-goal."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC route materialization contract and selected emission-plan provenance."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check no TensorExtLite semantic branches leaked into common/core code."}

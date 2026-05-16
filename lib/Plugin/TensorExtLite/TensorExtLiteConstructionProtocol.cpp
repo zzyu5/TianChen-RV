@@ -1,5 +1,7 @@
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
 
+#include "llvm/Support/Errc.h"
+
 namespace tianchenrv::plugin::tensorext_lite {
 namespace {
 
@@ -21,7 +23,7 @@ constexpr llvm::StringLiteral kInterfaceRealization(
     "TCRVEmitCLowerableInterface");
 constexpr llvm::StringLiteral kEvidenceProfile(
     "parse_verify|capability|interface|selected_boundary_or_route|"
-    "emitc_route_mapping");
+    "emitc_route_mapping|materialized_emitc_module");
 
 constexpr llvm::StringLiteral kProtocolMetadataName(
     "tensorext_lite_construction_protocol");
@@ -56,17 +58,26 @@ constexpr llvm::StringLiteral kTensorExtLiteCapabilityKind(
 constexpr llvm::StringLiteral kTensorExtLiteVariantName(
     "tensorext_lite_tile_mma_first_slice");
 constexpr llvm::StringLiteral kTensorExtLiteRouteID(
-    "tensorext-lite-fragment-mma-no-active-emitc-route");
+    "tensorext-lite-fragment-mma-emitc-route");
 constexpr llvm::StringLiteral kTensorExtLiteEmissionKind(
-    "tensorext-lite-fragment-mma-unsupported-emission");
-constexpr llvm::StringLiteral kTensorExtLiteArtifactKind(
-    "unsupported-emission-diagnostic");
+    "materialized-emitc-cpp-tensorext-lite-fragment-mma-module");
+constexpr llvm::StringLiteral kTensorExtLiteArtifactKind("metadata-diagnostic");
 constexpr llvm::StringLiteral kTensorExtLiteRuntimeABI(
-    "unsupported-emission-runtime-abi");
+    "tensorext-lite-fragment-mma-runtime-c-abi.v1");
 constexpr llvm::StringLiteral kTensorExtLiteRuntimeABIKind(
-    "unsupported-plugin-runtime-abi");
+    "plugin-owned-runtime-abi");
 constexpr llvm::StringLiteral kTensorExtLiteRuntimeGlueRole(
-    "no-runtime-glue-unsupported");
+    "emitc-cpp-tensorext-lite-fragment-runtime-glue");
+constexpr llvm::StringLiteral kTensorExtLiteLoweringBoundaryOpName(
+    "tcrv_tensorext_lite.role_sequence");
+constexpr llvm::StringLiteral kTensorExtLiteConfigCallee(
+    "tcrv_tensorext_lite_config");
+constexpr llvm::StringLiteral kTensorExtLiteLoadFragCallee(
+    "tcrv_tensorext_lite_load_frag");
+constexpr llvm::StringLiteral kTensorExtLiteTileMmaCallee(
+    "tcrv_tensorext_lite_tile_mma");
+constexpr llvm::StringLiteral kTensorExtLiteStoreFragCallee(
+    "tcrv_tensorext_lite_store_frag");
 constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "configure:tel.role.config:tcrv_tensorext_lite.config_skeleton:"
     "TCRVConfigOpInterface:TCRVEmitCLowerableInterface;"
@@ -128,6 +139,20 @@ const TensorExtLiteConstructionManifest kManifest = {
     kEvidenceProfile,
 };
 
+const TensorExtLiteFragmentMmaEmitCConstructionRoute kFragmentMmaEmitCRoute = {
+    kTensorExtLiteRouteID,
+    kTensorExtLiteEmissionKind,
+    kTensorExtLiteArtifactKind,
+    kTensorExtLiteRuntimeABI,
+    kTensorExtLiteRuntimeABIKind,
+    kTensorExtLiteRuntimeABI,
+    kTensorExtLiteRuntimeGlueRole,
+    kTensorExtLiteLoweringBoundaryOpName,
+    kTensorExtLiteConfigCallee,
+    kTensorExtLiteLoadFragCallee,
+    kTensorExtLiteTileMmaCallee,
+    kTensorExtLiteStoreFragCallee};
+
 const TensorExtLiteTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
     {"tel.role.config",
      "configure",
@@ -182,7 +207,15 @@ const construction::RoleExpectation kRoleExpectations[] = {
 
 const llvm::StringRef kRequiredEvidence[] = {
     "parse_verify", "capability", "interface",
-    "selected_boundary_or_route", "emitc_route_mapping"};
+    "selected_boundary_or_route", "emitc_route_mapping",
+    "materialized_emitc_module"};
+
+llvm::Error makeTensorExtLiteConstructionProtocolError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV TensorExtLite construction protocol invalid: ") +
+          message,
+      llvm::errc::invalid_argument);
+}
 
 construction::ValidationSpec getTensorExtLiteConstructionValidationSpec() {
   return {"TensorExtLite",
@@ -205,6 +238,36 @@ construction::RoleOpValidationSpec getTensorExtLiteRoleValidationSpec() {
           "TensorExtLite tile_mma role op",
           "TensorExtLite tile_mma role op is missing before construction "
           "validation"};
+}
+
+llvm::Expected<construction::RoleOpValidationSpec>
+getTensorExtLiteRoleValidationSpec(llvm::StringRef sourceRole) {
+  if (sourceRole == "configure")
+    return construction::RoleOpValidationSpec{
+        "configure", "tcrv_tensorext_lite.config_skeleton",
+        "tel.role.config", "TCRVConfigOpInterface",
+        "TensorExtLite configure role op",
+        "TensorExtLite configure role op is missing before construction "
+        "validation"};
+  if (sourceRole == "load_frag")
+    return construction::RoleOpValidationSpec{
+        "load_frag", "tcrv_tensorext_lite.load_frag_skeleton",
+        "tel.role.load_frag", "TCRVMemoryOpInterface",
+        "TensorExtLite load_frag role op",
+        "TensorExtLite load_frag role op is missing before construction "
+        "validation"};
+  if (sourceRole == "tile_mma")
+    return getTensorExtLiteRoleValidationSpec();
+  if (sourceRole == "store_frag")
+    return construction::RoleOpValidationSpec{
+        "store_frag", "tcrv_tensorext_lite.store_frag_skeleton",
+        "tel.role.store_frag", "TCRVMemoryOpInterface",
+        "TensorExtLite store_frag role op",
+        "TensorExtLite store_frag role op is missing before construction "
+        "validation"};
+
+  return makeTensorExtLiteConstructionProtocolError(
+      llvm::Twine("unknown TensorExtLite typed role '") + sourceRole + "'");
 }
 
 } // namespace
@@ -282,6 +345,11 @@ getTensorExtLiteTypedRoleGraphRealization() {
   return kTypedRoleGraphRealization;
 }
 
+const TensorExtLiteFragmentMmaEmitCConstructionRoute &
+getTensorExtLiteFragmentMmaEmitCConstructionRoute() {
+  return kFragmentMmaEmitCRoute;
+}
+
 llvm::Error verifyTensorExtLiteConstructionManifest(
     const TensorExtLiteConstructionManifest &manifest) {
   return construction::verifyConstructionManifest(
@@ -293,6 +361,71 @@ llvm::Error verifyTensorExtLiteTypedRoleGraphRealization(
     const TensorExtLiteTypedRoleGraphRealization &realization) {
   return construction::verifyTypedRoleGraphRealization(
       manifest, realization, getTensorExtLiteConstructionValidationSpec());
+}
+
+llvm::Error verifyTensorExtLiteConstructionProtocolReady() {
+  if (llvm::Error error = verifyTensorExtLiteConstructionManifest(kManifest))
+    return error;
+  if (llvm::Error error = verifyTensorExtLiteTypedRoleGraphRealization(
+          kManifest, kTypedRoleGraphRealization))
+    return error;
+  return verifyTensorExtLiteFragmentMmaEmitCConstructionRouteMapping(
+      kFragmentMmaEmitCRoute.routeID, kFragmentMmaEmitCRoute.emissionKind,
+      kFragmentMmaEmitCRoute.artifactKind, kFragmentMmaEmitCRoute.runtimeABI,
+      kFragmentMmaEmitCRoute.runtimeABIKind,
+      kFragmentMmaEmitCRoute.runtimeABIName,
+      kFragmentMmaEmitCRoute.runtimeGlueRole);
+}
+
+llvm::Error verifyTensorExtLiteFragmentMmaEmitCConstructionRouteMapping(
+    llvm::StringRef routeID, llvm::StringRef emissionKind,
+    llvm::StringRef artifactKind, llvm::StringRef runtimeABI,
+    llvm::StringRef runtimeABIKind, llvm::StringRef runtimeABIName,
+    llvm::StringRef runtimeGlueRole) {
+  const TensorExtLiteFragmentMmaEmitCConstructionRoute &expected =
+      getTensorExtLiteFragmentMmaEmitCConstructionRoute();
+  if (routeID != expected.routeID)
+    return makeTensorExtLiteConstructionProtocolError(
+        llvm::Twine("TensorExtLite EmitC route id must be '") +
+        expected.routeID + "'");
+  if (emissionKind != expected.emissionKind)
+    return makeTensorExtLiteConstructionProtocolError(
+        llvm::Twine("TensorExtLite emission kind must be '") +
+        expected.emissionKind + "'");
+  if (artifactKind != expected.artifactKind)
+    return makeTensorExtLiteConstructionProtocolError(
+        llvm::Twine("TensorExtLite artifact kind must be '") +
+        expected.artifactKind + "'");
+  if (runtimeABI != expected.runtimeABI)
+    return makeTensorExtLiteConstructionProtocolError(
+        llvm::Twine("TensorExtLite runtime ABI must be '") +
+        expected.runtimeABI + "'");
+  if (runtimeABIKind != expected.runtimeABIKind)
+    return makeTensorExtLiteConstructionProtocolError(
+        llvm::Twine("TensorExtLite runtime ABI kind must be '") +
+        expected.runtimeABIKind + "'");
+  if (runtimeABIName != expected.runtimeABIName)
+    return makeTensorExtLiteConstructionProtocolError(
+        llvm::Twine("TensorExtLite runtime ABI name must be '") +
+        expected.runtimeABIName + "'");
+  if (runtimeGlueRole != expected.runtimeGlueRole)
+    return makeTensorExtLiteConstructionProtocolError(
+        llvm::Twine("TensorExtLite runtime glue role must be '") +
+        expected.runtimeGlueRole + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyTensorExtLiteRoleOpInterface(
+    const TensorExtLiteConstructionManifest &manifest,
+    const TensorExtLiteTypedRoleGraphRealization &realization,
+    mlir::Operation *roleOp, llvm::StringRef sourceRole) {
+  llvm::Expected<construction::RoleOpValidationSpec> roleSpec =
+      getTensorExtLiteRoleValidationSpec(sourceRole);
+  if (!roleSpec)
+    return roleSpec.takeError();
+  return construction::verifyRoleOpInterface(
+      manifest, realization, roleOp,
+      getTensorExtLiteConstructionValidationSpec(), *roleSpec);
 }
 
 llvm::Error verifyTensorExtLiteComputeRoleOpInterface(

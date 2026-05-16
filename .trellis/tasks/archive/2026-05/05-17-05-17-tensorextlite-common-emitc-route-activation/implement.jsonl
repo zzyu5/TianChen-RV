@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global stack, project boundary, and descriptor/direct-C red lines for implementation."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin protocol pre-development checklist and quality constraints."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Extension-family construction protocol and role/interface/EmitC-route expectations."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Generic registry and interface boundary for proposal, legality, emission, and selected boundary hooks."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Plugin-local integration contract and no independent backend boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route contract and selected emission-plan materialization rules."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review guide for plugin-locality and core branch avoidance."}

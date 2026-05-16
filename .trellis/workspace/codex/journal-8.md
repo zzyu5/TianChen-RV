@@ -868,3 +868,42 @@ Rebuilt the bounded RVV selected target artifact bridge through provider-owned E
 ### Next Steps
 
 - None - task complete
+
+
+## Session 97: TensorExtLite common EmitC route activation
+
+**Date**: 2026-05-17
+**Task**: TensorExtLite common EmitC route activation
+**Branch**: `main`
+
+### Summary
+
+Activated one plugin-owned TensorExtLite explicit role sequence through the common TCRVEmitCLowerable EmitC materialization route, while keeping target artifact export unsupported.
+
+### Main Changes
+
+- Added TensorExtLite typed first-slice role ops for config, load_frag, tile_mma, and store_frag.
+- Added a plugin-local TensorExtLite EmitC route provider that validates selected explicit role bodies, origin, role uniqueness, order, role interfaces, and call-opaque mapping.
+- Rewired TensorExtLite emission readiness and emission-plan metadata from passive no-active-route diagnostics to the active common EmitC route.
+- Added C++ and lit coverage for positive route materialization plus fail-closed missing body, stale no-active metadata, and target artifact export rejection.
+- Updated the EmitC route spec with the TensorExtLite MLIR-EmitC-only base case and non-claim boundary.
+- Checks: focused TensorExtLite/Toy/RVV plugin build and tests, focused TensorExtLite/Toy/RVV lit selection, full check-tianchenrv, git diff --check, and targeted residue scans for descriptor/direct-C/source-export/core TensorExtLite branch leakage.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

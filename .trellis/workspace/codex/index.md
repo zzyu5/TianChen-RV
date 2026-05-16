@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-8.md`
-- **Total Sessions**: 96
+- **Total Sessions**: 97
 - **Last Active**: 2026-05-17
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-8.md` | ~758 | Active |
+| `journal-8.md` | ~909 | Active |
 | `journal-7.md` | ~1992 | Archived |
 | `journal-6.md` | ~1973 | Archived |
 | `journal-5.md` | ~1983 | Archived |
@@ -36,6 +36,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 97 | 2026-05-17 | TensorExtLite common EmitC route activation | this-commit | `main` |
 | 96 | 2026-05-17 | RVV materialized EmitC target artifact bridge | this commit | `main` |
 | 95 | 2026-05-16 | Bounded source-vector-to-RVV selected-boundary lowering | this commit | `main` |
 | 94 | 2026-05-16 | Bounded MLIR-to-RVV selected-boundary seed | this commit | `main` |

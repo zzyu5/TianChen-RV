@@ -1,4 +1,6 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
@@ -23,6 +25,7 @@ using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
 using tianchenrv::plugin::VariantCostEstimate;
 using tianchenrv::plugin::VariantCostRequest;
+using tianchenrv::plugin::VariantEmitCLowerableRequest;
 using tianchenrv::plugin::VariantEmissionPlan;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
@@ -34,8 +37,11 @@ using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::KernelOp;
 using tianchenrv::tcrv::exec::VariantOp;
+using tianchenrv::tcrv::tensorext_lite::ConfigSkeletonOp;
+using tianchenrv::tcrv::tensorext_lite::LoadFragSkeletonOp;
 using tianchenrv::tcrv::tensorext_lite::TileMmaSkeletonOp;
 using tianchenrv::tcrv::tensorext_lite::LoweringBoundaryOp;
+using tianchenrv::tcrv::tensorext_lite::StoreFragSkeletonOp;
 using tianchenrv::transforms::VariantSelectionKind;
 using tianchenrv::transforms::VariantSelectionPlan;
 
@@ -137,6 +143,77 @@ TileMmaSkeletonOp findTensorExtLiteComputeRole(KernelOp kernel,
   return result;
 }
 
+TileMmaSkeletonOp findTensorExtLiteNestedComputeRole(
+    VariantOp variant, llvm::StringRef selectedVariantSymbol) {
+  TileMmaSkeletonOp result;
+  if (!variant || variant.getBody().empty())
+    return result;
+
+  for (mlir::Operation &op : variant.getBody().front()) {
+    auto compute = llvm::dyn_cast<TileMmaSkeletonOp>(op);
+    if (!compute)
+      continue;
+
+    auto selectedVariant =
+        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
+      result = compute;
+  }
+  return result;
+}
+
+struct TensorExtLiteTestRoleSpec {
+  llvm::StringRef operationName;
+  llvm::StringRef typedRole;
+  llvm::StringRef sourceRole;
+  llvm::StringRef roleSpecificInterface;
+  int64_t roleOrder = 0;
+};
+
+void materializeTensorExtLiteRoleSequence(mlir::OpBuilder &builder,
+                                          KernelOp kernel,
+                                          VariantOp variant) {
+  static constexpr TensorExtLiteTestRoleSpec kRoleSpecs[] = {
+      {"tcrv_tensorext_lite.config_skeleton", "tel.role.config",
+       "configure", "TCRVConfigOpInterface", 0},
+      {"tcrv_tensorext_lite.load_frag_skeleton", "tel.role.load_frag",
+       "load_frag", "TCRVMemoryOpInterface", 1},
+      {"tcrv_tensorext_lite.tile_mma_skeleton", "tel.role.tile_mma",
+       "tile_mma", "TCRVComputeOpInterface", 2},
+      {"tcrv_tensorext_lite.store_frag_skeleton", "tel.role.store_frag",
+       "store_frag", "TCRVMemoryOpInterface", 3},
+  };
+
+  mlir::Block &body = variant.getBody().front();
+  builder.setInsertionPointToEnd(&body);
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  for (const TensorExtLiteTestRoleSpec &spec : kRoleSpecs) {
+    mlir::OperationState state(variant.getLoc(), spec.operationName);
+    state.addAttribute("source_kernel",
+                       builder.getStringAttr(kernel.getSymName()));
+    state.addAttribute("selected_variant",
+                       mlir::FlatSymbolRefAttr::get(builder.getContext(),
+                                                    variant.getSymName()));
+    state.addAttribute("origin",
+                       builder.getStringAttr(
+                           tianchenrv::plugin::tensorext_lite::
+                               getTensorExtLiteExtensionPluginName()));
+    state.addAttribute(
+        "role",
+        builder.getStringAttr(tianchenrv::plugin::stringifyVariantEmissionRole(
+            VariantEmissionRole::DirectVariant)));
+    state.addAttribute("status", builder.getStringAttr("role-op-boundary"));
+    state.addAttribute("required_capabilities", variantRequires);
+    state.addAttribute("typed_role", builder.getStringAttr(spec.typedRole));
+    state.addAttribute("role_order",
+                       builder.getI64IntegerAttr(spec.roleOrder));
+    state.addAttribute("source_role", builder.getStringAttr(spec.sourceRole));
+    state.addAttribute("role_specific_interface",
+                       builder.getStringAttr(spec.roleSpecificInterface));
+    builder.create(state);
+  }
+}
+
 mlir::Attribute findProposalAttribute(const VariantProposal &proposal,
                                       llvm::StringRef attrName) {
   for (mlir::NamedAttribute attribute : proposal.getPluginAttributes()) {
@@ -202,14 +279,56 @@ int runRegistrationAndCapabilityMetadataTest() {
     return result;
   if (int result =
           expect(realization.roles.size() == 4 &&
+                     realization.roles[0].operationName ==
+                         "tcrv_tensorext_lite.config_skeleton" &&
+                     realization.roles[1].operationName ==
+                         "tcrv_tensorext_lite.load_frag_skeleton" &&
                      realization.roles[2].role == "tile_mma" &&
                      realization.roles[2].operationName ==
                          "tcrv_tensorext_lite.tile_mma_skeleton" &&
                      realization.roles[2].roleSpecificInterface ==
                          "TCRVComputeOpInterface" &&
                      realization.roles[2].emitCLowerableInterface ==
+                         "TCRVEmitCLowerableInterface" &&
+                     realization.roles[3].operationName ==
+                         "tcrv_tensorext_lite.store_frag_skeleton" &&
+                     realization.roles[3].emitCLowerableInterface ==
                          "TCRVEmitCLowerableInterface",
-                 "TensorExtLite typed role graph preserves ordered tile_mma role"))
+                 "TensorExtLite typed role graph preserves ordered role sequence"))
+    return result;
+
+  const auto &route = tianchenrv::plugin::tensorext_lite::
+      getTensorExtLiteFragmentMmaEmitCConstructionRoute();
+  if (int result =
+          expect(manifest.emitcRoute.routeID == route.routeID &&
+                     manifest.emitcRoute.emissionKind == route.emissionKind &&
+                     manifest.emitcRoute.artifactKind == route.artifactKind &&
+                     manifest.evidenceProfile.contains(
+                         "materialized_emitc_module"),
+                 "TensorExtLite construction manifest records the active "
+                 "EmitC route"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::tensorext_lite::
+              verifyTensorExtLiteConstructionProtocolReady(),
+          "TensorExtLite construction protocol ready check validates active route"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::tensorext_lite::
+              verifyTensorExtLiteFragmentMmaEmitCConstructionRouteMapping(
+                  route.routeID, route.emissionKind, route.artifactKind,
+                  route.runtimeABI, route.runtimeABIKind, route.runtimeABIName,
+                  route.runtimeGlueRole),
+          "TensorExtLite active EmitC route mapping validates"))
+    return result;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::tensorext_lite::
+              verifyTensorExtLiteFragmentMmaEmitCConstructionRouteMapping(
+                  "tensorext-lite-fragment-mma-no-active-emitc-route",
+                  route.emissionKind, route.artifactKind, route.runtimeABI,
+                  route.runtimeABIKind, route.runtimeABIName,
+                  route.runtimeGlueRole),
+          {"TensorExtLite EmitC route id", route.routeID}))
     return result;
 
   return expectErrorContains(
@@ -512,34 +631,129 @@ module {
                                      VariantEmissionRole::DirectVariant),
               status),
           {"reported unsupported emission path",
-           "no active materialized EmitC"}))
+           "requires one materialized tcrv_tensorext_lite.config_skeleton"}))
     return result;
 
   VariantEmissionPlan emissionPlan;
-  if (int result = expectSuccess(
+  if (int result = expectErrorContains(
           registry.buildVariantEmissionPlan(
               VariantEmissionRequest(tensorext_liteVariant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              emissionPlan),
+          {"requires one materialized tcrv_tensorext_lite.config_skeleton"}))
+    return result;
+
+  materializeTensorExtLiteRoleSequence(builder, kernel, tensorext_liteVariant);
+  if (int result = expect(mlir::succeeded(mlir::verify(*module)),
+                          "TensorExtLite explicit role-body module verifies"))
+    return result;
+
+  TileMmaSkeletonOp nestedComputeRole = findTensorExtLiteNestedComputeRole(
+      tensorext_liteVariant, tensorext_liteVariant.getSymName());
+  if (int result =
+          expect(nestedComputeRole,
+                 "TensorExtLite explicit body materializes tile_mma role op"))
+    return result;
+
+  if (int result = expectSuccess(
+          tianchenrv::plugin::tensorext_lite::
+              verifyTensorExtLiteRoleOpInterface(
+                  tianchenrv::plugin::tensorext_lite::
+                      getTensorExtLiteConstructionManifest(),
+                  tianchenrv::plugin::tensorext_lite::
+                      getTensorExtLiteTypedRoleGraphRealization(),
+                  nestedComputeRole.getOperation(), "tile_mma"),
+          "TensorExtLite tile_mma role op validates through construction interface"))
+    return result;
+
+  status = VariantEmissionStatus();
+  if (int result = expectSuccess(
+          registry.checkVariantEmissionReadiness(
+              VariantEmissionRequest(tensorext_liteVariant, kernel,
+                                     capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              status),
+          "TensorExtLite emission readiness sees active explicit role route"))
+    return result;
+  const auto &routeMetadata = tianchenrv::plugin::tensorext_lite::
+      getTensorExtLiteFragmentMmaEmitCConstructionRoute();
+  if (int result =
+          expect(status.isSupported() &&
+                     status.getEmissionPath() == routeMetadata.routeID,
+                 "TensorExtLite readiness reports supported active route id"))
+    return result;
+
+  emissionPlan = VariantEmissionPlan();
+  if (int result = expectSuccess(
+          registry.buildVariantEmissionPlan(
+              VariantEmissionRequest(tensorext_liteVariant, kernel,
+                                     capabilities,
                                      VariantEmissionRole::DirectVariant),
               emissionPlan),
           "TensorExtLite emission plan is plugin-owned"))
     return result;
   if (int result =
-          expect(emissionPlan.isUnsupported() &&
+          expect(emissionPlan.isSupported() &&
                      emissionPlan.getOriginPlugin() ==
                          tianchenrv::plugin::tensorext_lite::
                              getTensorExtLiteExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() ==
                          tensorext_liteVariant.getSymName() &&
-                     emissionPlan.getLoweringPipeline().empty() &&
-                     emissionPlan.getArtifactKind().empty() &&
-                     emissionPlan.getDiagnostic().contains(
-                         "no active materialized EmitC lowering") &&
+                     emissionPlan.getLoweringPipeline() ==
+                         routeMetadata.routeID &&
+                     emissionPlan.getEmissionKind() ==
+                         routeMetadata.emissionKind &&
+                     emissionPlan.getArtifactKind() ==
+                         routeMetadata.artifactKind &&
+                     emissionPlan.getRuntimeABI() ==
+                         routeMetadata.runtimeABI &&
+                     emissionPlan.getRuntimeABIKind() ==
+                         routeMetadata.runtimeABIKind &&
+                     emissionPlan.getRuntimeABIName() ==
+                         routeMetadata.runtimeABIName &&
+                     emissionPlan.getRuntimeGlueRole() ==
+                         routeMetadata.runtimeGlueRole &&
+                     emissionPlan.getLoweringBoundaryOpName() ==
+                         routeMetadata.loweringBoundaryOpName &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::tensorext_lite::
                              getTensorExtLiteFragmentPreferredCapabilitySymbol(),
-                 "TensorExtLite emission plan fails closed without exportable route"))
+                 "TensorExtLite emission plan records active common EmitC route"))
+    return result;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute emitcRoute;
+  if (int result = expectSuccess(
+          registry.buildVariantEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(tensorext_liteVariant, kernel,
+                                           capabilities,
+                                           VariantEmissionRole::DirectVariant),
+              emitcRoute),
+          "TensorExtLite route builds through registry"))
+    return result;
+  if (int result =
+          expect(emitcRoute.getRouteID() == routeMetadata.routeID &&
+                     emitcRoute.getSourceOpProvenance().size() == 4 &&
+                     emitcRoute.getCallOpaqueSteps().size() == 4 &&
+                     emitcRoute.getSourceOpProvenance()[0].role ==
+                         "configure" &&
+                     emitcRoute.getSourceOpProvenance()[1].role ==
+                         "load_frag" &&
+                     emitcRoute.getSourceOpProvenance()[2].role ==
+                         "tile_mma" &&
+                     emitcRoute.getSourceOpProvenance()[3].role ==
+                         "store_frag" &&
+                     emitcRoute.getCallOpaqueSteps()[2].callee ==
+                         routeMetadata.tileMmaCallee,
+                 "TensorExtLite route preserves role sequence provenance and "
+                 "call-opaque mapping"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::conversion::emitc::
+              verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
+                  emitcRoute, "tcrv_tensorext_lite_test", {}),
+          "TensorExtLite common EmitC materializer accepts the route"))
     return result;
 
   return 0;
