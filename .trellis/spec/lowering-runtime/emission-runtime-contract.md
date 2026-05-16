@@ -478,7 +478,7 @@ export request, the request is still ambiguous and must fail closed.
 Lowering boundaries, emission plans, manifests, and target artifacts must
 preserve parameter layering:
 
-- hardware facts / target capability such as VLEN, vlenb-derived capacity,
+- hardware facts / target capability such as VLEN, raw VLENB bytes,
   hart count, toolchain availability, selected march/mabi capability
   properties, and remote probe provenance constrain route legality and
   selection;
@@ -500,7 +500,7 @@ preserve parameter layering:
   runtime-element-count. Candidate/emission-plan parameter metadata may only
   mirror that IR-backed plan, while runtime ABI strings and glue roles come
   from plugin/target-owned route construction. Runtime `n` remains a runtime
-  ABI/control value, not descriptor-local element count;
+  ABI/control value, not deleted local count residue;
 - emission-plan-backed RVV+scalar dispatch export must resolve callable
   parameters from the same IR-backed callable ABI plan for both the selected RVV
   candidate and the selected scalar fallback candidate. The bounded dispatch
@@ -514,10 +514,9 @@ preserve parameter layering:
   the executable branch-control source. The guard C name must be explicit and
   caller-owned; changing it must not change callable role order, add the guard
   to callable microkernel signatures, or introduce automatic hardware probing;
-- legacy bounded values such as `tcrv_rvv.element_count` or the deleted scalar
-  element-count marker describe historical selected-path metadata at most. An
-  extension plugin may choose bounded diagnostic sample sizes from validated
-  structured capability facts, such as RVV i32 M1 lane capacity, but those
+- deleted legacy RVV/scalar local element-count markers describe historical
+  selected-path metadata at most. An extension plugin may choose bounded
+  diagnostic sample sizes from validated structured capability facts, but those
   values still must not be reported as tensor shape, global problem size, AVL,
   vl, runtime loop trip count, source authority, correctness coverage, or
   performance evidence. The current scalar fallback plugin does not consume its
@@ -1362,11 +1361,10 @@ llvm::Error exportRVVMicrokernelSelfCheckC(mlir::ModuleOp module,
   enclosing kernel capability set must preserve matching selected march metadata
   through exact providers or explicit relation-provider target profile scope
   for `rvv.probe.compile_run.selected_march` or `rvv.toolchain.march.value`.
-- If the selected variant carries legacy bounded `tcrv_rvv.element_count`,
-  that field is metadata-only diagnostic input. It must not ask the RVV plugin
-  to materialize a wrapper, callable ABI, generated C source, correctness
-  coverage, performance, or broad
-  microarchitecture semantics.
+- If the selected variant carries deleted legacy RVV local element-count
+  residue, that field is metadata-only diagnostic input. It must not ask the
+  RVV plugin to materialize a wrapper, callable ABI, generated C source,
+  correctness coverage, performance, or broad microarchitecture semantics.
 - The deleted RVV selected-boundary route must not be required or accepted as
   source/export authority for the selected path.
 - Deleted direct child `tcrv_rvv.*_microkernel` wrappers are no longer

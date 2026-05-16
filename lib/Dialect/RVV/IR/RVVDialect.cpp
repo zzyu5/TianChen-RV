@@ -49,8 +49,6 @@ constexpr llvm::StringLiteral kRVVVariantRequiredMarchAttrName(
     "tcrv_rvv.required_march");
 constexpr llvm::StringLiteral kRVVRequiredCapabilitiesAttrName(
     "tcrv_rvv.required_capabilities");
-constexpr llvm::StringLiteral kRVVElementCountAttrName(
-    "tcrv_rvv.element_count");
 constexpr llvm::StringLiteral kRVVVLenAttrName("tcrv_rvv.vlen");
 constexpr llvm::StringLiteral kRVVVLenBAttrName("tcrv_rvv.vlenb");
 constexpr llvm::StringLiteral kArchitectureAttrName("architecture");
@@ -160,8 +158,7 @@ bool isForbiddenSetVLParameterAttr(llvm::StringRef name) {
          name == kRequiredCapabilitiesAttrName ||
          name == kRVVVariantRequiredMarchAttrName ||
          name == kRVVRequiredCapabilitiesAttrName ||
-         name == kRVVElementCountAttrName || name == kRVVVLenAttrName ||
-         name == kRVVVLenBAttrName;
+         name == kRVVVLenAttrName || name == kRVVVLenBAttrName;
 }
 
 bool isForbiddenWithVLParameterAttr(llvm::StringRef name) {
@@ -397,7 +394,7 @@ mlir::LogicalResult SetVLOp::verify() {
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
              << "'; tcrv_rvv.setvl keeps VLEN/vlenb as target capability "
-                "facts, element_count as artifact-local metadata, and "
+                "facts, rejects deleted local element_count metadata, and "
                 "required_march/required_capabilities as selected-path "
                 "metadata";
 
@@ -444,7 +441,7 @@ mlir::LogicalResult WithVLOp::verify() {
       return emitOpError()
              << "does not accept attribute '" << attr.getName()
              << "'; tcrv_rvv.with_vl keeps VLEN/vlenb as target capability "
-                "facts, element_count as artifact-local metadata, "
+                "facts, rejects deleted local element_count metadata, "
                 "required_march/required_capabilities as selected-path "
                 "metadata, and AVL/VL as runtime SSA/control values";
 
@@ -523,8 +520,8 @@ mlir::LogicalResult I32LoadOp::verify() {
              << "does not accept attribute '" << attr.getName()
              << "'; tcrv_rvv.i32_load keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
-                "control-plane IR, and element_count as artifact-local "
-                "component-capacity metadata";
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
 
     if (!isAllowedI32LoadAttr(attrName))
       return emitOpError()
@@ -569,7 +566,7 @@ mlir::LogicalResult I32AddOp::verify() {
              << "does not accept attribute '" << attr.getName()
              << "'; tcrv_rvv.i32_add keeps SEW/LMUL/policy on setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
-                "element_count as artifact-local component capacity metadata";
+                "rejects deleted local element_count metadata";
 
     if (!isAllowedI32AddAttr(attrName))
       return emitOpError()
@@ -616,7 +613,7 @@ mlir::LogicalResult I32SubOp::verify() {
              << "does not accept attribute '" << attr.getName()
              << "'; tcrv_rvv.i32_sub keeps SEW/LMUL/policy on setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
-                "element_count as artifact-local component capacity metadata";
+                "rejects deleted local element_count metadata";
 
     if (!isAllowedI32SubAttr(attrName))
       return emitOpError()
@@ -663,7 +660,7 @@ mlir::LogicalResult I32MulOp::verify() {
              << "does not accept attribute '" << attr.getName()
              << "'; tcrv_rvv.i32_mul keeps SEW/LMUL/policy on setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
-                "element_count as artifact-local component capacity metadata";
+                "rejects deleted local element_count metadata";
 
     if (!isAllowedI32MulAttr(attrName))
       return emitOpError()
@@ -710,8 +707,8 @@ mlir::LogicalResult I32StoreOp::verify() {
              << "does not accept attribute '" << attr.getName()
              << "'; tcrv_rvv.i32_store keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
-                "control-plane IR, and element_count as artifact-local "
-                "component-capacity metadata";
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
 
     if (!isAllowedI32StoreAttr(attrName))
       return emitOpError()
@@ -754,8 +751,8 @@ mlir::LogicalResult I64LoadOp::verify() {
              << "does not accept attribute '" << attr.getName()
              << "'; tcrv_rvv.i64_load keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
-                "control-plane IR, and element_count as artifact-local "
-                "component-capacity metadata";
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
 
     if (!isAllowedI64LoadAttr(attrName))
       return emitOpError()
@@ -797,7 +794,7 @@ mlir::LogicalResult I64AddOp::verify() {
              << "does not accept attribute '" << attr.getName()
              << "'; tcrv_rvv.i64_add keeps SEW/LMUL/policy on setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
-                "element_count as artifact-local component capacity metadata";
+                "rejects deleted local element_count metadata";
 
     if (!isAllowedI64AddAttr(attrName))
       return emitOpError()
@@ -843,7 +840,7 @@ mlir::LogicalResult I64SubOp::verify() {
              << "does not accept attribute '" << attr.getName()
              << "'; tcrv_rvv.i64_sub keeps SEW/LMUL/policy on setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
-                "element_count as artifact-local component capacity metadata";
+                "rejects deleted local element_count metadata";
 
     if (!isAllowedI64SubAttr(attrName))
       return emitOpError()
@@ -889,7 +886,7 @@ mlir::LogicalResult I64MulOp::verify() {
              << "does not accept attribute '" << attr.getName()
              << "'; tcrv_rvv.i64_mul keeps SEW/LMUL/policy on setvl/with_vl, "
                 "runtime n/AVL/VL in the surrounding control-plane IR, and "
-                "element_count as artifact-local component capacity metadata";
+                "rejects deleted local element_count metadata";
 
     if (!isAllowedI64MulAttr(attrName))
       return emitOpError()
@@ -935,8 +932,8 @@ mlir::LogicalResult I64StoreOp::verify() {
              << "does not accept attribute '" << attr.getName()
              << "'; tcrv_rvv.i64_store keeps SEW/LMUL/policy on "
                 "setvl/with_vl, runtime n/AVL/VL in the surrounding "
-                "control-plane IR, and element_count as artifact-local "
-                "component-capacity metadata";
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
 
     if (!isAllowedI64StoreAttr(attrName))
       return emitOpError()

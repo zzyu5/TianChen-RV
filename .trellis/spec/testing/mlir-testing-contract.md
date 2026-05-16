@@ -297,7 +297,7 @@ Use C++ tests for:
 - plugin registry APIs;
 - capability query helper semantics;
 - plugin-local RVV capability-profile validation, including positive sanitized
-  probe facts, vlenb-derived i32 lane capacity preservation and rejection,
+  probe facts, raw VLENB preservation without derived lane-capacity authority,
   missing vector hints, non-`riscv64` architecture, compile/run failure,
   missing clang/CMake availability, deterministic sanitized capability
   identities, `rvv.hart_count` providing `target.hart_count`, and preservation

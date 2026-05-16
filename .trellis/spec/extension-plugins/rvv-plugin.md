@@ -61,9 +61,7 @@ explicit typed variant form: a hand-authored or future materialized RVV variant
   selection preference can accept it
 typed policy attr name: tcrv_rvv.policy
 typed policy attr value: #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
-deleted legacy element-count attr name: tcrv_rvv.element_count
 optional vlenb attr name: tcrv_rvv.vlenb_bytes
-optional base i32 m1 lane attr name: tcrv_rvv.base_i32_m1_lanes
 ```
 
 RVV probe facts remain bounded hardware/toolchain evidence inputs. They may be
@@ -117,8 +115,8 @@ compiler config facts.
   `mask_policy = "agnostic"`.
 - Runtime `n`, AVL, VL, and dispatch guard values remain runtime SSA/control
   or ABI values. They must not be encoded as these compile-time config
-  capability facts. Deleted descriptor-local `tcrv_rvv.element_count` metadata
-  must not be reintroduced as a runtime trip count or artifact descriptor.
+  capability facts. Deleted local RVV element-count metadata must not be
+  reintroduced as a runtime trip count or artifact descriptor.
 
 ### 4. Validation & Error Matrix
 
@@ -286,8 +284,8 @@ The JSON artifact records a bounded schema:
   cmake, bounded RISC-V/vector hints from `/proc/cpuinfo`, and non-interactive
   sudo availability as a boolean capability fact;
 - a sanitized `capability_facts` section containing only bounded evidence
-  facts: architecture, hart count, optional vlenb bytes and
-  derived i32 m1 lane count, ISA/vector hint string, clang and CMake
+  facts: architecture, hart count, optional raw VLENB bytes,
+  ISA/vector hint string, clang and CMake
   availability/version facts, minimal RVV compile/run success, selected
   march/mabi, and optional source/binary digests;
 - a minimal RVV intrinsic compile/run probe result with command references,
@@ -311,7 +309,7 @@ Interpretation rules:
   than partial target capabilities.
 - Profile-derived capability identities are stable and plugin-local raw
   evidence identities. Current probe-derived profile IDs include `rvv`,
-  `rvv.hart_count`, `rvv.vlenb_bytes`, `rvv.i32_m1_lane_count`,
+  `rvv.hart_count`, `rvv.vlenb_bytes`,
   `rvv.toolchain.clang`, `rvv.toolchain.cmake`, `rvv.probe.compile_run`,
   `rvv.toolchain.march`, and `rvv.toolchain.mabi`. SEW/LMUL/tail/mask config
   IDs such as `rvv.i32_m1.sew32` belong to explicit RVV config/profile fixtures
@@ -502,11 +500,11 @@ evidence, or performance evidence.
 RVV work must keep these parameter layers distinct:
 
 - VLEN and vlenb are hardware facts / target capability evidence. They may
-  constrain legality, vector capacity, and selection after provenance is
-  validated, including plugin-owned `tcrv_rvv.vlenb_bytes` and
-  `tcrv_rvv.base_i32_m1_lanes` variant metadata. The base lane attribute is the
-  i32 M1 capacity implied by vlenb. It is not selected LMUL config metadata and
-  is not a per-variant runtime value.
+  constrain legality and selection only after provenance is validated, but
+  active profiles must keep VLENB as raw byte evidence and must not derive
+  finite i32/M1 lane-capacity capability facts or selected-path metadata from
+  it. Lane behavior belongs to explicit RVV config IR plus runtime AVL/VL/ABI
+  surfaces.
 - SEW, LMUL, tail policy, and mask policy are compile-time variant config
   selected or proposed by the RVV plugin and checked against target
   capabilities. The current non-executable bounded RVV dataflow slice admits only SEW 32 with
@@ -533,10 +531,11 @@ RVV work must keep these parameter layers distinct:
   models vl only when it consumes a real `!tcrv_rvv.vl` SSA operand. It must not
   imply that AVL or vl is IR-modeled unless a real op attribute, SSA value,
   region argument, or ABI parameter exists.
-- `tcrv_rvv.element_count` is deleted legacy selected-path metadata for RVV.
-  Active RVV dialect ops must reject local `element_count` attributes; the
-  value does not describe a valid descriptor, emitted source slice, production
-  input, high-level MLIR tensor shape, global problem size, AVL, or vl.
+- The deleted legacy RVV local element-count marker is not active selected-path
+  metadata. Active RVV dialect ops must reject local `element_count`
+  attributes; the value does not describe a valid descriptor, emitted source
+  slice, production input, high-level MLIR tensor shape, global problem size,
+  AVL, or vl.
 - `tcrv_rvv.required_march` string matching is a bounded plugin-owned
   compatibility bridge for the current first slice. Do not expand dependence on
   `required_march` string comparisons when structured capabilities or
@@ -547,12 +546,12 @@ LMUL, AVL, vl, `setvl`, `with_vl`, `element_count`, or `required_march` are
 IR-modeled unless the real IR has the corresponding attribute, type, SSA value,
 region argument, or generated ABI parameter. The current `tcrv_rvv.setvl` and
 `tcrv_rvv.with_vl` ops model only runtime AVL/VL control-plane IR; they do not
-make VLEN/vlenb or descriptor-local `element_count` runtime values.
+make VLEN/vlenb or deleted local RVV element-count residue runtime values.
 RVV emission plans must not use selected-shape metadata descriptors as
 lowering, runtime ABI, or artifact authority. Bounded diagnostics may mention
-validated hardware/profile facts such as `tcrv_rvv.vlenb_bytes` and
-`tcrv_rvv.base_i32_m1_lanes`, but executable artifacts require explicit
-extension-family IR plus a materialized EmitC/runtime route.
+validated raw hardware/profile facts such as `tcrv_rvv.vlenb_bytes`, but
+executable artifacts require explicit extension-family IR plus a materialized
+EmitC/runtime route.
 
 ## Deleted Selected Lowering Boundary Route
 
@@ -666,11 +665,11 @@ Reference metadata:
 The first RVV slice returns explicit plugin-owned selection preference metadata
 for legal materialized RVV variants. Its score is a heuristic ordering input
 used by the target-neutral selector; it is not a runtime, correctness, or
-performance claim. When structured vlenb-derived i32 lane capacity is
-available, the RVV plugin may use it as a bounded heuristic input and record
-that fact in the explanation. RVV-specific interpretation of preserved
-capability facts stays inside the RVV plugin before the generic preference
-record is returned.
+performance claim. Raw VLENB may be considered only as validated hardware
+evidence; the plugin must not preserve derived finite i32/M1 lane-capacity
+facts as selection preference authority. RVV-specific interpretation of
+preserved capability facts stays inside the RVV plugin before the generic
+preference record is returned.
 
 ## Emission Paths
 

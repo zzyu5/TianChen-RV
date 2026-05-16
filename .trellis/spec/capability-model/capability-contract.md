@@ -102,21 +102,21 @@ layered. A parameter may cross layers only through an explicit compiler object
 or ABI surface that states the new meaning.
 
 1. Hardware facts / target capabilities belong in capability, profile, or probe
-   objects and constrain legality and selection. Examples include VLEN,
-   vlenb-derived vector capacity, ISA/profile facts, hart or core count,
+   objects and constrain legality and selection. Examples include VLEN or raw
+   VLENB bytes, ISA/profile facts, hart or core count,
    toolchain availability, remote probe evidence, and capability provenance.
    A plugin-local hart-count fact may expose the generic relation id
    `target.hart_count` with positive integer property `count` so
    target-neutral core checks can consume capacity without branching on a
-   concrete extension. RVV `rvv.i32_m1_lane_count` is a base i32 M1 capacity
-   fact derived from vlenb/profile evidence; when serialized into plugin
-   metadata it must use a name such as `base_i32_m1_lanes` so an i32m2 selected
-   path cannot confuse the hardware capacity fact with selected m1 vector
-   config. Finite RVV i64m1 profile facts such as `rvv.i64_m1.sew64`,
+   concrete extension. Probe/profile objects must not preserve derived finite
+   RVV i32/M1 lane-capacity facts from VLENB as capability identities or
+   selected-path metadata; future lane behavior must come from explicit RVV
+   config IR and runtime AVL/VL/ABI surfaces. Finite RVV i64m1 profile facts
+   such as `rvv.i64_m1.sew64`,
    `rvv.i64_m1.lmul_m1`, `rvv.i64_m1.tail_policy.agnostic`, and
    `rvv.i64_m1.mask_policy.agnostic` are compile-time capability/profile facts
    that constrain i64 family legality; they are not runtime `n`, AVL/VL, or
-   descriptor-local element-count claims.
+   deleted local count claims.
 2. Compile-time variant config belongs in plugin-proposed variant metadata,
    selected config, tuning, or lowering-boundary metadata and must be checked
    against target capability. Examples include SEW, LMUL, tail policy, mask

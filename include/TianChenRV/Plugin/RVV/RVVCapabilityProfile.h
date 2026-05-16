@@ -15,7 +15,6 @@ struct RVVProbeCapabilityFacts {
   std::string architecture;
   std::uint64_t hartCount = 0;
   std::uint64_t vlenbBytes = 0;
-  std::uint64_t i32M1LaneCount = 0;
   std::string isaVectorHints;
   bool clangAvailable = false;
   std::string clangVersion;
@@ -32,8 +31,6 @@ llvm::StringRef getRVVHartCountCapabilityID();
 llvm::StringRef getRVVHartCountCapabilitySymbol();
 llvm::StringRef getRVVVLenBBytesCapabilityID();
 llvm::StringRef getRVVVLenBBytesCapabilitySymbol();
-llvm::StringRef getRVVI32M1LaneCountCapabilityID();
-llvm::StringRef getRVVI32M1LaneCountCapabilitySymbol();
 llvm::StringRef getRVVClangToolchainCapabilityID();
 llvm::StringRef getRVVClangToolchainCapabilitySymbol();
 llvm::StringRef getRVVCMakeToolchainCapabilityID();

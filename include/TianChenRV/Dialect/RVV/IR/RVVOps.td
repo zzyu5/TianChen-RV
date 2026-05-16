@@ -140,8 +140,9 @@ def SetVLOp : TCRVRVV_Op<"setvl", []> {
     configuration metadata: SEW 32, LMUL m1 or m2, and a finite
     #tcrv_rvv.policy attribute.
 
-    This op does not model VLEN/vlenb hardware facts, artifact-local component
-    capacity, required march metadata, required capability metadata, pointer or
+    This op does not model VLEN/vlenb hardware facts, deleted local
+    element-count metadata, required march metadata, required capability
+    metadata, pointer or
     memory operands, RVV arithmetic, vector registers, masks, lowering,
     runtime ABI glue, generated artifacts, hardware execution, correctness, or
     performance. The companion tcrv_rvv.with_vl op may consume the produced
@@ -173,10 +174,10 @@ def WithVLOp : TCRVRVV_Op<"with_vl",
     defined by a tcrv_rvv.setvl op.
 
     This op is a structural prerequisite for future RVV control/body lowering
-    work only. It does not model VLEN/vlenb hardware facts, artifact-local
-    component capacity, required march metadata, required capability metadata,
-    raw capability facts, pointer or memory operands, RVV arithmetic, vector
-    registers, masks, lowering, runtime ABI glue, generated artifacts,
+    work only. It does not model VLEN/vlenb hardware facts, deleted local
+    element-count metadata, required march metadata, required capability
+    metadata, raw capability facts, pointer or memory operands, RVV arithmetic,
+    vector registers, masks, lowering, runtime ABI glue, generated artifacts,
     hardware execution, correctness, or performance.
   }];
 
@@ -203,8 +204,8 @@ def I32LoadOp : TCRVRVV_Op<"i32_load", []> {
 
     Pointer operands remain future target/export ABI-owned parameters, not
     IR-modeled buffers. Runtime n/AVL/VL remains represented by real runtime
-    SSA/control surfaces. Deleted wrapper-local element_count metadata is not
-    accepted here.
+    SSA/control surfaces. Deleted local element-count metadata is not accepted
+    here.
   }];
 
   let arguments = (ins
@@ -306,8 +307,8 @@ def I32StoreOp : TCRVRVV_Op<"i32_store", []> {
 
     Pointer operands remain future target/export ABI-owned parameters, not
     IR-modeled buffers. Runtime n/AVL/VL remains represented by real runtime
-    SSA/control surfaces. Deleted wrapper-local element_count metadata is not
-    accepted here.
+    SSA/control surfaces. Deleted local element-count metadata is not accepted
+    here.
   }];
 
   let arguments = (ins

@@ -888,7 +888,7 @@ executable code, prove runtime correctness, or justify performance claims.
 Variant generation, legality, selection, tuning, and lowering-boundary
 materialization must preserve the project parameter layering rule:
 
-- hardware facts / target capability such as VLEN, vlenb-derived capacity, ISA
+- hardware facts / target capability such as VLEN, raw VLENB bytes, ISA
   facts, hart count, toolchain availability, probe evidence, and capability
   provenance constrain proposal, legality, cost, and selection;
 - compile-time variant config such as SEW, LMUL, tail/mask policy, unroll, and
@@ -898,10 +898,9 @@ materialization must preserve the project parameter layering rule:
   arguments, length `n`, `rvv_available`, and dispatch guards must be modeled
   as real SSA, region/block arguments, explicit ABI/control attributes, or
   generated C ABI parameters before any pass describes them as modeled;
-- legacy bounded fixture parameters such as the current
-  `tcrv_rvv.element_count` identify selected-path metadata for a historical or
-  fail-closed slice only. They are not tensor shape, global problem size, AVL,
-  vl, source authority, or production route input.
+- deleted legacy RVV local element-count markers identify historical or
+  fail-closed residue only. They are not tensor shape, global problem size,
+  AVL, vl, source authority, or production route input.
 
 Selection and lowering-boundary metadata may name the parameter layer they
 consume, but must not promote a descriptor-local or runtime value into target

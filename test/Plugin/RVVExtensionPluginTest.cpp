@@ -105,7 +105,6 @@ RVVProbeCapabilityFacts makeSuccessfulProbeFacts() {
   facts.architecture = "riscv64";
   facts.hartCount = 64;
   facts.vlenbBytes = 16;
-  facts.i32M1LaneCount = 4;
   facts.isaVectorHints = "rv64gcv_zvl128b";
   facts.clangAvailable = true;
   facts.clangVersion = "clang version 18.1.3";
@@ -271,12 +270,6 @@ module {
       id = "rvv.vlenb_bytes",
       kind = "uarch",
       bytes = 16 : i64,
-      status = "available"
-    }
-    tcrv.exec.capability @rvv_i32_m1_lanes {
-      id = "rvv.i32_m1_lane_count",
-      kind = "uarch",
-      lanes = 4 : i64,
       status = "available"
     }
     tcrv.exec.capability @rvv_probe_compile_run {

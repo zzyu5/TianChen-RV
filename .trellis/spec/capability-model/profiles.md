@@ -18,7 +18,7 @@ Capability examples:
 ```text
 rv64
 rvv
-zvl128b or actual probed minimum VLEN / vlenb-derived capacity
+zvl128b or actual probed minimum VLEN / raw VLENB bytes
 fp32/fp64 depending on hardware
 thread-runtime: OpenMP or pthread
 native compile support
@@ -55,9 +55,10 @@ Rules:
   descriptor-local fixture size, AVL, or VL.
 - Local compile-only, local smoke-only, or unproven docs/spec changes must not be described as RVV runtime evidence.
 - RVV runtime/performance/correctness claims must name this profile or a derived probed profile.
-- VLEN, vlenb-derived vector capacity, and dtype support should be probed or
-  declared with provenance, not guessed. They are target capability facts, not
-  runtime SSA/control values and not per-variant constants.
+- VLEN, raw VLENB bytes, and dtype support should be probed or declared with
+  provenance, not guessed. They are target capability facts, not runtime
+  SSA/control values and not per-variant constants. Probe/profile code must not
+  preserve derived finite i32/M1 lane-capacity facts as capability authority.
 
 ## K3/IME Later Profile
 

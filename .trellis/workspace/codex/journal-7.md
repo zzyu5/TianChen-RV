@@ -56,6 +56,59 @@ Deleted Support-owned I32/RVV runtime ABI contracts and helpers; rewired tests/s
 - None - task complete
 
 
+## Session 87: RVV element-count and derived lane-capability erasure
+
+**Date**: 2026-05-16
+**Task**: RVV element-count and derived lane-capability erasure
+**Branch**: `main`
+
+### Summary
+
+Erased RVV probe/profile/test/spec authority for derived i32/M1 lane-count
+facts and removed RVV dialect diagnostics that described local `element_count`
+as artifact/component-capacity metadata. Raw VLENB, hart/toolchain/probe
+evidence, typed RVV IR, and genuine runtime ABI element-count surfaces remain
+separate.
+
+### Main Changes
+
+- Removed `RVVProbeCapabilityFacts::i32M1LaneCount`, related C++ getters,
+  validation coupling, and emitted `rvv.i32_m1_lane_count` capability.
+- Updated `scripts/rvv_remote_probe.py` schema/self-test/probe output to keep
+  raw `vlenb_bytes` without serializing derived lane count.
+- Rewrote RVV dialect diagnostics and related docs/specs to reject deleted
+  local element-count metadata without preserving artifact/component-capacity
+  wording.
+- Created, validated, and archived the deletion-only Trellis task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | chore(rvv): erase derived lane capability |
+
+### Testing
+
+- [OK] `python3 scripts/rvv_remote_probe.py --self-test`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-dialect-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-dialect-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'Dialect/RVV/(setvl|with-vl|dataflow|rvv-dialect)|Plugin/rvv-extension-plugin'` from `build/test`
+- [OK] `cmake --build build --target check-tianchenrv` (73/73 lit tests)
+- [OK] focused active-surface ref-scan for deleted lane-count and RVV local
+  element-count authority terms
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-16-rvv-element-count-lane-capability-erasure`
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 87: Future source-artifact placeholder erasure
 
 **Date**: 2026-05-16
