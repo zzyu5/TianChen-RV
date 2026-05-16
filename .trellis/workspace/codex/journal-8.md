@@ -54,3 +54,69 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 ### Next Steps
 
 - None - task complete
+
+
+## Session 94: Bounded MLIR-to-RVV selected-boundary seed
+
+**Date**: 2026-05-16
+**Task**: Bounded MLIR-to-RVV selected-boundary seed
+**Branch**: `main`
+
+### Summary
+
+Added an RVV-owned bounded vector i32 add source seed pass that materializes selected RVV i32m1 boundary IR, covered positive/negative lit, generated target artifacts, and passed ssh rvv correctness plus full check-tianchenrv.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `05-16-bounded-mlir-to-rvv-selected-boundary-seed` from the supplied
+  Direction Brief.
+- Added RVV plugin-owned pass
+  `--tcrv-rvv-materialize-i32m1-selected-boundary-seed`, registered through
+  `tcrv-opt`, for one explicitly marked `func`/`scf`/`vector`/`arith` i32 add
+  source shape.
+- The pass materializes `tcrv.exec.kernel`, a selected `origin = "rvv-plugin"`
+  variant, explicit `lhs`/`rhs`/`out`/`n` runtime ABI bindings,
+  `tcrv_rvv.setvl`, selected `tcrv_rvv.with_vl`, and RVV
+  `i32_load` / `i32_add` / `i32_store`.
+- Added positive and fail-closed lit coverage for selected-boundary output,
+  emission-plan/EmitC route consumption, missing ABI operands, unsupported
+  dtype/rank/vector shape, malformed source body, and stale
+  `tcrv.exec`/`tcrv_rvv` residue.
+- Promoted the bounded seed command/input/output/error contract into
+  `.trellis/spec/variant-pipeline/generation-selection-tuning.md`.
+- Generated seed object/header artifacts under
+  `artifacts/tmp/rvv_selected_boundary_seed/20260516T132508Z` and ran a real
+  `ssh rvv` link/run harness.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] Focused build for RVV construction protocol, RVV EmitC route provider,
+  RVV plugin, transforms, `tcrv-opt`, `tcrv-translate`, and focused C++ tests.
+- [OK] C++ tests:
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-target-artifact-export-test`,
+  `tianchenrv-construction-protocol-common-test`,
+  `tianchenrv-rvv-dialect-test`.
+- [OK] Focused lit filter:
+  `rvv-i32m1-selected-boundary-seed|rvv-first-slice-materialization|Target/RVV/i32m1|rvv-with-vl-selected-boundary`,
+  19/19 passed.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`, 104/104
+  passed.
+- [OK] `ssh rvv` seed harness printed
+  `tcrv_rvv_i32m1_selected_boundary_seed status=PASS n=4 add=[12,6,16,12]`.
+- [OK] `git diff --check`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

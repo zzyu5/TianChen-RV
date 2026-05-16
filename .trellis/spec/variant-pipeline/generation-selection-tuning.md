@@ -125,6 +125,99 @@ plugin/interface-owned frontend construction
   -> common EmitC route
 ```
 
+## Scenario: RVV-Owned Bounded Vector I32 Add Seed
+
+### 1. Scope / Trigger
+
+This scenario applies to the bounded rebuild seed that accepts one explicitly
+marked MLIR vector/arithmetic i32 add source shape and materializes the existing
+RVV i32m1 selected-boundary route. It is a plugin-owned RVV entry point, not a
+restoration of the deleted core linalg/vector RVV source frontend family.
+
+### 2. Signatures
+
+- Public pass option:
+  `--tcrv-rvv-materialize-i32m1-selected-boundary-seed`.
+- Required source marker:
+  `tcrv_rvv.lowering_seed = "i32m1_add"`.
+- Required source function ABI:
+  `func.func @name(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index)`.
+- Required source body shape:
+  one `scf.for` from constant index `0` to `%n` with fixed vector i32 chunk
+  step, two `vector.load` operations from `%lhs` and `%rhs`, one `arith.addi`
+  over `vector<4xi32>`, one `vector.store` to `%out`, and an empty return.
+
+### 3. Contracts
+
+- The pass may materialize exactly the bounded RVV add selected-boundary form:
+  `tcrv.exec.kernel` -> `origin = "rvv-plugin"` variant -> explicit
+  `tcrv_rvv.runtime_abi_value` operands for `lhs`, `rhs`, `out`, and `n` ->
+  `tcrv_rvv.setvl` -> selected `tcrv_rvv.with_vl` -> RVV
+  `i32_load` / `i32_add` / `i32_store`.
+- The produced variant must require `@rvv` and must keep computation semantics
+  in `tcrv_rvv` extension-family ops. `tcrv.exec` remains the execution
+  envelope and selection surface only.
+- The route must be consumed by the existing RVV construction/EmitC/target path;
+  it must not introduce descriptor-driven computation, direct C semantic
+  export, Python compiler-core logic, or a common/core RVV semantic branch.
+- The pass is source-only. Pre-existing `tcrv.exec` or `tcrv_rvv` operations in
+  the input are stale selected-boundary or variant residue for this pass and
+  must fail closed instead of being merged with source lowering.
+
+### 4. Validation & Error Matrix
+
+- Missing `lhs`/`rhs`/`out`/`n` ABI operands -> fail before materialization.
+- Non-`memref<?xi32>` buffers, non-`index` `n`, non-i32 vector arithmetic,
+  wrong rank, or wrong vector chunk shape -> fail before materialization.
+- Missing `scf.for`, extra source compute, wrong operation order, wrong load or
+  store operands, or source store not using the `arith.addi` result -> fail.
+- Pre-existing `tcrv.exec`/`tcrv_rvv` operations in the same seed input -> fail
+  as stale selected-boundary or unselected variant residue.
+- Unsupported seed marker values -> fail; they must not silently fall back to a
+  generic RVV lowering path.
+
+### 5. Good/Base/Bad Cases
+
+- Good: an explicitly marked `func.func` with the exact i32 add vector source
+  shape materializes a selected RVV i32m1 variant that the existing EmitC route
+  accepts.
+- Base: hand-written TianChen-RV MLIR with explicit RVV variant bodies remains a
+  valid backend-first input and does not require this source seed.
+- Bad: a common transform scans arbitrary linalg/vector/add/sub/mul source
+  bodies and chooses RVV semantics through route ids, descriptors, artifact
+  names, or deleted finite-family metadata.
+
+### 6. Tests Required
+
+- Positive lit/FileCheck coverage for source seed -> selected
+  `tcrv.exec.variant` containing explicit runtime ABI bindings,
+  `tcrv_rvv.with_vl`, and `tcrv_rvv.i32_add`.
+- Positive route-consumption coverage proving the seed output reaches existing
+  RVV emission-plan and EmitC materialization.
+- Negative lit/FileCheck coverage for missing ABI operands, unsupported
+  dtype/rank/shape, malformed source body, unsupported marker values, and stale
+  pre-existing `tcrv.exec`/`tcrv_rvv` residue.
+- Existing explicit RVV i32m1 construction/EmitC/target tests must continue to
+  pass so the seed is proven to feed the current route instead of replacing it.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+arbitrary vector/linalg source -> core RVV arithmetic recognizer
+  -> route id or descriptor chooses RVV operation
+```
+
+Correct:
+
+```text
+explicit bounded RVV seed marker + exact source shape
+  -> RVV-owned materialization pass
+  -> plugin-owned typed RVV selected-boundary body
+  -> existing construction/EmitC/target route
+```
+
 ## Pipeline
 
 ```text

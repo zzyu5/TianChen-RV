@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify no Python compiler-core, descriptor/direct-C, or tcrv.exec compute drift"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV-owned typed selected boundary and first-slice i32m1 contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify the seed feeds existing common EmitC route consumption"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Verify plugin locality and no family-specific core semantic branch"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused positive/negative lit coverage"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify old core source frontend slice is not restored"}

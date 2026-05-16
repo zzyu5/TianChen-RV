@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-8.md`
-- **Total Sessions**: 93
+- **Total Sessions**: 94
 - **Last Active**: 2026-05-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-8.md` | ~45 | Active |
+| `journal-8.md` | ~89 | Active |
 | `journal-7.md` | ~1992 | Archived |
 | `journal-6.md` | ~1973 | Archived |
 | `journal-5.md` | ~1983 | Archived |
@@ -36,6 +36,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 94 | 2026-05-16 | Bounded MLIR-to-RVV selected-boundary seed | this commit | `main` |
 | 93 | 2026-05-16 | RVV construction-backed hardware artifact proof | this commit | `main` |
 | 92 | 2026-05-16 | Toy executable plugin construction template | - | `main` |
 | 91 | 2026-05-16 | RVV config/VL selected-boundary contract | - | `main` |
