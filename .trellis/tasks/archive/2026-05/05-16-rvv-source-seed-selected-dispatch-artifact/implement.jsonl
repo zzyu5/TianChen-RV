@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack, execution-envelope, plugin-locality, EmitC route, and evidence boundaries for this implementation round."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Source-seed, selected dispatch/case/fallback, emission-plan traversal, and target-neutral selection constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Selected dispatch emission-plan to target artifact handoff contract and EmitC route boundary."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-owned source seed, legality, emission-readiness, emission-plan, and registry routing contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit, C++ test, target artifact, and RVV ssh evidence requirements."}

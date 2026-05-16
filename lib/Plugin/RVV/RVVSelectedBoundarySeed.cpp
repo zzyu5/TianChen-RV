@@ -32,8 +32,17 @@ using tianchenrv::support::RuntimeABIParameterRole;
 constexpr llvm::StringLiteral kSeedAttrName("tcrv_rvv.lowering_seed");
 constexpr llvm::StringLiteral kSeedAttrValue("i32m1_add");
 constexpr llvm::StringLiteral kRVVCapabilitySymbol("rvv");
-constexpr llvm::StringLiteral kSelectedMessage(
-    "bounded MLIR vector i32 add seed selected RVV i32m1 boundary");
+constexpr llvm::StringLiteral kScalarPluginName("scalar-plugin");
+constexpr llvm::StringLiteral kScalarFallbackCapabilitySymbol(
+    "scalar_fallback");
+constexpr llvm::StringLiteral kScalarFallbackCapabilityID("scalar.fallback");
+constexpr llvm::StringLiteral kScalarFallbackCapabilityKind("fallback");
+constexpr llvm::StringLiteral kScalarFallbackPolicy(
+    "portable_scalar_fallback_first_slice");
+constexpr llvm::StringLiteral kRVVCasePolicy(
+    "source-seed-selected-rvv-case");
+constexpr llvm::StringLiteral kFallbackPolicy(
+    "source-seed-conservative-fallback-envelope");
 
 constexpr std::int64_t kSourceVectorLaneCount = 4;
 
@@ -293,6 +302,17 @@ mlir::Operation *createRuntimeABIValue(
   return builder.create(state);
 }
 
+void createCapability(mlir::OpBuilder &builder, mlir::Location loc,
+                      llvm::StringRef symbol, llvm::StringRef id,
+                      llvm::StringRef kind) {
+  mlir::OperationState state(loc, "tcrv.exec.capability");
+  state.addAttribute("sym_name", builder.getStringAttr(symbol));
+  state.addAttribute("id", builder.getStringAttr(id));
+  state.addAttribute("kind", builder.getStringAttr(kind));
+  state.addAttribute("status", builder.getStringAttr("available"));
+  (void)builder.create(state);
+}
+
 mlir::Operation *createSetVL(mlir::OpBuilder &builder, mlir::Location loc,
                              mlir::Value nValue,
                              tcrv::rvv::PolicyAttr policy) {
@@ -347,12 +367,56 @@ void createI32Store(mlir::OpBuilder &builder, mlir::Location loc,
   (void)builder.create(state);
 }
 
+void createScalarFallbackVariant(mlir::OpBuilder &builder, mlir::Location loc,
+                                 llvm::StringRef variantName,
+                                 mlir::ArrayAttr requires) {
+  mlir::OperationState state(loc, "tcrv.exec.variant");
+  state.addAttribute("sym_name", builder.getStringAttr(variantName));
+  state.addAttribute("origin", builder.getStringAttr(kScalarPluginName));
+  state.addAttribute("requires", requires);
+  state.addAttribute("policy", builder.getStringAttr(kScalarFallbackPolicy));
+  state.addAttribute("fallback_role", builder.getStringAttr("conservative"));
+  state.addRegion();
+  auto variant = llvm::cast<tcrv::exec::VariantOp>(builder.create(state));
+  variant.getBody().emplaceBlock();
+}
+
+void createSelectedDispatchEnvelope(mlir::OpBuilder &builder,
+                                    mlir::Location loc,
+                                    llvm::StringRef rvvVariantName,
+                                    llvm::StringRef fallbackVariantName) {
+  mlir::OperationState dispatchState(loc, "tcrv.exec.dispatch");
+  dispatchState.addRegion();
+  mlir::Operation *dispatch = builder.create(dispatchState);
+  dispatch->getRegion(0).emplaceBlock();
+
+  mlir::OpBuilder::InsertionGuard dispatchGuard(builder);
+  builder.setInsertionPointToStart(&dispatch->getRegion(0).front());
+
+  mlir::OperationState caseState(loc, "tcrv.exec.case");
+  caseState.addAttribute("target", symbolRef(builder, rvvVariantName));
+  caseState.addAttribute("origin",
+                         builder.getStringAttr(getRVVExtensionPluginName()));
+  caseState.addAttribute("policy", builder.getStringAttr(kRVVCasePolicy));
+  (void)builder.create(caseState);
+
+  mlir::OperationState fallbackState(loc, "tcrv.exec.fallback");
+  fallbackState.addAttribute("target", symbolRef(builder, fallbackVariantName));
+  fallbackState.addAttribute("origin", builder.getStringAttr(kScalarPluginName));
+  fallbackState.addAttribute("policy", builder.getStringAttr(kFallbackPolicy));
+  fallbackState.addAttribute("fallback_role",
+                             builder.getStringAttr("conservative"));
+  (void)builder.create(fallbackState);
+}
+
 void materializeSeedKernel(mlir::OpBuilder &builder,
                            const BoundedI32AddSourceSeed &seed) {
   mlir::func::FuncOp func = seed.func;
   mlir::Location loc = func.getLoc();
   std::string kernelName = (func.getSymName() + "_kernel").str();
   std::string variantName = (func.getSymName() + "_rvv_i32_add").str();
+  std::string fallbackVariantName =
+      (func.getSymName() + "_scalar_fallback").str();
 
   mlir::OperationState kernelState(loc, "tcrv.exec.kernel");
   kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
@@ -364,17 +428,15 @@ void materializeSeedKernel(mlir::OpBuilder &builder,
   mlir::OpBuilder::InsertionGuard kernelGuard(builder);
   builder.setInsertionPointToStart(&kernel.getBody().front());
 
-  mlir::OperationState capabilityState(loc, "tcrv.exec.capability");
-  capabilityState.addAttribute("sym_name",
-                               builder.getStringAttr(kRVVCapabilitySymbol));
-  capabilityState.addAttribute("id", builder.getStringAttr(getRVVCapabilityID()));
-  capabilityState.addAttribute("kind",
-                               builder.getStringAttr(getRVVCapabilityKind()));
-  capabilityState.addAttribute("status", builder.getStringAttr("available"));
-  (void)builder.create(capabilityState);
+  createCapability(builder, loc, kRVVCapabilitySymbol, getRVVCapabilityID(),
+                   getRVVCapabilityKind());
+  createCapability(builder, loc, kScalarFallbackCapabilitySymbol,
+                   kScalarFallbackCapabilityID, kScalarFallbackCapabilityKind);
 
   mlir::ArrayAttr requires =
       builder.getArrayAttr({symbolRef(builder, kRVVCapabilitySymbol)});
+  mlir::ArrayAttr fallbackRequires = builder.getArrayAttr(
+      {symbolRef(builder, kScalarFallbackCapabilitySymbol)});
   auto policy = tcrv::rvv::PolicyAttr::get(
       builder.getContext(), tcrv::rvv::TailPolicy::Agnostic,
       tcrv::rvv::MaskPolicy::Agnostic);
@@ -419,17 +481,10 @@ void materializeSeedKernel(mlir::OpBuilder &builder,
                    setvl->getResult(0));
   }
 
-  mlir::OperationState diagnosticState(loc, "tcrv.exec.diagnostic");
-  diagnosticState.addAttribute("reason",
-                               builder.getStringAttr("variant-selected"));
-  diagnosticState.addAttribute("message",
-                               builder.getStringAttr(kSelectedMessage));
-  diagnosticState.addAttribute("severity", builder.getStringAttr("note"));
-  diagnosticState.addAttribute("status", builder.getStringAttr("selected"));
-  diagnosticState.addAttribute("selection_kind",
-                               builder.getStringAttr("fallback-only"));
-  diagnosticState.addAttribute("target", symbolRef(builder, variantName));
-  (void)builder.create(diagnosticState);
+  createScalarFallbackVariant(builder, loc, fallbackVariantName,
+                              fallbackRequires);
+  createSelectedDispatchEnvelope(builder, loc, variantName,
+                                 fallbackVariantName);
 }
 
 class MaterializeRVVI32M1SelectedBoundarySeedPass final

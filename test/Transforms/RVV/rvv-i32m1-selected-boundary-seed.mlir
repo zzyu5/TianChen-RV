@@ -5,6 +5,10 @@
 // RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline --tcrv-materialize-emitc-lowerable-routes | FileCheck %s --check-prefix=EMITC
 // RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | tcrv-translate --tcrv-export-target-artifact > %t.frontdoor.o
 // RUN: file %t.frontdoor.o | FileCheck %s --check-prefix=OBJECT
+// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER --implicit-check-not="seed_scalar_fallback"
+// RUN: rm -rf %t.bundle && mkdir %t.bundle
+// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.bundle | FileCheck %s --check-prefix=BUNDLE-STATUS
+// RUN: FileCheck %s --check-prefix=BUNDLE-INDEX < %t.bundle/tianchenrv-target-artifact-bundle.index
 // RUN: not tcrv-opt %s --tcrv-disable-builtin-plugins --tcrv-rvv-materialize-i32m1-selected-boundary-seed 2>&1 | FileCheck %s --check-prefix=NO-BUILTIN
 
 module {
@@ -25,6 +29,9 @@ module {
 // BOUNDARY: tcrv.exec.capability @rvv
 // BOUNDARY-SAME: id = "rvv"
 // BOUNDARY-SAME: kind = "isa-vector"
+// BOUNDARY: tcrv.exec.capability @scalar_fallback
+// BOUNDARY-SAME: id = "scalar.fallback"
+// BOUNDARY-SAME: kind = "fallback"
 // BOUNDARY-LABEL: tcrv.exec.variant @seed_rvv_i32_add
 // BOUNDARY-SAME: origin = "rvv-plugin"
 // BOUNDARY-SAME: requires = [@rvv]
@@ -56,10 +63,17 @@ module {
 // BOUNDARY: tcrv_rvv.i32_load
 // BOUNDARY: tcrv_rvv.i32_add
 // BOUNDARY: tcrv_rvv.i32_store
-// BOUNDARY: tcrv.exec.diagnostic
-// BOUNDARY-SAME: reason = "variant-selected"
-// BOUNDARY-SAME: selection_kind = "fallback-only"
-// BOUNDARY-SAME: target = @seed_rvv_i32_add
+// BOUNDARY: tcrv.exec.variant @seed_scalar_fallback
+// BOUNDARY-SAME: fallback_role = "conservative"
+// BOUNDARY-SAME: origin = "scalar-plugin"
+// BOUNDARY-SAME: requires = [@scalar_fallback]
+// BOUNDARY: tcrv.exec.dispatch
+// BOUNDARY: tcrv.exec.case @seed_rvv_i32_add
+// BOUNDARY-SAME: origin = "rvv-plugin"
+// BOUNDARY-SAME: policy = "source-seed-selected-rvv-case"
+// BOUNDARY: tcrv.exec.fallback @seed_scalar_fallback
+// BOUNDARY-SAME: fallback_role = "conservative"
+// BOUNDARY-SAME: origin = "scalar-plugin"
 
 // PLAN: tcrv.exec.diagnostic {artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: artifact_metadata = [{key = "tcrv_rvv.config_contract", value = "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"}
@@ -76,6 +90,7 @@ module {
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: lowering_boundary = "tcrv_rvv.with_vl"
 // PLAN-SAME: lowering_pipeline = "tcrv-rvv-i32m1-add-riscv-elf-object"
+// PLAN-SAME: role = "dispatch case"
 // PLAN-SAME: runtime_abi_kind = "plugin-owned-runtime-abi"
 // PLAN-SAME: runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1"
 // PLAN-SAME: runtime_abi_parameters = [{c_name = "lhs"
@@ -85,6 +100,12 @@ module {
 // PLAN-SAME: runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @seed_rvv_i32_add
+// PLAN: tcrv.exec.diagnostic {artifact_kind = "unsupported-emission-diagnostic"
+// PLAN-SAME: emission_kind = "scalar-fallback-unsupported-emission"
+// PLAN-SAME: origin = "scalar-plugin"
+// PLAN-SAME: role = "dispatch fallback"
+// PLAN-SAME: status = "unsupported"
+// PLAN-SAME: target = @seed_scalar_fallback
 
 // EMITC: emitc.include <"riscv_vector.h">
 // EMITC: emitc.func @tcrv_emitc_seed_kernel_seed_rvv_i32_add
@@ -96,6 +117,16 @@ module {
 
 // OBJECT: ELF 64-bit LSB relocatable
 // OBJECT-SAME: RISC-V
+
+// HEADER: void tcrv_emitc_seed_kernel_seed_rvv_i32_add
+
+// BUNDLE-STATUS: tianchenrv.target_artifact_bundle_export: complete
+
+// BUNDLE-INDEX: artifact_count: 2
+// BUNDLE-INDEX: selected_variant: @seed_rvv_i32_add
+// BUNDLE-INDEX-NOT: seed_scalar_fallback
+// BUNDLE-INDEX: route: "tcrv-rvv-i32m1-add-riscv-elf-object"
+// BUNDLE-INDEX: route: "tcrv-rvv-i32m1-add-callable-c-header"
 
 // NO-BUILTIN: Unknown command line argument
 // NO-BUILTIN-SAME: tcrv-rvv-materialize-i32m1-selected-boundary-seed

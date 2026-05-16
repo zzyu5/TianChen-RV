@@ -509,3 +509,77 @@ Made the RVV i32m1 add source seed consume validated source shape and source-der
 ### Next Steps
 
 - None - task complete
+
+
+## Session 96: RVV source-seed selected-dispatch artifact path
+
+**Date**: 2026-05-16
+**Task**: `rvv-source-seed-selected-dispatch-artifact`
+**Branch**: `main`
+
+### Summary
+
+Carried the bounded RVV i32m1 add source seed through a selected
+`tcrv.exec.dispatch` envelope and into the existing RVV EmitC/object/header/
+bundle artifact path.
+
+### Main Changes
+
+- Created Trellis task `05-16-rvv-source-seed-selected-dispatch-artifact` from
+  the supplied Direction Brief and repaired its PRD before implementation.
+- Updated the RVV source-seed materializer to emit `@rvv`,
+  `@scalar_fallback`, source-derived `@seed_rvv_i32_add`, conservative
+  `@seed_scalar_fallback`, `tcrv.exec.case`, and `tcrv.exec.fallback`.
+- Kept fallback as selection/envelope metadata only; no scalar fallback compute
+  semantics were added.
+- Generalized emission readiness to allow optional lowering-boundary candidates
+  for dispatch-case references while keeping direct static selected markers
+  boundary-required.
+- Updated EmitC lowerable materialization to select the supported
+  selected-emission diagnostic when the module also contains an unsupported
+  fallback variant.
+- Extended the RVV source-seed fixture to prove dispatch/case/fallback
+  organization, emission-plan metadata, EmitC route materialization,
+  object/header export, and bundle index selection.
+
+### Testing
+
+- [OK] Focused build for `tcrv-opt`, `tcrv-translate`, and touched
+  RVV/plugin/target C++ test executables.
+- [OK] Focused lit filter:
+  `rvv-i32m1-selected-boundary-seed|source-seed-artifact-front-door|i32m1-(add-object-artifact|selected-dispatch-artifact|sub-selected-dispatch-artifact|mul-selected-dispatch-artifact)|rvv-first-slice-materialization|emitc-to-cpp-handoff|toy-template-selected-boundary-seed`,
+  18/18 passed.
+- [OK] C++ tests:
+  `tianchenrv-emission-readiness-test`,
+  `tianchenrv-emitc-lowerable-interface-test`,
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-rvv-dialect-test`,
+  `tianchenrv-target-artifact-export-test`.
+- [OK] Full `cmake --build build --target check-tianchenrv -j2`, 110/110 lit
+  tests passed.
+- [OK] `git diff --check`.
+- [OK] Changed-surface scans: no Python files changed; common/core transform
+  diff has no RVV/scalar/descriptor/direct-C/source-export/Python compiler-core
+  terms; RVV fixture intrinsic header assertion is the expected EmitC route
+  evidence.
+- [OK] New artifacts under
+  `artifacts/tmp/source_seed_selected_dispatch_artifact/20260516T161432Z`.
+- [OK] Real `ssh rvv` link/run:
+  `tcrv_rvv_i32m1_source_selected_dispatch status=PASS n=4 add=[12,6,16,12]`.
+
+### Self-Repair
+
+- Removed an accidental scalar-plugin static link dependency from the RVV seed
+  implementation and replaced it with local fallback identity constants.
+- Fixed FileCheck ordering in the RVV source-seed fixture.
+- Relabeled the temporary RVV harness output to name this round's
+  source-selected-dispatch evidence path.
+
+### Spec Update Judgment
+
+No spec update was needed. Existing variant-pipeline, EmitC route,
+plugin-protocol, and MLIR testing specs already cover this bounded path.
+
+### Status
+
+[OK] Completed and archived.

@@ -80,6 +80,7 @@ using tianchenrv::tcrv::exec::VariantOp;
 struct EmissionReference {
   VariantOp variant;
   VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+  bool acceptsLoweringBoundary = false;
   bool requiresLoweringBoundary = false;
   mlir::Operation *loweringBoundary = nullptr;
 };
@@ -273,11 +274,12 @@ llvm::Error collectSelectedMarkerEmissionReference(
 
   auto selectionKind =
       diagnostic->getAttrOfType<mlir::StringAttr>(kSelectionKindAttrName);
-  bool requiresLoweringBoundary =
+  bool needsBoundary =
       selectionKind.getValue() != kFallbackOnlySelectionKindValue;
   references.push_back(EmissionReference{variant,
                                          VariantEmissionRole::DirectVariant,
-                                         requiresLoweringBoundary});
+                                         /*acceptsLoweringBoundary=*/needsBoundary,
+                                         /*requiresLoweringBoundary=*/needsBoundary});
   return llvm::Error::success();
 }
 
@@ -366,7 +368,8 @@ llvm::Error collectDispatchEmissionReferences(
         return error;
       caseReferences.push_back(
           EmissionReference{variant, VariantEmissionRole::DispatchCase,
-                            /*requiresLoweringBoundary=*/true});
+                            /*acceptsLoweringBoundary=*/true,
+                            /*requiresLoweringBoundary=*/false});
       continue;
     }
 
@@ -380,6 +383,7 @@ llvm::Error collectDispatchEmissionReferences(
         return error;
       fallbackReferences.push_back(
           EmissionReference{variant, VariantEmissionRole::DispatchFallback,
+                            /*acceptsLoweringBoundary=*/false,
                             /*requiresLoweringBoundary=*/false});
       continue;
     }
@@ -458,6 +462,7 @@ llvm::Error collectKernelEmissionReferences(
 
     references.push_back(EmissionReference{
         variant, VariantEmissionRole::DirectVariant,
+        /*acceptsLoweringBoundary=*/false,
         /*requiresLoweringBoundary=*/false});
   }
 
@@ -630,13 +635,8 @@ llvm::Error validateSelectedLoweringBoundaries(
     KernelOp kernel, llvm::SmallVectorImpl<EmissionReference> &references,
     const TargetCapabilitySet &capabilities,
     const ExtensionPluginRegistry &registry) {
-  bool expectsBoundary = false;
   llvm::StringMap<unsigned> selectedReferenceByKey;
   for (auto [index, reference] : llvm::enumerate(references)) {
-    if (!reference.requiresLoweringBoundary)
-      continue;
-
-    expectsBoundary = true;
     std::string key = makeBoundaryKey(reference);
     if (!selectedReferenceByKey.try_emplace(key, index).second)
       return makeBoundaryValidationError(
@@ -647,7 +647,7 @@ llvm::Error validateSelectedLoweringBoundaries(
                   reference.role));
   }
 
-  if (!expectsBoundary)
+  if (references.empty())
     return llvm::Error::success();
 
   if (!hasKernelBody(kernel))
@@ -686,6 +686,14 @@ llvm::Error validateSelectedLoweringBoundaries(
                       "diagnostic surface");
 
     EmissionReference &reference = references[selectedIt->getValue()];
+    if (!reference.acceptsLoweringBoundary)
+      return makeBoundaryValidationError(
+          kernel, llvm::Twine("selected path @") +
+                      reference.variant.getSymName() + " as " +
+                      tianchenrv::plugin::stringifyVariantEmissionRole(
+                          reference.role) +
+                      " does not accept a materialized plugin lowering "
+                      "boundary");
     reference.loweringBoundary = boundary;
 
     if (llvm::Error error =
@@ -711,7 +719,7 @@ llvm::Error validateSelectedLoweringBoundaries(
   }
 
   for (const EmissionReference &reference : references) {
-    if (!reference.requiresLoweringBoundary || !reference.loweringBoundary)
+    if (!reference.loweringBoundary)
       continue;
     VariantLoweringBoundaryValidationRequest request(
         reference.variant, kernel, capabilities, reference.role,
