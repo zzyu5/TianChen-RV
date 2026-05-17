@@ -121,3 +121,59 @@ external C harness on `ssh rvv`.
 ### Status
 
 [OK] Completed. Ready for archive and commit.
+
+
+## Session 104: RVV vector-source arithmetic-family selected-boundary materializer
+
+**Date**: 2026-05-17
+**Task**: RVV vector-source arithmetic-family selected-boundary materializer
+**Branch**: `main`
+
+### Summary
+
+Generalized the production RVV vector-source front-door materializer from the
+add-only source matcher into a bounded i32m1 add/sub/mul arithmetic-family
+materializer. The selected source arithmetic op now carries into explicit
+`tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`, or `tcrv_rvv.i32_mul` ops and then
+through the existing materialized EmitC object/header/bundle route.
+
+### Main Changes
+
+- Created Trellis task `05-17-rvv-vector-source-arithmetic-family-materializer`
+  from the Hermes brief and wrote the PRD around the production RVV
+  front-door boundary.
+- Replaced `BoundedI32AddSourcePattern` with an op-kind-aware
+  `BoundedI32ArithmeticSourcePattern`.
+- Recognized exactly `arith.addi`, `arith.subi`, and `arith.muli` in the
+  bounded vector/scf source body and mapped them to
+  `tcrv_rvv.i32_add/sub/mul`.
+- Preserved fail-closed behavior for stale `tcrv_rvv.lowering_seed`,
+  pre-existing `tcrv.exec`/`tcrv_rvv` residue, wrong ABI shape, wrong vector
+  type, unsupported arithmetic, and generated-header descriptor/direct-C/
+  source-export residue.
+- Added sub and mul source-front-door lit fixtures and expanded RVV target
+  object/header/bundle export coverage for add/sub/mul selected variants.
+- Did not touch `scripts/rvv_generated_bundle_abi_e2e.py`; no new sub/mul
+  runtime correctness claim was made.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit from `build/test`: `Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir`, `Transforms/RVV/rvv-i32m1-vector-source-front-door-sub.mlir`, `Transforms/RVV/rvv-i32m1-vector-source-front-door-mul.mlir`, `Transforms/RVV/rvv-i32m1-vector-source-front-door-negative.mlir`, `Transforms/SourceFrontDoor/source-artifact-front-door-pipeline-negative.mlir`, `Transforms/SourceFrontDoor/source-artifact-front-door-pipeline-disabled.mlir`, `Target/RVV/vector-source-target-artifact-object.mlir`, `Target/RVV/vector-source-target-artifact-header.mlir`: 8/8 passed.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 115/115 lit tests passed.
+- [OK] `git diff --check`
+- [OK] targeted scans found descriptor/direct-C/source-export strings only in fail-closed diagnostics, forbidden-token validation, or `CHECK-NOT` assertions.
+
+### Runtime Evidence
+
+No fresh `ssh rvv` run was performed because the ABI runner and bundle mechanics
+were not changed. The previous `b99f31a` add-path proof remains the runtime ABI
+consumption evidence for the unchanged generated object/header bundle
+mechanics; this round's new sub/mul behavior is covered at compiler and target
+artifact export level.
+
+### Status
+
+[OK] Completed. Ready for archive and commit.

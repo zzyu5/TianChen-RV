@@ -74,11 +74,11 @@ module {
   func.func @wrong_arithmetic_op(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
     %c0 = arith.constant 0 : index
     %c4 = arith.constant 4 : index
-    // expected-error@+1 {{bounded RVV i32m1 vector-source front door failed: scf.for body operation order must be vector.load, vector.load, arith.addi, vector.store}}
+    // expected-error@+1 {{bounded RVV i32m1 vector-source front door failed: scf.for body operation order must be vector.load, vector.load, supported arith.addi/arith.subi/arith.muli, vector.store}}
     scf.for %i = %c0 to %n step %c4 {
       %a = vector.load %lhs[%i] : memref<?xi32>, vector<4xi32>
       %b = vector.load %rhs[%i] : memref<?xi32>, vector<4xi32>
-      %sum = arith.subi %a, %b : vector<4xi32>
+      %sum = arith.andi %a, %b : vector<4xi32>
       vector.store %sum, %out[%i] : memref<?xi32>, vector<4xi32>
     }
     return
@@ -91,7 +91,7 @@ module {
   func.func @extra_loop_op(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
     %c0 = arith.constant 0 : index
     %c4 = arith.constant 4 : index
-    // expected-error@+1 {{bounded RVV i32m1 vector-source front door failed: scf.for body must contain exactly two vector.load ops, one arith.addi, and one vector.store}}
+    // expected-error@+1 {{bounded RVV i32m1 vector-source front door failed: scf.for body must contain exactly two vector.load ops, one supported arith.addi/arith.subi/arith.muli op, and one vector.store}}
     scf.for %i = %c0 to %n step %c4 {
       %a = vector.load %lhs[%i] : memref<?xi32>, vector<4xi32>
       %b = vector.load %rhs[%i] : memref<?xi32>, vector<4xi32>
@@ -109,7 +109,7 @@ module {
   func.func @missing_store(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
     %c0 = arith.constant 0 : index
     %c4 = arith.constant 4 : index
-    // expected-error@+1 {{bounded RVV i32m1 vector-source front door failed: scf.for body must contain exactly two vector.load ops, one arith.addi, and one vector.store}}
+    // expected-error@+1 {{bounded RVV i32m1 vector-source front door failed: scf.for body must contain exactly two vector.load ops, one supported arith.addi/arith.subi/arith.muli op, and one vector.store}}
     scf.for %i = %c0 to %n step %c4 {
       %a = vector.load %lhs[%i] : memref<?xi32>, vector<4xi32>
       %b = vector.load %rhs[%i] : memref<?xi32>, vector<4xi32>

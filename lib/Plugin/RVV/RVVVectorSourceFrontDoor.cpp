@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 
@@ -16,7 +17,9 @@
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/ErrorHandling.h"
 
 #include <cstdint>
 #include <memory>
@@ -53,9 +56,19 @@ struct SourceRuntimeABIValue {
   mlir::BlockArgument sourceArgument;
 };
 
-struct BoundedI32AddSourcePattern {
+struct BoundedI32ArithmeticSourcePattern {
   mlir::func::FuncOp func;
+  RVVI32M1ArithmeticOp arithmeticOp;
   llvm::SmallVector<SourceRuntimeABIValue, 4> runtimeABIValues;
+};
+
+struct SourceArithmeticOp {
+  mlir::Operation *op;
+  RVVI32M1ArithmeticOp kind;
+  llvm::StringLiteral sourceName;
+  mlir::Value lhs;
+  mlir::Value rhs;
+  mlir::Value result;
 };
 
 bool isRank1DynamicI32MemRef(mlir::Type type) {
@@ -96,17 +109,42 @@ bool usesOnlyIndex(mlir::Operation::operand_range indices,
   return llvm::hasSingleElement(indices) && *indices.begin() == expectedIndex;
 }
 
-mlir::LogicalResult failMaterializer(mlir::Operation *op,
-                                     llvm::StringRef message) {
+mlir::LogicalResult failMaterializer(mlir::Operation *op, llvm::Twine message) {
   op->emitError() << "bounded RVV i32m1 vector-source front door failed: "
                   << message;
   return mlir::failure();
 }
 
-mlir::FailureOr<BoundedI32AddSourcePattern>
-failMaterializerMatch(mlir::Operation *op, llvm::StringRef message) {
+mlir::FailureOr<BoundedI32ArithmeticSourcePattern>
+failMaterializerMatch(mlir::Operation *op, llvm::Twine message) {
   (void)failMaterializer(op, message);
   return mlir::failure();
+}
+
+std::optional<SourceArithmeticOp>
+matchSupportedSourceArithmeticOp(mlir::Operation *op) {
+  if (auto add = llvm::dyn_cast<mlir::arith::AddIOp>(op))
+    return SourceArithmeticOp{op, RVVI32M1ArithmeticOp::Add, "arith.addi",
+                              add.getLhs(), add.getRhs(), add.getResult()};
+  if (auto sub = llvm::dyn_cast<mlir::arith::SubIOp>(op))
+    return SourceArithmeticOp{op, RVVI32M1ArithmeticOp::Sub, "arith.subi",
+                              sub.getLhs(), sub.getRhs(), sub.getResult()};
+  if (auto mul = llvm::dyn_cast<mlir::arith::MulIOp>(op))
+    return SourceArithmeticOp{op, RVVI32M1ArithmeticOp::Mul, "arith.muli",
+                              mul.getLhs(), mul.getRhs(), mul.getResult()};
+  return std::nullopt;
+}
+
+llvm::StringRef getRVVI32M1ArithmeticOperationName(RVVI32M1ArithmeticOp op) {
+  switch (op) {
+  case RVVI32M1ArithmeticOp::Add:
+    return "tcrv_rvv.i32_add";
+  case RVVI32M1ArithmeticOp::Sub:
+    return "tcrv_rvv.i32_sub";
+  case RVVI32M1ArithmeticOp::Mul:
+    return "tcrv_rvv.i32_mul";
+  }
+  llvm_unreachable("unknown RVV i32m1 arithmetic op");
 }
 
 bool hasForeignLoweringSeedAttr(mlir::func::FuncOp func) {
@@ -153,8 +191,8 @@ mlir::LogicalResult requireSourceOnlyModule(mlir::ModuleOp module) {
                           "not accepted");
 }
 
-mlir::FailureOr<BoundedI32AddSourcePattern>
-matchBoundedI32AddSourcePattern(mlir::func::FuncOp func) {
+mlir::FailureOr<BoundedI32ArithmeticSourcePattern>
+matchBoundedI32ArithmeticSourcePattern(mlir::func::FuncOp func) {
   if (func->hasAttr(kSeedAttrName))
     return failMaterializerMatch(
         func,
@@ -243,17 +281,19 @@ matchBoundedI32AddSourcePattern(mlir::func::FuncOp func) {
     return failMaterializerMatch(
         loop,
         "scf.for body must contain exactly two vector.load ops, one "
-        "arith.addi, and one vector.store");
+        "supported arith.addi/arith.subi/arith.muli op, and one "
+        "vector.store");
 
   auto lhsLoad = llvm::dyn_cast<mlir::vector::LoadOp>(bodyOps[0]);
   auto rhsLoad = llvm::dyn_cast<mlir::vector::LoadOp>(bodyOps[1]);
-  auto add = llvm::dyn_cast<mlir::arith::AddIOp>(bodyOps[2]);
+  std::optional<SourceArithmeticOp> arithmetic =
+      matchSupportedSourceArithmeticOp(bodyOps[2]);
   auto store = llvm::dyn_cast<mlir::vector::StoreOp>(bodyOps[3]);
-  if (!lhsLoad || !rhsLoad || !add || !store)
+  if (!lhsLoad || !rhsLoad || !arithmetic || !store)
     return failMaterializerMatch(
         loop,
         "scf.for body operation order must be vector.load, vector.load, "
-        "arith.addi, vector.store");
+        "supported arith.addi/arith.subi/arith.muli, vector.store");
 
   mlir::Value iv = loop.getInductionVar();
   if (lhsLoad.getBase() != entry.getArgument(0) ||
@@ -269,23 +309,30 @@ matchBoundedI32AddSourcePattern(mlir::func::FuncOp func) {
     return failMaterializerMatch(
         loop, "source vector loads must produce vector<4xi32>");
 
-  if (add.getLhs() != lhsLoad.getResult() || add.getRhs() != rhsLoad.getResult())
+  if (arithmetic->lhs != lhsLoad.getResult() ||
+      arithmetic->rhs != rhsLoad.getResult())
     return failMaterializerMatch(
-        add, "arith.addi must consume the two source vector loads");
-  if (!isBoundedSourceVectorI32(add.getResult().getType()))
-    return failMaterializerMatch(add,
-                                 "arith.addi must produce vector<4xi32>");
+        arithmetic->op,
+        llvm::Twine(arithmetic->sourceName) +
+            " must consume the two source vector loads");
+  if (!isBoundedSourceVectorI32(arithmetic->result.getType()))
+    return failMaterializerMatch(
+        arithmetic->op,
+        llvm::Twine(arithmetic->sourceName) + " must produce vector<4xi32>");
 
   if (store.getBase() != entry.getArgument(2) ||
       !usesOnlyIndex(store.getIndices(), iv))
     return failMaterializerMatch(store,
                                  "vector.store must write out at the loop iv");
-  if (store.getValueToStore() != add.getResult())
+  if (store.getValueToStore() != arithmetic->result)
     return failMaterializerMatch(
-        store, "vector.store must store the arith.addi result");
+        store,
+        llvm::Twine("vector.store must store the ") +
+            arithmetic->sourceName + " result");
 
-  BoundedI32AddSourcePattern source;
+  BoundedI32ArithmeticSourcePattern source;
   source.func = func;
+  source.arithmeticOp = arithmetic->kind;
   source.runtimeABIValues = deriveSourceRuntimeABIValues(entry);
   return source;
 }
@@ -373,10 +420,13 @@ mlir::Operation *createI32Load(mlir::OpBuilder &builder, mlir::Location loc,
   return builder.create(state);
 }
 
-mlir::Operation *createI32Add(mlir::OpBuilder &builder, mlir::Location loc,
-                              mlir::Value lhs, mlir::Value rhs,
-                              mlir::Value vl) {
-  mlir::OperationState state(loc, "tcrv_rvv.i32_add");
+mlir::Operation *createI32Arithmetic(mlir::OpBuilder &builder,
+                                     mlir::Location loc,
+                                     RVVI32M1ArithmeticOp arithmeticOp,
+                                     mlir::Value lhs, mlir::Value rhs,
+                                     mlir::Value vl) {
+  mlir::OperationState state(loc,
+                             getRVVI32M1ArithmeticOperationName(arithmeticOp));
   state.addOperands({lhs, rhs, vl});
   state.addTypes(tcrv::rvv::I32M1VectorType::get(builder.getContext()));
   return builder.create(state);
@@ -432,11 +482,14 @@ void createSelectedDispatchEnvelope(mlir::OpBuilder &builder,
 }
 
 void materializeSourceKernel(mlir::OpBuilder &builder,
-                             const BoundedI32AddSourcePattern &source) {
+                             const BoundedI32ArithmeticSourcePattern &source) {
   mlir::func::FuncOp func = source.func;
   mlir::Location loc = func.getLoc();
   std::string kernelName = (func.getSymName() + "_kernel").str();
-  std::string variantName = (func.getSymName() + "_rvv_i32_add").str();
+  std::string variantName =
+      (func.getSymName() + "_rvv_i32_" +
+       stringifyRVVI32M1ArithmeticOp(source.arithmeticOp))
+          .str();
   std::string fallbackVariantName =
       (func.getSymName() + "_scalar_fallback").str();
 
@@ -496,10 +549,10 @@ void materializeSourceKernel(mlir::OpBuilder &builder,
         createI32Load(builder, loc, lhs->getResult(0), setvl->getResult(0));
     mlir::Operation *rhsLoad =
         createI32Load(builder, loc, rhs->getResult(0), setvl->getResult(0));
-    mlir::Operation *sum = createI32Add(builder, loc, lhsLoad->getResult(0),
-                                        rhsLoad->getResult(0),
-                                        setvl->getResult(0));
-    createI32Store(builder, loc, out->getResult(0), sum->getResult(0),
+    mlir::Operation *result = createI32Arithmetic(
+        builder, loc, source.arithmeticOp, lhsLoad->getResult(0),
+        rhsLoad->getResult(0), setvl->getResult(0));
+    createI32Store(builder, loc, out->getResult(0), result->getResult(0),
                    setvl->getResult(0));
   }
 
@@ -519,8 +572,9 @@ public:
   }
 
   llvm::StringRef getDescription() const final {
-    return "Materialize one bounded MLIR vector i32 add source pattern into "
-           "the RVV i32m1 selected boundary and dispatch front door";
+    return "Materialize one bounded MLIR vector i32 add/sub/mul source "
+           "pattern into the RVV i32m1 selected boundary and dispatch front "
+           "door";
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
@@ -553,8 +607,8 @@ public:
       return;
     }
 
-    mlir::FailureOr<BoundedI32AddSourcePattern> source =
-        matchBoundedI32AddSourcePattern(sources.front());
+    mlir::FailureOr<BoundedI32ArithmeticSourcePattern> source =
+        matchBoundedI32ArithmeticSourcePattern(sources.front());
     if (mlir::failed(source)) {
       signalPassFailure();
       return;

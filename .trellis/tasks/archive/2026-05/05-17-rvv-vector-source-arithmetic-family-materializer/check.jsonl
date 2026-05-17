@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "Verify compiler-stack and descriptor/Python boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV selected route family and evidence claims"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify selected materialized EmitC object/header/bundle route"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused checks and no evidence inflation"}
+{"file": ".trellis/tasks/05-17-rvv-vector-source-arithmetic-family-materializer/prd.md", "reason": "Verify acceptance criteria or record blockers"}

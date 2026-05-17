@@ -207,8 +207,8 @@ llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
   out.push_back(SourceFrontDoorPassRegistration(
       kRVVPluginName,
       "tcrv-rvv-materialize-i32m1-vector-source-front-door",
-      "Materialize one bounded MLIR vector i32 add source pattern into the "
-      "RVV i32m1 selected boundary and dispatch front door",
+      "Materialize one bounded MLIR vector i32 add/sub/mul source pattern "
+      "into the RVV i32m1 selected boundary and dispatch front door",
       [] { return createMaterializeRVVI32M1VectorSourceFrontDoorPass(); }));
   return llvm::Error::success();
 }
