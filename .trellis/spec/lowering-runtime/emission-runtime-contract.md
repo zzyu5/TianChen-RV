@@ -299,27 +299,29 @@ paths, duplicate or ambiguous supported artifacts, and malformed bounded text.
 
 Concrete artifact generation remains target-owned. Built-in tools may register
 target exporters, but the registration is where extension-specific route facts
-belong. Exporters that declare required runtime ABI parameter roles also verify
+belong after the selected candidate already names a materialized EmitC/runtime
+route. Exporters that declare required runtime ABI parameter roles also verify
 that any selected emission-plan diagnostic parameter metadata is an exact mirror
 of the executable IR-backed ABI boundary consumed by the target-owned exporter,
 including role, C name, C type, and ownership. Missing, spoofed, stale, or
-extra required roles fail before target-owned C source, header, object, or
-bundle emission. Composite helper routes that are matched from callable source
-candidates, such as RVV header/object helpers and RVV+scalar dispatch
-source/header/object helpers, must register route-local candidate preflight
-callbacks when their component callable routes carry compiler-owned ABI role
-contracts. Those callbacks must reuse the same typed `TargetArtifactExporter`
-candidate validation surface rather than duplicating a string-only ABI model.
-Standalone target exporters may also register a route-local candidate
-validation callback when a static role list is not expressive enough to check
-the full compiler-owned runtime ABI contract. The generic target artifact
-front door and the execution-plan coherence gate must invoke that callback
-after checking route id, artifact kind, origin, emission kind, export callback,
-and required typed ABI roles, and before calling the route-specific exporter.
-Such callbacks may validate generic compiler-owned ABI surfaces such as
-`tcrv.exec.mem_window` and `tcrv.exec.runtime_param` role/name/type/purpose/
-ownership/kind consistency for the selected candidate, but extension-specific
-descriptor body policy remains target/export-local.
+extra required roles fail before target-owned artifact materialization.
+Composite helper routes, such as a declaration-only header or bundle component
+derived from the same selected materialized object candidate, must register
+route-local candidate preflight callbacks when their component routes carry
+compiler-owned ABI role contracts. Those callbacks must reuse the same typed
+`TargetArtifactExporter` candidate validation surface rather than duplicating a
+string-only ABI model. Standalone target exporters may also register a
+route-local candidate validation callback when a static role list is not
+expressive enough to check the full compiler-owned runtime ABI contract. The
+generic target artifact front door and the execution-plan coherence gate must
+invoke that callback after checking route id, artifact kind, origin, emission
+kind, export callback, and required typed ABI roles, and before calling the
+route-specific exporter. Such callbacks may validate generic compiler-owned ABI
+surfaces such as `tcrv.exec.mem_window` and `tcrv.exec.runtime_param`
+role/name/type/purpose/ownership/kind consistency for the selected candidate,
+but descriptor-shaped body policy is deleted-route residue: target/export-local
+code may only reject it or report unsupported missing-materialized-EmitC
+diagnostics.
 Shared generic routing must not branch on RVV, IME, offload, scalar, vendor,
 dtype, shape, runtime, toolchain, or microarchitecture semantics. The deleted
 RVV standalone smoke-probe C exporter, runtime-callable RVV microkernel, scalar
@@ -330,24 +332,18 @@ generic RVV or scalar lowering, full runtime ABI integration, object generation,
 linking, arbitrary source export, correctness evidence, or performance
 evidence.
 
-The artifact-kind-aware generic route may also select target-owned bounded
-RISC-V ELF relocatable object exporters for the same validated direct RVV
-i32 binary microkernel path or RVV+scalar i32 binary dispatch path. These
-library-object routes reuse the selected callable or dispatch source
-validation, emit the default library-style source internally, and then use
-structured RVV architecture capability metadata, selected RVV compile
-capability metadata, and local `clang` to produce a RISC-V ELF relocatable
-object with no hidden `main` or self-check harness. A distinct
-runtime-callable C header route may be selected through the generic
-`--tcrv-export-target-header-artifact` front door and must use artifact kind
-`runtime-callable-c-header`. Header selection is source-like only for its
-external C caller surface: it must not make
-`--tcrv-export-target-artifact` choose the header instead of a matching
-library-object route. The generic source-only front door is deleted; source
-artifacts are not generic-front-door selectable until a future materialized
-EmitC route rebuild defines a new contract. The object and header routes are
-still bounded target artifacts; they do not link, run hardware, perform
-automatic probing, prove correctness, or measure performance.
+The artifact-kind-aware generic route may select target-owned bounded
+RISC-V ELF relocatable object and declaration-only header exporters only when
+the selected candidate is already backed by explicit extension-family IR plus a
+materialized MLIR EmitC module route. The current bounded RVV i32m1 arithmetic
+object/header/bundle path uses the selected materialized EmitC candidate, MLIR
+EmitC C/C++ emission, and target artifact packaging. It is not a direct RVV
+microkernel path, not an RVV+scalar dispatch path, and not a source-export
+exception. The generic source-only front door is deleted; source artifacts are
+not generic-front-door selectable until a future materialized EmitC route
+rebuild defines a new contract. The object and header routes are still bounded
+target artifacts; they do not link, run hardware, perform automatic probing,
+prove correctness, or measure performance.
 Historical direct RVV microkernel library-object provenance sections are
 deleted as active route authority. Future object provenance must be derived
 from explicit extension-family IR, the materialized EmitC/runtime route, and
@@ -355,8 +351,10 @@ the ordered runtime ABI role contract rather than selected config descriptors
 or runtime-length metadata helpers. Such provenance must not contain runtime
 logs, hardware success text, artifact paths, credentials, correctness claims,
 or performance claims.
-The self-check object route remains an explicit target-owned helper command for
-evidence collection, not the generic artifact front door.
+No self-check object route is active production authority. Any future
+self-check artifact must be rebuilt from explicit extension-family IR through a
+materialized EmitC/runtime route and must remain separate from generic route
+registration until that route has its own contract and evidence.
 For historical direct RVV i32/i64 add/sub/mul microkernel paths, the
 runtime-callable C header/object route is deleted as production authority.
 Selected RVV metadata, microkernel op names, or descriptor-shaped mirrors are
@@ -549,38 +547,23 @@ future rebuild:
 explicit extension-family ops -> materialized MLIR EmitC module -> artifact
 ```
 
-The artifact-kind-aware generic route may also select scalar fallback
-runtime-callable C header and RISC-V ELF relocatable object helpers for the same
-validated scalar i32 binary callable source candidate. These scalar helpers are
-contributed by scalar target/export code through the `scalar-plugin`
-plugin-owned target exporter bundle, not by core orchestration. When a
-single scalar header/object helper route is shared by add/sub/mul, its runtime
-ABI kind/name must be derived from the matched source candidate rather than a
-vadd-only route default. The header
-route is a declaration-only external C surface for the same IR-backed
-`tcrv.exec.mem_window` plus `tcrv.exec.runtime_param` callable ABI plan. The
-object route emits the validated scalar library-style C source internally and
-compiles it with local `clang` using structured RISC-V target/toolchain
-capability metadata: an available `rv64` capability provider with `riscv64`
-architecture metadata and selected march metadata from
-`riscv.toolchain.march`, `rvv.probe.compile_run`, or `rvv.toolchain.march`.
-Optional MABI metadata may be supplied by the matching `riscv.toolchain.mabi`,
-`rvv.probe.compile_run`, or `rvv.toolchain.mabi` facts. If those facts or local
-`clang` are absent, object export fails with a bounded diagnostic instead of
-silently emitting a host object or a source-only substitute. The scalar helpers
-do not add generic scalar lowering, linked runtime glue, automatic dispatch,
-runtime execution, RVV evidence, correctness coverage, or performance evidence.
+Scalar fallback has no active direct runtime-callable C header, source, object,
+or helper route. Historical scalar i32 binary callable source candidates and
+scalar header/object helper ids are deleted-route inputs; they may remain only
+as negative fail-closed fixtures until a future scalar extension-family route
+materializes real EmitC IR and defines its own runtime ABI contract. Capability
+facts such as `rv64`, selected march/mabi, or local `clang` availability may
+constrain a future rebuilt route, but they must not by themselves authorize a
+scalar source substitute, host object, runtime ABI, correctness claim, or
+performance claim.
 
-When a selected dispatch contains a primary supported non-fallback route plus a
-supported `dispatch fallback` route, generic single-artifact export must choose
-the primary non-fallback route and ignore the fallback candidate for ambiguity
-purposes. This keeps `--tcrv-export-target-artifact` deterministic for
-RVV/offload primary paths while preserving the scalar fallback candidate for
-the specialized host dispatch exporter. The deleted generic source-only front
-door must remain absent. A scalar-only selected fallback remains exportable
-through the generic default route when it is the only supported non-source
-candidate. If multiple non-fallback candidates remain supported for one generic
-export request, the request is still ambiguous and must fail closed.
+RVV+scalar dispatch has no active direct source/header/object route. Generic
+single-artifact export must not preserve scalar fallback candidates or dispatch
+metadata as direct artifact authority. Any future dispatch artifact must be
+rebuilt from explicit extension-family ops through a materialized common EmitC
+module and a route-specific runtime ABI contract. Until then, deleted generic
+source-only and dispatch helper front doors remain absent, and ambiguous or
+unsupported selected candidates must fail closed.
 
 ### Parameter Claim Boundary
 
@@ -602,11 +585,12 @@ preserve parameter layering:
   arguments, length `n`, and dispatch guards may be emitted only as real
   IR/control fields or generated ABI parameters;
 - generated ABI parameters must state whether they are actually IR-modeled or
-  target/export ABI-owned. The current bounded i32 binary RVV and scalar source
-  exports pass `lhs`, `rhs`, `out`, and runtime `n` as C ABI parameters, but the
-  callable parameter plan must be built from real `tcrv.exec.mem_window` IR for
-  lhs/rhs/out buffer meanings and real direct `tcrv.exec.runtime_param` IR for
-  runtime-element-count. Candidate/emission-plan parameter metadata may only
+  target/export ABI-owned. The current bounded RVV i32m1 materialized EmitC
+  route may pass `lhs`, `rhs`, `out`, and runtime `n` as C ABI parameters, but
+  the callable parameter plan must be built from real `tcrv.exec.mem_window` IR
+  for lhs/rhs/out buffer meanings and real direct `tcrv.exec.runtime_param` IR
+  for runtime-element-count. Historical scalar source exports are deleted and
+  cannot provide this plan. Candidate/emission-plan parameter metadata may only
   mirror that IR-backed plan, while runtime ABI strings and glue roles come
   from plugin/target-owned route construction. Runtime `n` remains a runtime
   ABI/control value, not deleted local count residue;
@@ -616,19 +600,15 @@ preserve parameter layering:
   remaining-AVL calculation, per-chunk `setvl`, and lhs/rhs/out advancement in
   materialized EmitC, not a descriptor, route comment, source string, target
   helper, or bundle metadata field;
-- emission-plan-backed RVV+scalar dispatch export must resolve callable
-  parameters from the same IR-backed callable ABI plan for both the selected RVV
-  candidate and the selected scalar fallback candidate. The bounded dispatch
-  exporter must reject callable candidate metadata that disagrees with the
-  `mem_window` / runtime-element-count `runtime_param` boundaries, then append
-  exactly one target/export-owned `dispatch-availability-guard` parameter
-  resolved through a selected dispatch case that carries typed
-  `runtime_guard_required = true` and has a `runtime_guard` symbol reference to
-  direct `tcrv.exec.runtime_param` IR. Detached role lookup, printable
-  condition/guard/policy strings, or stale dispatch metadata must not become
-  the executable branch-control source. The guard C name must be explicit and
-  caller-owned; changing it must not change callable role order, add the guard
-  to callable microkernel signatures, or introduce automatic hardware probing;
+- emission-plan-backed RVV+scalar dispatch export is not an active route. Any
+  future dispatch route must resolve callable parameters from IR-backed
+  callable ABI plans for every executable branch, and must reject callable
+  candidate metadata that disagrees with `mem_window` /
+  runtime-element-count `runtime_param` boundaries before artifact
+  materialization. Detached role lookup, printable condition/guard/policy
+  strings, stale dispatch metadata, or deleted scalar fallback candidate records
+  must not become executable branch-control source, callable ABI authority, or
+  automatic hardware probing;
 - deleted legacy RVV/scalar local element-count markers describe historical
   selected-path metadata at most. An extension plugin may choose bounded
   diagnostic sample sizes from validated structured capability facts, but those
@@ -731,21 +711,19 @@ The generic preflight verifier may use the existing `ExtensionPluginRegistry`
 to validate origin ownership and the generic target artifact exporter registry
 to validate concrete route id, artifact kind, origin/emission identifiers,
 export callbacks, and runtime ABI parameter contracts. Target-specific proof
-of a concrete microkernel, descriptor body, toolchain, or runtime remains
-target-owned and must not move into the shared transform. Extension bundles
-must not require standalone or composite exporters to publish selected-plan
+for a rebuilt artifact remains target-owned and must not move into the shared
+transform. Descriptor bodies and historical microkernel descriptors are not
+proof surfaces; extension bundles must reject them or report unsupported
+missing-materialized-EmitC diagnostics instead of publishing selected-plan
 metadata descriptors as target artifact route authority.
 When a registered target artifact route declares required runtime ABI roles or
 a route-local ABI validation callback, this same preflight verifier must reject
 missing or inconsistent compiler-owned ABI contracts before source, header,
-object, or bundle materialization. RVV and scalar callable routes use this
-boundary for their compiler-owned
-lhs/rhs/out/runtime-element-count role contracts: direct callable source routes
-declare the typed callable role requirements, RVV header/object composite
-helpers preflight the selected RVV callable source candidate through that same
-route contract, and RVV+scalar dispatch composite helpers preflight both the
-RVV dispatch-case callable candidate and scalar dispatch-fallback callable
-candidate before deriving the dispatcher ABI.
+object, or bundle materialization. Rebuilt materialized EmitC routes use this
+boundary for compiler-owned lhs/rhs/out/runtime-element-count role contracts.
+Historical direct callable source routes, scalar fallback source/header/object
+routes, RVV direct microkernel header/object routes, and RVV+scalar dispatch
+composite helpers must not publish route authority through this verifier.
 
 The canonical `tcrv-opt --tcrv-execution-planning-pipeline` must run this same
 preflight verifier as its final gate after emission-plan materialization when a
@@ -791,13 +769,12 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   by delegating to target-owned registration functions or, for route groups
   with an extension plugin manifest hook, by asking that plugin to configure
   its target-support `ExtensionBundle` contribution.
-- The current non-plugin single-candidate route set is empty until a
-  materialized source route is rebuilt.
-- The current plugin-owned executable runtime-callable C route set is empty
-  until a materialized source route is rebuilt. RVV selected microkernel
-  source/header/object routes, scalar selected fallback source/header/object
-  routes, and RVV+scalar dispatch source/header/object routes must not be
-  registered as supported target artifact routes.
+- The current non-plugin single-candidate route set is empty unless a route is
+  explicitly backed by a materialized EmitC artifact contract.
+- The current plugin-owned direct-C/source-export route set is empty. RVV
+  selected microkernel source/header/object routes, scalar selected fallback
+  source/header/object routes, and RVV+scalar dispatch source/header/object
+  routes must not be registered as supported target artifact routes.
 - The scalar plugin may still contribute its extension bundle so selected
   scalar fallback intent and dialect ownership remain visible, but its
   target-artifact exporter bundle must not
@@ -1021,24 +998,26 @@ target-specific artifact body content stays in target-owned exporters.
 
 The target artifact bundle export is a directory materialization layer over the
 same registry-derived artifact records that the emission manifest serializes.
-It may iterate `collectTargetArtifactBundleRecords`, call the registered
-source/header/object exporter callbacks, and write a deterministic
-bundle index plus the selected artifact files under an explicit existing output
-directory. The generic bundle layer must not branch on RVV, scalar, IME,
+It may iterate `collectTargetArtifactBundleRecords`, call registered artifact
+exporter callbacks for currently supported materialized routes, and write a
+deterministic bundle index plus the selected artifact files under an explicit
+existing output directory. Current bundle output is limited to header/object
+records unless a future materialized EmitC source contract explicitly adds a
+source record. The generic bundle layer must not branch on RVV, scalar, IME,
 Sophgo, offload, vendor, target family, dtype, shape, runtime, toolchain, or
 microarchitecture semantics to decide which files exist; route availability
 comes from selected-path/emission-plan metadata and the target artifact
 exporter registry. Before writing any artifact file or complete index, bundle
 export must validate the selected target-artifact front door for each kernel:
-registered composite routes may consume their complete component set, otherwise
-there must be exactly one selected standalone front door after excluding a
-selected dispatch fallback behind a supported non-fallback path. Multiple
-non-fallback standalone candidates without a registered composite route,
-unknown routes, or route/exporter metadata mismatches are selected-plan
+registered composite routes may consume their complete materialized component
+set, otherwise there must be exactly one selected standalone materialized route.
+Deleted dispatch fallback candidates are not bundle disambiguation authority.
+Multiple standalone candidates without a registered materialized composite
+route, unknown routes, or route/exporter metadata mismatches are selected-plan
 coherence failures, not late file-emission choices. Bundle file names and the
 index must be deterministic, safe, and metadata-derived, and must not contain
 local absolute paths, credentials, timestamps, random values, `artifacts/tmp`
-  paths, raw logs, or secret-like text. Unsupported selected
+paths, raw logs, or secret-like text. Unsupported selected
 paths must not produce a fake complete bundle. If artifact materialization
 fails, the exporter must fail before writing a complete index and must either
 remove partial outputs or otherwise avoid claiming a complete bundle. The
@@ -1052,25 +1031,16 @@ claim fields, the bundle index must preserve those fields on the corresponding
 artifact record. This allows downstream evidence runners to consume the
 compiler-emitted no-claim boundary instead of inferring it from file names or
 route strings.
-When a selected dispatch has a supported primary non-fallback route plus a
-supported dispatch fallback route and no target-owned composite bundle route
-matches, the bundle layer follows the single-artifact front-door rule and emits
-only the selected non-fallback artifact record. An Offload selected path with an
-unsupported emission plan produces no bundle artifact and fails closed at the
-front door.
-Dispatch-capable external ABI bundles must additionally expose a typed
-component contract in the compiler-emitted bundle index. For the bounded
-RVV+scalar i32-vadd dispatch bundle, the generated source, generated header,
-and generated relocatable object records must share one stable
-`component_group`, carry distinct `component_role` values (`source`, `header`,
-and `object`), record the same `external_abi_name`, and preserve matching
-runtime ABI kind/name plus selected dispatch component variants/roles. The
-generic bundle layer must validate grouped records before writing a complete
-index: duplicate component roles, missing source/header/object records, missing
+Dispatch-capable external ABI bundles are not active route authority until a
+future materialized EmitC dispatch route owns the branch IR and runtime ABI
+contract. A future dispatch bundle, if rebuilt, must expose a typed component
+contract in the compiler-emitted bundle index and must validate grouped records
+before writing a complete index. Historical RVV+scalar source/header/object
+component records, missing component sets, duplicate component roles, missing
 external ABI identity, mismatched runtime ABI metadata, or mismatched selected
 component paths are coherence failures. Python evidence runners may consume
-these compiler-emitted fields, but must not define or infer the bundle contract
-from file names.
+compiler-emitted fields from rebuilt materialized routes, but must not define
+or infer a bundle contract from file names.
 For a zero-argument callable boundary, the ordered runtime ABI signature may be
 empty only when every record in the same component group carries the same empty
 signature and the generated declaration uses a `void` parameter list. A
@@ -1892,11 +1862,11 @@ the stated selected runtime ABI values.
 Historical RVV+scalar dispatch object and self-check-object helpers compiled
 direct-printer generated C. Those object helpers are deleted with the direct C
 semantic exporter path. The generic `--tcrv-export-target-artifact` front door
-must not select any historical dispatch object route. It may select the bounded
-explicit typed RVV dispatch-case object route only when the selected
-emission-plan candidate names the family-level materialized EmitC artifact
-route and the scalar fallback remains unsupported. Historical object route ids
-must not be used as active selection authority, test API, or diagnostic API.
+must not select any historical dispatch object route. Current dispatch object
+export remains fail-closed. A future dispatch-case object route would need its
+own selected emission-plan candidate naming a family-level materialized EmitC
+artifact route; historical object route ids must not be used as active
+selection authority, test API, or diagnostic API.
 
 ### Deleted Dispatch Self-Check Executable Evidence Bridge
 
@@ -1986,30 +1956,27 @@ for the selected surface, the manifest may also serialize a deterministic
 handoff metadata, not proof that the artifact was emitted, linked, run, correct,
 or performant. Each record should name the artifact kind, route/exporter id,
 target or plugin owner, whether the generic front door can select it, the
-command-facing generic selector, whether a direct helper route exists, the
-matching runtime ABI kind/name when applicable, and a bounded evidence role such
-as `compiler-artifact`, `header-declaration`, or `relocatable-object`. When a
-record belongs to a non-empty external ABI `component_group`, the bundle/index
-contract must also publish an ordered runtime ABI signature with
+command-facing generic selector, whether a materialized composite helper route
+exists, the matching runtime ABI kind/name when applicable, and a bounded
+evidence role such as `compiler-artifact`, `header-declaration`, or
+`relocatable-object`. When a record belongs to a non-empty external ABI
+`component_group`, the bundle/index contract must also publish an ordered
+runtime ABI signature with
 `runtime_abi_parameter_count` and, for each non-empty entry,
 `runtime_abi_parameter[index].c_name`, `.c_type`, `.role`, and `.ownership`.
-All source/header/object records in that external ABI group must agree on
-runtime ABI kind/name, external ABI name, component selected variants/roles,
-and the full ordered runtime ABI signature. Missing signatures, duplicate
-roles, mismatched name/type/ownership for the same role, reordered parameters,
-one-sided empty signatures, or malformed typed ABI records fail closed before
-bundle export. A shared empty signature is valid only for zero-argument
-callable boundaries whose generated declaration uses a `void` parameter list.
-Source,
-header, and object routes must remain separate records. Composite dispatch
-records may be attached to the selected dispatch surface and must preserve the
-component selected variants/roles rather than moving RVV/scalar branch
-semantics into `tcrv.exec` or generic manifest code. Deleted direct RVV
-selected-config/runtime AVL contracts are not active bundle authority. A future
-RVV+scalar dispatch exporter must consume explicit extension-family IR plus a
-materialized EmitC/runtime route before deriving dispatch source/header/object
-or bundle records. Multi-VL RVV bundle records may claim support only when the
-selected materialized EmitC module contains the structured loop required by the
-route contract and the loop metadata agrees with that module. Unsupported
-selected paths must omit target artifact records instead of fabricating route
-data.
+All current header/object records in that external ABI group, and any future
+source records added only after a materialized EmitC source contract exists,
+must agree on runtime ABI kind/name, external ABI name, component selected
+variants/roles, and the full ordered runtime ABI signature. Missing signatures,
+duplicate roles, mismatched name/type/ownership for the same role, reordered
+parameters, one-sided empty signatures, or malformed typed ABI records fail
+closed before bundle export. A shared empty signature is valid only for
+zero-argument callable boundaries whose generated declaration uses a `void`
+parameter list. Source, header, and object routes must remain separate records.
+Composite dispatch records are not active route authority until rebuilt from
+explicit extension-family IR plus a materialized EmitC/runtime route. Deleted
+direct RVV selected-config/runtime AVL contracts are not active bundle
+authority. Multi-VL RVV bundle records may claim support only when the selected
+materialized EmitC module contains the structured loop required by the route
+contract and the loop metadata agrees with that module. Unsupported selected
+paths must omit target artifact records instead of fabricating route data.

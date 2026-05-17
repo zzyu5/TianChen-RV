@@ -1,0 +1,6 @@
+{"file":".trellis/spec/index.md","reason":"Global TianChen-RV invariants: C++/MLIR stack, extension-family ops -> EmitC route, and descriptor/direct-C deletion boundary."}
+{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Primary contract surface for stale direct RVV/scalar/dispatch source/header/object/self-check wording cleanup."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Current bounded RVV materialized EmitC object/header/bundle route authority to preserve while deleting direct-route residue."}
+{"file":".trellis/tasks/archive/2026-05/05-17-rvv-runtime-callable-c-abi-link-proof/prd.md","reason":"Immediate prior RVV C ABI evidence proof boundary; confirms evidence tooling did not authorize production direct-C routes."}
+{"file":"scripts/rvv_generated_bundle_abi_e2e.py","reason":"Directly related evidence tool to confirm it remains evidence-only and does not need route-authority changes."}
+{"file":".trellis/tasks/archive/2026-05/05-17-emission-runtime-direct-route-residue-erasure/prd.md","reason":"This round's deletion/refactor-only module goal, boundaries, acceptance criteria, and non-goals."}

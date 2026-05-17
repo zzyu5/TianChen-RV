@@ -1,0 +1,4 @@
+{"file":".trellis/spec/index.md","reason":"Verify final wording still obeys global stack and descriptor/direct-C deletion invariants."}
+{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Check touched contract text contains no positive direct-route authority and preserves materialized EmitC-only route authority."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Cross-check RVV route wording against the plugin-local explicit typed RVV -> materialized EmitC route."}
+{"file":".trellis/tasks/archive/2026-05/05-17-emission-runtime-direct-route-residue-erasure/prd.md","reason":"Validate implementation, scans, and final Trellis state against this deletion-only task scope."}

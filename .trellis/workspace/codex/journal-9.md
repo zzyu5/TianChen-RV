@@ -598,3 +598,58 @@ Tightened RVV generated bundle ABI evidence checks for extern-C header guards an
 ### Next Steps
 
 - None - task complete
+
+
+## Session 110: Emission-runtime direct-route residue erasure
+
+**Date**: 2026-05-17
+**Task**: Emission-runtime direct-route residue erasure
+**Branch**: `main`
+
+### Summary
+
+Removed stale emission-runtime contract wording that could read as direct RVV,
+scalar fallback, RVV+scalar dispatch, descriptor-body, source/header/object, or
+self-check route authority outside the materialized EmitC route.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `05-17-emission-runtime-direct-route-residue-erasure` from the Direction
+  Brief, with deletion/refactor-only PRD scope.
+- Rewrote `.trellis/spec/lowering-runtime/emission-runtime-contract.md` so
+  target artifact generation requires selected extension-family IR plus a
+  materialized EmitC/runtime route before target-owned object/header/bundle
+  facts can be usable.
+- Replaced positive direct-route wording for direct RVV microkernel object/
+  header paths, scalar fallback helpers, RVV+scalar dispatch helpers, dispatch
+  bundle records, descriptor body policy, and self-check object helpers with
+  deleted/fail-closed or future-rebuild-only language.
+- Preserved the current bounded RVV path only as explicit typed RVV IR ->
+  selected materialized EmitC route -> MLIR EmitC C/C++ emission -> target
+  object/header/bundle packaging.
+- Added no compatibility layer, legacy route, descriptor adapter, helper
+  wrapper, compiler code, tests, scripts, or evidence artifacts.
+
+### Git Commits
+
+(Committed in this round; see final report for hash.)
+
+### Testing
+
+- [OK] Trellis context validation for implement/check JSONL.
+- [OK] Focused `rg` scans over the touched spec plus directly related
+  `lib/Target`, `test/Target`, and `scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `git diff --check`
+- [INFO] No build, lit, `ssh rvv`, or `check-tianchenrv` run because this round
+  changed only Trellis task docs and the lowering-runtime contract spec.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Continue deletion only if future scans find more positive descriptor/direct-C
+  route-authority wording; otherwise rebuild work should remain gated by the
+  explicit extension-family IR -> materialized EmitC route.
