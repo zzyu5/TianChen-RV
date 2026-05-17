@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify no Python compiler-core, descriptor, direct-C, or independent-backend regression"}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Check TensorExtLite changes stay plugin-local and construction-protocol-backed"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check materialized EmitC route and selected artifact evidence boundaries"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI, header/object/bundle coherence, and fail-closed behavior"}
+{"file": ".trellis/tasks/archive/2026-05/05-17-tensorextlite-construction-protocol-consumption/prd.md", "reason": "Regression baseline for prior TensorExtLite object/header/bundle closure"}

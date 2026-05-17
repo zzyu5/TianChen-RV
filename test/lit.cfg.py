@@ -100,11 +100,56 @@ void tcrv_lit_riscv_probe(const int32_t *lhs, const int32_t *rhs,
             return False
         return result.returncode == 0 and obj.exists() and obj.stat().st_size > 0
 
+def has_local_native_clangxx():
+    clangxx = Path(config.llvm_tools_dir) / "clang++"
+    if not clangxx.exists():
+        return False
+    source = """\
+#include <cstdio>
+int main() {
+  std::printf("tcrv-lit-native-clangxx-ok\\n");
+  return 0;
+}
+"""
+    with tempfile.TemporaryDirectory(prefix="tcrv-lit-native-clangxx-") as tmp:
+        src = Path(tmp) / "probe.cpp"
+        exe = Path(tmp) / "probe"
+        src.write_text(source)
+        try:
+            result = subprocess.run(
+                [
+                    str(clangxx),
+                    "-std=c++17",
+                    str(src),
+                    "-o",
+                    str(exe),
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=20,
+                check=False,
+            )
+            if result.returncode != 0 or not exe.exists():
+                return False
+            run = subprocess.run(
+                [str(exe)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=20,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+        return run.returncode == 0
+
 if has_local_riscv_object_clang():
     config.available_features.add("tianchenrv-local-riscv-object-clang")
 
 if has_local_rvv_object_clang():
     config.available_features.add("tianchenrv-local-rvv-object-clang")
+
+if has_local_native_clangxx():
+    config.available_features.add("tianchenrv-local-native-clangxx")
 
 tool_dirs = [config.tianchenrv_tools_dir, config.llvm_tools_dir]
 llvm_config.add_tool_substitutions(
@@ -113,6 +158,7 @@ llvm_config.add_tool_substitutions(
         "tcrv-translate",
         "FileCheck",
         "clang",
+        "clang++",
         "llvm-readobj",
         "tianchenrv-capability-model-test",
         "tianchenrv-plugin-registry-test",

@@ -73,6 +73,67 @@ Added a code-consumed common materialized EmitC object/header bundle constructio
 - None - task complete
 
 
+## Session 107: TensorExtLite materialized bundle runtime ABI proof
+
+**Date**: 2026-05-17
+**Task**: TensorExtLite materialized bundle runtime ABI proof
+**Branch**: `main`
+
+### Summary
+
+Extended the TensorExtLite first-slice artifact proof from generation-only to
+local runtime ABI consumption evidence. The production target bundle still
+contains the existing RISC-V relocatable object/header pair; the local native
+execution proof compiles the same generated materialized EmitC C++ source into
+a host proof object, links a harness against the generated declaration header,
+and runs the generated ABI function.
+
+### Main Changes
+
+- Created `.trellis/tasks/05-17-tensorextlite-runtime-abi-proof/` with PRD,
+  implement context, and check context for this bounded round.
+- Added `scripts/tensorextlite_runtime_abi_e2e.py` as evidence tooling only.
+  It invokes `tcrv-opt`, `tcrv-translate`, `clang++`, and `llvm-readobj`;
+  it does not implement compiler IR, lowering, emission, descriptors, or
+  runtime glue.
+- Added `test/Target/TensorExtLite/tensorext-lite-runtime-abi-harness.test`
+  to run the ABI proof under lit when local RISC-V object clang and native
+  clang++ are available.
+- Added `tianchenrv-local-native-clangxx` detection and `clang++` substitution
+  to `test/lit.cfg.py`.
+- Evidence runner outputs include post-planning MLIR, generated C++ source,
+  generated header, target object, object/header bundle, bundle index, harness
+  source, native proof object, command records, run output, and negative
+  fail-closed diagnostics.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/tensorextlite_runtime_abi_e2e.py`
+- [OK] `python3 scripts/tensorextlite_runtime_abi_e2e.py --artifact-root artifacts/tmp/tensorextlite_runtime_abi_e2e --run-id manual-smoke --tcrv-opt ./build/bin/tcrv-opt --tcrv-translate ./build/bin/tcrv-translate --clangxx /usr/lib/llvm-20/bin/clang++ --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj`
+- [OK] Evidence path:
+  `artifacts/tmp/tensorextlite_runtime_abi_e2e/manual-smoke`
+- [OK] Harness PASS tied to selected variant, origin plugin, construction
+  protocol, EmitC route, runtime ABI name, zero ABI params, bundle component
+  group, and native call trace `configure,load_frag,tile_mma,store_frag`.
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-tensorext-lite-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused lit from `build/test` with
+  `--filter='tensorext-lite-runtime-abi-harness'`: 1/1 passed.
+- [OK] focused lit from `build/test` with
+  `--filter='TensorExtLite|tensorext-lite'`: 14/14 passed.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 116/116 lit
+  tests passed.
+- [OK] targeted production scans found no TensorExtLite descriptor route
+  authority, direct C semantic exporter, source-export route, Python
+  compiler-core path, or common/core TensorExtLite semantic branch.
+
+### Status
+
+[OK] Completed. Ready for archive and commit.
+
+
 ## Session 106: TensorExtLite source-to-artifact production path closure
 
 **Date**: 2026-05-17
