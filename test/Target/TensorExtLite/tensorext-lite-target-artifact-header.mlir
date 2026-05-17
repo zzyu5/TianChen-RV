@@ -1,6 +1,9 @@
 // RUN: tcrv-translate --tcrv-export-target-header-artifact %s | FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="descriptor" --implicit-check-not="source-export" --implicit-check-not="int main"
 // RUN: sed '/^    tcrv_tensorext_lite.lowering_boundary/d' %s | not tcrv-translate --tcrv-export-target-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-BOUNDARY --implicit-check-not="tcrv_tensorext_lite_config" --implicit-check-not="tcrv_tensorext_lite_tile_mma"
 // RUN: sed '/^    tcrv_tensorext_lite.lowering_boundary/d' %s | not tcrv-translate --tcrv-tensorext-lite-emitc-to-cpp 2>&1 | FileCheck %s --check-prefix=MISSING-BOUNDARY --implicit-check-not="tcrv_tensorext_lite_config" --implicit-check-not="tcrv_tensorext_lite_tile_mma"
+// RUN: rm -rf %t.missing-boundary.bundle && mkdir %t.missing-boundary.bundle
+// RUN: sed '/^    tcrv_tensorext_lite.lowering_boundary/d' %s | not tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.missing-boundary.bundle 2>&1 | FileCheck %s --check-prefix=MISSING-BOUNDARY --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete" --implicit-check-not="tcrv_tensorext_lite_config" --implicit-check-not="tcrv_tensorext_lite_tile_mma"
+// RUN: not test -e %t.missing-boundary.bundle/tianchenrv-target-artifact-bundle.index
 
 module {
   tcrv.exec.kernel @tensorext_lite_header_export {

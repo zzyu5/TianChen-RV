@@ -25,6 +25,9 @@ namespace {
 
 constexpr llvm::StringLiteral kTensorExtLiteObjectHandoffKind(
     "materialized-emitc-cpp-tensorext-lite-fragment-object");
+constexpr llvm::StringLiteral
+    kTensorExtLiteMaterializedEmitCBundleComponentGroup(
+        "tensorext-lite-fragment-mma-materialized-emitc-bundle.v1");
 constexpr llvm::StringLiteral kTensorExtLiteHeaderRouteID(
     "tensorext-lite-fragment-mma-emitc-route.header");
 constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
@@ -519,6 +522,24 @@ llvm::Error validateTensorExtLiteHeaderArtifactCandidates(
   return llvm::Error::success();
 }
 
+llvm::Expected<TargetArtifactCompositeBundleMetadata>
+getTensorExtLiteHeaderBundleMetadata(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+  if (llvm::Error error =
+          validateTensorExtLiteHeaderArtifactCandidates(candidates))
+    return std::move(error);
+
+  const auto &route = getTensorExtLiteRoute();
+  TargetArtifactCompositeBundleMetadata metadata;
+  metadata.runtimeABIKind = route.runtimeABIKind.str();
+  metadata.runtimeABIName = route.runtimeABIName.str();
+  metadata.componentGroup =
+      kTensorExtLiteMaterializedEmitCBundleComponentGroup.str();
+  metadata.externalABIName = route.runtimeABIName.str();
+  metadata.handoffKind = kTensorExtLiteObjectHandoffKind.str();
+  return metadata;
+}
+
 llvm::Error registerTensorExtLiteTargetArtifactExporter(
     TargetArtifactExporterRegistry &registry) {
   if (llvm::Error error =
@@ -532,7 +553,9 @@ llvm::Error registerTensorExtLiteTargetArtifactExporter(
             route.routeID, route.artifactKind, manifest.family.pluginName,
             route.emissionKind, exportTensorExtLiteObjectArtifact,
             /*requiredRuntimeABIParameters=*/{}, kTensorExtLiteObjectHandoffKind,
-            validateTensorExtLiteTargetArtifactCandidate)))
+            validateTensorExtLiteTargetArtifactCandidate,
+            kTensorExtLiteMaterializedEmitCBundleComponentGroup,
+            route.runtimeABIName)))
       return error;
   }
 
@@ -540,11 +563,14 @@ llvm::Error registerTensorExtLiteTargetArtifactExporter(
     if (llvm::Error error = registry.registerCompositeExporter(
             TargetArtifactCompositeExporter(
                 kTensorExtLiteHeaderRouteID, kRuntimeCallableCHeaderArtifactKind,
-                matchTensorExtLiteHeaderArtifact, exportTensorExtLiteHeaderArtifact,
-                manifest.family.pluginName, /*runtimeABIKind=*/{},
+                matchTensorExtLiteHeaderArtifact,
+                exportTensorExtLiteHeaderArtifact, manifest.family.pluginName,
+                /*runtimeABIKind=*/{},
                 /*runtimeABIName=*/{}, /*runtimeABIParameters=*/{},
-                /*componentGroup=*/{}, /*externalABIName=*/{},
-                validateTensorExtLiteHeaderArtifactCandidates)))
+                kTensorExtLiteMaterializedEmitCBundleComponentGroup,
+                route.runtimeABIName,
+                validateTensorExtLiteHeaderArtifactCandidates,
+                getTensorExtLiteHeaderBundleMetadata)))
       return error;
   }
 

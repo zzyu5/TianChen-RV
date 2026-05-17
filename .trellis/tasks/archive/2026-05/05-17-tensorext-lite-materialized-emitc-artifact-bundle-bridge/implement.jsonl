@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack, unified extension-family boundary, and descriptor/direct-C prohibitions"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "TensorExtLite source-front-door, plugin ownership, and object-backed declaration header rules"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact bundle export, registry-derived records, and no runtime/correctness/performance claim boundary"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Selected emission-plan to target artifact handoff, object/header bundle, and TensorExtLite empty ABI signature boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/FileCheck target artifact bundle evidence requirements"}

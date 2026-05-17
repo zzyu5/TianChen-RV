@@ -2167,12 +2167,6 @@ llvm::Error appendCompositeBundleRecords(
 
 llvm::Error validateBundleRuntimeABIParameters(
     const TargetArtifactBundleRecord &record) {
-  if (record.runtimeABIParameters.empty())
-    return makeTargetArtifactBundleExportError(
-        llvm::Twine("bundle artifact route '") + record.routeID +
-        "' in component_group '" + record.componentGroup +
-        "' requires non-empty runtime ABI parameter signature");
-
   llvm::StringSet<> seenRoles;
   for (auto [index, parameter] :
        llvm::enumerate(record.runtimeABIParameters)) {
@@ -2690,6 +2684,8 @@ void printTargetArtifactBundleIndex(
     os << "  runtime_abi_name: ";
     printBundleQuoted(os, record.runtimeABIName);
     os << "\n";
+    os << "  runtime_abi_parameter_count: "
+       << record.runtimeABIParameters.size() << "\n";
     printBundleRuntimeABIParameters(os, record.runtimeABIParameters);
     printBundleArtifactMetadata(os, record.artifactMetadata);
     if (!record.handoffKind.empty()) {

@@ -184,13 +184,17 @@ Use lit/FileCheck for:
   metadata, deterministic bundle index fields for any future supported route,
   preservation of existing single-artifact front doors,
   generic rejection of incoherent grouped bundle records such as missing
-  component roles, missing external ABI identity, missing runtime ABI
-  signature, duplicate parameter roles, mismatched runtime ABI parameter
-  name/type/ownership, mismatched parameter order, mismatched runtime ABI
-  metadata, or mismatched selected component paths, fail-closed diagnostics for
+  component roles, missing external ABI identity, one-sided empty or otherwise
+  mismatched runtime ABI signatures, duplicate parameter roles, mismatched
+  runtime ABI parameter name/type/ownership, mismatched parameter order,
+  mismatched runtime ABI metadata, or mismatched selected component paths,
+  fail-closed diagnostics for
   missing or invalid output directories, and fail-closed behavior for obsolete
   metadata/source route inputs or unsupported selected paths without a fake
   complete executable bundle.
+  A shared empty runtime ABI signature is valid coverage for zero-argument
+  materialized EmitC object/header bundles only when both component records
+  agree and the generated header declaration uses `(void)`.
   Bundle tests must not commit generated binary artifacts or treat object
   creation as link, runtime, correctness, or performance evidence.
 - plan-and-export target artifact bundle front-door coverage through

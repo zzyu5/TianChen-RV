@@ -1044,8 +1044,9 @@ fails, the exporter must fail before writing a complete index and must either
 remove partial outputs or otherwise avoid claiming a complete bundle. The
 bundle index is build handoff metadata only: it may record file names, artifact
 kind, route, owner, runtime ABI kind/name, component selected paths, and
-conservative evidence roles, but it does not claim link success, runtime
-success, RVV execution, correctness, or performance.
+ordered runtime ABI parameter counts/signatures plus conservative evidence
+roles, but it does not claim link success, runtime success, RVV execution,
+correctness, or performance.
 When a matched route, including a composite route, has registry-owned route
 claim fields, the bundle index must preserve those fields on the corresponding
 artifact record. This allows downstream evidence runners to consume the
@@ -1070,6 +1071,11 @@ external ABI identity, mismatched runtime ABI metadata, or mismatched selected
 component paths are coherence failures. Python evidence runners may consume
 these compiler-emitted fields, but must not define or infer the bundle contract
 from file names.
+For a zero-argument callable boundary, the ordered runtime ABI signature may be
+empty only when every record in the same component group carries the same empty
+signature and the generated declaration uses a `void` parameter list. A
+one-sided empty signature in a grouped object/header bundle is a mismatched
+runtime ABI signature, not a shortcut around typed ABI validation.
 
 `tcrv-translate --tcrv-export-target-artifact-bundle` remains the
 coherence-gated exporter for already planned MLIR. The separate
@@ -1985,12 +1991,16 @@ matching runtime ABI kind/name when applicable, and a bounded evidence role such
 as `compiler-artifact`, `header-declaration`, or `relocatable-object`. When a
 record belongs to a non-empty external ABI `component_group`, the bundle/index
 contract must also publish an ordered runtime ABI signature with
+`runtime_abi_parameter_count` and, for each non-empty entry,
 `runtime_abi_parameter[index].c_name`, `.c_type`, `.role`, and `.ownership`.
 All source/header/object records in that external ABI group must agree on
 runtime ABI kind/name, external ABI name, component selected variants/roles,
 and the full ordered runtime ABI signature. Missing signatures, duplicate
 roles, mismatched name/type/ownership for the same role, reordered parameters,
-or malformed typed ABI records fail closed before bundle export. Source,
+one-sided empty signatures, or malformed typed ABI records fail closed before
+bundle export. A shared empty signature is valid only for zero-argument
+callable boundaries whose generated declaration uses a `void` parameter list.
+Source,
 header, and object routes must remain separate records. Composite dispatch
 records may be attached to the selected dispatch surface and must preserve the
 component selected variants/roles rather than moving RVV/scalar branch

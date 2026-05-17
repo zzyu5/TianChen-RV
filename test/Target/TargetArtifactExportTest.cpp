@@ -813,8 +813,9 @@ bool expectTensorExtLiteTargetArtifactExporterShape(
       exporter->getEmissionKind() != route.emissionKind ||
       exporter->getHandoffKind() !=
           "materialized-emitc-cpp-tensorext-lite-fragment-object" ||
-      !exporter->getComponentGroup().empty() ||
-      !exporter->getExternalABIName().empty() ||
+      exporter->getComponentGroup() !=
+          "tensorext-lite-fragment-mma-materialized-emitc-bundle.v1" ||
+      exporter->getExternalABIName() != route.runtimeABIName ||
       !exporter->getRequiredRuntimeABIParameters().empty() ||
       !exporter->getExportFn() || !exporter->getCandidateValidationFn()) {
     llvm::errs() << context << ": malformed TensorExtLite object artifact "
@@ -933,11 +934,17 @@ bool expectTensorExtLiteTargetHeaderCompositeShape(
   if (exporter->getArtifactKind() != "runtime-callable-c-header" ||
       exporter->getOwner() != tianchenrv::plugin::tensorext_lite::
                                   getTensorExtLiteExtensionPluginName() ||
-      !exporter->getComponentGroup().empty() ||
-      !exporter->getExternalABIName().empty() || !exporter->getMatchFn() ||
+      exporter->getComponentGroup() !=
+          "tensorext-lite-fragment-mma-materialized-emitc-bundle.v1" ||
+      exporter->getExternalABIName() !=
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteFragmentMmaEmitCConstructionRoute()
+                  .runtimeABIName ||
+      !exporter->getMatchFn() ||
       !exporter->getExportFn() || !exporter->getCandidateValidationFn() ||
       !exporter->getRuntimeABIParameters().empty() ||
-      exporter->getRuntimeABIParametersFn() || exporter->getBundleMetadataFn()) {
+      exporter->getRuntimeABIParametersFn() ||
+      !exporter->getBundleMetadataFn()) {
     llvm::errs() << context << ": malformed TensorExtLite materialized EmitC "
                     "header composite route metadata\n";
     return false;
@@ -963,6 +970,28 @@ bool expectTensorExtLiteTargetHeaderCompositeShape(
                      "candidate"))
     return false;
 
+  llvm::Expected<TargetArtifactCompositeBundleMetadata> metadata =
+      exporter->getBundleMetadataFn()(candidates);
+  if (!metadata) {
+    llvm::errs() << context << ": TensorExtLite header bundle metadata failed: "
+                 << llvm::toString(metadata.takeError()) << "\n";
+    return false;
+  }
+  if (metadata->componentGroup !=
+          "tensorext-lite-fragment-mma-materialized-emitc-bundle.v1" ||
+      metadata->externalABIName !=
+          "tensorext-lite-fragment-mma-runtime-c-abi.v1" ||
+      metadata->runtimeABIKind != "plugin-owned-runtime-abi" ||
+      metadata->runtimeABIName !=
+          "tensorext-lite-fragment-mma-runtime-c-abi.v1" ||
+      metadata->handoffKind !=
+          "materialized-emitc-cpp-tensorext-lite-fragment-object") {
+    llvm::errs() << context
+                 << ": TensorExtLite header bundle metadata did not preserve "
+                    "component group, ABI identity, and object handoff\n";
+    return false;
+  }
+
   llvm::SmallVector<TargetArtifactCandidate, 2> missingRouteMetadata(candidates);
   missingRouteMetadata.front().artifactMetadata.clear();
   if (!expectErrorContains(
@@ -977,6 +1006,14 @@ bool expectTensorExtLiteTargetHeaderCompositeShape(
           exporter->getCandidateValidationFn()(wrongArtifactKind),
           "TensorExtLite header composite rejects wrong candidate artifact kind",
           {"artifact kind", "riscv-elf-relocatable-object"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> wrongRouteID(candidates);
+  wrongRouteID.front().routeID = "tensorext-lite-fragment-mma-wrong-route";
+  if (!expectErrorContains(
+          exporter->getCandidateValidationFn()(wrongRouteID),
+          "TensorExtLite header composite rejects wrong object route identity",
+          {"route id", "tensorext-lite-fragment-mma-emitc-route"}))
     return false;
 
   llvm::SmallVector<TargetArtifactCandidate, 2> directCResidue(candidates);
@@ -3091,7 +3128,30 @@ bool expectTargetArtifactBundleComponentContractValidation() {
   if (!expectErrorContains(
           validateTargetArtifactBundleComponentContract(missingSignature),
           "missing dispatch bundle runtime ABI signature rejected",
-          {"requires non-empty runtime ABI parameter signature"}))
+          {"mismatched runtime ABI parameter signature"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactBundleRecord, 2> zeroArgRecords;
+  zeroArgRecords.push_back(makeDispatchBundleComponentRecord(
+      "runtime-callable-c-header", "bundle-test-zero-arg-header", "header"));
+  zeroArgRecords.push_back(makeDispatchBundleComponentRecord(
+      "riscv-elf-relocatable-object", "bundle-test-zero-arg-object",
+      "object"));
+  for (TargetArtifactBundleRecord &record : zeroArgRecords) {
+    record.componentVariants.clear();
+    record.componentRoles.clear();
+    record.componentVariants.push_back("zero_arg_selected");
+    record.componentRoles.push_back("direct variant");
+    record.componentGroup = "zero-arg-materialized-emitc-bundle.v1";
+    record.externalABIName = "zero-arg-callable-c-abi.v1";
+    record.owner = "zero-arg-target";
+    record.runtimeABIKind = "plugin-owned-runtime-abi";
+    record.runtimeABIName = "zero-arg-callable-c-abi.v1";
+    record.runtimeABIParameters.clear();
+  }
+  if (!expectSuccess(validateTargetArtifactBundleComponentContract(
+                         zeroArgRecords),
+                     "zero-argument header/object component contract accepted"))
     return false;
 
   llvm::SmallVector<TargetArtifactBundleRecord, 2> duplicateParameterRole(
