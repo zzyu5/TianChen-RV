@@ -336,11 +336,12 @@ selected dispatch or selected-path diagnostic
 
 Use this contract when multiple extension-family target exporters need the same
 declaration-only runtime-callable C header artifact shape from a selected
-materialized EmitC route. Toy consumes it as a standalone header artifact route.
-RVV and TensorExtLite may consume it as object-backed composite header routes
-when the selected materialized EmitC object candidate is already the production
-handoff authority and a route-local candidate preflight preserves the
-plugin-owned runtime ABI contract.
+materialized EmitC route. A family may consume it as a standalone header route
+only when the selected materialized EmitC header candidate is itself the
+explicit artifact handoff authority. When the selected materialized EmitC object
+candidate is the production handoff authority, the family must consume the
+header helper as an object-backed composite header route with a route-local
+candidate preflight that preserves the plugin-owned runtime ABI contract.
 
 ### 2. Signatures
 
@@ -453,10 +454,10 @@ plugin-owned runtime ABI contract.
 ### 5. Good/Base/Bad Cases
 
 - Good: Toy and TensorExtLite provide only local config and metadata evidence
-  requirements; Toy calls the common header validator/exporter through its
-  standalone header exporter, while TensorExtLite calls the same helper through
-  an object-backed header composite after validating the selected object
-  candidate.
+  requirements, then call the common header validator/exporter through
+  object-backed header composites after validating their selected object
+  candidates. The common helper renders the declaration header; the
+  family-owned object route remains the artifact handoff authority.
 - Good: RVV provides local object route config, RVV-specific candidate
   preflight, dynamic runtime ABI identity mode, and required RVV provenance
   evidence; the production header exporter calls the common declaration-only
@@ -466,6 +467,11 @@ plugin-owned runtime ABI contract.
   materialized EmitC object exporter plus object-backed header composite
   registration, while object packaging, route payloads, typed role validation,
   and extension evidence remain plugin-owned.
+- Good: Toy may consume the same common object/header bundle construction
+  helper once its selected typed role-op path materializes through the
+  plugin-owned EmitC route. Toy may carry a target-export-owned runtime element
+  count parameter, and the object/header/bundle records must preserve the same
+  ordered parameter signature.
 - Good: Template may also consume the common object/header bundle construction
   helper as a construction-template example after its selected typed role-op
   path materializes through the plugin-owned EmitC route. Its local object
@@ -492,8 +498,9 @@ plugin-owned runtime ABI contract.
 - C++ negative coverage for missing/stale route metadata, wrong runtime ABI
   fields, unexpected or misordered ABI parameters, forbidden metadata, and
   missing plugin registration.
-- lit coverage for Toy positive header output and TensorExtLite positive
-  object-backed header output through the target artifact front doors.
+- lit coverage for Toy positive object-backed header and bundle output, and
+  TensorExtLite positive object-backed header output, through the target
+  artifact front doors.
 - lit coverage proving header output includes origin plugin, selected variant,
   selected route, runtime ABI kind/name, ordered ABI parameters when present,
   source-op/interface provenance, construction protocol, semantic role graph,
@@ -503,9 +510,10 @@ plugin-owned runtime ABI contract.
   header production path is emitted by the common declaration-only helper while
   object packaging and bundle component metadata remain RVV-owned.
 - Focused common target artifact tests proving the object/header bundle
-  construction helper is code-consumed by at least RVV, TensorExtLite, and
-  Template when those routes opt in, accepts zero-argument runtime ABI
-  signatures when both components agree, and fails closed for missing
+  construction helper is code-consumed by at least RVV, Toy, TensorExtLite,
+  and Template when those routes opt in, accepts zero-argument and non-empty
+  ordered runtime ABI signatures when both components agree, and fails closed
+  for missing
   materialized EmitC provenance, mismatched ABI signatures, mixed or ambiguous
   candidates, stale descriptor/direct-C/source-export residue, and unsupported
   plugin routes.

@@ -1080,7 +1080,7 @@ module {
       tcrv_tensorext_lite.common_interface_realization = "configure=TCRVExtensionOpInterface+TCRVConfigOpInterface+TCRVEmitCLowerableInterface;load_frag=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;tile_mma=TCRVExtensionOpInterface+TCRVComputeOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;store_frag=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
       tcrv_tensorext_lite.typed_role_realization = "configure:tel.role.config:tcrv_tensorext_lite.config_skeleton:TCRVConfigOpInterface:TCRVEmitCLowerableInterface;load_frag:tel.role.load_frag:tcrv_tensorext_lite.load_frag_skeleton:TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;tile_mma:tel.role.tile_mma:tcrv_tensorext_lite.tile_mma_skeleton:TCRVComputeOpInterface:TCRVEmitCLowerableInterface;store_frag:tel.role.store_frag:tcrv_tensorext_lite.store_frag_skeleton:TCRVMemoryOpInterface:TCRVEmitCLowerableInterface",
       tcrv_tensorext_lite.emitc_route_mapping = "tensorext-lite-fragment-mma-emitc-route",
-      tcrv_tensorext_lite.evidence_profile = "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_emitc_module"
+      tcrv_tensorext_lite.evidence_profile = "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_emitc_module|mlir_emitc_cpp_emitter|generated_cpp_compile"
     } {
       tcrv_tensorext_lite.config_skeleton {origin = "tensorext-lite-plugin", required_capabilities = [@tensorext_lite_tile_mma], role = "direct variant", role_order = 0 : i64, role_specific_interface = "TCRVConfigOpInterface", selected_variant = @tensorext_lite_tile_mma_first_slice, source_kernel = "tensorext_lite_header_export", source_role = "configure", status = "role-op-boundary", typed_role = "tel.role.config"}
       tcrv_tensorext_lite.load_frag_skeleton {origin = "tensorext-lite-plugin", required_capabilities = [@tensorext_lite_tile_mma], role = "direct variant", role_order = 1 : i64, role_specific_interface = "TCRVMemoryOpInterface", selected_variant = @tensorext_lite_tile_mma_first_slice, source_kernel = "tensorext_lite_header_export", source_role = "load_frag", status = "role-op-boundary", typed_role = "tel.role.load_frag"}
@@ -1260,26 +1260,25 @@ bool expectToyTargetArtifactExporterShape(
       tianchenrv::plugin::toy::getToyTemplateEmitCConstructionRoute();
   const TargetArtifactExporter *exporter =
       registry.lookup(tianchenrv::target::toy::
-                          getToyMaterializedEmitCHeaderArtifactRouteID());
+                          getToyMaterializedEmitCTargetArtifactRouteID());
   if (!exporter) {
     llvm::errs() << context
-                 << ": missing Toy materialized EmitC header artifact route\n";
+                 << ": missing Toy materialized EmitC object artifact route\n";
     return false;
   }
 
-  if (exporter->getArtifactKind() != "runtime-callable-c-header" ||
+  if (exporter->getArtifactKind() != route.artifactKind ||
       exporter->getOriginPlugin() != manifest.family.pluginName ||
       exporter->getEmissionKind() != route.emissionKind ||
-      exporter->getHandoffKind() !=
-          "materialized-emitc-cpp-toy-template-header" ||
-      !exporter->getComponentGroup().empty() ||
-      !exporter->getExternalABIName().empty() ||
+      exporter->getHandoffKind() != route.objectHandoffKind ||
+      exporter->getComponentGroup() != route.bundleComponentGroup ||
+      exporter->getExternalABIName() != route.runtimeABIName ||
       !tianchenrv::support::runtimeABIParametersEqual(
           exporter->getRequiredRuntimeABIParameters(),
           tianchenrv::plugin::toy::getToyTemplateRuntimeABIParameters()) ||
       !exporter->getExportFn() || !exporter->getCandidateValidationFn()) {
     llvm::errs() << context
-                 << ": malformed Toy header artifact exporter metadata\n";
+                 << ": malformed Toy object artifact exporter metadata\n";
     return false;
   }
 
@@ -1325,6 +1324,150 @@ bool expectToyTargetArtifactExporterShape(
                            "parameter",
                            {"runtime ABI parameter role",
                             "runtime-element-count"}))
+    return false;
+
+  TargetArtifactCandidate fallbackRole = candidate;
+  fallbackRole.role = "dispatch fallback";
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               fallbackRole, *exporter),
+                           "Toy object exporter rejects fallback-only "
+                           "selection",
+                           {"candidate selected path role",
+                            "direct variant"}))
+    return false;
+
+  TargetArtifactCandidate metadataOnly = candidate;
+  metadataOnly.artifactKind = "metadata-diagnostic";
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               metadataOnly, *exporter),
+                           "Toy object exporter rejects metadata-only "
+                           "artifact authority",
+                           {"artifact_kind", "riscv-elf-relocatable-object"}))
+    return false;
+
+  return true;
+}
+
+bool expectToyTargetHeaderCompositeShape(
+    const TargetArtifactExporterRegistry &registry, llvm::StringRef context) {
+  const auto &route =
+      tianchenrv::plugin::toy::getToyTemplateEmitCConstructionRoute();
+  const TargetArtifactCompositeExporter *exporter =
+      registry.lookupComposite(tianchenrv::target::toy::
+                                   getToyMaterializedEmitCHeaderArtifactRouteID());
+  if (!exporter) {
+    llvm::errs() << context
+                 << ": missing Toy materialized EmitC header composite route\n";
+    return false;
+  }
+
+  if (exporter->getArtifactKind() != "runtime-callable-c-header" ||
+      exporter->getOwner() !=
+          tianchenrv::plugin::toy::getToyExtensionPluginName() ||
+      exporter->getComponentGroup() != route.bundleComponentGroup ||
+      exporter->getExternalABIName() != route.runtimeABIName ||
+      !exporter->getMatchFn() || !exporter->getExportFn() ||
+      !exporter->getCandidateValidationFn() ||
+      !exporter->getRuntimeABIParameters().empty() ||
+      !exporter->getRuntimeABIParametersFn() ||
+      !exporter->getBundleMetadataFn()) {
+    llvm::errs() << context << ": malformed Toy materialized EmitC header "
+                    "composite route metadata\n";
+    return false;
+  }
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
+  candidates.push_back(makeValidToyTargetArtifactCandidate());
+
+  llvm::Expected<bool> matched = exporter->getMatchFn()(candidates);
+  if (!matched) {
+    llvm::errs() << context << ": Toy header route match failed: "
+                 << llvm::toString(matched.takeError()) << "\n";
+    return false;
+  }
+  if (!*matched) {
+    llvm::errs() << context << ": Toy header route did not match the valid "
+                    "materialized EmitC object candidate\n";
+    return false;
+  }
+
+  if (!expectSuccess(exporter->getCandidateValidationFn()(candidates),
+                     "validate Toy materialized EmitC header candidate"))
+    return false;
+
+  llvm::Expected<llvm::SmallVector<RuntimeABIParameter, 5>> parameters =
+      exporter->getRuntimeABIParametersFn()(candidates);
+  if (!parameters) {
+    llvm::errs() << context << ": Toy header runtime ABI parameters failed: "
+                 << llvm::toString(parameters.takeError()) << "\n";
+    return false;
+  }
+  if (!expectRuntimeABIParametersEqual(
+          *parameters,
+          tianchenrv::plugin::toy::getToyTemplateRuntimeABIParameters(),
+          "Toy header composite preserves ordered runtime ABI parameters"))
+    return false;
+
+  llvm::Expected<TargetArtifactCompositeBundleMetadata> metadata =
+      exporter->getBundleMetadataFn()(candidates);
+  if (!metadata) {
+    llvm::errs() << context << ": Toy header bundle metadata failed: "
+                 << llvm::toString(metadata.takeError()) << "\n";
+    return false;
+  }
+  if (metadata->componentGroup != route.bundleComponentGroup ||
+      metadata->externalABIName != route.runtimeABIName ||
+      metadata->runtimeABIKind != route.runtimeABIKind ||
+      metadata->runtimeABIName != route.runtimeABIName ||
+      metadata->handoffKind != route.objectHandoffKind) {
+    llvm::errs() << context
+                 << ": Toy header bundle metadata did not preserve component "
+                    "group, ABI identity, and object handoff\n";
+    return false;
+  }
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> missingRouteMetadata(
+      candidates);
+  missingRouteMetadata.front().artifactMetadata.clear();
+  if (!expectErrorContains(
+          exporter->getCandidateValidationFn()(missingRouteMetadata),
+          "Toy header composite rejects missing EmitC provenance",
+          {"toy_emitc_lowerable_route"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> wrongArtifactKind(candidates);
+  wrongArtifactKind.front().artifactKind = "runtime-callable-c-header";
+  if (!expectErrorContains(
+          exporter->getCandidateValidationFn()(wrongArtifactKind),
+          "Toy header composite rejects wrong candidate artifact kind",
+          {"artifact kind", "riscv-elf-relocatable-object"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> wrongRouteID(candidates);
+  wrongRouteID.front().routeID = "toy-template-compute-stale-route";
+  if (!expectErrorContains(
+          exporter->getCandidateValidationFn()(wrongRouteID),
+          "Toy header composite rejects wrong object route identity",
+          {"route id", route.routeID}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> directCResidue(candidates);
+  directCResidue.front().artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "toy.direct_c_compute_body", "stale"));
+  if (!expectErrorContains(
+          exporter->getCandidateValidationFn()(directCResidue),
+          "Toy header composite rejects direct-C compute metadata",
+          {"descriptor-driven computation"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> ambiguous(candidates);
+  ambiguous.push_back(candidates.front());
+  if (!expectErrorContains(
+          exporter->getMatchFn()(ambiguous).takeError(),
+          "Toy header composite rejects ambiguous candidates",
+          {"requires exactly one selected supported Toy materialized EmitC "
+           "object candidate"}))
     return false;
 
   return true;
@@ -1677,7 +1820,7 @@ module {
       tcrv_toy.common_interface_realization = "configure=TCRVExtensionOpInterface+TCRVConfigOpInterface+TCRVEmitCLowerableInterface;load=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;compute=TCRVExtensionOpInterface+TCRVComputeOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;store=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
       tcrv_toy.typed_role_realization = "configure:toy.role.configure.config_skeleton:tcrv_toy.config_skeleton:TCRVConfigOpInterface:TCRVEmitCLowerableInterface;load:toy.role.load.load_skeleton:tcrv_toy.load_skeleton:TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;compute:toy.role.compute.compute_skeleton:tcrv_toy.compute_skeleton:TCRVComputeOpInterface:TCRVEmitCLowerableInterface;store:toy.role.store.store_skeleton:tcrv_toy.store_skeleton:TCRVMemoryOpInterface:TCRVEmitCLowerableInterface",
       tcrv_toy.emitc_route_mapping = "toy-template-compute-emitc-route",
-      tcrv_toy.evidence_profile = "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_emitc_module"
+      tcrv_toy.evidence_profile = "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_emitc_module|mlir_emitc_cpp_emitter|generated_cpp_compile"
     } {
     }
     tcrv_toy.compute_skeleton {origin = "toy-plugin", required_capabilities = [@toy_template], role = "direct variant", role_order = 2 : i64, role_specific_interface = "TCRVComputeOpInterface", selected_variant = @toy_template_first_slice, source_kernel = "toy_header_export", source_role = "compute", status = "role-op-boundary", typed_role = "toy.role.compute.compute_skeleton"}
@@ -1690,7 +1833,7 @@ module {
       target = @toy_template_first_slice
     }
     tcrv.exec.diagnostic {
-      artifact_kind = "runtime-callable-c-header",
+      artifact_kind = "riscv-elf-relocatable-object",
       artifact_metadata = [
         {key = "toy_emitc_lowerable_route", value = "toy-template-compute-emitc-route"},
         {key = "toy_source_op", value = "tcrv_toy.compute_skeleton"},
@@ -1703,7 +1846,7 @@ module {
       emission_kind = "materialized-emitc-cpp-toy-template-module",
       lowering_boundary = "tcrv_toy.compute_skeleton",
       lowering_pipeline = "toy-template-compute-emitc-route",
-      message = "Toy selected compute_skeleton exports a declaration-only header artifact",
+      message = "Toy selected compute_skeleton exports a materialized EmitC object artifact",
       origin = "toy-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",
@@ -1774,14 +1917,15 @@ module {
 
   std::string objectOutput;
   llvm::raw_string_ostream objectStream(objectOutput);
-  if (!expectErrorContains(exportTargetArtifact(*module, registry,
-                                                objectStream),
-                           "Toy default object front door remains "
-                           "unsupported",
-                           {"requires exactly one supported target artifact "
-                            "emission-plan route",
-                            "found none"}))
+  if (!expectSuccess(exportTargetArtifact(*module, registry, objectStream),
+                     "export Toy materialized EmitC object artifact"))
     return false;
+  objectStream.flush();
+  if (!llvm::StringRef(objectOutput).starts_with("\177ELF")) {
+    llvm::errs()
+        << "Toy object artifact output was not an ELF object buffer\n";
+    return false;
+  }
 
   return true;
 }
@@ -1969,14 +2113,14 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
               bundles, plugins, registry),
           "register target artifact exporters through bundle frontdoor"))
     return false;
-  if (registry.size() != 4 || registry.compositeSize() != 3) {
+  if (registry.size() != 4 || registry.compositeSize() != 4) {
     llvm::errs() << "extension bundle frontdoor should register the RVV "
                     "materialized EmitC object route, the TensorExtLite "
                     "materialized EmitC object route, the Toy materialized "
-                    "EmitC header route, the Template materialized EmitC "
+                    "EmitC object route, the Template materialized EmitC "
                     "object route, the RVV header composite route, the "
-                    "TensorExtLite header composite route, and the Template "
-                    "header composite route, "
+                    "TensorExtLite header composite route, the Toy header "
+                    "composite route, and the Template header composite route, "
                     "got "
                     "standalone="
                  << registry.size() << " composite=" << registry.compositeSize()
@@ -1991,7 +2135,7 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
           "extension bundle frontdoor TensorExtLite object artifact exporter"))
     return false;
   if (!expectToyTargetArtifactExporterShape(
-          registry, "extension bundle frontdoor Toy header artifact exporter"))
+          registry, "extension bundle frontdoor Toy object artifact exporter"))
     return false;
   if (!expectTemplateTargetArtifactExporterShape(
           registry,
@@ -2002,6 +2146,9 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
     return false;
   if (!expectTensorExtLiteTargetHeaderCompositeShape(
           registry, "extension bundle frontdoor TensorExtLite header composite"))
+    return false;
+  if (!expectToyTargetHeaderCompositeShape(
+          registry, "extension bundle frontdoor Toy header composite"))
     return false;
   if (!expectTemplateTargetHeaderCompositeShape(
           registry, "extension bundle frontdoor Template header composite"))
@@ -2199,15 +2346,15 @@ bool expectOffloadTargetArtifactExportersAbsent() {
                      "register all built-in target exporters after offload "
                      "executable route erasure"))
     return false;
-  if (allRegistry.size() != 4 || allRegistry.compositeSize() != 3) {
+  if (allRegistry.size() != 4 || allRegistry.compositeSize() != 4) {
     llvm::errs() << "built-in target exporters should publish the RVV "
                     "materialized EmitC object route, the TensorExtLite "
                     "materialized EmitC object route, the Toy materialized "
-                    "EmitC header route, the Template materialized EmitC "
+                    "EmitC object route, the Template materialized EmitC "
                     "object route, the RVV header composite route, the "
-                    "TensorExtLite header composite route, and the Template "
-                    "header composite route while Offload artifact routes "
-                    "remain absent, got "
+                    "TensorExtLite header composite route, the Toy header "
+                    "composite route, and the Template header composite route "
+                    "while Offload artifact routes remain absent, got "
                     "standalone="
                  << allRegistry.size() << " composite="
                  << allRegistry.compositeSize() << "\n";
@@ -2221,7 +2368,7 @@ bool expectOffloadTargetArtifactExportersAbsent() {
           "all built-in plugin TensorExtLite object artifact exporter"))
     return false;
   if (!expectToyTargetArtifactExporterShape(
-          allRegistry, "all built-in plugin Toy header artifact exporter"))
+          allRegistry, "all built-in plugin Toy object artifact exporter"))
     return false;
   if (!expectTemplateTargetArtifactExporterShape(
           allRegistry, "all built-in plugin Template object artifact exporter"))
@@ -2231,6 +2378,9 @@ bool expectOffloadTargetArtifactExportersAbsent() {
     return false;
   if (!expectTensorExtLiteTargetHeaderCompositeShape(
           allRegistry, "all built-in plugin TensorExtLite header composite"))
+    return false;
+  if (!expectToyTargetHeaderCompositeShape(
+          allRegistry, "all built-in plugin Toy header composite"))
     return false;
   if (!expectTemplateTargetHeaderCompositeShape(
           allRegistry, "all built-in plugin Template header composite"))
@@ -2420,6 +2570,78 @@ bool expectTemplateTargetSupportBundleExtractionRegistration() {
   return true;
 }
 
+bool expectToyTargetSupportBundleExtractionRegistration() {
+  PluginTargetArtifactExporterRegistry pluginExporters;
+  if (!expectSuccess(
+          tianchenrv::target::toy::
+              registerToyTargetSupportPluginTargetExporterBundles(
+                  pluginExporters),
+          "register Toy target-support artifact exporter bundles"))
+    return false;
+  if (pluginExporters.size() != 1) {
+    llvm::errs() << "Toy target-support bundle should contribute one "
+                    "materialized EmitC target artifact exporter bundle, got "
+                 << pluginExporters.size() << "\n";
+    return false;
+  }
+  if (!expectSuccess(
+          tianchenrv::target::toy::
+              registerToyTargetSupportPluginTargetExporterBundles(
+                  pluginExporters),
+          "repeat Toy target-support no-op artifact exporter registration"))
+    return false;
+
+  ExtensionBundle bundle(
+      "toy-extension-bundle",
+      tianchenrv::plugin::toy::getToyExtensionPluginName(),
+      tianchenrv::plugin::registerToyExtensionPlugin);
+  bundle.addRequiredDialectName("tcrv_toy");
+  if (!expectSuccess(
+          tianchenrv::target::toy::configureToyTargetSupportExtensionBundle(
+              bundle),
+          "configure Toy target-support extension bundle metadata"))
+    return false;
+  if (!bundle.getTargetArtifactExporterBundleRegistrationFn()) {
+    llvm::errs() << "Toy target-support bundle did not publish the "
+                    "materialized EmitC artifact exporter registration\n";
+    return false;
+  }
+  if (!containsString(bundle.getLoweringBoundaryOps(),
+                      "tcrv_toy.compute_skeleton")) {
+    llvm::errs() << "Toy target-support bundle did not publish the selected "
+                    "compute_skeleton lowering-boundary requirement\n";
+    return false;
+  }
+
+  ExtensionPluginRegistry plugins;
+  if (!expectSuccess(tianchenrv::plugin::registerToyExtensionPlugin(plugins),
+                     "register Toy plugin for target-support bundle"))
+    return false;
+
+  TargetArtifactExporterRegistry registry;
+  if (!expectSuccess(pluginExporters.registerExportersForEnabledPlugins(
+                         plugins, registry),
+                     "populate Toy target-support exporters"))
+    return false;
+
+  if (registry.size() != 1 || registry.compositeSize() != 1) {
+    llvm::errs() << "Toy target-support exporter bundle should register one "
+                    "materialized EmitC object route plus one header "
+                    "composite route, got standalone="
+                 << registry.size() << " composite=" << registry.compositeSize()
+                 << "\n";
+    return false;
+  }
+  if (!expectToyTargetArtifactExporterShape(
+          registry, "Toy target-support object exporter bundle"))
+    return false;
+  if (!expectToyTargetHeaderCompositeShape(
+          registry, "Toy target-support header composite"))
+    return false;
+
+  return true;
+}
+
 bool expectRVVPluginManifestTargetSupportActivation() {
   tianchenrv::plugin::rvv::RVVExtensionPlugin rvvPlugin;
   ExtensionBundle bundle("rvv-extension-bundle", rvvPlugin.getName(),
@@ -2508,7 +2730,7 @@ bool expectToyPluginManifestTargetSupportActivation() {
     return false;
   if (pluginRoutes.size() != 0) {
     llvm::errs() << "Toy plugin manifest hook should not publish target "
-                    "translate routes for the header artifact bridge, got "
+                    "translate routes for the object bundle bridge, got "
                  << pluginRoutes.size() << "\n";
     return false;
   }
@@ -4075,6 +4297,8 @@ int main() {
     return 1;
   if (!expectRVVTargetSupportBundleExtractionRegistration())
     return 1;
+  if (!expectToyTargetSupportBundleExtractionRegistration())
+    return 1;
   if (!expectTemplateTargetSupportBundleExtractionRegistration())
     return 1;
   if (!expectToyPluginManifestTargetSupportActivation())
@@ -4103,14 +4327,14 @@ int main() {
   if (builtinRegistry.size() != 4) {
     llvm::errs() << "expected the RVV materialized EmitC object route and the "
                     "TensorExtLite materialized EmitC object route plus Toy "
-                    "materialized EmitC header route and Template "
+                    "materialized EmitC object route and Template "
                     "materialized EmitC object route, "
                     "got "
                  << builtinRegistry.size() << "\n";
     return 1;
   }
-  if (builtinRegistry.compositeSize() != 3) {
-    llvm::errs() << "expected RVV, TensorExtLite, and Template built-in "
+  if (builtinRegistry.compositeSize() != 4) {
+    llvm::errs() << "expected RVV, TensorExtLite, Toy, and Template built-in "
                     "composite target artifact header routes for current "
                     "built-in exporters, got "
                  << builtinRegistry.compositeSize() << "\n";
@@ -4120,7 +4344,7 @@ int main() {
                      "re-registering built-in exporters remains a no-op"))
     return 1;
   if (builtinRegistry.size() != 4 ||
-      builtinRegistry.compositeSize() != 3)
+      builtinRegistry.compositeSize() != 4)
     return 1;
   if (!expectRVVTargetArtifactExporterShape(
           builtinRegistry, "final built-in RVV target artifact exporter"))
@@ -4130,7 +4354,7 @@ int main() {
           "final built-in TensorExtLite object artifact exporter"))
     return 1;
   if (!expectToyTargetArtifactExporterShape(
-          builtinRegistry, "final built-in Toy header artifact exporter"))
+          builtinRegistry, "final built-in Toy object artifact exporter"))
     return 1;
   if (!expectTemplateTargetArtifactExporterShape(
           builtinRegistry, "final built-in Template object artifact exporter"))
@@ -4140,6 +4364,9 @@ int main() {
     return 1;
   if (!expectTensorExtLiteTargetHeaderCompositeShape(
           builtinRegistry, "final built-in TensorExtLite header composite"))
+    return 1;
+  if (!expectToyTargetHeaderCompositeShape(
+          builtinRegistry, "final built-in Toy header composite"))
     return 1;
   if (!expectTemplateTargetHeaderCompositeShape(
           builtinRegistry, "final built-in Template header composite"))

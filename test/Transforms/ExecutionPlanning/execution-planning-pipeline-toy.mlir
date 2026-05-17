@@ -5,7 +5,7 @@ module {
   // PIPE: tcrv_toy.compute_skeleton {
   // PIPE-SAME: selected_variant = @toy_template_first_slice
   // PIPE: tcrv.exec.diagnostic
-  // PIPE-SAME: artifact_kind = "runtime-callable-c-header"
+  // PIPE-SAME: artifact_kind = "riscv-elf-relocatable-object"
   // PIPE-SAME: artifact_metadata = [{key = "toy_emitc_lowerable_route", value = "toy-template-compute-emitc-route"}
   // PIPE-SAME: {key = "toy_source_op", value = "tcrv_toy.compute_skeleton"}
   // PIPE-SAME: emission_kind = "materialized-emitc-cpp-toy-template-module"

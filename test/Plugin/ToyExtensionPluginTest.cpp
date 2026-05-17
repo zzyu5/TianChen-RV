@@ -229,11 +229,19 @@ int runRegistrationAndCapabilityMetadataTest() {
           expect(manifest.emitcRoute.routeID == route.routeID &&
                      manifest.emitcRoute.emissionKind == route.emissionKind &&
                      manifest.emitcRoute.artifactKind == route.artifactKind &&
-                     route.artifactKind == "runtime-callable-c-header" &&
+                     route.artifactKind == "riscv-elf-relocatable-object" &&
+                     route.headerRouteID ==
+                         "toy-template-compute-emitc-route.header" &&
+                     route.headerArtifactKind ==
+                         "runtime-callable-c-header" &&
+                     route.bundleComponentGroup ==
+                         "toy-template-compute-materialized-emitc-bundle.v1" &&
+                     route.objectHandoffKind ==
+                         "materialized-emitc-cpp-toy-template-object" &&
                      manifest.evidenceProfile.contains(
-                         "materialized_emitc_module"),
+                         "generated_cpp_compile"),
                  "Toy construction manifest records the EmitC route for the "
-                 "materialized header artifact bridge"))
+                 "materialized object/header/bundle artifact bridge"))
     return result;
   if (int result = expectSuccess(
           tianchenrv::plugin::toy::verifyToyConstructionProtocolReady(),
@@ -247,6 +255,12 @@ int runRegistrationAndCapabilityMetadataTest() {
                   route.runtimeABIKind, route.runtimeABIName,
                   route.runtimeGlueRole),
           "Toy active EmitC route mapping validates"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::toy::verifyToyTargetArtifactBundleMapping(
+              route.headerRouteID, route.headerArtifactKind,
+              route.bundleComponentGroup, route.objectHandoffKind),
+          "Toy target artifact bundle mapping validates"))
     return result;
   if (int result = expectErrorContains(
           tianchenrv::plugin::toy::
@@ -662,7 +676,7 @@ module {
                          tianchenrv::plugin::toy::
                              getToyTemplatePreferredCapabilitySymbol(),
                  "Toy emission plan advertises the plugin-local "
-                 "materialized header artifact bridge"))
+                 "materialized object/header/bundle artifact bridge"))
     return result;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
@@ -676,6 +690,7 @@ module {
   if (int result =
           expect(route.getRouteID() == routeSpec.routeID &&
                      route.getSourceOpProvenance().size() == 1 &&
+                     route.getFunctionDeclarations().size() == 1 &&
                      route.getCallOpaqueSteps().size() == 1 &&
                      route.getCallOpaqueSteps().front().callee ==
                          routeSpec.callee,

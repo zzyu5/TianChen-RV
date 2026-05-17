@@ -40,7 +40,7 @@ module attributes {
 // PLAN-SAME: message = "selected Toy source front-door route"
 // PLAN-SAME: reason = "variant-selected"
 // PLAN: tcrv.exec.diagnostic
-// PLAN-SAME: artifact_kind = "runtime-callable-c-header"
+// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: {key = "toy_emitc_lowerable_route", value = "toy-template-compute-emitc-route"}
 // PLAN-SAME: {key = "toy_source_op", value = "tcrv_toy.compute_skeleton"}
 // PLAN-SAME: {key = "toy_source_role", value = "compute"}

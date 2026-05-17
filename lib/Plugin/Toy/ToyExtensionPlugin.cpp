@@ -737,7 +737,8 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
       constructionRoute.runtimeABI, constructionRoute.artifactKind,
       "Toy selected compute_skeleton route materializes a verified EmitC "
       "module through the common TCRVEmitCLowerableRoute materializer and "
-      "exports a declaration-only runtime ABI header artifact");
+      "exports a relocatable object with an object-backed declaration header "
+      "and bundle");
   out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
   out.setRuntimeABIName(constructionRoute.runtimeABIName);
   out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);

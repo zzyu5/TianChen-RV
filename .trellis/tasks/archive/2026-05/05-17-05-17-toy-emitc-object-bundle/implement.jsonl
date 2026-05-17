@@ -1,0 +1,4 @@
+{"file":".trellis/spec/index.md","reason":"Global TianChen-RV source of truth and invariants for this Toy target artifact round."}
+{"file":".trellis/spec/plugin-protocol/extension-family-plugin-template.md","reason":"Construction protocol, Template object-bundle precedent, and plugin-locality requirements for Toy as a concrete extension family."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Selected EmitC artifact handoff, common header/object bundle helper, runtime-callable ABI linkage, and fail-closed matrix."}
+{"file":".trellis/tasks/archive/2026-05/05-17-template-emitc-object-bundle/prd.md","reason":"Immediate previous object/header/bundle construction pattern to transfer from Template to Toy without broadening scope."}

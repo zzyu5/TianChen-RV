@@ -141,6 +141,10 @@ llvm::Error buildToyTemplateEmitCLowerableRoute(
   route.addHeader("stdint.h");
   route.addABIValueMapping(getToyTemplateRuntimeABIParameters().front(),
                            "toy_value_count");
+  llvm::StringRef parameterTypes[] = {"size_t"};
+  route.addFunctionDeclaration(constructionRoute.callee,
+                               constructionRoute.resultCType,
+                               parameterTypes);
   route.addSourceOpProvenance(*source);
 
   emitc::TCRVEmitCCallOpaqueStep step;

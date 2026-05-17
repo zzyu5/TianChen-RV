@@ -15,6 +15,7 @@ class ExtensionBundle;
 namespace tianchenrv::target::toy {
 
 llvm::StringRef getToyMaterializedEmitCHeaderArtifactRouteID();
+llvm::StringRef getToyMaterializedEmitCTargetArtifactRouteID();
 
 llvm::Error registerToyTargetSupportPluginTargetExporterBundles(
     PluginTargetArtifactExporterRegistry &registry);

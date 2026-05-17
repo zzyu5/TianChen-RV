@@ -1,0 +1,4 @@
+{"file":".trellis/spec/index.md","reason":"Verify final changes still obey TianChen-RV global invariants."}
+{"file":".trellis/spec/plugin-protocol/extension-family-plugin-template.md","reason":"Check Toy remains a plugin-local extension-family consumer and not an independent backend."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Check selected object/header/bundle packaging uses materialized EmitC route contracts and fail-closed validation."}
+{"file":".trellis/tasks/05-17-05-17-toy-emitc-object-bundle/prd.md","reason":"Check implementation and validation satisfy this round's Toy object-bundle PRD."}

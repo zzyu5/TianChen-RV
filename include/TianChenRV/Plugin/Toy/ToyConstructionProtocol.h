@@ -34,6 +34,10 @@ struct ToyTemplateEmitCConstructionRoute {
   llvm::StringRef runtimeABIKind;
   llvm::StringRef runtimeABIName;
   llvm::StringRef runtimeGlueRole;
+  llvm::StringRef headerRouteID;
+  llvm::StringRef headerArtifactKind;
+  llvm::StringRef bundleComponentGroup;
+  llvm::StringRef objectHandoffKind;
   llvm::StringRef callee;
   llvm::StringRef resultName;
   llvm::StringRef resultCType;
@@ -76,6 +80,9 @@ llvm::Error verifyToyTemplateEmitCConstructionRouteMapping(
     llvm::StringRef artifactKind, llvm::StringRef loweringBoundaryOpName,
     llvm::StringRef runtimeABI, llvm::StringRef runtimeABIKind,
     llvm::StringRef runtimeABIName, llvm::StringRef runtimeGlueRole);
+llvm::Error verifyToyTargetArtifactBundleMapping(
+    llvm::StringRef headerRouteID, llvm::StringRef headerArtifactKind,
+    llvm::StringRef bundleComponentGroup, llvm::StringRef objectHandoffKind);
 llvm::Error verifyToyComputeRoleOpInterface(
     const ToyConstructionManifest &manifest,
     const ToyTypedRoleGraphRealization &realization,

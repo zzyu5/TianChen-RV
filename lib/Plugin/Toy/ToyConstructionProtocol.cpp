@@ -24,7 +24,8 @@ constexpr llvm::StringLiteral kInterfaceRealization(
     "TCRVEmitCLowerableInterface");
 constexpr llvm::StringLiteral kEvidenceProfile(
     "parse_verify|capability|interface|selected_boundary_or_route|"
-    "emitc_route_mapping|materialized_emitc_module");
+    "emitc_route_mapping|materialized_emitc_module|mlir_emitc_cpp_emitter|"
+    "generated_cpp_compile");
 
 constexpr llvm::StringLiteral kProtocolMetadataName(
     "toy_construction_protocol");
@@ -60,7 +61,7 @@ constexpr llvm::StringLiteral kToyRouteID(
 constexpr llvm::StringLiteral kToyEmissionKind(
     "materialized-emitc-cpp-toy-template-module");
 constexpr llvm::StringLiteral kToyArtifactKind(
-    "runtime-callable-c-header");
+    "riscv-elf-relocatable-object");
 constexpr llvm::StringLiteral kToyRuntimeABI(
     "toy-template-compute-runtime-c-abi.v1");
 constexpr llvm::StringLiteral kToyRuntimeABIKind(
@@ -69,6 +70,14 @@ constexpr llvm::StringLiteral kToyRuntimeGlueRole(
     "emitc-cpp-toy-template-runtime-glue");
 constexpr llvm::StringLiteral kToyLoweringBoundaryOpName(
     "tcrv_toy.compute_skeleton");
+constexpr llvm::StringLiteral kToyHeaderRouteID(
+    "toy-template-compute-emitc-route.header");
+constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
+    "runtime-callable-c-header");
+constexpr llvm::StringLiteral kToyBundleComponentGroup(
+    "toy-template-compute-materialized-emitc-bundle.v1");
+constexpr llvm::StringLiteral kToyObjectHandoffKind(
+    "materialized-emitc-cpp-toy-template-object");
 constexpr llvm::StringLiteral kToyTemplateComputeCallee(
     "tcrv_toy_template_compute");
 constexpr llvm::StringLiteral kToyTemplateComputeResultName("toy_value");
@@ -195,6 +204,10 @@ const ToyTemplateEmitCConstructionRoute kTemplateEmitCRoute = {
     kToyRuntimeABIKind,
     kToyRuntimeABI,
     kToyRuntimeGlueRole,
+    kToyHeaderRouteID,
+    kRuntimeCallableCHeaderArtifactKind,
+    kToyBundleComponentGroup,
+    kToyObjectHandoffKind,
     kToyTemplateComputeCallee,
     kToyTemplateComputeResultName,
     kToyTemplateComputeResultCType};
@@ -337,13 +350,19 @@ llvm::Error verifyToyConstructionProtocolReady() {
           verifyToyTypedRoleGraphRealization(kManifest,
                                              kTypedRoleGraphRealization))
     return error;
-  return verifyToyTemplateEmitCConstructionRouteMapping(
-      kTemplateEmitCRoute.routeID, kTemplateEmitCRoute.emissionKind,
-      kTemplateEmitCRoute.artifactKind,
-      kTemplateEmitCRoute.loweringBoundaryOpName,
-      kTemplateEmitCRoute.runtimeABI, kTemplateEmitCRoute.runtimeABIKind,
-      kTemplateEmitCRoute.runtimeABIName,
-      kTemplateEmitCRoute.runtimeGlueRole);
+  if (llvm::Error error = verifyToyTemplateEmitCConstructionRouteMapping(
+          kTemplateEmitCRoute.routeID, kTemplateEmitCRoute.emissionKind,
+          kTemplateEmitCRoute.artifactKind,
+          kTemplateEmitCRoute.loweringBoundaryOpName,
+          kTemplateEmitCRoute.runtimeABI, kTemplateEmitCRoute.runtimeABIKind,
+          kTemplateEmitCRoute.runtimeABIName,
+          kTemplateEmitCRoute.runtimeGlueRole))
+    return error;
+  return verifyToyTargetArtifactBundleMapping(
+      kTemplateEmitCRoute.headerRouteID,
+      kTemplateEmitCRoute.headerArtifactKind,
+      kTemplateEmitCRoute.bundleComponentGroup,
+      kTemplateEmitCRoute.objectHandoffKind);
 }
 
 llvm::Error verifyToyTemplateEmitCConstructionRouteMapping(
@@ -383,6 +402,30 @@ llvm::Error verifyToyTemplateEmitCConstructionRouteMapping(
     return makeToyConstructionProtocolError(
         llvm::Twine("Toy runtime glue role must be '") +
         expected.runtimeGlueRole + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyToyTargetArtifactBundleMapping(
+    llvm::StringRef headerRouteID, llvm::StringRef headerArtifactKind,
+    llvm::StringRef bundleComponentGroup, llvm::StringRef objectHandoffKind) {
+  const ToyTemplateEmitCConstructionRoute &expected =
+      getToyTemplateEmitCConstructionRoute();
+  if (headerRouteID != expected.headerRouteID)
+    return makeToyConstructionProtocolError(
+        llvm::Twine("Toy header route id must be '") +
+        expected.headerRouteID + "'");
+  if (headerArtifactKind != expected.headerArtifactKind)
+    return makeToyConstructionProtocolError(
+        llvm::Twine("Toy header artifact kind must be '") +
+        expected.headerArtifactKind + "'");
+  if (bundleComponentGroup != expected.bundleComponentGroup)
+    return makeToyConstructionProtocolError(
+        llvm::Twine("Toy bundle component group must be '") +
+        expected.bundleComponentGroup + "'");
+  if (objectHandoffKind != expected.objectHandoffKind)
+    return makeToyConstructionProtocolError(
+        llvm::Twine("Toy object handoff kind must be '") +
+        expected.objectHandoffKind + "'");
   return llvm::Error::success();
 }
 

@@ -509,3 +509,34 @@ source/header/object/bundle packaging bridge.
 ### Status
 
 [OK] Completed. Ready for archive and commit.
+
+
+## Session 108: Toy materialized EmitC object-bundle bridge
+
+**Date**: 2026-05-17
+**Task**: Toy materialized EmitC object-bundle bridge
+**Branch**: `main`
+
+### Summary
+
+Rebuilt Toy target artifact export from header-only to materialized EmitC object plus object-backed declaration header and bundle; focused Toy/target tests and check-tianchenrv passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
