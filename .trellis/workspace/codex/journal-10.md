@@ -46,6 +46,72 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 125: RVV vector-source front-door artifact bridge
+
+**Date**: 2026-05-18
+**Task**: RVV vector-source front-door artifact bridge
+**Branch**: `main`
+
+### Summary
+
+Added source-level RVV target artifact bridge coverage for the existing bounded
+i32m1 add source path and produced fresh local plus `ssh rvv` evidence for the
+generated object/header/bundle.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `05-18-rvv-vector-source-artifact-bridge` from the Direction Brief.
+- Confirmed current HEAD already has the production RVV source-front-door path:
+  source MLIR -> RVV plugin front door -> selected `tcrv.exec`/`tcrv_rvv`
+  boundary -> RVV plugin-owned EmitC route -> construction-template
+  object/header/bundle exporters.
+- Added `test/Target/RVV/vector-source-target-artifact-exporters.mlir` to start
+  from source-level `func`/`scf.for`/`vector.load`/`arith.addi`/`vector.store`
+  MLIR and prove object, declaration-only header, and bundle exports through
+  `--tcrv-source-artifact-front-door-pipeline`.
+- The new lit test checks selected variant identity, RVV route, runtime ABI
+  name/order, construction protocol metadata, materialized EmitC provenance,
+  RISC-V relocatable object shape, unmangled callable symbol, header metadata,
+  bundle index fields, and no descriptor/direct-C/source-export/RVV direct
+  microkernel residue in outputs.
+- Generated evidence under
+  `artifacts/tmp/rvv_vector_source_frontdoor_artifact_bridge/20260518T-rvv-vector-source-frontdoor-bridge-add`,
+  including source, selected/materialized plan, object/header/bundle, bundle
+  index, readobj outputs, harness, and remote `ssh rvv` compile/run evidence
+  for counts 7, 16, and 23.
+- Spec update review found no `.trellis/spec/` edit required; existing specs
+  already cover this bridge and evidence shape.
+
+### Git Commits
+
+- Pending final coherent commit for this session.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-18-05-18-rvv-vector-source-artifact-bridge`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test tianchenrv-construction-protocol-common-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `cd build/test && python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'RVV.*vector-source|vector-source-target-artifact|source-artifact-bundle-front-door-rvv|source-artifact-bundle-front-door-fail-closed'` passed 7/124 selected tests.
+- [OK] `cd build/test && python3 /usr/lib/llvm-20/build/utils/lit/lit.py -av . --filter 'vector-source-target-artifact-exporters'` passed 1/124 selected tests.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --artifact-root artifacts/tmp/rvv_vector_source_frontdoor_artifact_bridge --run-id 20260518T-rvv-vector-source-frontdoor-bridge-add --overwrite --op-kind add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-translate build/bin/tcrv-translate --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj`
+- [OK] `git diff --check`
+- [OK] Targeted residue scans: only negative FileCheck assertions and
+  fail-closed RVV target rejection text; no restored direct exporter or legacy
+  route authority.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 124/124 tests.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 124: Toy construction-template adapter production migration
 
 **Date**: 2026-05-18

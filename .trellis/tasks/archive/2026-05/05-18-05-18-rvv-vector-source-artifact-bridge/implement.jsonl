@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV stack and architecture invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV source front-door and bounded i32m1 artifact route contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "source-front-door, emission-plan, and target artifact export boundaries"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "source artifact bundle front-door and construction-template adapter contracts"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin source-front-door registration and registry locality contract"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "source-artifact front-door pipeline ordering and fail-closed behavior"}
+{"file": ".trellis/tasks/archive/2026-05/05-18-toy-construction-template-adapter-production-migration/prd.md", "reason": "previous adapter migration proof and evidence format"}
