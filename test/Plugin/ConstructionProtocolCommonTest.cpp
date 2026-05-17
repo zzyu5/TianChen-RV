@@ -1,9 +1,13 @@
 #include "TianChenRV/Plugin/ConstructionProtocol.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
+#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
+#include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
+#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
+#include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -22,6 +26,7 @@ using tianchenrv::plugin::construction::ExecutableRoleStep;
 using tianchenrv::plugin::ExtensionPlugin;
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
+using tianchenrv::support::ArtifactMetadataEntry;
 
 static_assert(std::is_same<
               tianchenrv::plugin::template_ext::TemplateConstructionManifest,
@@ -93,6 +98,56 @@ public:
   }
 };
 
+class ToyStaleArtifactMetadataPlugin final : public ExtensionPlugin {
+public:
+  llvm::StringRef getName() const override {
+    return "toy-stale-construction-artifact-plugin";
+  }
+
+  llvm::ArrayRef<PluginCapability> getCapabilities() const override {
+    return {};
+  }
+
+  void registerDialects(mlir::DialectRegistry &registry) const override {
+    (void)registry;
+  }
+
+  llvm::Error verifyExecutableConstructionConformance() const override {
+    namespace toy = tianchenrv::plugin::toy;
+    llvm::SmallVector<ArtifactMetadataEntry, 8> staleMetadata(
+        toy::getToyTemplateConstructionArtifactMetadata().begin(),
+        toy::getToyTemplateConstructionArtifactMetadata().end());
+    staleMetadata.front().value = "stale-toy-route";
+    return toy::verifyToyTemplateConstructionArtifactMetadata(
+        staleMetadata, "Toy registry construction artifact metadata");
+  }
+};
+
+class TemplateStaleArtifactMetadataPlugin final : public ExtensionPlugin {
+public:
+  llvm::StringRef getName() const override {
+    return "template-stale-construction-artifact-plugin";
+  }
+
+  llvm::ArrayRef<PluginCapability> getCapabilities() const override {
+    return {};
+  }
+
+  void registerDialects(mlir::DialectRegistry &registry) const override {
+    (void)registry;
+  }
+
+  llvm::Error verifyExecutableConstructionConformance() const override {
+    namespace template_ext = tianchenrv::plugin::template_ext;
+    llvm::SmallVector<ArtifactMetadataEntry, 8> staleMetadata(
+        template_ext::getTemplateConstructionArtifactMetadata().begin(),
+        template_ext::getTemplateConstructionArtifactMetadata().end());
+    staleMetadata.front().value = "stale-template-route";
+    return template_ext::verifyTemplateConstructionArtifactMetadata(
+        staleMetadata, "Template registry construction artifact metadata");
+  }
+};
+
 int fail(const llvm::Twine &message) {
   llvm::errs() << message << "\n";
   return 1;
@@ -130,10 +185,23 @@ int runTemplateCommonValidationTest() {
           template_ext::verifyTemplateConstructionManifest(manifest),
           "Template manifest validates through the shared construction model"))
     return result;
+  if (int result = expectSuccess(
+          template_ext::verifyTemplateTypedRoleGraphRealization(manifest,
+                                                                realization),
+          "Template typed roles validate through the shared construction "
+          "model"))
+    return result;
+  if (int result = expectSuccess(
+          template_ext::verifyTemplateConstructionArtifactMetadata(
+              template_ext::getTemplateConstructionArtifactMetadata(),
+              "Template construction protocol common test"),
+          "Template construction artifact metadata validates through the "
+          "shared construction model"))
+    return result;
   return expectSuccess(
-      template_ext::verifyTemplateTypedRoleGraphRealization(manifest,
-                                                            realization),
-      "Template typed roles validate through the shared construction model");
+      template_ext::verifyTemplateConstructionProtocolReady(),
+      "Template construction protocol ready check validates through the common "
+      "construction conformance gate");
 }
 
 int runToyCommonValidationTest() {
@@ -145,9 +213,21 @@ int runToyCommonValidationTest() {
           toy::verifyToyConstructionManifest(manifest),
           "Toy manifest validates through the shared construction model"))
     return result;
+  if (int result = expectSuccess(
+          toy::verifyToyTypedRoleGraphRealization(manifest, realization),
+          "Toy typed roles validate through the shared construction model"))
+    return result;
+  if (int result = expectSuccess(
+          toy::verifyToyTemplateConstructionArtifactMetadata(
+              toy::getToyTemplateConstructionArtifactMetadata(),
+              "Toy construction protocol common test"),
+          "Toy construction artifact metadata validates through the shared "
+          "construction model"))
+    return result;
   return expectSuccess(
-      toy::verifyToyTypedRoleGraphRealization(manifest, realization),
-      "Toy typed roles validate through the shared construction model");
+      toy::verifyToyConstructionProtocolReady(),
+      "Toy construction protocol ready check validates through the common "
+      "construction conformance gate");
 }
 
 int runTensorExtLiteCommonValidationTest() {
@@ -378,6 +458,69 @@ ValidationSpec buildTensorExtLiteGateValidationSpec(
           requiredEvidence};
 }
 
+ValidationSpec buildToyGateValidationSpec(const Manifest &manifest) {
+  namespace construction = tianchenrv::plugin::construction;
+  namespace toy = tianchenrv::plugin::toy;
+  static const construction::RoleExpectation roleExpectations[] = {
+      {"configure", "TCRVConfigOpInterface", false},
+      {"load", "TCRVMemoryOpInterface", true},
+      {"compute", "TCRVComputeOpInterface", true},
+      {"store", "TCRVMemoryOpInterface", true},
+  };
+  static const llvm::StringRef requiredEvidence[] = {
+      "parse_verify", "capability", "interface",
+      "selected_boundary_or_route", "emitc_route_mapping",
+      "materialized_emitc_module"};
+  return {"Toy",
+          manifest.protocolVersion,
+          manifest.archetype,
+          manifest.semanticRoleGraph,
+          manifest.family,
+          manifest.emitcRoute,
+          toy::getToyConstructionInterfaceRealization(),
+          toy::getToyTypedRoleRealizationSummary(),
+          roleExpectations,
+          requiredEvidence};
+}
+
+class ToyStaleManifestPlugin final : public ExtensionPlugin {
+public:
+  llvm::StringRef getName() const override {
+    return "toy-stale-construction-manifest-plugin";
+  }
+
+  llvm::ArrayRef<PluginCapability> getCapabilities() const override {
+    return {};
+  }
+
+  void registerDialects(mlir::DialectRegistry &registry) const override {
+    (void)registry;
+  }
+
+  llvm::Error verifyExecutableConstructionConformance() const override {
+    namespace construction = tianchenrv::plugin::construction;
+    namespace toy = tianchenrv::plugin::toy;
+    Manifest staleManifest = toy::getToyConstructionManifest();
+    staleManifest.protocolVersion = "stale-toy-construction-protocol";
+    ValidationSpec validation =
+        buildToyGateValidationSpec(toy::getToyConstructionManifest());
+    llvm::ArrayRef<ArtifactMetadataEntry> artifactMetadata =
+        toy::getToyTemplateConstructionArtifactMetadata();
+    const construction::ConstructionArtifactMetadataConformanceSpec
+        artifactChecks[] = {
+            {artifactMetadata, artifactMetadata,
+             "Toy registry construction manifest metadata"},
+        };
+    construction::ConstructionConformanceGateSpec gate;
+    gate.gateDescription = "Toy registry stale construction manifest";
+    gate.manifest = &staleManifest;
+    gate.typedRoleRealization = &toy::getToyTypedRoleGraphRealization();
+    gate.validationSpec = &validation;
+    gate.artifactMetadata = artifactChecks;
+    return construction::verifyConstructionConformanceGate(gate);
+  }
+};
+
 int runCommonConstructionConformanceGateTest() {
   namespace construction = tianchenrv::plugin::construction;
   namespace tel = tianchenrv::plugin::tensorext_lite;
@@ -507,11 +650,62 @@ int runCommonConstructionConformanceGateTest() {
 int runRegistryConstructionGateRejectionTest() {
   ExtensionPluginRegistry registry;
   GateFailingPlugin plugin;
+  if (int result = expectErrorContains(
+          registry.registerPlugin(plugin),
+          {"failed executable construction conformance gate",
+           "bad construction manifest"},
+          "registry rejects plugin whose construction conformance gate fails"))
+    return result;
+
+  ToyStaleManifestPlugin staleToyManifest;
+  if (int result = expectErrorContains(
+          registry.registerPlugin(staleToyManifest),
+          {"failed executable construction conformance gate",
+           "Toy construction manifest invalid",
+           "protocol version"},
+          "registry rejects stale Toy construction manifest"))
+    return result;
+
+  ToyStaleArtifactMetadataPlugin staleToy;
+  if (int result = expectErrorContains(
+          registry.registerPlugin(staleToy),
+          {"failed executable construction conformance gate",
+           "Toy registry construction artifact metadata",
+           "toy_emitc_lowerable_route"},
+          "registry rejects stale Toy construction artifact metadata"))
+    return result;
+
+  TemplateStaleArtifactMetadataPlugin staleTemplate;
   return expectErrorContains(
-      registry.registerPlugin(plugin),
+      registry.registerPlugin(staleTemplate),
       {"failed executable construction conformance gate",
-       "bad construction manifest"},
-      "registry rejects plugin whose construction conformance gate fails");
+       "Template registry construction artifact metadata",
+       "template_emitc_route_mapping"},
+      "registry rejects stale Template construction artifact metadata");
+}
+
+int runBuiltinConstructionPluginRegistrationGateTest() {
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV through executable construction gate"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerTensorExtLiteExtensionPlugin(registry),
+          "register TensorExtLite through executable construction gate"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerToyExtensionPlugin(registry),
+          "register Toy through executable construction gate"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerTemplateExtensionPlugin(registry),
+          "register Template through executable construction gate"))
+    return result;
+  return registry.size() == 4
+             ? 0
+             : fail("construction-capable builtin plugin registry should "
+                    "contain RVV, TensorExtLite, Toy, and Template");
 }
 
 int runUnsupportedArtifactKindConstructionTest() {
@@ -573,6 +767,8 @@ int main() {
   if (int result = runCommonConstructionConformanceGateTest())
     return result;
   if (int result = runRegistryConstructionGateRejectionTest())
+    return result;
+  if (int result = runBuiltinConstructionPluginRegistrationGateTest())
     return result;
   if (int result = runUnsupportedArtifactKindConstructionTest())
     return result;

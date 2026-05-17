@@ -107,6 +107,8 @@ constexpr llvm::StringLiteral kTemplateComputeOperationName(
     "tcrv_template.compute_skeleton");
 constexpr llvm::StringLiteral kTemplateComputeTypedRoleID(
     "template.role.compute.compute_skeleton");
+constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
+    "TCRVEmitCLowerableOpInterface");
 
 const TemplateConstructionSemanticRole kSemanticRoles[] = {
     {"configure", 0, "tcrv_template.config_skeleton",
@@ -358,6 +360,20 @@ const TemplateEmitCConstructionRoute &getTemplateEmitCConstructionRoute() {
   return kTemplateEmitCRoute;
 }
 
+llvm::ArrayRef<support::ArtifactMetadataEntry>
+getTemplateConstructionArtifactMetadata() {
+  static const support::ArtifactMetadataEntry kMetadata[] = {
+      {kEmitCRouteMetadataName, kTemplateEmitCRoute.routeID},
+      {kSourceOpMetadataName, kTemplateLoweringBoundaryOpName},
+      {kSourceRoleMetadataName, "compute"},
+      {kSourceOpInterfaceMetadataName, kEmitCLowerableOpInterfaceName},
+      {kProtocolMetadataName, kProtocolVersion},
+      {kRoleGraphMetadataName, kSemanticRoleGraph},
+      {kTypedRoleRealizationMetadataName, kTypedRoleRealizationSummary},
+  };
+  return kMetadata;
+}
+
 llvm::ArrayRef<support::RuntimeABIParameter>
 getTemplateRuntimeABIParameters() {
   return {};
@@ -377,11 +393,24 @@ llvm::Error verifyTemplateTypedRoleGraphRealization(
 }
 
 llvm::Error verifyTemplateConstructionProtocolReady() {
-  if (llvm::Error error = verifyTemplateConstructionManifest(kManifest))
+  construction::ValidationSpec validation =
+      getTemplateConstructionValidationSpec();
+  llvm::ArrayRef<support::ArtifactMetadataEntry> artifactMetadata =
+      getTemplateConstructionArtifactMetadata();
+  const construction::ConstructionArtifactMetadataConformanceSpec
+      artifactChecks[] = {
+          {artifactMetadata, artifactMetadata,
+           "Template construction protocol"},
+      };
+  construction::ConstructionConformanceGateSpec gate;
+  gate.gateDescription = "Template executable construction protocol";
+  gate.manifest = &kManifest;
+  gate.typedRoleRealization = &kTypedRoleGraphRealization;
+  gate.validationSpec = &validation;
+  gate.artifactMetadata = artifactChecks;
+  if (llvm::Error error = construction::verifyConstructionConformanceGate(gate))
     return error;
-  if (llvm::Error error = verifyTemplateTypedRoleGraphRealization(
-          kManifest, kTypedRoleGraphRealization))
-    return error;
+
   if (llvm::Error error = verifyTemplateEmitCConstructionRouteMapping(
           kTemplateEmitCRoute.routeID, kTemplateEmitCRoute.emissionKind,
           kTemplateEmitCRoute.artifactKind,
@@ -467,6 +496,14 @@ llvm::Error verifyTemplateTargetArtifactBundleMapping(
         llvm::Twine("Template EmitC-to-C++ translate route id must be '") +
         expected.emitCToCppTranslateRouteID + "'");
   return llvm::Error::success();
+}
+
+llvm::Error verifyTemplateConstructionArtifactMetadata(
+    llvm::ArrayRef<support::ArtifactMetadataEntry> metadata,
+    llvm::StringRef context) {
+  return construction::verifyConstructionArtifactMetadata(
+      metadata, getTemplateConstructionArtifactMetadata(),
+      getTemplateConstructionValidationSpec(), context);
 }
 
 llvm::Error verifyTemplateComputeRoleOpInterface(

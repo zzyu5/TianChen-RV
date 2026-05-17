@@ -41,6 +41,12 @@ constexpr llvm::StringLiteral kEmitCRouteMetadataName(
     "toy_emitc_route_mapping");
 constexpr llvm::StringLiteral kEvidenceProfileMetadataName(
     "toy_evidence_profile");
+constexpr llvm::StringLiteral kEmitCLowerableRouteMetadataName(
+    "toy_emitc_lowerable_route");
+constexpr llvm::StringLiteral kSourceOpMetadataName("toy_source_op");
+constexpr llvm::StringLiteral kSourceRoleMetadataName("toy_source_role");
+constexpr llvm::StringLiteral kSourceOpInterfaceMetadataName(
+    "toy_source_op_interface");
 
 constexpr llvm::StringLiteral kProtocolMetadataRole("construction-protocol");
 constexpr llvm::StringLiteral kArchetypeMetadataRole("extension-archetype");
@@ -96,6 +102,8 @@ constexpr llvm::StringLiteral kToyComputeOperationName(
     "tcrv_toy.compute_skeleton");
 constexpr llvm::StringLiteral kToyComputeTypedRoleID(
     "toy.role.compute.compute_skeleton");
+constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
+    "TCRVEmitCLowerableOpInterface");
 
 const ToyConstructionSemanticRole kSemanticRoles[] = {
     {"configure", 0, "tcrv_toy.config_skeleton",
@@ -325,6 +333,20 @@ const ToyTemplateEmitCConstructionRoute
   return kTemplateEmitCRoute;
 }
 
+llvm::ArrayRef<support::ArtifactMetadataEntry>
+getToyTemplateConstructionArtifactMetadata() {
+  static const support::ArtifactMetadataEntry kMetadata[] = {
+      {kEmitCLowerableRouteMetadataName, kTemplateEmitCRoute.routeID},
+      {kSourceOpMetadataName, kToyComputeOperationName},
+      {kSourceRoleMetadataName, "compute"},
+      {kSourceOpInterfaceMetadataName, kEmitCLowerableOpInterfaceName},
+      {kProtocolMetadataName, kProtocolVersion},
+      {kRoleGraphMetadataName, kSemanticRoleGraph},
+      {kTypedRoleRealizationMetadataName, kTypedRoleRealizationSummary},
+  };
+  return kMetadata;
+}
+
 llvm::ArrayRef<support::RuntimeABIParameter>
 getToyTemplateRuntimeABIParameters() {
   return kToyTemplateRuntimeABIParameters;
@@ -344,12 +366,22 @@ llvm::Error verifyToyTypedRoleGraphRealization(
 }
 
 llvm::Error verifyToyConstructionProtocolReady() {
-  if (llvm::Error error = verifyToyConstructionManifest(kManifest))
+  construction::ValidationSpec validation = getToyConstructionValidationSpec();
+  llvm::ArrayRef<support::ArtifactMetadataEntry> artifactMetadata =
+      getToyTemplateConstructionArtifactMetadata();
+  const construction::ConstructionArtifactMetadataConformanceSpec
+      artifactChecks[] = {
+          {artifactMetadata, artifactMetadata, "Toy construction protocol"},
+      };
+  construction::ConstructionConformanceGateSpec gate;
+  gate.gateDescription = "Toy executable construction protocol";
+  gate.manifest = &kManifest;
+  gate.typedRoleRealization = &kTypedRoleGraphRealization;
+  gate.validationSpec = &validation;
+  gate.artifactMetadata = artifactChecks;
+  if (llvm::Error error = construction::verifyConstructionConformanceGate(gate))
     return error;
-  if (llvm::Error error =
-          verifyToyTypedRoleGraphRealization(kManifest,
-                                             kTypedRoleGraphRealization))
-    return error;
+
   if (llvm::Error error = verifyToyTemplateEmitCConstructionRouteMapping(
           kTemplateEmitCRoute.routeID, kTemplateEmitCRoute.emissionKind,
           kTemplateEmitCRoute.artifactKind,
@@ -427,6 +459,14 @@ llvm::Error verifyToyTargetArtifactBundleMapping(
         llvm::Twine("Toy object handoff kind must be '") +
         expected.objectHandoffKind + "'");
   return llvm::Error::success();
+}
+
+llvm::Error verifyToyTemplateConstructionArtifactMetadata(
+    llvm::ArrayRef<support::ArtifactMetadataEntry> metadata,
+    llvm::StringRef context) {
+  return construction::verifyConstructionArtifactMetadata(
+      metadata, getToyTemplateConstructionArtifactMetadata(),
+      getToyConstructionValidationSpec(), context);
 }
 
 llvm::Error verifyToyComputeRoleOpInterface(

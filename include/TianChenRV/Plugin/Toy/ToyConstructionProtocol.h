@@ -66,6 +66,8 @@ const ToyConstructionManifest &getToyConstructionManifest();
 const ToyTypedRoleGraphRealization &getToyTypedRoleGraphRealization();
 const ToyTemplateEmitCConstructionRoute
     &getToyTemplateEmitCConstructionRoute();
+llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry>
+getToyTemplateConstructionArtifactMetadata();
 llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter>
 getToyTemplateRuntimeABIParameters();
 
@@ -83,6 +85,9 @@ llvm::Error verifyToyTemplateEmitCConstructionRouteMapping(
 llvm::Error verifyToyTargetArtifactBundleMapping(
     llvm::StringRef headerRouteID, llvm::StringRef headerArtifactKind,
     llvm::StringRef bundleComponentGroup, llvm::StringRef objectHandoffKind);
+llvm::Error verifyToyTemplateConstructionArtifactMetadata(
+    llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
+    llvm::StringRef context);
 llvm::Error verifyToyComputeRoleOpInterface(
     const ToyConstructionManifest &manifest,
     const ToyTypedRoleGraphRealization &realization,

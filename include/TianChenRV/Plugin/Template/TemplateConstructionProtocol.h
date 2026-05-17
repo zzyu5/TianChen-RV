@@ -74,6 +74,8 @@ const TemplateConstructionManifest &getTemplateConstructionManifest();
 const TemplateTypedRoleGraphRealization &
 getTemplateTypedRoleGraphRealization();
 const TemplateEmitCConstructionRoute &getTemplateEmitCConstructionRoute();
+llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry>
+getTemplateConstructionArtifactMetadata();
 llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter>
 getTemplateRuntimeABIParameters();
 llvm::Error
@@ -91,6 +93,9 @@ llvm::Error verifyTemplateTargetArtifactBundleMapping(
     llvm::StringRef headerRouteID, llvm::StringRef headerArtifactKind,
     llvm::StringRef bundleComponentGroup, llvm::StringRef objectHandoffKind,
     llvm::StringRef emitCToCppTranslateRouteID);
+llvm::Error verifyTemplateConstructionArtifactMetadata(
+    llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
+    llvm::StringRef context);
 llvm::Error verifyTemplateComputeRoleOpInterface(
     const TemplateConstructionManifest &manifest,
     const TemplateTypedRoleGraphRealization &realization,

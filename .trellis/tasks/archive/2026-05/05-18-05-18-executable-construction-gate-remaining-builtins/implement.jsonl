@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries and descriptor/direct-C red lines for this implementation task."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Live Extension-Family Plugin Construction Protocol spec replacing the stale path in the Direction Brief."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Registry and plugin interface boundary for registration-time gates."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC route boundary and descriptor/source-export prohibitions relevant to construction-capable plugins."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime/emission contract preventing direct-C/source-export rebuild shortcuts."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++ and lit test expectations for plugin registry behavior."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Checklist for keeping plugin-local behavior out of common/core semantic branches."}

@@ -546,6 +546,11 @@ void TemplateExtensionPlugin::registerDialects(
   registry.insert<tcrv::template_ext::TCRVTemplateDialect>();
 }
 
+llvm::Error
+TemplateExtensionPlugin::verifyExecutableConstructionConformance() const {
+  return template_ext::verifyTemplateConstructionProtocolReady();
+}
+
 bool TemplateExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
   return request.getHighLevelOp() && hasAvailableTemplateExtensionCapability(request);

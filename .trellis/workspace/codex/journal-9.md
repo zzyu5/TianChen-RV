@@ -73,6 +73,67 @@ Added a code-consumed common materialized EmitC object/header bundle constructio
 - None - task complete
 
 
+## Session 121: Executable construction gate closure for remaining builtin plugins
+
+**Date**: 2026-05-18
+**Task**: Executable construction gate closure for remaining builtin plugins
+**Branch**: `main`
+
+### Summary
+
+Closed the remaining builtin executable construction registration bypass by
+wiring Toy and Template into the existing registry-time conformance gate.
+
+### Main Changes
+
+- Created Trellis task
+  `05-18-executable-construction-gate-remaining-builtins` from the Direction
+  Brief and repaired the Brief's stale construction-protocol spec path to the
+  live `.trellis/spec/plugin-protocol/extension-family-plugin-template.md`
+  source of truth.
+- Added Toy and Template
+  `verifyExecutableConstructionConformance()` overrides so
+  `ExtensionPluginRegistry::registerPlugin()` validates both plugins before
+  proposal, lowering, EmitC route construction, or artifact export can consume
+  them.
+- Reworked Toy and Template construction readiness checks to call the common
+  `ConstructionConformanceGateSpec` path for manifest, typed-role realization,
+  validation spec, and construction artifact metadata before their existing
+  route/bundle checks.
+- Added Toy/Template construction artifact metadata helpers and verifiers.
+- Extended `ConstructionProtocolCommonTest` with valid registration coverage
+  for RVV, TensorExtLite, Toy, and Template, plus fail-closed registry coverage
+  for stale Toy manifest metadata, stale Toy artifact metadata, and stale
+  Template artifact metadata.
+- Added no new route, artifact kind, extension semantics, descriptor/direct-C/
+  source-export authority, compatibility layer, Python compiler-core logic, or
+  family-specific common branch.
+
+### Testing
+
+- [OK] Trellis context validation for the task.
+- [OK] `cmake --build build --target tianchenrv-construction-protocol-common-test -j2`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `cmake --build build --target tianchenrv-toy-extension-plugin-test tianchenrv-template-extension-plugin-test tianchenrv-rvv-extension-plugin-test tianchenrv-tensorext-lite-extension-plugin-test -j2`
+- [OK] Toy, Template, RVV, and TensorExtLite plugin smoke tests.
+- [OK] Construction-capable builtin hook scan showed RVV, TensorExtLite, Toy,
+  and Template gated at registration; Scalar/Offload no-construction scan
+  returned no matches.
+- [OK] Common construction family-name scan returned no matches.
+- [OK] Touched-surface descriptor/direct-C/source-export residue scan returned
+  no matches.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` -> 122/122 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 121: Executable construction protocol registry gate
 
 **Date**: 2026-05-18

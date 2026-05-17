@@ -553,6 +553,11 @@ void ToyExtensionPlugin::registerDialects(
   registry.insert<tcrv::toy::TCRVToyDialect>();
 }
 
+llvm::Error ToyExtensionPlugin::verifyExecutableConstructionConformance()
+    const {
+  return toy::verifyToyConstructionProtocolReady();
+}
+
 bool ToyExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
   return request.getHighLevelOp() && hasAvailableToyTemplateCapability(request);

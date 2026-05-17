@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants to verify after the implementation."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Construction protocol compliance checks for gated builtin plugins."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Registry-boundary behavior to verify in tests and code review."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Ensure no descriptor/direct-C/source-export route authority is introduced."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Ensure no emission/runtime behavior is rebuilt during this gate task."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused test and evidence policy for the final check phase."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Common/core branch residue scan guidance."}

@@ -197,6 +197,7 @@ target_link_libraries(tianchenrv-construction-protocol-common-test
   PRIVATE
   TianChenRVPluginConstructionProtocol
   TianChenRVRVVConstructionProtocol
+  TianChenRVRVVPlugin
   TianChenRVTemplatePlugin
   TianChenRVTensorExtLitePlugin
   TianChenRVToyPlugin
