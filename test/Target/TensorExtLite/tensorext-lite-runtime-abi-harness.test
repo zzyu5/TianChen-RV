@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-riscv-object-clang, tianchenrv-local-native-clangxx
 # RUN: rm -rf %t.evidence
-# RUN: python3 %S/../../../scripts/tensorextlite_runtime_abi_e2e.py --artifact-root %t.evidence --run-id lit --input %S/../../Transforms/TensorExtLite/tensorext-lite-fragment-mma-source-front-door.mlir --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --clangxx clang++ --llvm-readobj llvm-readobj | FileCheck %s
+# RUN: python3 %S/../../../scripts/tensorextlite_runtime_abi_e2e.py --artifact-root %t.evidence --run-id lit --input %S/../../Transforms/TensorExtLite/tensorext-lite-fragment-mma-source-front-door.mlir --materialized-input %S/tensorext-lite-target-artifact-header.mlir --tcrv-translate tcrv-translate --clangxx clang++ --llvm-readobj llvm-readobj | FileCheck %s
 
 # CHECK: tianchenrv.tensorext_lite.runtime_abi_e2e: PASS
 # CHECK: selected_variant: tensorext_lite_tile_mma_first_slice

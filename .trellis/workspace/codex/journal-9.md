@@ -718,6 +718,58 @@ chain.
 - None - task complete.
 
 
+## Session 113: Legacy manual source-artifact pipe cleanup
+
+**Date**: 2026-05-17
+**Task**: Legacy manual source-artifact pipe cleanup
+**Branch**: `main`
+
+### Summary
+
+Removed or rewrote positive target-artifact tests that still advertised the
+manual `tcrv-opt --tcrv-source-artifact-front-door-pipeline | tcrv-translate`
+pipe as the source-to-artifact workflow. Source-input bundle coverage now uses
+the one-command source artifact bundle front door, while retained low-level
+exporter coverage starts from explicit materialized IR.
+
+### Main Changes
+
+- Created and completed Trellis task
+  `05-17-legacy-manual-source-artifact-pipe-cleanup`.
+- Deleted RVV/Toy/TensorExtLite positive source-to-object/header tests that
+  depended on the old manual source-front-door pipe.
+- Added scoped materialized-module exporter tests for RVV, Toy, and
+  TensorExtLite object/header/bundle surfaces.
+- Extended RVV source bundle front-door lit coverage from add-only to
+  add/sub/mul through
+  `tcrv-translate --tcrv-source-artifact-bundle-front-door`.
+- Rewrote TensorExtLite source-to-bundle lit coverage to use the one-command
+  source bundle front door.
+- Updated `scripts/tensorextlite_runtime_abi_e2e.py` so source-input bundle
+  generation uses the one-command front door and lower-level EmitC/header/object
+  checks use an explicit materialized target fixture.
+- Added missing-output-directory fail-closed coverage to the source bundle
+  front-door negative lit test.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/tensorextlite_runtime_abi_e2e.py`
+- [OK] Focused lit filter from `build/test` covering touched source-bundle and
+  materialized-exporter tests -> 10/10 passed.
+- [OK] `cmake --build build --target check-tianchenrv -j2` -> 126/126 passed.
+- [OK] `git diff --check`
+- [OK] Manual-pipe positive workflow scan over target tests and evidence/tool
+  surfaces returned no matches.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete.
+
+
 ## Session 112: RVV source-bundle runtime ABI execution proof
 
 **Date**: 2026-05-17

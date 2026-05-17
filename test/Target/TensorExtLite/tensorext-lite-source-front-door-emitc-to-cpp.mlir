@@ -1,10 +1,11 @@
 // RUN: tcrv-translate --help | FileCheck %s --check-prefix=HELP
-// RUN: tcrv-opt %S/../../Transforms/TensorExtLite/tensorext-lite-fragment-mma-source-front-door.mlir --tcrv-source-artifact-front-door-pipeline | tcrv-translate --tcrv-tensorext-lite-emitc-to-cpp | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="descriptor" --implicit-check-not="source-export" --implicit-check-not="direct-C" --implicit-check-not="source-seed" --implicit-check-not="tcrv_rvv" --implicit-check-not="tcrv_toy" --implicit-check-not="int main"
+// RUN: tcrv-translate --tcrv-tensorext-lite-emitc-to-cpp %S/tensorext-lite-target-artifact-header.mlir | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="descriptor" --implicit-check-not="source-export" --implicit-check-not="direct-C" --implicit-check-not="source-seed" --implicit-check-not="tcrv_rvv" --implicit-check-not="tcrv_toy" --implicit-check-not="int main"
 
 // This file carries no standalone input. The positive route intentionally
-// starts from the TensorExtLite source-front-door fixture above, runs the
-// source-artifact pipeline, then asks the TensorExtLite target translate route
-// to materialize and verify EmitC before invoking the MLIR EmitC C/C++ emitter.
+// starts from the materialized TensorExtLite target fixture, then asks the
+// TensorExtLite target translate route to materialize and verify EmitC before
+// invoking the MLIR EmitC C/C++ emitter. Source-to-bundle coverage lives in the
+// one-command source artifact bundle front-door tests.
 
 // HELP: --tcrv-tensorext-lite-emitc-to-cpp
 // HELP-SAME: MLIR EmitC C/C++ emitter

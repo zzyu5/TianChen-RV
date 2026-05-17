@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Prove TensorExtLite generated runtime ABI bundle consumption locally.
 
-This is evidence tooling only. It invokes the existing MLIR/C++ compiler
-front doors, checks the generated TensorExtLite target artifact bundle, builds
-a small native ABI consumer from the generated declaration header and the same
-materialized EmitC C++ source, and runs that consumer locally. It does not
-implement compiler IR, lowering, plugin selection, emission, descriptors,
-fallback computation, or runtime glue.
+This is evidence tooling only. It invokes the one-command source artifact
+bundle front door for the source-input bundle, uses an explicit materialized IR
+fixture for lower-level EmitC/header/object exporter checks, builds a small
+native ABI consumer from the generated declaration header and materialized
+EmitC C++ source, and runs that consumer locally. It does not implement
+compiler IR, lowering, plugin selection, emission, descriptors, fallback
+computation, or runtime glue.
 """
 
 from __future__ import annotations
@@ -29,6 +30,9 @@ SCHEMA_VERSION = 1
 DEFAULT_ARTIFACT_ROOT = Path("artifacts/tmp/tensorextlite_runtime_abi_e2e")
 DEFAULT_INPUT = Path(
     "test/Transforms/TensorExtLite/tensorext-lite-fragment-mma-source-front-door.mlir"
+)
+DEFAULT_MATERIALIZED_INPUT = Path(
+    "test/Target/TensorExtLite/tensorext-lite-target-artifact-header.mlir"
 )
 DEFAULT_TIMEOUT_SECONDS = 60
 
@@ -319,7 +323,6 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
     bundle_dir.mkdir(parents=True)
     negative_dir.mkdir()
 
-    tcrv_opt = ensure_tool(args.tcrv_opt, ("build/bin/tcrv-opt",))
     tcrv_translate = ensure_tool(args.tcrv_translate, ("build/bin/tcrv-translate",))
     clangxx = ensure_tool(args.clangxx, ("/usr/lib/llvm-20/bin/clang++",))
     readobj = ensure_tool(args.llvm_readobj, ("/usr/lib/llvm-20/bin/llvm-readobj",))
@@ -327,12 +330,16 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
     input_path = Path(args.input)
     if not input_path.exists():
         raise EvidenceError(f"input MLIR does not exist: {input_path}")
+    materialized_input_path = Path(args.materialized_input)
+    if not materialized_input_path.exists():
+        raise EvidenceError(f"materialized input MLIR does not exist: {materialized_input_path}")
 
     run = EvidenceRun(run_dir, args.timeout)
     input_copy = run_dir / "source_front_door_input.mlir"
     input_copy.write_bytes(input_path.read_bytes())
+    materialized_input_copy = run_dir / "materialized_input.mlir"
+    materialized_input_copy.write_bytes(materialized_input_path.read_bytes())
 
-    post_planning = run_dir / "post_planning.mlir"
     generated_cpp = run_dir / "generated.cpp"
     generated_header = run_dir / "generated.h"
     target_object = run_dir / "target_object.o"
@@ -343,39 +350,37 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
     cpp_stderr = run_dir / "generated_cpp.stderr.txt"
 
     run.run(
-        "materialize source-front-door and emission plan",
-        [tcrv_opt, str(input_path), "--tcrv-source-artifact-front-door-pipeline"],
-        stdout_path=post_planning,
-        stderr_path=run_dir / "post_planning.stderr.txt",
+        "export source artifact bundle front door",
+        [
+            tcrv_translate,
+            "--tcrv-source-artifact-bundle-front-door",
+            f"--tcrv-target-artifact-bundle-output-dir={bundle_dir}",
+            str(input_path),
+        ],
+        stdout_path=bundle_stdout,
+        stderr_path=bundle_stderr,
     )
     run.run(
         "export materialized EmitC C++ source",
-        [tcrv_translate, "--tcrv-tensorext-lite-emitc-to-cpp", str(post_planning)],
+        [tcrv_translate, "--tcrv-tensorext-lite-emitc-to-cpp", str(materialized_input_path)],
         stdout_path=generated_cpp,
         stderr_path=cpp_stderr,
     )
     run.run(
         "export declaration header",
-        [tcrv_translate, "--tcrv-export-target-header-artifact", str(post_planning)],
+        [
+            tcrv_translate,
+            "--tcrv-export-target-header-artifact",
+            str(materialized_input_path),
+        ],
         stdout_path=generated_header,
         stderr_path=header_stderr,
     )
     run.run(
         "export standalone target object",
-        [tcrv_translate, "--tcrv-export-target-artifact", str(post_planning)],
+        [tcrv_translate, "--tcrv-export-target-artifact", str(materialized_input_path)],
         stdout_path=target_object,
         stderr_path=target_object_stderr,
-    )
-    run.run(
-        "export object/header bundle",
-        [
-            tcrv_translate,
-            "--tcrv-export-target-artifact-bundle",
-            f"--tcrv-target-artifact-bundle-output-dir={bundle_dir}",
-            str(post_planning),
-        ],
-        stdout_path=bundle_stdout,
-        stderr_path=bundle_stderr,
     )
 
     bundle_object = bundle_dir / EXPECTED_BUNDLE_OBJECT
@@ -468,7 +473,7 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
 
     unsupported_mlir = negative_dir / "unsupported_artifact_kind.mlir"
     unsupported_mlir.write_text(
-        post_planning.read_text(encoding="utf-8").replace(
+        materialized_input_path.read_text(encoding="utf-8").replace(
             'artifact_kind = "riscv-elf-relocatable-object"',
             'artifact_kind = "metadata-diagnostic"',
             1,
@@ -486,7 +491,7 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
 
     wrong_route_mlir = negative_dir / "wrong_route_identity.mlir"
     wrong_route_mlir.write_text(
-        post_planning.read_text(encoding="utf-8").replace(
+        materialized_input_path.read_text(encoding="utf-8").replace(
             f'lowering_pipeline = "{EXPECTED_EMITC_ROUTE}"',
             'lowering_pipeline = "tensorext-lite-fragment-mma-wrong-route"',
             1,
@@ -521,7 +526,7 @@ def create_evidence(args: argparse.Namespace) -> dict[str, Any]:
         "evidence_dir": str(run_dir),
         "artifacts": {
             "source_front_door_input": str(input_copy.relative_to(run_dir)),
-            "post_planning_mlir": str(post_planning.relative_to(run_dir)),
+            "materialized_input": str(materialized_input_copy.relative_to(run_dir)),
             "generated_cpp": str(generated_cpp.relative_to(run_dir)),
             "generated_header": str(generated_header.relative_to(run_dir)),
             "target_object": str(target_object.relative_to(run_dir)),
@@ -553,7 +558,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--artifact-root", default=str(DEFAULT_ARTIFACT_ROOT))
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--input", default=str(DEFAULT_INPUT))
-    parser.add_argument("--tcrv-opt", default="tcrv-opt")
+    parser.add_argument("--materialized-input", default=str(DEFAULT_MATERIALIZED_INPUT))
     parser.add_argument("--tcrv-translate", default="tcrv-translate")
     parser.add_argument("--clangxx", default="clang++")
     parser.add_argument("--llvm-readobj", default="llvm-readobj")

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, source-of-truth, descriptor/direct-C deletion, and unified extension-family boundaries for this cleanup."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime contract for descriptor/direct-C/source-export erasure and target artifact route boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common source-artifact bundle front-door contract and lower-level materialized EmitC exporter boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV source/front-door and selected materialized EmitC route rules for the primary executable plugin path."}
+{"file": ".trellis/tasks/archive/2026-05/05-17-05-17-rvv-source-bundle-runtime-abi-proof/prd.md", "reason": "Prior completed proof that d56a502 aligned RVV generated bundle ABI evidence with the one-command source bundle front door."}
