@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariant check for compiler stack, extension-family boundaries, and descriptor/direct-C prohibitions."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Review common construction conformance adoption against plugin protocol and interface locality."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review RVV-local semantics, selected i32m1 scope, and ssh rvv evidence boundary."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Review materialized EmitC route behavior and ensure no direct source-export route is restored."}

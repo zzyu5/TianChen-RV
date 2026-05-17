@@ -59,6 +59,11 @@ static_assert(
         ExecutableRoleStep>::value,
     "TensorExtLite executable role steps must use the common conformance "
     "model");
+static_assert(
+    std::is_same<tianchenrv::plugin::rvv::
+                     RVVI32M1ArithmeticExecutableRoleStep,
+                 ExecutableRoleStep>::value,
+    "RVV executable role steps must use the common conformance model");
 
 namespace {
 
@@ -161,6 +166,17 @@ int runRVVCommonValidationTest() {
                 route.runtimeABIName),
             "RVV arithmetic construction route validates"))
       return result;
+    llvm::Expected<llvm::SmallVector<
+        rvv::RVVI32M1ArithmeticExecutableRoleStep, 10>>
+        steps = rvv::getRVVI32M1ArithmeticExecutableRoleSteps(
+            route.operationName);
+    if (!steps)
+      return fail(llvm::Twine("RVV executable role steps are built from "
+                              "route operation: ") +
+                  llvm::toString(steps.takeError()));
+    if (steps->size() != 10)
+      return fail("RVV executable role sequence must include explicit ABI, "
+                  "config, scope, load, compute, and store steps");
   }
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
       rvv::getRVVI32M1ArithmeticConstructionRuntimeABIParameters();

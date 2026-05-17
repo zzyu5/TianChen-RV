@@ -105,10 +105,59 @@ findExecutableRoleStep(llvm::ArrayRef<ExecutableRoleStep> steps,
 
 bool hasSelectedVariantAndPathRole(
     mlir::Operation *op, const SelectedExecutableRoleSequenceSpec &spec) {
+  if (!spec.requireSelectedPathAttributes)
+    return true;
   auto selected = getFlatSymbolRefAttr(op, spec.selectedVariantAttrName);
   auto roleAttr = getStringAttr(op, spec.roleAttrName);
   return selected && selected.getValue() == spec.selectedVariantSymbol &&
          roleAttr && roleAttr.getValue() == spec.pathRole;
+}
+
+llvm::Error requireSelectedRoleStepStringAttr(
+    mlir::Operation *op, const SelectedExecutableRoleSequenceSpec &spec,
+    llvm::StringRef attrName, llvm::StringRef expectedValue) {
+  auto attr = getStringAttr(op, attrName);
+  if (!attr || attr.getValue().trim().empty())
+    return makeExecutableConformanceError(
+        spec.selectedPathDescription,
+        llvm::Twine(spec.selectedPathDescription) + " role op '" +
+            op->getName().getStringRef() +
+            "' requires non-empty string attribute '" + attrName + "'");
+  if (attr.getValue().trim() != expectedValue)
+    return makeExecutableConformanceError(
+        spec.selectedPathDescription,
+        llvm::Twine(spec.selectedPathDescription) + " role op '" +
+            op->getName().getStringRef() + "' attribute '" + attrName +
+            "' must be '" + expectedValue + "' but was '" +
+            attr.getValue().trim() + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error verifySelectedRoleStepAttributes(
+    mlir::Operation *op, const ExecutableRoleStep &expected,
+    const SelectedExecutableRoleSequenceSpec &spec) {
+  if (!spec.requireRoleStepAttributes)
+    return llvm::Error::success();
+
+  auto roleOrder = op->getAttrOfType<mlir::IntegerAttr>(spec.roleOrderAttrName);
+  if (!roleOrder ||
+      static_cast<unsigned>(roleOrder.getInt()) != expected.order)
+    return makeExecutableConformanceError(
+        spec.selectedPathDescription,
+        llvm::Twine(spec.selectedPathDescription) + " role op '" +
+            op->getName().getStringRef() + "' must carry " +
+            spec.roleOrderAttrName + " = " + llvm::Twine(expected.order));
+  if (llvm::Error error = requireSelectedRoleStepStringAttr(
+          op, spec, spec.sourceRoleAttrName, expected.sourceRole))
+    return error;
+  if (llvm::Error error = requireSelectedRoleStepStringAttr(
+          op, spec, spec.typedRoleAttrName, expected.typedRoleID))
+    return error;
+  if (llvm::Error error = requireSelectedRoleStepStringAttr(
+          op, spec, spec.roleSpecificInterfaceAttrName,
+          expected.roleSpecificInterface))
+    return error;
+  return llvm::Error::success();
 }
 
 llvm::Error requireBoundaryStringAttr(
@@ -640,7 +689,7 @@ verifyExecutableRoleSteps(const Manifest &manifest,
 llvm::Expected<SelectedExecutableRoleSequenceInspection>
 inspectSelectedExecutableRoleSequence(
     const SelectedExecutableRoleSequenceSpec &spec) {
-  if (!spec.roleBlock)
+  if (!spec.roleBlock && spec.orderedRoleOperations.empty())
     return makeExecutableConformanceError(
         spec.selectedPathDescription,
         "requires a materialized selected variant role block");
@@ -656,6 +705,75 @@ inspectSelectedExecutableRoleSequence(
   SelectedExecutableRoleSequenceInspection inspection;
   for (const ExecutableRoleStep &roleStep : spec.roleSteps)
     inspection.steps.push_back({&roleStep, nullptr});
+
+  if (!spec.orderedRoleOperations.empty()) {
+    if (!spec.orderedRoleOperationOrders.empty() &&
+        spec.orderedRoleOperationOrders.size() !=
+            spec.orderedRoleOperations.size())
+      return makeExecutableConformanceError(
+          spec.selectedPathDescription,
+          llvm::Twine(spec.selectedPathDescription) +
+              " ordered role operations and construction-order entries must "
+              "have the same size");
+    for (auto [index, op] : llvm::enumerate(spec.orderedRoleOperations)) {
+      if (!op)
+        return makeExecutableConformanceError(
+            spec.selectedPathDescription,
+            llvm::Twine(spec.selectedPathDescription) +
+                " role operation order contains a null operation");
+      if (index >= spec.roleSteps.size())
+        return makeExecutableConformanceError(
+            spec.selectedPathDescription,
+            llvm::Twine(spec.selectedPathDescription) +
+                " has unexpected extra materialized role op '" +
+                op->getName().getStringRef() + "'");
+      if (!hasSelectedVariantAndPathRole(op, spec))
+        return makeExecutableConformanceError(
+            spec.selectedPathDescription,
+            llvm::Twine(spec.selectedPathDescription) + " role op '" +
+                op->getName().getStringRef() +
+                "' must carry selected variant @" +
+                spec.selectedVariantSymbol + " and path role '" +
+                spec.pathRole + "'");
+
+      unsigned expectedIndex =
+          spec.orderedRoleOperationOrders.empty()
+              ? static_cast<unsigned>(index)
+              : spec.orderedRoleOperationOrders[index];
+      if (expectedIndex >= spec.roleSteps.size())
+        return makeExecutableConformanceError(
+            spec.roleOrderDescription,
+            llvm::Twine(spec.roleOrderDescription) +
+                " role operation at position " + llvm::Twine(index) +
+                " has invalid construction order " +
+                llvm::Twine(expectedIndex));
+      if (expectedIndex != index)
+        return makeExecutableConformanceError(
+            spec.roleOrderDescription,
+            llvm::Twine(spec.roleOrderDescription) +
+                " role operation at position " + llvm::Twine(index) +
+                " carries construction order " +
+                llvm::Twine(expectedIndex) + " but expected " +
+                llvm::Twine(index));
+
+      const ExecutableRoleStep &expected = spec.roleSteps[expectedIndex];
+      if (op->getName().getStringRef() != expected.operationName)
+        return makeExecutableConformanceError(
+            spec.roleOrderDescription,
+            llvm::Twine(spec.roleOrderDescription) + " role order " +
+                llvm::Twine(expectedIndex) + " expected " +
+                expected.operationName + " but found " +
+                op->getName().getStringRef());
+      if (llvm::Error error =
+              verifySelectedRoleStepAttributes(op, expected, spec))
+        return std::move(error);
+
+      SelectedExecutableRoleStep &step = inspection.steps[expectedIndex];
+      step.operation = op;
+      ++inspection.matchedRoleOps;
+    }
+    return inspection;
+  }
 
   for (mlir::Operation &op : *spec.roleBlock) {
     if (!hasSelectedVariantAndPathRole(&op, spec))
@@ -676,6 +794,9 @@ inspectSelectedExecutableRoleSequence(
                 " has duplicate materialized role op '" +
                 expected->operationName + "' for @" +
                 spec.selectedVariantSymbol);
+      if (llvm::Error error =
+              verifySelectedRoleStepAttributes(&op, *expected, spec))
+        return std::move(error);
       step.operation = &op;
       ++inspection.matchedRoleOps;
       break;
@@ -707,8 +828,13 @@ llvm::Error verifySelectedExecutableRoleSequenceComplete(
 
   llvm::DenseMap<mlir::Operation *, unsigned> bodyOrder;
   unsigned index = 0;
-  for (mlir::Operation &op : *spec.roleBlock)
-    bodyOrder.try_emplace(&op, index++);
+  if (!spec.orderedRoleOperations.empty()) {
+    for (mlir::Operation *op : spec.orderedRoleOperations)
+      bodyOrder.try_emplace(op, index++);
+  } else {
+    for (mlir::Operation &op : *spec.roleBlock)
+      bodyOrder.try_emplace(&op, index++);
+  }
 
   for (unsigned order = 1; order < inspection.steps.size(); ++order) {
     mlir::Operation *previous = inspection.steps[order - 1].operation;

@@ -26,6 +26,8 @@
 namespace tianchenrv::plugin {
 namespace {
 
+namespace construction = tianchenrv::plugin::construction;
+
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVPluginVersion("0.1.0");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
@@ -116,6 +118,70 @@ findSelectedRVVI32M1WithVLBoundary(tcrv::exec::VariantOp variant) {
   return withVLs.front();
 }
 
+llvm::Error annotateAndVerifySelectedRVVLoweringBoundary(
+    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
+    VariantEmissionRole role, tcrv::rvv::WithVLOp boundary) {
+  auto variantRequires =
+      variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVPluginError(
+        "selected RVV lowering-boundary validation requires non-empty "
+        "selected variant requires metadata");
+
+  struct SavedBoundaryAttr {
+    std::string name;
+    mlir::Attribute value;
+  };
+  llvm::SmallVector<SavedBoundaryAttr, 8> savedAttrs;
+  mlir::MLIRContext *context = boundary->getContext();
+  auto setTemporaryAttr = [&](llvm::StringRef name, mlir::Attribute value) {
+    savedAttrs.push_back({name.str(), boundary->getAttr(name)});
+    boundary->setAttr(name, value);
+  };
+  setTemporaryAttr(rvv::getRVVSourceKernelAttrName(),
+                   mlir::StringAttr::get(context, kernel.getSymName()));
+  setTemporaryAttr(rvv::getRVVSelectedVariantAttrName(),
+                   mlir::FlatSymbolRefAttr::get(context,
+                                                variant.getSymName()));
+  setTemporaryAttr(rvv::getRVVOriginAttrName(),
+                   mlir::StringAttr::get(context, kRVVPluginName));
+  setTemporaryAttr(
+      rvv::getRVVSelectedPathRoleAttrName(),
+      mlir::StringAttr::get(context, stringifyVariantEmissionRole(role)));
+  setTemporaryAttr(rvv::getRVVStatusAttrName(),
+                   mlir::StringAttr::get(context,
+                                        rvv::getRVVLoweringBoundaryStatus()));
+  setTemporaryAttr(rvv::getRVVRequiredCapabilitiesAttrName(), variantRequires);
+
+  const construction::SelectedBoundaryStringAttrExpectation
+      extraAttributes[] = {{"lmul", tcrv::rvv::getRVVI32M1LMUL()}};
+  construction::SelectedLoweringBoundaryConformanceSpec spec;
+  spec.boundaryDescription = "selected RVV lowering-boundary validation";
+  spec.selectedVariantSymbol = variant.getSymName();
+  spec.sourceKernelSymbol = kernel.getSymName();
+  spec.originPlugin = kRVVPluginName;
+  spec.pathRole = stringifyVariantEmissionRole(role);
+  spec.status = rvv::getRVVLoweringBoundaryStatus();
+  spec.requiredCapabilities = variantRequires;
+  spec.extraStringAttributes = extraAttributes;
+  spec.sourceKernelAttrName = rvv::getRVVSourceKernelAttrName();
+  spec.selectedVariantAttrName = rvv::getRVVSelectedVariantAttrName();
+  spec.originAttrName = rvv::getRVVOriginAttrName();
+  spec.roleAttrName = rvv::getRVVSelectedPathRoleAttrName();
+  spec.statusAttrName = rvv::getRVVStatusAttrName();
+  spec.requiredCapabilitiesAttrName =
+      rvv::getRVVRequiredCapabilitiesAttrName();
+  llvm::Error error = construction::verifySelectedLoweringBoundaryConformance(
+      boundary.getOperation(), spec);
+  for (const SavedBoundaryAttr &attr : savedAttrs) {
+    if (attr.value)
+      boundary->setAttr(attr.name, attr.value);
+    else
+      boundary->removeAttr(attr.name);
+  }
+  return error;
+}
+
 llvm::Error validateSelectedRVVI32M1WithVLBoundary(
     const VariantLoweringBoundaryValidationRequest &request) {
   tcrv::exec::VariantOp variant = request.getVariant();
@@ -146,6 +212,9 @@ llvm::Error validateSelectedRVVI32M1WithVLBoundary(
     return makeRVVPluginError(
         "selected RVV i32m1 lowering boundary must be the unique "
         "tcrv_rvv.with_vl operation in the selected variant body");
+  if (llvm::Error error = annotateAndVerifySelectedRVVLoweringBoundary(
+          request.getKernel(), variant, request.getRole(), boundary))
+    return error;
 
   conversion::emitc::TCRVEmitCLowerableRoute route;
   VariantEmitCLowerableRequest routeRequest(

@@ -475,6 +475,104 @@ llvm::Error addCallStepFromSource(
   return llvm::Error::success();
 }
 
+struct RVVOrderedRoleOperations {
+  llvm::SmallVector<mlir::Operation *, 10> operations;
+  llvm::SmallVector<unsigned, 10> constructionOrders;
+};
+
+unsigned getRVVCanonicalRoleOrder(RVVI32M1ArithmeticSlice &slice,
+                                  mlir::Operation *op) {
+  auto lhsABI = slice.lhsLoad.getBuffer()
+                    .getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto rhsABI = slice.rhsLoad.getBuffer()
+                    .getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto outABI = slice.store.getBuffer()
+                    .getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto nABI =
+      slice.setvl.getAvl().getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  if (lhsABI && op == lhsABI.getOperation())
+    return 0;
+  if (rhsABI && op == rhsABI.getOperation())
+    return 1;
+  if (outABI && op == outABI.getOperation())
+    return 2;
+  if (nABI && op == nABI.getOperation())
+    return 3;
+  if (op == slice.setvl.getOperation())
+    return 4;
+  if (op == slice.withVL.getOperation())
+    return 5;
+  if (op == slice.lhsLoad.getOperation())
+    return 6;
+  if (op == slice.rhsLoad.getOperation())
+    return 7;
+  if (op == slice.arithmeticOp)
+    return 8;
+  if (op == slice.store.getOperation())
+    return 9;
+  return 10;
+}
+
+RVVOrderedRoleOperations
+collectRVVRoleOperationsInBodyOrder(tcrv::exec::VariantOp variant,
+                                    RVVI32M1ArithmeticSlice &slice) {
+  RVVOrderedRoleOperations ordered;
+  if (!variant || variant.getBody().empty())
+    return ordered;
+
+  for (mlir::Operation &op : variant.getBody().front()) {
+    if (op.getName().getDialectNamespace() != "tcrv_rvv")
+      continue;
+    ordered.operations.push_back(&op);
+    ordered.constructionOrders.push_back(getRVVCanonicalRoleOrder(slice, &op));
+    if (auto withVL = llvm::dyn_cast<tcrv::rvv::WithVLOp>(op))
+      for (mlir::Operation &nested : withVL.getBody().front())
+        if (nested.getName().getDialectNamespace() == "tcrv_rvv") {
+          ordered.operations.push_back(&nested);
+          ordered.constructionOrders.push_back(
+              getRVVCanonicalRoleOrder(slice, &nested));
+        }
+  }
+  return ordered;
+}
+
+llvm::Error verifySelectedRVVRoleSequence(
+    RVVI32M1ArithmeticSlice &slice, const VariantEmitCLowerableRequest &request,
+    const RVVI32M1ArithmeticConstructionRoute &constructionRoute) {
+  auto lhsABI = slice.lhsLoad.getBuffer()
+                    .getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto rhsABI = slice.rhsLoad.getBuffer()
+                    .getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto outABI = slice.store.getBuffer()
+                    .getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto nABI =
+      slice.setvl.getAvl().getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  if (!lhsABI || !rhsABI || !outABI || !nABI)
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV construction role sequence requires runtime ABI values "
+        "to be explicit tcrv_rvv.runtime_abi_value ops");
+
+  llvm::Expected<llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10>>
+      steps = getRVVI32M1ArithmeticExecutableRoleSteps(
+          constructionRoute.operationName);
+  if (!steps)
+    return steps.takeError();
+  mlir::ArrayAttr requires =
+      request.getVariant()->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!requires || requires.empty())
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV construction role sequence requires non-empty selected "
+        "variant requires metadata");
+
+  RVVOrderedRoleOperations ordered =
+      collectRVVRoleOperationsInBodyOrder(request.getVariant(), slice);
+  return verifyRVVI32M1ArithmeticSelectedRoleSequence(
+      ordered.operations, ordered.constructionOrders,
+      request.getVariant().getSymName(),
+      stringifyVariantEmissionRole(request.getRole()),
+      constructionRoute.operationName, "selected RVV EmitC route");
+}
+
 } // namespace
 
 llvm::ArrayRef<RVVI32M1ArithmeticOp> getRVVI32M1ArithmeticOps() {
@@ -570,6 +668,9 @@ llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
   if (llvm::Error error = verifyRVVI32M1ArithmeticConstructionRouteMapping(
           expectedSpec.mnemonic, constructionRoute.operationName,
           constructionRoute.emitCRouteID, constructionRoute.runtimeABIName))
+    return error;
+  if (llvm::Error error =
+          verifySelectedRVVRoleSequence(*slice, request, constructionRoute))
     return error;
 
   conversion::emitc::TCRVEmitCLowerableRoute route(

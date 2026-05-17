@@ -27,6 +27,8 @@ using RVVTypedRoleInterfaceRealization =
     tianchenrv::plugin::construction::TypedRoleInterfaceRealization;
 using RVVTypedRoleGraphRealization =
     tianchenrv::plugin::construction::TypedRoleGraphRealization;
+using RVVI32M1ArithmeticExecutableRoleStep =
+    tianchenrv::plugin::construction::ExecutableRoleStep;
 
 struct RVVI32M1ArithmeticConstructionRoute {
   llvm::StringRef mnemonic;
@@ -72,6 +74,18 @@ llvm::StringRef getRVVEvidenceProfileMetadataName();
 llvm::StringRef getRVVRuntimeABIContractMetadataName();
 llvm::StringRef getRVVBundleComponentGroupMetadataName();
 llvm::StringRef getRVVObjectHandoffMetadataName();
+llvm::StringRef getRVVSourceKernelAttrName();
+llvm::StringRef getRVVSelectedVariantAttrName();
+llvm::StringRef getRVVOriginAttrName();
+llvm::StringRef getRVVSelectedPathRoleAttrName();
+llvm::StringRef getRVVStatusAttrName();
+llvm::StringRef getRVVRequiredCapabilitiesAttrName();
+llvm::StringRef getRVVTypedRoleAttrName();
+llvm::StringRef getRVVRoleOrderAttrName();
+llvm::StringRef getRVVSourceRoleAttrName();
+llvm::StringRef getRVVRoleSpecificInterfaceAttrName();
+llvm::StringRef getRVVRoleOpBoundaryStatus();
+llvm::StringRef getRVVLoweringBoundaryStatus();
 
 const RVVConstructionManifest &getRVVConstructionManifest();
 const RVVTypedRoleGraphRealization &getRVVTypedRoleGraphRealization();
@@ -85,6 +99,8 @@ getRVVI32M1ArithmeticConstructionRuntimeABIParameters();
 llvm::Expected<llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 16>>
 getRVVI32M1ArithmeticConstructionArtifactMetadata(
     llvm::StringRef emitCRouteID);
+llvm::Expected<llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10>>
+getRVVI32M1ArithmeticExecutableRoleSteps(llvm::StringRef operationName);
 
 llvm::Error verifyRVVConstructionManifest(
     const RVVConstructionManifest &manifest);
@@ -101,6 +117,11 @@ llvm::Error verifyRVVI32M1ArithmeticTargetArtifactBundleMapping(
 llvm::Error verifyRVVI32M1ArithmeticConstructionArtifactMetadata(
     llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
     llvm::StringRef context);
+llvm::Error verifyRVVI32M1ArithmeticSelectedRoleSequence(
+    llvm::ArrayRef<mlir::Operation *> orderedRoleOperations,
+    llvm::ArrayRef<unsigned> orderedRoleOperationOrders,
+    llvm::StringRef selectedVariantSymbol, llvm::StringRef pathRole,
+    llvm::StringRef operationName, llvm::StringRef context);
 
 llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>
 lookupRVVI32M1ArithmeticConstructionRouteByMnemonic(llvm::StringRef mnemonic);

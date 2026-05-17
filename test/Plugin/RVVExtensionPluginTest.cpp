@@ -656,6 +656,52 @@ module {
        "tcrv_rvv.with_vl op"});
 }
 
+int runOutOfOrderSelectedRoleSequenceRejectionTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32m1_out_of_order_role_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_i32_add_out_of_order_roles attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        tcrv_rvv.i32_store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV out-of-order role module");
+  KernelOp kernel = findKernel(*module, "rvv_i32m1_out_of_order_role_kernel");
+  VariantOp variant = findVariant(kernel, "rvv_i32_add_out_of_order_roles");
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+                        "register RVV plugin for out-of-order role test"))
+    return result;
+
+  VariantEmissionPlan plan;
+  return expectErrorContains(
+      registry.buildVariantEmissionPlan(
+          VariantEmissionRequest(variant, kernel, capabilities,
+                                 VariantEmissionRole::DirectVariant),
+          plan),
+      {"selected RVV EmitC route", "construction order 3",
+       "expected 0"});
+}
+
 } // namespace
 
 int main() {
@@ -680,6 +726,8 @@ int main() {
     return result;
   if (int result =
           runWithVLSelectedLoweringBoundaryDuplicateRejectionTest(context))
+    return result;
+  if (int result = runOutOfOrderSelectedRoleSequenceRejectionTest(context))
     return result;
 
   llvm::outs() << "RVV extension plugin smoke test passed\n";

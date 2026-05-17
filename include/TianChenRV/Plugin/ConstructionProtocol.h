@@ -138,8 +138,16 @@ struct SelectedExecutableRoleSequenceSpec {
   llvm::StringRef semanticRoleGraph;
   llvm::ArrayRef<ExecutableRoleStep> roleSteps;
   mlir::Block *roleBlock = nullptr;
+  llvm::ArrayRef<mlir::Operation *> orderedRoleOperations;
+  llvm::ArrayRef<unsigned> orderedRoleOperationOrders;
   llvm::StringRef selectedVariantAttrName = "selected_variant";
   llvm::StringRef roleAttrName = "role";
+  llvm::StringRef roleOrderAttrName = "role_order";
+  llvm::StringRef sourceRoleAttrName = "source_role";
+  llvm::StringRef typedRoleAttrName = "typed_role";
+  llvm::StringRef roleSpecificInterfaceAttrName = "role_specific_interface";
+  bool requireSelectedPathAttributes = true;
+  bool requireRoleStepAttributes = false;
 };
 
 struct SelectedBoundaryStringAttrExpectation {

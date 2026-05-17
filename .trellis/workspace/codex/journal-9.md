@@ -73,6 +73,68 @@ Added a code-consumed common materialized EmitC object/header bundle constructio
 - None - task complete
 
 
+## Session 121: RVV executable construction conformance adoption
+
+**Date**: 2026-05-18
+**Task**: RVV executable construction conformance adoption
+**Branch**: `main`
+
+### Summary
+
+Moved the bounded RVV i32m1 add/sub/mul executable construction path onto the
+common construction conformance surface for selected role sequencing, selected
+lowering-boundary checks, and construction artifact metadata validation without
+changing RVV typed semantics or generated target payloads.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `05-18-rvv-executable-construction-conformance-adoption` from the Direction
+  Brief.
+- Extended common selected executable role-sequence inspection to accept an
+  extension-owned ordered operation list plus construction-order evidence.
+- Added RVV i32m1 executable role-step metadata and routed RVV selected EmitC
+  route readiness through common selected role-sequence conformance.
+- Routed RVV selected `tcrv_rvv.with_vl` boundary checks through common
+  lowering-boundary conformance while preserving RVV-local config/VL and typed
+  op legality.
+- Routed generic RVV construction artifact metadata checks through common
+  `verifyConstructionArtifactMetadata` before RVV-local target checks.
+- Added fail-closed RVV coverage for out-of-order selected role ops and common
+  construction protocol coverage for the RVV role-step surface.
+- Added no new RVV family coverage, descriptor route, direct-C/source-export
+  path, compatibility wrapper, Python compiler-core logic, or common RVV
+  semantic branch.
+
+### Git Commits
+
+Included in the final task commit for this round.
+
+### Testing
+
+- [OK] Trellis context validation for the task.
+- [OK] Focused construction/RVV/target artifact build.
+- [OK] `tianchenrv-construction-protocol-common-test`
+- [OK] `tianchenrv-rvv-extension-plugin-test`
+- [OK] `tianchenrv-target-artifact-export-test`
+- [OK] Focused RVV materialized EmitC/source-seed/target artifact lit passed
+  14/14 from `build/test`.
+- [OK] Focused common/RVV residue scans found no descriptor-driven route
+  authority, direct-C semantic exporter, source-export route, Python
+  compiler-core behavior, or extension-specific semantic branch in common
+  construction code.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` -> 122/122 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 121: Executable construction-template conformance surface
 
 **Date**: 2026-05-18
