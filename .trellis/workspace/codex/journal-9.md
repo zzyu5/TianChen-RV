@@ -73,6 +73,59 @@ Added a code-consumed common materialized EmitC object/header bundle constructio
 - None - task complete
 
 
+## Session 121: Production construction-template artifact adapter consumption
+
+**Date**: 2026-05-18
+**Task**: Production construction-template artifact adapter consumption
+**Branch**: `main`
+
+### Summary
+
+Promoted the construction-template object/header/bundle artifact consumption
+shape from the test-local TemplateConsumer proof into a production Target
+adapter and rewired the production Template target-support path to consume it.
+
+### Main Changes
+
+- Created Trellis task
+  `05-18-production-construction-template-artifact-adapter` from the Direction
+  Brief and wrote the PRD before implementation.
+- Added `ConstructionTemplateArtifactAdapter` production include/lib code under
+  `include/TianChenRV/Target/` and `lib/Target/`.
+- Rewired Template target support so Template supplies local manifest/route
+  config, selected-candidate validation, route builder, and object packager
+  callback while the production adapter owns common object/header/bundle
+  registration/export wiring.
+- Rewired the test-local TemplateConsumer artifact proof to consume the
+  production adapter instead of owning the only object/header/bundle
+  implementation.
+- Added no TemplateConsumer production plugin, descriptor adapter, direct-C
+  source exporter, compatibility wrapper, Python compiler-core path, or
+  family-specific common/core semantic branch.
+
+### Testing
+
+- [OK] Trellis context validation for the task.
+- [OK] Focused build for `tianchenrv-construction-protocol-common-test` and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] Both focused C++ test binaries passed.
+- [OK] Focused lit filter for Template target and construction protocol tests
+  passed 5/123 selected tests.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 123/123.
+- [OK] `git diff --check`.
+- [OK] Residue scans found no production TemplateConsumer leakage, no
+  descriptor/direct-C/source-export authority outside negative assertions, and
+  no concrete family branch inside the new production adapter.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 121: Template-consumer materialized artifact bridge
 
 **Date**: 2026-05-18

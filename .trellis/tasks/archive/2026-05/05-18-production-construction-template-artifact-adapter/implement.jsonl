@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants for unified extension-family execution, C++/MLIR stack, and descriptor/direct-C prohibitions."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Construction-template protocol, Template object/bundle bridge, and reusable executable construction conformance constraints."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin interface locality and registry boundaries for production Template target-support consumption."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Selected EmitC handoff and common materialized EmitC object/header bundle contracts."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime boundary and direct-C/source-export erasure constraints."}

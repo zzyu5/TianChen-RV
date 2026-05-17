@@ -10,6 +10,7 @@
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
+#include "TianChenRV/Target/ConstructionTemplateArtifactAdapter.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Builders.h"
@@ -640,8 +641,11 @@ getSelectedArtifactConfig(bool validateCandidate) {
   return config;
 }
 
-tianchenrv::target::MaterializedEmitCHeaderArtifactConfig
-getHeaderArtifactConfig() {
+llvm::Error compileGeneratedSourceToObject(llvm::StringRef source,
+                                           llvm::raw_ostream &os);
+
+tianchenrv::target::ConstructionTemplateArtifactAdapterConfig
+getAdapterConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stdint.h"};
   static const tianchenrv::target::MaterializedEmitCHeaderArtifactMetadataEvidence
       kMetadataEvidence[] = {
@@ -656,10 +660,11 @@ getHeaderArtifactConfig() {
            kTypedRoleRealizationSummary},
       };
 
-  tianchenrv::target::MaterializedEmitCHeaderArtifactConfig config;
+  tianchenrv::target::ConstructionTemplateArtifactAdapterConfig config;
   config.selectedRoute = getSelectedArtifactConfig(/*validateCandidate=*/true);
-  config.selectedRoute.routeDescription =
-      "TemplateConsumer materialized EmitC header artifact bridge";
+  config.headerRouteID = kHeaderRouteID;
+  config.headerArtifactKind = kHeaderArtifactKind;
+  config.ownerPlugin = kPluginName;
   config.headerGuard = kHeaderGuard;
   config.evidencePrefix = kEvidencePrefix;
   config.includes = kHeaderIncludes;
@@ -672,6 +677,12 @@ getHeaderArtifactConfig() {
   config.runtimeGlueRole = kRuntimeGlueRole;
   config.runtimeABIParameters = {};
   config.metadataEvidence = kMetadataEvidence;
+  config.componentGroup = kBundleComponentGroup;
+  config.externalABIName = kRuntimeABI;
+  config.handoffKind = kObjectHandoffKind;
+  config.selectedObjectDescription =
+      "TemplateConsumer materialized EmitC object candidate";
+  config.objectPackagerFn = compileGeneratedSourceToObject;
   return config;
 }
 
@@ -759,35 +770,14 @@ llvm::Error compileGeneratedSourceToObject(llvm::StringRef source,
 
 llvm::Error exportHeaderArtifact(mlir::ModuleOp module,
                                  llvm::raw_ostream &os) {
-  return tianchenrv::target::exportMaterializedEmitCHeaderArtifact(
-      module, os, getHeaderArtifactConfig());
+  return tianchenrv::target::exportConstructionTemplateHeaderArtifact(
+      module, os, getAdapterConfig());
 }
 
 llvm::Error exportObjectArtifact(mlir::ModuleOp module,
                                  llvm::raw_ostream &os) {
-  llvm::Expected<std::string> source =
-      tianchenrv::target::emitSelectedEmitCArtifactCppSource(
-          module, getSelectedArtifactConfig(/*validateCandidate=*/true));
-  if (!source)
-    return source.takeError();
-  return compileGeneratedSourceToObject(*source, os);
-}
-
-tianchenrv::target::MaterializedEmitCObjectBundleArtifactConfig
-getObjectBundleConfig() {
-  tianchenrv::target::MaterializedEmitCObjectBundleArtifactConfig config;
-  config.header = getHeaderArtifactConfig();
-  config.headerRouteID = kHeaderRouteID;
-  config.headerArtifactKind = kHeaderArtifactKind;
-  config.ownerPlugin = kPluginName;
-  config.objectExportFn = exportObjectArtifact;
-  config.headerExportFn = exportHeaderArtifact;
-  config.componentGroup = kBundleComponentGroup;
-  config.externalABIName = kRuntimeABI;
-  config.handoffKind = kObjectHandoffKind;
-  config.selectedObjectDescription =
-      "TemplateConsumer materialized EmitC object candidate";
-  return config;
+  return tianchenrv::target::exportConstructionTemplateObjectArtifact(
+      module, os, getAdapterConfig());
 }
 
 llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
@@ -1026,10 +1016,11 @@ int runArtifactBridgePositiveTest() {
   tianchenrv::target::TargetArtifactExporterRegistry registry;
   if (int result = expectSuccess(
           tianchenrv::target::
-              registerMaterializedEmitCObjectBundleArtifactExporters(
-                  registry, getObjectBundleConfig()),
+              registerConstructionTemplateArtifactAdapterExporters(
+                  registry, getAdapterConfig(), exportObjectArtifact,
+                  exportHeaderArtifact),
           "register TemplateConsumer object/header bundle exporters through "
-          "the common helper"))
+          "the production construction-template adapter"))
     return result;
   if (registry.size() != 1 || registry.compositeSize() != 1)
     return fail("TemplateConsumer artifact bridge should register one object "
@@ -1095,8 +1086,9 @@ int runArtifactBridgeFailClosedTest() {
   tianchenrv::target::TargetArtifactExporterRegistry registry;
   if (int result = expectSuccess(
           tianchenrv::target::
-              registerMaterializedEmitCObjectBundleArtifactExporters(
-                  registry, getObjectBundleConfig()),
+              registerConstructionTemplateArtifactAdapterExporters(
+                  registry, getAdapterConfig(), exportObjectArtifact,
+                  exportHeaderArtifact),
           "register TemplateConsumer fail-closed artifact exporters"))
     return result;
 

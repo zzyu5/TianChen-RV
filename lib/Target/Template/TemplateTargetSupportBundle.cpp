@@ -3,7 +3,7 @@
 #include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
 #include "TianChenRV/Plugin/Template/TemplateEmitCRouteProvider.h"
-#include "TianChenRV/Target/TargetArtifactExport.h"
+#include "TianChenRV/Target/ConstructionTemplateArtifactAdapter.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
 
 #include "llvm/ADT/StringRef.h"
@@ -53,6 +53,9 @@ llvm::Error makeTemplateTargetRouteError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
+llvm::Error compileTemplateGeneratedSourceToObject(llvm::StringRef source,
+                                                   llvm::raw_ostream &os);
+
 llvm::Error validateTemplateSelectedObjectCandidate(
     const TargetArtifactCandidate &candidate) {
   if (llvm::Error error =
@@ -76,8 +79,7 @@ getTemplateSelectedEmitCArtifactConfig(bool validateCandidate) {
   config.artifactKind = route.artifactKind;
   config.originPlugin = manifest.family.pluginName;
   config.routeDescription =
-      "Template construction-template materialized EmitC object artifact "
-      "bridge";
+      "Template construction-template materialized EmitC artifact adapter";
   if (validateCandidate)
     config.candidateValidationFn = validateTemplateSelectedObjectCandidate;
   config.routeBuilderFn =
@@ -85,7 +87,8 @@ getTemplateSelectedEmitCArtifactConfig(bool validateCandidate) {
   return config;
 }
 
-MaterializedEmitCHeaderArtifactConfig getTemplateHeaderArtifactConfig() {
+ConstructionTemplateArtifactAdapterConfig
+getTemplateArtifactAdapterConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stdint.h"};
   static const MaterializedEmitCHeaderArtifactMetadataEvidence
       kMetadataEvidence[] = {
@@ -118,11 +121,12 @@ MaterializedEmitCHeaderArtifactConfig getTemplateHeaderArtifactConfig() {
   const auto &manifest = getTemplateManifest();
   const auto &route = getTemplateRoute();
 
-  MaterializedEmitCHeaderArtifactConfig config;
+  ConstructionTemplateArtifactAdapterConfig config;
   config.selectedRoute =
       getTemplateSelectedEmitCArtifactConfig(/*validateCandidate=*/true);
-  config.selectedRoute.routeDescription =
-      "Template construction-template materialized EmitC header artifact bridge";
+  config.headerRouteID = route.headerRouteID;
+  config.headerArtifactKind = route.headerArtifactKind;
+  config.ownerPlugin = manifest.family.pluginName;
   config.headerGuard =
       "TIANCHENRV_TEMPLATE_MATERIALIZED_EMITC_HEADER_H";
   config.evidencePrefix = "tianchenrv.template";
@@ -137,13 +141,13 @@ MaterializedEmitCHeaderArtifactConfig getTemplateHeaderArtifactConfig() {
   config.runtimeABIParameters =
       plugin::template_ext::getTemplateRuntimeABIParameters();
   config.metadataEvidence = kMetadataEvidence;
+  config.componentGroup = route.bundleComponentGroup;
+  config.externalABIName = route.runtimeABIName;
+  config.handoffKind = route.objectHandoffKind;
+  config.selectedObjectDescription =
+      "Template materialized EmitC object candidate";
+  config.objectPackagerFn = compileTemplateGeneratedSourceToObject;
   return config;
-}
-
-llvm::Error validateTemplateTargetArtifactCandidate(
-    const TargetArtifactCandidate &candidate) {
-  return validateMaterializedEmitCHeaderArtifactCandidate(
-      candidate, getTemplateHeaderArtifactConfig());
 }
 
 llvm::Error compileTemplateGeneratedSourceToObject(llvm::StringRef source,
@@ -233,37 +237,14 @@ llvm::Error compileTemplateGeneratedSourceToObject(llvm::StringRef source,
 
 llvm::Error exportTemplateHeaderArtifact(mlir::ModuleOp module,
                                          llvm::raw_ostream &os) {
-  SelectedEmitCArtifactRouteConfig config =
-      getTemplateSelectedEmitCArtifactConfig(/*validateCandidate=*/true);
-  llvm::Expected<SelectedEmitCArtifactTarget> target =
-      selectSelectedEmitCArtifactTarget(module, config);
-  if (!target)
-    return target.takeError();
-  if (llvm::Error error =
-          validateTemplateTargetArtifactCandidate(target->candidate))
-    return error;
-  return exportMaterializedEmitCHeaderArtifact(
-      module, os, getTemplateHeaderArtifactConfig());
+  return exportConstructionTemplateHeaderArtifact(
+      module, os, getTemplateArtifactAdapterConfig());
 }
 
 llvm::Error exportTemplateObjectArtifact(mlir::ModuleOp module,
                                          llvm::raw_ostream &os) {
-  SelectedEmitCArtifactRouteConfig config =
-      getTemplateSelectedEmitCArtifactConfig(/*validateCandidate=*/true);
-  llvm::Expected<SelectedEmitCArtifactTarget> target =
-      selectSelectedEmitCArtifactTarget(module, config);
-  if (!target)
-    return target.takeError();
-  if (llvm::Error error =
-          validateTemplateTargetArtifactCandidate(target->candidate))
-    return error;
-
-  llvm::Expected<std::string> source =
-      emitSelectedEmitCArtifactCppSource(module, config);
-  if (!source)
-    return source.takeError();
-
-  return compileTemplateGeneratedSourceToObject(*source, os);
+  return exportConstructionTemplateObjectArtifact(
+      module, os, getTemplateArtifactAdapterConfig());
 }
 
 llvm::Error exportTemplateEmitCToCpp(mlir::ModuleOp module,
@@ -271,42 +252,8 @@ llvm::Error exportTemplateEmitCToCpp(mlir::ModuleOp module,
   if (llvm::Error error =
           plugin::template_ext::verifyTemplateConstructionProtocolReady())
     return error;
-
-  SelectedEmitCArtifactRouteConfig config =
-      getTemplateSelectedEmitCArtifactConfig(/*validateCandidate=*/true);
-  llvm::Expected<SelectedEmitCArtifactTarget> target =
-      selectSelectedEmitCArtifactTarget(module, config);
-  if (!target)
-    return target.takeError();
-  if (llvm::Error error =
-          validateTemplateTargetArtifactCandidate(target->candidate))
-    return error;
-
-  llvm::Expected<std::string> source =
-      emitSelectedEmitCArtifactCppSource(module, config);
-  if (!source)
-    return source.takeError();
-
-  os << *source;
-  return llvm::Error::success();
-}
-
-MaterializedEmitCObjectBundleArtifactConfig getTemplateObjectBundleConfig() {
-  const auto &manifest = getTemplateManifest();
-  const auto &route = getTemplateRoute();
-  MaterializedEmitCObjectBundleArtifactConfig config;
-  config.header = getTemplateHeaderArtifactConfig();
-  config.headerRouteID = route.headerRouteID;
-  config.headerArtifactKind = route.headerArtifactKind;
-  config.ownerPlugin = manifest.family.pluginName;
-  config.objectExportFn = exportTemplateObjectArtifact;
-  config.headerExportFn = exportTemplateHeaderArtifact;
-  config.componentGroup = route.bundleComponentGroup;
-  config.externalABIName = route.runtimeABIName;
-  config.handoffKind = route.objectHandoffKind;
-  config.selectedObjectDescription =
-      "Template materialized EmitC object candidate";
-  return config;
+  return exportConstructionTemplateEmitCToCpp(
+      module, os, getTemplateArtifactAdapterConfig());
 }
 
 llvm::Error registerTemplateObjectBundleTargetArtifactExporter(
@@ -315,8 +262,9 @@ llvm::Error registerTemplateObjectBundleTargetArtifactExporter(
           plugin::template_ext::verifyTemplateConstructionProtocolReady())
     return error;
 
-  return registerMaterializedEmitCObjectBundleArtifactExporters(
-      registry, getTemplateObjectBundleConfig());
+  return registerConstructionTemplateArtifactAdapterExporters(
+      registry, getTemplateArtifactAdapterConfig(),
+      exportTemplateObjectArtifact, exportTemplateHeaderArtifact);
 }
 
 } // namespace
