@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global invariants: C++/MLIR stack, no Python compiler-core, no descriptor-driven computation."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Check Toy remains plugin-local and common/core code does not gain family-specific semantic branches."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check migration does not restore direct C/source-export authority or descriptor-backed emission."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check Toy object-backed header and bundle behavior against common construction-template adapter requirements."}

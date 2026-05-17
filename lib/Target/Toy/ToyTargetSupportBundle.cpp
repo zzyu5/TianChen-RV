@@ -3,7 +3,7 @@
 #include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyEmitCRouteProvider.h"
-#include "TianChenRV/Target/TargetArtifactExport.h"
+#include "TianChenRV/Target/ConstructionTemplateArtifactAdapter.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
@@ -28,12 +28,6 @@ constexpr llvm::StringLiteral kToySourceOpMetadataKey("toy_source_op");
 constexpr llvm::StringLiteral kToySourceRoleMetadataKey("toy_source_role");
 constexpr llvm::StringLiteral kToySourceOpInterfaceMetadataKey(
     "toy_source_op_interface");
-constexpr llvm::StringLiteral kToyConstructionProtocolMetadataKey(
-    "toy_construction_protocol");
-constexpr llvm::StringLiteral kToySemanticRoleGraphMetadataKey(
-    "toy_semantic_role_graph");
-constexpr llvm::StringLiteral kToyTypedRoleRealizationMetadataKey(
-    "toy_typed_role_realization");
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
     "TCRVEmitCLowerableOpInterface");
 
@@ -91,7 +85,10 @@ getToySelectedEmitCArtifactConfig(bool validateCandidate) {
   return config;
 }
 
-MaterializedEmitCHeaderArtifactConfig getToyHeaderArtifactConfig() {
+llvm::Error compileToyGeneratedSourceToObject(llvm::StringRef source,
+                                              llvm::raw_ostream &os);
+
+ConstructionTemplateArtifactAdapterConfig getToyArtifactAdapterConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stddef.h", "stdint.h"};
   static const MaterializedEmitCHeaderArtifactMetadataEvidence
       kMetadataEvidence[] = {
@@ -103,22 +100,40 @@ MaterializedEmitCHeaderArtifactConfig getToyHeaderArtifactConfig() {
           {"source_role", kToySourceRoleMetadataKey, "compute"},
           {"source_op_interface", kToySourceOpInterfaceMetadataKey,
            kEmitCLowerableOpInterfaceName},
-          {"construction_protocol", kToyConstructionProtocolMetadataKey,
+          {"construction_protocol",
+           plugin::toy::getToyConstructionProtocolMetadataName(),
            plugin::toy::getToyConstructionManifest().protocolVersion},
-          {"semantic_role_graph", kToySemanticRoleGraphMetadataKey,
+          {"extension_archetype",
+           plugin::toy::getToyConstructionArchetypeMetadataName(),
+           plugin::toy::getToyConstructionManifest().archetype},
+          {"semantic_role_graph",
+           plugin::toy::getToySemanticRoleGraphMetadataName(),
            plugin::toy::getToyConstructionManifest().semanticRoleGraph},
-          {"typed_role_realization", kToyTypedRoleRealizationMetadataKey,
+          {"common_interface_realization",
+           plugin::toy::getToyCommonInterfaceRealizationMetadataName(),
+           plugin::toy::getToyConstructionInterfaceRealization()},
+          {"typed_role_realization",
+           plugin::toy::getToyTypedRoleRealizationMetadataName(),
            plugin::toy::getToyTypedRoleRealizationSummary()},
+          {"emitc_route_mapping",
+           plugin::toy::getToyEmitCRouteMappingMetadataName(),
+           plugin::toy::getToyConstructionManifest().emitcRoute.routeID},
+          {"evidence_profile",
+           plugin::toy::getToyEvidenceProfileMetadataName(),
+           plugin::toy::getToyConstructionManifest().evidenceProfile},
       };
 
   const auto &manifest = getToyManifest();
   const auto &route = getToyRoute();
 
-  MaterializedEmitCHeaderArtifactConfig config;
+  ConstructionTemplateArtifactAdapterConfig config;
   config.selectedRoute =
       getToySelectedEmitCArtifactConfig(/*validateCandidate=*/true);
   config.selectedRoute.routeDescription =
-      "Toy template materialized EmitC header artifact bridge";
+      "Toy template construction-template materialized EmitC artifact adapter";
+  config.headerRouteID = route.headerRouteID;
+  config.headerArtifactKind = route.headerArtifactKind;
+  config.ownerPlugin = manifest.family.pluginName;
   config.headerGuard = "TIANCHENRV_TOY_MATERIALIZED_EMITC_HEADER_H";
   config.evidencePrefix = "tianchenrv.toy";
   config.includes = kHeaderIncludes;
@@ -132,28 +147,18 @@ MaterializedEmitCHeaderArtifactConfig getToyHeaderArtifactConfig() {
   config.runtimeABIParameters =
       plugin::toy::getToyTemplateRuntimeABIParameters();
   config.metadataEvidence = kMetadataEvidence;
+  config.componentGroup = route.bundleComponentGroup;
+  config.externalABIName = route.runtimeABIName;
+  config.handoffKind = route.objectHandoffKind;
+  config.selectedObjectDescription = "Toy materialized EmitC object candidate";
+  config.objectPackagerFn = compileToyGeneratedSourceToObject;
   return config;
-}
-
-llvm::Error validateToyTargetArtifactCandidate(
-    const TargetArtifactCandidate &candidate) {
-  return validateMaterializedEmitCHeaderArtifactCandidate(
-      candidate, getToyHeaderArtifactConfig());
 }
 
 llvm::Error exportToyHeaderArtifact(mlir::ModuleOp module,
                                     llvm::raw_ostream &os) {
-  SelectedEmitCArtifactRouteConfig config =
-      getToySelectedEmitCArtifactConfig(/*validateCandidate=*/true);
-  llvm::Expected<SelectedEmitCArtifactTarget> target =
-      selectSelectedEmitCArtifactTarget(module, config);
-  if (!target)
-    return target.takeError();
-  if (llvm::Error error =
-          validateToyTargetArtifactCandidate(target->candidate))
-    return error;
-  return exportMaterializedEmitCHeaderArtifact(module, os,
-                                               getToyHeaderArtifactConfig());
+  return exportConstructionTemplateHeaderArtifact(
+      module, os, getToyArtifactAdapterConfig());
 }
 
 llvm::Error compileToyGeneratedSourceToObject(llvm::StringRef source,
@@ -242,39 +247,8 @@ llvm::Error compileToyGeneratedSourceToObject(llvm::StringRef source,
 
 llvm::Error exportToyObjectArtifact(mlir::ModuleOp module,
                                     llvm::raw_ostream &os) {
-  SelectedEmitCArtifactRouteConfig config =
-      getToySelectedEmitCArtifactConfig(/*validateCandidate=*/true);
-  llvm::Expected<SelectedEmitCArtifactTarget> target =
-      selectSelectedEmitCArtifactTarget(module, config);
-  if (!target)
-    return target.takeError();
-  if (llvm::Error error =
-          validateToyTargetArtifactCandidate(target->candidate))
-    return error;
-
-  llvm::Expected<std::string> source =
-      emitSelectedEmitCArtifactCppSource(module, config);
-  if (!source)
-    return source.takeError();
-
-  return compileToyGeneratedSourceToObject(*source, os);
-}
-
-MaterializedEmitCObjectBundleArtifactConfig getToyObjectBundleConfig() {
-  const auto &manifest = getToyManifest();
-  const auto &route = getToyRoute();
-  MaterializedEmitCObjectBundleArtifactConfig config;
-  config.header = getToyHeaderArtifactConfig();
-  config.headerRouteID = route.headerRouteID;
-  config.headerArtifactKind = route.headerArtifactKind;
-  config.ownerPlugin = manifest.family.pluginName;
-  config.objectExportFn = exportToyObjectArtifact;
-  config.headerExportFn = exportToyHeaderArtifact;
-  config.componentGroup = route.bundleComponentGroup;
-  config.externalABIName = route.runtimeABIName;
-  config.handoffKind = route.objectHandoffKind;
-  config.selectedObjectDescription = "Toy materialized EmitC object candidate";
-  return config;
+  return exportConstructionTemplateObjectArtifact(
+      module, os, getToyArtifactAdapterConfig());
 }
 
 llvm::Error registerToyObjectBundleTargetArtifactExporter(
@@ -282,8 +256,9 @@ llvm::Error registerToyObjectBundleTargetArtifactExporter(
   if (llvm::Error error = plugin::toy::verifyToyConstructionProtocolReady())
     return error;
 
-  return registerMaterializedEmitCObjectBundleArtifactExporters(
-      registry, getToyObjectBundleConfig());
+  return registerConstructionTemplateArtifactAdapterExporters(
+      registry, getToyArtifactAdapterConfig(), exportToyObjectArtifact,
+      exportToyHeaderArtifact);
 }
 
 } // namespace

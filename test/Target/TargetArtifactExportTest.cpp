@@ -1569,12 +1569,275 @@ TargetArtifactCandidate makeValidToyTargetArtifactCandidate() {
           "toy_construction_protocol", manifest.protocolVersion));
   candidate.artifactMetadata.push_back(
       tianchenrv::support::ArtifactMetadataEntry(
+          tianchenrv::plugin::toy::getToyConstructionArchetypeMetadataName(),
+          manifest.archetype));
+  candidate.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
           "toy_semantic_role_graph", manifest.semanticRoleGraph));
+  candidate.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          tianchenrv::plugin::toy::
+              getToyCommonInterfaceRealizationMetadataName(),
+          tianchenrv::plugin::toy::getToyConstructionInterfaceRealization()));
   candidate.artifactMetadata.push_back(
       tianchenrv::support::ArtifactMetadataEntry(
           "toy_typed_role_realization",
           tianchenrv::plugin::toy::getToyTypedRoleRealizationSummary()));
+  candidate.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          tianchenrv::plugin::toy::getToyEmitCRouteMappingMetadataName(),
+          manifest.emitcRoute.routeID));
+  candidate.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          tianchenrv::plugin::toy::getToyEvidenceProfileMetadataName(),
+          manifest.evidenceProfile));
   return candidate;
+}
+
+llvm::Error
+validateToyAdapterTestSelectedObject(const TargetArtifactCandidate &candidate) {
+  if (llvm::StringRef(candidate.role) != "direct variant")
+    return makeTestSelectedEmitCError(
+        "Toy adapter test candidate must be a direct variant");
+  return llvm::Error::success();
+}
+
+llvm::Error packageToyAdapterTestObject(llvm::StringRef source,
+                                        llvm::raw_ostream &os) {
+  if (source.empty())
+    return makeTestSelectedEmitCError(
+        "Toy adapter test object packager requires source text");
+  os << "toy-adapter-object\n";
+  return llvm::Error::success();
+}
+
+ConstructionTemplateArtifactAdapterConfig makeToyAdapterTestConfig() {
+  static const llvm::StringRef kHeaderIncludes[] = {"stddef.h", "stdint.h"};
+  static const MaterializedEmitCHeaderArtifactMetadataEvidence
+      kMetadataEvidence[] = {
+          {"emitc_lowerable_route", "toy_emitc_lowerable_route",
+           tianchenrv::plugin::toy::getToyTemplateEmitCConstructionRoute()
+               .routeID},
+          {"source_op", "toy_source_op",
+           tianchenrv::plugin::toy::getToyTemplateEmitCConstructionRoute()
+               .loweringBoundaryOpName},
+          {"source_role", "toy_source_role", "compute"},
+          {"source_op_interface", "toy_source_op_interface",
+           "TCRVEmitCLowerableOpInterface"},
+          {"construction_protocol",
+           tianchenrv::plugin::toy::getToyConstructionProtocolMetadataName(),
+           tianchenrv::plugin::toy::getToyConstructionManifest()
+               .protocolVersion},
+          {"extension_archetype",
+           tianchenrv::plugin::toy::getToyConstructionArchetypeMetadataName(),
+           tianchenrv::plugin::toy::getToyConstructionManifest().archetype},
+          {"semantic_role_graph",
+           tianchenrv::plugin::toy::getToySemanticRoleGraphMetadataName(),
+           tianchenrv::plugin::toy::getToyConstructionManifest()
+               .semanticRoleGraph},
+          {"common_interface_realization",
+           tianchenrv::plugin::toy::
+               getToyCommonInterfaceRealizationMetadataName(),
+           tianchenrv::plugin::toy::getToyConstructionInterfaceRealization()},
+          {"typed_role_realization",
+           tianchenrv::plugin::toy::getToyTypedRoleRealizationMetadataName(),
+           tianchenrv::plugin::toy::getToyTypedRoleRealizationSummary()},
+          {"emitc_route_mapping",
+           tianchenrv::plugin::toy::getToyEmitCRouteMappingMetadataName(),
+           tianchenrv::plugin::toy::getToyConstructionManifest()
+               .emitcRoute.routeID},
+          {"evidence_profile",
+           tianchenrv::plugin::toy::getToyEvidenceProfileMetadataName(),
+           tianchenrv::plugin::toy::getToyConstructionManifest()
+               .evidenceProfile},
+      };
+
+  const auto &manifest =
+      tianchenrv::plugin::toy::getToyConstructionManifest();
+  const auto &route =
+      tianchenrv::plugin::toy::getToyTemplateEmitCConstructionRoute();
+
+  ConstructionTemplateArtifactAdapterConfig config;
+  config.selectedRoute.routeID = route.routeID;
+  config.selectedRoute.artifactKind = route.artifactKind;
+  config.selectedRoute.originPlugin = manifest.family.pluginName;
+  config.selectedRoute.routeDescription =
+      "Toy adapter test materialized EmitC route";
+  config.selectedRoute.candidateValidationFn =
+      validateToyAdapterTestSelectedObject;
+  config.selectedRoute.routeBuilderFn = buildTestSelectedEmitCRoute;
+  config.headerRouteID = route.headerRouteID;
+  config.headerArtifactKind = route.headerArtifactKind;
+  config.ownerPlugin = manifest.family.pluginName;
+  config.headerGuard = "TIANCHENRV_TOY_TEST_ADAPTER_HEADER_H";
+  config.evidencePrefix = "tianchenrv.toy";
+  config.includes = kHeaderIncludes;
+  config.selectedVariant = manifest.family.firstSliceVariantName;
+  config.emissionKind = route.emissionKind;
+  config.loweringBoundary = route.loweringBoundaryOpName;
+  config.runtimeABI = route.runtimeABI;
+  config.runtimeABIKind = route.runtimeABIKind;
+  config.runtimeABIName = route.runtimeABIName;
+  config.runtimeGlueRole = route.runtimeGlueRole;
+  config.runtimeABIParameters =
+      tianchenrv::plugin::toy::getToyTemplateRuntimeABIParameters();
+  config.metadataEvidence = kMetadataEvidence;
+  config.componentGroup = route.bundleComponentGroup;
+  config.externalABIName = route.runtimeABIName;
+  config.handoffKind = route.objectHandoffKind;
+  config.selectedObjectDescription = "Toy materialized EmitC object candidate";
+  config.objectPackagerFn = packageToyAdapterTestObject;
+  return config;
+}
+
+bool expectToyConstructionTemplateAdapterSurface() {
+  ConstructionTemplateArtifactAdapterConfig config =
+      makeToyAdapterTestConfig();
+  const auto &manifest =
+      tianchenrv::plugin::toy::getToyConstructionManifest();
+  const auto &route =
+      tianchenrv::plugin::toy::getToyTemplateEmitCConstructionRoute();
+
+  if (!expectSuccess(validateConstructionTemplateArtifactAdapterConfig(config),
+                     "validate Toy construction-template adapter config"))
+    return false;
+
+  TargetArtifactExporterRegistry registry;
+  if (!expectSuccess(registerConstructionTemplateArtifactAdapterExporters(
+                         registry, config, objectMarkerExporter,
+                         headerMarkerExporter),
+                     "register Toy exporters through the construction-template "
+                     "adapter"))
+    return false;
+  const TargetArtifactExporter *objectExporter = registry.lookup(route.routeID);
+  const TargetArtifactCompositeExporter *headerExporter =
+      registry.lookupComposite(route.headerRouteID);
+  if (!objectExporter || !headerExporter) {
+    llvm::errs() << "Toy construction-template adapter did not register "
+                    "object/header routes\n";
+    return false;
+  }
+  if (objectExporter->getOriginPlugin() != manifest.family.pluginName ||
+      objectExporter->getComponentGroup() != route.bundleComponentGroup ||
+      objectExporter->getExternalABIName() != route.runtimeABIName ||
+      headerExporter->getOwner() != manifest.family.pluginName ||
+      headerExporter->getComponentGroup() != route.bundleComponentGroup ||
+      headerExporter->getExternalABIName() != route.runtimeABIName) {
+    llvm::errs() << "Toy construction-template adapter registered malformed "
+                    "route metadata\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate = makeValidToyTargetArtifactCandidate();
+  if (!expectSuccess(validateConstructionTemplateTargetArtifactCandidate(
+                         candidate, config),
+                     "validate Toy object candidate through the "
+                     "construction-template adapter"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         candidate, *objectExporter),
+                     "validate Toy registered object exporter candidate"))
+    return false;
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
+  candidates.push_back(candidate);
+  llvm::Expected<bool> matched = headerExporter->getMatchFn()(candidates);
+  if (!matched || !*matched) {
+    llvm::errs() << "Toy construction-template adapter header composite did "
+                    "not match the object candidate";
+    if (!matched)
+      llvm::errs() << ": " << llvm::toString(matched.takeError());
+    llvm::errs() << "\n";
+    return false;
+  }
+  if (!expectSuccess(headerExporter->getCandidateValidationFn()(candidates),
+                     "validate Toy adapter header composite candidate"))
+    return false;
+
+  ConstructionTemplateArtifactAdapterConfig noPackager = config;
+  noPackager.objectPackagerFn = nullptr;
+  if (!expectErrorContains(
+          validateConstructionTemplateArtifactAdapterConfig(noPackager),
+          "Toy adapter rejects missing object packager",
+          {"object packager callback"}))
+    return false;
+
+  ConstructionTemplateArtifactAdapterConfig noValidator = config;
+  noValidator.selectedRoute.candidateValidationFn = nullptr;
+  if (!expectErrorContains(
+          validateConstructionTemplateArtifactAdapterConfig(noValidator),
+          "Toy adapter rejects missing route-local validator",
+          {"route-local candidate validator"}))
+    return false;
+
+  TargetArtifactCandidate fallback = candidate;
+  fallback.role = "dispatch fallback";
+  if (!expectErrorContains(
+          validateConstructionTemplateTargetArtifactCandidate(fallback,
+                                                              config),
+          "Toy adapter rejects fallback-only candidate",
+          {"direct variant"}))
+    return false;
+
+  TargetArtifactCandidate mixedOrigin = candidate;
+  mixedOrigin.origin = "tensorext-lite-plugin";
+  if (!expectErrorContains(
+          validateConstructionTemplateTargetArtifactCandidate(mixedOrigin,
+                                                              config),
+          "Toy adapter rejects mixed plugin candidate",
+          {"origin", manifest.family.pluginName, "tensorext-lite-plugin"}))
+    return false;
+
+  TargetArtifactCandidate malformedBoundary = candidate;
+  malformedBoundary.loweringBoundary = "tcrv_toy.stale_boundary";
+  if (!expectErrorContains(
+          validateConstructionTemplateTargetArtifactCandidate(
+              malformedBoundary, config),
+          "Toy adapter rejects malformed selected boundary",
+          {"lowering boundary", route.loweringBoundaryOpName}))
+    return false;
+
+  TargetArtifactCandidate missingProtocol = candidate;
+  if (!eraseArtifactMetadataKey(
+          missingProtocol,
+          tianchenrv::plugin::toy::getToyConstructionProtocolMetadataName()) ||
+      !expectErrorContains(
+          validateConstructionTemplateTargetArtifactCandidate(missingProtocol,
+                                                              config),
+          "Toy adapter rejects missing construction protocol metadata",
+          {"toy_construction_protocol"}))
+    return false;
+
+  TargetArtifactCandidate missingRole = candidate;
+  if (!eraseArtifactMetadataKey(missingRole, "toy_source_role") ||
+      !expectErrorContains(
+          validateConstructionTemplateTargetArtifactCandidate(missingRole,
+                                                              config),
+          "Toy adapter rejects missing source role metadata",
+          {"toy_source_role"}))
+    return false;
+
+  TargetArtifactCandidate missingRuntimeABI = candidate;
+  missingRuntimeABI.runtimeABIName.clear();
+  if (!expectErrorContains(
+          validateConstructionTemplateTargetArtifactCandidate(
+              missingRuntimeABI, config),
+          "Toy adapter rejects missing runtime ABI metadata",
+          {"runtime ABI name"}))
+    return false;
+
+  TargetArtifactCandidate directCResidue = candidate;
+  directCResidue.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry("toy.source_export_compute",
+                                                 "stale"));
+  if (!expectErrorContains(
+          validateConstructionTemplateTargetArtifactCandidate(directCResidue,
+                                                              config),
+          "Toy adapter rejects source-export compute metadata",
+          {"descriptor-driven computation"}))
+    return false;
+
+  return true;
 }
 
 bool expectToyTargetArtifactExporterShape(
@@ -2165,8 +2428,12 @@ module {
         {key = "toy_source_role", value = "compute"},
         {key = "toy_source_op_interface", value = "TCRVEmitCLowerableOpInterface"},
         {key = "toy_construction_protocol", value = "extension-family-construction-protocol.v1"},
+        {key = "toy_extension_archetype", value = "custom-riscv-extension-minimal"},
         {key = "toy_semantic_role_graph", value = "configure->load->compute->store"},
-        {key = "toy_typed_role_realization", value = "configure:toy.role.configure.config_skeleton:tcrv_toy.config_skeleton:TCRVConfigOpInterface:TCRVEmitCLowerableInterface;load:toy.role.load.load_skeleton:tcrv_toy.load_skeleton:TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;compute:toy.role.compute.compute_skeleton:tcrv_toy.compute_skeleton:TCRVComputeOpInterface:TCRVEmitCLowerableInterface;store:toy.role.store.store_skeleton:tcrv_toy.store_skeleton:TCRVMemoryOpInterface:TCRVEmitCLowerableInterface"}
+        {key = "toy_common_interface_realization", value = "configure=TCRVExtensionOpInterface+TCRVConfigOpInterface+TCRVEmitCLowerableInterface;load=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;compute=TCRVExtensionOpInterface+TCRVComputeOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;store=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface"},
+        {key = "toy_typed_role_realization", value = "configure:toy.role.configure.config_skeleton:tcrv_toy.config_skeleton:TCRVConfigOpInterface:TCRVEmitCLowerableInterface;load:toy.role.load.load_skeleton:tcrv_toy.load_skeleton:TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;compute:toy.role.compute.compute_skeleton:tcrv_toy.compute_skeleton:TCRVComputeOpInterface:TCRVEmitCLowerableInterface;store:toy.role.store.store_skeleton:tcrv_toy.store_skeleton:TCRVMemoryOpInterface:TCRVEmitCLowerableInterface"},
+        {key = "toy_emitc_route_mapping", value = "toy-template-compute-emitc-route"},
+        {key = "toy_evidence_profile", value = "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_emitc_module|mlir_emitc_cpp_emitter|generated_cpp_compile"}
       ],
       emission_kind = "materialized-emitc-cpp-toy-template-module",
       lowering_boundary = "tcrv_toy.compute_skeleton",
@@ -2238,6 +2505,18 @@ module {
           "toy-template-compute-emitc-route") ||
       !header.contains(
           "tianchenrv.toy.source_op: tcrv_toy.compute_skeleton") ||
+      !header.contains(
+          "tianchenrv.toy.extension_archetype: "
+          "custom-riscv-extension-minimal") ||
+      !header.contains(
+          "tianchenrv.toy.common_interface_realization: "
+          "configure=TCRVExtensionOpInterface+TCRVConfigOpInterface") ||
+      !header.contains(
+          "tianchenrv.toy.emitc_route_mapping: "
+          "toy-template-compute-emitc-route") ||
+      !header.contains(
+          "tianchenrv.toy.evidence_profile: "
+          "parse_verify|capability|interface") ||
       !header.contains(
           "void tcrv_emitc_toy_header_export_toy_template_first_slice("
           "size_t toy_value_count);") ||
@@ -4626,6 +4905,8 @@ int main() {
   if (!expectCommonMaterializedEmitCObjectBundleConstructionSurface())
     return 1;
   if (!expectTensorExtLiteConstructionTemplateAdapterSurface())
+    return 1;
+  if (!expectToyConstructionTemplateAdapterSurface())
     return 1;
   if (!expectTensorExtLiteHeaderArtifactExport(context))
     return 1;

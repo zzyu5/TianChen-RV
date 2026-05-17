@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR invariants and source-of-truth boundaries for this migration."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin locality and construction protocol routing constraints for Toy target support."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime boundaries and descriptor/direct-C deletion constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Construction-template adapter, materialized EmitC route, object/header/bundle, and fail-closed target artifact contracts."}
+{"file": ".trellis/tasks/archive/2026-05/05-18-tensorextlite-construction-template-adapter/prd.md", "reason": "Most recent analogous production migration pattern for adapter consumption and evidence expectations."}

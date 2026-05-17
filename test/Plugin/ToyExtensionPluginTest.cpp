@@ -674,7 +674,10 @@ module {
                          emissionPlan.getRuntimeABIParameters(),
                          tianchenrv::plugin::toy::
                              getToyTemplateRuntimeABIParameters()) &&
-                     emissionPlan.getArtifactMetadata().size() == 7 &&
+                     emissionPlan.getArtifactMetadata().size() ==
+                         tianchenrv::plugin::toy::
+                             getToyTemplateConstructionArtifactMetadata()
+                                 .size() &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::toy::

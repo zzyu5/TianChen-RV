@@ -341,8 +341,12 @@ getToyTemplateConstructionArtifactMetadata() {
       {kSourceRoleMetadataName, "compute"},
       {kSourceOpInterfaceMetadataName, kEmitCLowerableOpInterfaceName},
       {kProtocolMetadataName, kProtocolVersion},
+      {kArchetypeMetadataName, kArchetype},
       {kRoleGraphMetadataName, kSemanticRoleGraph},
+      {kInterfaceRealizationMetadataName, kInterfaceRealization},
       {kTypedRoleRealizationMetadataName, kTypedRoleRealizationSummary},
+      {kEmitCRouteMetadataName, kManifest.emitcRoute.routeID},
+      {kEvidenceProfileMetadataName, kEvidenceProfile},
   };
   return kMetadata;
 }

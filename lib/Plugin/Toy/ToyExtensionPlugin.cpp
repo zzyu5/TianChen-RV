@@ -86,10 +86,18 @@ constexpr llvm::StringLiteral kToySourceOpInterfaceArtifactMetadataKey(
     "toy_source_op_interface");
 constexpr llvm::StringLiteral kToyConstructionProtocolArtifactMetadataKey(
     "toy_construction_protocol");
+constexpr llvm::StringLiteral kToyConstructionArchetypeArtifactMetadataKey(
+    "toy_extension_archetype");
 constexpr llvm::StringLiteral kToySemanticRoleGraphArtifactMetadataKey(
     "toy_semantic_role_graph");
+constexpr llvm::StringLiteral kToyCommonInterfaceRealizationArtifactMetadataKey(
+    "toy_common_interface_realization");
 constexpr llvm::StringLiteral kToyTypedRoleRealizationArtifactMetadataKey(
     "toy_typed_role_realization");
+constexpr llvm::StringLiteral kToyEmitCRouteMappingArtifactMetadataKey(
+    "toy_emitc_route_mapping");
+constexpr llvm::StringLiteral kToyEvidenceProfileArtifactMetadataKey(
+    "toy_evidence_profile");
 constexpr int64_t kToyComputeRoleOrder = 2;
 
 struct ToyTemplateCapabilityView {
@@ -756,10 +764,18 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
                           source.opInterface);
   out.addArtifactMetadata(kToyConstructionProtocolArtifactMetadataKey,
                           manifest.protocolVersion);
+  out.addArtifactMetadata(kToyConstructionArchetypeArtifactMetadataKey,
+                          manifest.archetype);
   out.addArtifactMetadata(kToySemanticRoleGraphArtifactMetadataKey,
                           manifest.semanticRoleGraph);
+  out.addArtifactMetadata(kToyCommonInterfaceRealizationArtifactMetadataKey,
+                          toy::getToyConstructionInterfaceRealization());
   out.addArtifactMetadata(kToyTypedRoleRealizationArtifactMetadataKey,
                           toy::getToyTypedRoleRealizationSummary());
+  out.addArtifactMetadata(kToyEmitCRouteMappingArtifactMetadataKey,
+                          manifest.emitcRoute.routeID);
+  out.addArtifactMetadata(kToyEvidenceProfileArtifactMetadataKey,
+                          manifest.evidenceProfile);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
