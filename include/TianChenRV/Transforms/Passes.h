@@ -10,7 +10,7 @@ namespace tianchenrv {
 
 namespace plugin {
 class ExtensionPluginRegistry;
-class SourceSeedPassRegistration;
+class SourceFrontDoorPassRegistration;
 } // namespace plugin
 
 namespace target {
@@ -27,9 +27,10 @@ void buildExecutionPlanningPipeline(
     ::mlir::OpPassManager &pm,
     const plugin::ExtensionPluginRegistry &registry,
     const target::TargetArtifactExporterRegistry &targetExporters);
-void buildSourceSeedArtifactFrontDoorPipeline(
+void buildSourceArtifactFrontDoorPipeline(
     ::mlir::OpPassManager &pm,
-    llvm::ArrayRef<plugin::SourceSeedPassRegistration> sourceSeedPasses,
+    llvm::ArrayRef<plugin::SourceFrontDoorPassRegistration>
+        sourceFrontDoorPasses,
     const plugin::ExtensionPluginRegistry &registry,
     const target::TargetArtifactExporterRegistry &targetExporters);
 void registerExecutionPlanningPipeline();
@@ -38,8 +39,9 @@ void registerExecutionPlanningPipeline(
 void registerExecutionPlanningPipeline(
     const plugin::ExtensionPluginRegistry &registry,
     const target::TargetArtifactExporterRegistry &targetExporters);
-void registerSourceSeedArtifactFrontDoorPipeline(
-    llvm::ArrayRef<plugin::SourceSeedPassRegistration> sourceSeedPasses,
+void registerSourceArtifactFrontDoorPipeline(
+    llvm::ArrayRef<plugin::SourceFrontDoorPassRegistration>
+        sourceFrontDoorPasses,
     const plugin::ExtensionPluginRegistry &registry,
     const target::TargetArtifactExporterRegistry &targetExporters);
 

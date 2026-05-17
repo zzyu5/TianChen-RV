@@ -1,11 +1,11 @@
 // REQUIRES: tianchenrv-local-rvv-object-clang
 // RUN: rm -f %t.o
-// RUN: tcrv-opt %S/../../Transforms/RVV/rvv-i32m1-selected-boundary-seed.mlir --tcrv-source-seed-artifact-front-door-pipeline | tcrv-translate --tcrv-export-target-artifact > %t.o
+// RUN: tcrv-opt %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir --tcrv-source-artifact-front-door-pipeline | tcrv-translate --tcrv-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: rm -rf %t.bundle && mkdir %t.bundle
-// RUN: tcrv-opt %S/../../Transforms/RVV/rvv-i32m1-selected-boundary-seed.mlir --tcrv-source-seed-artifact-front-door-pipeline | tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.bundle | FileCheck %s --check-prefix=BUNDLE-STDOUT
+// RUN: tcrv-opt %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir --tcrv-source-artifact-front-door-pipeline | tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.bundle | FileCheck %s --check-prefix=BUNDLE-STDOUT
 // RUN: llvm-readobj -h %t.bundle/artifact-0-riscv-elf-relocatable-object-rvv-i32m1-arithmetic-emitc-route-family.o | FileCheck %s --check-prefix=OBJECT
-// RUN: llvm-readobj --symbols %t.bundle/artifact-0-riscv-elf-relocatable-object-rvv-i32m1-arithmetic-emitc-route-family.o | FileCheck %s --check-prefix=SYMBOL --implicit-check-not="_Z39tcrv_emitc_seed_kernel_seed_rvv_i32_add"
+// RUN: llvm-readobj --symbols %t.bundle/artifact-0-riscv-elf-relocatable-object-rvv-i32m1-arithmetic-emitc-route-family.o | FileCheck %s --check-prefix=SYMBOL --implicit-check-not="_Z57tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add"
 // RUN: FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="vint32m1_t" --implicit-check-not="return;" --implicit-check-not="int main" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-direct-microkernel" < %t.bundle/artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h
 // RUN: FileCheck %s --check-prefix=BUNDLE-INDEX < %t.bundle/tianchenrv-target-artifact-bundle.index
 
@@ -13,7 +13,7 @@
 // OBJECT: Arch: riscv64
 // OBJECT: Type: Relocatable
 
-// SYMBOL: Name: tcrv_emitc_seed_kernel_seed_rvv_i32_add
+// SYMBOL: Name: tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add
 
 // BUNDLE-STDOUT: tianchenrv.target_artifact_bundle_export: complete
 // BUNDLE-STDOUT: index_file: "tianchenrv-target-artifact-bundle.index"
@@ -22,7 +22,7 @@
 // HEADER: #include <stddef.h>
 // HEADER: #include <stdint.h>
 // HEADER: tianchenrv.rvv.origin_plugin: rvv-plugin
-// HEADER: tianchenrv.rvv.selected_variant: @seed_rvv_i32_add
+// HEADER: tianchenrv.rvv.selected_variant: @vector_source_rvv_i32_add
 // HEADER: tianchenrv.rvv.selected_route: rvv-i32m1-arithmetic-emitc-route-family
 // HEADER: tianchenrv.rvv.runtime_abi_kind: plugin-owned-runtime-abi
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-i32m1-add-callable-c-abi.v1
@@ -44,7 +44,7 @@
 // HEADER: #ifdef __cplusplus
 // HEADER: extern "C" {
 // HEADER: #endif
-// HEADER: void tcrv_emitc_seed_kernel_seed_rvv_i32_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
+// HEADER: void tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
 // HEADER: #ifdef __cplusplus
 // HEADER: } /* extern "C" */
 // HEADER: #endif
@@ -57,10 +57,10 @@
 // BUNDLE-INDEX: component_group: "rvv-i32m1-arithmetic-materialized-emitc-bundle.v1"
 // BUNDLE-INDEX: component_role: "object"
 // BUNDLE-INDEX: external_abi_name: "rvv-i32m1-add-callable-c-abi.v1"
-// BUNDLE-INDEX: selected_variant: @seed_rvv_i32_add
+// BUNDLE-INDEX: selected_variant: @vector_source_rvv_i32_add
 // BUNDLE-INDEX: role: "dispatch case"
 // BUNDLE-INDEX: component[0]:
-// BUNDLE-INDEX: selected_variant: @seed_rvv_i32_add
+// BUNDLE-INDEX: selected_variant: @vector_source_rvv_i32_add
 // BUNDLE-INDEX: role: "dispatch case"
 // BUNDLE-INDEX: artifact_kind: "riscv-elf-relocatable-object"
 // BUNDLE-INDEX: route: "rvv-i32m1-arithmetic-emitc-route-family"
@@ -114,7 +114,7 @@
 // BUNDLE-INDEX: component_group: "rvv-i32m1-arithmetic-materialized-emitc-bundle.v1"
 // BUNDLE-INDEX: component_role: "header"
 // BUNDLE-INDEX: external_abi_name: "rvv-i32m1-add-callable-c-abi.v1"
-// BUNDLE-INDEX: selected_variant: @seed_rvv_i32_add
+// BUNDLE-INDEX: selected_variant: @vector_source_rvv_i32_add
 // BUNDLE-INDEX: role: "dispatch case"
 // BUNDLE-INDEX: artifact_kind: "runtime-callable-c-header"
 // BUNDLE-INDEX: route: "rvv-i32m1-arithmetic-emitc-route-family.header"

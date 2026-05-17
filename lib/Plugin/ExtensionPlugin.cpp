@@ -234,13 +234,12 @@ llvm::Error makeVariantProposalError(const ExtensionPlugin &plugin,
       "': " + message);
 }
 
-llvm::Error
-makeSourceSeedPassRegistrationError(const ExtensionPlugin &plugin,
-                                    const SourceSeedPassRegistration &pass,
-                                    llvm::Twine message) {
+llvm::Error makeSourceFrontDoorPassRegistrationError(
+    const ExtensionPlugin &plugin, const SourceFrontDoorPassRegistration &pass,
+    llvm::Twine message) {
   return makePluginRegistryError(
       llvm::Twine("TianChen-RV extension plugin '") + plugin.getName() +
-      "' produced invalid source-seed pass registration '" +
+      "' produced invalid source front-door pass registration '" +
       pass.getArgument() + "': " + message);
 }
 
@@ -351,7 +350,7 @@ PluginCapability::PluginCapability(llvm::StringRef id, llvm::StringRef kind,
                                    llvm::StringRef description)
     : id(id.str()), kind(kind.str()), description(description.str()) {}
 
-SourceSeedPassRegistration::SourceSeedPassRegistration(
+SourceFrontDoorPassRegistration::SourceFrontDoorPassRegistration(
     llvm::StringRef ownerPlugin, llvm::StringRef argument,
     llvm::StringRef description, Factory factory)
     : ownerPlugin(ownerPlugin.str()), argument(argument.str()),
@@ -681,8 +680,8 @@ llvm::Error ExtensionPlugin::registerTargetSupportTranslateRoutes(
   return llvm::Error::success();
 }
 
-llvm::Error ExtensionPlugin::registerSourceSeedPasses(
-    llvm::SmallVectorImpl<SourceSeedPassRegistration> &out) const {
+llvm::Error ExtensionPlugin::registerSourceFrontDoorPasses(
+    llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
   (void)out;
   return llvm::Error::success();
 }
@@ -780,10 +779,10 @@ void ExtensionPluginRegistry::collectCapabilitiesByKind(
   }
 }
 
-llvm::Error ExtensionPluginRegistry::collectSourceSeedPasses(
-    llvm::SmallVectorImpl<SourceSeedPassRegistration> &out) const {
+llvm::Error ExtensionPluginRegistry::collectSourceFrontDoorPasses(
+    llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
   llvm::StringSet<> passArguments;
-  for (const SourceSeedPassRegistration &existing : out) {
+  for (const SourceFrontDoorPassRegistration &existing : out) {
     if (!existing.getArgument().empty())
       passArguments.insert(existing.getArgument());
   }
@@ -792,36 +791,36 @@ llvm::Error ExtensionPluginRegistry::collectSourceSeedPasses(
     if (!plugin->isEnabled())
       continue;
 
-    llvm::SmallVector<SourceSeedPassRegistration, 2> pluginPasses;
-    if (llvm::Error error = plugin->registerSourceSeedPasses(pluginPasses))
+    llvm::SmallVector<SourceFrontDoorPassRegistration, 2> pluginPasses;
+    if (llvm::Error error = plugin->registerSourceFrontDoorPasses(pluginPasses))
       return error;
 
-    for (const SourceSeedPassRegistration &pass : pluginPasses) {
+    for (const SourceFrontDoorPassRegistration &pass : pluginPasses) {
       if (pass.getOwnerPlugin().trim().empty())
-        return makeSourceSeedPassRegistrationError(
+        return makeSourceFrontDoorPassRegistrationError(
             *plugin, pass, "owner plugin must be non-empty");
       if (pass.getOwnerPlugin() != plugin->getName())
-        return makeSourceSeedPassRegistrationError(
+        return makeSourceFrontDoorPassRegistrationError(
             *plugin, pass,
             llvm::Twine("owner plugin must match registry plugin '") +
                 plugin->getName() + "'");
       if (pass.getArgument().trim().empty())
-        return makeSourceSeedPassRegistrationError(
+        return makeSourceFrontDoorPassRegistrationError(
             *plugin, pass, "pass argument must be non-empty");
       if (pass.getArgument().starts_with("-"))
-        return makeSourceSeedPassRegistrationError(
+        return makeSourceFrontDoorPassRegistrationError(
             *plugin, pass,
             "pass argument must be the MLIR pass argument without leading '-'");
       if (pass.getDescription().trim().empty())
-        return makeSourceSeedPassRegistrationError(
+        return makeSourceFrontDoorPassRegistrationError(
             *plugin, pass, "pass description must be non-empty");
       if (!pass.getFactory())
-        return makeSourceSeedPassRegistrationError(
+        return makeSourceFrontDoorPassRegistrationError(
             *plugin, pass, "pass factory must be non-empty");
       if (!passArguments.insert(pass.getArgument()).second)
-        return makeSourceSeedPassRegistrationError(
+        return makeSourceFrontDoorPassRegistrationError(
             *plugin, pass,
-            llvm::Twine("duplicate source-seed pass argument '") +
+            llvm::Twine("duplicate source front-door pass argument '") +
                 pass.getArgument() + "'");
     }
 

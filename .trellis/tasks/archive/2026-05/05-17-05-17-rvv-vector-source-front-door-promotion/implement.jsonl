@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global stack, capability, plugin, and descriptor/direct-C boundary invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, bounded i32m1 source materializer, selected boundary, and artifact route constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Materialized EmitC route and selected emission-plan to target artifact handoff contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "No descriptor/direct-C source authority and current runtime emission boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required focused lit/FileCheck and target artifact coverage for compiler behavior."}
+{"file": ".trellis/tasks/archive/2026-05/05-17-rvv-generated-artifact-bundle-link-run-abi-proof/prd.md", "reason": "Immediate prior generated bundle C ABI proof and evidence baseline."}

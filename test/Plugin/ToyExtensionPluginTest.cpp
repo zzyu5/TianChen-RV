@@ -23,7 +23,7 @@
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::SourceSeedPassRegistration;
+using tianchenrv::plugin::SourceFrontDoorPassRegistration;
 using tianchenrv::plugin::VariantCostEstimate;
 using tianchenrv::plugin::VariantCostRequest;
 using tianchenrv::plugin::VariantEmitCLowerableRequest;
@@ -171,14 +171,15 @@ int runRegistrationAndCapabilityMetadataTest() {
                  "Toy template capability metadata is registered"))
     return result;
 
-  llvm::SmallVector<SourceSeedPassRegistration, 2> sourceSeedPasses;
-  if (int result = expectSuccess(registry.collectSourceSeedPasses(
-                                     sourceSeedPasses),
-                                 "Toy source-seed pass collection succeeds"))
+  llvm::SmallVector<SourceFrontDoorPassRegistration, 2> sourceFrontDoorPasses;
+  if (int result = expectSuccess(registry.collectSourceFrontDoorPasses(
+                                     sourceFrontDoorPasses),
+                                 "Toy source front-door pass collection "
+                                 "succeeds"))
     return result;
   if (int result =
-          expect(sourceSeedPasses.empty(),
-                 "Toy plugin contributes no metadata-seed source pass"))
+          expect(sourceFrontDoorPasses.empty(),
+                 "Toy plugin contributes no metadata source pass"))
     return result;
 
   const auto &manifest =

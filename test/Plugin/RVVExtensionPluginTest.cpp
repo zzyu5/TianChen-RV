@@ -26,7 +26,7 @@
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
-using tianchenrv::plugin::SourceSeedPassRegistration;
+using tianchenrv::plugin::SourceFrontDoorPassRegistration;
 using tianchenrv::plugin::VariantEmissionPlan;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
@@ -159,27 +159,27 @@ int runRegistrationAndCapabilityMetadataTest() {
                           "RVV capability id lookup succeeds"))
     return result;
 
-  llvm::SmallVector<SourceSeedPassRegistration, 2> sourceSeedPasses;
+  llvm::SmallVector<SourceFrontDoorPassRegistration, 2> sourceFrontDoorPasses;
   if (int result = expectSuccess(
-          registry.collectSourceSeedPasses(sourceSeedPasses),
-          "collect RVV source-seed pass registrations"))
+          registry.collectSourceFrontDoorPasses(sourceFrontDoorPasses),
+          "collect RVV source front-door pass registrations"))
     return result;
   if (int result =
-          expect(sourceSeedPasses.size() == 1,
-                 "RVV plugin exposes one source-seed pass registration"))
+          expect(sourceFrontDoorPasses.size() == 1,
+                 "RVV plugin exposes one source front-door pass registration"))
     return result;
-  if (int result = expect(sourceSeedPasses.front().getOwnerPlugin() ==
+  if (int result = expect(sourceFrontDoorPasses.front().getOwnerPlugin() ==
                               tianchenrv::plugin::rvv::
                                   getRVVExtensionPluginName(),
-                          "RVV source-seed pass is owned by RVV plugin"))
+                          "RVV source front-door pass is owned by RVV plugin"))
     return result;
   if (int result =
-          expect(sourceSeedPasses.front().getArgument() ==
-                     "tcrv-rvv-materialize-i32m1-selected-boundary-seed",
-                 "RVV source-seed pass keeps the public pass argument"))
+          expect(sourceFrontDoorPasses.front().getArgument() ==
+                     "tcrv-rvv-materialize-i32m1-vector-source-front-door",
+                 "RVV source front-door pass keeps the public pass argument"))
     return result;
-  return expect(static_cast<bool>(sourceSeedPasses.front().getFactory()),
-                "RVV source-seed pass factory is present");
+  return expect(static_cast<bool>(sourceFrontDoorPasses.front().getFactory()),
+                "RVV source front-door pass factory is present");
 }
 
 int runCapabilityProfileTest() {

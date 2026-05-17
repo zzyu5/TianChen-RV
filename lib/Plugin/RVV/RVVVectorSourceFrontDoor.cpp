@@ -1,4 +1,4 @@
-#include "TianChenRV/Plugin/RVV/RVVSelectedBoundarySeed.h"
+#include "TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h"
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
@@ -98,7 +98,7 @@ bool usesOnlyIndex(mlir::Operation::operand_range indices,
 
 mlir::LogicalResult failMaterializer(mlir::Operation *op,
                                      llvm::StringRef message) {
-  op->emitError() << "bounded RVV i32m1 selected-boundary materializer failed: "
+  op->emitError() << "bounded RVV i32m1 vector-source front door failed: "
                   << message;
   return mlir::failure();
 }
@@ -509,18 +509,18 @@ void materializeSourceKernel(mlir::OpBuilder &builder,
                                  fallbackVariantName);
 }
 
-class MaterializeRVVI32M1SelectedBoundarySeedPass final
+class MaterializeRVVI32M1VectorSourceFrontDoorPass final
     : public mlir::PassWrapper<
-          MaterializeRVVI32M1SelectedBoundarySeedPass,
+          MaterializeRVVI32M1VectorSourceFrontDoorPass,
           mlir::OperationPass<mlir::ModuleOp>> {
 public:
   llvm::StringRef getArgument() const final {
-    return "tcrv-rvv-materialize-i32m1-selected-boundary-seed";
+    return "tcrv-rvv-materialize-i32m1-vector-source-front-door";
   }
 
   llvm::StringRef getDescription() const final {
     return "Materialize one bounded MLIR vector i32 add source pattern into "
-           "the RVV i32m1 selected-boundary form";
+           "the RVV i32m1 selected boundary and dispatch front door";
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
@@ -571,8 +571,8 @@ public:
 } // namespace
 
 std::unique_ptr<::mlir::Pass>
-createMaterializeRVVI32M1SelectedBoundarySeedPass() {
-  return std::make_unique<MaterializeRVVI32M1SelectedBoundarySeedPass>();
+createMaterializeRVVI32M1VectorSourceFrontDoorPass() {
+  return std::make_unique<MaterializeRVVI32M1VectorSourceFrontDoorPass>();
 }
 
 } // namespace tianchenrv::plugin::rvv

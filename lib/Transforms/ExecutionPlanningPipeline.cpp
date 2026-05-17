@@ -19,13 +19,14 @@ constexpr llvm::StringLiteral kExecutionPlanningPipelineDescription(
     "checking, generic selection/dispatch planning, selected lowering-boundary "
     "materialization, emission-plan diagnostics, and execution-plan coherence "
     "checking");
-constexpr llvm::StringLiteral kSourceSeedArtifactFrontDoorPipelineName(
-    "tcrv-source-seed-artifact-front-door-pipeline");
-constexpr llvm::StringLiteral kSourceSeedArtifactFrontDoorPipelineDescription(
-    "Compose enabled plugin source-seed materialization passes with TianChen-RV "
+constexpr llvm::StringLiteral kSourceArtifactFrontDoorPipelineName(
+    "tcrv-source-artifact-front-door-pipeline");
+constexpr llvm::StringLiteral kSourceArtifactFrontDoorPipelineDescription(
+    "Compose enabled plugin source front-door materialization passes with "
+    "TianChen-RV "
     "generic legality, capability, emission-plan, and execution-plan coherence "
-    "checks so bounded source seeds reach selected emission diagnostics before "
-    "any supported target artifact export");
+    "checks so bounded source inputs reach selected emission diagnostics "
+    "before any supported target artifact export");
 
 } // namespace
 
@@ -55,14 +56,14 @@ void buildExecutionPlanningPipeline(
   pm.addPass(createCheckExecutionPlanCoherencePass(registry, targetExporters));
 }
 
-void buildSourceSeedArtifactFrontDoorPipeline(
+void buildSourceArtifactFrontDoorPipeline(
     mlir::OpPassManager &pm,
-    llvm::ArrayRef<plugin::SourceSeedPassRegistration> sourceSeedPasses,
+    llvm::ArrayRef<plugin::SourceFrontDoorPassRegistration> sourceFrontDoorPasses,
     const plugin::ExtensionPluginRegistry &registry,
     const target::TargetArtifactExporterRegistry &targetExporters) {
-  for (const plugin::SourceSeedPassRegistration &sourceSeedPass :
-       sourceSeedPasses)
-    pm.addPass(sourceSeedPass.getFactory()());
+  for (const plugin::SourceFrontDoorPassRegistration &sourceFrontDoorPass :
+       sourceFrontDoorPasses)
+    pm.addPass(sourceFrontDoorPass.getFactory()());
 
   pm.addPass(createCheckHartParallelCapabilitiesPass());
   pm.addPass(createVerifyPluginVariantLegalityPass(registry));
@@ -93,20 +94,20 @@ void registerExecutionPlanningPipeline(
   (void)registration;
 }
 
-void registerSourceSeedArtifactFrontDoorPipeline(
-    llvm::ArrayRef<plugin::SourceSeedPassRegistration> sourceSeedPasses,
+void registerSourceArtifactFrontDoorPipeline(
+    llvm::ArrayRef<plugin::SourceFrontDoorPassRegistration>
+        sourceFrontDoorPasses,
     const plugin::ExtensionPluginRegistry &registry,
     const target::TargetArtifactExporterRegistry &targetExporters) {
-  llvm::SmallVector<plugin::SourceSeedPassRegistration, 4>
-      capturedSourceSeedPasses(sourceSeedPasses.begin(),
-                               sourceSeedPasses.end());
+  llvm::SmallVector<plugin::SourceFrontDoorPassRegistration, 4>
+      capturedPasses(sourceFrontDoorPasses.begin(), sourceFrontDoorPasses.end());
   mlir::PassPipelineRegistration<> registration(
-      kSourceSeedArtifactFrontDoorPipelineName,
-      kSourceSeedArtifactFrontDoorPipelineDescription,
-      [capturedSourceSeedPasses = std::move(capturedSourceSeedPasses),
+      kSourceArtifactFrontDoorPipelineName,
+      kSourceArtifactFrontDoorPipelineDescription,
+      [capturedSourceFrontDoorPasses = std::move(capturedPasses),
        &registry, &targetExporters](mlir::OpPassManager &pm) {
-        buildSourceSeedArtifactFrontDoorPipeline(
-            pm, capturedSourceSeedPasses, registry, targetExporters);
+        buildSourceArtifactFrontDoorPipeline(
+            pm, capturedSourceFrontDoorPasses, registry, targetExporters);
       });
   (void)registration;
 }

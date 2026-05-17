@@ -499,7 +499,7 @@ metadata claims a callable C ABI, including names such as
   `#ifdef __cplusplus` / `extern "C" {` / `#endif`.
 - Expected exported object symbol:
   the unmangled selected function name, for example
-  `tcrv_emitc_seed_kernel_seed_rvv_i32_add`.
+  `tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add`.
 
 ### 3. Contracts
 
@@ -533,15 +533,15 @@ metadata claims a callable C ABI, including names such as
 
 ### 5. Good/Base/Bad Cases
 
-- Good: RVV source-seed selected add exports a header with `extern "C"` guards,
-  a RISC-V object whose symbol table contains
-  `tcrv_emitc_seed_kernel_seed_rvv_i32_add`, and a C harness compiled with
-  `clang` on `ssh rvv` links and prints a bounded `PASS`.
+- Good: RVV vector-source front-door selected add exports a header with
+  `extern "C"` guards, a RISC-V object whose symbol table contains
+  `tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add`, and a C harness
+  compiled with `clang` on `ssh rvv` links and prints a bounded `PASS`.
 - Base: C++ callers may include the same generated header; the guard preserves
   the same C ABI symbol rather than choosing a C++ ABI.
 - Bad: the generated object exposes only a symbol such as
-  `_Z39tcrv_emitc_seed_kernel_seed_rvv_i32_add...` while the route calls
-  itself `runtime-callable-c-header` or `callable-c-abi`.
+  `_Z57tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add...` while the
+  route calls itself `runtime-callable-c-header` or `callable-c-abi`.
 
 ### 6. Tests Required
 

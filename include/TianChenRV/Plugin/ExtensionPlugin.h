@@ -58,14 +58,15 @@ private:
   std::string description;
 };
 
-class SourceSeedPassRegistration {
+class SourceFrontDoorPassRegistration {
 public:
   using Factory = std::function<std::unique_ptr<mlir::Pass>()>;
 
-  SourceSeedPassRegistration() = default;
-  SourceSeedPassRegistration(llvm::StringRef ownerPlugin,
-                             llvm::StringRef argument,
-                             llvm::StringRef description, Factory factory);
+  SourceFrontDoorPassRegistration() = default;
+  SourceFrontDoorPassRegistration(llvm::StringRef ownerPlugin,
+                                  llvm::StringRef argument,
+                                  llvm::StringRef description,
+                                  Factory factory);
 
   llvm::StringRef getOwnerPlugin() const { return ownerPlugin; }
   llvm::StringRef getArgument() const { return argument; }
@@ -648,8 +649,8 @@ public:
   virtual llvm::ArrayRef<PluginCapability> getCapabilities() const = 0;
   virtual void registerDialects(mlir::DialectRegistry &registry) const = 0;
   virtual bool isEnabled() const { return true; }
-  virtual llvm::Error registerSourceSeedPasses(
-      llvm::SmallVectorImpl<SourceSeedPassRegistration> &out) const;
+  virtual llvm::Error registerSourceFrontDoorPasses(
+      llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const;
   virtual bool supportsOperation(const VariantProposalRequest &request) const;
   virtual llvm::Error
   proposeVariants(const VariantProposalRequest &request,
@@ -709,8 +710,8 @@ public:
   void collectCapabilitiesByKind(llvm::StringRef kind,
                                  llvm::SmallVectorImpl<PluginCapability> &out,
                                  bool enabledOnly = true) const;
-  llvm::Error collectSourceSeedPasses(
-      llvm::SmallVectorImpl<SourceSeedPassRegistration> &out) const;
+  llvm::Error collectSourceFrontDoorPasses(
+      llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const;
   llvm::Error
   collectVariantProposals(const VariantProposalRequest &request,
                           llvm::SmallVectorImpl<VariantProposal> &out) const;

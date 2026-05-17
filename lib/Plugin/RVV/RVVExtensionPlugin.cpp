@@ -7,7 +7,7 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
-#include "TianChenRV/Plugin/RVV/RVVSelectedBoundarySeed.h"
+#include "TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h"
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
@@ -202,14 +202,14 @@ void RVVExtensionPlugin::registerDialects(
   registry.insert<tcrv::rvv::TCRVRVVDialect>();
 }
 
-llvm::Error RVVExtensionPlugin::registerSourceSeedPasses(
-    llvm::SmallVectorImpl<SourceSeedPassRegistration> &out) const {
-  out.push_back(SourceSeedPassRegistration(
+llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
+    llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
+  out.push_back(SourceFrontDoorPassRegistration(
       kRVVPluginName,
-      "tcrv-rvv-materialize-i32m1-selected-boundary-seed",
+      "tcrv-rvv-materialize-i32m1-vector-source-front-door",
       "Materialize one bounded MLIR vector i32 add source pattern into the "
-      "RVV i32m1 selected-boundary form",
-      [] { return createMaterializeRVVI32M1SelectedBoundarySeedPass(); }));
+      "RVV i32m1 selected boundary and dispatch front door",
+      [] { return createMaterializeRVVI32M1VectorSourceFrontDoorPass(); }));
   return llvm::Error::success();
 }
 

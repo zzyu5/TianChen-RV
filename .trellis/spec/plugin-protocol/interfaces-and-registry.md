@@ -53,15 +53,15 @@ Concrete ODS/C++ directory splits are implementation organization only. They
 must share TCRV capability, registry, common interfaces, common orchestration
 passes, and common EmitC route framework.
 
-### SourceSeedPassProvider
+### SourceFrontDoorPassProvider
 
-Bounded source-to-selected-boundary seeds are plugin-owned entry points. A
-plugin may expose one or more public MLIR pass factories through the common
-extension plugin registry when the seed is part of that extension family's
-durable contract.
+Bounded source-to-selected-boundary front doors are plugin-owned entry points.
+A plugin may expose one or more public MLIR pass factories through the common
+extension plugin registry when the source front door is part of that extension
+family's durable contract.
 
 ```cpp
-class SourceSeedPassRegistration {
+class SourceFrontDoorPassRegistration {
 public:
   StringRef getOwnerPlugin() const;
   StringRef getArgument() const;
@@ -71,8 +71,8 @@ public:
 
 class ExtensionPlugin {
 public:
-  virtual Error registerSourceSeedPasses(
-      SmallVectorImpl<SourceSeedPassRegistration> &out) const;
+  virtual Error registerSourceFrontDoorPasses(
+      SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const;
 };
 ```
 
@@ -82,11 +82,12 @@ plugin-owned pass. It must not carry computation semantics, target-family
 semantic branches, descriptor fields, route ids, runtime ABI identities,
 artifact kinds, tuning state, or source-export payloads.
 
-Public tools such as `tcrv-opt` may collect source-seed pass registrations from
-enabled plugins and register those pass factories at the tool/front-door
-boundary. If built-in plugins are disabled or a plugin is not registered, that
-plugin's source-seed passes are not public command-line options. Default empty
-registries remain fail-closed for embedded users and tests.
+Public tools such as `tcrv-opt` may collect source front-door pass
+registrations from enabled plugins and register those pass factories at the
+tool/front-door boundary. If built-in plugins are disabled or a plugin is not
+registered, that plugin's source front-door passes are not public command-line
+options. Default empty registries remain fail-closed for embedded users and
+tests.
 
 The common registry validates registration shape and deterministic ordering,
 but it does not inspect the source dialect body or decide RVV, IME, offload,

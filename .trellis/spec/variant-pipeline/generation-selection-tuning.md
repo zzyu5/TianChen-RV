@@ -138,9 +138,10 @@ linalg/vector RVV source frontend family.
 ### 2. Signatures
 
 - Public pass option:
-  `--tcrv-rvv-materialize-i32m1-selected-boundary-seed`.
-- The pass option name is historical pass plumbing only. It does not make a
-  `seed` attribute or seed metadata the route authority.
+  `--tcrv-rvv-materialize-i32m1-vector-source-front-door`.
+- The pass option names the bounded production source front door. It does not
+  make a `seed` attribute, seed metadata, route id, or artifact name the route
+  authority.
 - No positive source marker is required for the RVV i32 add slice.
 - Stale RVV source marker metadata such as
   `tcrv_rvv.lowering_seed = "i32m1_add"` must not create a selected RVV route
@@ -391,13 +392,13 @@ pre-existing lowering-boundary metadata, mismatched materialized variants, or
 emission-plan diagnostics must produce the existing bounded diagnostics rather
 than duplicating symbols or silently appending stale metadata.
 
-## Public Source-Seed Artifact Front-Door Pipeline
+## Public Source Artifact Front-Door Pipeline
 
 Bounded plugin-owned source materialization has a separate explicit `tcrv-opt`
 front door:
 
 ```text
---tcrv-source-seed-artifact-front-door-pipeline
+--tcrv-source-artifact-front-door-pipeline
 ```
 
 This pipeline is for plugin-owned source materializers that already
@@ -408,7 +409,7 @@ default planning/export commands.
 The pipeline composes existing registered pass factories in this order:
 
 ```text
-all enabled plugin-registered source-seed materialization passes
+all enabled plugin-registered source front-door materialization passes
   -> tcrv-check-hart-parallel-capabilities
   -> tcrv-verify-plugin-variant-legality
   -> tcrv-check-capability-requires
@@ -416,22 +417,22 @@ all enabled plugin-registered source-seed materialization passes
   -> tcrv-check-execution-plan-coherence
 ```
 
-The source-seed pass list comes from
-`ExtensionPluginRegistry::collectSourceSeedPasses` in deterministic enabled
-plugin order. Common/tool code may collect, validate, register, and sequence
-those pass factories, but it must not inspect plugin source marker names,
+The source front-door pass list comes from
+`ExtensionPluginRegistry::collectSourceFrontDoorPasses` in deterministic
+enabled plugin order. Common/tool code may collect, validate, register, and
+sequence those pass factories, but it must not inspect plugin source marker names,
 source operation shapes, arithmetic, template semantics, route ids, runtime ABI
 names, intrinsic names, artifact kinds, or target-family details.
 
 This pipeline intentionally does not run
 `tcrv-materialize-plugin-variants`, `tcrv-select-variants`, or unconditional
-selected lowering-boundary materialization. Current bounded source materializers
-produce selected `tcrv.exec.variant` surfaces and selected extension-family
-boundary IR themselves. Re-running proposal/selection would compete with that
-selected surface, and unconditionally materializing boundaries would duplicate
-plugin-owned source boundaries such as RVV `tcrv_rvv.with_vl`. Plugins without
-an active source materializer do not contribute source-seed boundaries through
-this front door.
+selected lowering-boundary materialization. Current bounded source front-door
+materializers produce selected `tcrv.exec.variant` surfaces and selected
+extension-family boundary IR themselves. Re-running proposal/selection would
+compete with that selected surface, and unconditionally materializing
+boundaries would duplicate plugin-owned source boundaries such as RVV
+`tcrv_rvv.with_vl`. Plugins without an active source materializer do not
+contribute source boundaries through this front door.
 
 The artifact front door stops at emission-plan/coherence-checked TianChen-RV
 IR. Existing target translate routes, such as
@@ -442,9 +443,9 @@ may explicitly append `--tcrv-materialize-emitc-lowerable-routes` after the
 front-door pipeline; this is a separate lowering step and must not replace
 target artifact route validation.
 
-Disabled built-in plugins leave the source-seed pass list empty. Source inputs
-must then fail closed in the generic gates rather than being lowered through
-hidden global plugin state.
+Disabled built-in plugins leave the source front-door pass list empty. Source
+inputs must then fail closed in the generic gates rather than being lowered
+through hidden global plugin state.
 
 The pipeline must preserve the fail-closed behavior of each plugin-owned source
 materializer: stale marker metadata, malformed source shapes, stale

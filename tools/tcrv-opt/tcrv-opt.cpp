@@ -76,22 +76,23 @@ llvm::Error registerTianChenRVOptPasses(
     return tianchenrv::transforms::createMaterializeEmitCLowerableRoutesPass(
         plugins);
   });
-  llvm::SmallVector<tianchenrv::plugin::SourceSeedPassRegistration, 4>
-      sourceSeedPasses;
-  if (llvm::Error error = plugins.collectSourceSeedPasses(sourceSeedPasses))
+  llvm::SmallVector<tianchenrv::plugin::SourceFrontDoorPassRegistration, 4>
+      sourceFrontDoorPasses;
+  if (llvm::Error error =
+          plugins.collectSourceFrontDoorPasses(sourceFrontDoorPasses))
     return error;
-  for (const tianchenrv::plugin::SourceSeedPassRegistration &sourceSeedPass :
-       sourceSeedPasses) {
-    mlir::registerPass([sourceSeedPass] {
-      return sourceSeedPass.getFactory()();
+  for (const tianchenrv::plugin::SourceFrontDoorPassRegistration
+           &sourceFrontDoorPass : sourceFrontDoorPasses) {
+    mlir::registerPass([sourceFrontDoorPass] {
+      return sourceFrontDoorPass.getFactory()();
     });
   }
   mlir::registerPass([&plugins, &targetExporters] {
     return tianchenrv::transforms::createCheckExecutionPlanCoherencePass(
         plugins, targetExporters);
   });
-  tianchenrv::transforms::registerSourceSeedArtifactFrontDoorPipeline(
-      sourceSeedPasses, plugins, targetExporters);
+  tianchenrv::transforms::registerSourceArtifactFrontDoorPipeline(
+      sourceFrontDoorPasses, plugins, targetExporters);
   tianchenrv::transforms::registerExecutionPlanningPipeline(plugins,
                                                             targetExporters);
   return llvm::Error::success();

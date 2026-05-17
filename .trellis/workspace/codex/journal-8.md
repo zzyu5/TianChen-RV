@@ -56,6 +56,63 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 103: Bounded RVV vector-source front door promotion
+
+**Date**: 2026-05-17
+**Task**: Bounded RVV vector-source front door promotion
+**Branch**: `main`
+
+### Summary
+
+Promoted the bounded RVV i32 add source path from source-seed naming into a
+production-scoped vector-source front door that materializes the selected RVV
+boundary, reaches the supported emission plan, and feeds the generated
+object/header/bundle artifact route.
+
+### Main Changes
+
+- Renamed the common plugin source entry registration from
+  `SourceSeedPassRegistration` to `SourceFrontDoorPassRegistration` and changed
+  the public source artifact pipeline to
+  `--tcrv-source-artifact-front-door-pipeline`.
+- Renamed the RVV materializer to `RVVVectorSourceFrontDoor` with public pass
+  `--tcrv-rvv-materialize-i32m1-vector-source-front-door`.
+- Moved positive RVV transform and target artifact lit coverage to
+  `vector-source` test names and updated expected selected symbols to
+  `@vector_source_*` / `tcrv_emitc_vector_source_*`.
+- Added old `source-seed` pass/pipeline deletion checks so seed naming remains
+  negative coverage rather than public authority.
+- Updated plugin-protocol, variant-pipeline, and EmitC route specs to record
+  the source front-door registry and current vector-source C ABI symbol.
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-plugin-registry-test tianchenrv-rvv-extension-plugin-test tianchenrv-toy-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-plugin-registry-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-toy-extension-plugin-test`
+- [OK] focused lit filter for RVV vector-source front door, source front-door
+  negatives, and RVV vector-source target artifacts: 7/7 passed.
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 102/102 lit tests
+  passed.
+- [OK] refreshed `ssh rvv` C-ABI link/run proof for the renamed vector-source
+  symbol under
+  `artifacts/tmp/rvv_vector_source_front_door_link_run_abi_proof/20260517T022309Z/`.
+  Remote output:
+  `PASS tcrv_rvv_i32m1_vector_source_front_door_c_abi n=257`.
+- [OK] targeted scans showed descriptor/direct-C/source-export residue only in
+  `CHECK-NOT` assertions, and old source-seed names only in deleted-option
+  negative tests.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-17-05-17-rvv-vector-source-front-door-promotion`
+
+### Status
+
+[OK] Completed, archived, and committed.
+
+
 ## Session 101: Common materialized EmitC header artifact foundation
 
 **Date**: 2026-05-17

@@ -1,10 +1,11 @@
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-selected-boundary-seed | FileCheck %s --check-prefix=BOUNDARY --implicit-check-not="func.func"
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-selected-boundary-seed --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
-// RUN: tcrv-opt %s --tcrv-source-seed-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
-// RUN: not tcrv-opt %s --tcrv-disable-builtin-plugins --tcrv-rvv-materialize-i32m1-selected-boundary-seed 2>&1 | FileCheck %s --check-prefix=NO-BUILTIN
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door | FileCheck %s --check-prefix=BOUNDARY --implicit-check-not="func.func"
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
+// RUN: tcrv-opt %s --tcrv-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
+// RUN: not tcrv-opt %s --tcrv-disable-builtin-plugins --tcrv-rvv-materialize-i32m1-vector-source-front-door 2>&1 | FileCheck %s --check-prefix=NO-BUILTIN
+// RUN: not tcrv-opt %s --tcrv-rvv-materialize-i32m1-selected-boundary-seed 2>&1 | FileCheck %s --check-prefix=OLD-SEED-REMOVED
 
 module {
-  func.func @seed(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
+  func.func @vector_source(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
     %c0 = arith.constant 0 : index
     %c4 = arith.constant 4 : index
     scf.for %i = %c0 to %n step %c4 {
@@ -17,14 +18,14 @@ module {
   }
 }
 
-// BOUNDARY-LABEL: tcrv.exec.kernel @seed_kernel
+// BOUNDARY-LABEL: tcrv.exec.kernel @vector_source_kernel
 // BOUNDARY: tcrv.exec.capability @rvv
 // BOUNDARY-SAME: id = "rvv"
 // BOUNDARY-SAME: kind = "isa-vector"
 // BOUNDARY: tcrv.exec.capability @scalar_fallback
 // BOUNDARY-SAME: id = "scalar.fallback"
 // BOUNDARY-SAME: kind = "fallback"
-// BOUNDARY-LABEL: tcrv.exec.variant @seed_rvv_i32_add
+// BOUNDARY-LABEL: tcrv.exec.variant @vector_source_rvv_i32_add
 // BOUNDARY-SAME: origin = "rvv-plugin"
 // BOUNDARY-SAME: requires = [@rvv]
 // BOUNDARY: = tcrv_rvv.runtime_abi_value
@@ -55,15 +56,15 @@ module {
 // BOUNDARY: tcrv_rvv.i32_load
 // BOUNDARY: tcrv_rvv.i32_add
 // BOUNDARY: tcrv_rvv.i32_store
-// BOUNDARY: tcrv.exec.variant @seed_scalar_fallback
+// BOUNDARY: tcrv.exec.variant @vector_source_scalar_fallback
 // BOUNDARY-SAME: fallback_role = "conservative"
 // BOUNDARY-SAME: origin = "scalar-plugin"
 // BOUNDARY-SAME: requires = [@scalar_fallback]
 // BOUNDARY: tcrv.exec.dispatch
-// BOUNDARY: tcrv.exec.case @seed_rvv_i32_add
+// BOUNDARY: tcrv.exec.case @vector_source_rvv_i32_add
 // BOUNDARY-SAME: origin = "rvv-plugin"
 // BOUNDARY-SAME: policy = "source-pattern-selected-rvv-case"
-// BOUNDARY: tcrv.exec.fallback @seed_scalar_fallback
+// BOUNDARY: tcrv.exec.fallback @vector_source_scalar_fallback
 // BOUNDARY-SAME: fallback_role = "conservative"
 // BOUNDARY-SAME: origin = "scalar-plugin"
 
@@ -99,13 +100,16 @@ module {
 // PLAN-SAME: runtime_abi_parameters = [{c_name = "lhs", c_type = "const int32_t *"
 // PLAN-SAME: runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue"
 // PLAN-SAME: status = "supported"
-// PLAN-SAME: target = @seed_rvv_i32_add
+// PLAN-SAME: target = @vector_source_rvv_i32_add
 // PLAN: tcrv.exec.diagnostic {artifact_kind = "unsupported-emission-diagnostic"
 // PLAN-SAME: emission_kind = "scalar-fallback-unsupported-emission"
 // PLAN-SAME: origin = "scalar-plugin"
 // PLAN-SAME: role = "dispatch fallback"
 // PLAN-SAME: status = "unsupported"
-// PLAN-SAME: target = @seed_scalar_fallback
+// PLAN-SAME: target = @vector_source_scalar_fallback
 
 // NO-BUILTIN: Unknown command line argument
-// NO-BUILTIN-SAME: tcrv-rvv-materialize-i32m1-selected-boundary-seed
+// NO-BUILTIN-SAME: tcrv-rvv-materialize-i32m1-vector-source-front-door
+
+// OLD-SEED-REMOVED: Unknown command line argument
+// OLD-SEED-REMOVED-SAME: tcrv-rvv-materialize-i32m1-selected-boundary-seed

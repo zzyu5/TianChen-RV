@@ -4,7 +4,7 @@ add_subdirectory(EmitC)
 add_mlir_library(TianChenRVRVVPlugin
   RVVCapabilityProfile.cpp
   RVVExtensionPlugin.cpp
-  RVVSelectedBoundarySeed.cpp
+  RVVVectorSourceFrontDoor.cpp
 
   DEPENDS
   TianChenRVPassesIncGen
