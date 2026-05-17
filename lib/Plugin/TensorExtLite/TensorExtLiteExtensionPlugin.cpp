@@ -746,7 +746,7 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
   out.addRuntimeABIParameters(
       tensorext_lite::getTensorExtLiteFragmentMmaRuntimeABIParameters());
 
-  llvm::SmallVector<support::ArtifactMetadataEntry, 8> artifactMetadata;
+  llvm::SmallVector<support::ArtifactMetadataEntry, 12> artifactMetadata;
   artifactMetadata.push_back(support::ArtifactMetadataEntry(
       tensorext_lite::getTensorExtLiteEmitCLowerableRouteMetadataName(),
       route.getRouteID()));
@@ -770,11 +770,23 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
       tensorext_lite::getTensorExtLiteConstructionProtocolMetadataName(),
       manifest.protocolVersion));
   artifactMetadata.push_back(support::ArtifactMetadataEntry(
+      tensorext_lite::getTensorExtLiteConstructionArchetypeMetadataName(),
+      manifest.archetype));
+  artifactMetadata.push_back(support::ArtifactMetadataEntry(
       tensorext_lite::getTensorExtLiteSemanticRoleGraphMetadataName(),
       manifest.semanticRoleGraph));
   artifactMetadata.push_back(support::ArtifactMetadataEntry(
+      tensorext_lite::getTensorExtLiteCommonInterfaceRealizationMetadataName(),
+      tensorext_lite::getTensorExtLiteConstructionInterfaceRealization()));
+  artifactMetadata.push_back(support::ArtifactMetadataEntry(
       tensorext_lite::getTensorExtLiteTypedRoleRealizationMetadataName(),
       tensorext_lite::getTensorExtLiteTypedRoleRealizationSummary()));
+  artifactMetadata.push_back(support::ArtifactMetadataEntry(
+      tensorext_lite::getTensorExtLiteEmitCRouteMappingMetadataName(),
+      manifest.emitcRoute.routeID));
+  artifactMetadata.push_back(support::ArtifactMetadataEntry(
+      tensorext_lite::getTensorExtLiteEvidenceProfileMetadataName(),
+      manifest.evidenceProfile));
   if (llvm::Error error =
           tensorext_lite::verifyTensorExtLiteFragmentMmaArtifactMetadata(
               artifactMetadata, "TensorExtLite emission plan"))

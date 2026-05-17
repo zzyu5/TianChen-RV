@@ -383,7 +383,7 @@ int runRegistrationAndCapabilityMetadataTest() {
                   "TensorExtLite construction test"),
           "TensorExtLite artifact metadata validates from protocol"))
     return result;
-  llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 8>
+  llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 12>
       staleProtocolMetadata(
           tianchenrv::plugin::tensorext_lite::
               getTensorExtLiteFragmentMmaArtifactMetadata()
@@ -813,7 +813,7 @@ module {
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::tensorext_lite::
                              getTensorExtLiteFragmentPreferredCapabilitySymbol() &&
-                     emissionPlan.getArtifactMetadata().size() == 8 &&
+                     emissionPlan.getArtifactMetadata().size() == 12 &&
                      emissionPlan.getArtifactMetadata()[0].key ==
                          tianchenrv::plugin::tensorext_lite::
                              getTensorExtLiteEmitCLowerableRouteMetadataName() &&
@@ -849,15 +849,36 @@ module {
                          manifest.protocolVersion &&
                      emissionPlan.getArtifactMetadata()[6].key ==
                          tianchenrv::plugin::tensorext_lite::
-                             getTensorExtLiteSemanticRoleGraphMetadataName() &&
+                             getTensorExtLiteConstructionArchetypeMetadataName() &&
                      emissionPlan.getArtifactMetadata()[6].value ==
-                         manifest.semanticRoleGraph &&
+                         manifest.archetype &&
                      emissionPlan.getArtifactMetadata()[7].key ==
                          tianchenrv::plugin::tensorext_lite::
-                             getTensorExtLiteTypedRoleRealizationMetadataName() &&
+                             getTensorExtLiteSemanticRoleGraphMetadataName() &&
                      emissionPlan.getArtifactMetadata()[7].value ==
+                         manifest.semanticRoleGraph &&
+                     emissionPlan.getArtifactMetadata()[8].key ==
                          tianchenrv::plugin::tensorext_lite::
-                             getTensorExtLiteTypedRoleRealizationSummary(),
+                             getTensorExtLiteCommonInterfaceRealizationMetadataName() &&
+                     emissionPlan.getArtifactMetadata()[8].value ==
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteConstructionInterfaceRealization() &&
+                     emissionPlan.getArtifactMetadata()[9].key ==
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteTypedRoleRealizationMetadataName() &&
+                     emissionPlan.getArtifactMetadata()[9].value ==
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteTypedRoleRealizationSummary() &&
+                     emissionPlan.getArtifactMetadata()[10].key ==
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteEmitCRouteMappingMetadataName() &&
+                     emissionPlan.getArtifactMetadata()[10].value ==
+                         manifest.emitcRoute.routeID &&
+                     emissionPlan.getArtifactMetadata()[11].key ==
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteEvidenceProfileMetadataName() &&
+                     emissionPlan.getArtifactMetadata()[11].value ==
+                         manifest.evidenceProfile,
                  "TensorExtLite emission plan is a supported object artifact "
                  "candidate backed by EmitC route provenance"))
     return result;

@@ -322,14 +322,32 @@ MaterializedEmitCHeaderArtifactConfig getTensorExtLiteHeaderArtifactConfig() {
            plugin::tensorext_lite::getTensorExtLiteConstructionProtocolMetadataName(),
            plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
                .protocolVersion},
+          {"extension_archetype",
+           plugin::tensorext_lite::
+               getTensorExtLiteConstructionArchetypeMetadataName(),
+           plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
+               .archetype},
           {"semantic_role_graph",
            plugin::tensorext_lite::getTensorExtLiteSemanticRoleGraphMetadataName(),
            plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
                .semanticRoleGraph},
+          {"common_interface_realization",
+           plugin::tensorext_lite::
+               getTensorExtLiteCommonInterfaceRealizationMetadataName(),
+           plugin::tensorext_lite::
+               getTensorExtLiteConstructionInterfaceRealization()},
           {"typed_role_realization",
            plugin::tensorext_lite::getTensorExtLiteTypedRoleRealizationMetadataName(),
            plugin::tensorext_lite::
                getTensorExtLiteTypedRoleRealizationSummary()},
+          {"emitc_route_mapping",
+           plugin::tensorext_lite::getTensorExtLiteEmitCRouteMappingMetadataName(),
+           plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
+               .emitcRoute.routeID},
+          {"evidence_profile",
+           plugin::tensorext_lite::getTensorExtLiteEvidenceProfileMetadataName(),
+           plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
+               .evidenceProfile},
       };
 
   const auto &manifest = getTensorExtLiteManifest();

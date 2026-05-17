@@ -148,6 +148,75 @@ checks and re-ran real `ssh rvv` external C ABI evidence.
 - None - task complete
 
 
+## Session 122: TensorExtLite executable plugin construction template closure
+
+**Date**: 2026-05-17
+**Task**: TensorExtLite executable plugin construction template closure
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded TensorExtLite first-slice plugin construction workflow as a
+copyable non-RVV executable template: source marker, explicit selected
+TensorExtLite role ops, complete construction protocol metadata, plugin-owned
+EmitC route, materialized EmitC, and object/header/bundle artifact evidence.
+
+### Main Changes
+
+- Created Trellis task
+  `05-17-05-17-tensorextlite-executable-plugin-construction-template-closure`
+  from the Direction Brief.
+- Extended TensorExtLite fragment-MMA artifact metadata from 8 to 12 entries,
+  adding extension archetype, common interface realization, EmitC route
+  mapping, and evidence profile to the existing route/source/protocol/role
+  record.
+- Rewired TensorExtLite emission plans, declaration header evidence, and
+  object/header bundle metadata to consume and validate the same complete
+  construction protocol record.
+- Updated TensorExtLite plugin C++ tests, target artifact export C++ fixtures,
+  source-front-door lit, materialized EmitC lit, target bundle lit, and local
+  runtime ABI evidence checks for the complete record.
+- Added no RVV coverage, descriptor adapter, direct-C/source-export route,
+  scalar fallback compute, compatibility wrapper, Python compiler-core path, or
+  core/common TensorExtLite semantic branch.
+
+### Evidence
+
+- Local ABI/bundle evidence:
+  `artifacts/tmp/tensorextlite_runtime_abi_e2e/codex-tensorextlite-template-closure`.
+- Evidence consumed `--tcrv-source-artifact-bundle-front-door`, verified the
+  generated object/header bundle metadata, compiled a native ABI harness
+  against generated C++ and declaration header surfaces, and recorded native
+  call trace `configure,load_frag,tile_mma,store_frag`.
+- Self-repair: first full `check-tianchenrv` failed because
+  `TargetArtifactExportTest.cpp` still had a handwritten 8-entry TensorExtLite
+  emission-plan fixture. Updated that fixture to the 12-entry protocol record,
+  then reran focused target-artifact and full checks successfully.
+
+### Testing
+
+- [OK] Trellis context validation for the task.
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-tensorext-lite-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- [OK] Focused TensorExtLite lit from `build/test` passed 12/12.
+- [OK] `python3 -m py_compile scripts/tensorextlite_runtime_abi_e2e.py`
+- [OK] `python3 scripts/tensorextlite_runtime_abi_e2e.py --artifact-root artifacts/tmp/tensorextlite_runtime_abi_e2e --run-id codex-tensorextlite-template-closure --input test/Transforms/TensorExtLite/tensorext-lite-fragment-mma-source-front-door.mlir --materialized-input test/Target/TensorExtLite/tensorext-lite-target-artifact-header.mlir --tcrv-translate build/bin/tcrv-translate --clangxx clang++ --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2 && ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused residue scan left only rejection checks, negative fixtures, and
+  `implicit-check-not` assertions.
+- [OK] Core/common branch scan left only prohibitive `Passes.td` text.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` -> 122/122 passed.
+
+### Status
+
+[OK] Completed and archived. Ready for final task commit.
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 118: Built-in target registration wrapper erasure
 
 **Date**: 2026-05-17

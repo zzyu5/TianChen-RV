@@ -363,9 +363,9 @@ llvm::Error verifyTensorExtLiteFragmentMmaRoleSteps() {
 llvm::Error verifyTensorExtLiteFragmentMmaStaticArtifactMetadata() {
   llvm::ArrayRef<support::ArtifactMetadataEntry> expected =
       getTensorExtLiteFragmentMmaArtifactMetadata();
-  if (expected.size() != 8)
+  if (expected.size() != 12)
     return makeTensorExtLiteConstructionProtocolError(
-        "fragment-MMA artifact evidence profile requires exactly 8 metadata "
+        "fragment-MMA artifact evidence profile requires exactly 12 metadata "
         "entries");
   return verifyTensorExtLiteFragmentMmaArtifactMetadata(
       expected, "TensorExtLite construction protocol");
@@ -545,8 +545,12 @@ getTensorExtLiteFragmentMmaArtifactMetadata() {
       {kSourceRolesMetadataName, getTensorExtLiteFragmentMmaSourceRoles()},
       {kSourceOpInterfaceMetadataName, kEmitCLowerableOpInterfaceName},
       {kProtocolMetadataName, kProtocolVersion},
+      {kArchetypeMetadataName, kArchetype},
       {kRoleGraphMetadataName, kSemanticRoleGraph},
+      {kInterfaceRealizationMetadataName, kInterfaceRealization},
       {kTypedRoleRealizationMetadataName, kTypedRoleRealizationSummary},
+      {kEmitCRouteMetadataName, kFragmentMmaEmitCRoute.routeID},
+      {kEvidenceProfileMetadataName, kEvidenceProfile},
   };
   return kMetadata;
 }

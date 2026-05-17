@@ -66,6 +66,13 @@ module attributes {
 // PLAN: {key = "tensorext_lite_source_ops", value = "tcrv_tensorext_lite.config_skeleton->tcrv_tensorext_lite.load_frag_skeleton->tcrv_tensorext_lite.tile_mma_skeleton->tcrv_tensorext_lite.store_frag_skeleton"}
 // PLAN: {key = "tensorext_lite_source_roles", value = "configure->load_frag->tile_mma->store_frag"}
 // PLAN: {key = "tensorext_lite_source_op_interface", value = "TCRVEmitCLowerableOpInterface"}
+// PLAN: {key = "tensorext_lite_construction_protocol", value = "extension-family-construction-protocol.v1"}
+// PLAN: {key = "tensorext_lite_extension_archetype", value = "fragment-mma-like"}
+// PLAN: {key = "tensorext_lite_semantic_role_graph", value = "configure->load_frag->tile_mma->store_frag"}
+// PLAN: {key = "tensorext_lite_common_interface_realization", value = "configure=TCRVExtensionOpInterface+TCRVConfigOpInterface+TCRVEmitCLowerableInterface;load_frag=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;tile_mma=TCRVExtensionOpInterface+TCRVComputeOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface;store_frag=TCRVExtensionOpInterface+TCRVMemoryOpInterface+TCRVResourceOpInterface+TCRVEmitCLowerableInterface"}
+// PLAN: {key = "tensorext_lite_typed_role_realization", value = "configure:tel.role.config
+// PLAN: {key = "tensorext_lite_emitc_route_mapping", value = "tensorext-lite-fragment-mma-emitc-route"}
+// PLAN: {key = "tensorext_lite_evidence_profile", value = "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_emitc_module"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-tensorext-lite-fragment-mma-module"
 // PLAN-SAME: lowering_boundary = "tcrv_tensorext_lite.lowering_boundary"
 // PLAN-SAME: lowering_pipeline = "tensorext-lite-fragment-mma-emitc-route"
