@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Prove generated RVV object/header bundle ABI consumption on ``ssh rvv``.
 
-This is evidence tooling only. It invokes the existing MLIR/C++ compiler
-front doors, checks the generated target artifact bundle, builds a small
-external C ABI consumer, and optionally runs that consumer on the real RVV
-target. It does not implement compiler IR, lowering, plugin selection,
-emission, descriptors, fallback computation, or runtime glue.
+This is evidence tooling only. It invokes the one-command MLIR/C++ source
+artifact bundle front door, checks the generated target artifact bundle,
+builds a small external C ABI consumer, and optionally runs that consumer on
+the real RVV target. It does not implement compiler IR, lowering, plugin
+selection, emission, descriptors, fallback computation, or runtime glue.
 """
 
 from __future__ import annotations
@@ -669,34 +669,24 @@ int main(void) {{
 
 
 def generate_bundle(
-    tcrv_opt: str,
     tcrv_translate: str,
     input_path: Path,
     bundle_dir: Path,
     timeout: int,
 ) -> dict[str, Any]:
-    opt_command = [
-        tcrv_opt,
-        str(input_path),
-        "--tcrv-source-artifact-front-door-pipeline",
-    ]
-    opt_record = run_command(opt_command, timeout=timeout)
-    require_command_success(opt_record, "tcrv-opt source artifact front-door pipeline")
-
     translate_command = [
         tcrv_translate,
-        "--tcrv-export-target-artifact-bundle",
+        "--tcrv-source-artifact-bundle-front-door",
         f"--tcrv-target-artifact-bundle-output-dir={bundle_dir}",
+        str(input_path),
     ]
-    translate_record = run_command(
-        translate_command,
-        input_data=str(opt_record.get("stdout", "")).encode("utf-8"),
-        timeout=timeout,
+    translate_record = run_command(translate_command, timeout=timeout)
+    require_command_success(
+        translate_record, "tcrv-translate source artifact bundle front door"
     )
-    require_command_success(translate_record, "tcrv-translate target artifact bundle export")
     return {
-        "pipeline": f"{command_display(opt_command)} | {command_display(translate_command)}",
-        "tcrv_opt": opt_record,
+        "front_door": "tcrv-source-artifact-bundle-front-door",
+        "pipeline": command_display(translate_command),
         "tcrv_translate": translate_record,
     }
 
@@ -863,7 +853,6 @@ def run_one_op_e2e(
     run_id: str,
     artifact_dir: Path,
     expectation: OpExpectation,
-    tcrv_opt: str,
     tcrv_translate: str,
     readobj: str | None,
     runtime_counts: list[int],
@@ -898,7 +887,7 @@ def run_one_op_e2e(
         }
 
         local = generate_bundle(
-            tcrv_opt, tcrv_translate, expectation.input_path, bundle_dir, args.timeout
+            tcrv_translate, expectation.input_path, bundle_dir, args.timeout
         )
         evidence["local_bundle_generation"] = local
         bundle_checks = verify_bundle(bundle_dir, readobj, expectation)
@@ -970,7 +959,6 @@ def run_e2e(args: argparse.Namespace) -> int:
     try:
         expectations = selected_expectations(args)
         evidence["op_kinds"] = [expectation.kind for expectation in expectations]
-        tcrv_opt = ensure_tool(args.tcrv_opt)
         tcrv_translate = ensure_tool(args.tcrv_translate)
         readobj = ensure_tool(args.llvm_readobj) if args.llvm_readobj else None
 
@@ -980,7 +968,6 @@ def run_e2e(args: argparse.Namespace) -> int:
                 run_id=run_id,
                 artifact_dir=artifact_dir,
                 expectation=expectation,
-                tcrv_opt=tcrv_opt,
                 tcrv_translate=tcrv_translate,
                 readobj=readobj,
                 runtime_counts=runtime_counts,
@@ -1217,6 +1204,48 @@ def run_self_test() -> int:
             lambda: verify_bundle(mismatched_variant, None, expectation),
         )
 
+        stale_object_route = make_fake_bundle(tmp / "stale-object-route", expectation)
+        index_path = stale_object_route / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace(
+            f'route: "{EXPECTED_OBJECT_ROUTE}"',
+            'route: "rvv-stale-object-route"',
+            1,
+        )
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "stale object route",
+            lambda: verify_bundle(stale_object_route, None, expectation),
+        )
+
+        stale_header_route = make_fake_bundle(tmp / "stale-header-route", expectation)
+        index_path = stale_header_route / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace(
+            f'route: "{EXPECTED_HEADER_ROUTE}"',
+            'route: "rvv-stale-header-route"',
+            1,
+        )
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "stale header route",
+            lambda: verify_bundle(stale_header_route, None, expectation),
+        )
+
+        stale_runtime_abi = make_fake_bundle(tmp / "stale-runtime-abi", expectation)
+        index_path = stale_runtime_abi / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace(
+            expectation.external_abi_name,
+            "rvv-i32m1-stale-callable-c-abi.v1",
+            1,
+        )
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "stale runtime ABI",
+            lambda: verify_bundle(stale_runtime_abi, None, expectation),
+        )
+
     print(f"{SCRIPT_NAME} self-test passed")
     return 0
 
@@ -1241,7 +1270,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help="override the source MLIR fixture for exactly one --op-kind",
     )
-    parser.add_argument("--tcrv-opt", default="build/bin/tcrv-opt")
     parser.add_argument("--tcrv-translate", default="build/bin/tcrv-translate")
     parser.add_argument("--llvm-readobj", default=default_readobj())
     parser.add_argument("--ssh-target", default=DEFAULT_SSH_TARGET)

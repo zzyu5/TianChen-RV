@@ -716,3 +716,71 @@ chain.
 ### Next Steps
 
 - None - task complete.
+
+
+## Session 112: RVV source-bundle runtime ABI execution proof
+
+**Date**: 2026-05-17
+**Task**: RVV source-bundle runtime ABI execution proof
+**Branch**: `main`
+
+### Summary
+
+Moved the RVV generated bundle runtime ABI evidence from the old manual
+`tcrv-opt | tcrv-translate` chain to the current one-command
+`tcrv-translate --tcrv-source-artifact-bundle-front-door` production path, then
+proved the generated header/object bundle can be consumed by an external C ABI
+caller on `ssh rvv`.
+
+### Main Changes
+
+- Created Trellis task
+  `05-17-05-17-rvv-source-bundle-runtime-abi-proof` from the Direction Brief.
+- Updated `scripts/rvv_generated_bundle_abi_e2e.py` so local bundle generation
+  invokes the source-artifact bundle front door directly:
+  `build/bin/tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=<bundle-dir> <source.mlir>`.
+- Removed the script's `--tcrv-opt` argument and old manual source-front-door
+  pipe from this evidence path.
+- Preserved the external caller boundary: generated harness includes the
+  generated header, links the generated object, and calls only the generated
+  runtime-callable C ABI symbol.
+- Added self-test negative coverage for stale object route, stale header route,
+  and stale runtime ABI identity.
+- Reviewed spec update need; no `.trellis/spec/` change was needed because the
+  durable route and evidence rules already exist.
+
+### Runtime Evidence
+
+- Dry-run artifact directory:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-rvv-source-bundle-frontdoor-dry`.
+- `ssh rvv` artifact directory:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-rvv-source-bundle-frontdoor-ssh`.
+- Remote run passed add/sub/mul for `n=1,7,16,17,257` and printed:
+  `tcrv_rvv_generated_bundle_abi_add_ok`,
+  `tcrv_rvv_generated_bundle_abi_sub_ok`, and
+  `tcrv_rvv_generated_bundle_abi_mul_ok`.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Dry-run source-bundle evidence command with add/sub/mul and counts
+  `1,7,16,17,257`.
+- [OK] `ssh rvv` source-bundle evidence command with add/sub/mul and counts
+  `1,7,16,17,257`.
+- [OK] Focused lit:
+  `Scripts/rvv-generated-bundle-abi-e2e-self-test.test`,
+  `Target/TargetArtifactBundleExport/source-artifact-bundle-front-door-rvv.mlir`,
+  `Target/TargetArtifactBundleExport/source-artifact-bundle-front-door-fail-closed.mlir`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` -> 128/128 passed.
+- [OK] `git diff --check`
+- [OK] Script scan confirms old pipe entry is gone:
+  `rg -n "source-artifact-front-door-pipeline|tcrv-export-target-artifact-bundle|tcrv_opt|--tcrv-opt" scripts/rvv_generated_bundle_abi_e2e.py; test $? -eq 1`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete.

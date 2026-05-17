@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "verify source-to-bundle evidence remains a materialized EmitC route consumer proof"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify no descriptor/direct-C/source-export authority was restored"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV evidence stays inside bounded i32m1 runtime ABI execution slice"}
+{"file": ".trellis/spec/testing/index.md", "reason": "verify focused tests and ssh rvv evidence satisfy runtime claim requirements"}
+{"file": ".trellis/tasks/05-17-05-17-rvv-source-bundle-runtime-abi-proof/prd.md", "reason": "check implementation against task acceptance criteria"}
