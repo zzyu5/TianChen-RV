@@ -97,6 +97,16 @@ authority for this front door. Unsupported source shapes and stale pre-existing
 `tcrv.exec`/`tcrv_rvv` residue must fail before emission planning or target
 artifact export.
 
+The accepted runtime-count source pattern must make tail behavior explicit.
+For the bounded i32m1 arithmetic slice, the source loop body computes
+`remaining = n - iv`, creates `vector.create_mask remaining : vector<4xi1>`,
+uses that same mask for both `vector.transfer_read` inputs and the
+`vector.transfer_write` output, and keeps the loop upper bound equal to the
+runtime ABI `n` operand. The old fixed-width `vector.load` / `vector.store`
+step-4 shape is not valid authority for arbitrary runtime `n` unless a future
+source contract explicitly proves a multiple-of-width precondition. The current
+production source-artifact path must reject that old shape.
+
 RVV probe facts remain bounded hardware/toolchain evidence inputs. They may be
 validated into raw `TargetCapabilitySet` evidence facts, but they must not
 manufacture finite SEW/LMUL/tail/mask config capabilities or authorize a
@@ -114,6 +124,98 @@ metadata, or from hand-authored microkernel names alone. Kernel-based
 executable planning requires a future explicit extension-family op contract
 and a materialized EmitC route before selecting family, dtype, artifact route,
 callable ABI, artifact kind, or emitted body.
+
+## Scenario: Tail-Safe RVV Vector Source Front Door
+
+### 1. Scope / Trigger
+
+This applies when the RVV plugin source front door recognizes source MLIR and
+materializes the bounded i32m1 add/sub/mul selected boundary for runtime counts
+provided by the callable ABI parameter `n`.
+
+### 2. Signatures
+
+- Source function ABI: `(%lhs: memref<?xi32>, %rhs: memref<?xi32>,
+  %out: memref<?xi32>, %n: index) -> ()`.
+- Source loop: `scf.for %i = %c0 to %n step %c4`.
+- Tail source ops in order:
+  `arith.subi %n, %i : index`, `vector.create_mask`, two masked
+  `vector.transfer_read` ops, one `arith.addi|arith.subi|arith.muli` on
+  `vector<4xi32>`, and one masked `vector.transfer_write`.
+
+### 3. Contracts
+
+- `%n` is the runtime element-count ABI parameter and must be the loop upper
+  bound.
+- The tail mask must be derived from `n - iv` and have type `vector<4xi1>`.
+- Both source input transfers and the output transfer must consume the same
+  tail mask, use minor-identity transfer maps, avoid `in_bounds = true`, and
+  operate on `vector<4xi32>`.
+- The source materializer may then construct the existing selected boundary:
+  `runtime_abi_value(lhs,rhs,out,n) -> setvl(n) -> with_vl ->
+  i32_load/i32_load -> i32_add|i32_sub|i32_mul -> i32_store`.
+- The source front door must remain RVV plugin-owned. Common source-artifact
+  orchestration must only run registered plugin passes and target exporters.
+
+### 4. Validation & Error Matrix
+
+- Missing or reordered ABI operands -> reject before materialization.
+- Loop upper bound is not `%n`, lower bound is not zero, or step is not four ->
+  reject before materialization.
+- Loop body lacks `remaining = n - iv`, lacks `vector.create_mask`, omits a
+  transfer mask, uses a different mask, or uses `vector.load`/`vector.store` ->
+  reject before selected boundary materialization.
+- Stale `tcrv_rvv.lowering_seed`, pre-existing `tcrv.exec` residue, or
+  pre-existing `tcrv_rvv` residue -> reject before emission planning.
+
+### 5. Good/Base/Bad Cases
+
+- Good: masked `vector.transfer_read`/`vector.transfer_write` source with
+  `n - iv` tail mask materializes the existing RVV selected boundary and target
+  artifact route.
+- Base: materialized hand-authored `tcrv_rvv` selected-boundary fixtures remain
+  valid for target/export tests when they already contain explicit typed RVV IR.
+- Bad: fixed step-4 `vector.load`/`vector.store` source is accepted and then
+  used to claim correctness for runtime counts such as 7 or 23.
+
+### 6. Tests Required
+
+- Positive lit coverage for add/sub/mul tail-safe source fixtures reaching
+  selected dispatch, emission-plan metadata, object, header, and bundle export.
+- Negative lit coverage for the old fixed `vector.load`/`vector.store` source
+  shape and for stale metadata/residue, ABI order mismatch, loop bound
+  mismatch, missing mask, and unsupported arithmetic.
+- Runtime claims from the accepted source route require real `ssh rvv` evidence
+  with at least one non-multiple-of-four count and one multiple-of-four count.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```mlir
+scf.for %i = %c0 to %n step %c4 {
+  %a = vector.load %lhs[%i] : memref<?xi32>, vector<4xi32>
+  %b = vector.load %rhs[%i] : memref<?xi32>, vector<4xi32>
+  %sum = arith.addi %a, %b : vector<4xi32>
+  vector.store %sum, %out[%i] : memref<?xi32>, vector<4xi32>
+}
+```
+
+Correct:
+
+```mlir
+scf.for %i = %c0 to %n step %c4 {
+  %remaining = arith.subi %n, %i : index
+  %mask = vector.create_mask %remaining : vector<4xi1>
+  %a = vector.transfer_read %lhs[%i], %pad, %mask
+      : memref<?xi32>, vector<4xi32>
+  %b = vector.transfer_read %rhs[%i], %pad, %mask
+      : memref<?xi32>, vector<4xi32>
+  %sum = arith.addi %a, %b : vector<4xi32>
+  vector.transfer_write %sum, %out[%i], %mask
+      : vector<4xi32>, memref<?xi32>
+}
+```
 
 ## Scenario: Capability-Backed RVV i32m1 Config Policy Slice
 

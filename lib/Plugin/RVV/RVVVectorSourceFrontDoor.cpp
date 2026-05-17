@@ -11,7 +11,9 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Pass/Pass.h"
@@ -93,6 +95,17 @@ bool isBoundedSourceVectorI32(mlir::Type type) {
   return elementType && elementType.getWidth() == 32;
 }
 
+bool isBoundedSourceTailMask(mlir::Type type) {
+  auto vectorType = llvm::dyn_cast<mlir::VectorType>(type);
+  if (!vectorType || vectorType.getRank() != 1)
+    return false;
+  if (vectorType.getShape().front() != kSourceVectorLaneCount)
+    return false;
+  auto elementType =
+      llvm::dyn_cast<mlir::IntegerType>(vectorType.getElementType());
+  return elementType && elementType.getWidth() == 1;
+}
+
 std::optional<std::int64_t> getConstantIndexValue(mlir::Value value) {
   if (auto constant = value.getDefiningOp<mlir::arith::ConstantIndexOp>())
     return constant.value();
@@ -107,6 +120,27 @@ bool isFuncReturnWithoutOperands(mlir::Operation *op) {
 bool usesOnlyIndex(mlir::Operation::operand_range indices,
                    mlir::Value expectedIndex) {
   return llvm::hasSingleElement(indices) && *indices.begin() == expectedIndex;
+}
+
+bool isMinorIdentityTransfer(mlir::AffineMap map,
+                             mlir::ShapedType sourceType,
+                             mlir::VectorType vectorType) {
+  if (!map)
+    return false;
+  return map == mlir::AffineMap::getMinorIdentityMap(
+                    sourceType.getRank(), vectorType.getRank(),
+                    map.getContext());
+}
+
+bool hasTrueInBounds(mlir::ArrayAttr inBounds) {
+  if (!inBounds)
+    return false;
+  for (mlir::Attribute attr : inBounds) {
+    auto boolAttr = llvm::dyn_cast<mlir::BoolAttr>(attr);
+    if (boolAttr && boolAttr.getValue())
+      return true;
+  }
+  return false;
 }
 
 mlir::LogicalResult failMaterializer(mlir::Operation *op, llvm::Twine message) {
@@ -133,6 +167,78 @@ matchSupportedSourceArithmeticOp(mlir::Operation *op) {
     return SourceArithmeticOp{op, RVVI32M1ArithmeticOp::Mul, "arith.muli",
                               mul.getLhs(), mul.getRhs(), mul.getResult()};
   return std::nullopt;
+}
+
+mlir::LogicalResult requireTailSafeTransferRead(
+    mlir::vector::TransferReadOp read, mlir::Value expectedBase,
+    mlir::Value expectedIndex, mlir::Value expectedMask,
+    llvm::StringRef operandName) {
+  if (read.getSource() != expectedBase ||
+      !usesOnlyIndex(read.getIndices(), expectedIndex))
+    return failMaterializer(read,
+                            llvm::Twine(operandName) +
+                                " vector.transfer_read must read at the loop "
+                                "iv from the matching source ABI buffer");
+  if (!isBoundedSourceVectorI32(read.getVector().getType()))
+    return failMaterializer(
+        read, llvm::Twine(operandName) +
+                  " vector.transfer_read must produce vector<4xi32>");
+  if (!isMinorIdentityTransfer(read.getPermutationMap(),
+                               read.getSource().getType(),
+                               read.getVector().getType()))
+    return failMaterializer(
+        read, llvm::Twine(operandName) +
+                  " vector.transfer_read must use the minor-identity transfer "
+                  "map");
+  if (hasTrueInBounds(read.getInBounds()))
+    return failMaterializer(
+        read, llvm::Twine(operandName) +
+                  " vector.transfer_read must not claim in_bounds; tail "
+                  "behavior must be carried by the explicit mask");
+  if (read.getMask() != expectedMask)
+    return failMaterializer(
+        read, llvm::Twine(operandName) +
+                  " vector.transfer_read must consume the explicit tail mask");
+  auto paddingType = llvm::dyn_cast<mlir::IntegerType>(
+      read.getPadding().getType());
+  if (!paddingType || paddingType.getWidth() != 32)
+    return failMaterializer(
+        read, llvm::Twine(operandName) +
+                  " vector.transfer_read padding must be an i32 value");
+
+  return mlir::success();
+}
+
+mlir::LogicalResult requireTailSafeTransferWrite(
+    mlir::vector::TransferWriteOp write, mlir::Value expectedValue,
+    mlir::Value expectedBase, mlir::Value expectedIndex,
+    mlir::Value expectedMask) {
+  if (write.getVector() != expectedValue)
+    return failMaterializer(
+        write, "vector.transfer_write must write the supported arithmetic "
+               "result");
+  if (write.getSource() != expectedBase ||
+      !usesOnlyIndex(write.getIndices(), expectedIndex))
+    return failMaterializer(
+        write, "vector.transfer_write must write out at the loop iv");
+  if (!isBoundedSourceVectorI32(write.getVector().getType()))
+    return failMaterializer(
+        write, "vector.transfer_write must consume vector<4xi32>");
+  if (!isMinorIdentityTransfer(write.getPermutationMap(),
+                               write.getSource().getType(),
+                               write.getVector().getType()))
+    return failMaterializer(
+        write,
+        "vector.transfer_write must use the minor-identity transfer map");
+  if (hasTrueInBounds(write.getInBounds()))
+    return failMaterializer(
+        write, "vector.transfer_write must not claim in_bounds; tail behavior "
+               "must be carried by the explicit mask");
+  if (write.getMask() != expectedMask)
+    return failMaterializer(
+        write, "vector.transfer_write must consume the explicit tail mask");
+
+  return mlir::success();
 }
 
 llvm::StringRef getRVVI32M1ArithmeticOperationName(RVVI32M1ArithmeticOp op) {
@@ -223,7 +329,7 @@ matchBoundedI32ArithmeticSourcePattern(mlir::func::FuncOp func) {
   mlir::scf::ForOp loop;
   unsigned returnCount = 0;
   for (mlir::Operation &op : entry) {
-    if (llvm::isa<mlir::arith::ConstantIndexOp>(op))
+    if (llvm::isa<mlir::arith::ConstantOp>(op))
       continue;
     if (isFuncReturnWithoutOperands(&op)) {
       ++returnCount;
@@ -238,7 +344,7 @@ matchBoundedI32ArithmeticSourcePattern(mlir::func::FuncOp func) {
     }
     return failMaterializerMatch(
         &op,
-        "source function may contain only index constants, one scf.for, and "
+        "source function may contain only arith constants, one scf.for, and "
         "one empty return");
   }
   if (!loop)
@@ -277,58 +383,64 @@ matchBoundedI32ArithmeticSourcePattern(mlir::func::FuncOp func) {
     }
     bodyOps.push_back(&op);
   }
-  if (bodyOps.size() != 4)
+  if (bodyOps.size() != 6)
     return failMaterializerMatch(
         loop,
-        "scf.for body must contain exactly two vector.load ops, one "
-        "supported arith.addi/arith.subi/arith.muli op, and one "
-        "vector.store");
+        "scf.for body must explicitly compute remaining AVL, create a tail "
+        "mask, perform two masked vector.transfer_read ops, one supported "
+        "arith.addi/arith.subi/arith.muli op, and one masked "
+        "vector.transfer_write");
 
-  auto lhsLoad = llvm::dyn_cast<mlir::vector::LoadOp>(bodyOps[0]);
-  auto rhsLoad = llvm::dyn_cast<mlir::vector::LoadOp>(bodyOps[1]);
+  auto remaining = llvm::dyn_cast<mlir::arith::SubIOp>(bodyOps[0]);
+  auto tailMask = llvm::dyn_cast<mlir::vector::CreateMaskOp>(bodyOps[1]);
+  auto lhsRead = llvm::dyn_cast<mlir::vector::TransferReadOp>(bodyOps[2]);
+  auto rhsRead = llvm::dyn_cast<mlir::vector::TransferReadOp>(bodyOps[3]);
   std::optional<SourceArithmeticOp> arithmetic =
-      matchSupportedSourceArithmeticOp(bodyOps[2]);
-  auto store = llvm::dyn_cast<mlir::vector::StoreOp>(bodyOps[3]);
-  if (!lhsLoad || !rhsLoad || !arithmetic || !store)
+      matchSupportedSourceArithmeticOp(bodyOps[4]);
+  auto write = llvm::dyn_cast<mlir::vector::TransferWriteOp>(bodyOps[5]);
+  if (!remaining || !tailMask || !lhsRead || !rhsRead || !arithmetic || !write)
     return failMaterializerMatch(
         loop,
-        "scf.for body operation order must be vector.load, vector.load, "
-        "supported arith.addi/arith.subi/arith.muli, vector.store");
+        "scf.for body operation order must be arith.subi n-iv, "
+        "vector.create_mask, masked vector.transfer_read, masked "
+        "vector.transfer_read, supported arith.addi/arith.subi/arith.muli, "
+        "masked vector.transfer_write");
 
   mlir::Value iv = loop.getInductionVar();
-  if (lhsLoad.getBase() != entry.getArgument(0) ||
-      !usesOnlyIndex(lhsLoad.getIndices(), iv))
+  if (remaining.getLhs() != entry.getArgument(3) ||
+      remaining.getRhs() != iv || !remaining.getResult().getType().isIndex())
     return failMaterializerMatch(
-        lhsLoad, "first vector.load must read lhs at the loop iv");
-  if (rhsLoad.getBase() != entry.getArgument(1) ||
-      !usesOnlyIndex(rhsLoad.getIndices(), iv))
+        remaining, "tail mask remaining AVL must be computed as runtime n "
+                   "minus the loop iv");
+  if (!llvm::hasSingleElement(tailMask.getOperands()) ||
+      *tailMask.getOperands().begin() != remaining.getResult() ||
+      !isBoundedSourceTailMask(tailMask.getResult().getType()))
     return failMaterializerMatch(
-        rhsLoad, "second vector.load must read rhs at the loop iv");
-  if (!isBoundedSourceVectorI32(lhsLoad.getResult().getType()) ||
-      !isBoundedSourceVectorI32(rhsLoad.getResult().getType()))
-    return failMaterializerMatch(
-        loop, "source vector loads must produce vector<4xi32>");
+        tailMask, "source tail behavior must be explicit as vector.create_mask "
+                  "from remaining AVL with type vector<4xi1>");
 
-  if (arithmetic->lhs != lhsLoad.getResult() ||
-      arithmetic->rhs != rhsLoad.getResult())
+  if (mlir::failed(requireTailSafeTransferRead(
+          lhsRead, entry.getArgument(0), iv, tailMask.getResult(), "lhs")))
+    return mlir::failure();
+  if (mlir::failed(requireTailSafeTransferRead(
+          rhsRead, entry.getArgument(1), iv, tailMask.getResult(), "rhs")))
+    return mlir::failure();
+
+  if (arithmetic->lhs != lhsRead.getResult() ||
+      arithmetic->rhs != rhsRead.getResult())
     return failMaterializerMatch(
         arithmetic->op,
         llvm::Twine(arithmetic->sourceName) +
-            " must consume the two source vector loads");
+            " must consume the two source vector transfers");
   if (!isBoundedSourceVectorI32(arithmetic->result.getType()))
     return failMaterializerMatch(
         arithmetic->op,
         llvm::Twine(arithmetic->sourceName) + " must produce vector<4xi32>");
 
-  if (store.getBase() != entry.getArgument(2) ||
-      !usesOnlyIndex(store.getIndices(), iv))
-    return failMaterializerMatch(store,
-                                 "vector.store must write out at the loop iv");
-  if (store.getValueToStore() != arithmetic->result)
-    return failMaterializerMatch(
-        store,
-        llvm::Twine("vector.store must store the ") +
-            arithmetic->sourceName + " result");
+  if (mlir::failed(requireTailSafeTransferWrite(
+          write, arithmetic->result, entry.getArgument(2), iv,
+          tailMask.getResult())))
+    return mlir::failure();
 
   BoundedI32ArithmeticSourcePattern source;
   source.func = func;

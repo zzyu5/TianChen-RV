@@ -84,7 +84,8 @@ for add, sub, and mul.
 
 ### Git Commits
 
-- Pending final coherent commit for this session.
+- `this commit` (final coherent commit for this session; exact hash is
+  reported in the final response).
 
 ### Testing
 
@@ -333,3 +334,65 @@ Made the bounded RVV i32m1 runtime n -> AVL -> setvl -> VL SSA -> with_vl contra
 ### Next Steps
 
 - None - task complete.
+
+
+## Session 127: RVV vector-source tail-safe AVL selected-boundary materialization
+
+**Date**: 2026-05-18
+**Task**: RVV vector-source tail-safe AVL selected-boundary materialization
+**Branch**: `main`
+
+### Summary
+
+Repaired the RVV vector-source front door so accepted source MLIR has explicit
+tail-safe runtime `n` semantics before materializing the existing RVV selected
+AVL/VL boundary and target artifact route.
+
+### Main Changes
+
+- Created Trellis task
+  `05-18-05-18-rvv-vector-source-tail-safe-avl-boundary` from the Direction
+  Brief and wrote the PRD/context files before source edits.
+- Replaced the accepted source matcher shape from fixed step-4
+  `vector.load` / `vector.store` to `remaining = n - iv`,
+  `vector.create_mask`, masked `vector.transfer_read` inputs, vector
+  add/sub/mul, and masked `vector.transfer_write` output.
+- Kept the selected RVV typed route unchanged after source acceptance:
+  `runtime_abi_value(lhs,rhs,out,n) -> setvl(n) -> with_vl ->
+  i32_load/i32_load -> i32_add|i32_sub|i32_mul -> i32_store`.
+- Updated add/sub/mul source fixtures, source-artifact target exporter
+  fixtures, source-front-door stale/disabled fixtures, and negative coverage.
+- Added explicit fail-closed coverage for the old unsafe fixed
+  `vector.load` / `vector.store` shape.
+- Promoted the durable tail-safe source-front-door contract into
+  `.trellis/spec/extension-plugins/rvv-plugin.md`.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Focused lit for RVV source-front-door, source-artifact negative/disabled,
+  RVV target artifact exporter, and source-artifact bundle front door passed
+  8/8.
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Dry-run generated bundle ABI e2e for add/sub/mul counts 7, 16, 23.
+- [OK] Real `ssh rvv` generated bundle ABI e2e for add/sub/mul counts 7, 16,
+  23; PASS markers emitted for all three operations.
+- [OK] Targeted residue scan showed only script forbidden-token checks,
+  FileCheck guards, and the new old-shape negative fixture.
+- [OK] `git diff --check`
+- [OK] Trellis task context validate passed.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 125/125.
+
+### Git Commits
+
+- Pending final coherent commit for this session.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- Commit the coherent change.

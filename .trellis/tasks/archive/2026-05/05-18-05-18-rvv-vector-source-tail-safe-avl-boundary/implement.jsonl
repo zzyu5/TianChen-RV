@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, source-of-truth, descriptor/direct-C, and RVV hardware evidence boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, bounded i32m1 selected boundary, source-front-door authority, and selected EmitC artifact constraints."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime route constraints and descriptor/direct-C erasure rules for materialized EmitC output."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common source-artifact bundle front door and selected emission-plan to target artifact handoff contract."}
