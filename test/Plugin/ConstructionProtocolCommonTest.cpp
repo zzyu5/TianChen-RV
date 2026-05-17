@@ -1,3 +1,4 @@
+#include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Plugin/ConstructionProtocol.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
@@ -9,18 +10,27 @@
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
+#include "TianChenRV/Target/TargetArtifactExport.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/Parser/Parser.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
+#include "llvm/Support/Program.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <initializer_list>
+#include <memory>
+#include <optional>
 #include <iterator>
 #include <string>
 #include <type_traits>
@@ -202,6 +212,14 @@ constexpr llvm::StringLiteral kRuntimeABI(
 constexpr llvm::StringLiteral kRuntimeABIKind("plugin-owned-runtime-abi");
 constexpr llvm::StringLiteral kRuntimeGlueRole(
     "emitc-cpp-template-consumer-runtime-glue");
+constexpr llvm::StringLiteral kHeaderRouteID(
+    "template-consumer-compute-sentinel-emitc-route.header");
+constexpr llvm::StringLiteral kHeaderArtifactKind(
+    "runtime-callable-c-header");
+constexpr llvm::StringLiteral kBundleComponentGroup(
+    "template-consumer-materialized-emitc-bundle.v1");
+constexpr llvm::StringLiteral kObjectHandoffKind(
+    "materialized-emitc-cpp-template-consumer-object");
 constexpr llvm::StringLiteral kInterfaceRealization(
     "compute=TCRVExtensionOpInterface+TCRVComputeOpInterface+"
     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface");
@@ -219,6 +237,10 @@ constexpr llvm::StringLiteral kResultCType("int32_t");
 constexpr llvm::StringLiteral kRoleOpBoundaryStatus("role-op-boundary");
 constexpr llvm::StringLiteral kSourceOpInterfaceName(
     "TCRVEmitCLowerableInterface");
+constexpr llvm::StringLiteral kHeaderGuard(
+    "TIANCHENRV_TEMPLATE_CONSUMER_MATERIALIZED_EMITC_HEADER_H");
+constexpr llvm::StringLiteral kEvidencePrefix(
+    "tianchenrv.template_consumer");
 
 constexpr llvm::StringLiteral kRouteMetadataName(
     "template_consumer_emitc_route_mapping");
@@ -312,6 +334,24 @@ const ArtifactMetadataEntry kConstructionMetadata[] = {
     {kProtocolMetadataName, kProtocolVersion},
     {kRoleGraphMetadataName, kSemanticRoleGraph},
     {kTypedRoleMetadataName, kTypedRoleRealizationSummary},
+};
+
+struct ScopedTempPath {
+  llvm::SmallString<128> path;
+
+  ~ScopedTempPath() {
+    if (!path.empty())
+      (void)llvm::sys::fs::remove(path);
+  }
+};
+
+struct ScopedTempDir {
+  llvm::SmallString<128> path;
+
+  ~ScopedTempDir() {
+    if (!path.empty())
+      (void)llvm::sys::fs::remove_directories(path);
+  }
 };
 
 construction::ValidationSpec getValidationSpec() {
@@ -414,6 +454,800 @@ emitc::TCRVEmitCLowerableRoute buildRoute() {
       emitc::TCRVEmitCCallOpaqueResult{kResultName.str(), kResultCType.str()};
   route.addCallOpaqueStep(std::move(step));
   return route;
+}
+
+emitc::TCRVEmitCLowerableRoute buildRouteWithoutRouteProvenance() {
+  emitc::TCRVEmitCLowerableRoute route(
+      kRouteID, "extension-family-construction-template-consumer-to-emitc");
+  route.addHeader("stdint.h");
+  route.addFunctionDeclaration(kCallee, kResultCType);
+
+  emitc::TCRVEmitCSourceOpProvenance source;
+  source.opName = kComputeOperationName.str();
+  source.role = "compute";
+  source.opInterface = kSourceOpInterfaceName.str();
+
+  emitc::TCRVEmitCCallOpaqueStep step;
+  step.sourceOp = source;
+  step.callee = kCallee.str();
+  step.result =
+      emitc::TCRVEmitCCallOpaqueResult{kResultName.str(), kResultCType.str()};
+  route.addCallOpaqueStep(std::move(step));
+  return route;
+}
+
+llvm::Error makeTemplateConsumerArtifactError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV TemplateConsumer materialized artifact bridge "
+                  "failed: ") +
+          message,
+      llvm::errc::invalid_argument);
+}
+
+bool hasSelectedVariantAndRole(mlir::Operation *op,
+                               llvm::StringRef selectedVariant,
+                               llvm::StringRef role) {
+  if (!op)
+    return false;
+  auto selected =
+      op->getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
+  auto roleAttr = op->getAttrOfType<mlir::StringAttr>("role");
+  return selected && selected.getValue() == selectedVariant && roleAttr &&
+         roleAttr.getValue() == role;
+}
+
+llvm::Expected<mlir::Operation *> findSelectedArtifactBoundary(
+    const VariantEmitCLowerableRequest &request) {
+  tianchenrv::tcrv::exec::KernelOp kernel = request.getKernel();
+  tianchenrv::tcrv::exec::VariantOp variant = request.getVariant();
+  if (!kernel)
+    return makeTemplateConsumerArtifactError(
+        "artifact route construction requires an enclosing tcrv.exec.kernel");
+  if (!variant)
+    return makeTemplateConsumerArtifactError(
+        "artifact route construction requires a selected tcrv.exec.variant");
+  if (kernel.getBody().empty())
+    return makeTemplateConsumerArtifactError(
+        "artifact route construction requires a materialized kernel body");
+
+  llvm::StringRef role =
+      tianchenrv::plugin::stringifyVariantEmissionRole(request.getRole());
+  mlir::Operation *selectedBoundary = nullptr;
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    if (op.getName().getStringRef() != kComputeOperationName)
+      continue;
+    if (!hasSelectedVariantAndRole(&op, variant.getSymName(), role))
+      continue;
+    if (selectedBoundary)
+      return makeTemplateConsumerArtifactError(
+          llvm::Twine("requires exactly one selected ") +
+          kComputeOperationName + " boundary for @" + variant.getSymName());
+    selectedBoundary = &op;
+  }
+
+  if (!selectedBoundary)
+    return makeTemplateConsumerArtifactError(
+        llvm::Twine("requires one selected ") + kComputeOperationName +
+        " boundary for @" + variant.getSymName());
+  return selectedBoundary;
+}
+
+llvm::Error buildArtifactRouteFromSelectedPath(
+    const VariantEmitCLowerableRequest &request,
+    emitc::TCRVEmitCLowerableRoute &out) {
+  if (llvm::Error error = verifyConformance(kManifest, kTypedRoleRealization,
+                                            kConstructionMetadata))
+    return error;
+
+  llvm::Expected<mlir::Operation *> boundary =
+      findSelectedArtifactBoundary(request);
+  if (!boundary)
+    return boundary.takeError();
+
+  auto requiredCapabilities =
+      (*boundary)->getAttrOfType<mlir::ArrayAttr>("required_capabilities");
+  if (!requiredCapabilities)
+    return makeTemplateConsumerArtifactError(
+        "selected boundary requires required_capabilities before route "
+        "construction");
+  if (llvm::Error error =
+          verifySelectedBoundary(*boundary, requiredCapabilities,
+                                 request.getRole()))
+    return error;
+
+  out = buildRoute();
+  return llvm::Error::success();
+}
+
+llvm::Error buildArtifactRouteWithoutRouteProvenance(
+    const VariantEmitCLowerableRequest &request,
+    emitc::TCRVEmitCLowerableRoute &out) {
+  llvm::Expected<mlir::Operation *> boundary =
+      findSelectedArtifactBoundary(request);
+  if (!boundary)
+    return boundary.takeError();
+  auto requiredCapabilities =
+      (*boundary)->getAttrOfType<mlir::ArrayAttr>("required_capabilities");
+  if (!requiredCapabilities)
+    return makeTemplateConsumerArtifactError(
+        "selected boundary requires required_capabilities before route "
+        "construction");
+  if (llvm::Error error =
+          verifySelectedBoundary(*boundary, requiredCapabilities,
+                                 request.getRole()))
+    return error;
+
+  out = buildRouteWithoutRouteProvenance();
+  return llvm::Error::success();
+}
+
+llvm::Error validateTargetArtifactCandidate(
+    const tianchenrv::target::TargetArtifactCandidate &candidate) {
+  if (candidate.selectedVariant != kVariantName)
+    return makeTemplateConsumerArtifactError(
+        llvm::Twine("candidate selected variant must be '") + kVariantName +
+        "'");
+  if (llvm::StringRef(candidate.role) != "direct variant")
+    return makeTemplateConsumerArtifactError(
+        "candidate selected path role must be 'direct variant' for the "
+        "bounded TemplateConsumer object packaging route");
+  if (candidate.loweringBoundary != kComputeOperationName)
+    return makeTemplateConsumerArtifactError(
+        llvm::Twine("candidate lowering boundary must be '") +
+        kComputeOperationName + "'");
+  if (candidate.runtimeABI != kRuntimeABI ||
+      candidate.runtimeABIKind != kRuntimeABIKind ||
+      candidate.runtimeABIName != kRuntimeABI ||
+      candidate.runtimeGlueRole != kRuntimeGlueRole)
+    return makeTemplateConsumerArtifactError(
+        "candidate runtime ABI identity must match the TemplateConsumer "
+        "construction route");
+  if (!candidate.runtimeABIParameters.empty())
+    return makeTemplateConsumerArtifactError(
+        "candidate ordered runtime ABI parameter signature must remain empty "
+        "for the bounded TemplateConsumer zero-argument callable boundary");
+
+  for (const ArtifactMetadataEntry &entry : candidate.artifactMetadata) {
+    std::string combined = (llvm::Twine(entry.key) + "=" + entry.value).str();
+    std::string lowerStorage = llvm::StringRef(combined).lower();
+    llvm::StringRef lower(lowerStorage);
+    if (lower.contains("descriptor") || lower.contains("direct-c") ||
+        lower.contains("direct_c") || lower.contains("source-export") ||
+        lower.contains("source_export") || lower.contains("compute-body") ||
+        lower.contains("compute_body"))
+      return makeTemplateConsumerArtifactError(
+          "candidate artifact metadata attempts to reintroduce "
+          "descriptor-driven computation, direct C/source-export authority, "
+          "or compute-body metadata");
+  }
+
+  return construction::verifyConstructionArtifactMetadata(
+      candidate.artifactMetadata, kConstructionMetadata, getValidationSpec(),
+      "TemplateConsumer materialized target artifact metadata");
+}
+
+tianchenrv::target::SelectedEmitCArtifactRouteConfig
+getSelectedArtifactConfig(bool validateCandidate) {
+  tianchenrv::target::SelectedEmitCArtifactRouteConfig config;
+  config.routeID = kRouteID;
+  config.artifactKind = kArtifactKind;
+  config.originPlugin = kPluginName;
+  config.routeDescription =
+      "TemplateConsumer materialized EmitC object artifact bridge";
+  if (validateCandidate)
+    config.candidateValidationFn = validateTargetArtifactCandidate;
+  config.routeBuilderFn = buildArtifactRouteFromSelectedPath;
+  return config;
+}
+
+tianchenrv::target::MaterializedEmitCHeaderArtifactConfig
+getHeaderArtifactConfig() {
+  static const llvm::StringRef kHeaderIncludes[] = {"stdint.h"};
+  static const tianchenrv::target::MaterializedEmitCHeaderArtifactMetadataEvidence
+      kMetadataEvidence[] = {
+          {"emitc_lowerable_route", kRouteMetadataName, kRouteID},
+          {"source_op", kSourceOpMetadataName, kComputeOperationName},
+          {"source_role", kSourceRoleMetadataName, "compute"},
+          {"source_op_interface", kSourceOpInterfaceMetadataName,
+           kSourceOpInterfaceName},
+          {"construction_protocol", kProtocolMetadataName, kProtocolVersion},
+          {"semantic_role_graph", kRoleGraphMetadataName, kSemanticRoleGraph},
+          {"typed_role_realization", kTypedRoleMetadataName,
+           kTypedRoleRealizationSummary},
+      };
+
+  tianchenrv::target::MaterializedEmitCHeaderArtifactConfig config;
+  config.selectedRoute = getSelectedArtifactConfig(/*validateCandidate=*/true);
+  config.selectedRoute.routeDescription =
+      "TemplateConsumer materialized EmitC header artifact bridge";
+  config.headerGuard = kHeaderGuard;
+  config.evidencePrefix = kEvidencePrefix;
+  config.includes = kHeaderIncludes;
+  config.selectedVariant = kVariantName;
+  config.emissionKind = kEmissionKind;
+  config.loweringBoundary = kComputeOperationName;
+  config.runtimeABI = kRuntimeABI;
+  config.runtimeABIKind = kRuntimeABIKind;
+  config.runtimeABIName = kRuntimeABI;
+  config.runtimeGlueRole = kRuntimeGlueRole;
+  config.runtimeABIParameters = {};
+  config.metadataEvidence = kMetadataEvidence;
+  return config;
+}
+
+llvm::Error compileGeneratedSourceToObject(llvm::StringRef source,
+                                           llvm::raw_ostream &os) {
+  llvm::ErrorOr<std::string> clangxx =
+      llvm::sys::findProgramByName("clang++");
+  if (!clangxx)
+    clangxx = llvm::sys::findProgramByName(
+        "clang++", {"/usr/lib/llvm-20/bin", "/usr/local/bin", "/usr/bin"});
+  if (!clangxx)
+    return makeTemplateConsumerArtifactError(
+        llvm::Twine("requires clang++ for object packaging: ") +
+        clangxx.getError().message());
+
+  int sourceFD = -1;
+  ScopedTempPath sourcePath;
+  if (std::error_code error = llvm::sys::fs::createTemporaryFile(
+          "tcrv-template-consumer-emitc", "cpp", sourceFD, sourcePath.path))
+    return makeTemplateConsumerArtifactError(
+        llvm::Twine("failed to create temporary C++ source: ") +
+        error.message());
+  {
+    llvm::raw_fd_ostream sourceOS(sourceFD, /*shouldClose=*/true);
+    sourceOS << source;
+    sourceOS.close();
+    if (sourceOS.has_error())
+      return makeTemplateConsumerArtifactError(
+          "failed to write generated C++ source before object packaging");
+  }
+
+  ScopedTempPath objectPath;
+  objectPath.path = sourcePath.path;
+  llvm::sys::path::replace_extension(objectPath.path, "o");
+
+  int stderrFD = -1;
+  ScopedTempPath stderrPath;
+  if (std::error_code error = llvm::sys::fs::createTemporaryFile(
+          "tcrv-template-consumer-clangxx", "stderr", stderrFD,
+          stderrPath.path))
+    return makeTemplateConsumerArtifactError(
+        llvm::Twine("failed to create temporary clang++ stderr file: ") +
+        error.message());
+  {
+    llvm::raw_fd_ostream stderrOS(stderrFD, /*shouldClose=*/true);
+    stderrOS.close();
+  }
+
+  llvm::SmallVector<llvm::StringRef, 8> args = {
+      *clangxx, "-std=c++17", "-O2", "-c",
+      sourcePath.path, "-o", objectPath.path};
+  llvm::SmallVector<std::optional<llvm::StringRef>, 3> redirects = {
+      llvm::StringRef(), llvm::StringRef(), llvm::StringRef(stderrPath.path)};
+  std::string executeError;
+  bool executionFailed = false;
+  int result = llvm::sys::ExecuteAndWait(
+      *clangxx, args, std::nullopt, redirects, /*SecondsToWait=*/30,
+      /*MemoryLimit=*/0, &executeError, &executionFailed);
+  if (executionFailed || result != 0) {
+    std::string stderrText;
+    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> stderrBuffer =
+        llvm::MemoryBuffer::getFile(stderrPath.path);
+    if (stderrBuffer)
+      stderrText = (*stderrBuffer)->getBuffer().take_front(512).str();
+    return makeTemplateConsumerArtifactError(
+        llvm::Twine("clang++ failed to package generated C++ as a "
+                    "relocatable object; exit=") +
+        llvm::Twine(result) + " execution_failed=" +
+        (executionFailed ? "true" : "false") + " error='" + executeError +
+        "' stderr='" + stderrText + "'");
+  }
+
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> objectBuffer =
+      llvm::MemoryBuffer::getFile(objectPath.path, /*IsText=*/false,
+                                  /*RequiresNullTerminator=*/false);
+  if (!objectBuffer)
+    return makeTemplateConsumerArtifactError(
+        llvm::Twine("failed to read generated object: ") +
+        objectBuffer.getError().message());
+  if ((*objectBuffer)->getBufferSize() == 0)
+    return makeTemplateConsumerArtifactError("generated object is empty");
+  os << (*objectBuffer)->getBuffer();
+  return llvm::Error::success();
+}
+
+llvm::Error exportHeaderArtifact(mlir::ModuleOp module,
+                                 llvm::raw_ostream &os) {
+  return tianchenrv::target::exportMaterializedEmitCHeaderArtifact(
+      module, os, getHeaderArtifactConfig());
+}
+
+llvm::Error exportObjectArtifact(mlir::ModuleOp module,
+                                 llvm::raw_ostream &os) {
+  llvm::Expected<std::string> source =
+      tianchenrv::target::emitSelectedEmitCArtifactCppSource(
+          module, getSelectedArtifactConfig(/*validateCandidate=*/true));
+  if (!source)
+    return source.takeError();
+  return compileGeneratedSourceToObject(*source, os);
+}
+
+tianchenrv::target::MaterializedEmitCObjectBundleArtifactConfig
+getObjectBundleConfig() {
+  tianchenrv::target::MaterializedEmitCObjectBundleArtifactConfig config;
+  config.header = getHeaderArtifactConfig();
+  config.headerRouteID = kHeaderRouteID;
+  config.headerArtifactKind = kHeaderArtifactKind;
+  config.ownerPlugin = kPluginName;
+  config.objectExportFn = exportObjectArtifact;
+  config.headerExportFn = exportHeaderArtifact;
+  config.componentGroup = kBundleComponentGroup;
+  config.externalABIName = kRuntimeABI;
+  config.handoffKind = kObjectHandoffKind;
+  config.selectedObjectDescription =
+      "TemplateConsumer materialized EmitC object candidate";
+  return config;
+}
+
+llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
+parseArtifactFixtureModule(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @template_consumer_kernel {
+    tcrv.exec.capability @template_consumer_compute {id = "template_consumer.compute", kind = "construction-template-consumer", status = "available"}
+    tcrv.exec.variant @template_consumer_first_slice attributes {origin = "template-consumer-plugin", requires = [@template_consumer_compute]} {
+    }
+    tcrv.exec.diagnostic {
+      reason = "variant-selected",
+      message = "selected TemplateConsumer route",
+      severity = "note",
+      status = "selected",
+      target = @template_consumer_first_slice,
+      selection_kind = "static-variant"
+    }
+    "tcrv_template_consumer.compute_sentinel"() {
+      origin = "template-consumer-plugin",
+      required_capabilities = [@template_consumer_compute],
+      role = "direct variant",
+      role_order = 0 : i64,
+      role_specific_interface = "TCRVComputeOpInterface",
+      selected_variant = @template_consumer_first_slice,
+      source_kernel = "template_consumer_kernel",
+      source_role = "compute",
+      status = "role-op-boundary",
+      typed_role = "template_consumer.role.compute.compute_sentinel"
+    } : () -> ()
+    tcrv.exec.diagnostic {
+      artifact_kind = "riscv-elf-relocatable-object",
+      artifact_metadata = [
+        {key = "template_consumer_emitc_route_mapping", value = "template-consumer-compute-sentinel-emitc-route"},
+        {key = "template_consumer_source_op", value = "tcrv_template_consumer.compute_sentinel"},
+        {key = "template_consumer_source_role", value = "compute"},
+        {key = "template_consumer_source_op_interface", value = "TCRVEmitCLowerableInterface"},
+        {key = "template_consumer_construction_protocol", value = "extension-family-construction-protocol.v1"},
+        {key = "template_consumer_semantic_role_graph", value = "compute"},
+        {key = "template_consumer_typed_role_realization", value = "compute:template_consumer.role.compute.compute_sentinel:tcrv_template_consumer.compute_sentinel:TCRVComputeOpInterface:TCRVEmitCLowerableInterface"}
+      ],
+      emission_kind = "materialized-emitc-template-consumer-module",
+      lowering_boundary = "tcrv_template_consumer.compute_sentinel",
+      lowering_pipeline = "template-consumer-compute-sentinel-emitc-route",
+      message = "TemplateConsumer selected route materializes an EmitC module and packages generated C++ through common target artifact APIs",
+      origin = "template-consumer-plugin",
+      plan_kind = "plugin-emission-plan",
+      reason = "emission_plan",
+      required_capabilities = [@template_consumer_compute],
+      role = "direct variant",
+      runtime_abi = "template-consumer-compute-sentinel-runtime-c-abi.v1",
+      runtime_abi_kind = "plugin-owned-runtime-abi",
+      runtime_abi_name = "template-consumer-compute-sentinel-runtime-c-abi.v1",
+      runtime_glue_role = "emitc-cpp-template-consumer-runtime-glue",
+      severity = "info",
+      status = "supported",
+      target = @template_consumer_first_slice
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  if (!module)
+    return makeTemplateConsumerArtifactError(
+        "failed to parse selected artifact bridge fixture");
+  return std::move(module);
+}
+
+tianchenrv::target::TargetArtifactCandidate makeValidArtifactCandidate() {
+  tianchenrv::target::TargetArtifactCandidate candidate;
+  candidate.selectedVariant = kVariantName.str();
+  candidate.role = "direct variant";
+  candidate.origin = kPluginName.str();
+  candidate.routeID = kRouteID.str();
+  candidate.emissionKind = kEmissionKind.str();
+  candidate.artifactKind = kArtifactKind.str();
+  candidate.loweringBoundary = kComputeOperationName.str();
+  candidate.runtimeABI = kRuntimeABI.str();
+  candidate.runtimeABIKind = kRuntimeABIKind.str();
+  candidate.runtimeABIName = kRuntimeABI.str();
+  candidate.runtimeGlueRole = kRuntimeGlueRole.str();
+  candidate.artifactMetadata.append(std::begin(kConstructionMetadata),
+                                    std::end(kConstructionMetadata));
+  return candidate;
+}
+
+bool rewriteArtifactMetadataValue(
+    tianchenrv::target::TargetArtifactCandidate &candidate,
+    llvm::StringRef key, llvm::StringRef value) {
+  for (ArtifactMetadataEntry &entry : candidate.artifactMetadata) {
+    if (entry.key == key) {
+      entry.value = value.str();
+      return true;
+    }
+  }
+  return false;
+}
+
+int expectSourceText(llvm::StringRef source) {
+  if (!source.contains("#include <stdint.h>") ||
+      !source.contains(
+          "extern \"C\" void "
+          "tcrv_emitc_template_consumer_kernel_template_consumer_first_slice()") ||
+      !source.contains("tcrv_emitc.route_source_op="
+                       "tcrv_template_consumer.compute_sentinel role=compute") ||
+      !source.contains("tcrv_emitc.source_op="
+                       "tcrv_template_consumer.compute_sentinel role=compute") ||
+      !source.contains("tcrv_template_consumer_compute_sentinel")) {
+    llvm::errs() << "TemplateConsumer generated C++ source was malformed:\n"
+                 << source << "\n";
+    return 1;
+  }
+  for (llvm::StringRef forbidden :
+       {"descriptor", "metadata-diagnostic", "source-export", "direct-C",
+        "compute-body", "int main", "__riscv_"}) {
+    if (source.contains(forbidden))
+      return fail(llvm::Twine("TemplateConsumer generated C++ contains "
+                              "forbidden residue '") +
+                  forbidden + "'");
+  }
+  return 0;
+}
+
+int expectHeaderText(llvm::StringRef header) {
+  if (!header.contains(kHeaderGuard) ||
+      !header.contains("tianchenrv.template_consumer.origin_plugin: "
+                       "template-consumer-plugin") ||
+      !header.contains("tianchenrv.template_consumer.selected_variant: "
+                       "@template_consumer_first_slice") ||
+      !header.contains("tianchenrv.template_consumer.selected_route: "
+                       "template-consumer-compute-sentinel-emitc-route") ||
+      !header.contains("tianchenrv.template_consumer.runtime_abi_name: "
+                       "template-consumer-compute-sentinel-runtime-c-abi.v1") ||
+      !header.contains("tianchenrv.template_consumer.emitc_lowerable_route: "
+                       "template-consumer-compute-sentinel-emitc-route") ||
+      !header.contains("tianchenrv.template_consumer.source_op: "
+                       "tcrv_template_consumer.compute_sentinel") ||
+      !header.contains("tianchenrv.template_consumer.source_role: compute") ||
+      !header.contains("tianchenrv.template_consumer.source_op_interface: "
+                       "TCRVEmitCLowerableInterface") ||
+      !header.contains("tianchenrv.template_consumer.construction_protocol: "
+                       "extension-family-construction-protocol.v1") ||
+      !header.contains("tianchenrv.template_consumer.semantic_role_graph: "
+                       "compute") ||
+      !header.contains("tianchenrv.template_consumer.typed_role_realization: "
+                       "compute:template_consumer.role.compute") ||
+      !header.contains("void "
+                       "tcrv_emitc_template_consumer_kernel_"
+                       "template_consumer_first_slice(void);")) {
+    llvm::errs() << "TemplateConsumer header artifact was malformed:\n"
+                 << header << "\n";
+    return 1;
+  }
+  for (llvm::StringRef forbidden :
+       {"descriptor", "metadata-diagnostic", "source-export", "direct-C",
+        "compute-body", "int main", "__riscv_"}) {
+    if (header.contains(forbidden))
+      return fail(llvm::Twine("TemplateConsumer header contains forbidden "
+                              "residue '") +
+                  forbidden + "'");
+  }
+  return 0;
+}
+
+int expectBundleIndexText(llvm::StringRef index) {
+  if (!index.contains("bundle_status: \"complete\"") ||
+      !index.contains("artifact_count: 2") ||
+      !index.contains("component_group: "
+                      "\"template-consumer-materialized-emitc-bundle.v1\"") ||
+      !index.contains("component_role: \"object\"") ||
+      !index.contains("component_role: \"header\"") ||
+      !index.contains("selected_variant: @template_consumer_first_slice") ||
+      !index.contains("route: "
+                      "\"template-consumer-compute-sentinel-emitc-route\"") ||
+      !index.contains("route: "
+                      "\"template-consumer-compute-sentinel-emitc-route."
+                      "header\"") ||
+      !index.contains("owner: \"template-consumer-plugin\"") ||
+      !index.contains("runtime_abi: "
+                      "\"template-consumer-compute-sentinel-runtime-c-abi."
+                      "v1\"") ||
+      !index.contains("runtime_abi_parameter_count: 0") ||
+      !index.contains("key: "
+                      "\"template_consumer_emitc_route_mapping\"") ||
+      !index.contains("value: "
+                      "\"template-consumer-compute-sentinel-emitc-route\"") ||
+      !index.contains("key: \"template_consumer_source_op\"") ||
+      !index.contains(
+          "value: \"tcrv_template_consumer.compute_sentinel\"") ||
+      !index.contains("handoff_kind: "
+                      "\"materialized-emitc-cpp-template-consumer-object\"")) {
+    llvm::errs() << "TemplateConsumer bundle index was malformed:\n"
+                 << index << "\n";
+    return 1;
+  }
+  return 0;
+}
+
+int runArtifactBridgePositiveTest() {
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+  context.allowUnregisteredDialects();
+
+  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> module =
+      parseArtifactFixtureModule(context);
+  if (!module)
+    return fail(llvm::Twine("parse TemplateConsumer artifact fixture: ") +
+                llvm::toString(module.takeError()));
+
+  tianchenrv::target::SelectedEmitCArtifactRouteConfig selectedConfig =
+      getSelectedArtifactConfig(/*validateCandidate=*/true);
+
+  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
+      tianchenrv::target::materializeSelectedEmitCArtifactModule(**module,
+                                                                 selectedConfig);
+  if (!emitcModule)
+    return fail(llvm::Twine("TemplateConsumer materialized EmitC module: ") +
+                llvm::toString(emitcModule.takeError()));
+
+  std::string sourceText;
+  llvm::raw_string_ostream sourceOS(sourceText);
+  if (int result = expectSuccess(
+          tianchenrv::target::exportMaterializedEmitCModuleToCpp(
+              **emitcModule, sourceOS,
+              "TemplateConsumer materialized EmitC C++ emission"),
+          "TemplateConsumer emits generated C++ through MLIR EmitC emitter"))
+    return result;
+  sourceOS.flush();
+  if (int result = expectSourceText(sourceText))
+    return result;
+
+  tianchenrv::target::TargetArtifactExporterRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::target::
+              registerMaterializedEmitCObjectBundleArtifactExporters(
+                  registry, getObjectBundleConfig()),
+          "register TemplateConsumer object/header bundle exporters through "
+          "the common helper"))
+    return result;
+  if (registry.size() != 1 || registry.compositeSize() != 1)
+    return fail("TemplateConsumer artifact bridge should register one object "
+                "exporter and one header composite");
+
+  std::string objectBytes;
+  llvm::raw_string_ostream objectOS(objectBytes);
+  if (int result = expectSuccess(
+          tianchenrv::target::exportTargetArtifact(**module, registry,
+                                                   objectOS),
+          "TemplateConsumer exports a compile-checked relocatable object"))
+    return result;
+  objectOS.flush();
+  if (!llvm::StringRef(objectBytes).starts_with("\177ELF"))
+    return fail("TemplateConsumer object artifact is not an ELF object");
+
+  std::string headerText;
+  llvm::raw_string_ostream headerOS(headerText);
+  if (int result = expectSuccess(
+          tianchenrv::target::exportTargetHeaderArtifact(**module, registry,
+                                                         headerOS),
+          "TemplateConsumer exports an object-backed declaration header"))
+    return result;
+  headerOS.flush();
+  if (int result = expectHeaderText(headerText))
+    return result;
+
+  llvm::SmallVector<tianchenrv::target::TargetArtifactBundleRecord, 2>
+      records;
+  if (int result = expectSuccess(
+          tianchenrv::target::collectTargetArtifactBundleRecords(**module,
+                                                                 registry,
+                                                                 records),
+          "TemplateConsumer collects coherent target artifact bundle records"))
+    return result;
+  if (records.size() != 2)
+    return fail("TemplateConsumer bundle should contain object and header "
+                "records");
+
+  ScopedTempDir bundleDir;
+  if (std::error_code error = llvm::sys::fs::createUniqueDirectory(
+          "tcrv-template-consumer-bundle", bundleDir.path))
+    return fail(llvm::Twine("failed to create bundle output directory: ") +
+                error.message());
+  if (int result = expectSuccess(
+          tianchenrv::target::exportTargetArtifactBundle(**module, registry,
+                                                         bundleDir.path),
+          "TemplateConsumer exports a coherent object/header bundle"))
+    return result;
+
+  llvm::SmallString<128> indexPath(bundleDir.path);
+  llvm::sys::path::append(indexPath,
+                          "tianchenrv-target-artifact-bundle.index");
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> index =
+      llvm::MemoryBuffer::getFile(indexPath);
+  if (!index)
+    return fail(llvm::Twine("failed to read TemplateConsumer bundle index: ") +
+                index.getError().message());
+  return expectBundleIndexText((*index)->getBuffer());
+}
+
+int runArtifactBridgeFailClosedTest() {
+  tianchenrv::target::TargetArtifactExporterRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::target::
+              registerMaterializedEmitCObjectBundleArtifactExporters(
+                  registry, getObjectBundleConfig()),
+          "register TemplateConsumer fail-closed artifact exporters"))
+    return result;
+
+  const tianchenrv::target::TargetArtifactExporter *objectExporter =
+      registry.lookup(kRouteID);
+  const tianchenrv::target::TargetArtifactCompositeExporter *headerExporter =
+      registry.lookupComposite(kHeaderRouteID);
+  if (!objectExporter || !headerExporter)
+    return fail("TemplateConsumer fail-closed test did not register expected "
+                "object/header exporters");
+
+  tianchenrv::target::TargetArtifactCandidate candidate =
+      makeValidArtifactCandidate();
+  if (int result = expectSuccess(
+          tianchenrv::target::validateTargetArtifactCandidateAgainstExporter(
+              candidate, *objectExporter),
+          "TemplateConsumer object exporter validates the positive candidate"))
+    return result;
+
+  tianchenrv::target::TargetArtifactCandidate missingMetadata = candidate;
+  missingMetadata.artifactMetadata.clear();
+  if (int result = expectErrorContains(
+          tianchenrv::target::validateTargetArtifactCandidateAgainstExporter(
+              missingMetadata, *objectExporter),
+          {"TemplateConsumer materialized target artifact metadata",
+           "must carry exactly 7"},
+          "TemplateConsumer object exporter rejects missing metadata"))
+    return result;
+
+  tianchenrv::target::TargetArtifactCandidate staleRoute = candidate;
+  if (!rewriteArtifactMetadataValue(staleRoute, kRouteMetadataName,
+                                    "stale-template-consumer-route"))
+    return fail("TemplateConsumer fixture did not contain route metadata");
+  if (int result = expectErrorContains(
+          tianchenrv::target::validateTargetArtifactCandidateAgainstExporter(
+              staleRoute, *objectExporter),
+          {kRouteMetadataName, kRouteID},
+          "TemplateConsumer object exporter rejects stale route metadata"))
+    return result;
+
+  tianchenrv::target::TargetArtifactCandidate staleInterface = candidate;
+  if (!rewriteArtifactMetadataValue(staleInterface,
+                                    kSourceOpInterfaceMetadataName,
+                                    "TCRVMetadataOnlyInterface"))
+    return fail("TemplateConsumer fixture did not contain source interface "
+                "metadata");
+  if (int result = expectErrorContains(
+          tianchenrv::target::validateTargetArtifactCandidateAgainstExporter(
+              staleInterface, *objectExporter),
+          {kSourceOpInterfaceMetadataName, kSourceOpInterfaceName},
+          "TemplateConsumer object exporter rejects stale source interface"))
+    return result;
+
+  tianchenrv::target::TargetArtifactCandidate metadataOnly = candidate;
+  metadataOnly.artifactKind = "metadata-diagnostic";
+  if (int result = expectErrorContains(
+          tianchenrv::target::validateTargetArtifactCandidateAgainstExporter(
+              metadataOnly, *objectExporter),
+          {"artifact_kind", "riscv-elf-relocatable-object"},
+          "TemplateConsumer object exporter rejects metadata-only artifact"))
+    return result;
+
+  tianchenrv::target::TargetArtifactCandidate fallback = candidate;
+  fallback.role = "dispatch fallback";
+  if (int result = expectErrorContains(
+          tianchenrv::target::validateTargetArtifactCandidateAgainstExporter(
+              fallback, *objectExporter),
+          {"candidate selected path role", "direct variant"},
+          "TemplateConsumer object exporter rejects fallback-only role"))
+    return result;
+
+  tianchenrv::target::TargetArtifactCandidate extraParameter = candidate;
+  extraParameter.runtimeABIParameters.push_back(
+      tianchenrv::support::makeTargetExportABIParameter(
+          "n", "size_t",
+          tianchenrv::support::RuntimeABIParameterRole::RuntimeElementCount));
+  if (int result = expectErrorContains(
+          tianchenrv::target::validateTargetArtifactCandidateAgainstExporter(
+              extraParameter, *objectExporter),
+          {"runtime ABI parameter signature", "empty"},
+          "TemplateConsumer object exporter rejects stale runtime ABI "
+          "signature"))
+    return result;
+
+  tianchenrv::target::TargetArtifactCandidate directCResidue = candidate;
+  directCResidue.artifactMetadata.push_back(
+      ArtifactMetadataEntry("template_consumer.direct_c_compute_body",
+                            "stale"));
+  if (int result = expectErrorContains(
+          tianchenrv::target::validateTargetArtifactCandidateAgainstExporter(
+              directCResidue, *objectExporter),
+          {"descriptor-driven computation"},
+          "TemplateConsumer object exporter rejects direct-C residue"))
+    return result;
+
+  llvm::SmallVector<tianchenrv::target::TargetArtifactCandidate, 2> candidates;
+  candidates.push_back(candidate);
+  if (int result = expectSuccess(
+          headerExporter->getCandidateValidationFn()(candidates),
+          "TemplateConsumer header composite validates the positive "
+          "candidate"))
+    return result;
+
+  llvm::SmallVector<tianchenrv::target::TargetArtifactCandidate, 2>
+      wrongHeaderRoute(candidates);
+  wrongHeaderRoute.front().routeID = "template-consumer-wrong-object-route";
+  if (int result = expectErrorContains(
+          headerExporter->getCandidateValidationFn()(wrongHeaderRoute),
+          {"route id", kRouteID},
+          "TemplateConsumer header composite rejects mismatched object route"))
+    return result;
+
+  llvm::SmallVector<tianchenrv::target::TargetArtifactCandidate, 2>
+      ambiguous(candidates);
+  ambiguous.push_back(candidate);
+  llvm::Expected<bool> ambiguousMatch =
+      headerExporter->getMatchFn()(ambiguous);
+  if (ambiguousMatch)
+    return fail("TemplateConsumer header composite accepted ambiguous "
+                "candidates");
+  if (int result = expectErrorContains(
+          ambiguousMatch.takeError(),
+          {"requires exactly one selected supported",
+           "TemplateConsumer materialized EmitC object candidate"},
+          "TemplateConsumer header composite rejects ambiguous candidates"))
+    return result;
+
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+  context.allowUnregisteredDialects();
+  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> module =
+      parseArtifactFixtureModule(context);
+  if (!module)
+    return fail(llvm::Twine("parse TemplateConsumer fail-closed fixture: ") +
+                llvm::toString(module.takeError()));
+
+  tianchenrv::target::SelectedEmitCArtifactRouteConfig missingProvenance =
+      getSelectedArtifactConfig(/*validateCandidate=*/true);
+  missingProvenance.routeBuilderFn = buildArtifactRouteWithoutRouteProvenance;
+  llvm::Expected<std::string> source =
+      tianchenrv::target::emitSelectedEmitCArtifactCppSource(
+          **module, missingProvenance);
+  if (source)
+    return fail("TemplateConsumer artifact bridge accepted missing route "
+                "source-op provenance");
+  return expectErrorContains(
+      source.takeError(),
+      {"materialized EmitC handoff", "route source-op provenance"},
+      "TemplateConsumer route without materialized provenance fails closed");
 }
 
 class TemplateConsumerPlugin final : public ExtensionPlugin {
@@ -1257,6 +2091,10 @@ int main() {
   if (int result = template_consumer::runValidWorkflowTest())
     return result;
   if (int result = template_consumer::runFailClosedRegistryTest())
+    return result;
+  if (int result = template_consumer::runArtifactBridgePositiveTest())
+    return result;
+  if (int result = template_consumer::runArtifactBridgeFailClosedTest())
     return result;
   return 0;
 }

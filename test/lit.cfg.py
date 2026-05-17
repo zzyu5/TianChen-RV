@@ -161,6 +161,7 @@ llvm_config.add_tool_substitutions(
         "clang++",
         "llvm-readobj",
         "tianchenrv-capability-model-test",
+        "tianchenrv-construction-protocol-common-test",
         "tianchenrv-plugin-registry-test",
         "tianchenrv-plugin-variant-cost-test",
         "tianchenrv-plugin-variant-legality-test",

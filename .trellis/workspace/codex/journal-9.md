@@ -73,6 +73,58 @@ Added a code-consumed common materialized EmitC object/header bundle constructio
 - None - task complete
 
 
+## Session 121: Template-consumer materialized artifact bridge
+
+**Date**: 2026-05-18
+**Task**: Template-consumer materialized artifact bridge
+**Branch**: `main`
+
+### Summary
+
+Extended the existing test-local `template-consumer-plugin` proof from common
+EmitC materialization into the materialized target artifact boundary without
+adding a production family, descriptor path, direct-C/source-export authority,
+or common/core family branch.
+
+### Main Changes
+
+- Created Trellis task `05-18-template-consumer-materialized-artifact-bridge`
+  and wrote the PRD from the Direction Brief.
+- Added selected `tcrv.exec` artifact fixture coverage for the existing
+  TemplateConsumer selected boundary and plugin-owned
+  `TCRVEmitCLowerableRoute`.
+- Registered the consumer object/header bridge through the common
+  `registerMaterializedEmitCObjectBundleArtifactExporters(...)` helper.
+- Proved materialized EmitC module handoff, MLIR EmitC C++ emission, local
+  `clang++ -c` relocatable object packaging, declaration-only header output,
+  bundle records, and complete bundle index output.
+- Added fail-closed coverage for stale metadata, fallback-only role, ambiguous
+  candidates, runtime ABI mismatch, object/header identity mismatch, missing
+  materialized provenance, and descriptor/direct-C/source-export residue.
+- Added `test/Plugin/construction-protocol-common.test` so the C++ proof runs
+  under lit and `check-tianchenrv`.
+
+### Testing
+
+- [OK] Trellis context validation for the task.
+- [OK] `cmake --build build --target tianchenrv-construction-protocol-common-test -j2`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target check-tianchenrv -j2` -> 123/123 passed.
+- [OK] `git diff --check`
+- [OK] Focused residue and common/core branch scans returned only expected
+  fail-closed strings or no matches.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 124: Executable extension-family construction template consumer
 
 **Date**: 2026-05-18

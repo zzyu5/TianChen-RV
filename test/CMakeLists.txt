@@ -195,14 +195,17 @@ add_executable(tianchenrv-construction-protocol-common-test
 
 target_link_libraries(tianchenrv-construction-protocol-common-test
   PRIVATE
+  TianChenRVInitAll
   TianChenRVConversionEmitC
   TianChenRVPluginConstructionProtocol
   TianChenRVRVVConstructionProtocol
   TianChenRVRVVPlugin
+  TianChenRVTarget
   TianChenRVTemplatePlugin
   TianChenRVTensorExtLitePlugin
   TianChenRVToyPlugin
   MLIRIR
+  MLIRParser
   MLIRSupport
 )
 
@@ -336,6 +339,7 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tcrv-opt
   tcrv-translate
   tianchenrv-capability-model-test
+  tianchenrv-construction-protocol-common-test
   tianchenrv-plugin-emission-plan-test
   tianchenrv-plugin-variant-cost-test
   tianchenrv-plugin-registry-test
