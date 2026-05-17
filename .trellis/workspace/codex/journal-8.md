@@ -56,6 +56,52 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 100: Toy source-front-door construction template proof
+
+**Date**: 2026-05-17
+**Task**: Toy source-front-door construction template proof
+**Branch**: `main`
+
+### Summary
+
+Added a Toy-owned bounded source front door proving the common
+`SourceFrontDoorPassRegistration` and
+`--tcrv-source-artifact-front-door-pipeline` path is reusable by a non-RVV
+extension family without common/core Toy or RVV semantic branches.
+
+### Main Changes
+
+- Added `--tcrv-toy-materialize-template-source-front-door` and registered it
+  through the Toy plugin source-front-door hook.
+- Materialized the Toy source marker into `tcrv.exec.kernel`,
+  `toy.template` capability, `origin = "toy-plugin"` selected variant,
+  `tcrv_toy.compute_skeleton`, selected diagnostic, Toy runtime ABI metadata,
+  and the existing Toy EmitC/header artifact route.
+- Added positive and negative lit coverage for Toy source front-door behavior,
+  disabled built-ins, stale Toy seed metadata, stale selected-boundary residue,
+  and Toy source-to-header export.
+- Updated plugin-protocol spec with the durable Toy construction-template
+  source-front-door contract.
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `./build/bin/tianchenrv-toy-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-plugin-registry-test`
+- [OK] focused lit filter for Toy source-front-door, Toy target header,
+  SourceFrontDoor negatives, and RVV source-front-door regression: 8/8 passed.
+- [OK] `ninja -C build check-tianchenrv`: 105/105 tests passed.
+- [OK] Targeted scans over changed Toy/common/tool surfaces showed no
+  `SourceSeed`, source-seed public API, descriptor authority, source-export,
+  direct-C route, or core Toy/RVV branch residue; remaining old seed hits are
+  deleted-option negative tests only.
+
+### Status
+
+[OK] Completed; ready to archive and commit.
+
+
 ## Session 103: Bounded RVV vector-source front door promotion
 
 **Date**: 2026-05-17

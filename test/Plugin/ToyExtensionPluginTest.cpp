@@ -2,6 +2,7 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Dialect/Toy/IR/ToyDialect.h"
+#include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
@@ -13,6 +14,7 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Parser/Parser.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Error.h"
@@ -178,8 +180,22 @@ int runRegistrationAndCapabilityMetadataTest() {
                                  "succeeds"))
     return result;
   if (int result =
-          expect(sourceFrontDoorPasses.empty(),
-                 "Toy plugin contributes no metadata source pass"))
+          expect(sourceFrontDoorPasses.size() == 1,
+                 "Toy plugin contributes one source front-door pass"))
+    return result;
+  if (int result =
+          expect(sourceFrontDoorPasses.front().getOwnerPlugin() ==
+                     tianchenrv::plugin::toy::getToyExtensionPluginName(),
+                 "Toy source front-door pass is owned by Toy plugin"))
+    return result;
+  if (int result =
+          expect(sourceFrontDoorPasses.front().getArgument() ==
+                     "tcrv-toy-materialize-template-source-front-door",
+                 "Toy source front-door pass keeps the public pass argument"))
+    return result;
+  if (int result = expect(static_cast<bool>(
+                              sourceFrontDoorPasses.front().getFactory()),
+                          "Toy source front-door pass factory is present"))
     return result;
 
   const auto &manifest =
@@ -244,6 +260,49 @@ int runRegistrationAndCapabilityMetadataTest() {
   return expectErrorContains(
       tianchenrv::plugin::registerToyExtensionPlugin(registry),
       {"duplicate TianChen-RV extension plugin", "toy-plugin"});
+}
+
+int runBuiltinSourceFrontDoorCollectionTest() {
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerBuiltinExtensionPlugins(registry),
+          "register built-in extension plugins for source front-door "
+          "collection"))
+    return result;
+
+  llvm::SmallVector<SourceFrontDoorPassRegistration, 8> sourceFrontDoorPasses;
+  if (int result = expectSuccess(
+          registry.collectSourceFrontDoorPasses(sourceFrontDoorPasses),
+          "collect built-in source front-door pass registrations"))
+    return result;
+
+  int rvvIndex = -1;
+  int toyIndex = -1;
+  for (auto [index, pass] : llvm::enumerate(sourceFrontDoorPasses)) {
+    if (pass.getArgument().contains("source-seed"))
+      return fail("built-in source front-door collection resurrected "
+                  "source-seed public API");
+    if (pass.getOwnerPlugin() == "rvv-plugin" &&
+        pass.getArgument() ==
+            "tcrv-rvv-materialize-i32m1-vector-source-front-door")
+      rvvIndex = static_cast<int>(index);
+    if (pass.getOwnerPlugin() ==
+            tianchenrv::plugin::toy::getToyExtensionPluginName() &&
+        pass.getArgument() ==
+            "tcrv-toy-materialize-template-source-front-door")
+      toyIndex = static_cast<int>(index);
+  }
+
+  if (int result =
+          expect(rvvIndex >= 0, "built-in registry exposes RVV source front "
+                                "door through the common interface"))
+    return result;
+  if (int result =
+          expect(toyIndex >= 0, "built-in registry exposes Toy source front "
+                                "door through the common interface"))
+    return result;
+  return expect(rvvIndex < toyIndex,
+                "built-in source front-door order follows registry order");
 }
 
 int runProposalGatingAndDeclineTest(mlir::MLIRContext &context) {
@@ -641,6 +700,8 @@ int main() {
   context.loadAllAvailableDialects();
 
   if (int result = runRegistrationAndCapabilityMetadataTest())
+    return result;
+  if (int result = runBuiltinSourceFrontDoorCollectionTest())
     return result;
   if (int result = runProposalGatingAndDeclineTest(context))
     return result;

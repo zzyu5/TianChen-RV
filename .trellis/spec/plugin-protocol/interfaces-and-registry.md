@@ -95,6 +95,112 @@ scalar, vendor, dtype, shape, runtime, toolchain, or microarchitecture
 semantics. The concrete plugin pass remains responsible for its own narrow
 source contract, fail-closed diagnostics, and selected-boundary materialization.
 
+## Scenario: Toy Construction-Template Source Front Door
+
+### 1. Scope / Trigger
+
+Use this contract when proving that the source front-door registration surface
+is reusable by a non-RVV extension family. Toy is a bounded construction
+template, not a runtime performance backend, high-level tensor IR, descriptor
+adapter, or source-export path.
+
+### 2. Signatures
+
+- Public pass option:
+  `--tcrv-toy-materialize-template-source-front-door`.
+- Common pipeline:
+  `--tcrv-source-artifact-front-door-pipeline`.
+- Toy source module attributes:
+  `tcrv_toy.source_front_door = "template_compute"` and optional
+  `tcrv_toy.source_kernel = "<valid-symbol>"`.
+- Materialized extension-family boundary op:
+  `tcrv_toy.compute_skeleton`.
+
+### 3. Contracts
+
+- The Toy plugin owns the source marker interpretation, Toy capability
+  materialization, selected Toy variant metadata, `tcrv_toy.compute_skeleton`
+  boundary materialization, Toy runtime ABI metadata, and Toy EmitC route
+  provenance.
+- The common registry and common source-artifact pipeline may only collect and
+  run registered source-front-door pass factories, then run generic legality,
+  capability, emission-plan, and coherence checks.
+- The Toy source front door must materialize a selected Toy path with
+  `origin = "toy-plugin"`, `requires = [@toy_template]`, a selected diagnostic
+  targeting `@toy_template_first_slice`, and a `tcrv_toy.compute_skeleton`
+  boundary whose `selected_variant`, `source_kernel`, `source_role`, typed role,
+  role order, and required-capability metadata match the selected variant.
+- The resulting selected path must be consumable by the Toy-owned EmitC route
+  provider and by the Toy target header artifact exporter through the existing
+  runtime ABI and artifact metadata contracts.
+- The source marker and optional source-kernel attribute are front-door input
+  syntax only. They must be removed or cease to be route authority after
+  materialization.
+
+### 4. Validation & Error Matrix
+
+- Built-in plugins disabled -> Toy source-front-door pass option is not
+  registered, and the common source-artifact pipeline remains fail-closed with
+  an empty plugin registry.
+- Unknown `tcrv_toy.source_front_door` value -> fail before materialization.
+- Empty or invalid `tcrv_toy.source_kernel` symbol -> fail before
+  materialization.
+- Stale `tcrv_toy.lowering_seed` metadata -> fail before materialization.
+- Pre-existing `tcrv.exec`, `tcrv_toy`, or `tcrv_rvv` selected-boundary or
+  variant residue in the Toy source input -> fail before materialization.
+- Missing or stale Toy boundary provenance after materialization -> fail in Toy
+  boundary validation, EmitC route construction, emission planning, or target
+  artifact export before output.
+
+### 5. Good/Base/Bad Cases
+
+- Good: a module with the Toy source marker materializes one selected Toy
+  variant, one `tcrv_toy.compute_skeleton` boundary, a selected diagnostic, a
+  supported Toy emission plan, Toy EmitC route source-op provenance, and the
+  materialized Toy header artifact.
+- Base: already materialized Toy execution surfaces remain valid backend-first
+  inputs through the existing execution-planning and target artifact paths.
+- Bad: common code branches on Toy/RVV names, a Toy seed option aliases the new
+  pass, descriptor strings choose Toy computation, or Toy source marker
+  metadata directly exports C/source artifacts without a selected Toy
+  extension-family boundary and EmitC route.
+
+### 6. Tests Required
+
+- C++ registry coverage proving Toy and RVV source-front-door passes are
+  collected through the same `collectSourceFrontDoorPasses` interface without
+  duplicate or stale registration.
+- lit/FileCheck positive coverage for the Toy pass and for
+  `--tcrv-source-artifact-front-door-pipeline` showing selected Toy variant,
+  `origin = "toy-plugin"`, `tcrv_toy.compute_skeleton`, runtime ABI ownership,
+  supported emission plan, and Toy EmitC route provenance.
+- lit/FileCheck target artifact coverage piping the Toy source-front-door
+  pipeline to `--tcrv-export-target-header-artifact`.
+- Negative coverage for disabled built-ins, stale Toy seed entry points,
+  malformed Toy source marker, stale pre-materialized selected-boundary
+  residue, missing boundary provenance, and absence of descriptor/direct-C/
+  source-export/RVV-only residue in Toy source-front-door outputs.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+Toy source marker -> common Toy/RVV branch or descriptor metadata
+  -> direct C/source artifact export
+```
+
+Correct:
+
+```text
+Toy source marker
+  -> Toy-owned source front-door pass
+  -> selected Toy variant + tcrv_toy.compute_skeleton boundary
+  -> Toy-owned EmitC route provenance
+  -> common emission-plan/coherence checks
+  -> Toy target header artifact validation
+```
+
 ### TCRV Common Operation Interfaces
 
 Long-term extension family ops should implement shared interfaces where

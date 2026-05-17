@@ -5,6 +5,7 @@
 #include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyEmitCRouteProvider.h"
+#include "TianChenRV/Plugin/Toy/ToySourceFrontDoor.h"
 #include "TianChenRV/Target/Toy/ToyTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
@@ -588,6 +589,16 @@ llvm::Error ToyExtensionPlugin::collectVariantProposals(
   }
 
   out.addProposal(*proposal);
+  return llvm::Error::success();
+}
+
+llvm::Error ToyExtensionPlugin::registerSourceFrontDoorPasses(
+    llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
+  out.push_back(SourceFrontDoorPassRegistration(
+      getName(), "tcrv-toy-materialize-template-source-front-door",
+      "Materialize one bounded Toy construction-template source marker into "
+      "the Toy selected compute_skeleton front door",
+      [] { return createMaterializeToyTemplateSourceFrontDoorPass(); }));
   return llvm::Error::success();
 }
 

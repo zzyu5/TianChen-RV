@@ -143,6 +143,7 @@ add_executable(tianchenrv-toy-extension-plugin-test
 target_link_libraries(tianchenrv-toy-extension-plugin-test
   PRIVATE
   TianChenRVInitAll
+  TianChenRVBuiltinPlugins
   TianChenRVPlugin
   TianChenRVSupport
   TianChenRVToyDialect
