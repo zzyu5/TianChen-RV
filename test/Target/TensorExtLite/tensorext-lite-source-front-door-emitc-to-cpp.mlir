@@ -10,6 +10,10 @@
 // HELP-SAME: MLIR EmitC C/C++ emitter
 
 // SOURCE: #include <stdint.h>
+// SOURCE: void tcrv_tensorext_lite_config();
+// SOURCE: void tcrv_tensorext_lite_load_frag();
+// SOURCE: void tcrv_tensorext_lite_tile_mma();
+// SOURCE: void tcrv_tensorext_lite_store_frag();
 // SOURCE: void tcrv_emitc_tensorext_lite_header_export_tensorext_lite_tile_mma_first_slice(
 // SOURCE: tcrv_emitc.route_source_op=tcrv_tensorext_lite.config_skeleton role=configure op_interface=TCRVEmitCLowerableOpInterface
 // SOURCE: tcrv_emitc.route_source_op=tcrv_tensorext_lite.load_frag_skeleton role=load_frag op_interface=TCRVEmitCLowerableOpInterface

@@ -3,6 +3,7 @@
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/Verifier.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSet.h"
@@ -222,6 +223,8 @@ public:
     for (const TCRVEmitCHeaderRequirement &header : route.getHeaders())
       builder.create<mlir::emitc::IncludeOp>(loc, header.header,
                                              /*is_standard_include=*/true);
+    if (llvm::Error error = materializeFunctionDeclarations())
+      return std::move(error);
 
     llvm::SmallVector<mlir::Type, 6> inputTypes;
     if (llvm::Error error = buildFunctionInputTypes(inputTypes))
@@ -309,6 +312,37 @@ private:
       valueMap[mapping.valueName] = entry->getArgument(index);
     for (llvm::StringRef implicit : options.implicitValueNames)
       implicitValues.insert(implicit);
+  }
+
+  llvm::Error materializeFunctionDeclarations() {
+    mlir::Location loc = builder.getUnknownLoc();
+    for (const TCRVEmitCFunctionDeclaration &declaration :
+         route.getFunctionDeclarations()) {
+      if (llvm::Error error = validateSafeIdentifier(
+              route.getRouteID(), "declared EmitC function name",
+              declaration.name))
+        return error;
+
+      llvm::SmallVector<mlir::Type, 4> inputTypes;
+      for (llvm::StringRef parameterCType : declaration.parameterCTypes)
+        inputTypes.push_back(getEmitCTypeForCType(context, parameterCType));
+
+      llvm::SmallVector<mlir::Type, 1> resultTypes;
+      if (!declaration.resultCType.empty() &&
+          declaration.resultCType != "void")
+        resultTypes.push_back(getEmitCTypeForCType(context,
+                                                   declaration.resultCType));
+
+      mlir::FunctionType functionType =
+          builder.getFunctionType(inputTypes, resultTypes);
+      llvm::SmallVector<mlir::NamedAttribute, 1> attrs;
+      attrs.push_back(builder.getNamedAttr(
+          mlir::SymbolTable::getVisibilityAttrName(),
+          builder.getStringAttr("private")));
+      builder.create<mlir::emitc::FuncOp>(loc, declaration.name, functionType,
+                                          attrs);
+    }
+    return llvm::Error::success();
   }
 
   llvm::Expected<mlir::Value>

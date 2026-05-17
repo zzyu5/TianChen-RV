@@ -341,11 +341,11 @@ int runRegistrationAndCapabilityMetadataTest() {
           expect(manifest.emitcRoute.routeID == route.routeID &&
                      manifest.emitcRoute.emissionKind == route.emissionKind &&
                      manifest.emitcRoute.artifactKind == route.artifactKind &&
-                     route.artifactKind == "runtime-callable-c-header" &&
+                     route.artifactKind == "riscv-elf-relocatable-object" &&
                      manifest.evidenceProfile.contains(
                          "materialized_emitc_module"),
                  "TensorExtLite construction manifest records the EmitC route "
-                 "with bounded header artifact authority"))
+                 "with bounded object artifact authority"))
     return result;
   if (int result = expectSuccess(
           tianchenrv::plugin::tensorext_lite::
@@ -744,7 +744,7 @@ module {
                      emissionPlan.getEmissionKind() ==
                          routeMetadata.emissionKind &&
                      emissionPlan.getArtifactKind() ==
-                         "runtime-callable-c-header" &&
+                         "riscv-elf-relocatable-object" &&
                      emissionPlan.getRuntimeABI() ==
                          routeMetadata.runtimeABI &&
                      emissionPlan.getRuntimeABIKind() ==
@@ -756,7 +756,7 @@ module {
                      emissionPlan.getLoweringBoundaryOpName() ==
                          routeMetadata.loweringBoundaryOpName &&
                      emissionPlan.getExplanation().contains(
-                         "declaration-only header artifact") &&
+                         "relocatable object artifact") &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::tensorext_lite::
@@ -797,7 +797,7 @@ module {
                      llvm::StringRef(
                          emissionPlan.getArtifactMetadata()[7].value)
                          .contains("configure:tel.role.config"),
-                 "TensorExtLite emission plan is a supported header artifact "
+                 "TensorExtLite emission plan is a supported object artifact "
                  "candidate backed by EmitC route provenance"))
     return result;
 
@@ -812,6 +812,9 @@ module {
     return result;
   if (int result =
           expect(emitcRoute.getRouteID() == routeMetadata.routeID &&
+                     emitcRoute.getFunctionDeclarations().size() == 4 &&
+                     emitcRoute.getFunctionDeclarations()[0].name ==
+                         routeMetadata.configCallee &&
                      emitcRoute.getSourceOpProvenance().size() == 4 &&
                      emitcRoute.getCallOpaqueSteps().size() == 4 &&
                      emitcRoute.getSourceOpProvenance()[0].role ==

@@ -669,8 +669,8 @@ llvm::Error TensorExtLiteExtensionPlugin::estimateVariantCost(
   out.setExplanation(
       "TensorExtLite extension fragment first slice; route materializes an "
       "EmitC module from an explicit configure/load_frag/tile_mma/store_frag "
-      "role sequence, without target artifact, correctness, or performance "
-      "claim");
+      "role sequence and leaves object packaging to the selected target "
+      "artifact exporter, without runtime correctness or performance claim");
   out.setPolicy("prefer TensorExtLite only when explicit tensorext_lite.tile_mma capability "
                 "metadata is available");
   return llvm::Error::success();
@@ -757,7 +757,8 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
       constructionRoute.runtimeABI, constructionRoute.artifactKind,
       "TensorExtLite selected explicit role sequence materializes an EmitC "
       "module through the common TCRVEmitCLowerableRoute materializer and "
-      "exports a declaration-only header artifact for the first slice");
+      "packages the MLIR EmitC C/C++ emitter output as a relocatable object "
+      "artifact for the first slice");
   out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
   out.setRuntimeABIName(constructionRoute.runtimeABIName);
   out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);

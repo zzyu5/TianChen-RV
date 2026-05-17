@@ -1,6 +1,6 @@
 // RUN: tcrv-translate --tcrv-export-target-header-artifact %s | FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="descriptor" --implicit-check-not="source-export" --implicit-check-not="int main"
-// RUN: not tcrv-translate --tcrv-export-target-artifact %s 2>&1 | FileCheck %s --check-prefix=OBJECT-FAIL
-// RUN: not tcrv-translate --tcrv-tensorext-lite-emitc-to-cpp %s 2>&1 | FileCheck %s --check-prefix=CPP-MISSING-BOUNDARY --implicit-check-not="tcrv_tensorext_lite_config" --implicit-check-not="tcrv_tensorext_lite_tile_mma"
+// RUN: sed '/^    tcrv_tensorext_lite.lowering_boundary/d' %s | not tcrv-translate --tcrv-export-target-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-BOUNDARY --implicit-check-not="tcrv_tensorext_lite_config" --implicit-check-not="tcrv_tensorext_lite_tile_mma"
+// RUN: sed '/^    tcrv_tensorext_lite.lowering_boundary/d' %s | not tcrv-translate --tcrv-tensorext-lite-emitc-to-cpp 2>&1 | FileCheck %s --check-prefix=MISSING-BOUNDARY --implicit-check-not="tcrv_tensorext_lite_config" --implicit-check-not="tcrv_tensorext_lite_tile_mma"
 
 module {
   tcrv.exec.kernel @tensorext_lite_header_export {
@@ -29,6 +29,7 @@ module {
       tcrv_tensorext_lite.tile_mma_skeleton {origin = "tensorext-lite-plugin", required_capabilities = [@tensorext_lite_tile_mma], role = "direct variant", role_order = 2 : i64, role_specific_interface = "TCRVComputeOpInterface", selected_variant = @tensorext_lite_tile_mma_first_slice, source_kernel = "tensorext_lite_header_export", source_role = "tile_mma", status = "role-op-boundary", typed_role = "tel.role.tile_mma"}
       tcrv_tensorext_lite.store_frag_skeleton {origin = "tensorext-lite-plugin", required_capabilities = [@tensorext_lite_tile_mma], role = "direct variant", role_order = 3 : i64, role_specific_interface = "TCRVMemoryOpInterface", selected_variant = @tensorext_lite_tile_mma_first_slice, source_kernel = "tensorext_lite_header_export", source_role = "store_frag", status = "role-op-boundary", typed_role = "tel.role.store_frag"}
     }
+    tcrv_tensorext_lite.lowering_boundary {fragment_abi = "tensorext-lite-fragment-boundary.v1", handoff_kind = "tensorext-lite-fragment-mma-template", origin = "tensorext-lite-plugin", required_capabilities = [@tensorext_lite_tile_mma], role = "direct variant", selected_variant = @tensorext_lite_tile_mma_first_slice, source_kernel = "tensorext_lite_header_export", status = "no-active-route"}
     tcrv.exec.diagnostic {
       message = "selected TensorExtLite route",
       reason = "variant-selected",
@@ -38,7 +39,7 @@ module {
       target = @tensorext_lite_tile_mma_first_slice
     }
     tcrv.exec.diagnostic {
-      artifact_kind = "runtime-callable-c-header",
+      artifact_kind = "riscv-elf-relocatable-object",
       artifact_metadata = [
         {key = "tensorext_lite_emitc_lowerable_route", value = "tensorext-lite-fragment-mma-emitc-route"},
         {key = "tensorext_lite_role_sequence", value = "configure->load_frag->tile_mma->store_frag"},
@@ -52,7 +53,7 @@ module {
       emission_kind = "materialized-emitc-cpp-tensorext-lite-fragment-mma-module",
       lowering_boundary = "tcrv_tensorext_lite.lowering_boundary",
       lowering_pipeline = "tensorext-lite-fragment-mma-emitc-route",
-      message = "TensorExtLite selected explicit role sequence exports a declaration-only header artifact",
+      message = "TensorExtLite selected explicit role sequence materializes an EmitC module through the common TCRVEmitCLowerableRoute materializer and packages the MLIR EmitC C/C++ emitter output as a relocatable object artifact for the first slice",
       origin = "tensorext-lite-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",
@@ -86,7 +87,5 @@ module {
 // HEADER: void tcrv_emitc_tensorext_lite_header_export_tensorext_lite_tile_mma_first_slice(void);
 // HEADER: #endif
 
-// OBJECT-FAIL: requires exactly one supported target artifact emission-plan route; found none
-
-// CPP-MISSING-BOUNDARY: TensorExtLite materialized EmitC C/C++ emitter bridge failed
-// CPP-MISSING-BOUNDARY-SAME: requires one selected materialized tcrv_tensorext_lite.lowering_boundary before C/C++ emission
+// MISSING-BOUNDARY: TensorExtLite materialized EmitC C/C++ emitter bridge failed
+// MISSING-BOUNDARY-SAME: requires one selected materialized tcrv_tensorext_lite.lowering_boundary before C/C++ emission

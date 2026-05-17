@@ -281,11 +281,12 @@ applies to both direct selected-path diagnostics and selected
   `configure -> load_frag -> tile_mma -> store_frag` role sequence through the
   common `TCRVEmitCLowerableRoute` materializer and produce an MLIR EmitC
   module. The rebuilt first target artifact slice may publish exactly one
-  selected `runtime-callable-c-header` route derived from that materialized
-  EmitC handoff. This header route is declaration-only: it must not publish
-  metadata-only artifact authority, direct C/source-export bodies, TensorExtLite
-  object/bundle target artifact export, hardware execution, correctness, or
-  performance evidence.
+  selected `riscv-elf-relocatable-object` route derived from that materialized
+  EmitC handoff and the MLIR EmitC C/C++ emitter. The declaration-only
+  `runtime-callable-c-header` surface is a composite derived from the same
+  selected object candidate. Neither route may publish metadata-only artifact
+  authority, direct C/source-export bodies, TensorExtLite runtime execution,
+  correctness, or performance evidence.
 - Base: TensorExtLite source-front-door materialization may also create a
   direct `tcrv_tensorext_lite.lowering_boundary` marker so generic
   emission-plan and coherence gates can validate the selected path. The ordered
@@ -299,9 +300,10 @@ applies to both direct selected-path diagnostics and selected
 
 - Positive lit coverage for a retained selected-path target artifact route with
   a non-selected sibling variant when such a route exists.
-- Positive lit coverage for current RVV explicit typed bodies reaching
-  materialized EmitC and the MLIR EmitC C/C++ emitter without object/header
-  artifact route authority.
+- Positive lit coverage for current RVV and TensorExtLite explicit typed
+  bodies reaching materialized EmitC and the MLIR EmitC C/C++ emitter, with
+  object/header artifact route authority only where a route has been explicitly
+  rebuilt.
 - Negative lit coverage for ambiguous supported multi-variant candidates.
 - Negative lit coverage for unselected multi-variant input.
 - Negative lit coverage for unsupported selected RVV target artifact export
@@ -334,8 +336,8 @@ selected dispatch or selected-path diagnostic
 
 Use this contract when multiple extension-family target exporters need the same
 declaration-only runtime-callable C header artifact shape from a selected
-materialized EmitC route. Toy and TensorExtLite consume it as standalone header
-artifact routes. RVV may consume it as an object-backed composite header route
+materialized EmitC route. Toy consumes it as a standalone header artifact route.
+RVV and TensorExtLite may consume it as object-backed composite header routes
 when the selected materialized EmitC object candidate is already the production
 handoff authority and a route-local candidate preflight preserves the
 plugin-owned runtime ABI contract.
@@ -425,8 +427,10 @@ plugin-owned runtime ABI contract.
 ### 5. Good/Base/Bad Cases
 
 - Good: Toy and TensorExtLite provide only local config and metadata evidence
-  requirements; both call the same common header validator/exporter through
-  their production target artifact exporters.
+  requirements; Toy calls the common header validator/exporter through its
+  standalone header exporter, while TensorExtLite calls the same helper through
+  an object-backed header composite after validating the selected object
+  candidate.
 - Good: RVV provides local object route config, RVV-specific candidate
   preflight, dynamic runtime ABI identity mode, and required RVV provenance
   evidence; the production header exporter calls the common declaration-only
@@ -452,8 +456,8 @@ plugin-owned runtime ABI contract.
 - C++ negative coverage for missing/stale route metadata, wrong runtime ABI
   fields, unexpected or misordered ABI parameters, forbidden metadata, and
   missing plugin registration.
-- lit coverage for Toy and TensorExtLite positive header output through the
-  default target artifact front door.
+- lit coverage for Toy positive header output and TensorExtLite positive
+  object-backed header output through the target artifact front doors.
 - lit coverage proving header output includes origin plugin, selected variant,
   selected route, runtime ABI kind/name, ordered ABI parameters when present,
   source-op/interface provenance, construction protocol, semantic role graph,

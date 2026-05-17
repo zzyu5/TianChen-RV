@@ -233,7 +233,8 @@ path, source-export path, correctness claim, or performance path.
 - The TensorExtLite plugin owns the source marker interpretation, capability
   materialization, selected variant metadata, ordered role-op materialization,
   selected lowering-boundary marker, runtime ABI metadata, EmitC route
-  provenance, and declaration-only header artifact route configuration.
+  provenance, relocatable object route configuration, and object-backed
+  declaration-only header composite configuration.
 - The selected variant must use `origin = "tensorext-lite-plugin"`, require the
   `tensorext_lite.tile_mma` capability, preserve the existing TensorExtLite
   construction protocol metadata, and contain the role sequence in
@@ -248,9 +249,11 @@ path, source-export path, correctness claim, or performance path.
 - The source marker and optional source-kernel attribute are front-door input
   syntax only. They must be removed or cease to be route authority after
   materialization.
-- The resulting selected path may export only the existing TensorExtLite
-  materialized-EmitC-derived declaration header artifact. Object, bundle,
-  runtime execution, correctness, and performance claims remain out of scope.
+- The resulting selected path may export the TensorExtLite
+  materialized-EmitC-derived relocatable object artifact, plus the
+  declaration-only header composite derived from the same selected object
+  candidate. Bundle, runtime execution, correctness, and performance claims
+  remain out of scope.
 
 ### 4. Validation & Error Matrix
 
@@ -272,7 +275,7 @@ path, source-export path, correctness claim, or performance path.
   validation before plugin emission routing.
 - Missing route provenance, stale artifact metadata, descriptor/direct-C/
   source-export residue, or missing materialized EmitC handoff -> fail before
-  header artifact output.
+  object or header artifact output.
 
 ### 5. Good/Base/Bad Cases
 
@@ -280,7 +283,8 @@ path, source-export path, correctness claim, or performance path.
   TensorExtLite variant, the ordered role sequence, one direct
   `tcrv_tensorext_lite.lowering_boundary`, a selected diagnostic, supported
   TensorExtLite emission-plan metadata, TensorExtLite EmitC route provenance,
-  and the declaration-only header artifact.
+  the relocatable object artifact, and the declaration-only header composite
+  derived from the same selected object candidate.
 - Base: already materialized TensorExtLite role-sequence inputs remain valid
   backend-first inputs when they satisfy selected-path, emission-plan, and
   target artifact contracts.
@@ -300,7 +304,10 @@ path, source-export path, correctness claim, or performance path.
   `tcrv_tensorext_lite.lowering_boundary`, runtime ABI ownership metadata,
   supported emission plan, and TensorExtLite EmitC route provenance.
 - lit/FileCheck target artifact coverage piping the TensorExtLite
-  source-front-door pipeline to `--tcrv-export-target-header-artifact`.
+  source-front-door pipeline to `--tcrv-export-target-artifact`, proving a
+  relocatable object with `llvm-readobj`, and to
+  `--tcrv-export-target-header-artifact`, proving the declaration-only header
+  stays derived from the selected materialized EmitC object candidate.
 - Negative coverage for disabled built-ins, malformed TensorExtLite source
   marker, stale pre-materialized selected-boundary residue, missing/reordered
   role ops, missing boundary/route provenance, and absence of descriptor/
@@ -326,7 +333,8 @@ TensorExtLite source marker
   -> ordered TensorExtLite role ops + TensorExtLite lowering-boundary marker
   -> TensorExtLite-owned EmitC route provenance
   -> common emission-plan/coherence checks
-  -> TensorExtLite declaration-only header artifact validation
+  -> TensorExtLite relocatable object artifact validation
+  -> TensorExtLite declaration-only header composite validation
 ```
 
 ### TCRV Common Operation Interfaces

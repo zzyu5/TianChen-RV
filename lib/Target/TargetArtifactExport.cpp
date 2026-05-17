@@ -1441,6 +1441,8 @@ llvm::Expected<mlir::emitc::FuncOp> getSingleMaterializedEmitCHeaderFunction(
   mlir::emitc::FuncOp selectedFunc;
   unsigned functionCount = 0;
   module->walk([&](mlir::emitc::FuncOp func) {
+    if (func.getBody().empty())
+      return;
     ++functionCount;
     if (func.getSymName() == expectedFunctionName)
       selectedFunc = func;

@@ -181,6 +181,10 @@ llvm::Error buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
       constructionRoute.routeID,
       "extension-family-role-sequence-to-emitc-call-opaque");
   route.addHeader("stdint.h");
+  route.addFunctionDeclaration(constructionRoute.configCallee);
+  route.addFunctionDeclaration(constructionRoute.loadFragCallee);
+  route.addFunctionDeclaration(constructionRoute.tileMmaCallee);
+  route.addFunctionDeclaration(constructionRoute.storeFragCallee);
 
   llvm::SmallVector<emitc::TCRVEmitCSourceOpProvenance, 4> sources;
   for (const TensorExtLiteSelectedRoleStep &step : *steps) {

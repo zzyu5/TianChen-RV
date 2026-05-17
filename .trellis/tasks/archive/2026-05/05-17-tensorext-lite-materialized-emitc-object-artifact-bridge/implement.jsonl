@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack, unified extension-family, and descriptor/direct-C boundaries"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "TensorExtLite source-front-door and plugin-owned route/interface rules"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Selected emission-plan to target artifact handoff and materialized EmitC object/header route contracts"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime boundary, clang/LLVM default compiler, and old unsupported TensorExtLite object wording to update"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/readobj evidence expectations for target artifact behavior"}

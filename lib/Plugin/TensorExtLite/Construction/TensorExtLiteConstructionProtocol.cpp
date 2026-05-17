@@ -62,7 +62,7 @@ constexpr llvm::StringLiteral kTensorExtLiteRouteID(
 constexpr llvm::StringLiteral kTensorExtLiteEmissionKind(
     "materialized-emitc-cpp-tensorext-lite-fragment-mma-module");
 constexpr llvm::StringLiteral kTensorExtLiteArtifactKind(
-    "runtime-callable-c-header");
+    "riscv-elf-relocatable-object");
 constexpr llvm::StringLiteral kTensorExtLiteRuntimeABI(
     "tensorext-lite-fragment-mma-runtime-c-abi.v1");
 constexpr llvm::StringLiteral kTensorExtLiteRuntimeABIKind(

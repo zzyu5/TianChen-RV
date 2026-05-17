@@ -16,6 +16,7 @@ class ExtensionBundle;
 namespace tianchenrv::target::tensorext_lite {
 
 llvm::StringRef getTensorExtLiteMaterializedEmitCHeaderArtifactRouteID();
+llvm::StringRef getTensorExtLiteMaterializedEmitCTargetArtifactRouteID();
 llvm::StringRef getTensorExtLiteEmitCToCppTranslateRouteID();
 
 llvm::Error registerTensorExtLiteTargetSupportPluginTargetExporterBundles(

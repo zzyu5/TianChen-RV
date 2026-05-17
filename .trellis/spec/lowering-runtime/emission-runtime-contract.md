@@ -398,15 +398,19 @@ emission, or target artifact route.
 - Target artifact exporter registration, composite exporter registration,
   selected target artifact candidate validation, and bundle record validation
   must reject `metadata-diagnostic`.
-- Toy and TensorExtLite construction manifests may keep their common
-  in-memory EmitC route identity, but their artifact kind must be an
-  unsupported diagnostic, not a supported artifact.
+- Toy construction manifests may keep their common in-memory EmitC route
+  identity with an unsupported diagnostic artifact kind. TensorExtLite
+  construction manifests may name the rebuilt first-slice
+  `riscv-elf-relocatable-object` route, but only when that route is backed by
+  the materialized EmitC module, MLIR EmitC C/C++ emitter, and target artifact
+  object packager rather than metadata-only authority.
 - TensorExtLite may materialize an in-memory EmitC route through the common
-  `TCRVEmitCLowerableRoute` materializer. Once its first-slice target route is
-  rebuilt, the only supported TensorExtLite target artifact kind is the
-  materialized-EmitC-derived declaration header. TensorExtLite object, bundle,
-  runtime execution, correctness, and performance claims remain unsupported
-  until separately rebuilt and evidenced.
+  `TCRVEmitCLowerableRoute` materializer. Its rebuilt first-slice target route
+  produces a `riscv-elf-relocatable-object` from the materialized EmitC module
+  through the MLIR EmitC C/C++ emitter and local clang. Its declaration-only
+  `runtime-callable-c-header` is a composite derived from the same selected
+  object candidate. TensorExtLite bundle, runtime execution, correctness, and
+  performance claims remain unsupported until separately rebuilt and evidenced.
 - Unsupported emission-plan diagnostics still carry bounded unsupported runtime
   ABI ownership metadata: `unsupported-plugin-runtime-abi`,
   `unsupported-emission-runtime-abi`, and `no-runtime-glue-unsupported`.
@@ -425,17 +429,19 @@ emission, or target artifact route.
   materialization -> fail closed because unsupported diagnostics are not target
   artifact candidates.
 - Supported TensorExtLite plan uses any artifact kind other than the rebuilt
-  materialized-EmitC-derived header -> fail closed before target artifact
-  output.
+  materialized-EmitC-derived relocatable object route, or a header is requested
+  without the matching selected object candidate -> fail closed before target
+  artifact output.
 
 #### 5. Good/Base/Bad Cases
 
 - Good: RVV rebuilt materialized EmitC object/header bundle exports use object
   and header artifact kinds only.
 - Base: Toy route materializers can still prove in-memory EmitC
-  materialization without publishing target artifact authority. TensorExtLite
-  may publish only its rebuilt materialized-EmitC-derived declaration header
-  route; all object/runtime claims remain absent.
+  materialization without publishing object artifact authority. TensorExtLite
+  may publish only its rebuilt materialized-EmitC-derived relocatable object
+  route and object-backed declaration header composite; all runtime correctness
+  and performance claims remain absent.
 - Bad: Toy, TensorExtLite, Offload, Template, or test-local routes publish
   `metadata-diagnostic` as a supported artifact, exporter, bundle component, or
   manifest equality authority.
@@ -445,13 +451,14 @@ emission, or target artifact route.
 - C++ common construction test proving `metadata-diagnostic` is rejected.
 - C++ plugin emission-plan test proving a supported plan with
   `metadata-diagnostic` is rejected.
-- C++ Toy and TensorExtLite plugin tests proving construction manifests use
-  unsupported diagnostics while EmitC route materialization remains separate.
+- C++ Toy and TensorExtLite plugin tests proving construction manifests reject
+  `metadata-diagnostic`; Toy remains unsupported while TensorExtLite names only
+  its rebuilt materialized EmitC object route.
 - C++ target artifact export test proving `metadata-diagnostic` exporter
   registration is rejected.
-- lit coverage proving TensorExtLite target artifact export finds no supported
-  artifact route and combined unsupported-plan plus EmitC-route materialization
-  fails closed.
+- lit coverage proving TensorExtLite target artifact export produces a
+  relocatable object readable by `llvm-readobj`, while stale,
+  non-materialized, missing-boundary, or unsupported-plan inputs fail closed.
 
 #### 7. Wrong vs Correct
 

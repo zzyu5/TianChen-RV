@@ -1,6 +1,7 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -91,6 +92,17 @@ void TCRVEmitCLowerableRoute::addABIValueMapping(
   abiMappings.push_back({parameter, valueName.str()});
 }
 
+void TCRVEmitCLowerableRoute::addFunctionDeclaration(
+    llvm::StringRef name, llvm::StringRef resultCType,
+    llvm::ArrayRef<llvm::StringRef> parameterCTypes) {
+  TCRVEmitCFunctionDeclaration declaration;
+  declaration.name = name.str();
+  declaration.resultCType = resultCType.str();
+  for (llvm::StringRef parameterCType : parameterCTypes)
+    declaration.parameterCTypes.push_back(parameterCType.str());
+  functionDeclarations.push_back(std::move(declaration));
+}
+
 void TCRVEmitCLowerableRoute::addSourceOpProvenance(
     TCRVEmitCSourceOpProvenance sourceOp) {
   sourceOpProvenance.push_back(std::move(sourceOp));
@@ -176,6 +188,30 @@ llvm::Error TCRVEmitCLowerableRoute::verify() const {
       return error;
     if (llvm::Error error =
               validateText(routeID, "ABI mapping value name", mapping.valueName))
+        return error;
+  }
+
+  llvm::StringSet<> declaredFunctions;
+  for (const TCRVEmitCFunctionDeclaration &declaration :
+       functionDeclarations) {
+    if (llvm::Error error =
+            validateText(routeID, "function declaration name",
+                         declaration.name))
+      return error;
+    if (!declaredFunctions.insert(declaration.name).second)
+      return makeRouteError(routeID,
+                            llvm::Twine("duplicate function declaration '") +
+                                declaration.name + "'");
+    if (!declaration.resultCType.empty() &&
+        declaration.resultCType != "void")
+      if (llvm::Error error =
+              validateText(routeID, "function declaration result C type",
+                           declaration.resultCType))
+        return error;
+    for (llvm::StringRef parameterCType : declaration.parameterCTypes)
+      if (llvm::Error error =
+              validateText(routeID, "function declaration parameter C type",
+                           parameterCType))
         return error;
   }
 

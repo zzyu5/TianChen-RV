@@ -60,7 +60,7 @@ module attributes {
 // PLAN-SAME: message = "selected TensorExtLite source front-door route"
 // PLAN-SAME: reason = "variant-selected"
 // PLAN: tcrv.exec.diagnostic
-// PLAN-SAME: artifact_kind = "runtime-callable-c-header"
+// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN: {key = "tensorext_lite_emitc_lowerable_route", value = "tensorext-lite-fragment-mma-emitc-route"}
 // PLAN: {key = "tensorext_lite_role_sequence", value = "configure->load_frag->tile_mma->store_frag"}
 // PLAN: {key = "tensorext_lite_source_ops", value = "tcrv_tensorext_lite.config_skeleton->tcrv_tensorext_lite.load_frag_skeleton->tcrv_tensorext_lite.tile_mma_skeleton->tcrv_tensorext_lite.store_frag_skeleton"}

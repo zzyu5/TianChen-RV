@@ -33,7 +33,7 @@ module {
 }
 
 // PLAN: tcrv.exec.diagnostic
-// PLAN-SAME: artifact_kind = "runtime-callable-c-header"
+// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: artifact_metadata = [{key = "tensorext_lite_emitc_lowerable_route", value = "tensorext-lite-fragment-mma-emitc-route"}
 // PLAN-SAME: {key = "tensorext_lite_role_sequence", value = "configure->load_frag->tile_mma->store_frag"}
 // PLAN-SAME: {key = "tensorext_lite_source_ops", value = "tcrv_tensorext_lite.config_skeleton->tcrv_tensorext_lite.load_frag_skeleton->tcrv_tensorext_lite.tile_mma_skeleton->tcrv_tensorext_lite.store_frag_skeleton"}
@@ -46,7 +46,7 @@ module {
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-tensorext-lite-fragment-mma-module"
 // PLAN-SAME: lowering_boundary = "tcrv_tensorext_lite.lowering_boundary"
 // PLAN-SAME: lowering_pipeline = "tensorext-lite-fragment-mma-emitc-route"
-// PLAN-SAME: message = "TensorExtLite selected explicit role sequence materializes an EmitC module through the common TCRVEmitCLowerableRoute materializer and exports a declaration-only header artifact for the first slice"
+// PLAN-SAME: message = "TensorExtLite selected explicit role sequence materializes an EmitC module through the common TCRVEmitCLowerableRoute materializer and packages the MLIR EmitC C/C++ emitter output as a relocatable object artifact for the first slice"
 // PLAN-SAME: origin = "tensorext-lite-plugin"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: runtime_abi = "tensorext-lite-fragment-mma-runtime-c-abi.v1"
@@ -57,6 +57,10 @@ module {
 // PLAN-SAME: target = @tensorext_lite_tile_mma_first_slice
 
 // EMITC: emitc.include <"stdint.h">
+// EMITC: emitc.func private @tcrv_tensorext_lite_config()
+// EMITC: emitc.func private @tcrv_tensorext_lite_load_frag()
+// EMITC: emitc.func private @tcrv_tensorext_lite_tile_mma()
+// EMITC: emitc.func private @tcrv_tensorext_lite_store_frag()
 // EMITC: emitc.func @tcrv_emitc_tensorext_lite_emitc_kernel_tensorext_lite_tile_mma_first_slice
 // EMITC-NOT: riscv_vector.h
 // EMITC: tcrv_emitc.route_source_op=tcrv_tensorext_lite.config_skeleton role=configure op_interface=TCRVEmitCLowerableOpInterface

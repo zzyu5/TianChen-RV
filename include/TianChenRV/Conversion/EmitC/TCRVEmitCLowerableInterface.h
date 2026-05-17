@@ -27,6 +27,12 @@ struct TCRVEmitCABIValueMapping {
   std::string valueName;
 };
 
+struct TCRVEmitCFunctionDeclaration {
+  std::string name;
+  std::string resultCType;
+  llvm::SmallVector<std::string, 4> parameterCTypes;
+};
+
 struct TCRVEmitCSourceOpProvenance {
   std::string opName;
   std::string role;
@@ -75,6 +81,9 @@ public:
   llvm::ArrayRef<TCRVEmitCABIValueMapping> getABIMappings() const {
     return abiMappings;
   }
+  llvm::ArrayRef<TCRVEmitCFunctionDeclaration> getFunctionDeclarations() const {
+    return functionDeclarations;
+  }
   llvm::ArrayRef<TCRVEmitCSourceOpProvenance> getSourceOpProvenance() const {
     return sourceOpProvenance;
   }
@@ -87,6 +96,9 @@ public:
   void addTypeMapping(llvm::StringRef sourceType, llvm::StringRef cType);
   void addABIValueMapping(const support::RuntimeABIParameter &parameter,
                           llvm::StringRef valueName);
+  void addFunctionDeclaration(
+      llvm::StringRef name, llvm::StringRef resultCType = {},
+      llvm::ArrayRef<llvm::StringRef> parameterCTypes = {});
   void addSourceOpProvenance(TCRVEmitCSourceOpProvenance sourceOp);
   void addCallOpaqueStep(TCRVEmitCCallOpaqueStep step);
   void addForLoop(TCRVEmitCForLoop loop);
@@ -99,6 +111,7 @@ private:
   llvm::SmallVector<TCRVEmitCHeaderRequirement, 4> headers;
   llvm::SmallVector<TCRVEmitCTypeMapping, 4> typeMappings;
   llvm::SmallVector<TCRVEmitCABIValueMapping, 6> abiMappings;
+  llvm::SmallVector<TCRVEmitCFunctionDeclaration, 8> functionDeclarations;
   llvm::SmallVector<TCRVEmitCSourceOpProvenance, 8> sourceOpProvenance;
   llvm::SmallVector<TCRVEmitCCallOpaqueStep, 8> callOpaqueSteps;
   llvm::SmallVector<TCRVEmitCForLoop, 2> forLoops;
