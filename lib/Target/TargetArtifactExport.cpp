@@ -1521,6 +1521,10 @@ void printMaterializedEmitCHeaderDeclaration(
   }
 
   os << "\n";
+  os << "#ifdef __cplusplus\n";
+  os << "extern \"C\" {\n";
+  os << "#endif\n";
+  os << "\n";
   os << "void " << functionName << "(";
   if (candidate.runtimeABIParameters.empty()) {
     os << "void";
@@ -1533,6 +1537,10 @@ void printMaterializedEmitCHeaderDeclaration(
     }
   }
   os << ");\n";
+  os << "\n";
+  os << "#ifdef __cplusplus\n";
+  os << "} /* extern \"C\" */\n";
+  os << "#endif\n";
   os << "\n";
   os << "#endif /* " << config.headerGuard << " */\n";
 }
@@ -1710,6 +1718,7 @@ materializeSelectedEmitCArtifactModule(
   else
     options.functionName =
         makeSelectedEmitCArtifactFunctionName(target->kernel, target->variant);
+  options.emitExternC = true;
   llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
       conversion::emitc::materializeTCRVEmitCLowerableRoute(
           *module.getContext(), *route, options);

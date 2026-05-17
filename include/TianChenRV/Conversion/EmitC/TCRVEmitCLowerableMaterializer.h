@@ -17,6 +17,7 @@ namespace tianchenrv::conversion::emitc {
 struct TCRVEmitCMaterializationOptions {
   std::string functionName = "tcrv_emitc_route";
   llvm::SmallVector<std::string, 4> implicitValueNames;
+  bool emitExternC = false;
   bool verifyModule = true;
 };
 

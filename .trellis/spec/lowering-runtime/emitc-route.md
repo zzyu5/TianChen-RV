@@ -476,3 +476,103 @@ plugin-local config and evidence keys
   -> common selected EmitC materialization and function-boundary check
   -> common declaration-only header renderer
 ```
+
+## Scenario: Runtime-Callable C ABI Linkage
+
+### 1. Scope / Trigger
+
+Use this contract when a selected materialized EmitC target artifact route
+publishes a runtime-callable C header, a RISC-V relocatable object, or a
+coherent object+header bundle for external consumption.
+
+This scenario is triggered by any route whose artifact metadata or bundle
+metadata claims a callable C ABI, including names such as
+`runtime-callable-c-header` or `*-callable-c-abi.v1`.
+
+### 2. Signatures
+
+- Common materializer option:
+  `TCRVEmitCMaterializationOptions::emitExternC`.
+- EmitC function linkage surface:
+  `emitc.func ... attributes {specifiers = ["extern", "\"C\""]}`.
+- Generated C header C++ compatibility wrapper:
+  `#ifdef __cplusplus` / `extern "C" {` / `#endif`.
+- Expected exported object symbol:
+  the unmangled selected function name, for example
+  `tcrv_emitc_seed_kernel_seed_rvv_i32_add`.
+
+### 3. Contracts
+
+- Runtime-callable C headers must be usable from both C and C++ callers.
+- A generated header must wrap public declarations in an `extern "C"` guard
+  when included from C++, while remaining valid C when included from C.
+- A matching relocatable object must define the same public function with C
+  linkage. It must not rely on C++ name mangling for the callable ABI.
+- Target artifact materialization may still use the MLIR EmitC C/C++ emitter
+  and a C++ source suffix internally, but callable boundary functions intended
+  for object/header export must carry `emitExternC` into the materialized
+  `emitc.func` specifiers.
+- Runtime ABI name, ordered ABI parameters, header declaration, bundle index,
+  and object symbol table must all describe the same callable boundary.
+- C linkage does not authorize direct C semantic exporters, handwritten compute
+  bodies, descriptor-driven route selection, source-export routes, or common
+  code branches on RVV/IME/offload semantics.
+
+### 4. Validation & Error Matrix
+
+- Header declares a runtime-callable C ABI but lacks C++ `extern "C"` guards
+  -> reject in review or update header tests before accepting the route.
+- Object symbol table contains only a C++-mangled selected function symbol for
+  a callable C ABI route -> route is not externally consumable as C ABI.
+- Header declaration name and object global symbol disagree -> fail the
+  external ABI proof before claiming runtime/correctness evidence.
+- Bundle index runtime ABI parameter order disagrees with the header
+  declaration or harness call order -> fail before remote execution evidence.
+- External C harness cannot compile and link against the generated header and
+  generated object on the target machine -> no callable C ABI claim.
+
+### 5. Good/Base/Bad Cases
+
+- Good: RVV source-seed selected add exports a header with `extern "C"` guards,
+  a RISC-V object whose symbol table contains
+  `tcrv_emitc_seed_kernel_seed_rvv_i32_add`, and a C harness compiled with
+  `clang` on `ssh rvv` links and prints a bounded `PASS`.
+- Base: C++ callers may include the same generated header; the guard preserves
+  the same C ABI symbol rather than choosing a C++ ABI.
+- Bad: the generated object exposes only a symbol such as
+  `_Z39tcrv_emitc_seed_kernel_seed_rvv_i32_add...` while the route calls
+  itself `runtime-callable-c-header` or `callable-c-abi`.
+
+### 6. Tests Required
+
+- Focused local target artifact tests must inspect the generated object symbol
+  table with `llvm-readobj --symbols` or equivalent and assert the unmangled
+  selected function name is present.
+- Header lit/C++ tests must assert the `extern "C"` guard is present around the
+  public declaration for runtime-callable C header routes.
+- Bundle tests must continue to check object/header component coherence,
+  external ABI name, runtime ABI kind/name, and ordered ABI parameters.
+- Any runtime/correctness claim must include real `ssh rvv` evidence where a C
+  harness includes the generated header, links the generated object, executes,
+  and observes a bounded `PASS`.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+EmitC C++ emitter output
+  -> C++-mangled object symbol
+  -> header called runtime-callable C
+  -> only C++ harness can link
+```
+
+Correct:
+
+```text
+selected materialized EmitC artifact route
+  -> emitc.func with extern "C" specifier
+  -> generated header with C++ extern guard
+  -> object with unmangled C symbol
+  -> external C harness links and runs on ssh rvv
+```

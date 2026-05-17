@@ -1797,3 +1797,66 @@ the RVV object exporter and coherent object+header bundle composition.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 99: RVV generated artifact bundle C ABI proof
+
+**Date**: 2026-05-17
+**Task**: RVV generated artifact bundle C ABI proof
+**Branch**: `main`
+
+### Summary
+
+Made the selected RVV source-seed object/header bundle externally consumable as a true C ABI product and proved it with a C harness on ssh rvv.
+
+### Main Changes
+
+### Main Changes
+
+- Added `emitExternC` to the common EmitC route materializer and enabled it for selected target artifact materialization so runtime-callable object exports define unmangled C symbols.
+- Updated the common materialized EmitC header exporter to wrap runtime-callable declarations in C++ `extern "C"` guards while keeping the header valid C.
+- Strengthened RVV source-seed target artifact lit coverage to assert the generated object exports the unmangled `tcrv_emitc_seed_kernel_seed_rvv_i32_add` symbol and that the header carries extern guards.
+- Recorded the durable C ABI linkage rule in lowering-runtime and testing specs.
+- Generated evidence under `artifacts/tmp/rvv_generated_artifact_bundle_link_run_abi_proof/20260517T014226Z/` with bundle artifacts, harness source, command record, local readobj/nm output, and `ssh rvv` compile/link/run log.
+
+### Evidence
+
+- Remote command compiled a C harness with `clang -O2 -march=rv64gcv -mabi=lp64d`, linked the generated bundle object, and ran on `ssh rvv`.
+- Remote output: `PASS tcrv_rvv_i32m1_add_bundle_c_abi n=257`.
+- Local `llvm-nm -g` output for the generated object contains unmangled `tcrv_emitc_seed_kernel_seed_rvv_i32_add`.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit filter for source-seed RVV target artifacts plus Toy/TensorExtLite target artifact headers: 4/4 passed.
+- [OK] `cmake --build build --target tianchenrv-emitc-lowerable-interface-test tianchenrv-toy-extension-plugin-test tianchenrv-tensorext-lite-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-emitc-lowerable-interface-test && ./build/bin/tianchenrv-toy-extension-plugin-test && ./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- [OK] `git diff --check`
+- [OK] targeted scans showed no descriptor/direct-C/source-export/legacy RVV route authority introduced; remaining hits are rejection text or CHECK-NOT assertions.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 102/102 lit tests passed.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-17-rvv-generated-artifact-bundle-link-run-abi-proof`
+
+### Status
+
+[OK] Completed and archived.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

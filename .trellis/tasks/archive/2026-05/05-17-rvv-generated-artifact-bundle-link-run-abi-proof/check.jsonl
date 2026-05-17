@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global stack, unified extension-family, and descriptor/direct-C red lines."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check selected target artifact route, object/header coherence, and common EmitC header behavior."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check no deleted direct-C/source-export/descriptor route authority was restored."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV materialized EmitC route boundary and hardware evidence claim scope."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check local coverage versus real ssh rvv evidence requirements for runtime/correctness claims."}
+{"file": ".trellis/tasks/archive/2026-05/05-17-rvv-generated-artifact-bundle-link-run-abi-proof/prd.md", "reason": "Check all acceptance criteria and non-goals for this round."}

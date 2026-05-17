@@ -229,8 +229,13 @@ public:
 
     mlir::FunctionType functionType =
         builder.getFunctionType(inputTypes, llvm::ArrayRef<mlir::Type>{});
+    llvm::SmallVector<mlir::NamedAttribute, 1> functionAttrs;
+    if (options.emitExternC) {
+      functionAttrs.push_back(builder.getNamedAttr(
+          "specifiers", builder.getStrArrayAttr({"extern", "\"C\""})));
+    }
     mlir::emitc::FuncOp function = builder.create<mlir::emitc::FuncOp>(
-        loc, options.functionName, functionType);
+        loc, options.functionName, functionType, functionAttrs);
     mlir::Block *entry = new mlir::Block();
     function.getBody().push_back(entry);
     for (mlir::Type type : inputTypes)

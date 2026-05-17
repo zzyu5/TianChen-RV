@@ -25,5 +25,11 @@
 // HEADER: tianchenrv.rvv.pointer_advance: offset
 // HEADER: tianchenrv.rvv.bounded_slice: multi-vl-i32m1-arithmetic
 // HEADER: tianchenrv.rvv.multi_vl: supported
+// HEADER: #ifdef __cplusplus
+// HEADER: extern "C" {
+// HEADER: #endif
 // HEADER: void tcrv_emitc_seed_kernel_seed_rvv_i32_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
+// HEADER: #ifdef __cplusplus
+// HEADER: } /* extern "C" */
+// HEADER: #endif
 // HEADER: #endif

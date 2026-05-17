@@ -5,12 +5,15 @@
 // RUN: rm -rf %t.bundle && mkdir %t.bundle
 // RUN: tcrv-opt %S/../../Transforms/RVV/rvv-i32m1-selected-boundary-seed.mlir --tcrv-source-seed-artifact-front-door-pipeline | tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.bundle | FileCheck %s --check-prefix=BUNDLE-STDOUT
 // RUN: llvm-readobj -h %t.bundle/artifact-0-riscv-elf-relocatable-object-rvv-i32m1-arithmetic-emitc-route-family.o | FileCheck %s --check-prefix=OBJECT
+// RUN: llvm-readobj --symbols %t.bundle/artifact-0-riscv-elf-relocatable-object-rvv-i32m1-arithmetic-emitc-route-family.o | FileCheck %s --check-prefix=SYMBOL --implicit-check-not="_Z39tcrv_emitc_seed_kernel_seed_rvv_i32_add"
 // RUN: FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="vint32m1_t" --implicit-check-not="return;" --implicit-check-not="int main" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-direct-microkernel" < %t.bundle/artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h
 // RUN: FileCheck %s --check-prefix=BUNDLE-INDEX < %t.bundle/tianchenrv-target-artifact-bundle.index
 
 // OBJECT: Format: elf64-littleriscv
 // OBJECT: Arch: riscv64
 // OBJECT: Type: Relocatable
+
+// SYMBOL: Name: tcrv_emitc_seed_kernel_seed_rvv_i32_add
 
 // BUNDLE-STDOUT: tianchenrv.target_artifact_bundle_export: complete
 // BUNDLE-STDOUT: index_file: "tianchenrv-target-artifact-bundle.index"
@@ -38,7 +41,13 @@
 // HEADER: tianchenrv.rvv.pointer_advance: offset
 // HEADER: tianchenrv.rvv.bounded_slice: multi-vl-i32m1-arithmetic
 // HEADER: tianchenrv.rvv.multi_vl: supported
+// HEADER: #ifdef __cplusplus
+// HEADER: extern "C" {
+// HEADER: #endif
 // HEADER: void tcrv_emitc_seed_kernel_seed_rvv_i32_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
+// HEADER: #ifdef __cplusplus
+// HEADER: } /* extern "C" */
+// HEADER: #endif
 
 // BUNDLE-INDEX: tianchenrv.target_artifact_bundle.version: 1
 // BUNDLE-INDEX: bundle_status: "complete"

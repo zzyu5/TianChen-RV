@@ -474,7 +474,12 @@ claim must use real `ssh rvv` evidence
 where only the generated source, generated header, generated object, and
 generated caller are copied to the RVV host, the generated source and caller are
 compiled there, the caller is linked and run against the source-built object and
-the generated bundle object, and the bounded success marker is observed.
+the generated bundle object, and the bounded success marker is observed. For a
+runtime-callable C ABI bundle, local symbol-table checks must prove the object
+exposes the unmangled generated function name, the generated header must use a
+C++ `extern "C"` guard around the declaration, and the real RVV evidence must
+include a C harness compiled with `clang` against the generated header and
+object.
 
 If the repository provides an end-to-end helper for that explicit microkernel
 route, it remains Python runner/evidence tooling only. Local lit coverage must
