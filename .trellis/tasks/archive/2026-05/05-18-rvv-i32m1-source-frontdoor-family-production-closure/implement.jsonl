@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries, compiler stack, descriptor/direct-C prohibitions, and spec routing."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin source-front-door and bounded i32m1 add/sub/mul execution slice constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route, selected emission-plan target artifact handoff, and source-artifact bundle front-door contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime boundaries and deleted metadata-driven/direct-C source authority rules."}

@@ -46,6 +46,75 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 127: RVV source-front-door i32m1 arithmetic family production closure
+
+**Date**: 2026-05-18
+**Task**: RVV source-front-door i32m1 arithmetic family production closure
+**Branch**: `main`
+
+### Summary
+
+Closed the existing bounded RVV source-front-door add/sub/mul family as one
+truthful production evidence surface. The production C++ path was already
+sufficient; this round replaced add-only dry-run coverage with full-family
+generated-bundle ABI evidence and refreshed real `ssh rvv` correctness evidence
+for add, sub, and mul.
+
+### Main Changes
+
+- Created Trellis task
+  `05-18-rvv-i32m1-source-frontdoor-family-production-closure` from the
+  Direction Brief and wrote the PRD before implementation.
+- Inventoried the RVV source front door, EmitC route provider, construction
+  protocol, target bundle, planning pipeline, fixtures, and evidence script.
+  The compiler path already carried add/sub/mul through the production
+  source-artifact bundle front door.
+- Renamed and expanded the generated-bundle ABI script lit coverage from
+  add-only to full-family:
+  `test/Scripts/rvv-generated-bundle-abi-e2e-source-family-dry-run.test`.
+- The new lit coverage validates root evidence for add/sub/mul and per-op
+  evidence/harness files for selected variant, runtime ABI name, external C ABI
+  prototype, runtime-count contract, generated bundle front door, and PASS
+  markers.
+- Refreshed real `ssh rvv` evidence under
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260518T-rvv-source-frontdoor-family-add-sub-mul`.
+  The remote run printed PASS markers for add, sub, and mul with counts
+  `7,16,23`.
+- Spec update review found no `.trellis/spec/` edit required.
+
+### Git Commits
+
+- Pending final coherent commit for this session.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-18-rvv-i32m1-source-frontdoor-family-production-closure`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `cmake --build build --target tcrv-translate tcrv-opt -j2`
+- [OK] focused lit passed 8/8 for the generated-bundle ABI self-test, new
+  source-family dry-run, RVV source-artifact bundle front door,
+  vector-source target artifact exporter, and add/sub/mul source-front-door
+  fixtures.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --artifact-root artifacts/tmp/rvv_generated_bundle_abi_e2e --run-id 20260518T-rvv-source-frontdoor-family-add-sub-mul --overwrite --op-kind add --op-kind sub --op-kind mul --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-translate build/bin/tcrv-translate --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj --ssh-target rvv --timeout 180 --connect-timeout 10`
+- [OK] `git diff --check`
+- [OK] Old manual pipe scan found no `source-artifact-front-door-pipeline`,
+  `tcrv-export-target-artifact-bundle`, `tcrv_opt`, or `--tcrv-opt` in
+  `scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] Targeted residue scan found only negative FileCheck assertions,
+  explicit rejection lists/self-tests, and RVV target fail-closed rejection
+  code.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 125/125.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 126: RVV source-front-door generated-bundle runtime ABI bridge
 
 **Date**: 2026-05-18
