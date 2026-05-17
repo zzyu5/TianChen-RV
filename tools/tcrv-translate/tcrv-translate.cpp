@@ -19,8 +19,9 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Tools/mlir-translate/MlirTranslateMain.h"
 #include "mlir/Tools/mlir-translate/Translation.h"
-#include "llvm/Support/Error.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -41,9 +42,16 @@ llvm::cl::opt<std::string> targetArtifactBundleOutputDirectory(
     llvm::cl::desc("output directory for target artifact bundle export"),
     llvm::cl::value_desc("directory"), llvm::cl::init(""));
 
+llvm::cl::opt<bool> disableBuiltinPlugins(
+    "tcrv-disable-builtin-plugins",
+    llvm::cl::desc("Run tcrv-translate with an empty extension plugin registry"),
+    llvm::cl::init(false));
+
 llvm::Error populateBuiltinExtensionFrontDoor(
     tianchenrv::plugin::ExtensionBundleRegistry &bundles,
     tianchenrv::plugin::ExtensionPluginRegistry &plugins) {
+  if (disableBuiltinPlugins)
+    return llvm::Error::success();
   return tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(bundles,
                                                                    plugins);
 }
@@ -123,6 +131,12 @@ mlir::LogicalResult planAndExportTargetTranslateArtifactRoute(
     mlir::ModuleOp module, const tianchenrv::target::TargetTranslateRoute &route,
     llvm::raw_ostream &os);
 
+mlir::LogicalResult runSourceArtifactFrontDoorPipeline(
+    mlir::ModuleOp module,
+    const tianchenrv::plugin::ExtensionPluginRegistry &plugins,
+    const tianchenrv::target::TargetArtifactExporterRegistry &exporters,
+    llvm::StringRef routeDescription);
+
 mlir::LogicalResult
 exportTargetTranslateRoute(mlir::ModuleOp module,
                            const tianchenrv::target::TargetTranslateRoute &route,
@@ -147,6 +161,40 @@ exportTargetTranslateRoute(mlir::ModuleOp module,
     module.emitError() << message;
     return mlir::failure();
   }
+  return mlir::success();
+}
+
+mlir::LogicalResult runSourceArtifactFrontDoorPipeline(
+    mlir::ModuleOp module,
+    const tianchenrv::plugin::ExtensionPluginRegistry &plugins,
+    const tianchenrv::target::TargetArtifactExporterRegistry &exporters,
+    llvm::StringRef routeDescription) {
+  llvm::SmallVector<tianchenrv::plugin::SourceFrontDoorPassRegistration, 4>
+      sourceFrontDoorPasses;
+  if (llvm::Error error =
+          plugins.collectSourceFrontDoorPasses(sourceFrontDoorPasses)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+
+  if (sourceFrontDoorPasses.empty()) {
+    module.emitError()
+        << "TianChen-RV " << routeDescription
+        << " requires at least one registered source front-door pass";
+    return mlir::failure();
+  }
+
+  mlir::PassManager pm(module.getContext());
+  tianchenrv::transforms::buildSourceArtifactFrontDoorPipeline(
+      pm, sourceFrontDoorPasses, plugins, exporters);
+  if (mlir::failed(pm.run(module))) {
+    module.emitError()
+        << "TianChen-RV " << routeDescription
+        << " failed during source-artifact front-door pipeline";
+    return mlir::failure();
+  }
+
   return mlir::success();
 }
 
@@ -363,6 +411,32 @@ mlir::LogicalResult exportTargetArtifactBundle(mlir::ModuleOp module,
   return mlir::success();
 }
 
+mlir::LogicalResult
+sourceArtifactBundleFrontDoor(mlir::ModuleOp module, llvm::raw_ostream &os) {
+  tianchenrv::plugin::ExtensionPluginRegistry plugins;
+  tianchenrv::target::TargetArtifactExporterRegistry exporters;
+  if (mlir::failed(
+          populateBuiltinPlanningRegistries(module, plugins, exporters)))
+    return mlir::failure();
+
+  constexpr llvm::StringLiteral routeDescription(
+      "source-artifact bundle front door");
+  if (mlir::failed(runSourceArtifactFrontDoorPipeline(
+          module, plugins, exporters, routeDescription)))
+    return mlir::failure();
+
+  if (llvm::Error error = tianchenrv::target::exportTargetArtifactBundle(
+          module, exporters, targetArtifactBundleOutputDirectory)) {
+    std::string message = llvm::toString(std::move(error));
+    module.emitError() << message;
+    return mlir::failure();
+  }
+
+  os << "tianchenrv.target_artifact_bundle_export: complete\n";
+  os << "index_file: \"tianchenrv-target-artifact-bundle.index\"\n";
+  return mlir::success();
+}
+
 mlir::LogicalResult planAndExportTargetArtifactBundle(mlir::ModuleOp module,
                                                       llvm::raw_ostream &os) {
   tianchenrv::plugin::ExtensionPluginRegistry plugins;
@@ -427,6 +501,14 @@ void registerTianChenRVTranslations() {
       "into an output directory",
       planAndExportTargetArtifactBundle, registerTianChenRVTranslateDialects);
   (void)planAndExportTargetArtifactBundleRegistration;
+
+  static mlir::TranslateFromMLIRRegistration
+      sourceArtifactBundleFrontDoorRegistration(
+      "tcrv-source-artifact-bundle-front-door",
+      "run plugin-registered TianChen-RV source front doors and export selected "
+      "target artifacts into an output directory",
+      sourceArtifactBundleFrontDoor, registerTianChenRVTranslateDialects);
+  (void)sourceArtifactBundleFrontDoorRegistration;
 }
 
 } // namespace

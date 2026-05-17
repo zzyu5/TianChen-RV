@@ -653,3 +653,66 @@ self-check route authority outside the materialized EmitC route.
 - Continue deletion only if future scans find more positive descriptor/direct-C
   route-authority wording; otherwise rebuild work should remain gated by the
   explicit extension-family IR -> materialized EmitC route.
+
+
+## Session 111: Common source-artifact bundle front door
+
+**Date**: 2026-05-17
+**Task**: Common source-artifact bundle front door
+**Branch**: `main`
+
+### Summary
+
+Added a one-command `tcrv-translate` production front door that runs
+plugin-registered source front doors, shared source-artifact planning/coherence,
+and target artifact bundle export without a manual `tcrv-opt | tcrv-translate`
+chain.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `05-17-common-source-artifact-bundle-front-door` from the Direction Brief,
+  with PRD scope locked to a common workflow bridge.
+- Added `--tcrv-source-artifact-bundle-front-door` to `tcrv-translate`.
+- The new route collects enabled `SourceFrontDoorPassRegistration` entries,
+  runs `buildSourceArtifactFrontDoorPipeline`, then exports the selected bundle
+  through the existing target artifact bundle exporter.
+- Added `--tcrv-disable-builtin-plugins` to `tcrv-translate` as a bounded
+  fail-closed test switch for empty/unregistered source front-door coverage.
+- Added RVV and Toy lit coverage proving source input can reach object/header
+  bundle output through the one-command front door.
+- Added fail-closed lit coverage for disabled plugins, no matching source
+  front door, and no supported selected artifact route.
+- Updated the lowering-runtime EmitC route spec with the durable command,
+  contract, error matrix, good/base/bad cases, tests, and wrong-vs-correct
+  boundary for the common source-artifact bundle front door.
+
+### Git Commits
+
+(Committed in this round; see final report for hash.)
+
+### Testing
+
+- [OK] `ninja -C build tcrv-translate`
+- [OK] `ninja -C build check-tianchenrv` -> 128/128 passed.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-17-common-source-artifact-bundle-front-door`
+- [OK] `git diff --check`
+- [OK] Focused production scan:
+  `rg -n "descriptor|direct-C|direct C|direct-c|source-export|source_export|source authority|source_authority" tools/tcrv-translate/tcrv-translate.cpp`
+  returned no matches.
+- [OK] Focused production scan:
+  `rg -n "rvv|toy|tensorext|TensorExt|RVV|Toy" tools/tcrv-translate/tcrv-translate.cpp`
+  returned no matches.
+- [INFO] `clang-format` was not available on this machine; the C++ edit was
+  manually formatted to match surrounding style.
+- [INFO] No fresh `ssh rvv` run was needed because this change did not alter
+  the generated RVV object/header ABI route; it only adds a one-command
+  front door over the already proved artifact path.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete.

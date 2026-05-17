@@ -330,6 +330,128 @@ selected dispatch or selected-path diagnostic
   -> plugin-owned target exporter materializes object/header/bundle
 ```
 
+## Scenario: Common Source-Artifact Bundle Front Door
+
+### 1. Scope / Trigger
+
+Use this contract when a user-facing translate command starts from supported
+source MLIR and directly exports a target artifact bundle. The command is a
+common orchestration bridge over already registered plugin source front doors,
+shared planning/coherence, selected EmitC route materialization, and target
+artifact bundle export. It is not a new frontend semantic recognizer and not a
+family-specific target exporter.
+
+### 2. Signatures
+
+- Translate command:
+  `tcrv-translate --tcrv-source-artifact-bundle-front-door`.
+- Required bundle output option:
+  `--tcrv-target-artifact-bundle-output-dir=<directory>`.
+- Diagnostic/negative test switch:
+  `--tcrv-disable-builtin-plugins`.
+- The front door consumes
+  `plugin::SourceFrontDoorPassRegistration` values collected from the enabled
+  `ExtensionPluginRegistry`.
+- The front door must invoke the shared
+  `buildSourceArtifactFrontDoorPipeline` before calling
+  `target::exportTargetArtifactBundle`.
+
+### 3. Contracts
+
+- The common translate layer may collect enabled plugin source-front-door pass
+  registrations, run the shared source-artifact front-door pipeline, and invoke
+  the existing target artifact bundle exporter.
+- Source materialization remains plugin-owned. The common translate layer must
+  not inspect source op bodies, route ids, artifact names, descriptor text, or
+  family markers to infer computation semantics.
+- Target artifact output must still flow through selected emission-plan
+  diagnostics, plugin-owned `TCRVEmitCLowerableRoute` builders, the common
+  materialized EmitC helper, MLIR EmitC C/C++ emission, and registered target
+  artifact exporters.
+- The command must use enabled plugin registrations. If plugins are disabled or
+  no source-front-door pass is registered, it must fail before bundle output.
+- The command must not bypass existing target bundle validation, output
+  directory checks, overwrite refusal, candidate ambiguity checks, runtime ABI
+  signature checks, materialized EmitC provenance checks, or forbidden metadata
+  checks.
+
+### 4. Validation & Error Matrix
+
+- No registered source-front-door pass -> fail with a source-artifact bundle
+  front-door diagnostic and write no bundle index.
+- No source-front-door pass materializes a `tcrv.exec.kernel` or selected
+  execution surface -> fail during the source-artifact front-door pipeline.
+- Source-front-door materialization rejects stale seed, descriptor, selected
+  boundary, or unselected variant residue -> propagate the plugin-owned
+  fail-closed diagnostic and write no bundle index.
+- The selected path has no supported target artifact candidate -> fail before
+  bundle records or artifact files become authoritative.
+- Multiple supported non-fallback candidates without a registered composite
+  route -> fail as ambiguous before bundle output.
+- Materialized EmitC handoff lacks route/call source provenance, function
+  boundary, runtime ABI coherence, or uses forbidden descriptor/direct-C/
+  source-export metadata -> fail before object/header/bundle output.
+- Output directory is missing, not a directory, or already contains a derived
+  bundle file/index -> fail through the target bundle exporter.
+
+### 5. Good/Base/Bad Cases
+
+- Good: RVV vector-source i32 add/sub/mul source enters the common translate
+  front door, materializes the RVV-owned selected boundary, receives selected
+  emission-plan diagnostics, and exports a coherent RISC-V object plus
+  runtime-callable C header bundle.
+- Good: Toy or TensorExtLite source-front-door input reaches the same common
+  translate command through plugin registrations, proving the command is not an
+  RVV-specific source bridge.
+- Base: The two-step `tcrv-opt --tcrv-source-artifact-front-door-pipeline |
+  tcrv-translate --tcrv-export-target-artifact-bundle` chain may remain useful
+  for debugging intermediate IR, but it is not the only production path for
+  supported source-artifact bundle export.
+- Bad: common translate code branches on RVV, Toy, TensorExtLite, dtype, shape,
+  route id, descriptor string, or artifact filename to decide source semantics
+  or target artifact behavior.
+- Bad: a failed source-front-door route restores direct C/source-export or
+  descriptor-driven compatibility output to make bundle checks pass.
+
+### 6. Tests Required
+
+- Positive lit coverage for at least one RVV vector-source case invoking
+  `--tcrv-source-artifact-bundle-front-door` and checking selected variant
+  identity, materialized EmitC provenance, runtime ABI metadata, object/header
+  bundle records, and unmangled callable object symbol.
+- Positive lit coverage for at least one non-RVV plugin source-front-door case
+  through the same translate command.
+- Negative lit coverage for disabled/unregistered plugins or empty
+  source-front-door registration.
+- Negative lit coverage for no matching source-front-door materialization and
+  for no supported selected target artifact route.
+- Focused scans over touched common translate/front-door code must show no
+  descriptor route authority, direct C semantic exporter, source-export route,
+  or family-specific semantic branch.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+source MLIR
+  -> common translate code recognizes RVV/Toy/TensorExt source shape
+  -> direct C/source-export or descriptor-compatible artifact output
+```
+
+Correct:
+
+```text
+source MLIR
+  -> enabled plugin source-front-door pass registration
+  -> shared source-artifact planning/coherence pipeline
+  -> selected emission-plan candidate
+  -> plugin-owned EmitC route builder
+  -> common materialized EmitC helper
+  -> MLIR EmitC C/C++ emitter
+  -> registered target artifact bundle exporter
+```
+
 ## Scenario: Common Materialized EmitC Header Artifact Foundation
 
 ### 1. Scope / Trigger
