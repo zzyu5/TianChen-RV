@@ -95,9 +95,11 @@ renamed compatibility paths, or active negative fixture contracts.
 
 - Invoking any deleted source-to-exec option through `tcrv-opt` must fail as an
   unknown command-line option or equivalent deleted-route diagnostic.
-- `tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` must not run
-  source RVV binary lowering before planning/export. It may plan and export
-  only from already materialized TianChen-RV execution surfaces.
+- The deleted `tcrv-translate` plan-and-export target artifact bundle wrapper
+  must stay absent. Translate-side target artifact bundle export may consume
+  already materialized TianChen-RV execution surfaces, but must not hide
+  source-to-exec lowering or execution planning behind a second production
+  bundle front door.
 - Tests whose only purpose was to prove linalg/vector source lowering success,
   semantic validation diagnostics, compatibility alias delegation, or named
   deleted-pass absence must be deleted instead of kept alive as production
@@ -282,12 +284,11 @@ as:
 --tcrv-execution-planning-pipeline
 ```
 
-The `tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` front door
-may invoke this same planning pipeline in-process before target artifact bundle
-export, but it must not run deleted linalg/vector RVV source-to-exec lowering
-first. Its input must already contain the TianChen-RV execution anchors needed
-by planning, such as `tcrv.exec.kernel` plus capability-provider scope, or more
-materialized selected-path/lowering-boundary/emission-plan surfaces.
+Public target artifact exporters do not invoke this planning pipeline
+in-process. They consume already planned/materialized MLIR. Source-level
+one-command bundle export is handled by plugin source-front-door registration
+and the source artifact bundle front door, not by a generic translate-side
+plan-and-export wrapper.
 
 This pipeline is a named MLIR pass pipeline, not a monolithic pass. It composes
 existing pass factories in this order:

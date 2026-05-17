@@ -7,7 +7,7 @@
 // RUN: not test -e %t.nomatch.bundle/tianchenrv-target-artifact-bundle.index
 
 // RUN: rm -rf %t.noartifact.bundle && mkdir %t.noartifact.bundle
-// RUN: not tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.noartifact.bundle %S/plan-and-export-target-artifact-bundle-no-viable.mlir 2>&1 | FileCheck %s --check-prefix=NO-ARTIFACT --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
+// RUN: not tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.noartifact.bundle %s 2>&1 | FileCheck %s --check-prefix=NO-ARTIFACT --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
 // RUN: not test -e %t.noartifact.bundle/tianchenrv-target-artifact-bundle.index
 
 // RUN: rm -rf %t.missing.bundle
@@ -22,3 +22,13 @@
 // NO-ARTIFACT: TianChen-RV source-artifact bundle front door failed during source-artifact front-door pipeline
 
 // MISSING-DIR: TianChen-RV target artifact bundle export failed: output directory must already exist
+
+module @source_artifact_bundle_front_door_no_artifact_input {
+  tcrv.exec.kernel @source_front_door_no_artifact {
+    tcrv.exec.capability @rvv {
+      id = "rvv",
+      kind = "isa-vector",
+      status = "available"
+    }
+  }
+}

@@ -437,36 +437,6 @@ sourceArtifactBundleFrontDoor(mlir::ModuleOp module, llvm::raw_ostream &os) {
   return mlir::success();
 }
 
-mlir::LogicalResult planAndExportTargetArtifactBundle(mlir::ModuleOp module,
-                                                      llvm::raw_ostream &os) {
-  tianchenrv::plugin::ExtensionPluginRegistry plugins;
-  tianchenrv::target::TargetArtifactExporterRegistry exporters;
-  if (mlir::failed(
-          populateBuiltinPlanningRegistries(module, plugins, exporters)))
-    return mlir::failure();
-
-  mlir::PassManager pm(module.getContext());
-  tianchenrv::transforms::buildExecutionPlanningPipeline(pm, plugins,
-                                                         exporters);
-  if (mlir::failed(pm.run(module))) {
-    module.emitError()
-        << "TianChen-RV plan-and-export target artifact bundle failed during "
-           "execution planning pipeline";
-    return mlir::failure();
-  }
-
-  if (llvm::Error error = tianchenrv::target::exportTargetArtifactBundle(
-          module, exporters, targetArtifactBundleOutputDirectory)) {
-    std::string message = llvm::toString(std::move(error));
-    module.emitError() << message;
-    return mlir::failure();
-  }
-
-  os << "tianchenrv.target_artifact_bundle_export: complete\n";
-  os << "index_file: \"tianchenrv-target-artifact-bundle.index\"\n";
-  return mlir::success();
-}
-
 void registerTianChenRVTranslations() {
   static mlir::TranslateFromMLIRRegistration emissionManifest(
       "tcrv-export-emission-manifest",
@@ -493,14 +463,6 @@ void registerTianChenRVTranslations() {
       "export selected TianChen-RV target artifacts into an output directory",
       exportTargetArtifactBundle, registerTianChenRVTranslateDialects);
   (void)targetArtifactBundle;
-
-  static mlir::TranslateFromMLIRRegistration
-      planAndExportTargetArtifactBundleRegistration(
-      "tcrv-plan-and-export-target-artifact-bundle",
-      "run TianChen-RV execution planning and export selected target artifacts "
-      "into an output directory",
-      planAndExportTargetArtifactBundle, registerTianChenRVTranslateDialects);
-  (void)planAndExportTargetArtifactBundleRegistration;
 
   static mlir::TranslateFromMLIRRegistration
       sourceArtifactBundleFrontDoorRegistration(

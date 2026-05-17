@@ -718,6 +718,61 @@ chain.
 - None - task complete.
 
 
+## Session 115: Plan-and-export target artifact bundle route erasure
+
+**Date**: 2026-05-17
+**Task**: Plan-and-export target artifact bundle route erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the legacy `tcrv-translate
+--tcrv-plan-and-export-target-artifact-bundle` wrapper route. The public target
+bundle exporter now remains only the coherence-gated exporter for already
+planned/materialized MLIR, while source-level positive bundle workflows remain
+on the plugin source artifact bundle front door.
+
+### Main Changes
+
+- Created Trellis task
+  `05-17-plan-and-export-target-artifact-bundle-route-erasure` from the
+  Direction Brief and wrote its PRD/context before source edits.
+- Removed the `planAndExportTargetArtifactBundle` helper from
+  `tools/tcrv-translate/tcrv-translate.cpp`.
+- Removed the `TranslateFromMLIRRegistration` for
+  `tcrv-plan-and-export-target-artifact-bundle`.
+- Deleted the old no-viable wrapper lit test:
+  `test/Target/TargetArtifactBundleExport/plan-and-export-target-artifact-bundle-no-viable.mlir`.
+- Rewired source artifact bundle front-door negative coverage to use a neutral
+  in-file no-artifact input instead of the deleted wrapper fixture.
+- Updated lowering-runtime, variant-pipeline, and testing specs so the route is
+  documented as deleted/absent rather than a current in-process
+  planning/export workflow.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-translate -j2`
+- [OK] `tcrv-translate --help` scan found no deleted route option.
+- [OK] Invoking the deleted option failed as an unknown command-line argument
+  and emitted no bundle completion marker.
+- [OK] Focused lit from `build/test` with filter
+  `TargetArtifactBundleExport|Template|Toy`: 26/26 passed.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 123/123 passed.
+- [OK] Targeted scans over code, tests, and specs found no active deleted route
+  registration, helper, diagnostic, or manual execution-planning artifact pipe
+  residue. Remaining `plan-and-export` mentions are negative spec constraints
+  that the wrapper must stay absent.
+
+### Status
+
+[OK] Completed. Ready for archive and commit.
+
+### Next Steps
+
+- None - task complete.
+
+
 ## Session 113: Legacy manual source-artifact pipe cleanup
 
 **Date**: 2026-05-17

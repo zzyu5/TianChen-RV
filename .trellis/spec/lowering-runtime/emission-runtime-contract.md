@@ -645,8 +645,9 @@ those option spellings as durable route contracts.
 
 - Invoking a deleted vector source pass must fail closed as an absent/deleted
   option and must not create a `tcrv.exec.kernel`.
-- `tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` must not run a
-  vector or linalg source-frontdoor pass before planning.
+- The deleted `tcrv-translate` plan-and-export target artifact bundle wrapper
+  must stay absent. Translate-side target bundle export must not hide source
+  RVV binary lowering behind in-process planning/export.
 - Existing source-tail metadata may remain as bounded metadata on already
   materialized execution/plugin surfaces where current target-owned validation
   consumes it, but the core transform layer must not produce it from high-level
@@ -1048,17 +1049,15 @@ one-sided empty signature in a grouped object/header bundle is a mismatched
 runtime ABI signature, not a shortcut around typed ABI validation.
 
 `tcrv-translate --tcrv-export-target-artifact-bundle` remains the
-coherence-gated exporter for already planned MLIR. The separate
-`tcrv-translate --tcrv-plan-and-export-target-artifact-bundle` entry may run
-the existing execution planning pipeline with built-in plugin and target
-artifact exporter registries, and finally call the same bundle exporter. It
-must not first run the deleted bounded marked-linalg/vector RVV binary frontend
-lowering slice or otherwise create `tcrv.exec.kernel`, `mem_window`, or
-`runtime_param` ABI boundaries from high-level source bodies in the tool
-front door. Inputs to this entry must already contain the execution anchors
-needed by planning until a future plugin/interface-owned frontend rebuild
-exists.
-It must fail before printing bundle completion if planning, execution-plan
+coherence-gated exporter for already planned MLIR. It consumes selected-path,
+lowering-boundary, emission-plan, and target artifact route metadata that
+already exist in the input; it does not run the execution planning pipeline
+in-process. The deleted `tcrv-translate` plan-and-export target artifact bundle
+entry must stay absent and must not be restored as a compatibility alias or a
+second production front door. Source-level one-command bundle export belongs to
+the plugin source artifact bundle front door, which materializes source routes
+through plugin registrations before invoking the same target bundle exporter.
+Bundle export must still fail before printing completion if execution-plan
 coherence, route validation, or artifact materialization fails, and it must not
 weaken the bundle component contract or runtime ABI signature validation.
 
