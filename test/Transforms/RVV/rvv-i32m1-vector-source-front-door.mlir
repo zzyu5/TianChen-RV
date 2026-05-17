@@ -2,7 +2,6 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
 // RUN: not tcrv-opt %s --tcrv-disable-builtin-plugins --tcrv-rvv-materialize-i32m1-vector-source-front-door 2>&1 | FileCheck %s --check-prefix=NO-BUILTIN
-// RUN: not tcrv-opt %s --tcrv-rvv-materialize-i32m1-selected-boundary-seed 2>&1 | FileCheck %s --check-prefix=OLD-SEED-REMOVED
 
 module {
   func.func @vector_source(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
@@ -110,6 +109,3 @@ module {
 
 // NO-BUILTIN: Unknown command line argument
 // NO-BUILTIN-SAME: tcrv-rvv-materialize-i32m1-vector-source-front-door
-
-// OLD-SEED-REMOVED: Unknown command line argument
-// OLD-SEED-REMOVED-SAME: tcrv-rvv-materialize-i32m1-selected-boundary-seed

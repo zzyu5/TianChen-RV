@@ -718,6 +718,57 @@ chain.
 - None - task complete.
 
 
+## Session 116: Core RVV source-to-exec named-absence fixture erasure
+
+**Date**: 2026-05-17
+**Task**: Core RVV source-to-exec named-absence fixture erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted active lit named-absence fixtures for historical core
+RVV/source-seed public option spellings while preserving the current
+plugin-owned RVV vector source front door and source artifact front-door
+pipeline coverage. This round stayed deletion-only and did not add replacement
+routes, compatibility aliases, descriptor adapters, source front doors, EmitC
+routes, artifact routes, or production compiler behavior.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `05-17-core-rvv-source-to-exec-named-absence-fixture-erasure`.
+- Removed the deleted selected-boundary seed negative RUN line from
+  `test/Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir`.
+- Removed the matching `OLD-SEED-REMOVED` FileCheck prefix and checks.
+- Removed the deleted source-seed pipeline negative RUN line from
+  `test/Transforms/SourceFrontDoor/source-artifact-front-door-pipeline-disabled.mlir`.
+- Removed the matching `OLD-PIPELINE-REMOVED` FileCheck prefix and checks.
+- Reviewed spec update need; no `.trellis/spec/` edit was needed because the
+  testing, variant-pipeline, and lowering-runtime specs already encode the
+  no durable named absence fixture rule.
+
+### Testing
+
+- [OK] Focused lit through build site config for the two touched transform
+  tests: 2/2 passed.
+- [OK] Exact old-option and `OLD-*-REMOVED` prefix scan over touched transform
+  test directories and relevant specs: no matches.
+- [OK] Active option scan over `test/Transforms/RVV` and
+  `test/Transforms/SourceFrontDoor` reports only current
+  `--tcrv-rvv-materialize-i32m1-vector-source-front-door` and
+  `--tcrv-source-artifact-front-door-pipeline` invocations.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` -> 123/123 passed.
+
+### Status
+
+[OK] Completed and archived. Ready for commit.
+
+### Next Steps
+
+- None - task complete.
+
+
 ## Session 115: Plan-and-export target artifact bundle route erasure
 
 **Date**: 2026-05-17
