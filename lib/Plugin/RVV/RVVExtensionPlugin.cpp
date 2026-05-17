@@ -154,7 +154,9 @@ llvm::Error annotateAndVerifySelectedRVVLoweringBoundary(
   setTemporaryAttr(rvv::getRVVRequiredCapabilitiesAttrName(), variantRequires);
 
   const construction::SelectedBoundaryStringAttrExpectation
-      extraAttributes[] = {{"lmul", tcrv::rvv::getRVVI32M1LMUL()}};
+      extraAttributes[] = {
+          {"lmul",
+           tcrv::rvv::getRVVI32M1ArithmeticConfigVLContract().lmul}};
   construction::SelectedLoweringBoundaryConformanceSpec spec;
   spec.boundaryDescription = "selected RVV lowering-boundary validation";
   spec.selectedVariantSymbol = variant.getSymName();

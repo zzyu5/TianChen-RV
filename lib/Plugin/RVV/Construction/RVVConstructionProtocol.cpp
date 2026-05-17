@@ -1,12 +1,14 @@
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
+#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
 
 #include "mlir/IR/Operation.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <string>
@@ -422,18 +424,7 @@ buildExpectedConstructionArtifactMetadata(
 
 llvm::SmallVector<support::RuntimeABIParameter, 4>
 buildExpectedRuntimeABIParameters() {
-  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
-  parameters.push_back(support::makeTargetExportABIParameter(
-      "lhs", "const int32_t *",
-      support::RuntimeABIParameterRole::LHSInputBuffer));
-  parameters.push_back(support::makeTargetExportABIParameter(
-      "rhs", "const int32_t *",
-      support::RuntimeABIParameterRole::RHSInputBuffer));
-  parameters.push_back(support::makeTargetExportABIParameter(
-      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
-  parameters.push_back(support::makeTargetExportABIParameter(
-      "n", "size_t", support::RuntimeABIParameterRole::RuntimeElementCount));
-  return parameters;
+  return tcrv::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
 }
 
 llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>
@@ -755,12 +746,10 @@ llvm::Error verifyRVVConstructionProtocolReady() {
 
 llvm::Error verifyRVVI32M1ArithmeticConstructionRuntimeABIParameters(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
-  llvm::SmallVector<support::RuntimeABIParameter, 4> expected =
-      buildExpectedRuntimeABIParameters();
-  if (!support::runtimeABIParametersEqual(parameters, expected))
-    return makeRVVConstructionError(
-        "ordered runtime ABI parameters must be lhs, rhs, out, n with stable "
-        "types, roles, and target-export ownership");
+  if (llvm::Error error =
+          tcrv::rvv::verifyRVVI32M1ArithmeticRuntimeABIParameters(
+              parameters, "RVV construction protocol"))
+    return makeRVVConstructionError(llvm::toString(std::move(error)));
   return llvm::Error::success();
 }
 

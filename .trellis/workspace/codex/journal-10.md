@@ -396,3 +396,73 @@ AVL/VL boundary and target artifact route.
 ### Next Steps
 
 - Commit the coherent change.
+
+
+## Session 128: RVV selected config/VL contract consolidation
+
+**Date**: 2026-05-18
+**Task**: RVV selected config/VL contract consolidation
+**Branch**: `main`
+
+### Summary
+
+Consolidated the bounded RVV i32m1 SEW32/LMUL m1/tail-agnostic/mask-agnostic
+runtime AVL/VL contract into `RVVConfigContract` and rewired source
+materialization, construction runtime ABI validation, EmitC route payload
+construction, and target artifact preflight/header evidence to consume that
+single contract surface.
+
+### Main Changes
+
+- Extended `RVVConfigContract` with `RVVI32M1ArithmeticConfigVLContract`,
+  shared config attr population, policy construction, runtime ABI parameter
+  construction/verification, config/VL artifact metadata, and EmitC loop/VL
+  naming helpers.
+- Rewired `RVVVectorSourceFrontDoor.cpp` so the accepted tail-safe source
+  route materializes `runtime_abi_value(lhs,rhs,out,n)`, `setvl`, and
+  `with_vl` from the shared contract.
+- Rewired RVV construction protocol and EmitC route provider to use the same
+  runtime ABI contract and route loop naming instead of private duplicate
+  assumptions.
+- Rewired RVV target support header/preflight metadata evidence to derive the
+  `tcrv_rvv.*` config/VL evidence list from the shared metadata contract.
+- Added C++ test coverage for the shared contract API and updated target
+  artifact lit checks to assert the exported config/VL metadata surface.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-18-rvv-selected-config-vl-contract-consolidation`
+- [OK] `cmake --build build --target tianchenrv-rvv-dialect-test tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-dialect-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused lit for RVV dialect setvl/with_vl/dataflow, source front door,
+  EmitC config/VL negatives, source/materialized target artifact exporters,
+  and source artifact bundle front door passed 12/12.
+- [OK] Targeted residue scan found only FileCheck forbidden-token guards,
+  the existing target-side forbidden-metadata rejection guard, existing RVV
+  dialect boundary text, and the old fixed `vector.load` / `vector.store`
+  negative fixture.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 125/125.
+
+### Self-Repair
+
+- Moved the new C++ contract test out of an existing raw MLIR string after the
+  first focused build caught the placement bug.
+- Restored the existing `ordered runtime ABI parameters` diagnostic phrase
+  after `check-tianchenrv` caught the message drift.
+
+### Runtime Evidence
+
+- Real `ssh rvv` was not rerun: this round did not change the emitted object or
+  bundle semantics, and focused object/header/bundle lit plus full
+  `check-tianchenrv` revalidated the artifact path.
+
+### Status
+
+[OK] **Completed; ready to archive and commit**
+
+### Next Steps
+
+- Archive the task with `--no-commit` and create one coherent commit including
+  code, tests, task, and journal.

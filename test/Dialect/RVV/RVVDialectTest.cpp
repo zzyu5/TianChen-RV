@@ -1,8 +1,10 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
+#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
+#include "TianChenRV/Support/RuntimeABI.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
@@ -66,6 +68,15 @@ int expectSuccess(llvm::Error error, llvm::Twine context) {
 
   std::string message = llvm::toString(std::move(error));
   return fail(context + ": " + message);
+}
+
+int expectFailure(llvm::Error error, llvm::Twine context) {
+  if (error) {
+    llvm::consumeError(std::move(error));
+    return 0;
+  }
+
+  return fail(context + ": expected failure");
 }
 
 mlir::OwningOpRef<mlir::ModuleOp>
@@ -304,6 +315,7 @@ module {
     } : !tcrv_rvv.vl
   }
 }
+
 )mlir";
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
@@ -389,6 +401,97 @@ module {
     return result;
 
   llvm::outs() << "RVV i32 vector-add dataflow round trip preserved\n";
+  return 0;
+}
+
+int runI32M1ConfigVLContractAPITest() {
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  dialectRegistry.insert<TCRVRVVDialect>();
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+
+  const tianchenrv::tcrv::rvv::RVVI32M1ArithmeticConfigVLContract &contract =
+      tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticConfigVLContract();
+  if (int result = expect(contract.sew == 32, "contract records SEW32"))
+    return result;
+  if (int result = expect(contract.lmul == "m1", "contract records LMUL m1"))
+    return result;
+  if (int result =
+          expect(contract.runtimeAVLABIParameterName == "n",
+                 "contract records runtime AVL ABI parameter n"))
+    return result;
+  if (int result =
+          expect(contract.emitCLoopInductionName == "offset",
+                 "contract records EmitC loop induction name"))
+    return result;
+  if (int result =
+          expect(contract.emitCFullChunkVLName == "full_chunk_vl",
+                 "contract records full-chunk VL name"))
+    return result;
+
+  PolicyAttr policy =
+      tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticPolicy(&context);
+  if (int result = expect(policy.getTail() == TailPolicy::Agnostic,
+                          "contract creates tail-agnostic policy"))
+    return result;
+  if (int result = expect(policy.getMask() == MaskPolicy::Agnostic,
+                          "contract creates mask-agnostic policy"))
+    return result;
+
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
+      tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
+  if (int result =
+          expect(parameters.size() == 4,
+                 "contract exposes four runtime ABI parameters"))
+    return result;
+  if (int result = expect(parameters[0].cName == "lhs" &&
+                              parameters[1].cName == "rhs" &&
+                              parameters[2].cName == "out" &&
+                              parameters[3].cName == "n",
+                          "contract preserves lhs,rhs,out,n ABI order"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::tcrv::rvv::verifyRVVI32M1ArithmeticRuntimeABIParameters(
+              parameters, "RVV dialect contract test"),
+          "verify shared RVV runtime ABI contract"))
+    return result;
+  parameters[3].cName = "count";
+  if (int result = expectFailure(
+          tianchenrv::tcrv::rvv::verifyRVVI32M1ArithmeticRuntimeABIParameters(
+              parameters, "RVV dialect contract test"),
+          "reject stale runtime ABI parameter name"))
+    return result;
+
+  llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata =
+      tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticArtifactMetadata();
+  if (int result =
+          expect(metadata.size() == 19,
+                 "contract exposes complete artifact metadata vector"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::tcrv::rvv::verifyRVVI32M1ArithmeticArtifactMetadata(
+              metadata, "RVV dialect contract test"),
+          "verify shared RVV artifact metadata contract"))
+    return result;
+
+  llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 19>
+      staleMetadata(metadata.begin(), metadata.end());
+  staleMetadata[0].value = "stale-config";
+  if (int result = expectFailure(
+          tianchenrv::tcrv::rvv::verifyRVVI32M1ArithmeticArtifactMetadata(
+              staleMetadata, "RVV dialect contract test"),
+          "reject stale RVV artifact metadata"))
+    return result;
+
+  std::string remaining =
+      tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticEmitCRemainingAVLExpression(
+          contract.runtimeAVLABIParameterName, contract.emitCLoopInductionName);
+  if (int result = expect(remaining == "n - offset",
+                          "contract formats EmitC remaining AVL expression"))
+    return result;
+
+  llvm::outs() << "RVV i32m1 config/VL contract API preserved\n";
   return 0;
 }
 
@@ -509,6 +612,8 @@ int main() {
   if (int result = runPolicyAttributeRoundTripTest())
     return result;
   if (int result = runI32DataflowRoundTripTest())
+    return result;
+  if (int result = runI32M1ConfigVLContractAPITest())
     return result;
   if (int result = runDefaultCoreDoesNotRegisterRVVDialectTest())
     return result;

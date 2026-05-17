@@ -1,5 +1,6 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 
+#include "mlir/IR/Builders.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
@@ -20,6 +21,40 @@ constexpr llvm::StringLiteral kRVVI32M1RuntimeVLContract(
 constexpr llvm::StringLiteral kRVVI32M1BoundedSlice(
     "multi-vl-i32m1-arithmetic");
 constexpr llvm::StringLiteral kRVVI32M1MultiVLSupport("supported");
+constexpr llvm::StringLiteral kRVVI32M1RuntimeAVLABIParameter("n");
+constexpr llvm::StringLiteral kRVVI32M1RuntimeAVLASource("runtime_abi:n");
+constexpr llvm::StringLiteral kRVVI32M1RuntimeABIOrder("lhs,rhs,out,n");
+constexpr llvm::StringLiteral kRVVI32M1VLDefOpName("tcrv_rvv.setvl");
+constexpr llvm::StringLiteral kRVVI32M1VLScopeOpName("tcrv_rvv.with_vl");
+constexpr llvm::StringLiteral kRVVI32M1VLUses(
+    "emitc_for,with_vl,i32_load,i32_load,i32_arithmetic,i32_store");
+constexpr llvm::StringLiteral kRVVI32M1EmitCLoopKind("emitc.for");
+constexpr llvm::StringLiteral kRVVI32M1EmitCLoopInduction("offset");
+constexpr llvm::StringLiteral kRVVI32M1EmitCFullChunkVL("full_chunk_vl");
+constexpr llvm::StringLiteral kRVVI32M1EmitCLoopVL("vl");
+constexpr llvm::StringLiteral kRVVI32M1RemainingAVLMetadata("n-offset");
+constexpr llvm::StringLiteral kRVVI32M1PointerAdvanceMetadata("offset");
+
+const RVVI32M1ArithmeticConfigVLContract kRVVI32M1ConfigVLContract = {
+    kRVVFirstSliceSEWBits,
+    kRVVI32M1LMUL,
+    TailPolicy::Agnostic,
+    MaskPolicy::Agnostic,
+    kRVVI32M1ConfigContract,
+    kRVVI32M1RuntimeVLContract,
+    kRVVI32M1RuntimeAVLABIParameter,
+    kRVVI32M1RuntimeAVLASource,
+    kRVVI32M1RuntimeABIOrder,
+    kRVVI32M1VLDefOpName,
+    kRVVI32M1VLScopeOpName,
+    kRVVI32M1VLUses,
+    kRVVI32M1EmitCLoopKind,
+    kRVVI32M1EmitCLoopInduction,
+    kRVVI32M1EmitCFullChunkVL,
+    kRVVI32M1RemainingAVLMetadata,
+    kRVVI32M1PointerAdvanceMetadata,
+    kRVVI32M1BoundedSlice,
+    kRVVI32M1MultiVLSupport};
 
 std::string toString(llvm::Twine message) {
   std::string storage;
@@ -35,6 +70,13 @@ RVVConfigContractDiagnostic fail(llvm::Twine message) {
 llvm::Error makeArtifactMetadataError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
       llvm::Twine("TianChen-RV RVV artifact metadata invalid: ") + message,
+      llvm::errc::invalid_argument);
+}
+
+llvm::Error makeRuntimeABIError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV RVV i32m1 runtime ABI contract invalid: ") +
+          message,
       llvm::errc::invalid_argument);
 }
 
@@ -59,6 +101,27 @@ std::int64_t getRVVFirstSliceSEWBits() {
 llvm::StringRef getRVVI32M1LMUL() { return kRVVI32M1LMUL; }
 
 llvm::StringRef getRVVI32M2LMUL() { return kRVVI32M2LMUL; }
+
+const RVVI32M1ArithmeticConfigVLContract &
+getRVVI32M1ArithmeticConfigVLContract() {
+  return kRVVI32M1ConfigVLContract;
+}
+
+PolicyAttr getRVVI32M1ArithmeticPolicy(mlir::MLIRContext *context) {
+  const RVVI32M1ArithmeticConfigVLContract &contract =
+      getRVVI32M1ArithmeticConfigVLContract();
+  return PolicyAttr::get(context, contract.tailPolicy, contract.maskPolicy);
+}
+
+void populateRVVI32M1ArithmeticConfigAttrs(mlir::Builder &builder,
+                                           mlir::OperationState &state) {
+  const RVVI32M1ArithmeticConfigVLContract &contract =
+      getRVVI32M1ArithmeticConfigVLContract();
+  state.addAttribute("sew", builder.getI64IntegerAttr(contract.sew));
+  state.addAttribute("lmul", builder.getStringAttr(contract.lmul));
+  state.addAttribute("policy",
+                     getRVVI32M1ArithmeticPolicy(builder.getContext()));
+}
 
 bool isRVVFirstSliceDataflowConfig(std::int64_t sew, llvm::StringRef lmul) {
   return sew == kRVVFirstSliceSEWBits &&
@@ -149,26 +212,34 @@ validateRVVI32M1ArithmeticConfigVLContract(SetVLOp setvl, WithVLOp withVL) {
 llvm::ArrayRef<support::ArtifactMetadataEntry>
 getRVVI32M1ArithmeticArtifactMetadata() {
   static const support::ArtifactMetadataEntry kMetadata[] = {
-      {"tcrv_rvv.config_contract", kRVVI32M1ConfigContract},
+      {"tcrv_rvv.config_contract",
+       kRVVI32M1ConfigVLContract.configContractID},
       {"tcrv_rvv.sew", "32"},
-      {"tcrv_rvv.lmul", "m1"},
+      {"tcrv_rvv.lmul", kRVVI32M1ConfigVLContract.lmul},
       {"tcrv_rvv.tail_policy", "agnostic"},
       {"tcrv_rvv.mask_policy", "agnostic"},
-      {"tcrv_rvv.runtime_vl_contract", kRVVI32M1RuntimeVLContract},
-      {"tcrv_rvv.runtime_avl_source", "runtime_abi:n"},
-      {"tcrv_rvv.vl_def", "tcrv_rvv.setvl"},
-      {"tcrv_rvv.vl_scope", "tcrv_rvv.with_vl"},
-      {"tcrv_rvv.vl_uses",
-       "emitc_for,with_vl,i32_load,i32_load,i32_arithmetic,i32_store"},
-      {"tcrv_rvv.runtime_abi_order", "lhs,rhs,out,n"},
-      {"tcrv_rvv.runtime_avl_abi_parameter", "n"},
-      {"tcrv_rvv.emitc_loop", "emitc.for"},
-      {"tcrv_rvv.loop_induction", "offset"},
-      {"tcrv_rvv.loop_step", "full_chunk_vl"},
-      {"tcrv_rvv.remaining_avl", "n-offset"},
-      {"tcrv_rvv.pointer_advance", "offset"},
-      {"tcrv_rvv.bounded_slice", kRVVI32M1BoundedSlice},
-      {"tcrv_rvv.multi_vl", kRVVI32M1MultiVLSupport},
+      {"tcrv_rvv.runtime_vl_contract",
+       kRVVI32M1ConfigVLContract.runtimeVLContractID},
+      {"tcrv_rvv.runtime_avl_source",
+       kRVVI32M1ConfigVLContract.runtimeAVLASource},
+      {"tcrv_rvv.vl_def", kRVVI32M1ConfigVLContract.vlDefOpName},
+      {"tcrv_rvv.vl_scope", kRVVI32M1ConfigVLContract.vlScopeOpName},
+      {"tcrv_rvv.vl_uses", kRVVI32M1ConfigVLContract.vlUses},
+      {"tcrv_rvv.runtime_abi_order",
+       kRVVI32M1ConfigVLContract.runtimeABIOrder},
+      {"tcrv_rvv.runtime_avl_abi_parameter",
+       kRVVI32M1ConfigVLContract.runtimeAVLABIParameterName},
+      {"tcrv_rvv.emitc_loop", kRVVI32M1ConfigVLContract.emitCLoopKind},
+      {"tcrv_rvv.loop_induction",
+       kRVVI32M1ConfigVLContract.emitCLoopInductionName},
+      {"tcrv_rvv.loop_step",
+       kRVVI32M1ConfigVLContract.emitCFullChunkVLName},
+      {"tcrv_rvv.remaining_avl",
+       kRVVI32M1ConfigVLContract.remainingAVLMetadata},
+      {"tcrv_rvv.pointer_advance",
+       kRVVI32M1ConfigVLContract.pointerAdvanceMetadata},
+      {"tcrv_rvv.bounded_slice", kRVVI32M1ConfigVLContract.boundedSlice},
+      {"tcrv_rvv.multi_vl", kRVVI32M1ConfigVLContract.multiVL},
   };
   return kMetadata;
 }
@@ -205,6 +276,58 @@ llvm::Error verifyRVVI32M1ArithmeticArtifactMetadata(
       llvm::Twine(context) +
       " must carry the RVV i32m1 config/runtime-VL artifact metadata "
       "contract");
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVI32M1ArithmeticRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs", "const int32_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVI32M1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
+llvm::Error verifyRVVI32M1ArithmeticRuntimeABIParameters(
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters,
+    llvm::StringRef context) {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> expected =
+      getRVVI32M1ArithmeticRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, expected))
+    return llvm::Error::success();
+
+  return makeRuntimeABIError(
+      llvm::Twine(context) +
+      " must use ordered runtime ABI parameters lhs, rhs, out, n with "
+      "stable C types, roles, and target-export ownership");
+}
+
+llvm::StringRef getRVVI32M1ArithmeticRuntimeAVLParameterName() {
+  return kRVVI32M1ConfigVLContract.runtimeAVLABIParameterName;
+}
+
+llvm::StringRef getRVVI32M1ArithmeticEmitCLoopInductionName() {
+  return kRVVI32M1ConfigVLContract.emitCLoopInductionName;
+}
+
+llvm::StringRef getRVVI32M1ArithmeticEmitCFullChunkVLName() {
+  return kRVVI32M1ConfigVLContract.emitCFullChunkVLName;
+}
+
+llvm::StringRef getRVVI32M1ArithmeticEmitCLoopVLName() {
+  return kRVVI32M1EmitCLoopVL;
+}
+
+std::string getRVVI32M1ArithmeticEmitCRemainingAVLExpression(
+    llvm::StringRef runtimeCountName, llvm::StringRef inductionName) {
+  return (runtimeCountName + " - " + inductionName).str();
 }
 
 } // namespace tianchenrv::tcrv::rvv

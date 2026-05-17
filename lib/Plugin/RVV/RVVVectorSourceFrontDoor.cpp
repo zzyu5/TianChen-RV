@@ -31,9 +31,6 @@
 namespace tianchenrv::plugin::rvv {
 namespace {
 
-using tianchenrv::support::RuntimeABIParameterOwnership;
-using tianchenrv::support::RuntimeABIParameterRole;
-
 constexpr llvm::StringLiteral kSeedAttrName("tcrv_rvv.lowering_seed");
 constexpr llvm::StringLiteral kLoweringSeedAttrSuffix(".lowering_seed");
 constexpr llvm::StringLiteral kRVVCapabilitySymbol("rvv");
@@ -52,9 +49,7 @@ constexpr llvm::StringLiteral kFallbackPolicy(
 constexpr std::int64_t kSourceVectorLaneCount = 4;
 
 struct SourceRuntimeABIValue {
-  RuntimeABIParameterRole role;
-  llvm::StringLiteral cName;
-  llvm::StringLiteral cType;
+  tianchenrv::support::RuntimeABIParameter parameter;
   mlir::BlockArgument sourceArgument;
 };
 
@@ -265,16 +260,10 @@ bool hasForeignLoweringSeedAttr(mlir::func::FuncOp func) {
 llvm::SmallVector<SourceRuntimeABIValue, 4>
 deriveSourceRuntimeABIValues(mlir::Block &entry) {
   llvm::SmallVector<SourceRuntimeABIValue, 4> values;
-  values.push_back({RuntimeABIParameterRole::LHSInputBuffer, "lhs",
-                    "const int32_t *", entry.getArgument(0)});
-  values.push_back({RuntimeABIParameterRole::RHSInputBuffer, "rhs",
-                    "const int32_t *", entry.getArgument(1)});
-  values.push_back(
-      {RuntimeABIParameterRole::OutputBuffer, "out", "int32_t *",
-       entry.getArgument(2)});
-  values.push_back(
-      {RuntimeABIParameterRole::RuntimeElementCount, "n", "size_t",
-       entry.getArgument(3)});
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
+      tcrv::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
+  for (auto [index, parameter] : llvm::enumerate(parameters))
+    values.push_back({parameter, entry.getArgument(index)});
   return values;
 }
 
@@ -458,7 +447,7 @@ std::string formatSourceABIPurpose(const SourceRuntimeABIValue &value) {
   std::string purpose = "source-arg-";
   purpose += std::to_string(value.sourceArgument.getArgNumber());
   purpose += ":";
-  purpose += value.cName.str();
+  purpose += value.parameter.cName;
   return purpose;
 }
 
@@ -470,14 +459,16 @@ mlir::Operation *createRuntimeABIValue(
   state.addAttribute(
       "role",
       builder.getStringAttr(tianchenrv::support::stringifyRuntimeABIParameterRole(
-          sourceValue.role)));
-  state.addAttribute("c_name", builder.getStringAttr(sourceValue.cName));
-  state.addAttribute("c_type", builder.getStringAttr(sourceValue.cType));
+          sourceValue.parameter.role)));
+  state.addAttribute("c_name",
+                     builder.getStringAttr(sourceValue.parameter.cName));
+  state.addAttribute("c_type",
+                     builder.getStringAttr(sourceValue.parameter.cType));
   state.addAttribute(
       "ownership",
       builder.getStringAttr(
           tianchenrv::support::stringifyRuntimeABIParameterOwnership(
-              RuntimeABIParameterOwnership::TargetExportABIOwned)));
+              sourceValue.parameter.ownership)));
   state.addAttribute("purpose",
                      builder.getStringAttr(formatSourceABIPurpose(sourceValue)));
   return builder.create(state);
@@ -495,29 +486,19 @@ void createCapability(mlir::OpBuilder &builder, mlir::Location loc,
 }
 
 mlir::Operation *createSetVL(mlir::OpBuilder &builder, mlir::Location loc,
-                             mlir::Value nValue,
-                             tcrv::rvv::PolicyAttr policy) {
+                             mlir::Value nValue) {
   mlir::OperationState state(loc, "tcrv_rvv.setvl");
   state.addOperands(nValue);
   state.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
-  state.addAttribute(
-      "sew", builder.getI64IntegerAttr(tcrv::rvv::getRVVFirstSliceSEWBits()));
-  state.addAttribute("lmul",
-                     builder.getStringAttr(tcrv::rvv::getRVVI32M1LMUL()));
-  state.addAttribute("policy", policy);
+  tcrv::rvv::populateRVVI32M1ArithmeticConfigAttrs(builder, state);
   return builder.create(state);
 }
 
 mlir::Operation *createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
-                              mlir::Value vlValue,
-                              tcrv::rvv::PolicyAttr policy) {
+                              mlir::Value vlValue) {
   mlir::OperationState state(loc, "tcrv_rvv.with_vl");
   state.addOperands(vlValue);
-  state.addAttribute(
-      "sew", builder.getI64IntegerAttr(tcrv::rvv::getRVVFirstSliceSEWBits()));
-  state.addAttribute("lmul",
-                     builder.getStringAttr(tcrv::rvv::getRVVI32M1LMUL()));
-  state.addAttribute("policy", policy);
+  tcrv::rvv::populateRVVI32M1ArithmeticConfigAttrs(builder, state);
   state.addRegion();
   mlir::Operation *operation = builder.create(state);
   operation->getRegion(0).emplaceBlock();
@@ -624,9 +605,7 @@ void materializeSourceKernel(mlir::OpBuilder &builder,
       builder.getArrayAttr({symbolRef(builder, kRVVCapabilitySymbol)});
   mlir::ArrayAttr fallbackRequires = builder.getArrayAttr(
       {symbolRef(builder, kScalarFallbackCapabilitySymbol)});
-  auto policy = tcrv::rvv::PolicyAttr::get(
-      builder.getContext(), tcrv::rvv::TailPolicy::Agnostic,
-      tcrv::rvv::MaskPolicy::Agnostic);
+  auto policy = tcrv::rvv::getRVVI32M1ArithmeticPolicy(builder.getContext());
 
   mlir::OperationState variantState(loc, "tcrv.exec.variant");
   variantState.addAttribute("sym_name", builder.getStringAttr(variantName));
@@ -652,9 +631,9 @@ void materializeSourceKernel(mlir::OpBuilder &builder,
         builder, loc, source.runtimeABIValues[2], runtimeABIValueType);
     mlir::Operation *n = createRuntimeABIValue(
         builder, loc, source.runtimeABIValues[3], builder.getIndexType());
-    mlir::Operation *setvl = createSetVL(builder, loc, n->getResult(0), policy);
+    mlir::Operation *setvl = createSetVL(builder, loc, n->getResult(0));
     mlir::Operation *withVL =
-        createWithVL(builder, loc, setvl->getResult(0), policy);
+        createWithVL(builder, loc, setvl->getResult(0));
 
     builder.setInsertionPointToStart(&withVL->getRegion(0).front());
     mlir::Operation *lhsLoad =

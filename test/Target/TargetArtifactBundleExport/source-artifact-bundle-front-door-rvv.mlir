@@ -54,13 +54,19 @@
 // HEADER: tianchenrv.rvv.runtime_abi_contract: rvv-i32m1-arithmetic-callable-c-abi-family.v1
 // HEADER: tianchenrv.rvv.bundle_component_group: rvv-i32m1-arithmetic-materialized-emitc-bundle.v1
 // HEADER: tianchenrv.rvv.object_handoff: materialized-emitc-cpp-rvv-intrinsic-object
-// HEADER: tianchenrv.rvv.runtime_avl_source: runtime_abi:n
 // HEADER: tianchenrv.rvv.config_contract: rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1
+// HEADER: tianchenrv.rvv.sew: 32
+// HEADER: tianchenrv.rvv.lmul: m1
+// HEADER: tianchenrv.rvv.tail_policy: agnostic
+// HEADER: tianchenrv.rvv.mask_policy: agnostic
 // HEADER: tianchenrv.rvv.runtime_vl_contract: rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1
+// HEADER: tianchenrv.rvv.runtime_avl_source: runtime_abi:n
 // HEADER: tianchenrv.rvv.vl_def: tcrv_rvv.setvl
 // HEADER: tianchenrv.rvv.vl_scope: tcrv_rvv.with_vl
 // HEADER: tianchenrv.rvv.runtime_abi_order: lhs,rhs,out,n
 // HEADER: tianchenrv.rvv.emitc_loop: emitc.for
+// HEADER: tianchenrv.rvv.remaining_avl: n-offset
+// HEADER: tianchenrv.rvv.pointer_advance: offset
 // HEADER: tianchenrv.rvv.multi_vl: supported
 // HEADER: extern "C" {
 // HEADER: void tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

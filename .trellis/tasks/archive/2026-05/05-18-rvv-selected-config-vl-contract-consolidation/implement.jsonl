@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and stack boundaries for this RVV plugin refactor."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, tail-safe source front door, and bounded i32m1 config/VL contract rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC route handoff and target artifact validation boundaries."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin locality and source-front-door interface ownership rules."}
+{"file": ".trellis/tasks/archive/2026-05/05-18-05-18-rvv-vector-source-tail-safe-avl-boundary/prd.md", "reason": "Previous source semantic repair and accepted tail-safe source contract."}

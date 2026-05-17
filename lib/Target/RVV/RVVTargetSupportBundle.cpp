@@ -13,6 +13,7 @@
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
 
 #include "mlir/IR/BuiltinOps.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
@@ -378,6 +379,66 @@ llvm::Error validateRVVI32M1ArithmeticTargetArtifactCandidate(
   return llvm::Error::success();
 }
 
+void appendRVVConfigVLMetadataEvidence(
+    llvm::SmallVectorImpl<MaterializedEmitCHeaderArtifactMetadataEvidence>
+        &out) {
+  constexpr llvm::StringLiteral kRVVMetadataPrefix("tcrv_rvv.");
+  for (const support::ArtifactMetadataEntry &entry :
+       tcrv::rvv::getRVVI32M1ArithmeticArtifactMetadata()) {
+    llvm::StringRef key(entry.key);
+    llvm::StringRef commentName = key;
+    if (key.starts_with(kRVVMetadataPrefix))
+      commentName = key.drop_front(kRVVMetadataPrefix.size());
+    out.push_back({commentName, key, entry.value});
+  }
+}
+
+llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence, 32>
+buildRVVI32M1ArithmeticHeaderMetadataEvidence() {
+  llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence, 32>
+      evidence;
+  evidence.append({
+      {"source_ops", plugin::rvv::getRVVSourceOpsMetadataName(),
+       plugin::rvv::getRVVI32M1ArithmeticSourceOps()},
+      {"source_roles", plugin::rvv::getRVVSourceRolesMetadataName(),
+       plugin::rvv::getRVVI32M1ArithmeticSourceRoles()},
+      {"source_op_interface",
+       plugin::rvv::getRVVSourceOpInterfaceMetadataName(),
+       plugin::rvv::getRVVEmitCLowerableOpInterfaceName()},
+      {"construction_protocol",
+       plugin::rvv::getRVVConstructionProtocolMetadataName(),
+       plugin::rvv::getRVVConstructionManifest().protocolVersion},
+      {"extension_archetype",
+       plugin::rvv::getRVVConstructionArchetypeMetadataName(),
+       plugin::rvv::getRVVConstructionManifest().archetype},
+      {"semantic_role_graph", plugin::rvv::getRVVSemanticRoleGraphMetadataName(),
+       plugin::rvv::getRVVConstructionManifest().semanticRoleGraph},
+      {"common_interface_realization",
+       plugin::rvv::getRVVCommonInterfaceRealizationMetadataName(),
+       plugin::rvv::getRVVConstructionArtifactInterfaceRealization()},
+      {"typed_role_realization",
+       plugin::rvv::getRVVTypedRoleRealizationMetadataName(),
+       plugin::rvv::getRVVArtifactTypedRoleRealizationSummary()},
+      {"emitc_route_mapping",
+       plugin::rvv::getRVVEmitCRouteMappingMetadataName(),
+       plugin::rvv::getRVVConstructionManifest().emitcRoute.routeID},
+      {"evidence_profile", plugin::rvv::getRVVEvidenceProfileMetadataName(),
+       plugin::rvv::getRVVConstructionManifest().evidenceProfile},
+      {"runtime_abi_contract",
+       plugin::rvv::getRVVRuntimeABIContractMetadataName(),
+       plugin::rvv::getRVVConstructionManifest().emitcRoute.runtimeABI},
+      {"bundle_component_group",
+       plugin::rvv::getRVVBundleComponentGroupMetadataName(),
+       plugin::rvv::getRVVI32M1ArithmeticTargetArtifactMapping()
+           .bundleComponentGroup},
+      {"object_handoff", plugin::rvv::getRVVObjectHandoffMetadataName(),
+       plugin::rvv::getRVVI32M1ArithmeticTargetArtifactMapping()
+           .objectHandoffKind},
+  });
+  appendRVVConfigVLMetadataEvidence(evidence);
+  return evidence;
+}
+
 llvm::Error exportMaterializedRVVEmitCToCpp(mlir::ModuleOp module,
                                             llvm::raw_ostream &os) {
   return exportMaterializedEmitCModuleToCpp(
@@ -494,75 +555,12 @@ SelectedEmitCArtifactRouteConfig getRVVI32M1ArithmeticArtifactConfig() {
 ConstructionTemplateArtifactAdapterConfig
 getRVVI32M1ArithmeticArtifactAdapterConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stddef.h", "stdint.h"};
-  static const MaterializedEmitCHeaderArtifactMetadataEvidence
-      kMetadataEvidence[] = {
-          {"source_ops", plugin::rvv::getRVVSourceOpsMetadataName(),
-           plugin::rvv::getRVVI32M1ArithmeticSourceOps()},
-          {"source_roles", plugin::rvv::getRVVSourceRolesMetadataName(),
-           plugin::rvv::getRVVI32M1ArithmeticSourceRoles()},
-          {"source_op_interface",
-           plugin::rvv::getRVVSourceOpInterfaceMetadataName(),
-           plugin::rvv::getRVVEmitCLowerableOpInterfaceName()},
-          {"construction_protocol",
-           plugin::rvv::getRVVConstructionProtocolMetadataName(),
-           plugin::rvv::getRVVConstructionManifest().protocolVersion},
-          {"extension_archetype",
-           plugin::rvv::getRVVConstructionArchetypeMetadataName(),
-           plugin::rvv::getRVVConstructionManifest().archetype},
-          {"semantic_role_graph",
-           plugin::rvv::getRVVSemanticRoleGraphMetadataName(),
-           plugin::rvv::getRVVConstructionManifest().semanticRoleGraph},
-          {"common_interface_realization",
-           plugin::rvv::getRVVCommonInterfaceRealizationMetadataName(),
-           plugin::rvv::getRVVConstructionArtifactInterfaceRealization()},
-          {"typed_role_realization",
-           plugin::rvv::getRVVTypedRoleRealizationMetadataName(),
-           plugin::rvv::getRVVArtifactTypedRoleRealizationSummary()},
-          {"emitc_route_mapping",
-           plugin::rvv::getRVVEmitCRouteMappingMetadataName(),
-           plugin::rvv::getRVVConstructionManifest().emitcRoute.routeID},
-          {"evidence_profile", plugin::rvv::getRVVEvidenceProfileMetadataName(),
-           plugin::rvv::getRVVConstructionManifest().evidenceProfile},
-          {"runtime_abi_contract",
-           plugin::rvv::getRVVRuntimeABIContractMetadataName(),
-           plugin::rvv::getRVVConstructionManifest().emitcRoute.runtimeABI},
-          {"bundle_component_group",
-           plugin::rvv::getRVVBundleComponentGroupMetadataName(),
-           plugin::rvv::getRVVI32M1ArithmeticTargetArtifactMapping()
-               .bundleComponentGroup},
-          {"object_handoff", plugin::rvv::getRVVObjectHandoffMetadataName(),
-           plugin::rvv::getRVVI32M1ArithmeticTargetArtifactMapping()
-               .objectHandoffKind},
-          {"runtime_avl_source", "tcrv_rvv.runtime_avl_source",
-           "runtime_abi:n"},
-          {"config_contract", "tcrv_rvv.config_contract",
-           "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"},
-          {"sew", "tcrv_rvv.sew", "32"},
-          {"lmul", "tcrv_rvv.lmul", "m1"},
-          {"tail_policy", "tcrv_rvv.tail_policy", "agnostic"},
-          {"mask_policy", "tcrv_rvv.mask_policy", "agnostic"},
-          {"runtime_vl_contract", "tcrv_rvv.runtime_vl_contract",
-           "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"},
-          {"runtime_avl_abi_parameter",
-           "tcrv_rvv.runtime_avl_abi_parameter", "n"},
-          {"vl_def", "tcrv_rvv.vl_def", "tcrv_rvv.setvl"},
-          {"vl_scope", "tcrv_rvv.vl_scope", "tcrv_rvv.with_vl"},
-          {"vl_uses", "tcrv_rvv.vl_uses",
-           "emitc_for,with_vl,i32_load,i32_load,i32_arithmetic,i32_store"},
-          {"runtime_abi_order", "tcrv_rvv.runtime_abi_order",
-           "lhs,rhs,out,n"},
-          {"emitc_loop", "tcrv_rvv.emitc_loop", "emitc.for"},
-          {"loop_induction", "tcrv_rvv.loop_induction", "offset"},
-          {"loop_step", "tcrv_rvv.loop_step", "full_chunk_vl"},
-          {"remaining_avl", "tcrv_rvv.remaining_avl", "n-offset"},
-          {"pointer_advance", "tcrv_rvv.pointer_advance", "offset"},
-          {"bounded_slice", "tcrv_rvv.bounded_slice",
-           "multi-vl-i32m1-arithmetic"},
-          {"multi_vl", "tcrv_rvv.multi_vl", "supported"},
-      };
+  static const llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence,
+                                 32>
+      kMetadataEvidence = buildRVVI32M1ArithmeticHeaderMetadataEvidence();
   static const llvm::SmallVector<support::RuntimeABIParameter, 4>
       kRuntimeABIParameters =
-          plugin::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
+          tcrv::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
 
   const plugin::rvv::RVVConstructionManifest &manifest = getRVVManifest();
   const plugin::rvv::RVVI32M1ArithmeticTargetArtifactMapping &mapping =

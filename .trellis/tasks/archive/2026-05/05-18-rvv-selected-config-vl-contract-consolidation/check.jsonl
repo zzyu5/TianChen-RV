@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global no-Python-compiler-core and no descriptor/direct-C authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV i32m1 config/VL source/materialization/export contract compliance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check selected EmitC route and target artifact handoff behavior."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin-locality and no common RVV semantic branch boundaries."}

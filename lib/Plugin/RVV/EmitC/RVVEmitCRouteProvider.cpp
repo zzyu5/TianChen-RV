@@ -16,6 +16,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -242,13 +243,10 @@ llvm::Error validateRVVI32M1ArithmeticRuntimeABIParameters(
   if (!bindings)
     return bindings.takeError();
 
-  llvm::SmallVector<support::RuntimeABIParameter, 4> expected =
-      getRVVI32M1ArithmeticRuntimeABIParameters();
-  if (!support::runtimeABIParametersEqual(ordered, expected))
-    return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route requires explicit runtime ABI values to "
-        "match callable C ABI parameters lhs, rhs, out, n with stable types "
-        "and ownership");
+  if (llvm::Error error =
+          tcrv::rvv::verifyRVVI32M1ArithmeticRuntimeABIParameters(
+              ordered, "bounded RVV EmitC route explicit runtime ABI values"))
+    return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
 
   return llvm::Error::success();
 }
@@ -627,7 +625,7 @@ llvm::StringRef getRVVI32M1ArithmeticRuntimeGlueRole() {
 
 llvm::SmallVector<support::RuntimeABIParameter, 4>
 getRVVI32M1ArithmeticRuntimeABIParameters() {
-  return getRVVI32M1ArithmeticConstructionRuntimeABIParameters();
+  return tcrv::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
 }
 
 llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
@@ -706,11 +704,17 @@ llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
     return error;
 
   conversion::emitc::TCRVEmitCForLoop loop;
-  loop.inductionVarName = "offset";
+  llvm::StringRef inductionName =
+      tcrv::rvv::getRVVI32M1ArithmeticEmitCLoopInductionName();
+  llvm::StringRef fullChunkVLName =
+      tcrv::rvv::getRVVI32M1ArithmeticEmitCFullChunkVLName();
+  llvm::StringRef loopVLName =
+      tcrv::rvv::getRVVI32M1ArithmeticEmitCLoopVLName();
+  loop.inductionVarName = inductionName.str();
   loop.lowerBound = TCRVEmitCCallOpaqueOperand{"0", "size_t"};
   loop.upperBound = TCRVEmitCCallOpaqueOperand{
       slice->runtimeElementCountABI.cName, slice->runtimeElementCountABI.cType};
-  loop.step = TCRVEmitCCallOpaqueOperand{"full_chunk_vl", "size_t"};
+  loop.step = TCRVEmitCCallOpaqueOperand{fullChunkVLName.str(), "size_t"};
 
   auto addLoopStep = [&](mlir::Operation *op, llvm::StringRef role,
                          llvm::StringRef callee,
@@ -727,35 +731,47 @@ llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
 
   if (llvm::Error error = addLoopStep(
           slice->setvl.getOperation(), "configure", "__riscv_vsetvl_e32m1",
-          {TCRVEmitCCallOpaqueOperand{"n - offset", "size_t"}},
-          TCRVEmitCCallOpaqueResult{"vl", "size_t"}))
+          {TCRVEmitCCallOpaqueOperand{
+              tcrv::rvv::getRVVI32M1ArithmeticEmitCRemainingAVLExpression(
+                  slice->runtimeElementCountABI.cName, inductionName),
+              "size_t"}},
+          TCRVEmitCCallOpaqueResult{loopVLName.str(), "size_t"}))
     return error;
   if (llvm::Error error = addLoopStep(
           slice->lhsLoad.getOperation(), "load", "__riscv_vle32_v_i32m1",
-          {TCRVEmitCCallOpaqueOperand{"lhs + offset", slice->lhsABI.cType},
-           TCRVEmitCCallOpaqueOperand{"vl", "size_t"}},
+          {TCRVEmitCCallOpaqueOperand{
+               (llvm::StringRef(slice->lhsABI.cName) + " + " + inductionName)
+                   .str(),
+               slice->lhsABI.cType},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(), "size_t"}},
           TCRVEmitCCallOpaqueResult{"lhs_vec", "vint32m1_t"}))
     return error;
   if (llvm::Error error = addLoopStep(
           slice->rhsLoad.getOperation(), "load", "__riscv_vle32_v_i32m1",
-          {TCRVEmitCCallOpaqueOperand{"rhs + offset", slice->rhsABI.cType},
-           TCRVEmitCCallOpaqueOperand{"vl", "size_t"}},
+          {TCRVEmitCCallOpaqueOperand{
+               (llvm::StringRef(slice->rhsABI.cName) + " + " + inductionName)
+                   .str(),
+               slice->rhsABI.cType},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(), "size_t"}},
           TCRVEmitCCallOpaqueResult{"rhs_vec", "vint32m1_t"}))
     return error;
   if (llvm::Error error = addLoopStep(
           slice->arithmeticOp, "compute", expectedSpec.intrinsic,
           {TCRVEmitCCallOpaqueOperand{"lhs_vec", "vint32m1_t"},
            TCRVEmitCCallOpaqueOperand{"rhs_vec", "vint32m1_t"},
-           TCRVEmitCCallOpaqueOperand{"vl", "size_t"}},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(), "size_t"}},
           TCRVEmitCCallOpaqueResult{expectedSpec.resultName.str(),
                                     "vint32m1_t"}))
     return error;
   if (llvm::Error error = addLoopStep(
           slice->store.getOperation(), "store", "__riscv_vse32_v_i32m1",
-          {TCRVEmitCCallOpaqueOperand{"out + offset", slice->outABI.cType},
+          {TCRVEmitCCallOpaqueOperand{
+               (llvm::StringRef(slice->outABI.cName) + " + " + inductionName)
+                   .str(),
+               slice->outABI.cType},
            TCRVEmitCCallOpaqueOperand{expectedSpec.resultName.str(),
                                       "vint32m1_t"},
-           TCRVEmitCCallOpaqueOperand{"vl", "size_t"}}))
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(), "size_t"}}))
     return error;
 
   route.addForLoop(std::move(loop));
