@@ -1,8 +1,11 @@
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
 
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Dialect/Template/IR/TemplateDialect.h"
 #include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
+#include "TianChenRV/Plugin/Template/TemplateEmitCRouteProvider.h"
+#include "TianChenRV/Target/Template/TemplateTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -62,15 +65,18 @@ constexpr llvm::StringLiteral kRoleAttrName("role");
 constexpr llvm::StringLiteral kStatusAttrName("status");
 constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
     "required_capabilities");
-constexpr llvm::StringLiteral kIntegrationContractAttrName("integration_contract");
-constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
-constexpr llvm::StringLiteral kNoActiveRouteStatusValue("no-active-route");
-constexpr llvm::StringLiteral kSelectedPlanCapabilityIDName(
-    "template_extension_capability_id");
-constexpr llvm::StringLiteral kSelectedPlanIntegrationContractName(
-    "template_extension_integration_contract");
-constexpr llvm::StringLiteral kSelectedPlanScopeName(
-    "template_extension_scope");
+constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
+constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
+constexpr llvm::StringLiteral kRoleOrderAttrName("role_order");
+constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
+constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
+    "role_specific_interface");
+constexpr llvm::StringLiteral kTemplateComputeTypedRoleID(
+    "template.role.compute.compute_skeleton");
+constexpr unsigned kTemplateComputeRoleOrder = 2;
+constexpr llvm::StringLiteral kTemplateComputeSourceRole("compute");
+constexpr llvm::StringLiteral kTemplateComputeRoleSpecificInterface(
+    "TCRVComputeOpInterface");
 
 struct TemplateExtensionCapabilityView {
   std::string integrationContract;
@@ -85,8 +91,7 @@ llvm::Error makeTemplatePluginError(llvm::Twine message) {
 }
 
 llvm::Error verifyTemplateConstructionProtocolReady() {
-  return template_ext::verifyTemplateConstructionManifest(
-      template_ext::getTemplateConstructionManifest());
+  return template_ext::verifyTemplateConstructionProtocolReady();
 }
 
 bool hasAvailableTemplateExtensionCapability(
@@ -438,6 +443,41 @@ llvm::Error validateBoundaryStringAttr(mlir::Operation *op,
   return llvm::Error::success();
 }
 
+mlir::Operation *materializeTemplateComputeSkeletonBoundary(
+    const VariantLoweringBoundaryRequest &request) {
+  mlir::OpBuilder &builder = request.getBuilder();
+  mlir::MLIRContext *context = builder.getContext();
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+
+  auto variantRequires =
+      variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+  mlir::OperationState state(variant.getLoc(), "tcrv_template.compute_skeleton");
+  state.addAttribute(kSourceKernelAttrName,
+                     builder.getStringAttr(kernel.getSymName()));
+  state.addAttribute(kSelectedVariantAttrName,
+                     mlir::FlatSymbolRefAttr::get(context,
+                                                  variant.getSymName()));
+  state.addAttribute(kOriginAttrName,
+                     builder.getStringAttr(kTemplatePluginName));
+  state.addAttribute(kRoleAttrName,
+                     builder.getStringAttr(
+                         stringifyVariantEmissionRole(request.getRole())));
+  state.addAttribute(kStatusAttrName,
+                     builder.getStringAttr(kRoleOpBoundaryStatusValue));
+  state.addAttribute(kRequiredCapabilitiesAttrName, variantRequires);
+  state.addAttribute(kTypedRoleAttrName,
+                     builder.getStringAttr(kTemplateComputeTypedRoleID));
+  state.addAttribute(kRoleOrderAttrName,
+                     builder.getI64IntegerAttr(kTemplateComputeRoleOrder));
+  state.addAttribute(kSourceRoleAttrName,
+                     builder.getStringAttr(kTemplateComputeSourceRole));
+  state.addAttribute(
+      kRoleSpecificInterfaceAttrName,
+      builder.getStringAttr(kTemplateComputeRoleSpecificInterface));
+  return builder.create(state);
+}
+
 const template_ext::TemplateExtensionPlugin &
 getBuiltinTemplateExtensionPlugin() {
   static const template_ext::TemplateExtensionPlugin plugin;
@@ -591,8 +631,9 @@ llvm::Error TemplateExtensionPlugin::estimateVariantCost(
   out.setOriginPlugin(kTemplatePluginName);
   out.setVariantSymbol(request.getVariant().getSymName());
   out.setExplanation(
-      "Template extension zero-core manifest route; no executable lowering, "
-      "runtime execution, correctness, or performance claim");
+      "Template extension construction-template first slice; route "
+      "materializes an EmitC module from a selected compute_skeleton role "
+      "boundary without runtime execution, correctness, or performance claim");
   out.setPolicy(
       "prefer Template only when explicit template.extension capability "
       "metadata is available");
@@ -618,10 +659,22 @@ llvm::Error TemplateExtensionPlugin::checkVariantEmissionReadiness(
         " failed plugin legality before emission readiness: " + message);
   }
 
-  out = VariantEmissionStatus::getUnsupported(
+  conversion::emitc::TCRVEmitCLowerableRoute route;
+  VariantEmitCLowerableRequest routeRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole());
+  if (llvm::Error error =
+          template_ext::buildTemplateComputeSkeletonEmitCLowerableRoute(
+              routeRequest, route)) {
+    std::string diagnostic = llvm::toString(std::move(error));
+    out = VariantEmissionStatus::getUnsupported(
+        kTemplatePluginName, request.getVariant().getSymName(), diagnostic);
+    return llvm::Error::success();
+  }
+
+  out = VariantEmissionStatus::getSupported(
       kTemplatePluginName, request.getVariant().getSymName(),
-      "Template extension has no active materialized EmitC lowering or target "
-      "artifact route");
+      route.getRouteID());
   return llvm::Error::success();
 }
 
@@ -645,11 +698,58 @@ llvm::Error TemplateExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  out = VariantEmissionPlan::getUnsupported(
+  conversion::emitc::TCRVEmitCLowerableRoute route;
+  VariantEmitCLowerableRequest routeRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole());
+  if (llvm::Error error =
+          template_ext::buildTemplateComputeSkeletonEmitCLowerableRoute(
+              routeRequest, route))
+    return error;
+  if (route.getSourceOpProvenance().empty())
+    return makeTemplatePluginError(
+        "Template target artifact emission plan requires route source-op "
+        "provenance before artifact export");
+
+  const template_ext::TemplateConstructionManifest &manifest =
+      template_ext::getTemplateConstructionManifest();
+  const template_ext::TemplateEmitCConstructionRoute &constructionRoute =
+      template_ext::getTemplateEmitCConstructionRoute();
+  const conversion::emitc::TCRVEmitCSourceOpProvenance &source =
+      route.getSourceOpProvenance().front();
+
+  out = VariantEmissionPlan::getSupported(
       kTemplatePluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      "Template extension has no active materialized EmitC lowering, runtime "
-      "ABI, or target artifact route");
+      constructionRoute.emissionKind, constructionRoute.routeID,
+      constructionRoute.runtimeABI, constructionRoute.artifactKind,
+      "Template selected compute_skeleton route materializes a verified EmitC "
+      "module through the common TCRVEmitCLowerableRoute materializer and "
+      "exports generated C++ through the MLIR EmitC C/C++ emitter");
+  out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
+  out.setRuntimeABIName(constructionRoute.runtimeABIName);
+  out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);
+  out.setLoweringBoundaryOpName(constructionRoute.loweringBoundaryOpName);
+  out.addRuntimeABIParameters(
+      template_ext::getTemplateRuntimeABIParameters());
+  out.addArtifactMetadata(
+      template_ext::getTemplateEmitCRouteMappingMetadataName(),
+      route.getRouteID());
+  out.addArtifactMetadata(template_ext::getTemplateSourceOpMetadataName(),
+                          source.opName);
+  out.addArtifactMetadata(template_ext::getTemplateSourceRoleMetadataName(),
+                          source.role);
+  out.addArtifactMetadata(
+      template_ext::getTemplateSourceOpInterfaceMetadataName(),
+      source.opInterface);
+  out.addArtifactMetadata(
+      template_ext::getTemplateConstructionProtocolMetadataName(),
+      manifest.protocolVersion);
+  out.addArtifactMetadata(template_ext::getTemplateSemanticRoleGraphMetadataName(),
+                          manifest.semanticRoleGraph);
+  out.addArtifactMetadata(
+      template_ext::getTemplateTypedRoleRealizationMetadataName(),
+      template_ext::getTemplateTypedRoleRealizationSummary());
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
@@ -679,21 +779,26 @@ llvm::Error TemplateExtensionPlugin::materializeSelectedLoweringBoundary(
         " failed plugin legality before boundary materialization: " + message);
   }
 
-  out = VariantLoweringBoundaryResult::getNoBoundary(
+  mlir::Operation *boundary = materializeTemplateComputeSkeletonBoundary(request);
+  VariantLoweringBoundaryValidationRequest validationRequest(
+      variant, kernel, request.getCapabilities(), request.getRole(), boundary);
+  if (llvm::Error error = validateSelectedLoweringBoundary(validationRequest))
+    return error;
+
+  out = VariantLoweringBoundaryResult::getMaterialized(
       kTemplatePluginName, kernel.getSymName(), variant.getSymName(),
-      request.getRole(),
-      "Template extension has no active selected lowering-boundary route");
+      request.getRole(), boundary);
   return llvm::Error::success();
 }
 
 llvm::Error TemplateExtensionPlugin::validateSelectedLoweringBoundary(
     const VariantLoweringBoundaryValidationRequest &request) const {
   auto boundary =
-      llvm::dyn_cast_if_present<tcrv::template_ext::LoweringBoundaryOp>(
+      llvm::dyn_cast_if_present<tcrv::template_ext::ComputeSkeletonOp>(
           request.getBoundary());
   if (!boundary)
     return makeTemplatePluginError(
-        "selected Template path requires a tcrv_template.lowering_boundary operation");
+        "selected Template path requires a tcrv_template.compute_skeleton operation");
 
   if (llvm::Error error =
           validateBoundaryStringAttr(boundary.getOperation(),
@@ -711,17 +816,19 @@ llvm::Error TemplateExtensionPlugin::validateSelectedLoweringBoundary(
     return error;
   if (llvm::Error error =
           validateBoundaryStringAttr(boundary.getOperation(), kStatusAttrName,
-                                     kNoActiveRouteStatusValue))
+                                     kRoleOpBoundaryStatusValue))
     return error;
-  if (llvm::Error error =
-          validateBoundaryStringAttr(boundary.getOperation(),
-                                     kIntegrationContractAttrName,
-                                     kExpectedIntegrationContract))
+  if (llvm::Error error = validateBoundaryStringAttr(
+          boundary.getOperation(), kTypedRoleAttrName,
+          kTemplateComputeTypedRoleID))
     return error;
-  if (llvm::Error error =
-          validateBoundaryStringAttr(boundary.getOperation(),
-                                     kHandoffKindAttrName,
-                                     kExpectedHandoffKind))
+  if (llvm::Error error = validateBoundaryStringAttr(
+          boundary.getOperation(), kSourceRoleAttrName,
+          kTemplateComputeSourceRole))
+    return error;
+  if (llvm::Error error = validateBoundaryStringAttr(
+          boundary.getOperation(), kRoleSpecificInterfaceAttrName,
+          kTemplateComputeRoleSpecificInterface))
     return error;
 
   auto selectedVariant =
@@ -742,13 +849,52 @@ llvm::Error TemplateExtensionPlugin::validateSelectedLoweringBoundary(
         "Template lowering-boundary required_capabilities must match selected "
         "variant requires metadata");
 
+  auto roleOrder =
+      boundary->getAttrOfType<mlir::IntegerAttr>(kRoleOrderAttrName);
+  if (!roleOrder || roleOrder.getInt() != kTemplateComputeRoleOrder)
+    return makeTemplatePluginError(
+        "Template compute_skeleton role_order must match the construction "
+        "typed-role realization");
+
+  if (llvm::Error error = template_ext::verifyTemplateComputeRoleOpInterface(
+          template_ext::getTemplateConstructionManifest(),
+          template_ext::getTemplateTypedRoleGraphRealization(),
+          boundary.getOperation()))
+    return error;
+
   return llvm::Error::success();
+}
+
+llvm::Error TemplateExtensionPlugin::buildVariantEmitCLowerableRoute(
+    const VariantEmitCLowerableRequest &request,
+    conversion::emitc::TCRVEmitCLowerableRoute &out) const {
+  if (!request.getVariant())
+    return makeTemplatePluginError(
+        "EmitC route construction requires a materialized tcrv.exec.variant");
+  if (!request.getKernel())
+    return makeTemplatePluginError(
+        "EmitC route construction requires an enclosing tcrv.exec.kernel");
+
+  VariantLegalityRequest legality(request.getVariant(), request.getKernel(),
+                                  request.getCapabilities());
+  if (llvm::Error error = verifyVariantLegality(legality))
+    return error;
+
+  return template_ext::buildTemplateComputeSkeletonEmitCLowerableRoute(
+      request, out);
 }
 
 llvm::Error TemplateExtensionPlugin::configureTargetSupportExtensionBundle(
     ExtensionBundle &bundle) const {
   bundle.addRequiredDialectName("tcrv_template");
-  return llvm::Error::success();
+  return target::template_ext::configureTemplateTargetSupportExtensionBundle(
+      bundle);
+}
+
+llvm::Error TemplateExtensionPlugin::registerTargetSupportTranslateRoutes(
+    target::TargetTranslateRouteRegistry &registry) const {
+  return target::template_ext::registerTemplateTargetSupportTargetTranslateRoutes(
+      registry);
 }
 
 } // namespace template_ext

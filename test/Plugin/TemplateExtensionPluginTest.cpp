@@ -1,4 +1,6 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/Template/IR/TemplateDialect.h"
 #include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
@@ -33,7 +35,10 @@ using tianchenrv::plugin::VariantEmissionStatus;
 using tianchenrv::plugin::VariantProposal;
 using tianchenrv::plugin::VariantProposalDecline;
 using tianchenrv::plugin::VariantProposalRequest;
+using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface;
+using tianchenrv::conversion::emitc::
+    verifyTCRVEmitCLowerableRouteMaterializesToEmitC;
 using tianchenrv::support::TargetCapabilitySet;
 using tianchenrv::tcrv::exec::DiagnosticOp;
 using tianchenrv::tcrv::exec::KernelOp;
@@ -238,16 +243,30 @@ int runConstructionManifestTest() {
     return result;
   if (int result = expect(
           manifest.emitcRoute.routeID ==
-                  "template-extension-no-active-emitc-route" &&
+                  "template-extension-compute-skeleton-emitc-route" &&
               manifest.emitcRoute.artifactKind ==
-                  "unsupported-emission-diagnostic",
-          "Template manifest exposes fail-closed artifact route fields"))
+                  "runtime-callable-c-header" &&
+              manifest.emitcRoute.emissionKind ==
+                  "materialized-emitc-cpp-template-compute-skeleton-module",
+          "Template manifest exposes materialized EmitC route fields"))
+    return result;
+  const auto &route =
+      tianchenrv::plugin::template_ext::getTemplateEmitCConstructionRoute();
+  if (int result = expectSuccess(
+          tianchenrv::plugin::template_ext::
+              verifyTemplateEmitCConstructionRouteMapping(
+                  route.routeID, route.emissionKind, route.artifactKind,
+                  route.loweringBoundaryOpName, route.runtimeABI,
+                  route.runtimeABIKind, route.runtimeABIName,
+                  route.runtimeGlueRole),
+          "Template EmitC construction route mapping verifies"))
     return result;
   return expect(
       manifest.evidenceProfile.contains("parse_verify") &&
           manifest.evidenceProfile.contains("interface") &&
           manifest.evidenceProfile.contains("emitc_route_mapping") &&
-          !manifest.evidenceProfile.contains("generated"),
+          manifest.evidenceProfile.contains("materialized_emitc_module") &&
+          manifest.evidenceProfile.contains("generated_cpp_compile"),
       "Template manifest records focused evidence profile");
 }
 
@@ -822,31 +841,51 @@ module {
           "materialize Template selected boundary"))
     return result;
 
-  LoweringBoundaryOp boundary =
+  LoweringBoundaryOp oldBoundary =
       findTemplateBoundary(kernel, templateVariant.getSymName());
   if (int result =
-          expect(!boundary,
-                 "Template selected path does not materialize a route boundary"))
+          expect(!oldBoundary,
+                 "Template selected path does not materialize the old "
+                 "metadata-only lowering_boundary"))
     return result;
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
-                          "Template no-boundary module verifies"))
+                          "Template selected role-boundary module verifies"))
     return result;
 
   ComputeSkeletonOp computeRole =
       findTemplateComputeRoleOp(kernel, templateVariant.getSymName());
   if (int result =
-          expect(!computeRole,
-                 "Template selected path does not materialize a compute role op"))
+          expect(computeRole,
+                 "Template selected path materializes a compute role op"))
+    return result;
+  if (int result = expectSuccess(
+          registry.validateSelectedLoweringBoundary(
+              tianchenrv::plugin::VariantLoweringBoundaryValidationRequest(
+                  templateVariant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant,
+                  computeRole.getOperation())),
+          "Template selected compute role validates as lowering boundary"))
     return result;
 
   VariantEmissionStatus status;
-  if (int result = expectErrorContains(
+  if (int result = expectSuccess(
           registry.checkVariantEmissionReadiness(
               VariantEmissionRequest(templateVariant, kernel, capabilities,
                                      VariantEmissionRole::DirectVariant),
               status),
-          {"reported unsupported emission path",
-           "no active materialized EmitC"}))
+          "Template emission readiness is checked through route builder"))
+    return result;
+  const auto &constructionRoute =
+      tianchenrv::plugin::template_ext::getTemplateEmitCConstructionRoute();
+  if (int result =
+          expect(status.isSupported() &&
+                     status.getOriginPlugin() ==
+                         tianchenrv::plugin::template_ext::
+                             getTemplateExtensionPluginName() &&
+                     status.getVariantSymbol() == templateVariant.getSymName() &&
+                     status.getEmissionPath() == constructionRoute.routeID,
+                 "Template emission readiness is supported only after "
+                 "selected role route exists"))
     return result;
 
   VariantEmissionPlan emissionPlan;
@@ -857,24 +896,92 @@ module {
               emissionPlan),
           "Template emission plan is plugin-owned"))
     return result;
+  bool sawRouteMetadata = false;
+  bool sawSourceOpMetadata = false;
+  bool sawSourceInterfaceMetadata = false;
+  for (const auto &metadata : emissionPlan.getArtifactMetadata()) {
+    if (metadata.key ==
+            tianchenrv::plugin::template_ext::
+                getTemplateEmitCRouteMappingMetadataName() &&
+        metadata.value == constructionRoute.routeID)
+      sawRouteMetadata = true;
+    if (metadata.key ==
+            tianchenrv::plugin::template_ext::
+                getTemplateSourceOpMetadataName() &&
+        metadata.value == constructionRoute.loweringBoundaryOpName)
+      sawSourceOpMetadata = true;
+    if (metadata.key ==
+            tianchenrv::plugin::template_ext::
+                getTemplateSourceOpInterfaceMetadataName() &&
+        metadata.value == "TCRVEmitCLowerableOpInterface")
+      sawSourceInterfaceMetadata = true;
+  }
   if (int result =
-          expect(emissionPlan.isUnsupported() &&
+          expect(emissionPlan.isSupported() &&
                      emissionPlan.getOriginPlugin() ==
                          tianchenrv::plugin::template_ext::
                              getTemplateExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() ==
                          templateVariant.getSymName() &&
-                     emissionPlan.getLoweringPipeline().empty() &&
-                     emissionPlan.getArtifactKind().empty() &&
-                     emissionPlan.getDiagnostic().contains(
-                         "no active materialized EmitC lowering") &&
+                     emissionPlan.getLoweringPipeline() ==
+                         constructionRoute.routeID &&
+                     emissionPlan.getArtifactKind() ==
+                         constructionRoute.artifactKind &&
+                     emissionPlan.getRuntimeABI() ==
+                         constructionRoute.runtimeABI &&
+                     emissionPlan.getRuntimeABIKind() ==
+                         constructionRoute.runtimeABIKind &&
+                     emissionPlan.getRuntimeABIName() ==
+                         constructionRoute.runtimeABIName &&
+                     emissionPlan.getLoweringBoundaryOpName() ==
+                         constructionRoute.loweringBoundaryOpName &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::template_ext::
-                             getTemplateExtensionPreferredCapabilitySymbol(),
-                 "Template emission plan fails closed without exportable route"))
+                             getTemplateExtensionPreferredCapabilitySymbol() &&
+                     sawRouteMetadata && sawSourceOpMetadata &&
+                     sawSourceInterfaceMetadata,
+                 "Template emission plan carries materialized EmitC route "
+                 "metadata"))
     return result;
+
+  TCRVEmitCLowerableRoute route;
+  if (int result = expectSuccess(
+          registry.buildVariantEmitCLowerableRoute(
+              tianchenrv::plugin::VariantEmitCLowerableRequest(
+                  templateVariant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant),
+              route),
+          "Template registry builds EmitC lowerable route"))
+    return result;
+  if (int result =
+          expect(route.getRouteID() == constructionRoute.routeID &&
+                     route.getSourceOpProvenance().size() == 1 &&
+                     route.getCallOpaqueSteps().size() == 1,
+                 "Template EmitC route preserves selected source provenance "
+                 "and call step"))
+    return result;
+  if (int result = expectSuccess(
+          verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
+              route, "tcrv_emitc_template_extension_kernel_"
+                     "template_zero_core_first_slice",
+              {}),
+          "Template EmitC lowerable route materializes to EmitC"))
+    return result;
+
+  computeRole->setAttr("source_role", mlir::StringAttr::get(&context, "load"));
+  TCRVEmitCLowerableRoute staleRoute;
+  if (int result = expectErrorContains(
+          registry.buildVariantEmitCLowerableRoute(
+              tianchenrv::plugin::VariantEmitCLowerableRequest(
+                  templateVariant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant),
+              staleRoute),
+          {"TCRVEmitCLowerableOpInterface source role", "compute"}))
+    return result;
+  computeRole->setAttr("source_role",
+                       mlir::StringAttr::get(&context, "compute"));
 
   return 0;
 }

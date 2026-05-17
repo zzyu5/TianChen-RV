@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final changes preserve global architecture and stack boundaries."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Check Template changes stay plugin-local and construction-protocol backed."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check manifest, role graph, interface realization, EmitC mapping, and evidence profile coverage."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check materialized EmitC route evidence and fail-closed descriptor/direct-C/source-export boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check emission-plan and artifact-kind behavior does not reintroduce metadata-only authority."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused C++/lit/build evidence is sufficient for changed behavior."}

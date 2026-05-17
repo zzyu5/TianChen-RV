@@ -73,6 +73,48 @@ Added a code-consumed common materialized EmitC object/header bundle constructio
 - None - task complete
 
 
+## Session 107: Template materialized EmitC construction-template route
+
+**Date**: 2026-05-17
+**Task**: Template materialized EmitC construction-template route
+**Branch**: `main`
+
+### Summary
+
+Made the Template extension-family construction template executable enough to
+prove selected Template role IR can flow through a plugin-owned materialized
+EmitC route, MLIR EmitC C/C++ emission, generated C++ syntax compile, and a
+declaration-only header artifact route without descriptor, direct-C, or
+source-export authority.
+
+### Main Changes
+
+- Replaced the Template manifest's metadata-only no-active route with
+  `template-extension-compute-skeleton-emitc-route`.
+- Added `TemplateEmitCRouteProvider` to consume selected
+  `tcrv_template.compute_skeleton` through `TCRVEmitCLowerableOpInterface`.
+- Rewired Template emission readiness, emission planning, selected boundary
+  validation, and target-support registration around the plugin-owned route.
+- Added Template target support for `tcrv-template-emitc-to-cpp` and a
+  runtime-callable header artifact route.
+- Added C++ and lit coverage for positive materialization/C++/header evidence
+  and fail-closed stale/missing/prohibited metadata cases.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-template-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-template-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused lit from `build/test` with `--filter='Template|template'`: 15/15 passed.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 122/122 passed.
+- [OK] `git diff --cached --check`
+- [OK] focused production-surface residue scan found no Template no-active route, metadata-diagnostic, descriptor, source-export, direct-C, or `tcrv_template.lowering_boundary` residue.
+
+### Status
+
+[OK] Completed. Ready for archive and commit.
+
+
 ## Session 107: TensorExtLite materialized bundle runtime ABI proof
 
 **Date**: 2026-05-17

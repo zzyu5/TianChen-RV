@@ -14,9 +14,11 @@ def TCRV_Template_Dialect : Dialect {
     tcrv_template because MLIR dialect namespaces cannot contain '.' characters.
 
     This dialect exposes selected lowering-boundary metadata plus a minimal
-    ODS-backed role-op boundary used by construction protocol tests. It does
-    not model tensor/tile computation, executable lowering, runtime calls,
-    binary artifacts, correctness, or performance.
+    ODS-backed role-op boundary used by construction protocol tests. The
+    compute_skeleton role can be consumed by the Template plugin's bounded
+    EmitC construction-template route for generated C++ evidence, but it does
+    not model tensor/tile computation, target runtime execution, hardware
+    correctness, or performance.
   }];
 }
 
@@ -64,10 +66,12 @@ def ComputeSkeletonOp : TCRVTemplate_Op<"compute_skeleton",
     and have Template construction validation consume that interface-backed IR
     identity.
 
-    This op is a construction-template compute role boundary only. It does not
-    model tensor/tile computation, executable lowering, runtime ABI values,
-    generated objects, correctness, or performance. Configure, load, and store
-    remain manifest-ordered staged roles for this slice.
+    This op is a construction-template compute role boundary only. It can be
+    consumed by the Template-owned EmitC route to prove the construction
+    template reaches generated C++ evidence, but it does not model tensor/tile
+    computation, target runtime execution, generated objects, correctness, or
+    performance. Configure, load, and store remain manifest-ordered staged
+    roles for this slice.
   }];
 
   let arguments = (ins

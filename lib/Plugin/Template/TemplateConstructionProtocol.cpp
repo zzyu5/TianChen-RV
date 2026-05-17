@@ -1,5 +1,7 @@
 #include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
 
+#include "llvm/Support/Errc.h"
+
 namespace tianchenrv::plugin::template_ext {
 namespace {
 
@@ -22,7 +24,8 @@ constexpr llvm::StringLiteral kInterfaceRealization(
     "TCRVEmitCLowerableInterface");
 constexpr llvm::StringLiteral kEvidenceProfile(
     "parse_verify|capability|interface|selected_boundary_or_route|"
-    "emitc_route_mapping");
+    "emitc_route_mapping|materialized_emitc_module|mlir_emitc_cpp_emitter|"
+    "generated_cpp_compile");
 
 constexpr llvm::StringLiteral kProtocolMetadataName(
     "template_construction_protocol");
@@ -38,6 +41,10 @@ constexpr llvm::StringLiteral kEmitCRouteMetadataName(
     "template_emitc_route_mapping");
 constexpr llvm::StringLiteral kEvidenceProfileMetadataName(
     "template_evidence_profile");
+constexpr llvm::StringLiteral kSourceOpMetadataName("template_source_op");
+constexpr llvm::StringLiteral kSourceRoleMetadataName("template_source_role");
+constexpr llvm::StringLiteral kSourceOpInterfaceMetadataName(
+    "template_source_op_interface");
 
 constexpr llvm::StringLiteral kProtocolMetadataRole("construction-protocol");
 constexpr llvm::StringLiteral kArchetypeMetadataRole("extension-archetype");
@@ -56,17 +63,26 @@ constexpr llvm::StringLiteral kTemplateCapabilityKind(
 constexpr llvm::StringLiteral kTemplateVariantName(
     "template_zero_core_first_slice");
 constexpr llvm::StringLiteral kTemplateRouteID(
-    "template-extension-no-active-emitc-route");
+    "template-extension-compute-skeleton-emitc-route");
 constexpr llvm::StringLiteral kTemplateEmissionKind(
-    "template-extension-unsupported-emission");
+    "materialized-emitc-cpp-template-compute-skeleton-module");
 constexpr llvm::StringLiteral kTemplateArtifactKind(
-    "unsupported-emission-diagnostic");
+    "runtime-callable-c-header");
 constexpr llvm::StringLiteral kTemplateRuntimeABI(
-    "unsupported-emission-runtime-abi");
+    "template-extension-compute-skeleton-runtime-c-abi.v1");
 constexpr llvm::StringLiteral kTemplateRuntimeABIKind(
-    "unsupported-plugin-runtime-abi");
+    "plugin-owned-runtime-abi");
 constexpr llvm::StringLiteral kTemplateRuntimeGlueRole(
-    "no-runtime-glue-unsupported");
+    "emitc-cpp-template-compute-skeleton-runtime-glue");
+constexpr llvm::StringLiteral kTemplateLoweringBoundaryOpName(
+    "tcrv_template.compute_skeleton");
+constexpr llvm::StringLiteral kTemplateComputeCallee(
+    "tcrv_template_compute_skeleton");
+constexpr llvm::StringLiteral kTemplateComputeResultName(
+    "template_compute_sentinel");
+constexpr llvm::StringLiteral kTemplateComputeResultCType("int32_t");
+constexpr llvm::StringLiteral kTemplateEmitCToCppTranslateRouteID(
+    "tcrv-template-emitc-to-cpp");
 constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "configure:template.role.configure.config_skeleton:"
     "tcrv_template.config_skeleton:TCRVConfigOpInterface:"
@@ -170,6 +186,20 @@ const TemplateTypedRoleGraphRealization kTypedRoleGraphRealization = {
     kEvidenceProfile,
 };
 
+const TemplateEmitCConstructionRoute kTemplateEmitCRoute = {
+    kTemplateRouteID,
+    kTemplateEmissionKind,
+    kTemplateArtifactKind,
+    kTemplateLoweringBoundaryOpName,
+    kTemplateRuntimeABI,
+    kTemplateRuntimeABIKind,
+    kTemplateRuntimeABI,
+    kTemplateRuntimeGlueRole,
+    kTemplateComputeCallee,
+    kTemplateComputeResultName,
+    kTemplateComputeResultCType,
+    kTemplateEmitCToCppTranslateRouteID};
+
 const construction::RoleExpectation kRoleExpectations[] = {
     {"configure", "TCRVConfigOpInterface", false},
     {"load", "TCRVMemoryOpInterface", true},
@@ -179,7 +209,15 @@ const construction::RoleExpectation kRoleExpectations[] = {
 
 const llvm::StringRef kRequiredEvidence[] = {
     "parse_verify", "capability", "interface",
-    "selected_boundary_or_route", "emitc_route_mapping"};
+    "selected_boundary_or_route", "emitc_route_mapping",
+    "materialized_emitc_module"};
+
+llvm::Error makeTemplateConstructionProtocolError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV Template construction protocol invalid: ") +
+          message,
+      llvm::errc::invalid_argument);
+}
 
 construction::ValidationSpec getTemplateConstructionValidationSpec() {
   return {"Template",
@@ -255,6 +293,18 @@ llvm::StringRef getTemplateEvidenceProfileMetadataName() {
   return kEvidenceProfileMetadataName;
 }
 
+llvm::StringRef getTemplateSourceOpMetadataName() {
+  return kSourceOpMetadataName;
+}
+
+llvm::StringRef getTemplateSourceRoleMetadataName() {
+  return kSourceRoleMetadataName;
+}
+
+llvm::StringRef getTemplateSourceOpInterfaceMetadataName() {
+  return kSourceOpInterfaceMetadataName;
+}
+
 llvm::StringRef getTemplateConstructionProtocolMetadataRole() {
   return kProtocolMetadataRole;
 }
@@ -292,6 +342,15 @@ getTemplateTypedRoleGraphRealization() {
   return kTypedRoleGraphRealization;
 }
 
+const TemplateEmitCConstructionRoute &getTemplateEmitCConstructionRoute() {
+  return kTemplateEmitCRoute;
+}
+
+llvm::ArrayRef<support::RuntimeABIParameter>
+getTemplateRuntimeABIParameters() {
+  return {};
+}
+
 llvm::Error
 verifyTemplateConstructionManifest(const TemplateConstructionManifest &manifest) {
   return construction::verifyConstructionManifest(
@@ -303,6 +362,63 @@ llvm::Error verifyTemplateTypedRoleGraphRealization(
     const TemplateTypedRoleGraphRealization &realization) {
   return construction::verifyTypedRoleGraphRealization(
       manifest, realization, getTemplateConstructionValidationSpec());
+}
+
+llvm::Error verifyTemplateConstructionProtocolReady() {
+  if (llvm::Error error = verifyTemplateConstructionManifest(kManifest))
+    return error;
+  if (llvm::Error error = verifyTemplateTypedRoleGraphRealization(
+          kManifest, kTypedRoleGraphRealization))
+    return error;
+  return verifyTemplateEmitCConstructionRouteMapping(
+      kTemplateEmitCRoute.routeID, kTemplateEmitCRoute.emissionKind,
+      kTemplateEmitCRoute.artifactKind,
+      kTemplateEmitCRoute.loweringBoundaryOpName,
+      kTemplateEmitCRoute.runtimeABI, kTemplateEmitCRoute.runtimeABIKind,
+      kTemplateEmitCRoute.runtimeABIName,
+      kTemplateEmitCRoute.runtimeGlueRole);
+}
+
+llvm::Error verifyTemplateEmitCConstructionRouteMapping(
+    llvm::StringRef routeID, llvm::StringRef emissionKind,
+    llvm::StringRef artifactKind, llvm::StringRef loweringBoundaryOpName,
+    llvm::StringRef runtimeABI, llvm::StringRef runtimeABIKind,
+    llvm::StringRef runtimeABIName, llvm::StringRef runtimeGlueRole) {
+  const TemplateEmitCConstructionRoute &expected =
+      getTemplateEmitCConstructionRoute();
+  if (routeID != expected.routeID)
+    return makeTemplateConstructionProtocolError(
+        llvm::Twine("Template EmitC route id must be '") +
+        expected.routeID + "'");
+  if (emissionKind != expected.emissionKind)
+    return makeTemplateConstructionProtocolError(
+        llvm::Twine("Template emission kind must be '") +
+        expected.emissionKind + "'");
+  if (artifactKind != expected.artifactKind)
+    return makeTemplateConstructionProtocolError(
+        llvm::Twine("Template artifact kind must be '") +
+        expected.artifactKind + "'");
+  if (loweringBoundaryOpName != expected.loweringBoundaryOpName)
+    return makeTemplateConstructionProtocolError(
+        llvm::Twine("Template lowering boundary must be '") +
+        expected.loweringBoundaryOpName + "'");
+  if (runtimeABI != expected.runtimeABI)
+    return makeTemplateConstructionProtocolError(
+        llvm::Twine("Template runtime ABI must be '") +
+        expected.runtimeABI + "'");
+  if (runtimeABIKind != expected.runtimeABIKind)
+    return makeTemplateConstructionProtocolError(
+        llvm::Twine("Template runtime ABI kind must be '") +
+        expected.runtimeABIKind + "'");
+  if (runtimeABIName != expected.runtimeABIName)
+    return makeTemplateConstructionProtocolError(
+        llvm::Twine("Template runtime ABI name must be '") +
+        expected.runtimeABIName + "'");
+  if (runtimeGlueRole != expected.runtimeGlueRole)
+    return makeTemplateConstructionProtocolError(
+        llvm::Twine("Template runtime glue role must be '") +
+        expected.runtimeGlueRole + "'");
+  return llvm::Error::success();
 }
 
 llvm::Error verifyTemplateComputeRoleOpInterface(
