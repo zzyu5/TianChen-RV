@@ -245,7 +245,7 @@ int runConstructionManifestTest() {
           manifest.emitcRoute.routeID ==
                   "template-extension-compute-skeleton-emitc-route" &&
               manifest.emitcRoute.artifactKind ==
-                  "runtime-callable-c-header" &&
+                  "riscv-elf-relocatable-object" &&
               manifest.emitcRoute.emissionKind ==
                   "materialized-emitc-cpp-template-compute-skeleton-module",
           "Template manifest exposes materialized EmitC route fields"))
@@ -260,6 +260,14 @@ int runConstructionManifestTest() {
                   route.runtimeABIKind, route.runtimeABIName,
                   route.runtimeGlueRole),
           "Template EmitC construction route mapping verifies"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::template_ext::
+              verifyTemplateTargetArtifactBundleMapping(
+                  route.headerRouteID, route.headerArtifactKind,
+                  route.bundleComponentGroup, route.objectHandoffKind,
+                  route.emitCToCppTranslateRouteID),
+          "Template object/header bundle mapping verifies"))
     return result;
   return expect(
       manifest.evidenceProfile.contains("parse_verify") &&

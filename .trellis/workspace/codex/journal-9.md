@@ -459,3 +459,53 @@ Made TensorExtLite's existing fragment-MMA source-to-artifact path consume one p
 ### Next Steps
 
 - None - task complete
+
+
+## Session 107: Template materialized EmitC object bundle packaging bridge
+
+**Date**: 2026-05-17
+**Task**: Template materialized EmitC object bundle packaging bridge
+**Branch**: `main`
+
+### Summary
+
+Extended the already selected Template materialized EmitC construction route
+from generated C++ plus declaration header into a coherent construction-template
+source/header/object/bundle packaging bridge.
+
+### Main Changes
+
+- Created Trellis task `05-17-template-emitc-object-bundle` from the direction
+  brief and wrote the PRD around Template object/header/bundle packaging without
+  runtime, performance, or hardware claims.
+- Extended `TemplateEmitCConstructionRoute` with object route, header route,
+  header artifact kind, bundle component group, and object handoff metadata.
+- Rewired Template target support to register a selected relocatable object
+  route and an object-backed declaration header composite through the common
+  materialized EmitC object/header bundle helper.
+- Added local `clang++` object packaging from MLIR EmitC-generated C++ source;
+  the object is a relocatable packaging proof only, not a RISC-V runtime claim.
+- Preserved `tcrv-template-emitc-to-cpp` as the selected generated C++ route,
+  now tied to the same selected object candidate validation.
+- Added focused C++ and lit coverage for Template object exporter shape,
+  header composite behavior, bundle metadata coherence, route mismatch and
+  fail-closed behavior, and generated object/header/bundle artifacts.
+- Updated durable specs for the Template construction-template object/header/
+  bundle opt-in contract.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-template-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-template-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 124/124 lit tests passed.
+- [OK] `git diff --check`
+- [OK] bounded residue scans over Template plugin/target/tests and common/core
+  target surfaces found no descriptor-driven compute authority, direct C
+  semantic exporter, source-export route, or extension-specific core branch.
+- [WARN] `clang-format` was unavailable in the local toolchain; C++ formatting
+  was manually inspected and whitespace was checked with `git diff --check`.
+
+### Status
+
+[OK] Completed. Ready for archive and commit.

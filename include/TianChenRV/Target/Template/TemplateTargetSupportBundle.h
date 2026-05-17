@@ -16,6 +16,7 @@ class ExtensionBundle;
 namespace tianchenrv::target::template_ext {
 
 llvm::StringRef getTemplateMaterializedEmitCHeaderArtifactRouteID();
+llvm::StringRef getTemplateMaterializedEmitCTargetArtifactRouteID();
 llvm::StringRef getTemplateEmitCToCppTranslateRouteID();
 
 llvm::Error registerTemplateTargetSupportPluginTargetExporterBundles(

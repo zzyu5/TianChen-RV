@@ -67,7 +67,7 @@ constexpr llvm::StringLiteral kTemplateRouteID(
 constexpr llvm::StringLiteral kTemplateEmissionKind(
     "materialized-emitc-cpp-template-compute-skeleton-module");
 constexpr llvm::StringLiteral kTemplateArtifactKind(
-    "runtime-callable-c-header");
+    "riscv-elf-relocatable-object");
 constexpr llvm::StringLiteral kTemplateRuntimeABI(
     "template-extension-compute-skeleton-runtime-c-abi.v1");
 constexpr llvm::StringLiteral kTemplateRuntimeABIKind(
@@ -76,6 +76,14 @@ constexpr llvm::StringLiteral kTemplateRuntimeGlueRole(
     "emitc-cpp-template-compute-skeleton-runtime-glue");
 constexpr llvm::StringLiteral kTemplateLoweringBoundaryOpName(
     "tcrv_template.compute_skeleton");
+constexpr llvm::StringLiteral kTemplateHeaderRouteID(
+    "template-extension-compute-skeleton-emitc-route.header");
+constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
+    "runtime-callable-c-header");
+constexpr llvm::StringLiteral kTemplateMaterializedEmitCBundleComponentGroup(
+    "template-compute-skeleton-materialized-emitc-bundle.v1");
+constexpr llvm::StringLiteral kTemplateObjectHandoffKind(
+    "materialized-emitc-cpp-template-object");
 constexpr llvm::StringLiteral kTemplateComputeCallee(
     "tcrv_template_compute_skeleton");
 constexpr llvm::StringLiteral kTemplateComputeResultName(
@@ -195,6 +203,10 @@ const TemplateEmitCConstructionRoute kTemplateEmitCRoute = {
     kTemplateRuntimeABIKind,
     kTemplateRuntimeABI,
     kTemplateRuntimeGlueRole,
+    kTemplateHeaderRouteID,
+    kRuntimeCallableCHeaderArtifactKind,
+    kTemplateMaterializedEmitCBundleComponentGroup,
+    kTemplateObjectHandoffKind,
     kTemplateComputeCallee,
     kTemplateComputeResultName,
     kTemplateComputeResultCType,
@@ -370,13 +382,20 @@ llvm::Error verifyTemplateConstructionProtocolReady() {
   if (llvm::Error error = verifyTemplateTypedRoleGraphRealization(
           kManifest, kTypedRoleGraphRealization))
     return error;
-  return verifyTemplateEmitCConstructionRouteMapping(
-      kTemplateEmitCRoute.routeID, kTemplateEmitCRoute.emissionKind,
-      kTemplateEmitCRoute.artifactKind,
-      kTemplateEmitCRoute.loweringBoundaryOpName,
-      kTemplateEmitCRoute.runtimeABI, kTemplateEmitCRoute.runtimeABIKind,
-      kTemplateEmitCRoute.runtimeABIName,
-      kTemplateEmitCRoute.runtimeGlueRole);
+  if (llvm::Error error = verifyTemplateEmitCConstructionRouteMapping(
+          kTemplateEmitCRoute.routeID, kTemplateEmitCRoute.emissionKind,
+          kTemplateEmitCRoute.artifactKind,
+          kTemplateEmitCRoute.loweringBoundaryOpName,
+          kTemplateEmitCRoute.runtimeABI, kTemplateEmitCRoute.runtimeABIKind,
+          kTemplateEmitCRoute.runtimeABIName,
+          kTemplateEmitCRoute.runtimeGlueRole))
+    return error;
+  return verifyTemplateTargetArtifactBundleMapping(
+      kTemplateEmitCRoute.headerRouteID,
+      kTemplateEmitCRoute.headerArtifactKind,
+      kTemplateEmitCRoute.bundleComponentGroup,
+      kTemplateEmitCRoute.objectHandoffKind,
+      kTemplateEmitCRoute.emitCToCppTranslateRouteID);
 }
 
 llvm::Error verifyTemplateEmitCConstructionRouteMapping(
@@ -418,6 +437,35 @@ llvm::Error verifyTemplateEmitCConstructionRouteMapping(
     return makeTemplateConstructionProtocolError(
         llvm::Twine("Template runtime glue role must be '") +
         expected.runtimeGlueRole + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyTemplateTargetArtifactBundleMapping(
+    llvm::StringRef headerRouteID, llvm::StringRef headerArtifactKind,
+    llvm::StringRef bundleComponentGroup, llvm::StringRef objectHandoffKind,
+    llvm::StringRef emitCToCppTranslateRouteID) {
+  const TemplateEmitCConstructionRoute &expected =
+      getTemplateEmitCConstructionRoute();
+  if (headerRouteID != expected.headerRouteID)
+    return makeTemplateConstructionProtocolError(
+        llvm::Twine("Template header route id must be '") +
+        expected.headerRouteID + "'");
+  if (headerArtifactKind != expected.headerArtifactKind)
+    return makeTemplateConstructionProtocolError(
+        llvm::Twine("Template header artifact kind must be '") +
+        expected.headerArtifactKind + "'");
+  if (bundleComponentGroup != expected.bundleComponentGroup)
+    return makeTemplateConstructionProtocolError(
+        llvm::Twine("Template bundle component group must be '") +
+        expected.bundleComponentGroup + "'");
+  if (objectHandoffKind != expected.objectHandoffKind)
+    return makeTemplateConstructionProtocolError(
+        llvm::Twine("Template object handoff kind must be '") +
+        expected.objectHandoffKind + "'");
+  if (emitCToCppTranslateRouteID != expected.emitCToCppTranslateRouteID)
+    return makeTemplateConstructionProtocolError(
+        llvm::Twine("Template EmitC-to-C++ translate route id must be '") +
+        expected.emitCToCppTranslateRouteID + "'");
   return llvm::Error::success();
 }
 

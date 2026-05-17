@@ -466,6 +466,11 @@ plugin-owned runtime ABI contract.
   materialized EmitC object exporter plus object-backed header composite
   registration, while object packaging, route payloads, typed role validation,
   and extension evidence remain plugin-owned.
+- Good: Template may also consume the common object/header bundle construction
+  helper as a construction-template example after its selected typed role-op
+  path materializes through the plugin-owned EmitC route. Its local object
+  callback may only prove generated C++ relocatable packaging; it must not
+  claim runtime, hardware, intrinsic, correctness, or performance behavior.
 - Base: TensorExtLite may carry an ordered source-op/source-role evidence
   sequence because its selected route contains multiple typed role ops.
 - Base: Toy may carry one target-export-owned runtime element count parameter;
@@ -498,11 +503,12 @@ plugin-owned runtime ABI contract.
   header production path is emitted by the common declaration-only helper while
   object packaging and bundle component metadata remain RVV-owned.
 - Focused common target artifact tests proving the object/header bundle
-  construction helper is code-consumed by at least RVV and TensorExtLite,
-  accepts zero-argument runtime ABI signatures when both components agree, and
-  fails closed for missing materialized EmitC provenance, mismatched ABI
-  signatures, mixed or ambiguous candidates, stale descriptor/direct-C/
-  source-export residue, and unsupported plugin routes.
+  construction helper is code-consumed by at least RVV, TensorExtLite, and
+  Template when those routes opt in, accepts zero-argument runtime ABI
+  signatures when both components agree, and fails closed for missing
+  materialized EmitC provenance, mismatched ABI signatures, mixed or ambiguous
+  candidates, stale descriptor/direct-C/source-export residue, and unsupported
+  plugin routes.
 
 ### 7. Wrong vs Correct
 

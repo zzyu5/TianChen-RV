@@ -34,6 +34,10 @@ struct TemplateEmitCConstructionRoute {
   llvm::StringRef runtimeABIKind;
   llvm::StringRef runtimeABIName;
   llvm::StringRef runtimeGlueRole;
+  llvm::StringRef headerRouteID;
+  llvm::StringRef headerArtifactKind;
+  llvm::StringRef bundleComponentGroup;
+  llvm::StringRef objectHandoffKind;
   llvm::StringRef callee;
   llvm::StringRef resultName;
   llvm::StringRef resultCType;
@@ -83,6 +87,10 @@ llvm::Error verifyTemplateEmitCConstructionRouteMapping(
     llvm::StringRef artifactKind, llvm::StringRef loweringBoundaryOpName,
     llvm::StringRef runtimeABI, llvm::StringRef runtimeABIKind,
     llvm::StringRef runtimeABIName, llvm::StringRef runtimeGlueRole);
+llvm::Error verifyTemplateTargetArtifactBundleMapping(
+    llvm::StringRef headerRouteID, llvm::StringRef headerArtifactKind,
+    llvm::StringRef bundleComponentGroup, llvm::StringRef objectHandoffKind,
+    llvm::StringRef emitCToCppTranslateRouteID);
 llvm::Error verifyTemplateComputeRoleOpInterface(
     const TemplateConstructionManifest &manifest,
     const TemplateTypedRoleGraphRealization &realization,

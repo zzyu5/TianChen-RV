@@ -1,0 +1,9 @@
+{"file":".trellis/spec/index.md","reason":"Global TianChen-RV source of truth and invariants for this Template target artifact round."}
+{"file":".trellis/spec/plugin-protocol/extension-family-plugin-template.md","reason":"Construction protocol and plugin-locality requirements for Template as reusable extension-family template."}
+{"file":".trellis/spec/plugin-protocol/interfaces-and-registry.md","reason":"Plugin registry and target-support registration boundary for plugin-owned artifact routes."}
+{"file":".trellis/spec/lowering-runtime/emission-runtime-contract.md","reason":"Materialized EmitC route, runtime ABI, and descriptor/direct-C deletion boundaries."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Selected EmitC artifact handoff, common header/object bundle helper, runtime-callable ABI linkage, and fail-closed matrix."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Lit/FileCheck and C++ coverage expectations for target artifact object/header/bundle export."}
+{"file":".trellis/spec/guides/capability-first-design-guide.md","reason":"Capability-first checks for target artifact emission and absence handling."}
+{"file":".trellis/spec/guides/plugin-locality-review-guide.md","reason":"Review boundary to avoid core family-specific branches while extending Template target support."}
+{"file":".trellis/spec/guides/compute-boundary-review-guide.md","reason":"Guardrail against adding new compute semantics to Template or tcrv.exec."}
