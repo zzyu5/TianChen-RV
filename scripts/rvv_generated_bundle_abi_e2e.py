@@ -147,18 +147,39 @@ COMMON_EXPECTED_METADATA = {
     "tcrv_rvv.bounded_slice": "multi-vl-i32m1-arithmetic",
     "tcrv_rvv.multi_vl": "supported",
 }
-FORBIDDEN_HEADER_TOKENS = (
-    "__riscv_",
-    "vint32m1_t",
-    "return;",
-    "int main",
+FORBIDDEN_PUBLIC_RESIDUE_TOKENS = (
+    "BinarySelfCheck",
+    "binary self-check",
+    "self-check",
+    "self_check",
+    "self check",
     "descriptor",
     "direct-C",
     "direct_c",
     "source-export",
     "source_export",
     "rvv-direct-microkernel",
+    "raw log",
+    "raw-log",
+    "password",
+    "passwd",
+    "token",
+    "secret",
+    "private key",
+    "authorization:",
+    "api_key",
+    "access_key",
+    "http://",
+    "https://",
+    "://",
 )
+FORBIDDEN_HEADER_TOKENS = (
+    "__riscv_",
+    "vint32m1_t",
+    "return;",
+    "int main",
+    "main(",
+) + FORBIDDEN_PUBLIC_RESIDUE_TOKENS
 
 SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
@@ -407,6 +428,15 @@ def require_not_contains(text: str, needle: str, context: str) -> None:
     raise EvidenceError(f"{context}: forbidden token {needle!r} present")
 
 
+def require_no_forbidden_public_residue(text: str, context: str) -> None:
+    lowered = text.lower()
+    for token in FORBIDDEN_PUBLIC_RESIDUE_TOKENS:
+        if token.lower() in lowered:
+            raise EvidenceError(
+                f"{context}: forbidden public residue token {token!r} present"
+            )
+
+
 def find_record(records: list[dict[str, Any]], component_role: str) -> dict[str, Any]:
     matches = [record for record in records if record.get("component_role") == component_role]
     if len(matches) != 1:
@@ -465,7 +495,10 @@ def verify_record_metadata(
     }
     for key, expected in {**per_op_metadata, **COMMON_EXPECTED_METADATA}.items():
         require_equal(metadata.get(key), expected, f"{context} metadata {key}")
-    for key in metadata:
+    for key, value in metadata.items():
+        require_no_forbidden_public_residue(
+            f"{key}={value}", f"{context} artifact metadata"
+        )
         lowered = key.lower()
         if "descriptor" in lowered or "element-count" in lowered or "element_count" in lowered:
             raise EvidenceError(f"{context} metadata key {key!r} is descriptor residue")
@@ -495,6 +528,7 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
         )
     require_contains(text, "tianchenrv.rvv.runtime_avl_source: runtime_abi:n", "generated header")
     require_contains(text, "tianchenrv.rvv.multi_vl: supported", "generated header")
+    require_no_forbidden_public_residue(text, "generated declaration-only header")
     for token in FORBIDDEN_HEADER_TOKENS:
         require_not_contains(text, token, "generated declaration-only header")
     return {
@@ -558,6 +592,7 @@ def verify_bundle(
     if not index_path.exists():
         raise EvidenceError(f"bundle index is missing: {index_path}")
     index_text = index_path.read_text(encoding="utf-8")
+    require_no_forbidden_public_residue(index_text, "bundle index")
     parsed = parse_bundle_index(index_text)
     require_equal(parsed.get("version"), "1", "bundle version")
     require_equal(parsed.get("bundle_status"), "complete", "bundle status")
@@ -787,6 +822,11 @@ def run_remote_evidence(
     require_contains(
         str(run_record.get("stdout", "")),
         expectation.pass_marker,
+        "remote generated bundle ABI harness output",
+    )
+    require_contains(
+        str(run_record.get("stdout", "")),
+        f"PASS op={expectation.kind}",
         "remote generated bundle ABI harness output",
     )
 
@@ -1110,6 +1150,14 @@ def expect_self_test_failure(name: str, fn: Any) -> None:
     raise AssertionError(f"self-test negative case did not fail: {name}")
 
 
+def require_self_test_sanitized(name: str, raw: str, forbidden: str) -> None:
+    sanitized = sanitize_text(raw)
+    if forbidden in sanitized:
+        raise AssertionError(f"self-test sanitizer failed to redact {name}")
+    if "[REDACTED" not in sanitized:
+        raise AssertionError(f"self-test sanitizer produced no marker for {name}")
+
+
 def run_self_test() -> int:
     with tempfile.TemporaryDirectory(prefix="tcrv-rvv-generated-bundle-self-test-") as tmp_raw:
         tmp = Path(tmp_raw)
@@ -1244,6 +1292,77 @@ def run_self_test() -> int:
         expect_self_test_failure(
             "stale runtime ABI",
             lambda: verify_bundle(stale_runtime_abi, None, expectation),
+        )
+
+        descriptor_residue = make_fake_bundle(tmp / "descriptor-residue", expectation)
+        index_path = descriptor_residue / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace(
+            'key: "rvv_emitc_lowerable_route"',
+            'key: "descriptor.route"',
+            1,
+        )
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "descriptor metadata residue",
+            lambda: verify_bundle(descriptor_residue, None, expectation),
+        )
+
+        direct_c_residue = make_fake_bundle(tmp / "direct-c-residue", expectation)
+        index_path = direct_c_residue / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace(
+            'value: "emitc.for"',
+            'value: "direct-C source-export residue"',
+            1,
+        )
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "direct-C source-export metadata residue",
+            lambda: verify_bundle(direct_c_residue, None, expectation),
+        )
+
+        self_check_residue = make_fake_bundle(tmp / "self-check-residue", expectation)
+        header = next(self_check_residue.glob("*.h"))
+        header.write_text(
+            header.read_text(encoding="utf-8") + "\n/* self-check helper */\n",
+            encoding="utf-8",
+        )
+        expect_self_test_failure(
+            "header self-check residue",
+            lambda: verify_bundle(self_check_residue, None, expectation),
+        )
+
+        credential_residue = make_fake_bundle(tmp / "credential-residue", expectation)
+        header = next(credential_residue.glob("*.h"))
+        header.write_text(
+            header.read_text(encoding="utf-8") + "\n/* TOKEN=leaked */\n",
+            encoding="utf-8",
+        )
+        expect_self_test_failure(
+            "header credential residue",
+            lambda: verify_bundle(credential_residue, None, expectation),
+        )
+
+        require_self_test_sanitized(
+            "private key",
+            "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----",
+            "abc",
+        )
+        require_self_test_sanitized(
+            "authorization bearer",
+            "Authorization: Bearer raw-secret-token",
+            "raw-secret-token",
+        )
+        require_self_test_sanitized(
+            "environment token",
+            "TCRV_API_TOKEN=raw-secret-token",
+            "raw-secret-token",
+        )
+        require_self_test_sanitized(
+            "password key",
+            "password: raw-secret-token",
+            "raw-secret-token",
         )
 
     print(f"{SCRIPT_NAME} self-test passed")

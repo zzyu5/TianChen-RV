@@ -73,6 +73,81 @@ Added a code-consumed common materialized EmitC object/header bundle constructio
 - None - task complete
 
 
+## Session 121: RVV generated-bundle external C ABI correctness proof
+
+**Date**: 2026-05-17
+**Task**: RVV generated-bundle external C ABI correctness proof
+**Branch**: `main`
+
+### Summary
+
+Closed a fresh current-HEAD proof for the existing public
+`tcrv-translate --tcrv-source-artifact-bundle-front-door` RVV add/sub/mul
+bundle ABI path after the binary self-check deletion round. The compiler route
+was already present; this round strengthened the evidence tool's fail-closed
+checks and re-ran real `ssh rvv` external C ABI evidence.
+
+### Main Changes
+
+- Created Trellis task
+  `05-17-rvv-generated-bundle-external-c-abi-proof` from the Direction Brief.
+- Updated `scripts/rvv_generated_bundle_abi_e2e.py` to reject forbidden
+  descriptor/direct-C/source-export/self-check/raw-log/credential-like residue
+  in bundle index, artifact metadata, and generated headers.
+- Added self-test negative coverage for descriptor metadata residue,
+  direct-C/source-export metadata residue, header self-check residue, header
+  credential residue, and sanitizer redaction of private-key, bearer-token,
+  environment-token, and password-like text.
+- Strengthened remote runtime validation so each operation must report both
+  `tcrv_rvv_generated_bundle_abi_<op>_ok` and `PASS op=<op>`.
+- Added no compiler route, no compatibility wrapper, no descriptor adapter, no
+  direct-C/source-export path, no scalar fallback compute, and no Python
+  compiler-core behavior.
+
+### Evidence
+
+- Dry-run artifact directory:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-rvv-generated-bundle-external-c-abi-dry`.
+- `ssh rvv` artifact directory:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-rvv-generated-bundle-external-c-abi-ssh`.
+- Remote toolchain facts recorded in per-op evidence:
+  `remote_arch=riscv64`, `clang_path=/usr/bin/clang`, and
+  `clang_version=Ubuntu clang version 18.1.3 (1ubuntu1)`.
+- Remote add/sub/mul runs passed `n=1,7,16,17,257` and printed:
+  `tcrv_rvv_generated_bundle_abi_add_ok`,
+  `tcrv_rvv_generated_bundle_abi_sub_ok`,
+  `tcrv_rvv_generated_bundle_abi_mul_ok`,
+  `PASS op=add counts=1,7,16,17,257`,
+  `PASS op=sub counts=1,7,16,17,257`, and
+  `PASS op=mul counts=1,7,16,17,257`.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `cmake --build build --target tcrv-translate -j2`
+- [OK] Dry-run generated bundle ABI command for add/sub/mul counts
+  `1,7,16,17,257`.
+- [OK] `ssh rvv` generated bundle ABI command for add/sub/mul counts
+  `1,7,16,17,257`.
+- [OK] Focused lit from `build/test` passed 3/3:
+  `Scripts/rvv-generated-bundle-abi-e2e-self-test.test`,
+  `Target/TargetArtifactBundleExport/source-artifact-bundle-front-door-rvv.mlir`,
+  `Target/TargetArtifactBundleExport/source-artifact-bundle-front-door-fail-closed.mlir`.
+- [OK] Focused residue scan left only intentional rejection logic, negative
+  self-test fixtures, and existing fail-closed test coverage.
+- [OK] `git diff --check`
+- [OK] Trellis context validation for the task.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 118: Built-in target registration wrapper erasure
 
 **Date**: 2026-05-17
