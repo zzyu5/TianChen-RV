@@ -73,6 +73,61 @@ Added a code-consumed common materialized EmitC object/header bundle constructio
 - None - task complete
 
 
+## Session 118: Built-in target registration wrapper erasure
+
+**Date**: 2026-05-17
+**Task**: Built-in target registration wrapper erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the target-side built-in aggregate registration wrappers that hid the
+extension bundle front door, then rewired active tool and target-test callers
+to pass explicit `ExtensionBundleRegistry` plus `ExtensionPluginRegistry`
+pairs into the surviving bundle-aware target registration surfaces.
+
+### Main Changes
+
+- Created Trellis task
+  `05-17-05-17-builtin-target-registration-wrapper-erasure` from the Direction
+  Brief.
+- Removed
+  `registerBuiltinTargetArtifactExporters(TargetArtifactExporterRegistry &)`,
+  `registerBuiltinTargetArtifactExporters(TargetArtifactExporterRegistry &, const ExtensionPluginRegistry &)`,
+  and
+  `registerBuiltinTargetTranslateRoutes(TargetTranslateRouteRegistry &)`.
+- Kept the bundle-aware target artifact exporter and target translate route
+  registration surfaces.
+- Rewired `tcrv-translate` target route registration and
+  `TargetArtifactExportTest.cpp` callers to construct/populate explicit
+  bundle/plugin registries.
+- Updated plugin-protocol and lowering-runtime specs so durable target
+  registration examples no longer present hidden wrappers as the correct API.
+- No compatibility alias, replacement wrapper, new target route, new artifact
+  behavior, descriptor path, direct C exporter, source-export path, Python
+  compiler-core logic, or extension-specific common/core/tool branch was added.
+
+### Testing
+
+- [OK] Trellis context validation for the task.
+- [OK] Focused build:
+  `cmake --build build --target tcrv-translate tianchenrv-target-artifact-export-test -j2`.
+- [OK] Rewritten C++ test:
+  `build/bin/tianchenrv-target-artifact-export-test`.
+- [OK] Translate command surface probe for target artifact and materialized
+  EmitC translate routes.
+- [OK] Deleted target wrapper signature scan over `include`, `lib`, `tools`,
+  `test`, and `.trellis/spec`.
+- [OK] Wrapper-protecting call/test scan over active code and specs.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target tcrv-opt check-tianchenrv -j2` -> 122/122
+  passed.
+
+### Status
+
+[OK] Completed. Ready for archive and final task commit.
+
+
 ## Session 118: Legacy built-in plugin registration wrapper erasure
 
 **Date**: 2026-05-17

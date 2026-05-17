@@ -17,13 +17,6 @@ class ExtensionPluginRegistry;
 namespace tianchenrv::target {
 
 llvm::Error registerBuiltinTargetArtifactExporters(
-    TargetArtifactExporterRegistry &registry);
-
-llvm::Error registerBuiltinTargetArtifactExporters(
-    TargetArtifactExporterRegistry &registry,
-    const plugin::ExtensionPluginRegistry &plugins);
-
-llvm::Error registerBuiltinTargetArtifactExporters(
     TargetArtifactExporterRegistry &registry,
     const plugin::ExtensionBundleRegistry &bundles,
     const plugin::ExtensionPluginRegistry &plugins);

@@ -16,9 +16,6 @@ class ExtensionPluginRegistry;
 
 namespace tianchenrv::target {
 
-llvm::Error
-registerBuiltinTargetTranslateRoutes(TargetTranslateRouteRegistry &registry);
-
 llvm::Error registerBuiltinTargetTranslateRoutes(
     TargetTranslateRouteRegistry &registry,
     const plugin::ExtensionBundleRegistry &bundles,

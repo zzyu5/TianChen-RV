@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify changes preserve global stack, capability, plugin locality, and deletion-before-rebuild constraints."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Check target caller rewrites keep the canonical bundle front door visible instead of restoring hidden aggregate wrappers."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check registry ownership and built-in registration API wording remain consistent with explicit bundle-aware target setup."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact/export translate contracts and tests align with the surviving bundle-aware target registration surfaces."}

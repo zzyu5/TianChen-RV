@@ -207,9 +207,17 @@ void registerBuiltinTargetTranslateRouteTranslations() {
     return;
 
   if (!initialized) {
+    tianchenrv::plugin::ExtensionBundleRegistry bundles;
+    tianchenrv::plugin::ExtensionPluginRegistry plugins;
+    if (llvm::Error error = populateBuiltinExtensionFrontDoor(bundles, plugins)) {
+      llvm::report_fatal_error(
+          llvm::Twine("failed to register TianChen-RV built-in extension "
+                      "bundle front door for target translate routes: ") +
+          llvm::toString(std::move(error)));
+    }
     if (llvm::Error error =
             tianchenrv::target::registerBuiltinTargetTranslateRoutes(
-                routeRegistry)) {
+                routeRegistry, bundles, plugins)) {
       llvm::report_fatal_error(
           llvm::Twine("failed to register TianChen-RV built-in target "
                       "translate routes for tcrv-translate: ") +

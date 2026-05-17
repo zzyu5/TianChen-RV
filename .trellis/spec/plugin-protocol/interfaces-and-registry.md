@@ -1036,6 +1036,11 @@ an `ExtensionBundleRegistry` and call the canonical bundle front door directly.
 The same front-door rule applies to the generic `offload-plugin`: offload
 dialect and handoff behavior are registered through the plugin registry, while
 shared orchestration continues to route only by generic `origin` lookup.
+Target artifact exporter and target translate route registration must preserve
+the same visible bundle/plugin pair at the target boundary. Target built-in
+helpers may consume `ExtensionBundleRegistry` and `ExtensionPluginRegistry`
+together, but must not expose zero-argument or plugin-only aggregate wrappers
+that internally recreate or hide the bundle catalog.
 `--tcrv-disable-builtin-plugins` is the public tool escape hatch for tests that
 must exercise a completely empty plugin registry, including unregistered plugin
 dialect diagnostics. Unknown origins still diagnose generically as unregistered

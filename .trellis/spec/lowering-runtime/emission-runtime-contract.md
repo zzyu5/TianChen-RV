@@ -760,12 +760,19 @@ C++ API:
 
 ```cpp
 llvm::Error registerBuiltinTargetArtifactExporters(
-    TargetArtifactExporterRegistry &registry);
+    TargetArtifactExporterRegistry &registry,
+    const plugin::ExtensionBundleRegistry &bundles,
+    const plugin::ExtensionPluginRegistry &plugins);
 ```
 
 #### 3. Contracts
 
 - The caller owns the `TargetArtifactExporterRegistry`.
+- The caller must also own the active `ExtensionBundleRegistry` and
+  `ExtensionPluginRegistry` used for the tool or embedding boundary. Built-in
+  target artifact registration must not construct built-in bundles/plugins
+  internally, and must not expose a plugin-only overload that hides bundle
+  identity from the public construction path.
 - The helper registers every currently supported built-in target artifact route
   by delegating to target-owned registration functions or, for route groups
   with an extension plugin manifest hook, by asking that plugin to configure
@@ -875,12 +882,15 @@ registerScalarMicrokernelTargetExporters(registry);
 Correct:
 
 ```cpp
-registerBuiltinTargetArtifactExporters(registry);
+plugin::ExtensionBundleRegistry bundles;
+plugin::ExtensionPluginRegistry plugins;
+registerBuiltinExtensionBundlePlugins(bundles, plugins);
+registerBuiltinTargetArtifactExporters(registry, bundles, plugins);
 ```
 
 The correct shape keeps target-specific route registration in target-owned
-modules plus one Target-layer built-in bundle, while shared generic artifact
-routing remains target-neutral and fail-closed.
+modules plus an explicit bundle-aware Target-layer registration surface, while
+shared generic artifact routing remains target-neutral and fail-closed.
 
 ### Built-In Target Translate Route Registration Boundary
 
@@ -929,12 +939,19 @@ public:
 };
 
 llvm::Error
-registerBuiltinTargetTranslateRoutes(TargetTranslateRouteRegistry &registry);
+registerBuiltinTargetTranslateRoutes(
+    TargetTranslateRouteRegistry &registry,
+    const plugin::ExtensionBundleRegistry &bundles,
+    const plugin::ExtensionPluginRegistry &plugins);
 ```
 
 #### 3. Contracts
 
 - The caller owns the `TargetTranslateRouteRegistry`.
+- The caller must pass the active extension bundle and plugin registries into
+  built-in target translate route registration. The target layer must not
+  create a hidden built-in bundle/plugin registry or expose a zero-argument
+  aggregate wrapper for public tools/tests.
 - A target translate route contribution records only the helper command route
   id, help description, target-owned export callback, and whether stdout must
   be switched to binary mode before callback execution.
@@ -981,7 +998,10 @@ Correct:
 
 ```cpp
 TargetTranslateRouteRegistry routes;
-registerBuiltinTargetTranslateRoutes(routes);
+plugin::ExtensionBundleRegistry bundles;
+plugin::ExtensionPluginRegistry plugins;
+registerBuiltinExtensionBundlePlugins(bundles, plugins);
+registerBuiltinTargetTranslateRoutes(routes, bundles, plugins);
 for (const TargetTranslateRoute &route : routes.getRoutes())
   registerTranslateRoute(route, registerTianChenRVTranslateDialects);
 ```

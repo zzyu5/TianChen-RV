@@ -1,6 +1,5 @@
 #include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
 
-#include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
@@ -22,17 +21,6 @@ llvm::Error makeBuiltinTranslateRouteError(llvm::Twine message) {
 }
 
 } // namespace
-
-llvm::Error
-registerBuiltinTargetTranslateRoutes(TargetTranslateRouteRegistry &registry) {
-  plugin::ExtensionBundleRegistry bundles;
-  plugin::ExtensionPluginRegistry plugins;
-  if (llvm::Error error =
-          plugin::registerBuiltinExtensionBundlePlugins(bundles, plugins))
-    return error;
-
-  return registerBuiltinTargetTranslateRoutes(registry, bundles, plugins);
-}
 
 llvm::Error registerBuiltinTargetTranslateRoutes(
     TargetTranslateRouteRegistry &registry,

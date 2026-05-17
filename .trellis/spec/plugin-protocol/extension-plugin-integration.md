@@ -111,6 +111,12 @@ Do not reintroduce a plugin-only compatibility API that hides
 for built-in availability should exercise the canonical bundle front door
 directly instead of protecting a legacy alias.
 
+Target-layer built-in artifact exporter and target translate route registration
+must consume the same visible `ExtensionBundleRegistry` and
+`ExtensionPluginRegistry` pair. Do not add or keep target-side aggregate
+wrappers that internally construct built-in bundles/plugins or accept plugins
+without the matching bundle registry.
+
 ## Lowering And Emission Template
 
 A plugin-owned lowering path should fit this template:

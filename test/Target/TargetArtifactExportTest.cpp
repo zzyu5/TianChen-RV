@@ -1136,8 +1136,16 @@ module {
     return false;
   }
 
+  ExtensionBundleRegistry bundles;
+  ExtensionPluginRegistry plugins;
+  if (!expectSuccess(tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+                         bundles, plugins),
+                     "register built-in extension bundle frontdoor for "
+                     "TensorExtLite header export"))
+    return false;
   TargetArtifactExporterRegistry registry;
-  if (!expectSuccess(registerBuiltinTargetArtifactExporters(registry),
+  if (!expectSuccess(registerBuiltinTargetArtifactExporters(registry, bundles,
+                                                            plugins),
                      "register built-in target artifact exporters for "
                      "TensorExtLite header export"))
     return false;
@@ -1874,8 +1882,16 @@ module {
     return false;
   }
 
+  ExtensionBundleRegistry bundles;
+  ExtensionPluginRegistry plugins;
+  if (!expectSuccess(tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+                         bundles, plugins),
+                     "register built-in extension bundle frontdoor for Toy "
+                     "header export"))
+    return false;
   TargetArtifactExporterRegistry registry;
-  if (!expectSuccess(registerBuiltinTargetArtifactExporters(registry),
+  if (!expectSuccess(registerBuiltinTargetArtifactExporters(registry, bundles,
+                                                            plugins),
                      "register built-in target artifact exporters for Toy "
                      "header export"))
     return false;
@@ -2302,6 +2318,12 @@ bool expectExtensionBundleFrontDoorFailClosedDiagnostics() {
 
 
 bool expectOffloadTargetArtifactExportersAbsent() {
+  ExtensionBundleRegistry offloadOnlyBundles;
+  if (!expectSuccess(tianchenrv::plugin::registerBuiltinExtensionBundles(
+                         offloadOnlyBundles),
+                     "register built-in extension bundles for offload-only "
+                     "target exporter absence check"))
+    return false;
   ExtensionPluginRegistry offloadOnlyPlugins;
   if (!expectSuccess(
           tianchenrv::plugin::registerOffloadExtensionPlugin(offloadOnlyPlugins),
@@ -2310,7 +2332,8 @@ bool expectOffloadTargetArtifactExportersAbsent() {
 
   TargetArtifactExporterRegistry offloadOnlyRegistry;
   if (!expectSuccess(registerBuiltinTargetArtifactExporters(
-                         offloadOnlyRegistry, offloadOnlyPlugins),
+                         offloadOnlyRegistry, offloadOnlyBundles,
+                         offloadOnlyPlugins),
                      "register built-in target exporters with offload plugin "
                      "after executable route erasure"))
     return false;
@@ -2330,8 +2353,8 @@ bool expectOffloadTargetArtifactExportersAbsent() {
     return false;
 
   TargetArtifactExporterRegistry allRegistry;
-  if (!expectSuccess(registerBuiltinTargetArtifactExporters(allRegistry,
-                                                           allPlugins),
+  if (!expectSuccess(registerBuiltinTargetArtifactExporters(
+                         allRegistry, allBundles, allPlugins),
                      "register all built-in target exporters after offload "
                      "executable route erasure"))
     return false;
@@ -2667,8 +2690,16 @@ bool expectRVVPluginManifestTargetSupportActivation() {
           pluginRoutes, "RVV plugin manifest target routes"))
     return false;
 
+  ExtensionBundleRegistry builtinBundles;
+  ExtensionPluginRegistry builtinPlugins;
+  if (!expectSuccess(tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+                         builtinBundles, builtinPlugins),
+                     "register built-in extension bundle frontdoor for RVV "
+                     "target translate routes"))
+    return false;
   TargetTranslateRouteRegistry builtinRoutes;
-  if (!expectSuccess(registerBuiltinTargetTranslateRoutes(builtinRoutes),
+  if (!expectSuccess(registerBuiltinTargetTranslateRoutes(
+                         builtinRoutes, builtinBundles, builtinPlugins),
                      "register built-in target translate routes through "
                      "generic plugin manifest aggregation"))
     return false;
@@ -2996,8 +3027,16 @@ bool expectTargetTranslateRouteRegistryShape() {
            "target artifact route id must be non-empty when present"}))
     return false;
 
+  ExtensionBundleRegistry builtinBundles;
+  ExtensionPluginRegistry builtinPlugins;
+  if (!expectSuccess(tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+                         builtinBundles, builtinPlugins),
+                     "register built-in extension bundle frontdoor for target "
+                     "translate registry shape"))
+    return false;
   TargetTranslateRouteRegistry builtinRoutes;
-  if (!expectSuccess(registerBuiltinTargetTranslateRoutes(builtinRoutes),
+  if (!expectSuccess(registerBuiltinTargetTranslateRoutes(
+                         builtinRoutes, builtinBundles, builtinPlugins),
                      "register built-in target translate routes"))
     return false;
   if (builtinRoutes.size() != 3) {
@@ -3017,7 +3056,8 @@ bool expectTargetTranslateRouteRegistryShape() {
           builtinRoutes, "built-in target translate routes"))
     return false;
   return expectSuccess(
-      registerBuiltinTargetTranslateRoutes(builtinRoutes),
+      registerBuiltinTargetTranslateRoutes(builtinRoutes, builtinBundles,
+                                           builtinPlugins),
       "repeat built-in target translate route no-op registration");
 }
 
@@ -4299,8 +4339,17 @@ int main() {
   if (!expectRVVPluginManifestTargetSupportActivation())
     return 1;
 
+  ExtensionBundleRegistry builtinBundles;
+  ExtensionPluginRegistry builtinPlugins;
+  if (!expectSuccess(tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+                         builtinBundles, builtinPlugins),
+                     "register built-in extension bundle frontdoor for final "
+                     "target artifact exporter checks"))
+    return 1;
+
   TargetArtifactExporterRegistry builtinRegistry;
-  if (!expectSuccess(registerBuiltinTargetArtifactExporters(builtinRegistry),
+  if (!expectSuccess(registerBuiltinTargetArtifactExporters(
+                         builtinRegistry, builtinBundles, builtinPlugins),
                      "register built-in target artifact exporters"))
     return 1;
   if (!expectFiniteBinaryRuntimeABIContractShape())
@@ -4329,7 +4378,8 @@ int main() {
                  << builtinRegistry.compositeSize() << "\n";
     return 1;
   }
-  if (!expectSuccess(registerBuiltinTargetArtifactExporters(builtinRegistry),
+  if (!expectSuccess(registerBuiltinTargetArtifactExporters(
+                         builtinRegistry, builtinBundles, builtinPlugins),
                      "re-registering built-in exporters remains a no-op"))
     return 1;
   if (builtinRegistry.size() != 4 ||
