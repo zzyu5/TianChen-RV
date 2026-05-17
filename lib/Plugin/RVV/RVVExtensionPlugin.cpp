@@ -271,6 +271,11 @@ void RVVExtensionPlugin::registerDialects(
   registry.insert<tcrv::rvv::TCRVRVVDialect>();
 }
 
+llvm::Error RVVExtensionPlugin::verifyExecutableConstructionConformance()
+    const {
+  return rvv::verifyRVVConstructionProtocolReady();
+}
+
 llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
   out.push_back(SourceFrontDoorPassRegistration(

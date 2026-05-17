@@ -24,6 +24,7 @@ public:
   llvm::StringRef getVersion() const override;
   llvm::ArrayRef<PluginCapability> getCapabilities() const override;
   void registerDialects(mlir::DialectRegistry &registry) const override;
+  llvm::Error verifyExecutableConstructionConformance() const override;
   llvm::Error registerSourceFrontDoorPasses(
       llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const override;
   bool supportsOperation(const VariantProposalRequest &request) const override;

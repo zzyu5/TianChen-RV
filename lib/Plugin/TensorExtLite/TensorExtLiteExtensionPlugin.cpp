@@ -730,6 +730,12 @@ void TensorExtLiteExtensionPlugin::registerDialects(
   registry.insert<tcrv::tensorext_lite::TCRVTensorExtLiteDialect>();
 }
 
+llvm::Error
+TensorExtLiteExtensionPlugin::verifyExecutableConstructionConformance()
+    const {
+  return tensorext_lite::verifyTensorExtLiteConstructionProtocolReady();
+}
+
 bool TensorExtLiteExtensionPlugin::supportsOperation(
     const VariantProposalRequest &request) const {
   return request.getHighLevelOp() && hasAvailableTensorExtLiteFragmentCapability(request);

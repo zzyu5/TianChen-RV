@@ -173,6 +173,22 @@ struct SelectedLoweringBoundaryConformanceSpec {
   llvm::StringRef requiredCapabilitiesAttrName = "required_capabilities";
 };
 
+struct ConstructionArtifactMetadataConformanceSpec {
+  llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata;
+  llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> expectedMetadata;
+  llvm::StringRef context;
+};
+
+struct ConstructionConformanceGateSpec {
+  llvm::StringRef gateDescription;
+  const Manifest *manifest = nullptr;
+  const TypedRoleGraphRealization *typedRoleRealization = nullptr;
+  const ValidationSpec *validationSpec = nullptr;
+  llvm::ArrayRef<ExecutableRoleStep> executableRoleSteps;
+  llvm::ArrayRef<ConstructionArtifactMetadataConformanceSpec>
+      artifactMetadata;
+};
+
 bool hasEvidence(llvm::StringRef profile, llvm::StringRef evidence);
 bool isValidCIdentifier(llvm::StringRef value);
 
@@ -210,6 +226,9 @@ collectSelectedExecutableRoleSequence(
 llvm::Error verifySelectedLoweringBoundaryConformance(
     mlir::Operation *boundary,
     const SelectedLoweringBoundaryConformanceSpec &spec);
+
+llvm::Error
+verifyConstructionConformanceGate(const ConstructionConformanceGateSpec &spec);
 
 llvm::Error verifyConstructionArtifactMetadata(
     llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,

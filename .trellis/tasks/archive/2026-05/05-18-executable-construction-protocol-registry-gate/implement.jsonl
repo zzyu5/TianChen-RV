@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, plugin, capability, and descriptor/direct-C boundaries for this implementation round."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Construction protocol manifest, typed-role realization, EmitC route mapping, and evidence-profile contract."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry, extension-bundle, emission-readiness, emission-plan, and generic orchestration contracts."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV first executable plugin path and bounded i32m1 materialized EmitC artifact boundary."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission plan, selected boundary, target artifact, and direct-C/source-export deletion boundaries."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit testing requirements and RVV evidence claim boundary."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Checklist for keeping common registry changes generic and plugin semantics local."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability and emission-route fail-closed design checks."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Guardrail against moving compute semantics into core/common surfaces."}
+{"file": ".trellis/tasks/archive/2026-05/05-18-rvv-executable-construction-conformance-adoption/prd.md", "reason": "Previous completed RVV adoption context and verification baseline."}

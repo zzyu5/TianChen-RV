@@ -73,6 +73,66 @@ Added a code-consumed common materialized EmitC object/header bundle constructio
 - None - task complete
 
 
+## Session 121: Executable construction protocol registry gate
+
+**Date**: 2026-05-18
+**Task**: Executable construction protocol registry gate
+**Branch**: `main`
+
+### Summary
+
+Made executable construction conformance a production plugin registry gate and
+proved the same common gate on RVV and non-RVV TensorExtLite construction
+surfaces.
+
+### Main Changes
+
+- Created Trellis task `05-18-executable-construction-protocol-registry-gate`
+  from the Direction Brief and wrote the PRD before source edits.
+- Added common `ConstructionConformanceGateSpec` and
+  `verifyConstructionConformanceGate`, covering manifest, typed role
+  realization, optional role steps, and construction artifact metadata through
+  existing construction conformance helpers.
+- Added `ExtensionPlugin::verifyExecutableConstructionConformance` and called
+  it from `ExtensionPluginRegistry::registerPlugin`, so plugin registration
+  and built-in extension-bundle setup fail closed before publishing invalid
+  executable construction artifacts.
+- Wired RVV and TensorExtLite plugin overrides into their existing
+  construction protocol ready checks. RVV remains the first real executable
+  artifact user; TensorExtLite is the reusable non-RVV proof.
+- Added no descriptor route, direct-C/source-export path, compatibility
+  wrapper, new RVV SEW/LMUL/dtype/op family, target artifact kind, or Python
+  compiler-core path.
+
+### Git Commits
+
+Included in the final task commit for this round.
+
+### Testing
+
+- [OK] Trellis context validation for the task.
+- [OK] Focused construction/RVV/TensorExtLite build:
+  `cmake --build build --target tianchenrv-construction-protocol-common-test tianchenrv-rvv-extension-plugin-test tianchenrv-tensorext-lite-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `git diff --check`
+- [OK] Common construction family-name scan returned no matches.
+- [OK] Descriptor/direct-C/source-export/Python compiler-core scan over
+  changed include/lib/test plugin files returned no matches.
+- [OK] `cmake --build build --target check-tianchenrv -j2` -> 122/122 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 121: RVV executable construction conformance adoption
 
 **Date**: 2026-05-18

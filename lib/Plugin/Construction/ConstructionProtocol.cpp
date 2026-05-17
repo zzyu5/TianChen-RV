@@ -39,6 +39,14 @@ llvm::Error makeExecutableConformanceError(llvm::StringRef description,
       llvm::errc::invalid_argument);
 }
 
+llvm::Error makeConstructionGateError(llvm::StringRef description,
+                                      llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV ") + description +
+          " construction conformance gate invalid: " + message,
+      llvm::errc::invalid_argument);
+}
+
 bool containsToken(llvm::StringRef text, llvm::StringRef token) {
   return text.contains(token);
 }
@@ -914,6 +922,57 @@ llvm::Error verifySelectedLoweringBoundaryConformance(
         llvm::Twine(spec.boundaryDescription) +
             " required_capabilities must match selected variant requires "
             "metadata");
+
+  return llvm::Error::success();
+}
+
+llvm::Error
+verifyConstructionConformanceGate(const ConstructionConformanceGateSpec &spec) {
+  if (spec.gateDescription.trim().empty())
+    return makeConstructionGateError(
+        "executable construction",
+        "requires a bounded non-empty gate description");
+  if (!spec.manifest)
+    return makeConstructionGateError(spec.gateDescription,
+                                     "requires a construction manifest");
+  if (!spec.typedRoleRealization)
+    return makeConstructionGateError(
+        spec.gateDescription, "requires a typed-role graph realization");
+  if (!spec.validationSpec)
+    return makeConstructionGateError(spec.gateDescription,
+                                     "requires a validation spec");
+
+  if (llvm::Error error =
+          verifyConstructionManifest(*spec.manifest, *spec.validationSpec))
+    return error;
+  if (llvm::Error error = verifyTypedRoleGraphRealization(
+          *spec.manifest, *spec.typedRoleRealization,
+          *spec.validationSpec))
+    return error;
+  if (!spec.executableRoleSteps.empty())
+    if (llvm::Error error =
+            verifyExecutableRoleSteps(*spec.manifest,
+                                      *spec.typedRoleRealization,
+                                      spec.executableRoleSteps,
+                                      *spec.validationSpec))
+      return error;
+
+  for (const ConstructionArtifactMetadataConformanceSpec &artifact :
+       spec.artifactMetadata) {
+    if (artifact.context.trim().empty())
+      return makeConstructionGateError(
+          spec.gateDescription,
+          "artifact metadata checks require a bounded non-empty context");
+    if (artifact.metadata.empty() || artifact.expectedMetadata.empty())
+      return makeConstructionGateError(
+          spec.gateDescription,
+          llvm::Twine(artifact.context) +
+              " requires non-empty construction artifact metadata");
+    if (llvm::Error error = verifyConstructionArtifactMetadata(
+            artifact.metadata, artifact.expectedMetadata,
+            *spec.validationSpec, artifact.context))
+      return error;
+  }
 
   return llvm::Error::success();
 }

@@ -707,16 +707,40 @@ llvm::Error verifyRVVTypedRoleGraphRealization(
 }
 
 llvm::Error verifyRVVConstructionProtocolReady() {
-  if (llvm::Error error = verifyRVVConstructionManifest(kManifest))
+  if (llvm::Error error = verifyArithmeticRoutes())
     return error;
-  if (llvm::Error error =
-          verifyRVVTypedRoleGraphRealization(kManifest,
-                                             kTypedRoleGraphRealization))
-    return error;
+
+  llvm::SmallVector<llvm::SmallVector<support::ArtifactMetadataEntry, 16>, 3>
+      metadataStorage;
+  llvm::SmallVector<construction::ConstructionArtifactMetadataConformanceSpec,
+                    3>
+      artifactChecks;
+  metadataStorage.reserve(
+      llvm::ArrayRef<RVVI32M1ArithmeticConstructionRoute>(kArithmeticRoutes)
+          .size());
   if (llvm::Error error =
           verifyRVVI32M1ArithmeticConstructionRuntimeABIParameters(
               buildExpectedRuntimeABIParameters()))
     return error;
+  for (const RVVI32M1ArithmeticConstructionRoute &route : kArithmeticRoutes) {
+    metadataStorage.push_back(buildExpectedConstructionArtifactMetadata(route));
+    llvm::ArrayRef<support::ArtifactMetadataEntry> metadata =
+        metadataStorage.back();
+    artifactChecks.push_back(
+        {metadata, metadata, "RVV construction protocol"});
+  }
+
+  construction::ValidationSpec validation =
+      getRVVConstructionValidationSpec();
+  construction::ConstructionConformanceGateSpec gate;
+  gate.gateDescription = "RVV executable construction protocol";
+  gate.manifest = &kManifest;
+  gate.typedRoleRealization = &kTypedRoleGraphRealization;
+  gate.validationSpec = &validation;
+  gate.artifactMetadata = artifactChecks;
+  if (llvm::Error error = construction::verifyConstructionConformanceGate(gate))
+    return error;
+
   if (llvm::Error error =
           verifyRVVI32M1ArithmeticTargetArtifactBundleMapping(
               kTargetArtifactMapping.headerRouteID,
@@ -725,14 +749,7 @@ llvm::Error verifyRVVConstructionProtocolReady() {
               kTargetArtifactMapping.objectHandoffKind,
               kTargetArtifactMapping.emitCToCppTranslateRouteID))
     return error;
-  for (const RVVI32M1ArithmeticConstructionRoute &route : kArithmeticRoutes) {
-    llvm::SmallVector<support::ArtifactMetadataEntry, 16> metadata =
-        buildExpectedConstructionArtifactMetadata(route);
-    if (llvm::Error error =
-            verifyRVVI32M1ArithmeticConstructionArtifactMetadata(
-                metadata, "RVV construction protocol"))
-      return error;
-  }
+
   return llvm::Error::success();
 }
 

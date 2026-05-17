@@ -649,6 +649,7 @@ public:
   virtual llvm::ArrayRef<PluginCapability> getCapabilities() const = 0;
   virtual void registerDialects(mlir::DialectRegistry &registry) const = 0;
   virtual bool isEnabled() const { return true; }
+  virtual llvm::Error verifyExecutableConstructionConformance() const;
   virtual llvm::Error registerSourceFrontDoorPasses(
       llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const;
   virtual bool supportsOperation(const VariantProposalRequest &request) const;

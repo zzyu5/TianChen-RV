@@ -1,4 +1,5 @@
 #include "TianChenRV/Plugin/ConstructionProtocol.h"
+#include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
@@ -6,16 +7,21 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <initializer_list>
 #include <string>
 #include <type_traits>
+#include <utility>
 
 using tianchenrv::plugin::construction::Manifest;
 using tianchenrv::plugin::construction::TypedRoleGraphRealization;
 using tianchenrv::plugin::construction::ExecutableRoleStep;
+using tianchenrv::plugin::ExtensionPlugin;
+using tianchenrv::plugin::ExtensionPluginRegistry;
+using tianchenrv::plugin::PluginCapability;
 
 static_assert(std::is_same<
               tianchenrv::plugin::template_ext::TemplateConstructionManifest,
@@ -66,6 +72,26 @@ static_assert(
     "RVV executable role steps must use the common conformance model");
 
 namespace {
+
+class GateFailingPlugin final : public ExtensionPlugin {
+public:
+  llvm::StringRef getName() const override {
+    return "gate-failing-plugin";
+  }
+
+  llvm::ArrayRef<PluginCapability> getCapabilities() const override {
+    return {};
+  }
+
+  void registerDialects(mlir::DialectRegistry &registry) const override {
+    (void)registry;
+  }
+
+  llvm::Error verifyExecutableConstructionConformance() const override {
+    return llvm::make_error<llvm::StringError>(
+        "bad construction manifest", llvm::errc::invalid_argument);
+  }
+};
 
 int fail(const llvm::Twine &message) {
   llvm::errs() << message << "\n";
@@ -324,6 +350,170 @@ std::string buildInterfaceSummary(const Manifest &manifest) {
   return summary;
 }
 
+using tianchenrv::plugin::construction::ValidationSpec;
+
+ValidationSpec buildTensorExtLiteGateValidationSpec(
+    const Manifest &manifest) {
+  namespace construction = tianchenrv::plugin::construction;
+  namespace tel = tianchenrv::plugin::tensorext_lite;
+  static const construction::RoleExpectation roleExpectations[] = {
+      {"configure", "TCRVConfigOpInterface", false},
+      {"load_frag", "TCRVMemoryOpInterface", true},
+      {"tile_mma", "TCRVComputeOpInterface", true},
+      {"store_frag", "TCRVMemoryOpInterface", true},
+  };
+  static const llvm::StringRef requiredEvidence[] = {
+      "parse_verify", "capability", "interface",
+      "selected_boundary_or_route", "emitc_route_mapping",
+      "materialized_emitc_module"};
+  return {"TensorExtLite",
+          manifest.protocolVersion,
+          manifest.archetype,
+          manifest.semanticRoleGraph,
+          manifest.family,
+          manifest.emitcRoute,
+          tel::getTensorExtLiteConstructionInterfaceRealization(),
+          tel::getTensorExtLiteTypedRoleRealizationSummary(),
+          roleExpectations,
+          requiredEvidence};
+}
+
+int runCommonConstructionConformanceGateTest() {
+  namespace construction = tianchenrv::plugin::construction;
+  namespace tel = tianchenrv::plugin::tensorext_lite;
+
+  const Manifest &manifest = tel::getTensorExtLiteConstructionManifest();
+  const TypedRoleGraphRealization &realization =
+      tel::getTensorExtLiteTypedRoleGraphRealization();
+  ValidationSpec validation =
+      buildTensorExtLiteGateValidationSpec(manifest);
+  llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata =
+      tel::getTensorExtLiteFragmentMmaArtifactMetadata();
+  const construction::ConstructionArtifactMetadataConformanceSpec
+      artifactChecks[] = {
+          {metadata, metadata, "TensorExtLite common gate test"},
+      };
+
+  construction::ConstructionConformanceGateSpec gate;
+  gate.gateDescription = "TensorExtLite common construction gate";
+  gate.manifest = &manifest;
+  gate.typedRoleRealization = &realization;
+  gate.validationSpec = &validation;
+  gate.executableRoleSteps = tel::getTensorExtLiteFragmentMmaRoleSteps();
+  gate.artifactMetadata = artifactChecks;
+  if (int result = expectSuccess(
+          construction::verifyConstructionConformanceGate(gate),
+          "TensorExtLite construction gate validates non-RVV manifest, typed "
+          "roles, role steps, and artifact metadata"))
+    return result;
+
+  Manifest staleManifest = manifest;
+  staleManifest.protocolVersion = "stale-protocol";
+  ValidationSpec staleManifestValidation =
+      buildTensorExtLiteGateValidationSpec(staleManifest);
+  gate.manifest = &staleManifest;
+  gate.validationSpec = &staleManifestValidation;
+  if (int result = expectErrorContains(
+          construction::verifyConstructionConformanceGate(gate),
+          {"protocol version"},
+          "construction gate rejects invalid manifest"))
+    return result;
+  gate.manifest = &manifest;
+  gate.validationSpec = &validation;
+
+  TypedRoleGraphRealization missingRole = realization;
+  llvm::SmallVector<construction::TypedRoleInterfaceRealization, 4> roles(
+      missingRole.roles.begin(), missingRole.roles.end() - 1);
+  missingRole.roles = roles;
+  gate.typedRoleRealization = &missingRole;
+  if (int result = expectErrorContains(
+          construction::verifyConstructionConformanceGate(gate),
+          {"typed role realization requires exactly one role object per "
+           "semantic role"},
+          "construction gate rejects missing typed role"))
+    return result;
+  gate.typedRoleRealization = &realization;
+
+  std::string staleInterfaceSummary =
+      "configure=TCRVExtensionOpInterface+TCRVConfigOpInterface+"
+      "TCRVEmitCLowerableInterface";
+  ValidationSpec staleInterfaceValidation = validation;
+  staleInterfaceValidation.interfaceRealizationSummary = staleInterfaceSummary;
+  gate.validationSpec = &staleInterfaceValidation;
+  if (int result = expectErrorContains(
+          construction::verifyConstructionConformanceGate(gate),
+          {"common interface realization summary"},
+          "construction gate rejects stale interface realization"))
+    return result;
+  gate.validationSpec = &validation;
+
+  Manifest badArtifactKind = manifest;
+  construction::EmitCMapping badEmitC = badArtifactKind.emitcRoute;
+  badEmitC.artifactKind = "metadata-diagnostic";
+  badArtifactKind.emitcRoute = badEmitC;
+  ValidationSpec badArtifactValidation =
+      buildTensorExtLiteGateValidationSpec(badArtifactKind);
+  gate.manifest = &badArtifactKind;
+  gate.validationSpec = &badArtifactValidation;
+  if (int result = expectErrorContains(
+          construction::verifyConstructionConformanceGate(gate),
+          {"unsupported artifact kind", "metadata-diagnostic"},
+          "construction gate rejects unsupported artifact kind"))
+    return result;
+  gate.manifest = &manifest;
+  gate.validationSpec = &validation;
+
+  llvm::SmallVector<ExecutableRoleStep, 4> outOfOrderSteps(
+      tel::getTensorExtLiteFragmentMmaRoleSteps().begin(),
+      tel::getTensorExtLiteFragmentMmaRoleSteps().end());
+  std::swap(outOfOrderSteps[1], outOfOrderSteps[2]);
+  gate.executableRoleSteps = outOfOrderSteps;
+  if (int result = expectErrorContains(
+          construction::verifyConstructionConformanceGate(gate),
+          {"executable role steps must preserve contiguous role order"},
+          "construction gate rejects out-of-order role steps"))
+    return result;
+
+  llvm::SmallVector<ExecutableRoleStep, 4> duplicateSteps(
+      tel::getTensorExtLiteFragmentMmaRoleSteps().begin(),
+      tel::getTensorExtLiteFragmentMmaRoleSteps().end());
+  duplicateSteps[1] = duplicateSteps[0];
+  duplicateSteps[1].order = 1;
+  gate.executableRoleSteps = duplicateSteps;
+  if (int result = expectErrorContains(
+          construction::verifyConstructionConformanceGate(gate),
+          {"executable role step", "must match the typed role interface"},
+          "construction gate rejects duplicate/mismatched role steps"))
+    return result;
+  gate.executableRoleSteps = tel::getTensorExtLiteFragmentMmaRoleSteps();
+
+  llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 12>
+      staleMetadata(metadata.begin(), metadata.end());
+  staleMetadata.front().value = "stale-route";
+  const construction::ConstructionArtifactMetadataConformanceSpec
+      staleArtifactChecks[] = {
+          {staleMetadata, metadata, "TensorExtLite common gate stale metadata"},
+      };
+  gate.artifactMetadata = staleArtifactChecks;
+  if (int result = expectErrorContains(
+          construction::verifyConstructionConformanceGate(gate),
+          {"artifact_metadata[0]", "tensorext_lite_emitc_lowerable_route"},
+          "construction gate rejects stale artifact metadata"))
+    return result;
+
+  return 0;
+}
+
+int runRegistryConstructionGateRejectionTest() {
+  ExtensionPluginRegistry registry;
+  GateFailingPlugin plugin;
+  return expectErrorContains(
+      registry.registerPlugin(plugin),
+      {"failed executable construction conformance gate",
+       "bad construction manifest"},
+      "registry rejects plugin whose construction conformance gate fails");
+}
+
 int runUnsupportedArtifactKindConstructionTest() {
   namespace template_ext = tianchenrv::plugin::template_ext;
   namespace construction = tianchenrv::plugin::construction;
@@ -379,6 +569,10 @@ int main() {
   if (int result = runRVVCommonValidationTest())
     return result;
   if (int result = runRVVFailClosedConstructionValidationTest())
+    return result;
+  if (int result = runCommonConstructionConformanceGateTest())
+    return result;
+  if (int result = runRegistryConstructionGateRejectionTest())
     return result;
   if (int result = runUnsupportedArtifactKindConstructionTest())
     return result;

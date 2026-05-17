@@ -534,11 +534,25 @@ llvm::Error verifyTensorExtLiteTypedRoleGraphRealization(
 }
 
 llvm::Error verifyTensorExtLiteConstructionProtocolReady() {
-  if (llvm::Error error = verifyTensorExtLiteConstructionManifest(kManifest))
+  construction::ValidationSpec validation =
+      getTensorExtLiteConstructionValidationSpec();
+  llvm::ArrayRef<support::ArtifactMetadataEntry> artifactMetadata =
+      getTensorExtLiteFragmentMmaArtifactMetadata();
+  const construction::ConstructionArtifactMetadataConformanceSpec
+      artifactChecks[] = {
+          {artifactMetadata, artifactMetadata,
+           "TensorExtLite construction protocol"},
+      };
+  construction::ConstructionConformanceGateSpec gate;
+  gate.gateDescription = "TensorExtLite executable construction protocol";
+  gate.manifest = &kManifest;
+  gate.typedRoleRealization = &kTypedRoleGraphRealization;
+  gate.validationSpec = &validation;
+  gate.executableRoleSteps = kFragmentMmaRoleSteps;
+  gate.artifactMetadata = artifactChecks;
+  if (llvm::Error error = construction::verifyConstructionConformanceGate(gate))
     return error;
-  if (llvm::Error error = verifyTensorExtLiteTypedRoleGraphRealization(
-          kManifest, kTypedRoleGraphRealization))
-    return error;
+
   if (llvm::Error error = verifyTensorExtLiteFragmentMmaRoleSteps())
     return error;
   if (llvm::Error error =

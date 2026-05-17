@@ -573,6 +573,10 @@ bool ExtensionPlugin::supportsOperation(
   return false;
 }
 
+llvm::Error ExtensionPlugin::verifyExecutableConstructionConformance() const {
+  return llvm::Error::success();
+}
+
 llvm::Error ExtensionPlugin::proposeVariants(
     const VariantProposalRequest &request,
     llvm::SmallVectorImpl<VariantProposal> &out) const {
@@ -696,6 +700,13 @@ llvm::Error ExtensionPluginRegistry::registerPlugin(
   if (pluginsByName.count(name))
     return makePluginRegistryError(
         llvm::Twine("duplicate TianChen-RV extension plugin '") + name + "'");
+
+  if (llvm::Error error = plugin.verifyExecutableConstructionConformance()) {
+    std::string message = llvm::toString(std::move(error));
+    return makePluginRegistryError(
+        llvm::Twine("extension plugin '") + name +
+        "' failed executable construction conformance gate: " + message);
+  }
 
   plugins.push_back(&plugin);
   pluginsByName[name] = &plugin;
