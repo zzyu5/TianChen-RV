@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify no Python compiler-core behavior or descriptor/direct-C authority was introduced."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV-specific behavior remains plugin/target-owned and bounded to the existing add route."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify source-front-door bundle generation still flows through registered plugin source front doors and target bundle export."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify runtime ABI parameter order, multi-VL runtime n evidence, and target artifact boundary claims."}

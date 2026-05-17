@@ -1,0 +1,44 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id source-add --overwrite --op-kind add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/source-add/evidence.json
+# RUN: FileCheck %s --check-prefix=ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/source-add/add/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/source-add/add/rvv_generated_bundle_abi_add_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "op_kinds": [
+# ROOT: "add"
+# ROOT: "runtime_count_contract": {
+# ROOT: "case_count": 3
+# ROOT: "max_runtime_count": 23
+# ROOT: "minimum_case_count": 2
+# ROOT: "non_one_vector_sentinel_min_n": 17
+# ROOT: "runtime_counts": [
+# ROOT: 7
+# ROOT: 16
+# ROOT: 23
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# ADD: "prototype": "void tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
+# ADD: "expected_function": "tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add"
+# ADD: "expected_runtime_abi_name": "rvv-i32m1-add-callable-c-abi.v1"
+# ADD: "expected_selected_variant": "vector_source_rvv_i32_add"
+# ADD: "boundary": "external C ABI consumer of generated header and object only"
+# ADD: "pass_marker": "tcrv_rvv_generated_bundle_abi_add_ok"
+# ADD: "front_door": "tcrv-source-artifact-bundle-front-door"
+# ADD: --tcrv-source-artifact-bundle-front-door
+# ADD: "runtime_count_contract": {
+# ADD: "case_count": 3
+# ADD: "max_runtime_count": 23
+# ADD: "non_one_vector_sentinel_min_n": 17
+# ADD: "ssh_evidence": false
+# ADD: "status": "dry_run_success"
+
+# HARNESS: #include "artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h"
+# HARNESS: tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add(lhs, rhs, out, n);
+# HARNESS: const size_t counts[] = {7, 16, 23};
+# HARNESS: tcrv_rvv_generated_bundle_abi_add_ok counts=7,16,23
+# HARNESS: PASS op=add counts=7,16,23

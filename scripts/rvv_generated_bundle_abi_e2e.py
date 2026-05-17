@@ -27,11 +27,14 @@ from typing import Any
 
 SCRIPT_NAME = "rvv_generated_bundle_abi_e2e"
 SCHEMA_VERSION = 1
+REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ARTIFACT_ROOT = Path("artifacts/tmp/rvv_generated_bundle_abi_e2e")
 DEFAULT_SSH_TARGET = "rvv"
 DEFAULT_TIMEOUT_SECONDS = 120
 DEFAULT_CONNECT_TIMEOUT_SECONDS = 10
 DEFAULT_RUNTIME_COUNTS = (1, 7, 16, 17, 257)
+MIN_RUNTIME_COUNT_CASES = 2
+MIN_NON_ONE_VECTOR_SENTINEL_COUNT = 17
 DEFAULT_OP_KINDS = ("add", "sub", "mul")
 
 INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
@@ -884,7 +887,52 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
     expectations = [OP_EXPECTATIONS[kind] for kind in op_kinds]
     if args.input is not None:
         expectations = [replace(expectations[0], input_path=args.input)]
-    return expectations
+    return [
+        replace(
+            expectation,
+            input_path=resolve_repo_relative_path(expectation.input_path),
+        )
+        for expectation in expectations
+    ]
+
+
+def resolve_repo_relative_path(path: Path) -> Path:
+    if path.exists() or path.is_absolute():
+        return path
+    repo_candidate = REPO_ROOT / path
+    if repo_candidate.exists():
+        return repo_candidate
+    return path
+
+
+def validate_runtime_counts(runtime_counts: list[int]) -> None:
+    if len(runtime_counts) < MIN_RUNTIME_COUNT_CASES:
+        raise EvidenceError(
+            "runtime ABI evidence requires several runtime n counts; "
+            f"got {runtime_counts}"
+        )
+    if len(set(runtime_counts)) != len(runtime_counts):
+        raise EvidenceError(
+            f"runtime ABI evidence requires distinct runtime n counts: {runtime_counts}"
+        )
+    if any(count < 0 for count in runtime_counts):
+        raise EvidenceError(
+            f"runtime ABI evidence requires non-negative runtime n counts: {runtime_counts}"
+        )
+    if max(runtime_counts) < MIN_NON_ONE_VECTOR_SENTINEL_COUNT:
+        raise EvidenceError(
+            "runtime ABI evidence must include a bounded non-one-vector stress "
+            f"count n >= {MIN_NON_ONE_VECTOR_SENTINEL_COUNT}; got {runtime_counts}"
+        )
+
+
+def runtime_count_contract_summary(runtime_counts: list[int]) -> dict[str, Any]:
+    return {
+        "minimum_case_count": MIN_RUNTIME_COUNT_CASES,
+        "non_one_vector_sentinel_min_n": MIN_NON_ONE_VECTOR_SENTINEL_COUNT,
+        "case_count": len(runtime_counts),
+        "max_runtime_count": max(runtime_counts),
+    }
 
 
 def run_one_op_e2e(
@@ -912,6 +960,7 @@ def run_one_op_e2e(
         "input": str(expectation.input_path),
         "artifact_dir": str(op_artifact_dir),
         "runtime_counts": runtime_counts,
+        "runtime_count_contract": runtime_count_contract_summary(runtime_counts),
         "expected_selected_variant": expectation.selected_variant,
         "expected_runtime_abi_name": expectation.external_abi_name,
         "expected_function": expectation.function_name,
@@ -997,6 +1046,10 @@ def run_e2e(args: argparse.Namespace) -> int:
         "op_results": {},
     }
     try:
+        validate_runtime_counts(runtime_counts)
+        evidence["runtime_count_contract"] = runtime_count_contract_summary(
+            runtime_counts
+        )
         expectations = selected_expectations(args)
         evidence["op_kinds"] = [expectation.kind for expectation in expectations]
         tcrv_translate = ensure_tool(args.tcrv_translate)
@@ -1161,6 +1214,18 @@ def require_self_test_sanitized(name: str, raw: str, forbidden: str) -> None:
 def run_self_test() -> int:
     with tempfile.TemporaryDirectory(prefix="tcrv-rvv-generated-bundle-self-test-") as tmp_raw:
         tmp = Path(tmp_raw)
+        validate_runtime_counts([7, 16, 23])
+        expect_self_test_failure(
+            "single runtime count", lambda: validate_runtime_counts([23])
+        )
+        expect_self_test_failure(
+            "duplicate runtime count", lambda: validate_runtime_counts([7, 23, 23])
+        )
+        expect_self_test_failure(
+            "missing non-one-vector runtime count",
+            lambda: validate_runtime_counts([7, 16]),
+        )
+
         for expectation in OP_EXPECTATIONS.values():
             bundle = make_fake_bundle(tmp / expectation.kind, expectation)
             verify_bundle(bundle, readobj=None, expectation=expectation)

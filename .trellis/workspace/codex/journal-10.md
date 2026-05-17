@@ -46,6 +46,72 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 126: RVV source-front-door generated-bundle runtime ABI bridge
+
+**Date**: 2026-05-18
+**Task**: RVV source-front-door generated-bundle runtime ABI bridge
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded source-derived RVV add runtime ABI evidence bridge by
+tightening the generated-bundle ABI harness contract, adding focused dry-run
+lit coverage, and refreshing real `ssh rvv` correctness evidence for the
+generated object/header bundle consumed by an external C ABI harness.
+
+### Main Changes
+
+- Created Trellis task
+  `05-18-rvv-source-frontdoor-generated-bundle-runtime-abi-bridge` from the
+  Direction Brief and wrote the PRD before implementation.
+- Updated `scripts/rvv_generated_bundle_abi_e2e.py` to require several
+  distinct runtime `n` counts and at least one bounded non-one-vector stress
+  count `n >= 17` before accepting runtime ABI evidence.
+- Added runtime-count contract metadata to root and per-op evidence JSON.
+- Repaired the evidence script's source fixture resolution so built-in source
+  fixtures resolve relative to the repo root when invoked from lit's build/test
+  working directory.
+- Added
+  `test/Scripts/rvv-generated-bundle-abi-e2e-source-add-dry-run.test` to run
+  the real source-derived add fixture through
+  `tcrv-translate --tcrv-source-artifact-bundle-front-door`, then verify the
+  generated evidence JSON and external C ABI harness.
+- Refreshed `ssh rvv` evidence under
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260518T-rvv-source-frontdoor-generated-bundle-add`;
+  remote output printed add cases for `n=7,16,23`,
+  `tcrv_rvv_generated_bundle_abi_add_ok counts=7,16,23`, and
+  `PASS op=add counts=7,16,23`.
+- Spec update review found no `.trellis/spec/` edit required.
+
+### Git Commits
+
+- Pending final coherent commit for this session.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-18-rvv-source-frontdoor-generated-bundle-runtime-abi-bridge`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `cmake --build build --target tcrv-translate tcrv-opt -j2`
+- [OK] `cd build/test && python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Scripts/rvv-generated-bundle-abi-e2e-self-test.test Scripts/rvv-generated-bundle-abi-e2e-source-add-dry-run.test ../test/Target/RVV/vector-source-target-artifact-exporters.mlir` passed 3/3.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --artifact-root artifacts/tmp/rvv_generated_bundle_abi_e2e --run-id 20260518T-rvv-source-frontdoor-generated-bundle-add --overwrite --op-kind add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-translate build/bin/tcrv-translate --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj --ssh-target rvv --timeout 180 --connect-timeout 10`
+- [OK] `git diff --check`
+- [OK] Old manual pipe scan found no `source-artifact-front-door-pipeline`,
+  `tcrv-export-target-artifact-bundle`, `tcrv_opt`, or `--tcrv-opt` in
+  `scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] Targeted residue scan found only forbidden-token rejection code,
+  self-test negative cases, and FileCheck `implicit-check-not` assertions.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 125/125.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 125: RVV vector-source front-door artifact bridge
 
 **Date**: 2026-05-18
