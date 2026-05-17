@@ -15,6 +15,7 @@
 
 using tianchenrv::plugin::construction::Manifest;
 using tianchenrv::plugin::construction::TypedRoleGraphRealization;
+using tianchenrv::plugin::construction::ExecutableRoleStep;
 
 static_assert(std::is_same<
               tianchenrv::plugin::template_ext::TemplateConstructionManifest,
@@ -52,6 +53,12 @@ static_assert(
     std::is_same<tianchenrv::plugin::rvv::RVVTypedRoleGraphRealization,
                  TypedRoleGraphRealization>::value,
     "RVV typed roles must use the common construction model");
+static_assert(
+    std::is_same<
+        tianchenrv::plugin::tensorext_lite::TensorExtLiteFragmentMmaRoleStep,
+        ExecutableRoleStep>::value,
+    "TensorExtLite executable role steps must use the common conformance "
+    "model");
 
 namespace {
 

@@ -23,6 +23,8 @@
 namespace tianchenrv::target::tensorext_lite {
 namespace {
 
+namespace construction = tianchenrv::plugin::construction;
+
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
@@ -75,23 +77,6 @@ llvm::Error validateTensorExtLiteTargetArtifactCandidate(
 llvm::Error validateTensorExtLiteSelectedObjectCandidate(
     const TargetArtifactCandidate &candidate);
 
-llvm::Error requireTensorExtLiteBoundaryStringAttr(mlir::Operation *op,
-                                                   llvm::StringRef attrName,
-                                                   llvm::StringRef expected) {
-  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
-  if (!attr || attr.getValue().trim().empty())
-    return makeTensorExtLiteEmitCToCppRouteError(
-        llvm::Twine("selected TensorExtLite C++ emitter boundary requires "
-                    "non-empty string attribute '") +
-        attrName + "'");
-  if (attr.getValue().trim() != expected)
-    return makeTensorExtLiteEmitCToCppRouteError(
-        llvm::Twine("selected TensorExtLite C++ emitter boundary attribute '") +
-        attrName + "' must be '" + expected + "' but was '" +
-        attr.getValue().trim() + "'");
-  return llvm::Error::success();
-}
-
 llvm::Error requireTensorExtLiteSourceFrontDoorConsumed(mlir::ModuleOp module) {
   if (module->hasAttr(kSourceFrontDoorAttrName) ||
       module->hasAttr(kSourceKernelModuleAttrName))
@@ -133,49 +118,45 @@ llvm::Error requireTensorExtLiteMaterializedLoweringBoundary(
 
   const auto &manifest = getTensorExtLiteManifest();
   const auto &route = getTensorExtLiteRoute();
-  if (llvm::Error error = requireTensorExtLiteBoundaryStringAttr(
-          selectedBoundary.getOperation(), kSourceKernelAttrName, kernelName))
-    return error;
-  if (llvm::Error error = requireTensorExtLiteBoundaryStringAttr(
-          selectedBoundary.getOperation(), kOriginAttrName,
-          manifest.family.pluginName))
-    return error;
-  if (llvm::Error error = requireTensorExtLiteBoundaryStringAttr(
-          selectedBoundary.getOperation(), kRoleAttrName, kDirectVariantRole))
-    return error;
-  if (llvm::Error error = requireTensorExtLiteBoundaryStringAttr(
-          selectedBoundary.getOperation(), kStatusAttrName, "no-active-route"))
-    return error;
   auto variantFragmentABI =
       variant->getAttrOfType<mlir::StringAttr>(kVariantFragmentABIAttrName);
   if (!variantFragmentABI || variantFragmentABI.getValue().trim().empty())
     return makeTensorExtLiteEmitCToCppRouteError(
         "selected TensorExtLite variant must carry fragment ABI metadata "
         "before C/C++ emission");
-  if (llvm::Error error = requireTensorExtLiteBoundaryStringAttr(
-          selectedBoundary.getOperation(), kFragmentABIAttrName,
-          variantFragmentABI.getValue()))
-    return error;
   auto variantHandoffKind =
       variant->getAttrOfType<mlir::StringAttr>(kVariantHandoffKindAttrName);
   if (!variantHandoffKind || variantHandoffKind.getValue().trim().empty())
     return makeTensorExtLiteEmitCToCppRouteError(
         "selected TensorExtLite variant must carry handoff kind metadata "
         "before C/C++ emission");
-  if (llvm::Error error = requireTensorExtLiteBoundaryStringAttr(
-          selectedBoundary.getOperation(), kHandoffKindAttrName,
-          variantHandoffKind.getValue()))
-    return error;
 
-  auto boundaryRequires = selectedBoundary->getAttrOfType<mlir::ArrayAttr>(
-      kRequiredCapabilitiesAttrName);
   auto variantRequires =
       variant->getAttrOfType<mlir::ArrayAttr>("requires");
-  if (!boundaryRequires || !variantRequires ||
-      boundaryRequires != variantRequires)
-    return makeTensorExtLiteEmitCToCppRouteError(
-        "selected TensorExtLite C++ emitter boundary required_capabilities "
-        "must match selected variant requires metadata");
+  const construction::SelectedBoundaryStringAttrExpectation
+      extraAttributes[] = {
+          {kFragmentABIAttrName, variantFragmentABI.getValue()},
+          {kHandoffKindAttrName, variantHandoffKind.getValue()},
+      };
+  construction::SelectedLoweringBoundaryConformanceSpec spec;
+  spec.boundaryDescription = "selected TensorExtLite C++ emitter boundary";
+  spec.selectedVariantSymbol = variantName;
+  spec.sourceKernelSymbol = kernelName;
+  spec.originPlugin = manifest.family.pluginName;
+  spec.pathRole = kDirectVariantRole;
+  spec.status = "no-active-route";
+  spec.requiredCapabilities = variantRequires;
+  spec.extraStringAttributes = extraAttributes;
+  spec.sourceKernelAttrName = kSourceKernelAttrName;
+  spec.selectedVariantAttrName = kSelectedVariantAttrName;
+  spec.originAttrName = kOriginAttrName;
+  spec.roleAttrName = kRoleAttrName;
+  spec.statusAttrName = kStatusAttrName;
+  spec.requiredCapabilitiesAttrName = kRequiredCapabilitiesAttrName;
+  if (llvm::Error error =
+          construction::verifySelectedLoweringBoundaryConformance(
+              selectedBoundary.getOperation(), spec))
+    return error;
   if (llvm::StringRef(target.candidate.loweringBoundary) !=
       route.loweringBoundaryOpName)
     return makeTensorExtLiteEmitCToCppRouteError(

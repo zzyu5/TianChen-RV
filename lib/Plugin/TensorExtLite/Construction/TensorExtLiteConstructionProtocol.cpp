@@ -6,7 +6,6 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <string>
-#include <tuple>
 
 namespace tianchenrv::plugin::tensorext_lite {
 namespace {
@@ -309,50 +308,11 @@ std::string joinTensorExtLiteFragmentMmaRoles(
   return joined;
 }
 
-const TensorExtLiteFragmentMmaRoleStep *
-findTensorExtLiteFragmentMmaRoleStep(llvm::StringRef sourceRole) {
-  for (const TensorExtLiteFragmentMmaRoleStep &step : kFragmentMmaRoleSteps)
-    if (step.sourceRole == sourceRole)
-      return &step;
-  return nullptr;
-}
-
 llvm::Error verifyTensorExtLiteFragmentMmaRoleSteps() {
-  if (llvm::ArrayRef<TensorExtLiteFragmentMmaRoleStep>(kFragmentMmaRoleSteps)
-          .size() !=
-      llvm::ArrayRef<TensorExtLiteTypedRoleInterfaceRealization>(
-          kTypedRoleRealizations)
-          .size())
-    return makeTensorExtLiteConstructionProtocolError(
-        "fragment-MMA route role steps must contain exactly one entry per "
-        "typed role realization");
-
-  for (auto [index, step] : llvm::enumerate(kFragmentMmaRoleSteps)) {
-    const TensorExtLiteTypedRoleInterfaceRealization &typedRole =
-        kTypedRoleRealizations[index];
-    if (step.order != index || typedRole.order != index)
-      return makeTensorExtLiteConstructionProtocolError(
-          "fragment-MMA route role steps must preserve contiguous role order");
-    if (step.sourceRole != typedRole.role ||
-        step.operationName != typedRole.operationName ||
-        step.typedRoleID != typedRole.typedRoleID ||
-        step.roleSpecificInterface != typedRole.roleSpecificInterface ||
-        step.emitCLowerableInterface != typedRole.emitCLowerableInterface)
-      return makeTensorExtLiteConstructionProtocolError(
-          llvm::Twine("fragment-MMA route role step '") + step.sourceRole +
-          "' must match the typed role interface realization");
-    if (step.callee.empty())
-      return makeTensorExtLiteConstructionProtocolError(
-          llvm::Twine("fragment-MMA route role step '") + step.sourceRole +
-          "' must name a non-empty EmitC callee");
-
-    const TensorExtLiteFragmentMmaRoleStep *lookup =
-        findTensorExtLiteFragmentMmaRoleStep(typedRole.role);
-    if (lookup != &step)
-      return makeTensorExtLiteConstructionProtocolError(
-          llvm::Twine("fragment-MMA route role step '") + typedRole.role +
-          "' must be uniquely addressable by source role");
-  }
+  if (llvm::Error error = construction::verifyExecutableRoleSteps(
+          kManifest, kTypedRoleGraphRealization, kFragmentMmaRoleSteps,
+          getTensorExtLiteConstructionValidationSpec()))
+    return error;
 
   if (getTensorExtLiteFragmentMmaSourceRoles() != kSemanticRoleGraph)
     return makeTensorExtLiteConstructionProtocolError(
@@ -674,32 +634,9 @@ llvm::Error verifyTensorExtLiteFragmentMmaArtifactMetadata(
     llvm::StringRef context) {
   llvm::ArrayRef<support::ArtifactMetadataEntry> expected =
       getTensorExtLiteFragmentMmaArtifactMetadata();
-  if (support::artifactMetadataEntriesEqual(metadata, expected))
-    return llvm::Error::success();
-
-  if (metadata.size() != expected.size())
-    return makeTensorExtLiteConstructionProtocolError(
-        llvm::Twine(context) + " must carry exactly " +
-        llvm::Twine(expected.size()) +
-        " TensorExtLite fragment-MMA artifact metadata entries");
-
-  for (auto [index, pair] : llvm::enumerate(llvm::zip(metadata, expected))) {
-    const support::ArtifactMetadataEntry &actual = std::get<0>(pair);
-    const support::ArtifactMetadataEntry &want = std::get<1>(pair);
-    if (actual.key != want.key)
-      return makeTensorExtLiteConstructionProtocolError(
-          llvm::Twine(context) + " artifact_metadata[" +
-          llvm::Twine(index) + "] key must be '" + want.key + "'");
-    if (actual.value != want.value)
-      return makeTensorExtLiteConstructionProtocolError(
-          llvm::Twine(context) + " artifact_metadata[" +
-          llvm::Twine(index) + "] value for key '" + want.key +
-          "' must be '" + want.value + "'");
-  }
-
-  return makeTensorExtLiteConstructionProtocolError(
-      llvm::Twine(context) +
-      " must carry TensorExtLite fragment-MMA construction artifact metadata");
+  return construction::verifyConstructionArtifactMetadata(
+      metadata, expected, getTensorExtLiteConstructionValidationSpec(),
+      context);
 }
 
 llvm::Error verifyTensorExtLiteRoleOpInterface(

@@ -73,6 +73,67 @@ Added a code-consumed common materialized EmitC object/header bundle constructio
 - None - task complete
 
 
+## Session 121: Executable construction-template conformance surface
+
+**Date**: 2026-05-18
+**Task**: Executable construction-template conformance surface
+**Branch**: `main`
+
+### Summary
+
+Added a reusable C++ construction-template conformance surface and rewired the
+TensorExtLite selected path to consume it for executable role-sequence,
+selected-boundary, and artifact metadata validation.
+
+### Main Changes
+
+- Created Trellis task `05-18-executable-construction-template-conformance-surface`
+  from the Direction Brief and wrote the PRD before source edits.
+- Added common `plugin::construction` conformance APIs for:
+  executable role steps,
+  selected executable role-sequence inspection/collection,
+  selected lowering-boundary coherence,
+  and ordered construction artifact metadata validation.
+- Replaced TensorExtLite-local selected role-sequence scanning and role-step
+  validation with the common conformance surface while keeping role semantics,
+  callee mapping, ABI identity, and target export callbacks plugin-local.
+- Replaced TensorExtLite plugin/target selected-boundary string and capability
+  checks with the common selected-boundary conformance verifier.
+- Promoted the reusable conformance API contract into
+  `.trellis/spec/plugin-protocol/extension-family-plugin-template.md`.
+- Added duplicate selected-role negative coverage and a static proof that
+  TensorExtLite executable role steps use the common conformance model.
+- Added no descriptor adapter, direct-C/source-export route, Python compiler
+  core, new TensorExtLite feature, new plugin family, or common/core
+  family-semantic branch.
+
+### Git Commits
+
+Included in the final task commit for this round.
+
+### Testing
+
+- [OK] Trellis context validation for the task.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-tensorext-lite-extension-plugin-test tianchenrv-construction-protocol-common-test`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- [OK] `cmake --build build --target check-tianchenrv` -> 122/122 passed.
+- [OK] Focused changed-source scan found no descriptor/direct-C/source-export/
+  Python compiler-core residue in touched common/TensorExtLite plugin/target
+  files.
+- [OK] Common construction source scan found no TensorExtLite/RVV/IME/Offload/
+  Toy/Template family semantic branch in touched common conformance files.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 121: TensorExtLite executable construction-template artifact closure
 
 **Date**: 2026-05-18

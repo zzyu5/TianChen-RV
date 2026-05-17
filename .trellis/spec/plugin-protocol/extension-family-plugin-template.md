@@ -560,6 +560,121 @@ construction manifest
   -> separate target/export validation if required
 ```
 
+## Scenario: Reusable Executable Construction Conformance Surface
+
+### 1. Scope / Trigger
+
+Use this contract when an executable extension-family construction route needs
+common validation for selected role-sequence materialization, selected
+lowering-boundary coherence, and construction artifact metadata. The surface is
+for generic construction-template invariants only; family semantics, intrinsic
+names, role callees, ABI identity, and target export callbacks remain
+plugin-owned.
+
+### 2. Signatures
+
+- Executable role model:
+  `plugin::construction::ExecutableRoleStep`.
+- Selected role-sequence request:
+  `plugin::construction::SelectedExecutableRoleSequenceSpec`.
+- Selected role-sequence inspection:
+  `plugin::construction::inspectSelectedExecutableRoleSequence(...)`.
+- Complete sequence collection:
+  `plugin::construction::collectSelectedExecutableRoleSequence(...)`.
+- Selected lowering-boundary request:
+  `plugin::construction::SelectedLoweringBoundaryConformanceSpec`.
+- Selected lowering-boundary verifier:
+  `plugin::construction::verifySelectedLoweringBoundaryConformance(...)`.
+- Artifact metadata verifier:
+  `plugin::construction::verifyConstructionArtifactMetadata(...)`.
+
+### 3. Contracts
+
+- `ExecutableRoleStep` may name role id, typed operation name,
+  role-specific common interface, EmitC lowerable interface, EmitC callee, and
+  order. It must not encode descriptor fields, direct C source text, runtime
+  results, hardware evidence, or family compute semantics.
+- `inspectSelectedExecutableRoleSequence` may inspect a plugin-owned selected
+  variant block using generic `selected_variant` and `role` attributes plus
+  plugin-supplied role steps. It may detect zero, partial, complete, duplicate,
+  or reordered role materialization without knowing the concrete extension
+  family.
+- `collectSelectedExecutableRoleSequence` is the fail-closed route-builder
+  entry: it succeeds only for exactly one selected op per role in role order.
+- `SelectedLoweringBoundaryConformanceSpec` validates only generic selected
+  boundary coherence: source kernel, selected variant, origin, role, status,
+  required capabilities, and plugin-supplied extra string attributes. Extra
+  attributes may preserve ABI or handoff identity, but the common verifier must
+  not interpret those values as compute semantics.
+- `verifyConstructionArtifactMetadata` checks exact ordered metadata evidence
+  supplied by the plugin. The common verifier may check equality and structured
+  error reporting, but it must not infer source ops, routes, ABI, or artifact
+  meaning from metadata keys.
+
+### 4. Validation & Error Matrix
+
+- Missing selected variant role block -> selected role-sequence inspection
+  error.
+- Duplicate selected role op for the same role step -> selected role-sequence
+  inspection error.
+- Partial selected role sequence -> plugin readiness must fail before adding a
+  second replacement sequence or proceeding to route construction.
+- Missing selected role op during route build -> complete sequence collection
+  error.
+- Reordered selected role ops -> complete sequence collection error.
+- Missing or stale boundary source kernel, selected variant, origin, role,
+  status, required capabilities, or plugin-supplied extra attribute ->
+  selected-boundary conformance error.
+- Missing, extra, reordered, stale-key, or stale-value artifact metadata ->
+  construction artifact metadata error.
+
+### 5. Good/Base/Bad Cases
+
+- Good: TensorExtLite provides local role steps and ABI/handoff expectations,
+  then consumes the common role-sequence, boundary, and artifact metadata
+  validators on its production selected path.
+- Base: RVV, Toy, Template, IME, Offload, or future plugins may provide their
+  own local role steps and target route data while using the same conformance
+  surface.
+- Bad: common construction code branches on TensorExtLite/RVV/IME/Offload,
+  interprets fragment semantics, maps role names to intrinsic calls, emits
+  source text, or treats metadata as executable compute authority.
+
+### 6. Tests Required
+
+- C++ coverage proving at least one production plugin consumes the common
+  selected role-sequence and selected-boundary validators, not only a test
+  fixture.
+- C++ negative coverage for duplicate, partial, missing, or reordered selected
+  role sequences.
+- C++ or lit coverage proving selected-boundary conformance rejects stale
+  source kernel, selected variant, origin, role, status, required capability,
+  or plugin-owned ABI/handoff attribute.
+- C++ coverage proving construction artifact metadata rejects stale keys and
+  stale values through the common verifier.
+- Focused changed-surface scan proving no descriptor-driven computation,
+  direct C/source-export route, Python compiler-core path, or common/core
+  family semantic branch was introduced.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+common construction code sees TensorExtLite role name
+  -> chooses fragment-MMA semantics or callee
+  -> emits/exports source or target artifact
+```
+
+Correct:
+
+```text
+plugin-owned role steps and route data
+  -> common selected role-sequence and boundary conformance
+  -> plugin-owned TCRVEmitCLowerableRoute
+  -> common EmitC materialization and separate target/export validation
+```
+
 ## Scenario: Template Object And Bundle Packaging Bridge
 
 ### 1. Scope / Trigger

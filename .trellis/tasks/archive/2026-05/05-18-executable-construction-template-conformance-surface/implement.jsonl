@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "global stack and architecture invariants for executable construction-template work"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "construction-template protocol, executable EmitC route, object/header bundle bridge, and fail-closed requirements"}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "plugin/core boundary and selected-boundary integration contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC route, selected emission-plan to target artifact handoff, and TensorExtLite base route requirements"}

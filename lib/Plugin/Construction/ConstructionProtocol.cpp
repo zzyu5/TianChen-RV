@@ -4,6 +4,7 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
@@ -30,12 +31,26 @@ llvm::Error makeConstructionError(const ValidationSpec &spec,
       llvm::errc::invalid_argument);
 }
 
+llvm::Error makeExecutableConformanceError(llvm::StringRef description,
+                                           llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV ") + description +
+          " construction conformance invalid: " + message,
+      llvm::errc::invalid_argument);
+}
+
 bool containsToken(llvm::StringRef text, llvm::StringRef token) {
   return text.contains(token);
 }
 
 mlir::StringAttr getStringAttr(mlir::Operation *op, llvm::StringRef name) {
   return op ? op->getAttrOfType<mlir::StringAttr>(name) : mlir::StringAttr();
+}
+
+mlir::FlatSymbolRefAttr getFlatSymbolRefAttr(mlir::Operation *op,
+                                             llvm::StringRef name) {
+  return op ? op->getAttrOfType<mlir::FlatSymbolRefAttr>(name)
+            : mlir::FlatSymbolRefAttr();
 }
 
 llvm::Error requireNonEmpty(const ValidationSpec &spec,
@@ -69,6 +84,50 @@ findTypedRoleRealization(const TypedRoleGraphRealization &realization,
     if (typedRole.role == role)
       return &typedRole;
   return nullptr;
+}
+
+const TypedRoleInterfaceRealization *
+findTypedRoleRealizationByIndex(const TypedRoleGraphRealization &realization,
+                                unsigned index) {
+  if (index >= realization.roles.size())
+    return nullptr;
+  return &realization.roles[index];
+}
+
+const ExecutableRoleStep *
+findExecutableRoleStep(llvm::ArrayRef<ExecutableRoleStep> steps,
+                       llvm::StringRef operationName) {
+  for (const ExecutableRoleStep &step : steps)
+    if (step.operationName == operationName)
+      return &step;
+  return nullptr;
+}
+
+bool hasSelectedVariantAndPathRole(
+    mlir::Operation *op, const SelectedExecutableRoleSequenceSpec &spec) {
+  auto selected = getFlatSymbolRefAttr(op, spec.selectedVariantAttrName);
+  auto roleAttr = getStringAttr(op, spec.roleAttrName);
+  return selected && selected.getValue() == spec.selectedVariantSymbol &&
+         roleAttr && roleAttr.getValue() == spec.pathRole;
+}
+
+llvm::Error requireBoundaryStringAttr(
+    mlir::Operation *boundary,
+    const SelectedLoweringBoundaryConformanceSpec &spec,
+    llvm::StringRef attrName, llvm::StringRef expectedValue) {
+  auto attr = getStringAttr(boundary, attrName);
+  if (!attr || attr.getValue().trim().empty())
+    return makeExecutableConformanceError(
+        spec.boundaryDescription,
+        llvm::Twine(spec.boundaryDescription) +
+            " requires non-empty string attribute '" + attrName + "'");
+  if (attr.getValue().trim() != expectedValue)
+    return makeExecutableConformanceError(
+        spec.boundaryDescription,
+        llvm::Twine(spec.boundaryDescription) + " attribute '" + attrName +
+            "' must be '" + expectedValue + "' but was '" +
+            attr.getValue().trim() + "'");
+  return llvm::Error::success();
 }
 
 llvm::Error requireRoleInterfaces(const ValidationSpec &spec,
@@ -520,6 +579,251 @@ llvm::Error verifyRoleOpInterface(
                   "TCRVEmitCLowerableInterface");
 
   return llvm::Error::success();
+}
+
+llvm::Error
+verifyExecutableRoleSteps(const Manifest &manifest,
+                          const TypedRoleGraphRealization &realization,
+                          llvm::ArrayRef<ExecutableRoleStep> roleSteps,
+                          const ValidationSpec &spec) {
+  if (llvm::Error error =
+          verifyTypedRoleGraphRealization(manifest, realization, spec))
+    return error;
+
+  if (roleSteps.size() != realization.roles.size())
+    return makeConstructionError(
+        spec, "executable role steps require exactly one entry per typed "
+              "role realization");
+
+  llvm::StringSet<> seenRoles;
+  llvm::StringSet<> seenOperations;
+  llvm::StringSet<> seenTypedRoles;
+  for (auto [index, step] : llvm::enumerate(roleSteps)) {
+    const TypedRoleInterfaceRealization *typedRole =
+        findTypedRoleRealizationByIndex(realization, index);
+    if (!typedRole)
+      return makeConstructionError(
+          spec, "executable role step index exceeds typed role realization");
+
+    if (step.order != index || typedRole->order != index)
+      return makeConstructionError(
+          spec, "executable role steps must preserve contiguous role order");
+    if (step.sourceRole != typedRole->role ||
+        step.operationName != typedRole->operationName ||
+        step.typedRoleID != typedRole->typedRoleID ||
+        step.roleSpecificInterface != typedRole->roleSpecificInterface ||
+        step.emitCLowerableInterface != typedRole->emitCLowerableInterface)
+      return makeConstructionError(
+          spec, llvm::Twine("executable role step '") + step.sourceRole +
+                    "' must match the typed role interface realization");
+    if (step.callee.empty())
+      return makeConstructionError(
+          spec, llvm::Twine("executable role step '") + step.sourceRole +
+                    "' must name a non-empty EmitC callee");
+    if (!seenRoles.insert(step.sourceRole).second)
+      return makeConstructionError(
+          spec, llvm::Twine("duplicate executable role step role '") +
+                    step.sourceRole + "'");
+    if (!seenOperations.insert(step.operationName).second)
+      return makeConstructionError(
+          spec, llvm::Twine("duplicate executable role step operation '") +
+                    step.operationName + "'");
+    if (!seenTypedRoles.insert(step.typedRoleID).second)
+      return makeConstructionError(
+          spec, llvm::Twine("duplicate executable role step typed role '") +
+                    step.typedRoleID + "'");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Expected<SelectedExecutableRoleSequenceInspection>
+inspectSelectedExecutableRoleSequence(
+    const SelectedExecutableRoleSequenceSpec &spec) {
+  if (!spec.roleBlock)
+    return makeExecutableConformanceError(
+        spec.selectedPathDescription,
+        "requires a materialized selected variant role block");
+  if (spec.roleSteps.empty())
+    return makeExecutableConformanceError(
+        spec.selectedPathDescription,
+        "requires at least one construction role step");
+  if (spec.selectedVariantSymbol.empty() || spec.pathRole.empty())
+    return makeExecutableConformanceError(
+        spec.selectedPathDescription,
+        "requires selected variant symbol and path role");
+
+  SelectedExecutableRoleSequenceInspection inspection;
+  for (const ExecutableRoleStep &roleStep : spec.roleSteps)
+    inspection.steps.push_back({&roleStep, nullptr});
+
+  for (mlir::Operation &op : *spec.roleBlock) {
+    if (!hasSelectedVariantAndPathRole(&op, spec))
+      continue;
+
+    const ExecutableRoleStep *expected =
+        findExecutableRoleStep(spec.roleSteps, op.getName().getStringRef());
+    if (!expected)
+      continue;
+
+    for (SelectedExecutableRoleStep &step : inspection.steps) {
+      if (step.constructionStep != expected)
+        continue;
+      if (step.operation)
+        return makeExecutableConformanceError(
+            spec.selectedPathDescription,
+            llvm::Twine(spec.selectedPathDescription) +
+                " has duplicate materialized role op '" +
+                expected->operationName + "' for @" +
+                spec.selectedVariantSymbol);
+      step.operation = &op;
+      ++inspection.matchedRoleOps;
+      break;
+    }
+  }
+
+  return inspection;
+}
+
+llvm::Error verifySelectedExecutableRoleSequenceComplete(
+    const SelectedExecutableRoleSequenceSpec &spec,
+    const SelectedExecutableRoleSequenceInspection &inspection) {
+  if (inspection.matchedRoleOps != spec.roleSteps.size()) {
+    for (const SelectedExecutableRoleStep &step : inspection.steps) {
+      if (!step.operation && step.constructionStep)
+        return makeExecutableConformanceError(
+            spec.missingRoleDescription,
+            llvm::Twine(spec.missingRoleDescription) +
+                " requires one materialized " +
+                step.constructionStep->operationName + " role op for @" +
+                spec.selectedVariantSymbol);
+    }
+    return makeExecutableConformanceError(
+        spec.missingRoleDescription,
+        llvm::Twine(spec.missingRoleDescription) +
+            " requires a complete materialized role sequence for @" +
+            spec.selectedVariantSymbol);
+  }
+
+  llvm::DenseMap<mlir::Operation *, unsigned> bodyOrder;
+  unsigned index = 0;
+  for (mlir::Operation &op : *spec.roleBlock)
+    bodyOrder.try_emplace(&op, index++);
+
+  for (unsigned order = 1; order < inspection.steps.size(); ++order) {
+    mlir::Operation *previous = inspection.steps[order - 1].operation;
+    mlir::Operation *current = inspection.steps[order].operation;
+    if (!previous || !current)
+      return makeExecutableConformanceError(
+          spec.missingRoleDescription,
+          llvm::Twine(spec.missingRoleDescription) +
+              " requires a complete materialized role sequence for @" +
+              spec.selectedVariantSymbol);
+    if (bodyOrder[previous] >= bodyOrder[current])
+      return makeExecutableConformanceError(
+          spec.roleOrderDescription,
+          llvm::Twine(spec.roleOrderDescription) + " must appear in " +
+              spec.semanticRoleGraph + " order");
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Expected<llvm::SmallVector<SelectedExecutableRoleStep, 4>>
+collectSelectedExecutableRoleSequence(
+    const SelectedExecutableRoleSequenceSpec &spec) {
+  llvm::Expected<SelectedExecutableRoleSequenceInspection> inspection =
+      inspectSelectedExecutableRoleSequence(spec);
+  if (!inspection)
+    return inspection.takeError();
+  if (llvm::Error error =
+          verifySelectedExecutableRoleSequenceComplete(spec, *inspection))
+    return std::move(error);
+  return std::move(inspection->steps);
+}
+
+llvm::Error verifySelectedLoweringBoundaryConformance(
+    mlir::Operation *boundary,
+    const SelectedLoweringBoundaryConformanceSpec &spec) {
+  if (!boundary)
+    return makeExecutableConformanceError(
+        spec.boundaryDescription,
+        llvm::Twine(spec.boundaryDescription) +
+            " is missing before construction validation");
+  if (llvm::Error error = requireBoundaryStringAttr(
+          boundary, spec, spec.sourceKernelAttrName, spec.sourceKernelSymbol))
+    return error;
+  if (llvm::Error error = requireBoundaryStringAttr(
+          boundary, spec, spec.originAttrName, spec.originPlugin))
+    return error;
+  if (llvm::Error error = requireBoundaryStringAttr(
+          boundary, spec, spec.roleAttrName, spec.pathRole))
+    return error;
+  if (llvm::Error error = requireBoundaryStringAttr(
+          boundary, spec, spec.statusAttrName, spec.status))
+    return error;
+
+  for (const SelectedBoundaryStringAttrExpectation &expectation :
+       spec.extraStringAttributes)
+    if (llvm::Error error = requireBoundaryStringAttr(
+            boundary, spec, expectation.attrName, expectation.expectedValue))
+      return error;
+
+  auto selectedVariant = getFlatSymbolRefAttr(boundary,
+                                              spec.selectedVariantAttrName);
+  if (!selectedVariant ||
+      selectedVariant.getValue() != spec.selectedVariantSymbol)
+    return makeExecutableConformanceError(
+        spec.boundaryDescription,
+        llvm::Twine(spec.boundaryDescription) +
+            " selected_variant must match selected variant");
+
+  auto requiredCapabilities =
+      boundary->getAttrOfType<mlir::ArrayAttr>(
+          spec.requiredCapabilitiesAttrName);
+  if (!requiredCapabilities || !spec.requiredCapabilities ||
+      requiredCapabilities != spec.requiredCapabilities)
+    return makeExecutableConformanceError(
+        spec.boundaryDescription,
+        llvm::Twine(spec.boundaryDescription) +
+            " required_capabilities must match selected variant requires "
+            "metadata");
+
+  return llvm::Error::success();
+}
+
+llvm::Error verifyConstructionArtifactMetadata(
+    llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
+    llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> expected,
+    const ValidationSpec &spec, llvm::StringRef context) {
+  if (tianchenrv::support::artifactMetadataEntriesEqual(metadata, expected))
+    return llvm::Error::success();
+
+  if (metadata.size() != expected.size())
+    return makeConstructionError(
+        spec, llvm::Twine(context) + " must carry exactly " +
+                  llvm::Twine(expected.size()) +
+                  " construction artifact metadata entries");
+
+  for (auto [index, pair] : llvm::enumerate(llvm::zip(metadata, expected))) {
+    const tianchenrv::support::ArtifactMetadataEntry &actual =
+        std::get<0>(pair);
+    const tianchenrv::support::ArtifactMetadataEntry &want =
+        std::get<1>(pair);
+    if (actual.key != want.key)
+      return makeConstructionError(
+          spec, llvm::Twine(context) + " artifact_metadata[" +
+                    llvm::Twine(index) + "] key must be '" + want.key + "'");
+    if (actual.value != want.value)
+      return makeConstructionError(
+          spec, llvm::Twine(context) + " artifact_metadata[" +
+                    llvm::Twine(index) + "] value for key '" + want.key +
+                    "' must be '" + want.value + "'");
+  }
+
+  return makeConstructionError(
+      spec, llvm::Twine(context) +
+                " must carry construction artifact metadata");
 }
 
 void emitTypedRoleGraphRealization(

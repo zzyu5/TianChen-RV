@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "global invariant check for no Python compiler core, descriptors, or direct-C semantic routes"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "validate conformance surface against construction-template protocol acceptance and negative cases"}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "check common/core remains generic and plugin semantics remain local"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "check selected EmitC route and target artifact handoff validation"}

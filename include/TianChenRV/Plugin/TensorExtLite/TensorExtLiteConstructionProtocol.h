@@ -27,6 +27,8 @@ using TensorExtLiteTypedRoleInterfaceRealization =
     tianchenrv::plugin::construction::TypedRoleInterfaceRealization;
 using TensorExtLiteTypedRoleGraphRealization =
     tianchenrv::plugin::construction::TypedRoleGraphRealization;
+using TensorExtLiteFragmentMmaRoleStep =
+    tianchenrv::plugin::construction::ExecutableRoleStep;
 
 struct TensorExtLiteFragmentMmaEmitCConstructionRoute {
   llvm::StringRef routeID;
@@ -46,16 +48,6 @@ struct TensorExtLiteFragmentMmaEmitCConstructionRoute {
   llvm::StringRef loadFragCallee;
   llvm::StringRef tileMmaCallee;
   llvm::StringRef storeFragCallee;
-};
-
-struct TensorExtLiteFragmentMmaRoleStep {
-  llvm::StringRef sourceRole;
-  llvm::StringRef operationName;
-  llvm::StringRef typedRoleID;
-  llvm::StringRef roleSpecificInterface;
-  llvm::StringRef emitCLowerableInterface;
-  llvm::StringRef callee;
-  unsigned order = 0;
 };
 
 llvm::StringRef getTensorExtLiteConstructionInterfaceRealization();

@@ -1037,6 +1037,90 @@ module {
                .semanticRoleGraph});
 }
 
+int runDuplicateRoleSequenceMaterializationNegativeTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @duplicate_tensorext_lite_tile_mma_kernel attributes {} {
+    tcrv.exec.capability @tensorext_lite_tile_mma {
+      id = "tensorext_lite.tile_mma",
+      kind = "fragment-mma-like",
+      status = "available",
+      fragment_abi = "tensorext-lite-fragment-boundary.v1",
+      handoff_kind = "tensorext-lite-fragment-mma-template"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse duplicate TensorExtLite role-sequence module");
+
+  KernelOp kernel =
+      findKernel(*module, "duplicate_tensorext_lite_tile_mma_kernel");
+  if (int result =
+          expect(kernel, "duplicate TensorExtLite module has kernel anchor"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerTensorExtLiteExtensionPlugin(
+                            registry),
+                        "register TensorExtLite plugin for duplicate role "
+                        "negative"))
+    return result;
+
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+  VariantProposalRequest request(kernel.getOperation(), kernel, capabilities);
+  mlir::OpBuilder builder(&context);
+  llvm::SmallVector<VariantOp, 1> materializedVariants;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, request, &materializedVariants),
+          "materialize TensorExtLite proposal for duplicate role negative"))
+    return result;
+
+  VariantOp tensorext_liteVariant = findVariant(
+      kernel,
+      tianchenrv::plugin::tensorext_lite::
+          getTensorExtLiteFragmentFirstSliceVariantName());
+  if (int result =
+          expect(tensorext_liteVariant,
+                 "TensorExtLite duplicate negative materializes variant"))
+    return result;
+
+  llvm::Expected<VariantSelectionPlan> planOrError =
+      tianchenrv::transforms::planKernelVariantSelection(kernel, capabilities,
+                                                         registry);
+  if (!planOrError)
+    return fail("TensorExtLite duplicate role selection planning failed: " +
+                llvm::toString(planOrError.takeError()));
+  VariantSelectionPlan selectionPlan = std::move(*planOrError);
+  DiagnosticOp marker;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::materializeSelectedVariantMarker(
+              builder, selectionPlan, &marker),
+          "materialize TensorExtLite selected marker for duplicate role negative"))
+    return result;
+
+  materializeTensorExtLiteRoleSequence(builder, kernel, tensorext_liteVariant);
+  materializeTensorExtLiteRoleSequence(builder, kernel, tensorext_liteVariant,
+                                       /*reorderLoadAndTile=*/false,
+                                       /*roleCount=*/1);
+  if (int result = expect(mlir::succeeded(mlir::verify(*module)),
+                          "duplicate TensorExtLite role module verifies before "
+                          "construction-template fail-closed check"))
+    return result;
+
+  return expectErrorContains(
+      tianchenrv::plugin::materializeSelectedLoweringBoundaries(
+          kernel, capabilities, registry),
+      {"duplicate materialized role op",
+       "tcrv_tensorext_lite.config_skeleton"});
+}
+
 } // namespace
 
 int main() {
@@ -1062,6 +1146,8 @@ int main() {
   if (int result = runRoleSequenceOrderingNegativeTest(context))
     return result;
   if (int result = runPartialRoleSequenceMaterializationNegativeTest(context))
+    return result;
+  if (int result = runDuplicateRoleSequenceMaterializationNegativeTest(context))
     return result;
 
   llvm::outs() << "TensorExtLite extension plugin fragment smoke test passed\n";
