@@ -2,6 +2,7 @@
 #define TIANCHENRV_PLUGIN_RVV_RVVCONSTRUCTIONPROTOCOL_H
 
 #include "TianChenRV/Plugin/ConstructionProtocol.h"
+#include "TianChenRV/Support/ArtifactMetadata.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -36,20 +37,54 @@ struct RVVI32M1ArithmeticConstructionRoute {
   llvm::StringRef runtimeABIContractName;
 };
 
+struct RVVI32M1ArithmeticTargetArtifactMapping {
+  llvm::StringRef headerRouteID;
+  llvm::StringRef headerArtifactKind;
+  llvm::StringRef bundleComponentGroup;
+  llvm::StringRef objectHandoffKind;
+  llvm::StringRef emitCToCppTranslateRouteID;
+};
+
 llvm::StringRef getRVVConstructionProtocolVersion();
 llvm::StringRef getRVVConstructionArchetype();
 llvm::StringRef getRVVConstructionSemanticRoleGraph();
 llvm::StringRef getRVVConstructionInterfaceRealization();
 llvm::StringRef getRVVTypedRoleRealizationSummary();
+llvm::StringRef getRVVConstructionArtifactInterfaceRealization();
+llvm::StringRef getRVVArtifactTypedRoleRealizationSummary();
 llvm::StringRef getRVVConstructionEvidenceProfile();
+llvm::StringRef getRVVI32M1ArithmeticSourceOps();
+llvm::StringRef getRVVI32M1ArithmeticSourceRoles();
+llvm::StringRef getRVVEmitCLowerableOpInterfaceName();
+
+llvm::StringRef getRVVEmitCLowerableRouteMetadataName();
+llvm::StringRef getRVVArithmeticOpMetadataName();
+llvm::StringRef getRVVSourceOpsMetadataName();
+llvm::StringRef getRVVSourceRolesMetadataName();
+llvm::StringRef getRVVSourceOpInterfaceMetadataName();
+llvm::StringRef getRVVConstructionProtocolMetadataName();
+llvm::StringRef getRVVConstructionArchetypeMetadataName();
+llvm::StringRef getRVVSemanticRoleGraphMetadataName();
+llvm::StringRef getRVVCommonInterfaceRealizationMetadataName();
+llvm::StringRef getRVVTypedRoleRealizationMetadataName();
+llvm::StringRef getRVVEmitCRouteMappingMetadataName();
+llvm::StringRef getRVVEvidenceProfileMetadataName();
+llvm::StringRef getRVVRuntimeABIContractMetadataName();
+llvm::StringRef getRVVBundleComponentGroupMetadataName();
+llvm::StringRef getRVVObjectHandoffMetadataName();
 
 const RVVConstructionManifest &getRVVConstructionManifest();
 const RVVTypedRoleGraphRealization &getRVVTypedRoleGraphRealization();
 llvm::ArrayRef<RVVI32M1ArithmeticConstructionRoute>
 getRVVI32M1ArithmeticConstructionRoutes();
+const RVVI32M1ArithmeticTargetArtifactMapping &
+getRVVI32M1ArithmeticTargetArtifactMapping();
 
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVI32M1ArithmeticConstructionRuntimeABIParameters();
+llvm::Expected<llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 16>>
+getRVVI32M1ArithmeticConstructionArtifactMetadata(
+    llvm::StringRef emitCRouteID);
 
 llvm::Error verifyRVVConstructionManifest(
     const RVVConstructionManifest &manifest);
@@ -59,6 +94,13 @@ llvm::Error verifyRVVTypedRoleGraphRealization(
 llvm::Error verifyRVVConstructionProtocolReady();
 llvm::Error verifyRVVI32M1ArithmeticConstructionRuntimeABIParameters(
     llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter> parameters);
+llvm::Error verifyRVVI32M1ArithmeticTargetArtifactBundleMapping(
+    llvm::StringRef headerRouteID, llvm::StringRef headerArtifactKind,
+    llvm::StringRef bundleComponentGroup, llvm::StringRef objectHandoffKind,
+    llvm::StringRef emitCToCppTranslateRouteID);
+llvm::Error verifyRVVI32M1ArithmeticConstructionArtifactMetadata(
+    llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
+    llvm::StringRef context);
 
 llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>
 lookupRVVI32M1ArithmeticConstructionRouteByMnemonic(llvm::StringRef mnemonic);

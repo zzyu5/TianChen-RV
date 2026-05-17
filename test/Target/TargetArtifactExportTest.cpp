@@ -39,6 +39,7 @@
 
 #include <initializer_list>
 #include <string>
+#include <utility>
 
 using namespace tianchenrv::target;
 
@@ -464,14 +465,19 @@ TargetArtifactCandidate makeValidRVVTargetArtifactCandidate() {
       tianchenrv::plugin::rvv::getRVVI32M1ArithmeticRuntimeGlueRole().str();
   candidate.runtimeABIParameters =
       tianchenrv::plugin::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
-  candidate.artifactMetadata.push_back(tianchenrv::support::ArtifactMetadataEntry(
-      "rvv_emitc_lowerable_route",
-      tianchenrv::plugin::rvv::getRVVI32M1ArithmeticEmitCRouteID(
-          tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Add)));
-  candidate.artifactMetadata.push_back(tianchenrv::support::ArtifactMetadataEntry(
-      "rvv_arithmetic_op",
-      tianchenrv::plugin::rvv::stringifyRVVI32M1ArithmeticOp(
-          tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Add)));
+  llvm::Expected<llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 16>>
+      constructionMetadata =
+          tianchenrv::plugin::rvv::
+              getRVVI32M1ArithmeticConstructionArtifactMetadata(
+                  tianchenrv::plugin::rvv::getRVVI32M1ArithmeticEmitCRouteID(
+                      tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Add));
+  if (!constructionMetadata) {
+    llvm::errs() << "failed to build RVV construction metadata: "
+                 << llvm::toString(constructionMetadata.takeError()) << "\n";
+    return candidate;
+  }
+  candidate.artifactMetadata.append(constructionMetadata->begin(),
+                                    constructionMetadata->end());
   appendRVVRuntimeAVLVLArtifactMetadata(candidate);
   return candidate;
 }
@@ -530,6 +536,71 @@ bool expectRVVTargetArtifactExporterShape(
                             "rvv-i32m1-add-callable-c-abi.v1"}))
     return false;
 
+  TargetArtifactCandidate fallbackRole = candidate;
+  fallbackRole.role = "dispatch fallback";
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               fallbackRole, *exporter),
+                           "RVV artifact rejects fallback-only selection",
+                           {"fallback-only"}))
+    return false;
+
+  TargetArtifactCandidate mismatchedParameters = candidate;
+  std::swap(mismatchedParameters.runtimeABIParameters[2],
+            mismatchedParameters.runtimeABIParameters[3]);
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               mismatchedParameters, *exporter),
+                           "RVV artifact rejects mismatched runtime ABI "
+                           "parameters",
+                           {"runtime ABI parameter order", "output-buffer"}))
+    return false;
+
+  TargetArtifactCandidate missingConstructionProtocol = candidate;
+  if (!eraseArtifactMetadataKey(
+          missingConstructionProtocol,
+          tianchenrv::plugin::rvv::getRVVConstructionProtocolMetadataName())) {
+    llvm::errs() << "test fixture did not contain construction protocol "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               missingConstructionProtocol, *exporter),
+                           "RVV artifact rejects missing construction "
+                           "protocol metadata",
+                           {"construction artifact metadata"}))
+    return false;
+
+  TargetArtifactCandidate staleRouteMapping = candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleRouteMapping,
+          tianchenrv::plugin::rvv::getRVVEmitCRouteMappingMetadataName(),
+          "rvv-stale-route-only-metadata")) {
+    llvm::errs() << "test fixture did not contain RVV EmitC route mapping "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               staleRouteMapping, *exporter),
+                           "RVV artifact rejects stale construction route "
+                           "metadata",
+                           {tianchenrv::plugin::rvv::
+                                getRVVEmitCRouteMappingMetadataName(),
+                            manifest.emitcRoute.routeID}))
+    return false;
+
+  TargetArtifactCandidate staleSourceOps = candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleSourceOps,
+          tianchenrv::plugin::rvv::getRVVSourceOpsMetadataName(),
+          "tcrv_rvv.descriptor_compute_body")) {
+    llvm::errs() << "test fixture did not contain RVV source-op metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               staleSourceOps, *exporter),
+                           "RVV artifact rejects stale source-op provenance",
+                           {"descriptor-driven computation"}))
+    return false;
+
   TargetArtifactCandidate missingAVLVLMetadata = candidate;
   if (!eraseArtifactMetadataKey(missingAVLVLMetadata,
                                 "tcrv_rvv.runtime_avl_source")) {
@@ -564,7 +635,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
                                staleVLMetadata, *exporter),
                            "RVV artifact rejects stale VL scope metadata",
-                           {"vl_scope", "tcrv_rvv.with_vl"}))
+                           {"descriptor-driven computation"}))
     return false;
 
   TargetArtifactCandidate missingLoopMetadata = candidate;
@@ -598,7 +669,8 @@ bool expectRVVTargetArtifactExporterShape(
                                descriptorElementCount, *exporter),
                            "RVV artifact rejects descriptor element count "
                            "metadata",
-                           {"descriptor-local or hardcoded element-count"}))
+                           {"descriptor-driven computation",
+                            "hardcoded element-count"}))
     return false;
 
   return true;

@@ -43,6 +43,11 @@ module {
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_metadata = [{key = "rvv_emitc_lowerable_route", value = "rvv-i32m1-sub-emitc-route"}
 // PLAN-SAME: {key = "rvv_arithmetic_op", value = "sub"}
+// PLAN-SAME: {key = "rvv_construction_protocol", value = "extension-family-construction-protocol.v1"}
+// PLAN-SAME: {key = "rvv_extension_archetype", value = "rvv-finite-binary"}
+// PLAN-SAME: {key = "rvv_semantic_role_graph", value = "runtime_abi->configure->scope->load->compute->store"}
+// PLAN-SAME: {key = "rvv_emitc_route_mapping", value = "rvv-i32m1-arithmetic-emitc-route-family"}
+// PLAN-SAME: {key = "rvv_runtime_abi_contract", value = "rvv-i32m1-arithmetic-callable-c-abi-family.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.bounded_slice", value = "multi-vl-i32m1-arithmetic"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: lowering_pipeline = "rvv-i32m1-arithmetic-emitc-route-family"

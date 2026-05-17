@@ -377,9 +377,13 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
   out.setRuntimeGlueRole(getRVVI32M1ArithmeticRuntimeGlueRole());
   out.setLoweringBoundaryOpName(getRVVI32M1ArithmeticLoweringBoundaryOpName());
   out.addRuntimeABIParameters(getRVVI32M1ArithmeticRuntimeABIParameters());
-  out.addArtifactMetadata("rvv_emitc_lowerable_route", route.getRouteID());
-  out.addArtifactMetadata("rvv_arithmetic_op",
-                          stringifyRVVI32M1ArithmeticOp(*arithmetic));
+  llvm::Expected<llvm::SmallVector<support::ArtifactMetadataEntry, 16>>
+      constructionMetadata =
+          getRVVI32M1ArithmeticConstructionArtifactMetadata(route.getRouteID());
+  if (!constructionMetadata)
+    return constructionMetadata.takeError();
+  for (const support::ArtifactMetadataEntry &entry : *constructionMetadata)
+    out.addArtifactMetadata(entry.key, entry.value);
   for (const support::ArtifactMetadataEntry &entry :
        tcrv::rvv::getRVVI32M1ArithmeticArtifactMetadata())
     out.addArtifactMetadata(entry.key, entry.value);

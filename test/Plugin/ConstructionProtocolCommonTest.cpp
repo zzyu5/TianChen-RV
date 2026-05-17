@@ -157,10 +157,35 @@ int runRVVCommonValidationTest() {
   }
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
       rvv::getRVVI32M1ArithmeticConstructionRuntimeABIParameters();
-  return expectSuccess(
+  if (int result = expectSuccess(
       rvv::verifyRVVI32M1ArithmeticConstructionRuntimeABIParameters(
           parameters),
-      "RVV construction runtime ABI parameters validate");
+      "RVV construction runtime ABI parameters validate"))
+    return result;
+
+  for (const auto &route : rvv::getRVVI32M1ArithmeticConstructionRoutes()) {
+    llvm::Expected<llvm::SmallVector<
+        tianchenrv::support::ArtifactMetadataEntry, 16>>
+        metadata =
+            rvv::getRVVI32M1ArithmeticConstructionArtifactMetadata(
+                route.emitCRouteID);
+    if (!metadata)
+      return fail(llvm::Twine("RVV construction metadata is built from route: ") +
+                  llvm::toString(metadata.takeError()));
+    if (int result = expectSuccess(
+            rvv::verifyRVVI32M1ArithmeticConstructionArtifactMetadata(
+                *metadata, "RVV construction protocol test"),
+            "RVV construction artifact metadata validates"))
+      return result;
+  }
+
+  const auto &mapping = rvv::getRVVI32M1ArithmeticTargetArtifactMapping();
+  return expectSuccess(
+      rvv::verifyRVVI32M1ArithmeticTargetArtifactBundleMapping(
+          mapping.headerRouteID, mapping.headerArtifactKind,
+          mapping.bundleComponentGroup, mapping.objectHandoffKind,
+          mapping.emitCToCppTranslateRouteID),
+      "RVV construction target artifact bundle mapping validates");
 }
 
 int runRVVFailClosedConstructionValidationTest() {
@@ -224,11 +249,42 @@ int runRVVFailClosedConstructionValidationTest() {
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
       rvv::getRVVI32M1ArithmeticConstructionRuntimeABIParameters();
   parameters.pop_back();
-  return expectErrorContains(
+  if (int result = expectErrorContains(
       rvv::verifyRVVI32M1ArithmeticConstructionRuntimeABIParameters(
           parameters),
       {"ordered runtime ABI parameters", "lhs, rhs, out, n"},
-      "RVV construction rejects missing runtime ABI parameter");
+      "RVV construction rejects missing runtime ABI parameter"))
+    return result;
+
+  llvm::Expected<llvm::SmallVector<
+      tianchenrv::support::ArtifactMetadataEntry, 16>>
+      metadata = rvv::getRVVI32M1ArithmeticConstructionArtifactMetadata(
+          addRoute->emitCRouteID);
+  if (!metadata)
+    return fail(llvm::Twine("RVV construction metadata fixture is available: ") +
+                llvm::toString(metadata.takeError()));
+  for (tianchenrv::support::ArtifactMetadataEntry &entry : *metadata) {
+    if (entry.key == rvv::getRVVConstructionProtocolMetadataName()) {
+      entry.value = "stale-protocol";
+      break;
+    }
+  }
+  if (int result = expectErrorContains(
+          rvv::verifyRVVI32M1ArithmeticConstructionArtifactMetadata(
+              *metadata, "RVV construction fail-closed test"),
+          {rvv::getRVVConstructionProtocolMetadataName(),
+           rvv::getRVVConstructionProtocolVersion()},
+          "RVV construction rejects stale construction artifact metadata"))
+    return result;
+
+  const auto &mapping = rvv::getRVVI32M1ArithmeticTargetArtifactMapping();
+  return expectErrorContains(
+      rvv::verifyRVVI32M1ArithmeticTargetArtifactBundleMapping(
+          mapping.headerRouteID, mapping.headerArtifactKind,
+          "rvv-stale-component-group", mapping.objectHandoffKind,
+          mapping.emitCToCppTranslateRouteID),
+      {"bundle component group", mapping.bundleComponentGroup},
+      "RVV construction rejects stale target artifact bundle mapping");
 }
 
 std::string buildInterfaceSummary(const Manifest &manifest) {

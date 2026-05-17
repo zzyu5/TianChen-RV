@@ -3,17 +3,17 @@
 // RUN: tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.bundle %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir | FileCheck %s --check-prefix=STDOUT
 // RUN: llvm-readobj -h %t.bundle/artifact-0-riscv-elf-relocatable-object-rvv-i32m1-arithmetic-emitc-route-family.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.bundle/artifact-0-riscv-elf-relocatable-object-rvv-i32m1-arithmetic-emitc-route-family.o | FileCheck %s --check-prefix=SYMBOL --implicit-check-not="_Z57tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add"
-// RUN: FileCheck %s --check-prefix=HEADER --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-direct-microkernel" < %t.bundle/artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h
+// RUN: FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="vint32m1_t" --implicit-check-not="return;" --implicit-check-not="int main" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-direct-microkernel" < %t.bundle/artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h
 // RUN: FileCheck %s --check-prefix=INDEX --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.bundle/tianchenrv-target-artifact-bundle.index
 // RUN: rm -rf %t.sub.bundle && mkdir %t.sub.bundle
 // RUN: tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.sub.bundle %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door-sub.mlir | FileCheck %s --check-prefix=STDOUT
 // RUN: llvm-readobj --symbols %t.sub.bundle/artifact-0-riscv-elf-relocatable-object-rvv-i32m1-arithmetic-emitc-route-family.o | FileCheck %s --check-prefix=SYMBOL-SUB
-// RUN: FileCheck %s --check-prefix=HEADER-SUB --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-direct-microkernel" < %t.sub.bundle/artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h
+// RUN: FileCheck %s --check-prefix=HEADER-SUB --implicit-check-not="__riscv_" --implicit-check-not="vint32m1_t" --implicit-check-not="return;" --implicit-check-not="int main" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-direct-microkernel" < %t.sub.bundle/artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h
 // RUN: FileCheck %s --check-prefix=INDEX-SUB --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.sub.bundle/tianchenrv-target-artifact-bundle.index
 // RUN: rm -rf %t.mul.bundle && mkdir %t.mul.bundle
 // RUN: tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.mul.bundle %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door-mul.mlir | FileCheck %s --check-prefix=STDOUT
 // RUN: llvm-readobj --symbols %t.mul.bundle/artifact-0-riscv-elf-relocatable-object-rvv-i32m1-arithmetic-emitc-route-family.o | FileCheck %s --check-prefix=SYMBOL-MUL
-// RUN: FileCheck %s --check-prefix=HEADER-MUL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-direct-microkernel" < %t.mul.bundle/artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h
+// RUN: FileCheck %s --check-prefix=HEADER-MUL --implicit-check-not="__riscv_" --implicit-check-not="vint32m1_t" --implicit-check-not="return;" --implicit-check-not="int main" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-direct-microkernel" < %t.mul.bundle/artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h
 // RUN: FileCheck %s --check-prefix=INDEX-MUL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.mul.bundle/tianchenrv-target-artifact-bundle.index
 
 // This file intentionally has no standalone input. The RUN lines prove that
@@ -44,6 +44,16 @@
 // HEADER: tianchenrv.rvv.runtime_abi_parameter[1]: const int32_t *rhs role=rhs-input-buffer ownership=target-export-abi-owned
 // HEADER: tianchenrv.rvv.runtime_abi_parameter[2]: int32_t *out role=output-buffer ownership=target-export-abi-owned
 // HEADER: tianchenrv.rvv.runtime_abi_parameter[3]: size_t n role=runtime-element-count ownership=target-export-abi-owned
+// HEADER: tianchenrv.rvv.construction_protocol: extension-family-construction-protocol.v1
+// HEADER: tianchenrv.rvv.extension_archetype: rvv-finite-binary
+// HEADER: tianchenrv.rvv.semantic_role_graph: runtime_abi->configure->scope->load->compute->store
+// HEADER: tianchenrv.rvv.common_interface_realization: runtime_abi/resource+emitc
+// HEADER: tianchenrv.rvv.typed_role_realization: runtime_abi:tcrv_rvv.runtime_abi_value
+// HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-i32m1-arithmetic-emitc-route-family
+// HEADER: tianchenrv.rvv.evidence_profile: parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims
+// HEADER: tianchenrv.rvv.runtime_abi_contract: rvv-i32m1-arithmetic-callable-c-abi-family.v1
+// HEADER: tianchenrv.rvv.bundle_component_group: rvv-i32m1-arithmetic-materialized-emitc-bundle.v1
+// HEADER: tianchenrv.rvv.object_handoff: materialized-emitc-cpp-rvv-intrinsic-object
 // HEADER: tianchenrv.rvv.emitc_loop: emitc.for
 // HEADER: tianchenrv.rvv.multi_vl: supported
 // HEADER: extern "C" {
@@ -88,6 +98,16 @@
 // INDEX: c_name: "n"
 // INDEX: key: "rvv_emitc_lowerable_route"
 // INDEX: value: "rvv-i32m1-add-emitc-route"
+// INDEX: key: "rvv_construction_protocol"
+// INDEX: value: "extension-family-construction-protocol.v1"
+// INDEX: key: "rvv_extension_archetype"
+// INDEX: value: "rvv-finite-binary"
+// INDEX: key: "rvv_emitc_route_mapping"
+// INDEX: value: "rvv-i32m1-arithmetic-emitc-route-family"
+// INDEX: key: "rvv_runtime_abi_contract"
+// INDEX: value: "rvv-i32m1-arithmetic-callable-c-abi-family.v1"
+// INDEX: key: "rvv_object_handoff"
+// INDEX: value: "materialized-emitc-cpp-rvv-intrinsic-object"
 // INDEX: key: "tcrv_rvv.emitc_loop"
 // INDEX: value: "emitc.for"
 // INDEX: handoff_kind: "materialized-emitc-cpp-rvv-intrinsic-object"
@@ -106,6 +126,10 @@
 // INDEX-SUB: value: "rvv-i32m1-sub-emitc-route"
 // INDEX-SUB: key: "rvv_arithmetic_op"
 // INDEX-SUB: value: "sub"
+// INDEX-SUB: key: "rvv_construction_protocol"
+// INDEX-SUB: value: "extension-family-construction-protocol.v1"
+// INDEX-SUB: key: "rvv_runtime_abi_contract"
+// INDEX-SUB: value: "rvv-i32m1-arithmetic-callable-c-abi-family.v1"
 // INDEX-SUB: handoff_kind: "materialized-emitc-cpp-rvv-intrinsic-object"
 
 // INDEX-MUL: bundle_status: "complete"
@@ -118,4 +142,8 @@
 // INDEX-MUL: value: "rvv-i32m1-mul-emitc-route"
 // INDEX-MUL: key: "rvv_arithmetic_op"
 // INDEX-MUL: value: "mul"
+// INDEX-MUL: key: "rvv_construction_protocol"
+// INDEX-MUL: value: "extension-family-construction-protocol.v1"
+// INDEX-MUL: key: "rvv_runtime_abi_contract"
+// INDEX-MUL: value: "rvv-i32m1-arithmetic-callable-c-abi-family.v1"
 // INDEX-MUL: handoff_kind: "materialized-emitc-cpp-rvv-intrinsic-object"

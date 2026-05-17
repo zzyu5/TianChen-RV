@@ -7,7 +7,10 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/raw_ostream.h"
 
+#include <string>
+#include <tuple>
 #include <utility>
 
 namespace tianchenrv::plugin::rvv {
@@ -51,6 +54,52 @@ constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "TCRVComputeOpInterface:TCRVEmitCLowerableInterface;"
     "store:rvv.role.store.i32_store:tcrv_rvv.i32_store:"
     "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface");
+constexpr llvm::StringLiteral kInterfaceRealizationArtifactSummary(
+    "runtime_abi/resource+emitc;configure/config+emitc;"
+    "scope/config+emitc;load/memory+resource+emitc;"
+    "compute/compute+resource+emitc;store/memory+resource+emitc");
+constexpr llvm::StringLiteral kTypedRoleArtifactSummary(
+    "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;"
+    "scope:tcrv_rvv.with_vl;load:tcrv_rvv.i32_load;"
+    "compute:tcrv_rvv.i32_add|tcrv_rvv.i32_sub|tcrv_rvv.i32_mul;"
+    "store:tcrv_rvv.i32_store");
+
+constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
+    "TCRVEmitCLowerableOpInterface");
+constexpr llvm::StringLiteral kSourceOps(
+    "tcrv_rvv.runtime_abi_value->tcrv_rvv.setvl->tcrv_rvv.with_vl->"
+    "tcrv_rvv.i32_load->tcrv_rvv.i32_load->tcrv_rvv.i32_arithmetic->"
+    "tcrv_rvv.i32_store");
+constexpr llvm::StringLiteral kSourceRoles(
+    "runtime_abi->configure->scope->load->load->compute->store");
+
+constexpr llvm::StringLiteral kEmitCLowerableRouteMetadataName(
+    "rvv_emitc_lowerable_route");
+constexpr llvm::StringLiteral kArithmeticOpMetadataName("rvv_arithmetic_op");
+constexpr llvm::StringLiteral kSourceOpsMetadataName("rvv_source_ops");
+constexpr llvm::StringLiteral kSourceRolesMetadataName("rvv_source_roles");
+constexpr llvm::StringLiteral kSourceOpInterfaceMetadataName(
+    "rvv_source_op_interface");
+constexpr llvm::StringLiteral kProtocolMetadataName(
+    "rvv_construction_protocol");
+constexpr llvm::StringLiteral kArchetypeMetadataName(
+    "rvv_extension_archetype");
+constexpr llvm::StringLiteral kRoleGraphMetadataName(
+    "rvv_semantic_role_graph");
+constexpr llvm::StringLiteral kInterfaceRealizationMetadataName(
+    "rvv_common_interface_realization");
+constexpr llvm::StringLiteral kTypedRoleRealizationMetadataName(
+    "rvv_typed_role_realization");
+constexpr llvm::StringLiteral kEmitCRouteMetadataName(
+    "rvv_emitc_route_mapping");
+constexpr llvm::StringLiteral kEvidenceProfileMetadataName(
+    "rvv_evidence_profile");
+constexpr llvm::StringLiteral kRuntimeABIContractMetadataName(
+    "rvv_runtime_abi_contract");
+constexpr llvm::StringLiteral kBundleComponentGroupMetadataName(
+    "rvv_bundle_component_group");
+constexpr llvm::StringLiteral kObjectHandoffMetadataName(
+    "rvv_object_handoff");
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
@@ -71,6 +120,16 @@ constexpr llvm::StringLiteral kRVVI32M1ArithmeticRuntimeABIKind(
     "plugin-owned-runtime-abi");
 constexpr llvm::StringLiteral kRVVI32M1ArithmeticRuntimeGlueRole(
     "emitc-cpp-rvv-intrinsic-runtime-glue");
+constexpr llvm::StringLiteral kRVVMaterializedEmitCHeaderRouteID(
+    "rvv-i32m1-arithmetic-emitc-route-family.header");
+constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
+    "runtime-callable-c-header");
+constexpr llvm::StringLiteral kRVVMaterializedEmitCBundleComponentGroup(
+    "rvv-i32m1-arithmetic-materialized-emitc-bundle.v1");
+constexpr llvm::StringLiteral kRVVI32M1ArithmeticObjectHandoffKind(
+    "materialized-emitc-cpp-rvv-intrinsic-object");
+constexpr llvm::StringLiteral kRVVEmitCToCppRouteID(
+    "tcrv-rvv-emitc-to-cpp");
 
 const RVVConstructionSemanticRole kSemanticRoles[] = {
     {"runtime_abi", 0, "tcrv_rvv.runtime_abi_value",
@@ -203,6 +262,13 @@ const RVVI32M1ArithmeticConstructionRoute kArithmeticRoutes[] = {
      "rvv-i32m1-mul-callable-c-abi"},
 };
 
+const RVVI32M1ArithmeticTargetArtifactMapping kTargetArtifactMapping = {
+    kRVVMaterializedEmitCHeaderRouteID,
+    kRuntimeCallableCHeaderArtifactKind,
+    kRVVMaterializedEmitCBundleComponentGroup,
+    kRVVI32M1ArithmeticObjectHandoffKind,
+    kRVVEmitCToCppRouteID};
+
 const construction::RoleExpectation kRoleExpectations[] = {
     {"runtime_abi", "TCRVResourceOpInterface", true},
     {"configure", "TCRVConfigOpInterface", false},
@@ -311,6 +377,34 @@ llvm::Error verifyArithmeticRoutes() {
   return llvm::Error::success();
 }
 
+llvm::SmallVector<support::ArtifactMetadataEntry, 16>
+buildExpectedConstructionArtifactMetadata(
+    const RVVI32M1ArithmeticConstructionRoute &route) {
+  llvm::SmallVector<support::ArtifactMetadataEntry, 16> metadata;
+  metadata.push_back({kEmitCLowerableRouteMetadataName, route.emitCRouteID});
+  metadata.push_back({kArithmeticOpMetadataName, route.mnemonic});
+  metadata.push_back({kSourceOpsMetadataName, kSourceOps});
+  metadata.push_back({kSourceRolesMetadataName, kSourceRoles});
+  metadata.push_back(
+      {kSourceOpInterfaceMetadataName, kEmitCLowerableOpInterfaceName});
+  metadata.push_back({kProtocolMetadataName, kProtocolVersion});
+  metadata.push_back({kArchetypeMetadataName, kArchetype});
+  metadata.push_back({kRoleGraphMetadataName, kSemanticRoleGraph});
+  metadata.push_back({kInterfaceRealizationMetadataName,
+                      kInterfaceRealizationArtifactSummary});
+  metadata.push_back({kTypedRoleRealizationMetadataName,
+                      kTypedRoleArtifactSummary});
+  metadata.push_back({kEmitCRouteMetadataName, kManifest.emitcRoute.routeID});
+  metadata.push_back({kEvidenceProfileMetadataName, kEvidenceProfile});
+  metadata.push_back({kRuntimeABIContractMetadataName,
+                      kManifest.emitcRoute.runtimeABI});
+  metadata.push_back({kBundleComponentGroupMetadataName,
+                      kTargetArtifactMapping.bundleComponentGroup});
+  metadata.push_back(
+      {kObjectHandoffMetadataName, kTargetArtifactMapping.objectHandoffKind});
+  return metadata;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 4>
 buildExpectedRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
@@ -340,6 +434,14 @@ lookupRouteBy(llvm::StringRef value, llvm::StringRef label,
                                   label + " '" + value + "'");
 }
 
+const RVVI32M1ArithmeticConstructionRoute *
+findRouteByEmitCRouteIDRaw(llvm::StringRef emitCRouteID) {
+  for (const RVVI32M1ArithmeticConstructionRoute &route : kArithmeticRoutes)
+    if (route.emitCRouteID == emitCRouteID)
+      return &route;
+  return nullptr;
+}
+
 } // namespace
 
 llvm::StringRef getRVVConstructionProtocolVersion() {
@@ -360,8 +462,84 @@ llvm::StringRef getRVVTypedRoleRealizationSummary() {
   return kTypedRoleRealizationSummary;
 }
 
+llvm::StringRef getRVVConstructionArtifactInterfaceRealization() {
+  return kInterfaceRealizationArtifactSummary;
+}
+
+llvm::StringRef getRVVArtifactTypedRoleRealizationSummary() {
+  return kTypedRoleArtifactSummary;
+}
+
 llvm::StringRef getRVVConstructionEvidenceProfile() {
   return kEvidenceProfile;
+}
+
+llvm::StringRef getRVVI32M1ArithmeticSourceOps() { return kSourceOps; }
+
+llvm::StringRef getRVVI32M1ArithmeticSourceRoles() { return kSourceRoles; }
+
+llvm::StringRef getRVVEmitCLowerableOpInterfaceName() {
+  return kEmitCLowerableOpInterfaceName;
+}
+
+llvm::StringRef getRVVEmitCLowerableRouteMetadataName() {
+  return kEmitCLowerableRouteMetadataName;
+}
+
+llvm::StringRef getRVVArithmeticOpMetadataName() {
+  return kArithmeticOpMetadataName;
+}
+
+llvm::StringRef getRVVSourceOpsMetadataName() {
+  return kSourceOpsMetadataName;
+}
+
+llvm::StringRef getRVVSourceRolesMetadataName() {
+  return kSourceRolesMetadataName;
+}
+
+llvm::StringRef getRVVSourceOpInterfaceMetadataName() {
+  return kSourceOpInterfaceMetadataName;
+}
+
+llvm::StringRef getRVVConstructionProtocolMetadataName() {
+  return kProtocolMetadataName;
+}
+
+llvm::StringRef getRVVConstructionArchetypeMetadataName() {
+  return kArchetypeMetadataName;
+}
+
+llvm::StringRef getRVVSemanticRoleGraphMetadataName() {
+  return kRoleGraphMetadataName;
+}
+
+llvm::StringRef getRVVCommonInterfaceRealizationMetadataName() {
+  return kInterfaceRealizationMetadataName;
+}
+
+llvm::StringRef getRVVTypedRoleRealizationMetadataName() {
+  return kTypedRoleRealizationMetadataName;
+}
+
+llvm::StringRef getRVVEmitCRouteMappingMetadataName() {
+  return kEmitCRouteMetadataName;
+}
+
+llvm::StringRef getRVVEvidenceProfileMetadataName() {
+  return kEvidenceProfileMetadataName;
+}
+
+llvm::StringRef getRVVRuntimeABIContractMetadataName() {
+  return kRuntimeABIContractMetadataName;
+}
+
+llvm::StringRef getRVVBundleComponentGroupMetadataName() {
+  return kBundleComponentGroupMetadataName;
+}
+
+llvm::StringRef getRVVObjectHandoffMetadataName() {
+  return kObjectHandoffMetadataName;
 }
 
 const RVVConstructionManifest &getRVVConstructionManifest() {
@@ -377,9 +555,26 @@ getRVVI32M1ArithmeticConstructionRoutes() {
   return kArithmeticRoutes;
 }
 
+const RVVI32M1ArithmeticTargetArtifactMapping &
+getRVVI32M1ArithmeticTargetArtifactMapping() {
+  return kTargetArtifactMapping;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 4>
 getRVVI32M1ArithmeticConstructionRuntimeABIParameters() {
   return buildExpectedRuntimeABIParameters();
+}
+
+llvm::Expected<llvm::SmallVector<support::ArtifactMetadataEntry, 16>>
+getRVVI32M1ArithmeticConstructionArtifactMetadata(
+    llvm::StringRef emitCRouteID) {
+  const RVVI32M1ArithmeticConstructionRoute *route =
+      findRouteByEmitCRouteIDRaw(emitCRouteID);
+  if (!route)
+    return makeRVVConstructionError(
+        llvm::Twine("unknown RVV i32m1 arithmetic EmitC route '") +
+        emitCRouteID + "'");
+  return buildExpectedConstructionArtifactMetadata(*route);
 }
 
 llvm::Error
@@ -406,8 +601,27 @@ llvm::Error verifyRVVConstructionProtocolReady() {
           verifyRVVTypedRoleGraphRealization(kManifest,
                                              kTypedRoleGraphRealization))
     return error;
-  return verifyRVVI32M1ArithmeticConstructionRuntimeABIParameters(
-      buildExpectedRuntimeABIParameters());
+  if (llvm::Error error =
+          verifyRVVI32M1ArithmeticConstructionRuntimeABIParameters(
+              buildExpectedRuntimeABIParameters()))
+    return error;
+  if (llvm::Error error =
+          verifyRVVI32M1ArithmeticTargetArtifactBundleMapping(
+              kTargetArtifactMapping.headerRouteID,
+              kTargetArtifactMapping.headerArtifactKind,
+              kTargetArtifactMapping.bundleComponentGroup,
+              kTargetArtifactMapping.objectHandoffKind,
+              kTargetArtifactMapping.emitCToCppTranslateRouteID))
+    return error;
+  for (const RVVI32M1ArithmeticConstructionRoute &route : kArithmeticRoutes) {
+    llvm::SmallVector<support::ArtifactMetadataEntry, 16> metadata =
+        buildExpectedConstructionArtifactMetadata(route);
+    if (llvm::Error error =
+            verifyRVVI32M1ArithmeticConstructionArtifactMetadata(
+                metadata, "RVV construction protocol"))
+      return error;
+  }
+  return llvm::Error::success();
 }
 
 llvm::Error verifyRVVI32M1ArithmeticConstructionRuntimeABIParameters(
@@ -419,6 +633,78 @@ llvm::Error verifyRVVI32M1ArithmeticConstructionRuntimeABIParameters(
         "ordered runtime ABI parameters must be lhs, rhs, out, n with stable "
         "types, roles, and target-export ownership");
   return llvm::Error::success();
+}
+
+llvm::Error verifyRVVI32M1ArithmeticTargetArtifactBundleMapping(
+    llvm::StringRef headerRouteID, llvm::StringRef headerArtifactKind,
+    llvm::StringRef bundleComponentGroup, llvm::StringRef objectHandoffKind,
+    llvm::StringRef emitCToCppTranslateRouteID) {
+  if (headerRouteID != kTargetArtifactMapping.headerRouteID)
+    return makeRVVConstructionError(
+        llvm::Twine("RVV header route id must be '") +
+        kTargetArtifactMapping.headerRouteID + "'");
+  if (headerArtifactKind != kTargetArtifactMapping.headerArtifactKind)
+    return makeRVVConstructionError(
+        llvm::Twine("RVV header artifact kind must be '") +
+        kTargetArtifactMapping.headerArtifactKind + "'");
+  if (bundleComponentGroup != kTargetArtifactMapping.bundleComponentGroup)
+    return makeRVVConstructionError(
+        llvm::Twine("RVV bundle component group must be '") +
+        kTargetArtifactMapping.bundleComponentGroup + "'");
+  if (objectHandoffKind != kTargetArtifactMapping.objectHandoffKind)
+    return makeRVVConstructionError(
+        llvm::Twine("RVV object handoff kind must be '") +
+        kTargetArtifactMapping.objectHandoffKind + "'");
+  if (emitCToCppTranslateRouteID != kTargetArtifactMapping.emitCToCppTranslateRouteID)
+    return makeRVVConstructionError(
+        llvm::Twine("RVV EmitC-to-C++ translate route id must be '") +
+        kTargetArtifactMapping.emitCToCppTranslateRouteID + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyRVVI32M1ArithmeticConstructionArtifactMetadata(
+    llvm::ArrayRef<support::ArtifactMetadataEntry> metadata,
+    llvm::StringRef context) {
+  llvm::StringRef routeID;
+  for (const support::ArtifactMetadataEntry &entry : metadata)
+    if (entry.key == kEmitCLowerableRouteMetadataName)
+      routeID = entry.value;
+  if (routeID.empty())
+    return makeRVVConstructionError(
+        llvm::Twine(context) +
+        " must carry RVV selected EmitC route metadata '" +
+        kEmitCLowerableRouteMetadataName + "'");
+
+  llvm::Expected<llvm::SmallVector<support::ArtifactMetadataEntry, 16>>
+      expected = getRVVI32M1ArithmeticConstructionArtifactMetadata(routeID);
+  if (!expected)
+    return expected.takeError();
+  if (support::artifactMetadataEntriesEqual(metadata, *expected))
+    return llvm::Error::success();
+
+  if (metadata.size() != expected->size())
+    return makeRVVConstructionError(
+        llvm::Twine(context) + " must carry exactly " +
+        llvm::Twine(expected->size()) +
+        " RVV i32m1 arithmetic construction artifact metadata entries");
+
+  for (auto [index, pair] : llvm::enumerate(llvm::zip(metadata, *expected))) {
+    const support::ArtifactMetadataEntry &actual = std::get<0>(pair);
+    const support::ArtifactMetadataEntry &want = std::get<1>(pair);
+    if (actual.key != want.key)
+      return makeRVVConstructionError(
+          llvm::Twine(context) + " artifact_metadata[" +
+          llvm::Twine(index) + "] key must be '" + want.key + "'");
+    if (actual.value != want.value)
+      return makeRVVConstructionError(
+          llvm::Twine(context) + " artifact_metadata[" +
+          llvm::Twine(index) + "] value for key '" + want.key +
+          "' must be '" + want.value + "'");
+  }
+
+  return makeRVVConstructionError(
+      llvm::Twine(context) +
+      " must carry RVV i32m1 arithmetic construction artifact metadata");
 }
 
 llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>

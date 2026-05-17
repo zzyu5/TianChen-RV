@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "verify RVV closure remains plugin-owned and does not leak family semantics into core/common orchestration"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "verify RVV i32m1 object/header/bundle and ssh rvv evidence boundaries"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "verify target artifacts derive from materialized EmitC and no descriptor/direct-C/source-export authority is restored"}
+{"file": ".trellis/tasks/archive/2026-05/05-17-05-17-tensorextlite-executable-plugin-construction-template-closure/prd.md", "reason": "compare RVV metadata closure against the TensorExtLite executable template already completed"}

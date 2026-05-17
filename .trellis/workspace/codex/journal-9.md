@@ -73,6 +73,81 @@ Added a code-consumed common materialized EmitC object/header bundle constructio
 - None - task complete
 
 
+## Session 123: RVV construction-template metadata closure on real hardware path
+
+**Date**: 2026-05-17
+**Task**: RVV construction-template metadata closure on real hardware path
+**Branch**: `main`
+
+### Summary
+
+Closed the existing RVV i32m1 add/sub/mul materialized EmitC
+object/header/bundle route against the executable construction-template record
+proven by TensorExtLite, while preserving RVV as the real `ssh rvv` hardware
+evidence path.
+
+### Main Changes
+
+- Created Trellis task
+  `05-17-rvv-construction-template-metadata-closure` from the Direction Brief
+  and wrote the PRD before source edits.
+- Added RVV construction-template artifact metadata APIs for selected EmitC
+  route, arithmetic op, source-op/source-role/interface provenance,
+  construction protocol, extension archetype, semantic role graph, bounded
+  interface summaries, EmitC route mapping, evidence profile, runtime ABI
+  contract, bundle component group, and object handoff.
+- Added RVV target artifact mapping API for header route, header artifact kind,
+  bundle component group, object handoff, and EmitC-to-C++ translate route.
+- Rewired RVV emission plans, declaration-only header evidence, and
+  object/header bundle metadata to consume and validate the same construction
+  metadata record plus existing RVV config/runtime-VL metadata.
+- Added fail-closed C++ coverage for missing construction metadata, stale
+  route-only metadata, stale source-op provenance, fallback-only selection,
+  mismatched runtime ABI parameters, descriptor/direct-C/source-export residue,
+  and ambiguous selected candidates.
+- Updated RVV source-front-door, materialized target artifact, and source
+  bundle lit coverage for construction metadata in plans, headers, and bundle
+  indexes with declaration-only header checks.
+
+### Evidence
+
+- Dry-run artifact directory:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-rvv-construction-template-metadata-closure-dry`.
+- `ssh rvv` artifact directory:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-rvv-construction-template-metadata-closure-ssh`.
+- Real `ssh rvv` add/sub/mul external C ABI runs passed `n=1,7,16,17,257` and
+  printed `tcrv_rvv_generated_bundle_abi_add_ok`,
+  `tcrv_rvv_generated_bundle_abi_sub_ok`,
+  `tcrv_rvv_generated_bundle_abi_mul_ok`, and matching `PASS op=...` markers.
+
+### Testing
+
+- [OK] Trellis context validation for the task.
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-construction-protocol-common-test tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused lit from `build/test` passed 6/6 for RVV source-front-door,
+  materialized target artifact, and source bundle coverage.
+- [OK] RVV generated bundle ABI dry-run for add/sub/mul counts
+  `1,7,16,17,257`.
+- [OK] RVV generated bundle ABI `ssh rvv` run for add/sub/mul counts
+  `1,7,16,17,257`.
+- [OK] Focused descriptor/direct-C/source-export residue scan left only
+  rejection checks, negative fixtures, and `implicit-check-not` assertions.
+- [OK] Core/common RVV branch scan left only prohibitive `Passes.td` wording.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` -> 122/122 passed.
+
+### Status
+
+[OK] Completed and archived. Ready for final task commit.
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 121: RVV generated-bundle external C ABI correctness proof
 
 **Date**: 2026-05-17

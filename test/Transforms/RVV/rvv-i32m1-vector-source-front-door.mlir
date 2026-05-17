@@ -71,6 +71,19 @@ module {
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: artifact_metadata = [{key = "rvv_emitc_lowerable_route", value = "rvv-i32m1-add-emitc-route"}
 // PLAN-SAME: {key = "rvv_arithmetic_op", value = "add"}
+// PLAN-SAME: {key = "rvv_source_ops", value = "tcrv_rvv.runtime_abi_value->tcrv_rvv.setvl->tcrv_rvv.with_vl->tcrv_rvv.i32_load->tcrv_rvv.i32_load->tcrv_rvv.i32_arithmetic->tcrv_rvv.i32_store"}
+// PLAN-SAME: {key = "rvv_source_roles", value = "runtime_abi->configure->scope->load->load->compute->store"}
+// PLAN-SAME: {key = "rvv_source_op_interface", value = "TCRVEmitCLowerableOpInterface"}
+// PLAN-SAME: {key = "rvv_construction_protocol", value = "extension-family-construction-protocol.v1"}
+// PLAN-SAME: {key = "rvv_extension_archetype", value = "rvv-finite-binary"}
+// PLAN-SAME: {key = "rvv_semantic_role_graph", value = "runtime_abi->configure->scope->load->compute->store"}
+// PLAN-SAME: {key = "rvv_common_interface_realization", value = "runtime_abi/resource+emitc
+// PLAN-SAME: {key = "rvv_typed_role_realization", value = "runtime_abi:tcrv_rvv.runtime_abi_value
+// PLAN-SAME: {key = "rvv_emitc_route_mapping", value = "rvv-i32m1-arithmetic-emitc-route-family"}
+// PLAN-SAME: {key = "rvv_evidence_profile", value = "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims"}
+// PLAN-SAME: {key = "rvv_runtime_abi_contract", value = "rvv-i32m1-arithmetic-callable-c-abi-family.v1"}
+// PLAN-SAME: {key = "rvv_bundle_component_group", value = "rvv-i32m1-arithmetic-materialized-emitc-bundle.v1"}
+// PLAN-SAME: {key = "rvv_object_handoff", value = "materialized-emitc-cpp-rvv-intrinsic-object"}
 // PLAN-SAME: {key = "tcrv_rvv.config_contract", value = "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_vl_contract", value = "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_avl_source", value = "runtime_abi:n"}

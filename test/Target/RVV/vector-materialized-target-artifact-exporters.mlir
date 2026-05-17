@@ -1,11 +1,11 @@
 // REQUIRES: tianchenrv-local-rvv-object-clang
 // RUN: rm -f %t.o
-// RUN: tcrv-translate --tcrv-export-target-artifact %s > %t.o
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL --implicit-check-not="_Z57tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add"
-// RUN: tcrv-translate --tcrv-export-target-header-artifact %s | FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="vint32m1_t" --implicit-check-not="return;" --implicit-check-not="int main" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-direct-microkernel"
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="vint32m1_t" --implicit-check-not="return;" --implicit-check-not="int main" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-direct-microkernel"
 // RUN: rm -rf %t.bundle && mkdir %t.bundle
-// RUN: tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.bundle %s | FileCheck %s --check-prefix=BUNDLE-STDOUT
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.bundle | FileCheck %s --check-prefix=BUNDLE-STDOUT
 // RUN: llvm-readobj -h %t.bundle/artifact-0-riscv-elf-relocatable-object-rvv-i32m1-arithmetic-emitc-route-family.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.bundle/artifact-0-riscv-elf-relocatable-object-rvv-i32m1-arithmetic-emitc-route-family.o | FileCheck %s --check-prefix=SYMBOL
 // RUN: FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="vint32m1_t" --implicit-check-not="return;" --implicit-check-not="int main" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-direct-microkernel" < %t.bundle/artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h
@@ -38,8 +38,6 @@ module {
       tcrv.exec.case @vector_source_rvv_i32_add {origin = "rvv-plugin", policy = "source-pattern-selected-rvv-case"}
       tcrv.exec.fallback @vector_source_scalar_fallback {fallback_role = "conservative", origin = "scalar-plugin", policy = "source-pattern-conservative-fallback-envelope"}
     }
-    tcrv.exec.diagnostic {artifact_kind = "riscv-elf-relocatable-object", artifact_metadata = [{key = "rvv_emitc_lowerable_route", value = "rvv-i32m1-add-emitc-route"}, {key = "rvv_arithmetic_op", value = "add"}, {key = "tcrv_rvv.config_contract", value = "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"}, {key = "tcrv_rvv.sew", value = "32"}, {key = "tcrv_rvv.lmul", value = "m1"}, {key = "tcrv_rvv.tail_policy", value = "agnostic"}, {key = "tcrv_rvv.mask_policy", value = "agnostic"}, {key = "tcrv_rvv.runtime_vl_contract", value = "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"}, {key = "tcrv_rvv.runtime_avl_source", value = "runtime_abi:n"}, {key = "tcrv_rvv.vl_def", value = "tcrv_rvv.setvl"}, {key = "tcrv_rvv.vl_scope", value = "tcrv_rvv.with_vl"}, {key = "tcrv_rvv.vl_uses", value = "emitc_for,with_vl,i32_load,i32_load,i32_arithmetic,i32_store"}, {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,out,n"}, {key = "tcrv_rvv.runtime_avl_abi_parameter", value = "n"}, {key = "tcrv_rvv.emitc_loop", value = "emitc.for"}, {key = "tcrv_rvv.loop_induction", value = "offset"}, {key = "tcrv_rvv.loop_step", value = "full_chunk_vl"}, {key = "tcrv_rvv.remaining_avl", value = "n-offset"}, {key = "tcrv_rvv.pointer_advance", value = "offset"}, {key = "tcrv_rvv.bounded_slice", value = "multi-vl-i32m1-arithmetic"}, {key = "tcrv_rvv.multi_vl", value = "supported"}], emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object", lowering_boundary = "tcrv_rvv.with_vl", lowering_pipeline = "rvv-i32m1-arithmetic-emitc-route-family", message = "RVV selected i32m1 arithmetic route materializes a verified EmitC module through the common TCRVEmitCLowerableRoute materializer, then uses the MLIR EmitC C/C++ emitter before RISC-V object packaging", origin = "rvv-plugin", plan_kind = "plugin-emission-plan", reason = "emission_plan", required_capabilities = [@rvv], role = "dispatch case", runtime_abi = "rvv-i32m1-add-callable-c-abi.v1", runtime_abi_kind = "plugin-owned-runtime-abi", runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1", runtime_abi_parameters = [{c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"}, {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"}, {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"}, {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"}], runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue", severity = "info", status = "supported", target = @vector_source_rvv_i32_add}
-    tcrv.exec.diagnostic {artifact_kind = "unsupported-emission-diagnostic", emission_kind = "scalar-fallback-unsupported-emission", lowering_pipeline = "scalar-fallback-no-materialized-emitc-route", message = "scalar fallback first slice has no materialized extension-family body, EmitC lowering, runtime ABI, target artifact route, or legacy metadata emission route", origin = "scalar-plugin", plan_kind = "plugin-emission-plan", reason = "emission_plan", required_capabilities = [@scalar_fallback], role = "dispatch fallback", runtime_abi = "scalar-fallback-no-runtime-abi", runtime_abi_kind = "unsupported-plugin-runtime-abi", runtime_abi_name = "unsupported-emission-runtime-abi", runtime_glue_role = "no-runtime-glue-unsupported", severity = "error", status = "unsupported", target = @vector_source_scalar_fallback}
   }
 }
 
@@ -61,6 +59,16 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_parameter[1]: const int32_t *rhs role=rhs-input-buffer ownership=target-export-abi-owned
 // HEADER: tianchenrv.rvv.runtime_abi_parameter[2]: int32_t *out role=output-buffer ownership=target-export-abi-owned
 // HEADER: tianchenrv.rvv.runtime_abi_parameter[3]: size_t n role=runtime-element-count ownership=target-export-abi-owned
+// HEADER: tianchenrv.rvv.construction_protocol: extension-family-construction-protocol.v1
+// HEADER: tianchenrv.rvv.extension_archetype: rvv-finite-binary
+// HEADER: tianchenrv.rvv.semantic_role_graph: runtime_abi->configure->scope->load->compute->store
+// HEADER: tianchenrv.rvv.common_interface_realization: runtime_abi/resource+emitc
+// HEADER: tianchenrv.rvv.typed_role_realization: runtime_abi:tcrv_rvv.runtime_abi_value
+// HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-i32m1-arithmetic-emitc-route-family
+// HEADER: tianchenrv.rvv.evidence_profile: parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims
+// HEADER: tianchenrv.rvv.runtime_abi_contract: rvv-i32m1-arithmetic-callable-c-abi-family.v1
+// HEADER: tianchenrv.rvv.bundle_component_group: rvv-i32m1-arithmetic-materialized-emitc-bundle.v1
+// HEADER: tianchenrv.rvv.object_handoff: materialized-emitc-cpp-rvv-intrinsic-object
 // HEADER: tianchenrv.rvv.runtime_avl_source: runtime_abi:n
 // HEADER: tianchenrv.rvv.emitc_loop: emitc.for
 // HEADER: tianchenrv.rvv.multi_vl: supported
@@ -81,8 +89,18 @@ module {
 // BUNDLE-INDEX: route: "rvv-i32m1-arithmetic-emitc-route-family"
 // BUNDLE-INDEX: owner: "rvv-plugin"
 // BUNDLE-INDEX: runtime_abi_name: "rvv-i32m1-add-callable-c-abi.v1"
+// BUNDLE-INDEX: runtime_abi_parameter_count: 4
 // BUNDLE-INDEX: key: "rvv_emitc_lowerable_route"
 // BUNDLE-INDEX: value: "rvv-i32m1-add-emitc-route"
+// BUNDLE-INDEX: key: "rvv_construction_protocol"
+// BUNDLE-INDEX: value: "extension-family-construction-protocol.v1"
+// BUNDLE-INDEX: key: "rvv_common_interface_realization"
+// BUNDLE-INDEX: key: "rvv_emitc_route_mapping"
+// BUNDLE-INDEX: value: "rvv-i32m1-arithmetic-emitc-route-family"
+// BUNDLE-INDEX: key: "rvv_runtime_abi_contract"
+// BUNDLE-INDEX: value: "rvv-i32m1-arithmetic-callable-c-abi-family.v1"
+// BUNDLE-INDEX: key: "rvv_object_handoff"
+// BUNDLE-INDEX: value: "materialized-emitc-cpp-rvv-intrinsic-object"
 // BUNDLE-INDEX: key: "tcrv_rvv.emitc_loop"
 // BUNDLE-INDEX: value: "emitc.for"
 // BUNDLE-INDEX: handoff_kind: "materialized-emitc-cpp-rvv-intrinsic-object"

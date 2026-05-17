@@ -25,17 +25,6 @@
 namespace tianchenrv::target::rvv {
 namespace {
 
-constexpr llvm::StringLiteral kRVVEmitCToCppRouteID(
-    "tcrv-rvv-emitc-to-cpp");
-constexpr llvm::StringLiteral kRVVMaterializedEmitCHeaderRouteID(
-    "rvv-i32m1-arithmetic-emitc-route-family.header");
-constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
-    "runtime-callable-c-header");
-constexpr llvm::StringLiteral kRVVI32M1ArithmeticObjectHandoffKind(
-    "materialized-emitc-cpp-rvv-intrinsic-object");
-constexpr llvm::StringLiteral kRVVMaterializedEmitCBundleComponentGroup(
-    "rvv-i32m1-arithmetic-materialized-emitc-bundle.v1");
-
 struct ScopedTempPath {
   llvm::SmallString<128> path;
 
@@ -57,6 +46,11 @@ const plugin::rvv::RVVConstructionManifest &getRVVManifest() {
   return plugin::rvv::getRVVConstructionManifest();
 }
 
+const plugin::rvv::RVVI32M1ArithmeticTargetArtifactMapping &
+getRVVTargetMapping() {
+  return plugin::rvv::getRVVI32M1ArithmeticTargetArtifactMapping();
+}
+
 llvm::Error requireCandidateField(llvm::StringRef fieldName,
                                   llvm::StringRef actual,
                                   llvm::StringRef expected) {
@@ -73,14 +67,16 @@ getCandidateArithmeticOp(const TargetArtifactCandidate &candidate) {
   llvm::StringRef arithmeticOp;
   for (const support::ArtifactMetadataEntry &entry :
        candidate.artifactMetadata) {
-    if (entry.key == "rvv_emitc_lowerable_route")
+    if (entry.key == plugin::rvv::getRVVEmitCLowerableRouteMetadataName())
       routeID = entry.value;
-    if (entry.key == "rvv_arithmetic_op")
+    if (entry.key == plugin::rvv::getRVVArithmeticOpMetadataName())
       arithmeticOp = entry.value;
   }
   if (routeID.empty())
     return makeRVVTargetRouteError(
-        "candidate metadata must carry rvv_emitc_lowerable_route provenance");
+        llvm::Twine("candidate metadata must carry ") +
+        plugin::rvv::getRVVEmitCLowerableRouteMetadataName() +
+        " provenance");
   llvm::Expected<plugin::rvv::RVVI32M1ArithmeticOp> op =
       plugin::rvv::symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(routeID);
   if (!op)
@@ -102,18 +98,49 @@ llvm::Error rejectForbiddenRVVArtifactMetadata(
     llvm::StringRef key(entry.key);
     std::string lowerKeyStorage = key.lower();
     llvm::StringRef lowerKey(lowerKeyStorage);
+    std::string lowerValueStorage = llvm::StringRef(entry.value).lower();
+    llvm::StringRef lowerValue(lowerValueStorage);
     if (lowerKey.contains("element_count") ||
-        lowerKey.contains("element-count") || lowerKey.contains("descriptor"))
+        lowerKey.contains("element-count") ||
+        lowerKey.contains("descriptor") ||
+        lowerKey.contains("direct_c") || lowerKey.contains("direct-c") ||
+        lowerKey.contains("source_export") ||
+        lowerKey.contains("source-export") ||
+        lowerKey.contains("compute_body") ||
+        lowerKey.contains("compute-body") ||
+        lowerValue.contains("descriptor") ||
+        lowerValue.contains("direct_c") ||
+        lowerValue.contains("direct-c") ||
+        lowerValue.contains("source_export") ||
+        lowerValue.contains("source-export") ||
+        lowerValue.contains("compute_body") ||
+        lowerValue.contains("compute-body"))
       return makeRVVTargetRouteError(
           llvm::Twine("candidate artifact metadata key '") + key +
-          "' is descriptor-local or hardcoded element-count residue");
+          "' attempts to reintroduce descriptor-driven computation, "
+          "direct C/source-export authority, compute-body metadata, or "
+          "hardcoded element-count residue");
   }
   return llvm::Error::success();
+}
+
+llvm::Error validateRVVConstructionArtifactMetadata(
+    const TargetArtifactCandidate &candidate) {
+  llvm::SmallVector<support::ArtifactMetadataEntry, 16> rvvMetadata;
+  for (const support::ArtifactMetadataEntry &entry :
+       candidate.artifactMetadata) {
+    if (llvm::StringRef(entry.key).starts_with("rvv_"))
+      rvvMetadata.push_back(entry);
+  }
+  return plugin::rvv::verifyRVVI32M1ArithmeticConstructionArtifactMetadata(
+      rvvMetadata, "selected RVV materialized EmitC candidate");
 }
 
 llvm::Error validateRVVRuntimeAVLVLArtifactMetadata(
     const TargetArtifactCandidate &candidate) {
   if (llvm::Error error = rejectForbiddenRVVArtifactMetadata(candidate))
+    return error;
+  if (llvm::Error error = validateRVVConstructionArtifactMetadata(candidate))
     return error;
 
   llvm::SmallVector<support::ArtifactMetadataEntry, 16> rvvMetadata;
@@ -132,6 +159,9 @@ llvm::Error validateRVVI32M1ArithmeticTargetArtifactCandidate(
     return error;
 
   const plugin::rvv::RVVConstructionManifest &manifest = getRVVManifest();
+  if (candidate.role == "dispatch fallback")
+    return makeRVVTargetRouteError(
+        "selected RVV materialized EmitC candidate must not be fallback-only");
   if (llvm::Error error =
           requireCandidateField("route id", candidate.routeID,
                                 manifest.emitcRoute.routeID))
@@ -301,6 +331,43 @@ getRVVI32M1ArithmeticHeaderArtifactConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stddef.h", "stdint.h"};
   static const MaterializedEmitCHeaderArtifactMetadataEvidence
       kMetadataEvidence[] = {
+          {"source_ops", plugin::rvv::getRVVSourceOpsMetadataName(),
+           plugin::rvv::getRVVI32M1ArithmeticSourceOps()},
+          {"source_roles", plugin::rvv::getRVVSourceRolesMetadataName(),
+           plugin::rvv::getRVVI32M1ArithmeticSourceRoles()},
+          {"source_op_interface",
+           plugin::rvv::getRVVSourceOpInterfaceMetadataName(),
+           plugin::rvv::getRVVEmitCLowerableOpInterfaceName()},
+          {"construction_protocol",
+           plugin::rvv::getRVVConstructionProtocolMetadataName(),
+           plugin::rvv::getRVVConstructionManifest().protocolVersion},
+          {"extension_archetype",
+           plugin::rvv::getRVVConstructionArchetypeMetadataName(),
+           plugin::rvv::getRVVConstructionManifest().archetype},
+          {"semantic_role_graph",
+           plugin::rvv::getRVVSemanticRoleGraphMetadataName(),
+           plugin::rvv::getRVVConstructionManifest().semanticRoleGraph},
+          {"common_interface_realization",
+           plugin::rvv::getRVVCommonInterfaceRealizationMetadataName(),
+           plugin::rvv::getRVVConstructionArtifactInterfaceRealization()},
+          {"typed_role_realization",
+           plugin::rvv::getRVVTypedRoleRealizationMetadataName(),
+           plugin::rvv::getRVVArtifactTypedRoleRealizationSummary()},
+          {"emitc_route_mapping",
+           plugin::rvv::getRVVEmitCRouteMappingMetadataName(),
+           plugin::rvv::getRVVConstructionManifest().emitcRoute.routeID},
+          {"evidence_profile", plugin::rvv::getRVVEvidenceProfileMetadataName(),
+           plugin::rvv::getRVVConstructionManifest().evidenceProfile},
+          {"runtime_abi_contract",
+           plugin::rvv::getRVVRuntimeABIContractMetadataName(),
+           plugin::rvv::getRVVConstructionManifest().emitcRoute.runtimeABI},
+          {"bundle_component_group",
+           plugin::rvv::getRVVBundleComponentGroupMetadataName(),
+           plugin::rvv::getRVVI32M1ArithmeticTargetArtifactMapping()
+               .bundleComponentGroup},
+          {"object_handoff", plugin::rvv::getRVVObjectHandoffMetadataName(),
+           plugin::rvv::getRVVI32M1ArithmeticTargetArtifactMapping()
+               .objectHandoffKind},
           {"runtime_avl_source", "tcrv_rvv.runtime_avl_source",
            "runtime_abi:n"},
           {"runtime_avl_abi_parameter",
@@ -357,15 +424,17 @@ llvm::Error exportRVVI32M1ArithmeticHeaderArtifact(mlir::ModuleOp module,
 
 MaterializedEmitCObjectBundleArtifactConfig
 getRVVI32M1ArithmeticObjectBundleConfig() {
+  const plugin::rvv::RVVI32M1ArithmeticTargetArtifactMapping &mapping =
+      getRVVTargetMapping();
   MaterializedEmitCObjectBundleArtifactConfig config;
   config.header = getRVVI32M1ArithmeticHeaderArtifactConfig();
-  config.headerRouteID = kRVVMaterializedEmitCHeaderRouteID;
-  config.headerArtifactKind = kRuntimeCallableCHeaderArtifactKind;
+  config.headerRouteID = mapping.headerRouteID;
+  config.headerArtifactKind = mapping.headerArtifactKind;
   config.ownerPlugin = getRVVManifest().family.pluginName;
   config.objectExportFn = exportRVVI32M1ArithmeticTargetArtifact;
   config.headerExportFn = exportRVVI32M1ArithmeticHeaderArtifact;
-  config.componentGroup = kRVVMaterializedEmitCBundleComponentGroup;
-  config.handoffKind = kRVVI32M1ArithmeticObjectHandoffKind;
+  config.componentGroup = mapping.bundleComponentGroup;
+  config.handoffKind = mapping.objectHandoffKind;
   config.selectedObjectDescription = "RVV materialized EmitC candidate";
   return config;
 }
@@ -386,7 +455,7 @@ llvm::StringRef getRVVMaterializedEmitCTargetArtifactRouteID() {
 }
 
 llvm::StringRef getRVVMaterializedEmitCHeaderArtifactRouteID() {
-  return kRVVMaterializedEmitCHeaderRouteID;
+  return getRVVTargetMapping().headerRouteID;
 }
 
 llvm::Error registerRVVTargetSupportPluginTargetExporterBundles(
@@ -416,11 +485,12 @@ configureRVVTargetSupportExtensionBundle(plugin::ExtensionBundle &bundle) {
 
 llvm::Error registerRVVTargetSupportTargetTranslateRoutes(
     TargetTranslateRouteRegistry &registry) {
-  if (registry.lookup(kRVVEmitCToCppRouteID))
+  llvm::StringRef routeID = getRVVTargetMapping().emitCToCppTranslateRouteID;
+  if (registry.lookup(routeID))
     return llvm::Error::success();
 
   return registry.registerRoute(TargetTranslateRoute(
-      kRVVEmitCToCppRouteID,
+      routeID,
       "export a materialized RVV EmitC module through the MLIR EmitC "
       "C/C++ emitter",
       exportMaterializedRVVEmitCToCpp));
