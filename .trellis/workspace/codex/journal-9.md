@@ -1151,3 +1151,60 @@ Included in the final task commit for this round.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 119: Built-in non-plugin target artifact placeholder erasure
+
+**Date**: 2026-05-17
+**Task**: Built-in non-plugin target artifact placeholder erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the remaining empty non-plugin built-in target artifact exporter placeholder, made the built-in target artifact registration path directly bundle-aware, tightened the emission-runtime spec, and validated focused target registration coverage plus full check-tianchenrv.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `05-17-05-17-builtin-non-plugin-target-artifact-placeholder-erasure` from
+  the Direction Brief.
+- Deleted the empty
+  `registerBuiltinNonPluginTargetArtifactExporters` helper from
+  `lib/Target/Builtin/BuiltinTargetArtifactExporters.cpp`.
+- Rewired `registerBuiltinTargetArtifactExporters` so it directly delegates to
+  `registerTargetArtifactExportersForEnabledExtensionBundles` with the caller's
+  visible `ExtensionBundleRegistry` and `ExtensionPluginRegistry`.
+- Tightened `.trellis/spec/lowering-runtime/emission-runtime-contract.md` so
+  built-in target artifact registration has no pre-bundle or non-plugin lane.
+- Added no compatibility wrapper, renamed helper, descriptor path,
+  direct-C/source-export path, target route, artifact kind, or extension
+  feature.
+
+### Git Commits
+
+Included in the final task commit for this round.
+
+### Testing
+
+- [OK] Trellis context validation for the task.
+- [OK] Placeholder and deleted wrapper signature scans returned no matches.
+- [OK] Protective residue scan left only the new prohibitive spec sentence:
+  "There is no pre-bundle or non-plugin built-in target artifact exporter
+  lane."
+- [OK] `cmake --build build --target tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tcrv-translate --help` route probe showed generic target
+  artifact routes plus RVV, Template, and TensorExtLite materialized EmitC
+  translate routes.
+- [OK] Focused lit from `build/test` passed 8/8 for RVV, Toy, Template, and
+  TensorExtLite target artifact / EmitC translate coverage.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` -> 122/122 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

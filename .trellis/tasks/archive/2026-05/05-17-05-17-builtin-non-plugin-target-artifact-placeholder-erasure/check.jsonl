@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify changes stay within global stack, capability, and deletion-boundary invariants."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Check target registration still preserves explicit bundle/plugin front-door visibility."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check no zero-argument, plugin-only, or hidden aggregate target wrapper is preserved."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact registration no longer preserves a non-plugin route lane."}

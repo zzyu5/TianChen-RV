@@ -774,11 +774,12 @@ llvm::Error registerBuiltinTargetArtifactExporters(
   internally, and must not expose a plugin-only overload that hides bundle
   identity from the public construction path.
 - The helper registers every currently supported built-in target artifact route
-  by delegating to target-owned registration functions or, for route groups
-  with an extension plugin manifest hook, by asking that plugin to configure
-  its target-support `ExtensionBundle` contribution.
-- The current non-plugin single-candidate route set is empty unless a route is
-  explicitly backed by a materialized EmitC artifact contract.
+  only through enabled extension bundle target-support contributions, using the
+  visible bundle and plugin registries supplied by the caller.
+- There is no pre-bundle or non-plugin built-in target artifact exporter lane.
+  Future supported target artifact routes must be introduced as enabled
+  extension bundle contributions or by a new explicit contract that does not
+  hide bundle identity from the public target registration boundary.
 - The current plugin-owned direct-C/source-export route set is empty. RVV
   selected microkernel source/header/object routes, scalar selected fallback
   source/header/object routes, and RVV+scalar dispatch source/header/object

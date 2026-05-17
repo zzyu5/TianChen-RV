@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-9.md`
-- **Total Sessions**: 117
+- **Total Sessions**: 119
 - **Last Active**: 2026-05-17
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-9.md` | ~1033 | Active |
+| `journal-9.md` | ~1210 | Active |
 | `journal-8.md` | ~1998 | Archived |
 | `journal-7.md` | ~1992 | Archived |
 | `journal-6.md` | ~1973 | Archived |
@@ -37,6 +37,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 119 | 2026-05-17 | Built-in non-plugin target artifact placeholder erasure | - | `main` |
 | 117 | 2026-05-17 | Legacy source-front-door named-absence fixture erasure | this commit | `main` |
 | 109 | 2026-05-17 | RVV runtime-callable C ABI link proof | - | `main` |
 | 108 | 2026-05-17 | Toy materialized EmitC object-bundle bridge | - | `main` |
