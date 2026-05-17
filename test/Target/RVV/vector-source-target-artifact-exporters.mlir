@@ -107,6 +107,11 @@ module {
 // HEADER: tianchenrv.rvv.bundle_component_group: rvv-i32m1-arithmetic-materialized-emitc-bundle.v1
 // HEADER: tianchenrv.rvv.object_handoff: materialized-emitc-cpp-rvv-intrinsic-object
 // HEADER: tianchenrv.rvv.runtime_avl_source: runtime_abi:n
+// HEADER: tianchenrv.rvv.config_contract: rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1
+// HEADER: tianchenrv.rvv.runtime_vl_contract: rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1
+// HEADER: tianchenrv.rvv.vl_def: tcrv_rvv.setvl
+// HEADER: tianchenrv.rvv.vl_scope: tcrv_rvv.with_vl
+// HEADER: tianchenrv.rvv.runtime_abi_order: lhs,rhs,out,n
 // HEADER: tianchenrv.rvv.emitc_loop: emitc.for
 // HEADER: tianchenrv.rvv.multi_vl: supported
 // HEADER: extern "C" {

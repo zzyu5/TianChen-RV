@@ -289,3 +289,47 @@ Migrated Toy production object/header/bundle target artifacts onto the common co
 ### Next Steps
 
 - None - task complete
+
+
+## Session 126: RVV runtime AVL/VL selected-boundary contract
+
+**Date**: 2026-05-18
+**Task**: RVV runtime AVL/VL selected-boundary contract
+**Branch**: `main`
+
+### Summary
+
+Made the bounded RVV i32m1 runtime n -> AVL -> setvl -> VL SSA -> with_vl contract explicit across target artifact validation and metadata evidence.
+
+### Main Changes
+
+- Consolidated the RVV i32m1 add/sub/mul selected-boundary runtime AVL/VL contract at target artifact validation time.
+- Rebuilt the RVV plugin-owned materialized EmitC route from the selected variant body and checked route id, source-op provenance, runtime ABI mapping, and runtime n/AVL/VL metadata against candidate metadata before artifact emission.
+- Expanded generated RVV header/bundle metadata checks for config contract, runtime VL contract, visible setvl result, with_vl scope, and runtime ABI order.
+- Added fail-closed coverage for stale selected body/op metadata disagreement before ELF artifact emission.
+- Refreshed dry-run and real ssh rvv generated-bundle ABI evidence for add/sub/mul with runtime counts 7, 16, and 23.
+
+### Testing
+
+- [OK] cmake --build build --target tcrv-translate tcrv-opt tianchenrv-target-artifact-export-test -j2
+- [OK] ./build/bin/tianchenrv-target-artifact-export-test
+- [OK] focused lit RVV target/source/bundle and EmitC negative selected-boundary tests passed 8/8
+- [OK] python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-18-rvv-runtime-avl-vl-selected-boundary-contract
+- [OK] python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test
+- [OK] python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run ... add/sub/mul counts=7,16,23
+- [OK] python3 scripts/rvv_generated_bundle_abi_e2e.py ... --ssh-target rvv counts=7,16,23; PASS markers for add/sub/mul
+- [OK] targeted descriptor/direct-C/source-export residue scan over touched RVV target and artifact tests
+- [OK] git diff --check
+- [OK] cmake --build build --target check-tianchenrv -j2 passed 125/125
+
+### Git Commits
+
+- `this commit` (final coherent commit for this session; the exact hash is reported in the final response).
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete.

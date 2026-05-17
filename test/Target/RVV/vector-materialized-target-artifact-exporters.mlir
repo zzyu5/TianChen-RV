@@ -3,6 +3,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL --implicit-check-not="_Z57tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add"
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.i32_add/s//tcrv_rvv.i32_sub/' | not tcrv-translate --tcrv-export-target-artifact 2>&1 | FileCheck %s --check-prefix=STALE-OP --implicit-check-not="Format: elf64"
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="vint32m1_t" --implicit-check-not="return;" --implicit-check-not="int main" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-direct-microkernel"
 // RUN: rm -rf %t.bundle && mkdir %t.bundle
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=%t.bundle | FileCheck %s --check-prefix=BUNDLE-STDOUT
@@ -47,6 +48,9 @@ module {
 
 // SYMBOL: Name: tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add
 
+// STALE-OP: RVV materialized EmitC target artifact bridge failed
+// STALE-OP: selected RVV i32m1 arithmetic route expected i32_add but variant body contains i32_sub
+
 // HEADER: #ifndef TIANCHENRV_RVV_MATERIALIZED_EMITC_HEADER_H
 // HEADER: #include <stddef.h>
 // HEADER: #include <stdint.h>
@@ -70,6 +74,13 @@ module {
 // HEADER: tianchenrv.rvv.bundle_component_group: rvv-i32m1-arithmetic-materialized-emitc-bundle.v1
 // HEADER: tianchenrv.rvv.object_handoff: materialized-emitc-cpp-rvv-intrinsic-object
 // HEADER: tianchenrv.rvv.runtime_avl_source: runtime_abi:n
+// HEADER: tianchenrv.rvv.config_contract: rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1
+// HEADER: tianchenrv.rvv.sew: 32
+// HEADER: tianchenrv.rvv.lmul: m1
+// HEADER: tianchenrv.rvv.runtime_vl_contract: rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1
+// HEADER: tianchenrv.rvv.vl_def: tcrv_rvv.setvl
+// HEADER: tianchenrv.rvv.vl_scope: tcrv_rvv.with_vl
+// HEADER: tianchenrv.rvv.runtime_abi_order: lhs,rhs,out,n
 // HEADER: tianchenrv.rvv.emitc_loop: emitc.for
 // HEADER: tianchenrv.rvv.multi_vl: supported
 // HEADER: void tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

@@ -1,9 +1,13 @@
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
+#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Plugin/ExtensionBundle.h"
+#include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Target/ConstructionTemplateArtifactAdapter.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
@@ -62,17 +66,21 @@ llvm::Error requireCandidateField(llvm::StringRef fieldName,
                                  actual + "'");
 }
 
+llvm::StringRef lookupCandidateMetadataValue(
+    const TargetArtifactCandidate &candidate, llvm::StringRef key) {
+  for (const support::ArtifactMetadataEntry &entry :
+       candidate.artifactMetadata)
+    if (entry.key == key)
+      return entry.value;
+  return {};
+}
+
 llvm::Expected<plugin::rvv::RVVI32M1ArithmeticOp>
 getCandidateArithmeticOp(const TargetArtifactCandidate &candidate) {
-  llvm::StringRef routeID;
-  llvm::StringRef arithmeticOp;
-  for (const support::ArtifactMetadataEntry &entry :
-       candidate.artifactMetadata) {
-    if (entry.key == plugin::rvv::getRVVEmitCLowerableRouteMetadataName())
-      routeID = entry.value;
-    if (entry.key == plugin::rvv::getRVVArithmeticOpMetadataName())
-      arithmeticOp = entry.value;
-  }
+  llvm::StringRef routeID = lookupCandidateMetadataValue(
+      candidate, plugin::rvv::getRVVEmitCLowerableRouteMetadataName());
+  llvm::StringRef arithmeticOp = lookupCandidateMetadataValue(
+      candidate, plugin::rvv::getRVVArithmeticOpMetadataName());
   if (routeID.empty())
     return makeRVVTargetRouteError(
         llvm::Twine("candidate metadata must carry ") +
@@ -90,6 +98,158 @@ getCandidateArithmeticOp(const TargetArtifactCandidate &candidate) {
         llvm::Twine("candidate rvv_arithmetic_op metadata must match route '") +
         routeID + "'");
   return *op;
+}
+
+llvm::Expected<plugin::VariantEmissionRole>
+parseCandidateEmissionRole(const TargetArtifactCandidate &candidate) {
+  if (candidate.role ==
+      plugin::stringifyVariantEmissionRole(
+          plugin::VariantEmissionRole::DirectVariant))
+    return plugin::VariantEmissionRole::DirectVariant;
+  if (candidate.role ==
+      plugin::stringifyVariantEmissionRole(
+          plugin::VariantEmissionRole::DispatchCase))
+    return plugin::VariantEmissionRole::DispatchCase;
+  if (candidate.role ==
+      plugin::stringifyVariantEmissionRole(
+          plugin::VariantEmissionRole::DispatchFallback))
+    return plugin::VariantEmissionRole::DispatchFallback;
+
+  return makeRVVTargetRouteError(
+      llvm::Twine("candidate selected path role '") + candidate.role +
+      "' is not supported by the RVV materialized EmitC artifact bridge");
+}
+
+llvm::Expected<tcrv::exec::VariantOp>
+resolveCandidateSelectedVariant(const TargetArtifactCandidate &candidate) {
+  if (!candidate.kernel)
+    return makeRVVTargetRouteError(
+        "candidate selected variant cannot be cross-checked without an "
+        "enclosing tcrv.exec.kernel");
+  tcrv::exec::KernelOp kernel = candidate.kernel;
+  if (kernel.getBody().empty())
+    return makeRVVTargetRouteError(
+        "candidate selected variant cannot be cross-checked because the "
+        "enclosing tcrv.exec.kernel body is empty");
+  if (candidate.selectedVariant.empty())
+    return makeRVVTargetRouteError(
+        "candidate selected variant must be non-empty before RVV artifact "
+        "route cross-check");
+
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto variant = llvm::dyn_cast<tcrv::exec::VariantOp>(op);
+    if (variant && variant.getSymName() == candidate.selectedVariant)
+      return variant;
+  }
+
+  return makeRVVTargetRouteError(
+      llvm::Twine("candidate selected variant @") +
+      candidate.selectedVariant +
+      " must resolve to a direct sibling tcrv.exec.variant before RVV "
+      "artifact route cross-check");
+}
+
+llvm::Error validateRVVRouteSourceProvenance(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route) {
+  if (route.getSourceOpProvenance().size() != 1)
+    return makeRVVTargetRouteError(
+        "materialized EmitC route must carry exactly one RVV route "
+        "source-op provenance entry");
+
+  const conversion::emitc::TCRVEmitCSourceOpProvenance &source =
+      route.getSourceOpProvenance().front();
+  if (source.opName != plugin::rvv::getRVVI32M1ArithmeticLoweringBoundaryOpName() ||
+      source.role != "scope" ||
+      source.opInterface != plugin::rvv::getRVVEmitCLowerableOpInterfaceName())
+    return makeRVVTargetRouteError(
+        "materialized EmitC route source-op provenance must identify "
+        "tcrv_rvv.with_vl as the selected scope boundary through "
+        "TCRVEmitCLowerableOpInterface");
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVRouteABIMappings(
+    const TargetArtifactCandidate &candidate,
+    const conversion::emitc::TCRVEmitCLowerableRoute &route) {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> routeParameters;
+  for (const conversion::emitc::TCRVEmitCABIValueMapping &mapping :
+       route.getABIMappings()) {
+    if (mapping.valueName != mapping.parameter.cName)
+      return makeRVVTargetRouteError(
+          llvm::Twine("materialized EmitC route ABI mapping for '") +
+          mapping.parameter.cName +
+          "' must use the same selected callable value name");
+    routeParameters.push_back(mapping.parameter);
+  }
+
+  if (!support::runtimeABIParametersEqual(routeParameters,
+                                          candidate.runtimeABIParameters))
+    return makeRVVTargetRouteError(
+        "materialized EmitC route ABI mappings must match the selected "
+        "candidate runtime ABI parameters lhs, rhs, out, n");
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVSelectedVariantRouteAgreesWithCandidate(
+    const TargetArtifactCandidate &candidate,
+    plugin::rvv::RVVI32M1ArithmeticOp candidateOp) {
+  // Standalone registry unit tests may validate synthetic candidates without a
+  // module. Real target export always carries the enclosing kernel and takes
+  // this cross-check.
+  if (!candidate.kernel)
+    return llvm::Error::success();
+
+  llvm::Expected<tcrv::exec::VariantOp> selectedVariant =
+      resolveCandidateSelectedVariant(candidate);
+  if (!selectedVariant)
+    return selectedVariant.takeError();
+
+  llvm::Expected<support::TargetCapabilitySet> capabilities =
+      support::TargetCapabilitySet::buildFromKernelChecked(candidate.kernel);
+  if (!capabilities)
+    return capabilities.takeError();
+
+  llvm::Expected<plugin::VariantEmissionRole> role =
+      parseCandidateEmissionRole(candidate);
+  if (!role)
+    return role.takeError();
+
+  conversion::emitc::TCRVEmitCLowerableRoute route;
+  plugin::VariantEmitCLowerableRequest request(
+      *selectedVariant, candidate.kernel, *capabilities, *role);
+  if (llvm::Error error =
+          plugin::rvv::buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
+              candidateOp, request, route)) {
+    std::string message = llvm::toString(std::move(error));
+    return makeRVVTargetRouteError(
+        llvm::Twine("selected candidate route metadata does not agree with "
+                    "the selected variant body: ") +
+        message);
+  }
+  if (llvm::Error error = route.verify()) {
+    std::string message = llvm::toString(std::move(error));
+    return makeRVVTargetRouteError(
+        llvm::Twine("rebuilt materialized EmitC route failed verification: ") +
+        message);
+  }
+
+  llvm::StringRef candidateLowerableRouteID = lookupCandidateMetadataValue(
+      candidate, plugin::rvv::getRVVEmitCLowerableRouteMetadataName());
+  if (route.getRouteID() != candidateLowerableRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine("materialized EmitC route id must match selected "
+                    "candidate metadata '") +
+        candidateLowerableRouteID + "' but rebuilt route was '" +
+        route.getRouteID() + "'");
+
+  if (llvm::Error error = validateRVVRouteSourceProvenance(route))
+    return error;
+  if (llvm::Error error = validateRVVRouteABIMappings(candidate, route))
+    return error;
+
+  return llvm::Error::success();
 }
 
 llvm::Error rejectForbiddenRVVArtifactMetadata(
@@ -210,6 +370,10 @@ llvm::Error validateRVVI32M1ArithmeticTargetArtifactCandidate(
         "candidate runtime ABI parameters must be lhs, rhs, out, n with "
         "stable C types, roles, and target-export ownership");
   if (llvm::Error error = validateRVVRuntimeAVLVLArtifactMetadata(candidate))
+    return error;
+  if (llvm::Error error =
+          validateRVVSelectedVariantRouteAgreesWithCandidate(candidate,
+                                                            *arithmetic))
     return error;
   return llvm::Error::success();
 }
@@ -371,10 +535,22 @@ getRVVI32M1ArithmeticArtifactAdapterConfig() {
                .objectHandoffKind},
           {"runtime_avl_source", "tcrv_rvv.runtime_avl_source",
            "runtime_abi:n"},
+          {"config_contract", "tcrv_rvv.config_contract",
+           "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"},
+          {"sew", "tcrv_rvv.sew", "32"},
+          {"lmul", "tcrv_rvv.lmul", "m1"},
+          {"tail_policy", "tcrv_rvv.tail_policy", "agnostic"},
+          {"mask_policy", "tcrv_rvv.mask_policy", "agnostic"},
+          {"runtime_vl_contract", "tcrv_rvv.runtime_vl_contract",
+           "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"},
           {"runtime_avl_abi_parameter",
            "tcrv_rvv.runtime_avl_abi_parameter", "n"},
           {"vl_def", "tcrv_rvv.vl_def", "tcrv_rvv.setvl"},
           {"vl_scope", "tcrv_rvv.vl_scope", "tcrv_rvv.with_vl"},
+          {"vl_uses", "tcrv_rvv.vl_uses",
+           "emitc_for,with_vl,i32_load,i32_load,i32_arithmetic,i32_store"},
+          {"runtime_abi_order", "tcrv_rvv.runtime_abi_order",
+           "lhs,rhs,out,n"},
           {"emitc_loop", "tcrv_rvv.emitc_loop", "emitc.for"},
           {"loop_induction", "tcrv_rvv.loop_induction", "offset"},
           {"loop_step", "tcrv_rvv.loop_step", "full_chunk_vl"},
