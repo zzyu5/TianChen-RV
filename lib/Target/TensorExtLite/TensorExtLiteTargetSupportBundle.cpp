@@ -6,12 +6,8 @@
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteEmitCRouteProvider.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
-#include "mlir/Dialect/EmitC/IR/EmitC.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/raw_ostream.h"
 
 namespace tianchenrv::target::tensorext_lite {
 namespace {
@@ -22,14 +18,20 @@ constexpr llvm::StringLiteral kTensorExtLiteRouteMetadataKey(
     "tensorext_lite_emitc_lowerable_route");
 constexpr llvm::StringLiteral kTensorExtLiteRoleSequenceMetadataKey(
     "tensorext_lite_role_sequence");
-
-llvm::Error makeTensorExtLiteTargetRouteError(llvm::Twine message) {
-  return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV TensorExtLite materialized EmitC target "
-                  "artifact bridge failed: ") +
-          message,
-      llvm::errc::invalid_argument);
-}
+constexpr llvm::StringLiteral kTensorExtLiteSourceOpsMetadataKey(
+    "tensorext_lite_source_ops");
+constexpr llvm::StringLiteral kTensorExtLiteSourceRolesMetadataKey(
+    "tensorext_lite_source_roles");
+constexpr llvm::StringLiteral kTensorExtLiteSourceOpInterfaceMetadataKey(
+    "tensorext_lite_source_op_interface");
+constexpr llvm::StringLiteral kTensorExtLiteConstructionProtocolMetadataKey(
+    "tensorext_lite_construction_protocol");
+constexpr llvm::StringLiteral kTensorExtLiteSemanticRoleGraphMetadataKey(
+    "tensorext_lite_semantic_role_graph");
+constexpr llvm::StringLiteral kTensorExtLiteTypedRoleRealizationMetadataKey(
+    "tensorext_lite_typed_role_realization");
+constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
+    "TCRVEmitCLowerableOpInterface");
 
 const plugin::tensorext_lite::TensorExtLiteConstructionManifest &
 getTensorExtLiteManifest() {
@@ -42,44 +44,64 @@ getTensorExtLiteRoute() {
       getTensorExtLiteFragmentMmaEmitCConstructionRoute();
 }
 
-llvm::Error requireCandidateField(llvm::StringRef fieldName,
-                                  llvm::StringRef actual,
-                                  llvm::StringRef expected) {
-  if (actual == expected)
-    return llvm::Error::success();
-  return makeTensorExtLiteTargetRouteError(
-      llvm::Twine("candidate ") + fieldName + " must be '" + expected +
-      "' but was '" + actual + "'");
-}
+MaterializedEmitCHeaderArtifactConfig
+getTensorExtLiteHeaderArtifactConfig() {
+  static const llvm::StringRef kHeaderIncludes[] = {"stdint.h"};
+  static const MaterializedEmitCHeaderArtifactMetadataEvidence
+      kMetadataEvidence[] = {
+          {"emitc_lowerable_route", kTensorExtLiteRouteMetadataKey,
+           plugin::tensorext_lite::
+               getTensorExtLiteFragmentMmaEmitCConstructionRoute()
+                   .routeID},
+          {"role_sequence", kTensorExtLiteRoleSequenceMetadataKey,
+           plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
+               .semanticRoleGraph},
+          {"source_ops", kTensorExtLiteSourceOpsMetadataKey,
+           "tcrv_tensorext_lite.config_skeleton->"
+           "tcrv_tensorext_lite.load_frag_skeleton->"
+           "tcrv_tensorext_lite.tile_mma_skeleton->"
+           "tcrv_tensorext_lite.store_frag_skeleton"},
+          {"source_roles", kTensorExtLiteSourceRolesMetadataKey,
+           plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
+               .semanticRoleGraph},
+          {"source_op_interface", kTensorExtLiteSourceOpInterfaceMetadataKey,
+           kEmitCLowerableOpInterfaceName},
+          {"construction_protocol",
+           kTensorExtLiteConstructionProtocolMetadataKey,
+           plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
+               .protocolVersion},
+          {"semantic_role_graph", kTensorExtLiteSemanticRoleGraphMetadataKey,
+           plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
+               .semanticRoleGraph},
+          {"typed_role_realization",
+           kTensorExtLiteTypedRoleRealizationMetadataKey,
+           plugin::tensorext_lite::
+               getTensorExtLiteTypedRoleRealizationSummary()},
+      };
 
-llvm::StringRef lookupArtifactMetadataValue(
-    llvm::ArrayRef<support::ArtifactMetadataEntry> metadata,
-    llvm::StringRef key) {
-  for (const support::ArtifactMetadataEntry &entry : metadata)
-    if (entry.key == key)
-      return entry.value;
-  return {};
-}
+  const auto &manifest = getTensorExtLiteManifest();
+  const auto &route = getTensorExtLiteRoute();
 
-llvm::Error rejectForbiddenTensorExtLiteArtifactMetadata(
-    const TargetArtifactCandidate &candidate) {
-  for (const support::ArtifactMetadataEntry &entry :
-       candidate.artifactMetadata) {
-    std::string combined = (llvm::Twine(entry.key) + "=" + entry.value).str();
-    std::string lowerStorage = llvm::StringRef(combined).lower();
-    llvm::StringRef lower(lowerStorage);
-    if (lower.contains("descriptor") ||
-        lower.contains("metadata-diagnostic") ||
-        lower.contains("source-export") ||
-        lower.contains("source_export") || lower.contains("direct-c") ||
-        lower.contains("direct_c") || lower.contains("compute-body") ||
-        lower.contains("compute_body"))
-      return makeTensorExtLiteTargetRouteError(
-          llvm::Twine("candidate artifact metadata key '") + entry.key +
-          "' attempts to reintroduce metadata-driven compute or direct source "
-          "artifact authority");
-  }
-  return llvm::Error::success();
+  MaterializedEmitCHeaderArtifactConfig config;
+  config.selectedRoute.routeID = route.routeID;
+  config.selectedRoute.artifactKind = route.artifactKind;
+  config.selectedRoute.originPlugin = manifest.family.pluginName;
+  config.selectedRoute.routeDescription =
+      "TensorExtLite fragment MMA materialized EmitC header artifact bridge";
+  config.selectedRoute.routeBuilderFn =
+      plugin::tensorext_lite::buildTensorExtLiteFragmentMmaEmitCLowerableRoute;
+  config.headerGuard = "TIANCHENRV_TENSOREXTLITE_MATERIALIZED_EMITC_HEADER_H";
+  config.evidencePrefix = "tianchenrv.tensorext_lite";
+  config.includes = kHeaderIncludes;
+  config.selectedVariant = manifest.family.firstSliceVariantName;
+  config.emissionKind = route.emissionKind;
+  config.loweringBoundary = route.loweringBoundaryOpName;
+  config.runtimeABI = route.runtimeABI;
+  config.runtimeABIKind = route.runtimeABIKind;
+  config.runtimeABIName = route.runtimeABIName;
+  config.runtimeGlueRole = route.runtimeGlueRole;
+  config.metadataEvidence = kMetadataEvidence;
+  return config;
 }
 
 llvm::Error validateTensorExtLiteTargetArtifactCandidate(
@@ -87,164 +109,14 @@ llvm::Error validateTensorExtLiteTargetArtifactCandidate(
   if (llvm::Error error =
           plugin::tensorext_lite::verifyTensorExtLiteConstructionProtocolReady())
     return error;
-
-  const auto &manifest = getTensorExtLiteManifest();
-  const auto &route = getTensorExtLiteRoute();
-  if (llvm::Error error =
-          requireCandidateField("route id", candidate.routeID, route.routeID))
-    return error;
-  if (llvm::Error error = requireCandidateField(
-          "origin", candidate.origin, manifest.family.pluginName))
-    return error;
-  if (llvm::Error error = requireCandidateField(
-          "emission kind", candidate.emissionKind, route.emissionKind))
-    return error;
-  if (llvm::Error error = requireCandidateField(
-          "artifact kind", candidate.artifactKind, route.artifactKind))
-    return error;
-  if (llvm::Error error = requireCandidateField(
-          "lowering boundary", candidate.loweringBoundary,
-          route.loweringBoundaryOpName))
-    return error;
-  if (llvm::Error error = requireCandidateField(
-          "runtime ABI", candidate.runtimeABI, route.runtimeABI))
-    return error;
-  if (llvm::Error error = requireCandidateField(
-          "runtime ABI kind", candidate.runtimeABIKind, route.runtimeABIKind))
-    return error;
-  if (llvm::Error error = requireCandidateField(
-          "runtime ABI name", candidate.runtimeABIName, route.runtimeABIName))
-    return error;
-  if (llvm::Error error = requireCandidateField(
-          "runtime glue role", candidate.runtimeGlueRole,
-          route.runtimeGlueRole))
-    return error;
-
-  llvm::StringRef routeMetadata = lookupArtifactMetadataValue(
-      candidate.artifactMetadata, kTensorExtLiteRouteMetadataKey);
-  if (routeMetadata.empty())
-    return makeTensorExtLiteTargetRouteError(
-        "candidate metadata must carry "
-        "tensorext_lite_emitc_lowerable_route provenance");
-  if (routeMetadata != route.routeID)
-    return makeTensorExtLiteTargetRouteError(
-        llvm::Twine("candidate TensorExtLite EmitC route metadata must be '") +
-        route.routeID + "'");
-
-  llvm::StringRef roleSequence = lookupArtifactMetadataValue(
-      candidate.artifactMetadata, kTensorExtLiteRoleSequenceMetadataKey);
-  if (roleSequence.empty())
-    return makeTensorExtLiteTargetRouteError(
-        "candidate metadata must carry TensorExtLite role-sequence "
-        "provenance");
-  if (roleSequence != manifest.semanticRoleGraph)
-    return makeTensorExtLiteTargetRouteError(
-        "candidate TensorExtLite role-sequence metadata must match the "
-        "construction manifest");
-
-  return rejectForbiddenTensorExtLiteArtifactMetadata(candidate);
-}
-
-SelectedEmitCArtifactRouteConfig getTensorExtLiteHeaderArtifactConfig() {
-  const auto &manifest = getTensorExtLiteManifest();
-  const auto &route = getTensorExtLiteRoute();
-
-  SelectedEmitCArtifactRouteConfig config;
-  config.routeID = route.routeID;
-  config.artifactKind = route.artifactKind;
-  config.originPlugin = manifest.family.pluginName;
-  config.routeDescription =
-      "TensorExtLite fragment MMA materialized EmitC header artifact bridge";
-  config.candidateValidationFn = validateTensorExtLiteTargetArtifactCandidate;
-  config.routeBuilderFn =
-      plugin::tensorext_lite::buildTensorExtLiteFragmentMmaEmitCLowerableRoute;
-  return config;
-}
-
-llvm::Expected<mlir::emitc::FuncOp>
-getSingleMaterializedEmitCFunction(mlir::ModuleOp module,
-                                   llvm::StringRef expectedFunctionName) {
-  mlir::emitc::FuncOp selectedFunc;
-  unsigned functionCount = 0;
-  module->walk([&](mlir::emitc::FuncOp func) {
-    ++functionCount;
-    if (func.getSymName() == expectedFunctionName)
-      selectedFunc = func;
-  });
-
-  if (!selectedFunc)
-    return makeTensorExtLiteTargetRouteError(
-        llvm::Twine("materialized EmitC header route requires EmitC function "
-                    "boundary '") +
-        expectedFunctionName + "'");
-  if (functionCount != 1)
-    return makeTensorExtLiteTargetRouteError(
-        "materialized EmitC header route requires exactly one EmitC function "
-        "boundary");
-  return selectedFunc;
-}
-
-void printTensorExtLiteMaterializedEmitCHeaderDeclaration(
-    llvm::raw_ostream &os, llvm::StringRef functionName,
-    const TargetArtifactCandidate &candidate) {
-  os << "#ifndef TIANCHENRV_TENSOREXTLITE_MATERIALIZED_EMITC_HEADER_H\n";
-  os << "#define TIANCHENRV_TENSOREXTLITE_MATERIALIZED_EMITC_HEADER_H\n";
-  os << "\n";
-  os << "#include <stdint.h>\n";
-  os << "\n";
-  os << "/* tianchenrv.tensorext_lite.materialized_emitc_header.version: 1 "
-        "*/\n";
-  os << "/* tianchenrv.tensorext_lite.selected_route: "
-     << candidate.routeID << " */\n";
-  os << "/* tianchenrv.tensorext_lite.runtime_abi_name: "
-     << candidate.runtimeABIName << " */\n";
-  os << "/* tianchenrv.tensorext_lite.emitc_lowerable_route: "
-     << lookupArtifactMetadataValue(candidate.artifactMetadata,
-                                    kTensorExtLiteRouteMetadataKey)
-     << " */\n";
-  os << "/* tianchenrv.tensorext_lite.role_sequence: "
-     << lookupArtifactMetadataValue(candidate.artifactMetadata,
-                                    kTensorExtLiteRoleSequenceMetadataKey)
-     << " */\n";
-  os << "\n";
-  os << "void " << functionName << "(void);\n";
-  os << "\n";
-  os << "#endif /* TIANCHENRV_TENSOREXTLITE_MATERIALIZED_EMITC_HEADER_H */\n";
+  return validateMaterializedEmitCHeaderArtifactCandidate(
+      candidate, getTensorExtLiteHeaderArtifactConfig());
 }
 
 llvm::Error exportTensorExtLiteHeaderArtifact(mlir::ModuleOp module,
                                               llvm::raw_ostream &os) {
-  SelectedEmitCArtifactRouteConfig config =
-      getTensorExtLiteHeaderArtifactConfig();
-
-  llvm::Expected<SelectedEmitCArtifactTarget> target =
-      selectSelectedEmitCArtifactTarget(module, config);
-  if (!target)
-    return target.takeError();
-
-  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
-      materializeSelectedEmitCArtifactModule(module, config);
-  if (!emitcModule)
-    return emitcModule.takeError();
-
-  llvm::Expected<std::string> functionName =
-      getSelectedEmitCArtifactFunctionName(module, config);
-  if (!functionName)
-    return functionName.takeError();
-
-  llvm::Expected<mlir::emitc::FuncOp> func =
-      getSingleMaterializedEmitCFunction(**emitcModule, *functionName);
-  if (!func)
-    return func.takeError();
-  if ((*func).getFunctionType().getNumInputs() !=
-      target->candidate.runtimeABIParameters.size())
-    return makeTensorExtLiteTargetRouteError(
-        "materialized EmitC header route function boundary arity must match "
-        "the selected ordered runtime ABI parameter signature");
-
-  printTensorExtLiteMaterializedEmitCHeaderDeclaration(
-      os, *functionName, target->candidate);
-  return llvm::Error::success();
+  return exportMaterializedEmitCHeaderArtifact(
+      module, os, getTensorExtLiteHeaderArtifactConfig());
 }
 
 llvm::Error registerTensorExtLiteHeaderTargetArtifactExporter(

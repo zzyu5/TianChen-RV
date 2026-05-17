@@ -1312,12 +1312,351 @@ llvm::Error requireSelectedEmitCMaterializedHandoff(
   return llvm::Error::success();
 }
 
+llvm::StringRef lookupArtifactMetadataValue(
+    llvm::ArrayRef<support::ArtifactMetadataEntry> metadata,
+    llvm::StringRef key) {
+  for (const support::ArtifactMetadataEntry &entry : metadata)
+    if (entry.key == key)
+      return entry.value;
+  return {};
+}
+
+bool containsForbiddenMaterializedEmitCHeaderMetadata(llvm::StringRef value) {
+  std::string lowerStorage = value.lower();
+  llvm::StringRef lower(lowerStorage);
+  return lower.contains("descriptor") ||
+         lower.contains("metadata-diagnostic") ||
+         lower.contains("metadata_diagnostic") ||
+         lower.contains("source-export") ||
+         lower.contains("source_export") || lower.contains("direct-c") ||
+         lower.contains("direct_c") || lower.contains("compute-body") ||
+         lower.contains("compute_body");
+}
+
+llvm::Error rejectForbiddenMaterializedEmitCHeaderMetadata(
+    const TargetArtifactCandidate &candidate,
+    llvm::StringRef routeDescription) {
+  for (const support::ArtifactMetadataEntry &entry :
+       candidate.artifactMetadata) {
+    std::string combined = (llvm::Twine(entry.key) + "=" + entry.value).str();
+    if (containsForbiddenMaterializedEmitCHeaderMetadata(combined))
+      return makeSelectedEmitCArtifactError(
+          routeDescription,
+          llvm::Twine("candidate artifact metadata key '") + entry.key +
+              "' attempts to reintroduce descriptor-driven computation, "
+              "direct C/source-export authority, or compute-body metadata");
+  }
+  return llvm::Error::success();
+}
+
+llvm::StringRef getHeaderRouteDescription(
+    const MaterializedEmitCHeaderArtifactConfig &config) {
+  if (!config.selectedRoute.routeDescription.empty())
+    return config.selectedRoute.routeDescription;
+  return config.selectedRoute.routeID;
+}
+
+llvm::Error validateMaterializedEmitCHeaderArtifactConfig(
+    const MaterializedEmitCHeaderArtifactConfig &config) {
+  llvm::StringRef routeDescription = getHeaderRouteDescription(config);
+  if (llvm::Error error =
+          validateSelectedEmitCArtifactRouteConfig(config.selectedRoute))
+    return error;
+  if (!isHeaderArtifactKind(config.selectedRoute.artifactKind))
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        llvm::Twine("requires runtime-callable-c-header artifact kind, got '") +
+            config.selectedRoute.artifactKind + "'");
+  if (config.headerGuard.trim().empty())
+    return makeSelectedEmitCArtifactError(
+        routeDescription, "requires a non-empty C header include guard");
+  if (config.evidencePrefix.trim().empty())
+    return makeSelectedEmitCArtifactError(
+        routeDescription, "requires a non-empty evidence comment prefix");
+  if (config.emissionKind.trim().empty() ||
+      config.loweringBoundary.trim().empty() ||
+      config.runtimeABI.trim().empty() ||
+      config.runtimeABIKind.trim().empty() ||
+      config.runtimeABIName.trim().empty() ||
+      config.runtimeGlueRole.trim().empty())
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "requires non-empty emission kind, lowering boundary, runtime ABI, "
+        "runtime ABI kind/name, and runtime glue role");
+
+  for (auto [index, include] : llvm::enumerate(config.includes))
+    if (include.trim().empty() || include.contains("<") ||
+        include.contains(">") || include.contains("\n") ||
+        include.contains("\r"))
+      return makeSelectedEmitCArtifactError(
+          routeDescription,
+          llvm::Twine("header include[") + llvm::Twine(index) +
+              "] must be a bounded header name without delimiters");
+
+  for (auto [index, evidence] : llvm::enumerate(config.metadataEvidence)) {
+    if (evidence.commentName.trim().empty() ||
+        evidence.metadataKey.trim().empty() ||
+        evidence.expectedValue.trim().empty())
+      return makeSelectedEmitCArtifactError(
+          routeDescription,
+          llvm::Twine("metadata evidence[") + llvm::Twine(index) +
+              "] requires non-empty comment name, metadata key, and expected "
+              "value");
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error requireMaterializedEmitCHeaderCandidateField(
+    const MaterializedEmitCHeaderArtifactConfig &config,
+    llvm::StringRef fieldName, llvm::StringRef actual,
+    llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeSelectedEmitCArtifactError(
+      getHeaderRouteDescription(config),
+      llvm::Twine("candidate ") + fieldName + " must be '" + expected +
+          "' but was '" + actual + "'");
+}
+
+llvm::Expected<mlir::emitc::FuncOp> getSingleMaterializedEmitCHeaderFunction(
+    mlir::ModuleOp module, llvm::StringRef expectedFunctionName,
+    llvm::StringRef routeDescription) {
+  mlir::emitc::FuncOp selectedFunc;
+  unsigned functionCount = 0;
+  module->walk([&](mlir::emitc::FuncOp func) {
+    ++functionCount;
+    if (func.getSymName() == expectedFunctionName)
+      selectedFunc = func;
+  });
+
+  if (!selectedFunc)
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        llvm::Twine("materialized EmitC header route requires EmitC function "
+                    "boundary '") +
+            expectedFunctionName + "'");
+  if (functionCount != 1)
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "materialized EmitC header route requires exactly one EmitC function "
+        "boundary");
+  return selectedFunc;
+}
+
+void printMaterializedEmitCHeaderEvidenceComment(llvm::raw_ostream &os,
+                                                 llvm::StringRef prefix,
+                                                 llvm::StringRef name,
+                                                 llvm::StringRef value) {
+  os << "/* " << prefix << "." << name << ": " << value << " */\n";
+}
+
+void printMaterializedEmitCHeaderRuntimeABIParameterEvidence(
+    llvm::raw_ostream &os, llvm::StringRef prefix,
+    const support::RuntimeABIParameter &parameter, unsigned index) {
+  os << "/* " << prefix << ".runtime_abi_parameter[" << index << "]: ";
+  support::printRuntimeABIParameterCDeclaration(os, parameter);
+  os << " role="
+     << support::stringifyRuntimeABIParameterRole(parameter.role)
+     << " ownership="
+     << support::stringifyRuntimeABIParameterOwnership(parameter.ownership)
+     << " */\n";
+}
+
+void printMaterializedEmitCHeaderDeclaration(
+    llvm::raw_ostream &os, llvm::StringRef functionName,
+    const TargetArtifactCandidate &candidate,
+    const MaterializedEmitCHeaderArtifactConfig &config) {
+  os << "#ifndef " << config.headerGuard << "\n";
+  os << "#define " << config.headerGuard << "\n";
+  os << "\n";
+  for (llvm::StringRef include : config.includes)
+    os << "#include <" << include << ">\n";
+  if (!config.includes.empty())
+    os << "\n";
+
+  printMaterializedEmitCHeaderEvidenceComment(
+      os, config.evidencePrefix, "materialized_emitc_header.version", "1");
+  printMaterializedEmitCHeaderEvidenceComment(os, config.evidencePrefix,
+                                              "origin_plugin",
+                                              candidate.origin);
+  printMaterializedEmitCHeaderEvidenceComment(
+      os, config.evidencePrefix, "selected_variant",
+      (llvm::Twine("@") + candidate.selectedVariant).str());
+  printMaterializedEmitCHeaderEvidenceComment(os, config.evidencePrefix,
+                                              "selected_route",
+                                              candidate.routeID);
+  printMaterializedEmitCHeaderEvidenceComment(os, config.evidencePrefix,
+                                              "runtime_abi_kind",
+                                              candidate.runtimeABIKind);
+  printMaterializedEmitCHeaderEvidenceComment(os, config.evidencePrefix,
+                                              "runtime_abi_name",
+                                              candidate.runtimeABIName);
+  for (auto [index, parameter] :
+       llvm::enumerate(candidate.runtimeABIParameters))
+    printMaterializedEmitCHeaderRuntimeABIParameterEvidence(
+        os, config.evidencePrefix, parameter, index);
+  for (const MaterializedEmitCHeaderArtifactMetadataEvidence &evidence :
+       config.metadataEvidence) {
+    printMaterializedEmitCHeaderEvidenceComment(
+        os, config.evidencePrefix, evidence.commentName,
+        lookupArtifactMetadataValue(candidate.artifactMetadata,
+                                    evidence.metadataKey));
+  }
+
+  os << "\n";
+  os << "void " << functionName << "(";
+  if (candidate.runtimeABIParameters.empty()) {
+    os << "void";
+  } else {
+    for (auto [index, parameter] :
+         llvm::enumerate(candidate.runtimeABIParameters)) {
+      if (index != 0)
+        os << ", ";
+      support::printRuntimeABIParameterCDeclaration(os, parameter);
+    }
+  }
+  os << ");\n";
+  os << "\n";
+  os << "#endif /* " << config.headerGuard << " */\n";
+}
+
 } // namespace
 
 llvm::Expected<SelectedEmitCArtifactTarget>
 selectSelectedEmitCArtifactTarget(
     mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config) {
   return selectSelectedEmitCArtifactTargetImpl(module, config);
+}
+
+llvm::Error validateMaterializedEmitCHeaderArtifactCandidate(
+    const TargetArtifactCandidate &candidate,
+    const MaterializedEmitCHeaderArtifactConfig &config) {
+  if (llvm::Error error = validateMaterializedEmitCHeaderArtifactConfig(config))
+    return error;
+
+  if (candidate.selectedVariant.empty())
+    return makeSelectedEmitCArtifactError(
+        getHeaderRouteDescription(config),
+        "candidate selected variant must be non-empty");
+  if (!config.selectedVariant.empty()) {
+    if (llvm::Error error = requireMaterializedEmitCHeaderCandidateField(
+            config, "selected variant", candidate.selectedVariant,
+            config.selectedVariant))
+      return error;
+  }
+  if (candidate.role.empty())
+    return makeSelectedEmitCArtifactError(
+        getHeaderRouteDescription(config),
+        "candidate selected path role must be non-empty");
+  if (llvm::Expected<plugin::VariantEmissionRole> role =
+          parseSelectedEmitCArtifactRole(candidate.role,
+                                        getHeaderRouteDescription(config))) {
+    (void)*role;
+  } else {
+    return role.takeError();
+  }
+
+  if (llvm::Error error = requireMaterializedEmitCHeaderCandidateField(
+          config, "route id", candidate.routeID, config.selectedRoute.routeID))
+    return error;
+  if (llvm::Error error = requireMaterializedEmitCHeaderCandidateField(
+          config, "artifact kind", candidate.artifactKind,
+          config.selectedRoute.artifactKind))
+    return error;
+  if (llvm::Error error = requireMaterializedEmitCHeaderCandidateField(
+          config, "origin", candidate.origin, config.selectedRoute.originPlugin))
+    return error;
+  if (llvm::Error error = requireMaterializedEmitCHeaderCandidateField(
+          config, "emission kind", candidate.emissionKind,
+          config.emissionKind))
+    return error;
+  if (llvm::Error error = requireMaterializedEmitCHeaderCandidateField(
+          config, "lowering boundary", candidate.loweringBoundary,
+          config.loweringBoundary))
+    return error;
+  if (llvm::Error error = requireMaterializedEmitCHeaderCandidateField(
+          config, "runtime ABI", candidate.runtimeABI, config.runtimeABI))
+    return error;
+  if (llvm::Error error = requireMaterializedEmitCHeaderCandidateField(
+          config, "runtime ABI kind", candidate.runtimeABIKind,
+          config.runtimeABIKind))
+    return error;
+  if (llvm::Error error = requireMaterializedEmitCHeaderCandidateField(
+          config, "runtime ABI name", candidate.runtimeABIName,
+          config.runtimeABIName))
+    return error;
+  if (llvm::Error error = requireMaterializedEmitCHeaderCandidateField(
+          config, "runtime glue role", candidate.runtimeGlueRole,
+          config.runtimeGlueRole))
+    return error;
+
+  if (!support::runtimeABIParametersEqual(candidate.runtimeABIParameters,
+                                          config.runtimeABIParameters))
+    return makeSelectedEmitCArtifactError(
+        getHeaderRouteDescription(config),
+        "candidate ordered runtime ABI parameter signature must exactly match "
+        "the materialized EmitC header artifact configuration");
+
+  for (const MaterializedEmitCHeaderArtifactMetadataEvidence &evidence :
+       config.metadataEvidence) {
+    llvm::StringRef value = lookupArtifactMetadataValue(
+        candidate.artifactMetadata, evidence.metadataKey);
+    if (value.empty())
+      return makeSelectedEmitCArtifactError(
+          getHeaderRouteDescription(config),
+          llvm::Twine("candidate metadata must carry '") +
+              evidence.metadataKey + "' provenance");
+    if (value != evidence.expectedValue)
+      return makeSelectedEmitCArtifactError(
+          getHeaderRouteDescription(config),
+          llvm::Twine("candidate metadata '") + evidence.metadataKey +
+              "' must be '" + evidence.expectedValue + "'");
+  }
+
+  return rejectForbiddenMaterializedEmitCHeaderMetadata(
+      candidate, getHeaderRouteDescription(config));
+}
+
+llvm::Error exportMaterializedEmitCHeaderArtifact(
+    mlir::ModuleOp module, llvm::raw_ostream &os,
+    const MaterializedEmitCHeaderArtifactConfig &config) {
+  if (llvm::Error error = validateMaterializedEmitCHeaderArtifactConfig(config))
+    return error;
+
+  llvm::Expected<SelectedEmitCArtifactTarget> target =
+      selectSelectedEmitCArtifactTarget(module, config.selectedRoute);
+  if (!target)
+    return target.takeError();
+  if (llvm::Error error = validateMaterializedEmitCHeaderArtifactCandidate(
+          target->candidate, config))
+    return error;
+
+  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
+      materializeSelectedEmitCArtifactModule(module, config.selectedRoute);
+  if (!emitcModule)
+    return emitcModule.takeError();
+
+  llvm::Expected<std::string> functionName =
+      getSelectedEmitCArtifactFunctionName(module, config.selectedRoute);
+  if (!functionName)
+    return functionName.takeError();
+
+  llvm::StringRef routeDescription = getHeaderRouteDescription(config);
+  llvm::Expected<mlir::emitc::FuncOp> func =
+      getSingleMaterializedEmitCHeaderFunction(**emitcModule, *functionName,
+                                               routeDescription);
+  if (!func)
+    return func.takeError();
+  if ((*func).getFunctionType().getNumInputs() !=
+      target->candidate.runtimeABIParameters.size())
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "materialized EmitC header route function boundary arity must match "
+        "the selected ordered runtime ABI parameter signature");
+
+  printMaterializedEmitCHeaderDeclaration(os, *functionName,
+                                          target->candidate, config);
+  return llvm::Error::success();
 }
 
 llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>

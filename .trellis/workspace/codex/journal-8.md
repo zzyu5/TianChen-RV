@@ -56,6 +56,67 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 101: Common materialized EmitC header artifact foundation
+
+**Date**: 2026-05-17
+**Task**: Common materialized EmitC header artifact foundation
+**Branch**: `main`
+
+### Summary
+
+Extracted a common target-layer materialized EmitC header artifact foundation
+and rewired Toy plus TensorExtLite target-support exporters to use it as their
+production declaration-only header path.
+
+### Main Changes
+
+- Added `MaterializedEmitCHeaderArtifactConfig`,
+  `MaterializedEmitCHeaderArtifactMetadataEvidence`,
+  `validateMaterializedEmitCHeaderArtifactCandidate`, and
+  `exportMaterializedEmitCHeaderArtifact` in the common target artifact layer.
+- Common validation now checks configured route/origin/artifact/emission/ABI
+  fields, selected variant identity, ordered runtime ABI parameters, required
+  artifact metadata, forbidden descriptor/direct-C/source-export/compute-body
+  metadata, exactly one materialized `emitc.func`, and function arity.
+- Toy and TensorExtLite target support now provide only plugin-local config and
+  metadata evidence requirements before delegating to the common header helper.
+- TensorExtLite emission plans now carry source-op sequence, source-role
+  sequence, source op-interface, construction protocol, semantic role graph,
+  and typed role realization evidence for the target header artifact.
+- Updated lowering-runtime spec with the common header artifact foundation
+  contract.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-tensorext-lite-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- [OK] focused lit filter for Toy target artifact, TensorExtLite target
+  artifact, target artifact registry, RVV target artifact handoff, and
+  TensorExtLite first-slice materialization: 12/12 passed.
+- [OK] `git diff --check`
+- [OK] targeted scans over common target, Toy target, TensorExtLite target, and
+  Toy/TensorExtLite target tests showed forbidden strings only in fail-closed
+  rejection logic or negative `CHECK-NOT` assertions, not as route authority.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 102/102 lit tests
+  passed.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-17-common-materialized-emitc-header-foundation`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 101: Toy extension bundle target artifact bridge
 
 **Date**: 2026-05-17

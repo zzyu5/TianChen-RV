@@ -142,6 +142,29 @@ struct SelectedEmitCArtifactTarget {
   TargetArtifactCandidate candidate;
 };
 
+struct MaterializedEmitCHeaderArtifactMetadataEvidence {
+  llvm::StringRef commentName;
+  llvm::StringRef metadataKey;
+  llvm::StringRef expectedValue;
+};
+
+struct MaterializedEmitCHeaderArtifactConfig {
+  SelectedEmitCArtifactRouteConfig selectedRoute;
+  llvm::StringRef headerGuard;
+  llvm::StringRef evidencePrefix;
+  llvm::ArrayRef<llvm::StringRef> includes;
+  llvm::StringRef selectedVariant;
+  llvm::StringRef emissionKind;
+  llvm::StringRef loweringBoundary;
+  llvm::StringRef runtimeABI;
+  llvm::StringRef runtimeABIKind;
+  llvm::StringRef runtimeABIName;
+  llvm::StringRef runtimeGlueRole;
+  llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters;
+  llvm::ArrayRef<MaterializedEmitCHeaderArtifactMetadataEvidence>
+      metadataEvidence;
+};
+
 struct TargetArtifactCompositeBundleMetadata {
   std::string runtimeABIKind;
   std::string runtimeABIName;
@@ -360,6 +383,14 @@ std::string makeSelectedEmitCArtifactFunctionName(
 llvm::Expected<SelectedEmitCArtifactTarget>
 selectSelectedEmitCArtifactTarget(
     mlir::ModuleOp module, const SelectedEmitCArtifactRouteConfig &config);
+
+llvm::Error validateMaterializedEmitCHeaderArtifactCandidate(
+    const TargetArtifactCandidate &candidate,
+    const MaterializedEmitCHeaderArtifactConfig &config);
+
+llvm::Error exportMaterializedEmitCHeaderArtifact(
+    mlir::ModuleOp module, llvm::raw_ostream &os,
+    const MaterializedEmitCHeaderArtifactConfig &config);
 
 llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
 materializeSelectedEmitCArtifactModule(

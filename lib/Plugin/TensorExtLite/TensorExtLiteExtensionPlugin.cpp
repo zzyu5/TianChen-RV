@@ -10,6 +10,7 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectRegistry.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -75,6 +76,22 @@ constexpr llvm::StringLiteral kTensorExtLiteRouteArtifactMetadataKey(
     "tensorext_lite_emitc_lowerable_route");
 constexpr llvm::StringLiteral kTensorExtLiteRoleSequenceArtifactMetadataKey(
     "tensorext_lite_role_sequence");
+constexpr llvm::StringLiteral kTensorExtLiteSourceOpsArtifactMetadataKey(
+    "tensorext_lite_source_ops");
+constexpr llvm::StringLiteral kTensorExtLiteSourceRolesArtifactMetadataKey(
+    "tensorext_lite_source_roles");
+constexpr llvm::StringLiteral
+    kTensorExtLiteSourceOpInterfaceArtifactMetadataKey(
+        "tensorext_lite_source_op_interface");
+constexpr llvm::StringLiteral
+    kTensorExtLiteConstructionProtocolArtifactMetadataKey(
+        "tensorext_lite_construction_protocol");
+constexpr llvm::StringLiteral
+    kTensorExtLiteSemanticRoleGraphArtifactMetadataKey(
+        "tensorext_lite_semantic_role_graph");
+constexpr llvm::StringLiteral
+    kTensorExtLiteTypedRoleRealizationArtifactMetadataKey(
+        "tensorext_lite_typed_role_realization");
 
 struct TensorExtLiteFragmentCapabilityView {
   std::string fragmentABI;
@@ -437,6 +454,53 @@ llvm::Error validateBoundaryStringAttr(mlir::Operation *op,
   return llvm::Error::success();
 }
 
+std::string joinTensorExtLiteRouteSourceOps(
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCSourceOpProvenance> sources) {
+  std::string joined;
+  llvm::raw_string_ostream stream(joined);
+  for (auto [index, source] : llvm::enumerate(sources)) {
+    if (index != 0)
+      stream << "->";
+    stream << source.opName;
+  }
+  stream.flush();
+  return joined;
+}
+
+std::string joinTensorExtLiteRouteSourceRoles(
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCSourceOpProvenance> sources) {
+  std::string joined;
+  llvm::raw_string_ostream stream(joined);
+  for (auto [index, source] : llvm::enumerate(sources)) {
+    if (index != 0)
+      stream << "->";
+    stream << source.role;
+  }
+  stream.flush();
+  return joined;
+}
+
+llvm::Expected<std::string> getTensorExtLiteRouteSourceOpInterface(
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCSourceOpProvenance> sources) {
+  if (sources.empty())
+    return makeTensorExtLitePluginError(
+        "TensorExtLite target artifact emission plan requires route "
+        "source-op provenance before artifact export");
+
+  llvm::StringRef first = sources.front().opInterface;
+  if (first.empty())
+    return makeTensorExtLitePluginError(
+        "TensorExtLite target artifact emission plan requires non-empty "
+        "source op-interface provenance");
+  if (!llvm::all_of(sources, [&](const auto &source) {
+        return source.opInterface == first;
+      }))
+    return makeTensorExtLitePluginError(
+        "TensorExtLite target artifact emission plan requires one stable "
+        "source op-interface provenance value");
+  return first.str();
+}
+
 const tensorext_lite::TensorExtLiteExtensionPlugin &getBuiltinTensorExtLiteExtensionPlugin() {
   static const tensorext_lite::TensorExtLiteExtensionPlugin plugin;
   return plugin;
@@ -687,6 +751,25 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
                           route.getRouteID());
   out.addArtifactMetadata(kTensorExtLiteRoleSequenceArtifactMetadataKey,
                           manifest.semanticRoleGraph);
+  out.addArtifactMetadata(kTensorExtLiteSourceOpsArtifactMetadataKey,
+                          joinTensorExtLiteRouteSourceOps(
+                              route.getSourceOpProvenance()));
+  out.addArtifactMetadata(kTensorExtLiteSourceRolesArtifactMetadataKey,
+                          joinTensorExtLiteRouteSourceRoles(
+                              route.getSourceOpProvenance()));
+  llvm::Expected<std::string> sourceOpInterface =
+      getTensorExtLiteRouteSourceOpInterface(route.getSourceOpProvenance());
+  if (!sourceOpInterface)
+    return sourceOpInterface.takeError();
+  out.addArtifactMetadata(kTensorExtLiteSourceOpInterfaceArtifactMetadataKey,
+                          *sourceOpInterface);
+  out.addArtifactMetadata(kTensorExtLiteConstructionProtocolArtifactMetadataKey,
+                          manifest.protocolVersion);
+  out.addArtifactMetadata(kTensorExtLiteSemanticRoleGraphArtifactMetadataKey,
+                          manifest.semanticRoleGraph);
+  out.addArtifactMetadata(kTensorExtLiteTypedRoleRealizationArtifactMetadataKey,
+                          tensorext_lite::
+                              getTensorExtLiteTypedRoleRealizationSummary());
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;

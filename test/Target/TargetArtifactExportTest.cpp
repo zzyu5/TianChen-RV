@@ -726,6 +726,33 @@ TargetArtifactCandidate makeValidTensorExtLiteTargetArtifactCandidate() {
   candidate.artifactMetadata.push_back(
       tianchenrv::support::ArtifactMetadataEntry(
           "tensorext_lite_role_sequence", manifest.semanticRoleGraph));
+  candidate.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tensorext_lite_source_ops",
+          "tcrv_tensorext_lite.config_skeleton->"
+          "tcrv_tensorext_lite.load_frag_skeleton->"
+          "tcrv_tensorext_lite.tile_mma_skeleton->"
+          "tcrv_tensorext_lite.store_frag_skeleton"));
+  candidate.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tensorext_lite_source_roles", manifest.semanticRoleGraph));
+  candidate.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tensorext_lite_source_op_interface",
+          "TCRVEmitCLowerableOpInterface"));
+  candidate.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tensorext_lite_construction_protocol",
+          manifest.protocolVersion));
+  candidate.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tensorext_lite_semantic_role_graph",
+          manifest.semanticRoleGraph));
+  candidate.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tensorext_lite_typed_role_realization",
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteTypedRoleRealizationSummary()));
   return candidate;
 }
 
@@ -784,7 +811,8 @@ bool expectTensorExtLiteTargetArtifactExporterShape(
                                staleRoleSequence, *exporter),
                            "TensorExtLite artifact rejects descriptor-like "
                            "metadata provenance",
-                           {"role-sequence metadata must match"}))
+                           {"tensorext_lite_role_sequence",
+                            "configure->load_frag->tile_mma->store_frag"}))
     return false;
 
   TargetArtifactCandidate descriptorMetadata = candidate;
@@ -795,7 +823,19 @@ bool expectTensorExtLiteTargetArtifactExporterShape(
                                descriptorMetadata, *exporter),
                            "TensorExtLite artifact rejects metadata compute "
                            "authority",
-                           {"metadata-driven compute"}))
+                           {"descriptor-driven computation"}))
+    return false;
+
+  TargetArtifactCandidate extraRuntimeParameter = candidate;
+  extraRuntimeParameter.runtimeABIParameters.push_back(
+      tianchenrv::support::makeTargetExportABIParameter(
+          "tile_count", "size_t",
+          RuntimeABIParameterRole::RuntimeElementCount));
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               extraRuntimeParameter, *exporter),
+                           "TensorExtLite artifact rejects unexpected runtime "
+                           "ABI parameter",
+                           {"ordered runtime ABI parameter signature"}))
     return false;
 
   return true;
@@ -845,7 +885,13 @@ module {
       artifact_kind = "runtime-callable-c-header",
       artifact_metadata = [
         {key = "tensorext_lite_emitc_lowerable_route", value = "tensorext-lite-fragment-mma-emitc-route"},
-        {key = "tensorext_lite_role_sequence", value = "configure->load_frag->tile_mma->store_frag"}
+        {key = "tensorext_lite_role_sequence", value = "configure->load_frag->tile_mma->store_frag"},
+        {key = "tensorext_lite_source_ops", value = "tcrv_tensorext_lite.config_skeleton->tcrv_tensorext_lite.load_frag_skeleton->tcrv_tensorext_lite.tile_mma_skeleton->tcrv_tensorext_lite.store_frag_skeleton"},
+        {key = "tensorext_lite_source_roles", value = "configure->load_frag->tile_mma->store_frag"},
+        {key = "tensorext_lite_source_op_interface", value = "TCRVEmitCLowerableOpInterface"},
+        {key = "tensorext_lite_construction_protocol", value = "extension-family-construction-protocol.v1"},
+        {key = "tensorext_lite_semantic_role_graph", value = "configure->load_frag->tile_mma->store_frag"},
+        {key = "tensorext_lite_typed_role_realization", value = "configure:tel.role.config:tcrv_tensorext_lite.config_skeleton:TCRVConfigOpInterface:TCRVEmitCLowerableInterface;load_frag:tel.role.load_frag:tcrv_tensorext_lite.load_frag_skeleton:TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;tile_mma:tel.role.tile_mma:tcrv_tensorext_lite.tile_mma_skeleton:TCRVComputeOpInterface:TCRVEmitCLowerableInterface;store_frag:tel.role.store_frag:tcrv_tensorext_lite.store_frag_skeleton:TCRVMemoryOpInterface:TCRVEmitCLowerableInterface"}
       ],
       emission_kind = "materialized-emitc-cpp-tensorext-lite-fragment-mma-module",
       lowering_boundary = "tcrv_tensorext_lite.role_sequence",
@@ -892,13 +938,37 @@ module {
   llvm::StringRef header(headerOutput);
   if (!header.contains("TIANCHENRV_TENSOREXTLITE_MATERIALIZED_EMITC_HEADER_H") ||
       !header.contains(
+          "tianchenrv.tensorext_lite.origin_plugin: "
+          "tensorext-lite-plugin") ||
+      !header.contains(
+          "tianchenrv.tensorext_lite.selected_variant: "
+          "@tensorext_lite_tile_mma_first_slice") ||
+      !header.contains(
           "void tcrv_emitc_tensorext_lite_header_export_tensorext_lite_tile_mma_first_slice(void);") ||
+      !header.contains(
+          "tianchenrv.tensorext_lite.runtime_abi_kind: "
+          "plugin-owned-runtime-abi") ||
       !header.contains(
           "tianchenrv.tensorext_lite.emitc_lowerable_route: "
           "tensorext-lite-fragment-mma-emitc-route") ||
       !header.contains(
           "tianchenrv.tensorext_lite.role_sequence: "
           "configure->load_frag->tile_mma->store_frag") ||
+      !header.contains(
+          "tianchenrv.tensorext_lite.source_ops: "
+          "tcrv_tensorext_lite.config_skeleton->") ||
+      !header.contains(
+          "tianchenrv.tensorext_lite.source_op_interface: "
+          "TCRVEmitCLowerableOpInterface") ||
+      !header.contains(
+          "tianchenrv.tensorext_lite.construction_protocol: "
+          "extension-family-construction-protocol.v1") ||
+      !header.contains(
+          "tianchenrv.tensorext_lite.semantic_role_graph: "
+          "configure->load_frag->tile_mma->store_frag") ||
+      !header.contains(
+          "tianchenrv.tensorext_lite.typed_role_realization: "
+          "configure:tel.role.config") ||
       header.contains("__riscv_") || header.contains("descriptor") ||
       header.contains("source-export")) {
     llvm::errs() << "TensorExtLite header artifact output was malformed:\n"
@@ -1028,7 +1098,7 @@ bool expectToyTargetArtifactExporterShape(
   if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
                                descriptorMetadata, *exporter),
                            "Toy artifact rejects descriptor metadata",
-                           {"descriptor-driven compute"}))
+                           {"descriptor-driven computation"}))
     return false;
 
   TargetArtifactCandidate missingParameter = candidate;

@@ -321,3 +321,124 @@ selected dispatch or selected-path diagnostic
   -> TargetArtifactCandidate with selected variant, role, route, ABI metadata
   -> plugin-owned target exporter materializes object/header/bundle
 ```
+
+## Scenario: Common Materialized EmitC Header Artifact Foundation
+
+### 1. Scope / Trigger
+
+Use this contract when multiple extension-family target exporters need the same
+declaration-only runtime-callable C header artifact shape from a selected
+materialized EmitC route. The first required consumers are Toy and
+TensorExtLite. RVV object/header/bundle behavior may keep RVV-specific object
+packaging and composite bundle logic unless it explicitly opts into the common
+header helper.
+
+### 2. Signatures
+
+- Common config:
+  `target::MaterializedEmitCHeaderArtifactConfig`.
+- Common metadata evidence entry:
+  `target::MaterializedEmitCHeaderArtifactMetadataEvidence`.
+- Common validator:
+  `validateMaterializedEmitCHeaderArtifactCandidate(candidate, config)`.
+- Common exporter:
+  `exportMaterializedEmitCHeaderArtifact(module, os, config)`.
+- The config wraps a `SelectedEmitCArtifactRouteConfig` plus plugin-supplied
+  header guard, evidence prefix, includes, optional expected selected variant,
+  emission kind, lowering boundary, runtime ABI fields, ordered runtime ABI
+  parameters, and required artifact metadata evidence.
+
+### 3. Contracts
+
+- Common target code may validate extension-agnostic selected candidate fields
+  supplied through the config: route id, artifact kind, origin plugin,
+  selected variant identity when configured, emission kind, lowering boundary,
+  runtime ABI, runtime ABI kind/name, runtime glue role, ordered ABI parameter
+  signature, and required artifact metadata values.
+- Common target code may reject forbidden artifact metadata containing
+  descriptor, metadata-diagnostic, direct-C, source-export, or compute-body
+  residue.
+- Common target code must still use the plugin-owned
+  `SelectedEmitCArtifactRouteBuilderFn` to build the
+  `TCRVEmitCLowerableRoute`; it must not recover family semantics from plugin
+  names, route ids, metadata keys, or header evidence labels.
+- The exported header must be declaration-only: configured includes, bounded
+  evidence comments, and one function declaration whose argument list is the
+  selected ordered runtime ABI parameter signature. Zero-argument headers must
+  use `(void)`.
+- Plugin-local code remains responsible for construction protocol metadata,
+  source-op/source-role/source-interface provenance keys, semantic role graph,
+  typed role evidence, and any family-specific route mapping.
+
+### 4. Validation & Error Matrix
+
+- Config lacks route id, artifact kind, origin plugin, route builder, header
+  guard, evidence prefix, emission kind, lowering boundary, runtime ABI fields,
+  or runtime glue role -> fail before output.
+- Config artifact kind is not `runtime-callable-c-header` -> fail before
+  output.
+- Selected candidate has wrong route id, artifact kind, origin, selected
+  variant, emission kind, lowering boundary, runtime ABI field, or runtime glue
+  role -> fail before output.
+- Candidate ordered runtime ABI parameters differ from the configured signature
+  by role, type, ownership, name, arity, or order -> fail before output.
+- Required artifact metadata key is missing or has a stale value -> fail before
+  output.
+- Candidate metadata contains descriptor/direct-C/source-export/compute-body
+  residue -> fail before output.
+- Materialized EmitC handoff lacks route/call source provenance, has non-EmitC
+  residue, lacks the expected `emitc.func`, has multiple `emitc.func` roots, or
+  has function arity different from the selected ABI parameter signature ->
+  fail before output.
+
+### 5. Good/Base/Bad Cases
+
+- Good: Toy and TensorExtLite provide only local config and metadata evidence
+  requirements; both call the same common header validator/exporter through
+  their production target artifact exporters.
+- Base: TensorExtLite may carry an ordered source-op/source-role evidence
+  sequence because its selected route contains multiple typed role ops.
+- Base: Toy may carry one target-export-owned runtime element count parameter;
+  TensorExtLite may carry an empty ABI parameter signature and therefore export
+  `void function(void);`.
+- Bad: common target code branches on Toy, TensorExtLite, RVV, operation names,
+  role graph strings, intrinsic names, or metadata keys to decide computation
+  semantics.
+- Bad: a header helper prints C/C++ compute bodies, direct source exporters,
+  descriptor-derived loops, or runtime execution code.
+
+### 6. Tests Required
+
+- C++ coverage proving at least two production extension-family target
+  exporters consume the common materialized EmitC header validator/exporter.
+- C++ negative coverage for missing/stale route metadata, wrong runtime ABI
+  fields, unexpected or misordered ABI parameters, forbidden metadata, and
+  missing plugin registration.
+- lit coverage for Toy and TensorExtLite positive header output through the
+  default target artifact front door.
+- lit coverage proving header output includes origin plugin, selected variant,
+  selected route, runtime ABI kind/name, ordered ABI parameters when present,
+  source-op/interface provenance, construction protocol, semantic role graph,
+  and typed role evidence.
+- Focused RVV target artifact tests proving RVV object/header/bundle behavior
+  is not regressed by the common header helper.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+Toy target file / TensorExtLite target file
+  -> copied candidate validators
+  -> copied EmitC function-boundary checks
+  -> copied declaration header renderers
+```
+
+Correct:
+
+```text
+plugin-local config and evidence keys
+  -> common materialized EmitC header candidate validator
+  -> common selected EmitC materialization and function-boundary check
+  -> common declaration-only header renderer
+```

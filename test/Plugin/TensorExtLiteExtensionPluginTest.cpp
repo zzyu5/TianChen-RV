@@ -723,7 +723,7 @@ module {
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::tensorext_lite::
                              getTensorExtLiteFragmentPreferredCapabilitySymbol() &&
-                     emissionPlan.getArtifactMetadata().size() == 2 &&
+                     emissionPlan.getArtifactMetadata().size() == 8 &&
                      emissionPlan.getArtifactMetadata()[0].key ==
                          "tensorext_lite_emitc_lowerable_route" &&
                      emissionPlan.getArtifactMetadata()[0].value ==
@@ -731,7 +731,34 @@ module {
                      emissionPlan.getArtifactMetadata()[1].key ==
                          "tensorext_lite_role_sequence" &&
                      emissionPlan.getArtifactMetadata()[1].value ==
-                         "configure->load_frag->tile_mma->store_frag",
+                         "configure->load_frag->tile_mma->store_frag" &&
+                     emissionPlan.getArtifactMetadata()[2].key ==
+                         "tensorext_lite_source_ops" &&
+                     llvm::StringRef(
+                         emissionPlan.getArtifactMetadata()[2].value)
+                         .contains("tcrv_tensorext_lite.config_skeleton->"
+                                   "tcrv_tensorext_lite.load_frag_skeleton") &&
+                     emissionPlan.getArtifactMetadata()[3].key ==
+                         "tensorext_lite_source_roles" &&
+                     emissionPlan.getArtifactMetadata()[3].value ==
+                         "configure->load_frag->tile_mma->store_frag" &&
+                     emissionPlan.getArtifactMetadata()[4].key ==
+                         "tensorext_lite_source_op_interface" &&
+                     emissionPlan.getArtifactMetadata()[4].value ==
+                         "TCRVEmitCLowerableOpInterface" &&
+                     emissionPlan.getArtifactMetadata()[5].key ==
+                         "tensorext_lite_construction_protocol" &&
+                     emissionPlan.getArtifactMetadata()[5].value ==
+                         "extension-family-construction-protocol.v1" &&
+                     emissionPlan.getArtifactMetadata()[6].key ==
+                         "tensorext_lite_semantic_role_graph" &&
+                     emissionPlan.getArtifactMetadata()[6].value ==
+                         "configure->load_frag->tile_mma->store_frag" &&
+                     emissionPlan.getArtifactMetadata()[7].key ==
+                         "tensorext_lite_typed_role_realization" &&
+                     llvm::StringRef(
+                         emissionPlan.getArtifactMetadata()[7].value)
+                         .contains("configure:tel.role.config"),
                  "TensorExtLite emission plan is a supported header artifact "
                  "candidate backed by EmitC route provenance"))
     return result;
