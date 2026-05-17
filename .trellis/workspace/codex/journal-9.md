@@ -995,3 +995,44 @@ caller on `ssh rvv`.
 ### Next Steps
 
 - None - task complete.
+
+
+## Session 117: Legacy source-front-door named-absence fixture erasure
+
+**Date**: 2026-05-17
+**Task**: Legacy source-front-door named-absence fixture erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the remaining Toy selected-boundary seed unknown-option fixture while preserving current source-front-door registry coverage.
+
+### Main Changes
+
+- Created and archived Trellis task `05-17-legacy-source-front-door-named-absence-fixture-erasure` from the Direction Brief.
+- Deleted `test/Transforms/Toy/toy-template-selected-boundary-seed-deleted.mlir`, removing the stale `--tcrv-toy-materialize-template-selected-boundary-seed` named-absence fixture.
+- Preserved current active source-front-door tests for RVV, Toy, TensorExtLite, and the generic source-artifact front-door pipeline.
+- Reviewed spec-update need; no `.trellis/spec/` change was needed because the existing source-front-door and deleted-route constraints already cover this behavior.
+- Checks: focused old-option scans passed, focused lit from `build/test` passed 4/4, `git diff --check` passed, and `cmake --build build --target check-tianchenrv -j2` passed 122/122.
+
+
+### Git Commits
+
+Included in the final task commit for this round.
+
+### Testing
+
+- [OK] Focused selected-boundary/source-seed option scan returned no matches.
+- [OK] Active unknown-option scan left only current disabled-builtins
+  source-front-door option coverage.
+- [OK] Focused lit from `build/test` passed 4/4.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` -> 122/122 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
