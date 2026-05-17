@@ -1963,3 +1963,36 @@ Made the selected RVV source-seed object/header bundle externally consumable as 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 100: TensorExtLite source-front-door construction template
+
+**Date**: 2026-05-17
+**Task**: TensorExtLite source-front-door construction template
+**Branch**: `main`
+
+### Summary
+
+Added a TensorExtLite-owned source-front-door pass and registry hook that materializes the fragment-MMA source marker into selected TensorExtLite role ops, a selected lowering-boundary marker, emission-plan provenance, and the existing declaration-only header artifact route; updated plugin/lowering specs and focused C++/lit coverage.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

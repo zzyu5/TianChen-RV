@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, stack, and descriptor/direct-C boundary invariants for this task"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "SourceFrontDoorPassRegistration contract and common registry boundaries"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission plan, runtime ABI, target artifact, and source-export/direct-C fail-closed contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TensorExtLite materialized EmitC role sequence and common declaration-only header artifact contract"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Public source-artifact front-door pipeline ordering and fail-closed behavior"}

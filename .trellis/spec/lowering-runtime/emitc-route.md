@@ -286,6 +286,12 @@ applies to both direct selected-path diagnostics and selected
   metadata-only artifact authority, direct C/source-export bodies, TensorExtLite
   object/bundle target artifact export, hardware execution, correctness, or
   performance evidence.
+- Base: TensorExtLite source-front-door materialization may also create a
+  direct `tcrv_tensorext_lite.lowering_boundary` marker so generic
+  emission-plan and coherence gates can validate the selected path. The ordered
+  role sequence remains the TensorExtLite EmitC route provenance and artifact
+  evidence; the lowering-boundary marker must not become descriptor, direct-C,
+  source-export, or compute-body authority.
 - Bad: two direct RVV variants exist and the exporter chooses whichever direct
   variant happens to be first or only after test reduction.
 

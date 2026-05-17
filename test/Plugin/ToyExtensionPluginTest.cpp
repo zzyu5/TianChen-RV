@@ -3,6 +3,7 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Dialect/Toy/IR/ToyDialect.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
+#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
@@ -278,6 +279,7 @@ int runBuiltinSourceFrontDoorCollectionTest() {
 
   int rvvIndex = -1;
   int toyIndex = -1;
+  int tensorextLiteIndex = -1;
   for (auto [index, pass] : llvm::enumerate(sourceFrontDoorPasses)) {
     if (pass.getArgument().contains("source-seed"))
       return fail("built-in source front-door collection resurrected "
@@ -291,6 +293,12 @@ int runBuiltinSourceFrontDoorCollectionTest() {
         pass.getArgument() ==
             "tcrv-toy-materialize-template-source-front-door")
       toyIndex = static_cast<int>(index);
+    if (pass.getOwnerPlugin() ==
+            tianchenrv::plugin::tensorext_lite::
+                getTensorExtLiteExtensionPluginName() &&
+        pass.getArgument() ==
+            "tcrv-tensorext-lite-materialize-fragment-mma-source-front-door")
+      tensorextLiteIndex = static_cast<int>(index);
   }
 
   if (int result =
@@ -301,7 +309,11 @@ int runBuiltinSourceFrontDoorCollectionTest() {
           expect(toyIndex >= 0, "built-in registry exposes Toy source front "
                                 "door through the common interface"))
     return result;
-  return expect(rvvIndex < toyIndex,
+  if (int result = expect(tensorextLiteIndex >= 0,
+                          "built-in registry exposes TensorExtLite source "
+                          "front door through the common interface"))
+    return result;
+  return expect(rvvIndex < toyIndex && toyIndex < tensorextLiteIndex,
                 "built-in source front-door order follows registry order");
 }
 

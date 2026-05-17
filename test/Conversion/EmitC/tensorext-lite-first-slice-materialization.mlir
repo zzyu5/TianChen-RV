@@ -44,7 +44,7 @@ module {
 // PLAN-SAME: {key = "tensorext_lite_typed_role_realization", value = "configure:tel.role.config
 // PLAN-SAME: }]
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-tensorext-lite-fragment-mma-module"
-// PLAN-SAME: lowering_boundary = "tcrv_tensorext_lite.role_sequence"
+// PLAN-SAME: lowering_boundary = "tcrv_tensorext_lite.lowering_boundary"
 // PLAN-SAME: lowering_pipeline = "tensorext-lite-fragment-mma-emitc-route"
 // PLAN-SAME: message = "TensorExtLite selected explicit role sequence materializes an EmitC module through the common TCRVEmitCLowerableRoute materializer and exports a declaration-only header artifact for the first slice"
 // PLAN-SAME: origin = "tensorext-lite-plugin"

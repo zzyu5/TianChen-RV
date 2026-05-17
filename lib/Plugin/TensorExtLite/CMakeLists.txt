@@ -3,6 +3,7 @@ add_subdirectory(EmitC)
 
 add_mlir_library(TianChenRVTensorExtLitePlugin
   TensorExtLiteExtensionPlugin.cpp
+  TensorExtLiteSourceFrontDoor.cpp
 
   LINK_LIBS PUBLIC
   TianChenRVConversionEmitC
@@ -13,5 +14,6 @@ add_mlir_library(TianChenRVTensorExtLitePlugin
   TianChenRVTensorExtLiteEmitCRouteProvider
   TianChenRVTensorExtLiteTarget
   MLIRIR
+  MLIRPass
   MLIRSupport
 )

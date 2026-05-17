@@ -70,7 +70,7 @@ constexpr llvm::StringLiteral kTensorExtLiteRuntimeABIKind(
 constexpr llvm::StringLiteral kTensorExtLiteRuntimeGlueRole(
     "emitc-cpp-tensorext-lite-fragment-runtime-glue");
 constexpr llvm::StringLiteral kTensorExtLiteLoweringBoundaryOpName(
-    "tcrv_tensorext_lite.role_sequence");
+    "tcrv_tensorext_lite.lowering_boundary");
 constexpr llvm::StringLiteral kTensorExtLiteConfigCallee(
     "tcrv_tensorext_lite_config");
 constexpr llvm::StringLiteral kTensorExtLiteLoadFragCallee(

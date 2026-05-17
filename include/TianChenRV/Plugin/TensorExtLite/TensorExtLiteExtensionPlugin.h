@@ -34,6 +34,8 @@ public:
   llvm::Error
   collectVariantProposals(const VariantProposalRequest &request,
                           VariantProposalCollectionResult &out) const override;
+  llvm::Error registerSourceFrontDoorPasses(
+      llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const override;
   llvm::Error
   verifyVariantLegality(const VariantLegalityRequest &request) const override;
   llvm::Error

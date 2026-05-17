@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-8.md`
-- **Total Sessions**: 99
+- **Total Sessions**: 100
 - **Last Active**: 2026-05-17
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-8.md` | ~1862 | Active |
+| `journal-8.md` | ~1998 | Active |
 | `journal-7.md` | ~1992 | Archived |
 | `journal-6.md` | ~1973 | Archived |
 | `journal-5.md` | ~1983 | Archived |
@@ -36,6 +36,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 100 | 2026-05-17 | TensorExtLite source-front-door construction template | this commit | `main` |
 | 99 | 2026-05-17 | RVV generated artifact bundle C ABI proof | this commit | `main` |
 | 98 | 2026-05-17 | Toy source-seed metadata authority erasure | this commit | `main` |
 | 97 | 2026-05-17 | TensorExtLite common EmitC route activation | this-commit | `main` |

@@ -49,7 +49,7 @@ module {
         {key = "tensorext_lite_typed_role_realization", value = "configure:tel.role.config:tcrv_tensorext_lite.config_skeleton:TCRVConfigOpInterface:TCRVEmitCLowerableInterface;load_frag:tel.role.load_frag:tcrv_tensorext_lite.load_frag_skeleton:TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;tile_mma:tel.role.tile_mma:tcrv_tensorext_lite.tile_mma_skeleton:TCRVComputeOpInterface:TCRVEmitCLowerableInterface;store_frag:tel.role.store_frag:tcrv_tensorext_lite.store_frag_skeleton:TCRVMemoryOpInterface:TCRVEmitCLowerableInterface"}
       ],
       emission_kind = "materialized-emitc-cpp-tensorext-lite-fragment-mma-module",
-      lowering_boundary = "tcrv_tensorext_lite.role_sequence",
+      lowering_boundary = "tcrv_tensorext_lite.lowering_boundary",
       lowering_pipeline = "tensorext-lite-fragment-mma-emitc-route",
       message = "TensorExtLite selected explicit role sequence exports a declaration-only header artifact",
       origin = "tensorext-lite-plugin",

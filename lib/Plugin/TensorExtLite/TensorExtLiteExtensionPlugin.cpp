@@ -5,11 +5,13 @@
 #include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteEmitCRouteProvider.h"
+#include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteSourceFrontDoor.h"
 #include "TianChenRV/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectRegistry.h"
+#include "mlir/Pass/Pass.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
@@ -604,6 +606,19 @@ llvm::Error TensorExtLiteExtensionPlugin::collectVariantProposals(
   }
 
   out.addProposal(*proposal);
+  return llvm::Error::success();
+}
+
+llvm::Error TensorExtLiteExtensionPlugin::registerSourceFrontDoorPasses(
+    llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
+  out.push_back(SourceFrontDoorPassRegistration(
+      getName(),
+      "tcrv-tensorext-lite-materialize-fragment-mma-source-front-door",
+      "Materialize one bounded TensorExtLite fragment-MMA source marker into "
+      "the selected TensorExtLite role-sequence front door",
+      [] {
+        return createMaterializeTensorExtLiteFragmentMmaSourceFrontDoorPass();
+      }));
   return llvm::Error::success();
 }
 

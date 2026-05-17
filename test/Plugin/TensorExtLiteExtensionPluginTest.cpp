@@ -13,6 +13,7 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Parser/Parser.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Error.h"
@@ -23,6 +24,7 @@
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
+using tianchenrv::plugin::SourceFrontDoorPassRegistration;
 using tianchenrv::plugin::VariantCostEstimate;
 using tianchenrv::plugin::VariantCostRequest;
 using tianchenrv::plugin::VariantEmitCLowerableRequest;
@@ -172,7 +174,8 @@ struct TensorExtLiteTestRoleSpec {
 
 void materializeTensorExtLiteRoleSequence(mlir::OpBuilder &builder,
                                           KernelOp kernel,
-                                          VariantOp variant) {
+                                          VariantOp variant,
+                                          bool reorderLoadAndTile = false) {
   static constexpr TensorExtLiteTestRoleSpec kRoleSpecs[] = {
       {"tcrv_tensorext_lite.config_skeleton", "tel.role.config",
        "configure", "TCRVConfigOpInterface", 0},
@@ -187,7 +190,13 @@ void materializeTensorExtLiteRoleSequence(mlir::OpBuilder &builder,
   mlir::Block &body = variant.getBody().front();
   builder.setInsertionPointToEnd(&body);
   auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
-  for (const TensorExtLiteTestRoleSpec &spec : kRoleSpecs) {
+  const unsigned orderedIndices[] = {0, 1, 2, 3};
+  const unsigned reorderedIndices[] = {0, 2, 1, 3};
+  llvm::ArrayRef<unsigned> indices =
+      reorderLoadAndTile ? llvm::ArrayRef<unsigned>(reorderedIndices)
+                         : llvm::ArrayRef<unsigned>(orderedIndices);
+  for (unsigned specIndex : indices) {
+    const TensorExtLiteTestRoleSpec &spec = kRoleSpecs[specIndex];
     mlir::OperationState state(variant.getLoc(), spec.operationName);
     state.addAttribute("source_kernel",
                        builder.getStringAttr(kernel.getSymName()));
@@ -262,6 +271,35 @@ int runRegistrationAndCapabilityMetadataTest() {
                          tianchenrv::plugin::tensorext_lite::
                              getTensorExtLiteFragmentCapabilityKind(),
                  "TensorExtLite fragment capability metadata is registered"))
+    return result;
+
+  llvm::SmallVector<SourceFrontDoorPassRegistration, 2> sourceFrontDoorPasses;
+  if (int result = expectSuccess(registry.collectSourceFrontDoorPasses(
+                                     sourceFrontDoorPasses),
+                                 "TensorExtLite source front-door pass "
+                                 "collection succeeds"))
+    return result;
+  if (int result =
+          expect(sourceFrontDoorPasses.size() == 1,
+                 "TensorExtLite plugin contributes one source front-door pass"))
+    return result;
+  if (int result =
+          expect(sourceFrontDoorPasses.front().getOwnerPlugin() ==
+                     tianchenrv::plugin::tensorext_lite::
+                         getTensorExtLiteExtensionPluginName(),
+                 "TensorExtLite source front-door pass is owned by "
+                 "TensorExtLite plugin"))
+    return result;
+  if (int result =
+          expect(sourceFrontDoorPasses.front().getArgument() ==
+                     "tcrv-tensorext-lite-materialize-fragment-mma-source-front-door",
+                 "TensorExtLite source front-door pass keeps the public pass "
+                 "argument"))
+    return result;
+  if (int result = expect(static_cast<bool>(
+                              sourceFrontDoorPasses.front().getFactory()),
+                          "TensorExtLite source front-door pass factory is "
+                          "present"))
     return result;
 
   const auto &manifest =
@@ -799,6 +837,75 @@ module {
   return 0;
 }
 
+int runRoleSequenceOrderingNegativeTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @reordered_tensorext_lite_tile_mma_kernel attributes {} {
+    tcrv.exec.capability @tensorext_lite_tile_mma {
+      id = "tensorext_lite.tile_mma",
+      kind = "fragment-mma-like",
+      status = "available",
+      fragment_abi = "tensorext-lite-fragment-boundary.v1",
+      handoff_kind = "tensorext-lite-fragment-mma-template"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse reordered TensorExtLite role-sequence module");
+
+  KernelOp kernel =
+      findKernel(*module, "reordered_tensorext_lite_tile_mma_kernel");
+  if (int result =
+          expect(kernel, "reordered TensorExtLite module has kernel anchor"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerTensorExtLiteExtensionPlugin(
+                            registry),
+                        "register TensorExtLite plugin for reordered role "
+                        "negative"))
+    return result;
+
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+  VariantProposalRequest request(kernel.getOperation(), kernel, capabilities);
+  mlir::OpBuilder builder(&context);
+  llvm::SmallVector<VariantOp, 1> materializedVariants;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, request, &materializedVariants),
+          "materialize TensorExtLite proposal for reordered role negative"))
+    return result;
+
+  VariantOp tensorext_liteVariant = findVariant(
+      kernel,
+      tianchenrv::plugin::tensorext_lite::
+          getTensorExtLiteFragmentFirstSliceVariantName());
+  if (int result =
+          expect(tensorext_liteVariant,
+                 "TensorExtLite reordered negative materializes variant"))
+    return result;
+
+  materializeTensorExtLiteRoleSequence(builder, kernel, tensorext_liteVariant,
+                                       /*reorderLoadAndTile=*/true);
+  if (int result = expect(mlir::succeeded(mlir::verify(*module)),
+                          "reordered TensorExtLite role module verifies"))
+    return result;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute emitcRoute;
+  return expectErrorContains(
+      registry.buildVariantEmitCLowerableRoute(VariantEmitCLowerableRequest(
+          tensorext_liteVariant, kernel, capabilities,
+          VariantEmissionRole::DirectVariant),
+                                               emitcRoute),
+      {"selected TensorExtLite role ops must appear in "
+       "configure->load_frag->tile_mma->store_frag order"});
+}
+
 } // namespace
 
 int main() {
@@ -820,6 +927,8 @@ int main() {
   if (int result = runProposalGatingAndDeclineTest(context))
     return result;
   if (int result = runPipelineHookTest(context))
+    return result;
+  if (int result = runRoleSequenceOrderingNegativeTest(context))
     return result;
 
   llvm::outs() << "TensorExtLite extension plugin fragment smoke test passed\n";

@@ -201,6 +201,134 @@ Toy source marker
   -> Toy target header artifact validation
 ```
 
+## Scenario: TensorExtLite Construction-Template Source Front Door
+
+### 1. Scope / Trigger
+
+Use this contract when proving that the source-front-door construction template
+is reusable by TensorExtLite. TensorExtLite source materialization is a bounded
+fragment-MMA construction proof, not a general TensorExt frontend, linalg
+lowering, high-level tensor/tile IR, descriptor adapter, runtime execution
+path, source-export path, correctness claim, or performance path.
+
+### 2. Signatures
+
+- Public pass option:
+  `--tcrv-tensorext-lite-materialize-fragment-mma-source-front-door`.
+- Common pipeline:
+  `--tcrv-source-artifact-front-door-pipeline`.
+- TensorExtLite source module attributes:
+  `tcrv_tensorext_lite.source_front_door = "fragment_mma_template"` and
+  optional `tcrv_tensorext_lite.source_kernel = "<valid-symbol>"`.
+- Materialized selected TensorExtLite role ops:
+  `tcrv_tensorext_lite.config_skeleton`,
+  `tcrv_tensorext_lite.load_frag_skeleton`,
+  `tcrv_tensorext_lite.tile_mma_skeleton`, and
+  `tcrv_tensorext_lite.store_frag_skeleton`.
+- Materialized direct selected-boundary marker for generic emission gates:
+  `tcrv_tensorext_lite.lowering_boundary`.
+
+### 3. Contracts
+
+- The TensorExtLite plugin owns the source marker interpretation, capability
+  materialization, selected variant metadata, ordered role-op materialization,
+  selected lowering-boundary marker, runtime ABI metadata, EmitC route
+  provenance, and declaration-only header artifact route configuration.
+- The selected variant must use `origin = "tensorext-lite-plugin"`, require the
+  `tensorext_lite.tile_mma` capability, preserve the existing TensorExtLite
+  construction protocol metadata, and contain the role sequence in
+  `configure -> load_frag -> tile_mma -> store_frag` order.
+- The direct `tcrv_tensorext_lite.lowering_boundary` marker is the generic
+  selected-boundary surface consumed by emission-plan and coherence gates. It
+  is not computation authority; the TensorExtLite EmitC route still derives
+  source-op/source-role provenance from the ordered role ops.
+- The common registry and common source-artifact pipeline may only collect and
+  run registered source-front-door pass factories, then run generic legality,
+  capability, emission-plan, and coherence checks.
+- The source marker and optional source-kernel attribute are front-door input
+  syntax only. They must be removed or cease to be route authority after
+  materialization.
+- The resulting selected path may export only the existing TensorExtLite
+  materialized-EmitC-derived declaration header artifact. Object, bundle,
+  runtime execution, correctness, and performance claims remain out of scope.
+
+### 4. Validation & Error Matrix
+
+- Built-in plugins disabled -> TensorExtLite source-front-door pass option is
+  not registered, and the common source-artifact pipeline remains fail-closed
+  with an empty plugin registry.
+- Unknown `tcrv_tensorext_lite.source_front_door` value -> fail before
+  materialization.
+- Empty or invalid `tcrv_tensorext_lite.source_kernel` symbol -> fail before
+  materialization.
+- Stale `tcrv_tensorext_lite.lowering_seed` metadata -> fail before
+  materialization.
+- Pre-existing `tcrv.exec`, `tcrv_tensorext_lite`, `tcrv_rvv`, or `tcrv_toy`
+  selected-boundary or variant residue in the TensorExtLite source input ->
+  fail before materialization.
+- Missing or reordered TensorExtLite role ops -> fail in TensorExtLite EmitC
+  route construction before emission-plan or target artifact output.
+- Missing selected lowering-boundary marker -> fail in generic emission-plan
+  validation before plugin emission routing.
+- Missing route provenance, stale artifact metadata, descriptor/direct-C/
+  source-export residue, or missing materialized EmitC handoff -> fail before
+  header artifact output.
+
+### 5. Good/Base/Bad Cases
+
+- Good: a module with the TensorExtLite source marker materializes one selected
+  TensorExtLite variant, the ordered role sequence, one direct
+  `tcrv_tensorext_lite.lowering_boundary`, a selected diagnostic, supported
+  TensorExtLite emission-plan metadata, TensorExtLite EmitC route provenance,
+  and the declaration-only header artifact.
+- Base: already materialized TensorExtLite role-sequence inputs remain valid
+  backend-first inputs when they satisfy selected-path, emission-plan, and
+  target artifact contracts.
+- Bad: common code branches on TensorExtLite/Toy/RVV names, a TensorExtLite
+  seed option aliases the new pass, descriptor strings choose fragment-MMA
+  computation, or the source marker exports C/source artifacts without a
+  selected TensorExtLite extension-family boundary and EmitC route.
+
+### 6. Tests Required
+
+- C++ registry coverage proving RVV, Toy, and TensorExtLite source-front-door
+  passes are collected through the same `collectSourceFrontDoorPasses`
+  interface without duplicate or stale registration.
+- lit/FileCheck positive coverage for the TensorExtLite pass and for
+  `--tcrv-source-artifact-front-door-pipeline` showing selected TensorExtLite
+  variant, `origin = "tensorext-lite-plugin"`, ordered role ops,
+  `tcrv_tensorext_lite.lowering_boundary`, runtime ABI ownership metadata,
+  supported emission plan, and TensorExtLite EmitC route provenance.
+- lit/FileCheck target artifact coverage piping the TensorExtLite
+  source-front-door pipeline to `--tcrv-export-target-header-artifact`.
+- Negative coverage for disabled built-ins, malformed TensorExtLite source
+  marker, stale pre-materialized selected-boundary residue, missing/reordered
+  role ops, missing boundary/route provenance, and absence of descriptor/
+  direct-C/source-export/RVV-only/Toy-only residue in TensorExtLite
+  source-front-door outputs.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+TensorExtLite source marker
+  -> common TensorExtLite branch or descriptor metadata
+  -> direct C/source artifact export
+```
+
+Correct:
+
+```text
+TensorExtLite source marker
+  -> TensorExtLite-owned source front-door pass
+  -> selected TensorExtLite variant
+  -> ordered TensorExtLite role ops + TensorExtLite lowering-boundary marker
+  -> TensorExtLite-owned EmitC route provenance
+  -> common emission-plan/coherence checks
+  -> TensorExtLite declaration-only header artifact validation
+```
+
 ### TCRV Common Operation Interfaces
 
 Long-term extension family ops should implement shared interfaces where
