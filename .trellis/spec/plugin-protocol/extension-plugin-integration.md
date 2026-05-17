@@ -97,6 +97,20 @@ references, and plugin interface results. It should not learn extension
 intrinsic names, fragment layouts, custom tile semantics, or runtime-call
 details.
 
+## Built-in Registration Front Door
+
+Built-in extension registration must preserve extension bundle identity as part
+of the public construction path. Tool and target registration code should use
+`registerBuiltinExtensionBundlePlugins`, or explicitly call
+`registerBuiltinExtensionBundles` followed by
+`ExtensionBundleRegistry::registerExtensionPlugins` when it needs to inspect or
+reuse bundle metadata.
+
+Do not reintroduce a plugin-only compatibility API that hides
+`ExtensionBundleRegistry` behind a built-in plugin registration wrapper. Tests
+for built-in availability should exercise the canonical bundle front door
+directly instead of protecting a legacy alias.
+
 ## Lowering And Emission Template
 
 A plugin-owned lowering path should fit this template:

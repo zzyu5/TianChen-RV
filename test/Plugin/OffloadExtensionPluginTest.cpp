@@ -1,6 +1,7 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Dialect/Offload/IR/OffloadDialect.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
@@ -24,6 +25,7 @@
 #include <string>
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
+using tianchenrv::plugin::ExtensionBundleRegistry;
 using tianchenrv::plugin::PluginCapability;
 using tianchenrv::plugin::VariantCostEstimate;
 using tianchenrv::plugin::VariantCostRequest;
@@ -447,11 +449,14 @@ module {
           expect(highLevelOp && kernel, "materialization module has anchors"))
     return result;
 
+  ExtensionBundleRegistry bundles;
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerBuiltinExtensionPlugins(
-                            registry),
-                        "register built-in plugins for offload materialization"))
+          expectSuccess(
+              tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+                  bundles, registry),
+              "register built-in extension bundle frontdoor for offload "
+              "materialization"))
     return result;
 
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
@@ -723,11 +728,14 @@ int main() {
     return result;
 
   mlir::DialectRegistry dialectRegistry;
+  ExtensionBundleRegistry dialectBundles;
   ExtensionPluginRegistry dialectPlugins;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerBuiltinExtensionPlugins(
-                            dialectPlugins),
-                        "register built-in plugins for dialect context"))
+          expectSuccess(
+              tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+                  dialectBundles, dialectPlugins),
+              "register built-in extension bundle frontdoor for dialect "
+              "context"))
     return result;
   tianchenrv::registerAllDialects(dialectRegistry);
   tianchenrv::registerPluginDialects(dialectPlugins, dialectRegistry);

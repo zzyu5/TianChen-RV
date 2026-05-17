@@ -2063,18 +2063,6 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
     return false;
   }
 
-  ExtensionPluginRegistry compatibilityPlugins;
-  if (!expectSuccess(tianchenrv::plugin::registerBuiltinExtensionPlugins(
-                         compatibilityPlugins),
-                     "legacy built-in plugin registration delegates through "
-                     "bundle frontdoor"))
-    return false;
-  if (compatibilityPlugins.size() != 6) {
-    llvm::errs() << "legacy built-in plugin registration delegate changed "
-                    "plugin count\n";
-    return false;
-  }
-
   PluginTargetArtifactExporterRegistry pluginExporterBundles;
   if (!expectSuccess(
           bundles.registerTargetArtifactExporterBundles(pluginExporterBundles),
@@ -2333,11 +2321,12 @@ bool expectOffloadTargetArtifactExportersAbsent() {
     return false;
   }
 
+  ExtensionBundleRegistry allBundles;
   ExtensionPluginRegistry allPlugins;
-  if (!expectSuccess(tianchenrv::plugin::registerBuiltinExtensionPlugins(
-                         allPlugins),
-                     "register built-in extension plugins for offload target "
-                     "exporter absence check"))
+  if (!expectSuccess(tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+                         allBundles, allPlugins),
+                     "register built-in extension bundle frontdoor for offload "
+                     "target exporter absence check"))
     return false;
 
   TargetArtifactExporterRegistry allRegistry;

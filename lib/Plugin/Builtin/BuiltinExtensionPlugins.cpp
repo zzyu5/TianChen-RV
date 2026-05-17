@@ -75,11 +75,6 @@ llvm::Error registerManifestOwnedExtensionBundle(
 
 } // namespace
 
-llvm::Error registerBuiltinExtensionPlugins(ExtensionPluginRegistry &registry) {
-  ExtensionBundleRegistry bundles;
-  return registerBuiltinExtensionBundlePlugins(bundles, registry);
-}
-
 llvm::Error
 registerBuiltinExtensionBundles(ExtensionBundleRegistry &registry) {
   for (const BuiltinExtensionBundleSpec &spec : kBuiltinExtensionBundles) {

@@ -3,6 +3,7 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Dialect/Toy/IR/ToyDialect.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
@@ -25,6 +26,7 @@
 #include <string>
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
+using tianchenrv::plugin::ExtensionBundleRegistry;
 using tianchenrv::plugin::PluginCapability;
 using tianchenrv::plugin::SourceFrontDoorPassRegistration;
 using tianchenrv::plugin::VariantCostEstimate;
@@ -278,10 +280,12 @@ int runRegistrationAndCapabilityMetadataTest() {
 }
 
 int runBuiltinSourceFrontDoorCollectionTest() {
+  ExtensionBundleRegistry bundles;
   ExtensionPluginRegistry registry;
   if (int result = expectSuccess(
-          tianchenrv::plugin::registerBuiltinExtensionPlugins(registry),
-          "register built-in extension plugins for source front-door "
+          tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+              bundles, registry),
+          "register built-in extension bundle frontdoor for source front-door "
           "collection"))
     return result;
 

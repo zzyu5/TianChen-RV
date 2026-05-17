@@ -1001,11 +1001,15 @@ plugin/common ExtensionBundleRegistry
 ## Built-In Registration API
 
 Concrete built-in plugins may expose small C++ helpers that populate an
-`ExtensionPluginRegistry` without changing core pass orchestration. The current
-first built-in helper set is:
+`ExtensionPluginRegistry` without changing core pass orchestration. Aggregate
+built-in registration must keep `ExtensionBundleRegistry` visible in the public
+front door so target support bundles, plugin-owned exporter bundles, and plugin
+registrations are derived from the same enabled extension bundle catalog. The
+current first built-in helper set is:
 
 ```cpp
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/Offload/OffloadExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
@@ -1013,24 +1017,30 @@ first built-in helper set is:
 llvm::Error registerRVVExtensionPlugin(ExtensionPluginRegistry &registry);
 llvm::Error registerOffloadExtensionPlugin(ExtensionPluginRegistry &registry);
 llvm::Error registerScalarExtensionPlugin(ExtensionPluginRegistry &registry);
-llvm::Error registerBuiltinExtensionPlugins(ExtensionPluginRegistry &registry);
+llvm::Error registerBuiltinExtensionBundles(ExtensionBundleRegistry &registry);
+llvm::Error registerBuiltinExtensionBundlePlugins(
+    ExtensionBundleRegistry &bundles, ExtensionPluginRegistry &registry);
 ```
 
 The registry stores non-owning plugin references, so built-in registration
 helpers must register objects with safe process lifetime and must never register
 temporaries or stack objects that go out of scope after the helper returns.
 Duplicate registration continues to be rejected by the generic registry
-diagnostic path. `tcrv-opt` registers the built-in helper set at the tool
-boundary and then registers registry-dependent passes with that owned registry,
-so public `rvv-plugin` and `scalar-plugin` origins route through their plugins
-instead of the empty-registry path. The same front-door rule applies to the
-generic `offload-plugin`: offload dialect and handoff behavior are registered
-through the plugin registry, while shared orchestration continues to route only
-by generic `origin` lookup. `--tcrv-disable-builtin-plugins` is the public tool
-escape hatch for tests that must exercise a completely empty plugin registry,
-including unregistered plugin dialect diagnostics. Unknown origins still
-diagnose generically as unregistered plugins, and direct factory tests can still
-construct empty-registry passes when that negative behavior is required.
+diagnostic path. `tcrv-opt` and `tcrv-translate` register built-ins through the
+bundle front door at the tool boundary and then register registry-dependent
+passes or translations with that owned registry, so public `rvv-plugin` and
+`scalar-plugin` origins route through their plugins instead of the
+empty-registry path. Do not add a plugin-only built-in compatibility wrapper
+that hides the bundle registry; tests that need all built-ins should construct
+an `ExtensionBundleRegistry` and call the canonical bundle front door directly.
+The same front-door rule applies to the generic `offload-plugin`: offload
+dialect and handoff behavior are registered through the plugin registry, while
+shared orchestration continues to route only by generic `origin` lookup.
+`--tcrv-disable-builtin-plugins` is the public tool escape hatch for tests that
+must exercise a completely empty plugin registry, including unregistered plugin
+dialect diagnostics. Unknown origins still diagnose generically as unregistered
+plugins, and direct factory tests can still construct empty-registry passes when
+that negative behavior is required.
 
 `registerPluginDialects` delegates to
 `ExtensionPluginRegistry::registerDialectsForEnabledPlugins`. Therefore a

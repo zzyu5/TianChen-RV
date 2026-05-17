@@ -1,6 +1,7 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Dialect/Scalar/IR/ScalarDialect.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
@@ -21,6 +22,7 @@
 #include <string>
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
+using tianchenrv::plugin::ExtensionBundleRegistry;
 using tianchenrv::plugin::PluginCapability;
 using tianchenrv::plugin::VariantCostEstimate;
 using tianchenrv::plugin::VariantCostRequest;
@@ -606,11 +608,14 @@ module {
                  "RVV-decline scalar envelope module has anchors"))
     return result;
 
+  ExtensionBundleRegistry bundles;
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerBuiltinExtensionPlugins(
-                            registry),
-                        "register built-in plugins for RVV decline coverage"))
+          expectSuccess(
+              tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+                  bundles, registry),
+              "register built-in extension bundle frontdoor for RVV decline "
+              "coverage"))
     return result;
 
   TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);

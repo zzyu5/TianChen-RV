@@ -73,6 +73,66 @@ Added a code-consumed common materialized EmitC object/header bundle constructio
 - None - task complete
 
 
+## Session 118: Legacy built-in plugin registration wrapper erasure
+
+**Date**: 2026-05-17
+**Task**: Legacy built-in plugin registration wrapper erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the legacy plugin-only built-in registration wrapper and rewired active
+tests to the canonical extension bundle frontdoor.
+
+### Main Changes
+
+- Created Trellis task
+  `05-17-legacy-builtin-plugin-registration-wrapper-erasure` from the Direction
+  Brief and wrote a deletion/refactor-only PRD.
+- Removed `registerBuiltinExtensionPlugins` from
+  `include/TianChenRV/Plugin/BuiltinExtensionPlugins.h` and
+  `lib/Plugin/Builtin/BuiltinExtensionPlugins.cpp`.
+- Rewired scalar, Toy, offload, target artifact export, and variant selection
+  test callers to create an `ExtensionBundleRegistry` and call
+  `registerBuiltinExtensionBundlePlugins` directly.
+- Removed the explicit `compatibilityPlugins` coverage and
+  `legacy built-in plugin registration delegates through bundle frontdoor`
+  assertion from `TargetArtifactExportTest.cpp`.
+- Preserved `tcrv-opt` and `tcrv-translate` on the canonical bundle frontdoor.
+- Updated plugin-protocol specs so future built-in aggregate registration keeps
+  bundle identity visible and does not reintroduce a plugin-only wrapper.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-17-legacy-builtin-plugin-registration-wrapper-erasure`
+- [OK] Active residue scan:
+  `rg -n "registerBuiltinExtensionPlugins|compatibilityPlugins|legacy built-in plugin registration" include lib tools test`
+  -> no matches.
+- [OK] Active code/spec residue scan:
+  `rg -n "registerBuiltinExtensionPlugins|compatibilityPlugins|legacy built-in plugin registration" include lib tools test .trellis/spec`
+  -> no matches.
+- [OK] Focused build for touched tests and tools:
+  `cmake --build build --target tianchenrv-scalar-extension-plugin-test tianchenrv-toy-extension-plugin-test tianchenrv-offload-extension-plugin-test tianchenrv-target-artifact-export-test tianchenrv-variant-selection-test tcrv-opt tcrv-translate -j2`.
+- [OK] Focused C++ tests:
+  `tianchenrv-scalar-extension-plugin-test`,
+  `tianchenrv-toy-extension-plugin-test`,
+  `tianchenrv-offload-extension-plugin-test`,
+  `tianchenrv-target-artifact-export-test`, and
+  `tianchenrv-variant-selection-test`.
+- [OK] Tool registration probes with `build/bin/tcrv-opt --help-hidden` and
+  `build/bin/tcrv-translate --help`.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` -> 122/122 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 107: Template materialized EmitC construction-template route
 
 **Date**: 2026-05-17

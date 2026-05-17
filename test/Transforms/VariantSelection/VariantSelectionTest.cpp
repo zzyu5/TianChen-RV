@@ -1,5 +1,6 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
@@ -29,6 +30,7 @@
 #include <string>
 
 using tianchenrv::plugin::ExtensionPlugin;
+using tianchenrv::plugin::ExtensionBundleRegistry;
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
 using tianchenrv::plugin::VariantCostEstimate;
@@ -1183,11 +1185,14 @@ module {
   if (!module)
     return fail("failed to parse built-in RVV/scalar selection module");
 
+  ExtensionBundleRegistry bundles;
   ExtensionPluginRegistry registry;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerBuiltinExtensionPlugins(
-                            registry),
-                        "register built-in RVV and scalar fallback plugins"))
+          expectSuccess(
+              tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+                  bundles, registry),
+              "register built-in extension bundle frontdoor for RVV and "
+              "scalar fallback plugins"))
     return result;
   ExtensionPluginRegistry scalarMaterializationRegistry;
   if (int result = expectSuccess(
@@ -1739,11 +1744,14 @@ module {
 int main() {
   mlir::DialectRegistry dialectRegistry;
   tianchenrv::registerAllDialects(dialectRegistry);
+  ExtensionBundleRegistry dialectBundles;
   ExtensionPluginRegistry dialectPlugins;
   if (int result =
-          expectSuccess(tianchenrv::plugin::registerBuiltinExtensionPlugins(
-                            dialectPlugins),
-                        "register built-in plugin dialects"))
+          expectSuccess(
+              tianchenrv::plugin::registerBuiltinExtensionBundlePlugins(
+                  dialectBundles, dialectPlugins),
+              "register built-in extension bundle frontdoor for plugin "
+              "dialects"))
     return result;
   tianchenrv::registerPluginDialects(dialectPlugins, dialectRegistry);
 
