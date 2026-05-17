@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "check global stack and descriptor/direct-C red lines"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "check TensorExtLite source-front-door acceptance and negative matrix"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "check materialized EmitC handoff, object/header/bundle, and provenance requirements"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "check no direct C/source exporter or descriptor authority was introduced"}
