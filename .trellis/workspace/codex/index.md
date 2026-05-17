@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-9.md`
-- **Total Sessions**: 108
+- **Total Sessions**: 109
 - **Last Active**: 2026-05-17
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-9.md` | ~542 | Active |
+| `journal-9.md` | ~573 | Active |
 | `journal-8.md` | ~1998 | Archived |
 | `journal-7.md` | ~1992 | Archived |
 | `journal-6.md` | ~1973 | Archived |
@@ -37,6 +37,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 109 | 2026-05-17 | RVV runtime-callable C ABI link proof | - | `main` |
 | 108 | 2026-05-17 | Toy materialized EmitC object-bundle bridge | - | `main` |
 | 107 | 2026-05-17 | Template materialized EmitC object bundle packaging bridge | this commit | `main` |
 | 106 | 2026-05-17 | TensorExtLite construction protocol consumption | this commit | `main` |

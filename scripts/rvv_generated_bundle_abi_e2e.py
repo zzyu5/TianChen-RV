@@ -478,6 +478,21 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
     require_contains(text, "#include <stddef.h>", "generated header")
     require_contains(text, "#include <stdint.h>", "generated header")
     require_contains(text, expectation.prototype, "generated header")
+    open_guard = '#ifdef __cplusplus\nextern "C" {\n#endif'
+    close_guard = '#ifdef __cplusplus\n} /* extern "C" */\n#endif'
+    open_guard_index = text.find(open_guard)
+    prototype_index = text.find(expectation.prototype)
+    close_guard_index = text.find(close_guard, prototype_index)
+    if not (
+        open_guard_index >= 0
+        and prototype_index >= 0
+        and close_guard_index >= 0
+        and open_guard_index < prototype_index < close_guard_index
+    ):
+        raise EvidenceError(
+            "generated header public declaration is not wrapped by the "
+            'C++ extern "C" guard required for the runtime-callable C ABI'
+        )
     require_contains(text, "tianchenrv.rvv.runtime_avl_source: runtime_abi:n", "generated header")
     require_contains(text, "tianchenrv.rvv.multi_vl: supported", "generated header")
     for token in FORBIDDEN_HEADER_TOKENS:
@@ -487,10 +502,13 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
         "size": header_path.stat().st_size,
         "sha256": sha256_file(header_path),
         "prototype": expectation.prototype,
+        "extern_c_guard": True,
     }
 
 
-def verify_object(object_path: Path, readobj: str | None) -> dict[str, Any]:
+def verify_object(
+    object_path: Path, readobj: str | None, expectation: OpExpectation
+) -> dict[str, Any]:
     if not object_path.exists():
         raise EvidenceError(f"generated object is missing: {object_path}")
     size = object_path.stat().st_size
@@ -509,6 +527,27 @@ def verify_object(object_path: Path, readobj: str | None) -> dict[str, Any]:
         require_contains(stdout, "Arch: riscv64", "llvm-readobj header check")
         require_contains(stdout, "Type: Relocatable", "llvm-readobj header check")
         result["readobj"] = readobj_record
+        symbols_record = run_command([readobj, "--symbols", str(object_path)], timeout=30)
+        require_command_success(symbols_record, "llvm-readobj symbol check")
+        symbols_stdout = str(symbols_record.get("stdout", ""))
+        require_contains(
+            symbols_stdout,
+            f"Name: {expectation.function_name}",
+            "llvm-readobj symbol check",
+        )
+        mangled_selected_pattern = re.compile(
+            rf"\b_Z[0-9]+{re.escape(expectation.function_name)}"
+        )
+        if mangled_selected_pattern.search(symbols_stdout):
+            raise EvidenceError(
+                "generated object exposes a C++-mangled selected function "
+                "symbol instead of the runtime-callable C ABI symbol"
+            )
+        result["symbols"] = {
+            "command": symbols_record["command"],
+            "selected_symbol": expectation.function_name,
+            "unmangled_selected_symbol": True,
+        }
     return result
 
 
@@ -554,7 +593,7 @@ def verify_bundle(
             "sha256": sha256_file(index_path),
             "parsed": parsed,
         },
-        "object": verify_object(object_path, readobj),
+        "object": verify_object(object_path, readobj, expectation),
         "header": verify_header(header_path, expectation),
         "object_file": object_file,
         "header_file": header_file,
@@ -995,7 +1034,13 @@ def make_fake_bundle(root: Path, expectation: OpExpectation) -> Path:
 #include <stdint.h>
 /* tianchenrv.rvv.runtime_avl_source: runtime_abi:n */
 /* tianchenrv.rvv.multi_vl: supported */
+#ifdef __cplusplus
+extern "C" {{
+#endif
 {expectation.prototype}
+#ifdef __cplusplus
+}} /* extern "C" */
+#endif
 #endif
 """.lstrip(),
         encoding="utf-8",
@@ -1149,6 +1194,17 @@ def run_self_test() -> int:
         expect_self_test_failure(
             "header intrinsic body residue",
             lambda: verify_bundle(bad_header, None, expectation),
+        )
+
+        missing_extern_c = make_fake_bundle(tmp / "missing-extern-c", expectation)
+        header = next(missing_extern_c.glob("*.h"))
+        header.write_text(
+            header.read_text(encoding="utf-8").replace('extern "C" {\n', ""),
+            encoding="utf-8",
+        )
+        expect_self_test_failure(
+            "missing extern C guard",
+            lambda: verify_bundle(missing_extern_c, None, expectation),
         )
 
         mismatched_variant = make_fake_bundle(tmp / "mismatched-variant", expectation)

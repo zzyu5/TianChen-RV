@@ -540,3 +540,61 @@ Rebuilt Toy target artifact export from header-only to materialized EmitC object
 ### Next Steps
 
 - None - task complete
+
+
+## Session 109: RVV runtime-callable C ABI link proof
+
+**Date**: 2026-05-17
+**Task**: RVV runtime-callable C ABI link proof
+**Branch**: `main`
+
+### Summary
+
+Tightened RVV generated bundle ABI evidence checks for extern-C header guards and unmangled selected symbols; proved add-path external C harness on ssh rvv.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `05-17-rvv-runtime-callable-c-abi-link-proof` from the Hermes brief, with PRD
+  scope locked to the selected RVV vector-source add runtime-callable C ABI
+  proof.
+- Kept the compiler route unchanged; the only code change is evidence tooling
+  in `scripts/rvv_generated_bundle_abi_e2e.py`.
+- Tightened generated header verification so the public declaration must sit
+  inside the C++ `extern "C"` guard required by the C ABI contract.
+- Tightened generated object verification so `llvm-readobj --symbols` must
+  show the unmangled selected add symbol and must not show a C++-mangled
+  selected symbol.
+- Extended the script self-test fake bundle to include the required extern-C
+  guard and added a negative self-test for a missing guard.
+- Proved the add route on `ssh rvv` with an external C harness that includes
+  the generated header, links the generated object, and prints
+  `PASS op=add counts=1,7,16,17,257`.
+
+### Git Commits
+
+(Committed in this round; see final report for hash.)
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] add-only dry-run with `/usr/lib/llvm-20/bin/llvm-readobj`, recording
+  `extern_c_guard: true` and `unmangled_selected_symbol: true`.
+- [OK] focused lit from `build/test` with filter
+  `Scripts/rvv-generated-bundle-abi-e2e-self-test|Target/RVV/vector-source-target-artifact-(object|header)`.
+- [OK] `ssh rvv` add harness run:
+  `tcrv_rvv_generated_bundle_abi_add_ok counts=1,7,16,17,257` and
+  `PASS op=add counts=1,7,16,17,257`.
+- [OK] `git diff --check`
+- [INFO] `check-tianchenrv` was not run because this round did not change
+  common EmitC or target artifact C++ code.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

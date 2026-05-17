@@ -1,0 +1,5 @@
+{"file":".trellis/spec/index.md","reason":"Global TianChen-RV source of truth and invariants for this RVV C ABI linkage proof."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Selected materialized EmitC object/header/bundle route, common header helper, and runtime-callable C ABI linkage contract."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Required lit/FileCheck, C++/tooling, and ssh rvv evidence policy for RVV runtime/correctness claims."}
+{"file":".trellis/tasks/archive/2026-05/05-17-rvv-runtime-callable-c-abi-link-proof/prd.md","reason":"This round's bounded RVV vector-source add C ABI linkage goal, non-goals, and acceptance criteria."}
+{"file":".trellis/tasks/archive/2026-05/05-17-05-17-toy-emitc-object-bundle/prd.md","reason":"Immediate previous common object/header/bundle helper context without broadening this task to Toy."}

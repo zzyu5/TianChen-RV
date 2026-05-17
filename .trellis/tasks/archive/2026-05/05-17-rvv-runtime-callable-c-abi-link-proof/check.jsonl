@@ -1,0 +1,4 @@
+{"file":".trellis/spec/index.md","reason":"Verify final changes still obey TianChen-RV global invariants and stack boundaries."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Check runtime-callable C ABI linkage, header guard, unmangled symbol, and selected object/header/bundle coherence."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Check focused lit/tooling coverage and real ssh rvv evidence requirements are satisfied."}
+{"file":".trellis/tasks/archive/2026-05/05-17-rvv-runtime-callable-c-abi-link-proof/prd.md","reason":"Check implementation, evidence, Trellis finish state, and final report against this round's PRD."}
