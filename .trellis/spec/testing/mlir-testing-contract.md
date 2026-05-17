@@ -428,70 +428,16 @@ flags, and generated runtime `n` cases. It must not be reported as generic
 TianChen-RV lowering correctness, arbitrary RVV emission support, full runtime
 integration, or performance evidence.
 
-If the repository exports a generated RVV+scalar dispatch self-check C harness,
-local lit tests must cover the harness structure without requiring `ssh rvv`.
-Any remote compile/run of that generated harness must be reported separately as
-bounded correctness/runtime-invocation evidence for the explicit finite i32
-add/sub/mul dispatcher family only. Vsub tests must prove subtract semantics,
-and vmul tests must prove multiply semantics; both must reject stale vadd
-intrinsic, route, ABI-name, callable-stem, success marker, or `lhs + rhs`
-expectations. It must not be reported as generic
-high-level lowering correctness, arbitrary RVV emission support, object
-generation, dynamic runtime integration, or performance evidence.
-
-If the repository exports a generated RVV+scalar dispatch self-check object
-artifact, local object-byte tests may be conditional on a detected local/native
-RVV clang setup. If that setup is unavailable, local tests should cover
-fail-closed diagnostics only and the final report must name the exact missing
-tool/header/flag/sysroot condition. Any runtime/correctness claim still
-requires separate `ssh rvv` evidence for the bounded dispatcher self-check
-source/object path and must not be widened to generic RVV lowering, dynamic
-runtime integration, or performance.
-
-If the repository provides an RVV+scalar dispatch executable evidence bridge,
-it remains Python runner/evidence tooling only. Local lit coverage must exercise
-the bridge without contacting `ssh rvv`, including self-test coverage,
-execution-planning pipeline use, generic library dispatch source export,
-explicit self-check source export, deterministic artifact layout below
-`artifacts/tmp`, command-summary redaction, and failure on secret-like evidence
-metadata. If the bridge supports more than one arithmetic family, local lit
-coverage must use already materialized execution-plan inputs or an explicitly
-future plugin-owned frontend, not deleted core linalg/vector source-to-exec
-flags. Passing dry-run proves only planned dispatch handoff and source export.
-Any runtime/correctness claim must use real `ssh rvv` evidence where the
-generated self-check dispatch source is compiled to an object, linked to an
-executable, and run with the bounded success marker observed. That claim must
-remain limited to the finite family-selected RVV+scalar i32 add/sub/mul
-dispatcher executable path and must not be reported as generic RVV lowering,
-arbitrary kernel support, dynamic runtime integration, broad correctness, or
-performance evidence.
-
-If that bridge also exposes a target-artifact-bundle mode, local lit coverage
-must exercise the mode without contacting `ssh rvv`, including bundle export
-through `tcrv-translate --tcrv-export-target-artifact-bundle`, parsing
-`tianchenrv-target-artifact-bundle.index`, discovery of generated source,
-header, and object file names from index metadata, required consumption of the
-compiler-emitted `component_group`, `component_role`, `external_abi_name`, and
-`runtime_abi_parameter[index]` fields instead of route/file-name or hardcoded C
-signature heuristics, malformed or incomplete index rejection, external caller
-generation from the emitted header prototype plus the emitted ordered ABI
-signature, command-summary redaction, and absence of any dry-run
-runtime/correctness claim. Family-specific bundle dry-runs must verify the
-selected route/component group and generated external caller arithmetic; for
-vsub the caller must check `lhs - rhs`, and for vmul the caller must check
-`lhs * rhs`, not stale vadd semantics. Passing bundle dry-run proves only
-compiler bundle export, typed index parsing, file
-discovery, and caller construction. Any bundle external ABI runtime/correctness
-claim must use real `ssh rvv` evidence
-where only the generated source, generated header, generated object, and
-generated caller are copied to the RVV host, the generated source and caller are
-compiled there, the caller is linked and run against the source-built object and
-the generated bundle object, and the bounded success marker is observed. For a
-runtime-callable C ABI bundle, local symbol-table checks must prove the object
-exposes the unmangled generated function name, the generated header must use a
-C++ `extern "C"` guard around the declaration, and the real RVV evidence must
-include a C harness compiled with `clang` against the generated header and
-object.
+The historical RVV+scalar dispatch self-check harness, self-check object, and
+direct executable evidence bridge are deleted test surfaces. Active tests must
+not require generated self-check C bodies, embedded success markers, explicit
+self-check source export, self-check object bytes, route-name dry-runs, or
+bundle-mode caller generation from the old direct printer path. Current
+coverage must instead prove fail-closed route absence or exercise rebuilt
+materialized EmitC object/header bundles that do not synthesize self-check
+compute bodies. Any future runtime/correctness claim must start from a rebuilt
+extension-family op to materialized EmitC route plus separate real `ssh rvv`
+evidence for the concrete artifact under test.
 
 If the repository provides an end-to-end helper for that explicit microkernel
 route, it remains Python runner/evidence tooling only. Local lit coverage must

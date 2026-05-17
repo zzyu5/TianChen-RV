@@ -1208,3 +1208,50 @@ Included in the final task commit for this round.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 120: Binary self-check artifact residue erasure
+
+**Date**: 2026-05-17
+**Task**: Binary self-check artifact residue erasure
+**Branch**: `main`
+
+### Summary
+
+Deleted the obsolete binary self-check expectation public target header and removed stale active testing guidance for the historical self-check harness/object/evidence bridge.
+
+### Main Changes
+
+- Created and archived Trellis task `05-17-binary-self-check-artifact-residue-erasure` from the Direction Brief.
+- Deleted `include/TianChenRV/Target/BinarySelfCheckExpectation.h`, removing `BinarySelfCheckArithmeticKind`, `BinarySelfCheckExpectation`, `makeBinarySelfCheckExpectationError`, `getRuntimeABIPointeeScalarCType`, and `buildBinarySelfCheckExpectationFromRuntimeABI` from the public target API.
+- Rewrote `.trellis/spec/testing/mlir-testing-contract.md` so historical RVV+scalar dispatch self-check harness/object/evidence bridge surfaces are deleted test surfaces rather than active conditional testing guidance.
+- Added no replacement route, compatibility wrapper, descriptor adapter, direct-C source exporter, self-check generator, target artifact kind, or Python compiler-core path.
+- Checks run: focused `BinarySelfCheck*` scan, self-check residue scan, descriptor/direct-C/source-export scan, focused target artifact build, `tianchenrv-target-artifact-export-test`, `git diff --check`, and `check-tianchenrv`.
+
+
+### Git Commits
+
+Included in the final task commit for this round.
+
+### Testing
+
+- [OK] Trellis context validation for the task.
+- [OK] Deleted public API scan returned no matches outside the archived task
+  PRD.
+- [OK] Self-check residue scan left only prohibitive or historical-deletion
+  spec wording.
+- [OK] Descriptor/direct-C/source-export focused scan left existing
+  fail-closed rejection code/tests and negative `implicit-check-not`
+  assertions, not active self-check authority.
+- [OK] `cmake --build build --target tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` -> 122/122 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

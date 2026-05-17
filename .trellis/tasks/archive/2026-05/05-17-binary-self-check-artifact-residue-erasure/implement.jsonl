@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global stack, architecture, and deletion-campaign invariants."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact, self-check, direct-C, source-export, and materialized EmitC route boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route and descriptor/direct-C deletion boundary for target artifacts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Deletion-campaign test ownership and fail-closed expectations for self-check/source/object residue."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin/bundle ownership boundary for target artifact routes."}
