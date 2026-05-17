@@ -211,11 +211,11 @@ int runRegistrationAndCapabilityMetadataTest() {
           expect(manifest.emitcRoute.routeID == route.routeID &&
                      manifest.emitcRoute.emissionKind == route.emissionKind &&
                      manifest.emitcRoute.artifactKind == route.artifactKind &&
-                     route.artifactKind == "unsupported-emission-diagnostic" &&
+                     route.artifactKind == "runtime-callable-c-header" &&
                      manifest.evidenceProfile.contains(
                          "materialized_emitc_module"),
-                 "Toy construction manifest records the EmitC route without "
-                 "target artifact authority"))
+                 "Toy construction manifest records the EmitC route for the "
+                 "materialized header artifact bridge"))
     return result;
   if (int result = expectSuccess(
           tianchenrv::plugin::toy::verifyToyConstructionProtocolReady(),
@@ -557,26 +557,40 @@ module {
           "Toy emission plan is plugin-owned"))
     return result;
   if (int result =
-          expect(emissionPlan.isUnsupported() &&
+          expect(emissionPlan.isSupported() &&
                      emissionPlan.getOriginPlugin() ==
                          tianchenrv::plugin::toy::
                              getToyExtensionPluginName() &&
                      emissionPlan.getKernelSymbol() == kernel.getSymName() &&
                      emissionPlan.getVariantSymbol() ==
                          toyVariant.getSymName() &&
-                     emissionPlan.getLoweringPipeline().empty() &&
-                     emissionPlan.getEmissionKind().empty() &&
-                     emissionPlan.getArtifactKind().empty() &&
-                     emissionPlan.getLoweringBoundaryOpName().empty() &&
-                     emissionPlan.getDiagnostic().contains(
-                         "Toy template target artifact export route is "
-                         "deleted") &&
+                     emissionPlan.getLoweringPipeline() ==
+                         routeSpec.routeID &&
+                     emissionPlan.getEmissionKind() ==
+                         routeSpec.emissionKind &&
+                     emissionPlan.getArtifactKind() ==
+                         routeSpec.artifactKind &&
+                     emissionPlan.getRuntimeABI() ==
+                         routeSpec.runtimeABI &&
+                     emissionPlan.getRuntimeABIKind() ==
+                         routeSpec.runtimeABIKind &&
+                     emissionPlan.getRuntimeABIName() ==
+                         routeSpec.runtimeABIName &&
+                     emissionPlan.getRuntimeGlueRole() ==
+                         routeSpec.runtimeGlueRole &&
+                     emissionPlan.getLoweringBoundaryOpName() ==
+                         routeSpec.loweringBoundaryOpName &&
+                     tianchenrv::support::runtimeABIParametersEqual(
+                         emissionPlan.getRuntimeABIParameters(),
+                         tianchenrv::plugin::toy::
+                             getToyTemplateRuntimeABIParameters()) &&
+                     emissionPlan.getArtifactMetadata().size() == 7 &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
                      emissionPlan.getRequiredCapabilitySymbols().front() ==
                          tianchenrv::plugin::toy::
                              getToyTemplatePreferredCapabilitySymbol(),
-                 "Toy emission plan no longer advertises target artifact "
-                 "authority"))
+                 "Toy emission plan advertises the plugin-local "
+                 "materialized header artifact bridge"))
     return result;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;

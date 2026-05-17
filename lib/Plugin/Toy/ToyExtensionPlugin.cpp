@@ -5,6 +5,7 @@
 #include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyEmitCRouteProvider.h"
+#include "TianChenRV/Target/Toy/ToyTargetSupportBundle.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -74,6 +75,20 @@ constexpr llvm::StringLiteral kToyComputeTypedRoleID(
 constexpr llvm::StringLiteral kToyComputeSourceRole("compute");
 constexpr llvm::StringLiteral kToyComputeRoleSpecificInterface(
     "TCRVComputeOpInterface");
+constexpr llvm::StringLiteral kToyRouteArtifactMetadataKey(
+    "toy_emitc_lowerable_route");
+constexpr llvm::StringLiteral kToySourceOpArtifactMetadataKey(
+    "toy_source_op");
+constexpr llvm::StringLiteral kToySourceRoleArtifactMetadataKey(
+    "toy_source_role");
+constexpr llvm::StringLiteral kToySourceOpInterfaceArtifactMetadataKey(
+    "toy_source_op_interface");
+constexpr llvm::StringLiteral kToyConstructionProtocolArtifactMetadataKey(
+    "toy_construction_protocol");
+constexpr llvm::StringLiteral kToySemanticRoleGraphArtifactMetadataKey(
+    "toy_semantic_role_graph");
+constexpr llvm::StringLiteral kToyTypedRoleRealizationArtifactMetadataKey(
+    "toy_typed_role_realization");
 constexpr int64_t kToyComputeRoleOrder = 2;
 
 struct ToyTemplateCapabilityView {
@@ -685,12 +700,49 @@ llvm::Error ToyExtensionPlugin::buildVariantEmissionPlan(
         " failed plugin legality before emission planning: " + message);
   }
 
-  out = VariantEmissionPlan::getUnsupported(
+  conversion::emitc::TCRVEmitCLowerableRoute route;
+  VariantEmitCLowerableRequest routeRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole());
+  if (llvm::Error error =
+          toy::buildToyTemplateEmitCLowerableRoute(routeRequest, route))
+    return error;
+  if (route.getSourceOpProvenance().empty())
+    return makeToyPluginError(
+        "Toy target artifact emission plan requires route source-op "
+        "provenance before artifact export");
+
+  const toy::ToyConstructionManifest &manifest =
+      toy::getToyConstructionManifest();
+  const toy::ToyTemplateEmitCConstructionRoute &constructionRoute =
+      toy::getToyTemplateEmitCConstructionRoute();
+  const conversion::emitc::TCRVEmitCSourceOpProvenance &source =
+      route.getSourceOpProvenance().front();
+
+  out = VariantEmissionPlan::getSupported(
       kToyPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      "Toy template target artifact export route is deleted; the Toy "
-      "compute_skeleton EmitC materialization helper is not a production "
-      "target artifact route until an explicit rebuilt exporter exists");
+      constructionRoute.emissionKind, constructionRoute.routeID,
+      constructionRoute.runtimeABI, constructionRoute.artifactKind,
+      "Toy selected compute_skeleton route materializes a verified EmitC "
+      "module through the common TCRVEmitCLowerableRoute materializer and "
+      "exports a declaration-only runtime ABI header artifact");
+  out.setRuntimeABIKind(constructionRoute.runtimeABIKind);
+  out.setRuntimeABIName(constructionRoute.runtimeABIName);
+  out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);
+  out.setLoweringBoundaryOpName(constructionRoute.loweringBoundaryOpName);
+  out.addRuntimeABIParameters(toy::getToyTemplateRuntimeABIParameters());
+  out.addArtifactMetadata(kToyRouteArtifactMetadataKey, route.getRouteID());
+  out.addArtifactMetadata(kToySourceOpArtifactMetadataKey, source.opName);
+  out.addArtifactMetadata(kToySourceRoleArtifactMetadataKey, source.role);
+  out.addArtifactMetadata(kToySourceOpInterfaceArtifactMetadataKey,
+                          source.opInterface);
+  out.addArtifactMetadata(kToyConstructionProtocolArtifactMetadataKey,
+                          manifest.protocolVersion);
+  out.addArtifactMetadata(kToySemanticRoleGraphArtifactMetadataKey,
+                          manifest.semanticRoleGraph);
+  out.addArtifactMetadata(kToyTypedRoleRealizationArtifactMetadataKey,
+                          toy::getToyTypedRoleRealizationSummary());
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
@@ -823,7 +875,7 @@ llvm::Error ToyExtensionPlugin::buildVariantEmitCLowerableRoute(
 llvm::Error ToyExtensionPlugin::configureTargetSupportExtensionBundle(
     ExtensionBundle &bundle) const {
   bundle.addRequiredDialectName("tcrv_toy");
-  return llvm::Error::success();
+  return target::toy::configureToyTargetSupportExtensionBundle(bundle);
 }
 
 } // namespace toy

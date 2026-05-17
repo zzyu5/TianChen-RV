@@ -2,6 +2,7 @@
 #define TIANCHENRV_PLUGIN_TOY_TOYCONSTRUCTIONPROTOCOL_H
 
 #include "TianChenRV/Plugin/ConstructionProtocol.h"
+#include "TianChenRV/Support/RuntimeABI.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
@@ -61,6 +62,8 @@ const ToyConstructionManifest &getToyConstructionManifest();
 const ToyTypedRoleGraphRealization &getToyTypedRoleGraphRealization();
 const ToyTemplateEmitCConstructionRoute
     &getToyTemplateEmitCConstructionRoute();
+llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter>
+getToyTemplateRuntimeABIParameters();
 
 llvm::Error
 verifyToyConstructionManifest(const ToyConstructionManifest &manifest);

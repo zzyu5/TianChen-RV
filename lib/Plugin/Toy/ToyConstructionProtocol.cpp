@@ -60,7 +60,7 @@ constexpr llvm::StringLiteral kToyRouteID(
 constexpr llvm::StringLiteral kToyEmissionKind(
     "materialized-emitc-cpp-toy-template-module");
 constexpr llvm::StringLiteral kToyArtifactKind(
-    "unsupported-emission-diagnostic");
+    "runtime-callable-c-header");
 constexpr llvm::StringLiteral kToyRuntimeABI(
     "toy-template-compute-runtime-c-abi.v1");
 constexpr llvm::StringLiteral kToyRuntimeABIKind(
@@ -199,6 +199,11 @@ const ToyTemplateEmitCConstructionRoute kTemplateEmitCRoute = {
     kToyTemplateComputeResultName,
     kToyTemplateComputeResultCType};
 
+const support::RuntimeABIParameter kToyTemplateRuntimeABIParameters[] = {
+    support::makeTargetExportABIParameter(
+        "toy_value_count", "size_t",
+        support::RuntimeABIParameterRole::RuntimeElementCount)};
+
 llvm::Error makeToyConstructionProtocolError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
       llvm::Twine("TianChen-RV Toy construction protocol invalid: ") +
@@ -305,6 +310,11 @@ const ToyTypedRoleGraphRealization &getToyTypedRoleGraphRealization() {
 const ToyTemplateEmitCConstructionRoute
     &getToyTemplateEmitCConstructionRoute() {
   return kTemplateEmitCRoute;
+}
+
+llvm::ArrayRef<support::RuntimeABIParameter>
+getToyTemplateRuntimeABIParameters() {
+  return kToyTemplateRuntimeABIParameters;
 }
 
 llvm::Error

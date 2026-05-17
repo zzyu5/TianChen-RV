@@ -5,11 +5,18 @@ module {
   // PIPE: tcrv_toy.compute_skeleton {
   // PIPE-SAME: selected_variant = @toy_template_first_slice
   // PIPE: tcrv.exec.diagnostic
-  // PIPE-SAME: message = "Toy template target artifact export route is deleted
+  // PIPE-SAME: artifact_kind = "runtime-callable-c-header"
+  // PIPE-SAME: artifact_metadata = [{key = "toy_emitc_lowerable_route", value = "toy-template-compute-emitc-route"}
+  // PIPE-SAME: {key = "toy_source_op", value = "tcrv_toy.compute_skeleton"}
+  // PIPE-SAME: emission_kind = "materialized-emitc-cpp-toy-template-module"
+  // PIPE-SAME: lowering_boundary = "tcrv_toy.compute_skeleton"
+  // PIPE-SAME: lowering_pipeline = "toy-template-compute-emitc-route"
+  // PIPE-SAME: origin = "toy-plugin"
   // PIPE-SAME: reason = "emission_plan"
-  // PIPE-SAME: status = "unsupported"
+  // PIPE-SAME: runtime_abi_name = "toy-template-compute-runtime-c-abi.v1"
+  // PIPE-SAME: status = "supported"
   // PIPE-NOT: artifact_kind = "metadata-diagnostic"
-  // PIPE-NOT: lowering_pipeline = "toy-template-compute-emitc-route"
+  // PIPE-NOT: source-export
   tcrv.exec.kernel @pipeline_toy_template {
     tcrv.exec.capability @toy_template {
       id = "toy.template",

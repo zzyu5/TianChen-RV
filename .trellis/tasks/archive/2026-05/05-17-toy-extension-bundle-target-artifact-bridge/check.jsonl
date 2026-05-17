@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global C++/MLIR stack and no descriptor/Python compiler-core boundaries."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check Toy target support remains plugin-local and bundle-front-door driven."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact evidence does not restore descriptor/direct-C/source-export authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check selected candidate, runtime ABI, and materialized EmitC provenance contracts."}
+{"file": ".trellis/tasks/archive/2026-05/05-17-toy-extension-bundle-target-artifact-bridge/prd.md", "reason": "Check implementation against this round's acceptance criteria."}

@@ -137,12 +137,16 @@ llvm::Error buildToyTemplateEmitCLowerableRoute(
   emitc::TCRVEmitCLowerableRoute route(
       constructionRoute.routeID,
       "extension-family-ops-to-emitc-call-opaque");
+  route.addHeader("stddef.h");
   route.addHeader("stdint.h");
+  route.addABIValueMapping(getToyTemplateRuntimeABIParameters().front(),
+                           "toy_value_count");
   route.addSourceOpProvenance(*source);
 
   emitc::TCRVEmitCCallOpaqueStep step;
   step.sourceOp = std::move(*source);
   step.callee = constructionRoute.callee.str();
+  step.operands.push_back({"toy_value_count", "size_t"});
   step.result = emitc::TCRVEmitCCallOpaqueResult{
       constructionRoute.resultName.str(),
       constructionRoute.resultCType.str()};

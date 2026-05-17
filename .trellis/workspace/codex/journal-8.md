@@ -56,6 +56,70 @@ Refreshed current-HEAD proof that RVV i32m1 add/sub/mul selected paths cross con
 - None - task complete
 
 
+## Session 101: Toy extension bundle target artifact bridge
+
+**Date**: 2026-05-17
+**Task**: Toy extension bundle target artifact bridge
+**Branch**: `main`
+
+### Summary
+
+Added a Toy plugin-local target artifact bridge through the built-in
+`ExtensionBundleRegistry` front door. The existing Toy selected
+`tcrv_toy.compute_skeleton` boundary now supports a materialized EmitC route
+and a declaration-only runtime ABI header artifact without adding Toy-specific
+branches to tools, built-in target registration, or common target export.
+
+### Main Changes
+
+- Added `Target/Toy` target-support bundle APIs and implementation for the Toy
+  materialized EmitC header artifact exporter.
+- Rewired `ToyExtensionPlugin::configureTargetSupportExtensionBundle` to
+  publish `tcrv_toy`, the selected `tcrv_toy.compute_skeleton` boundary, and
+  Toy target artifact exporter bundle registration.
+- Changed Toy emission planning from unsupported to a supported
+  `runtime-callable-c-header` route that carries route provenance, source-op
+  provenance, construction protocol role metadata, and ordered runtime ABI
+  parameter evidence.
+- Extended Toy EmitC route materialization with a bounded runtime ABI parameter
+  (`size_t toy_value_count`) and kept the common EmitC materializer as the only
+  source of C/C++ handoff evidence.
+- Updated C++ and lit coverage for Toy positive export, stale provenance
+  rejection, disabled built-ins fail-closed behavior, and RVV/TensorExtLite
+  route preservation through the bundle registry.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-toy-extension-plugin-test tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test tianchenrv-tensorext-lite-extension-plugin-test tcrv-opt tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-toy-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- [OK] focused lit filter for Toy target artifacts, Toy execution planning,
+  Toy EmitC materialization, TensorExtLite header artifact, RVV header
+  artifact, and target artifact registry: 10/10 passed.
+- [OK] `./build/bin/tcrv-translate --help | rg "tcrv-export-target-artifact|tcrv-export-target-header-artifact|tcrv-export-target-artifact-bundle"`
+- [OK] Toy positive pipeline/header evidence probe prints origin plugin,
+  selected variant, route id, runtime ABI name, source op/interface, and
+  construction protocol.
+- [OK] disabled built-ins probe fails closed before Toy materialization.
+- [OK] targeted scans show no Toy-specific branches in `tools/tcrv-opt`,
+  `tools/tcrv-translate`, `lib/Target/Builtin`, or
+  `lib/Target/TargetArtifactExport.cpp`; descriptor/direct-C/source-export text
+  appears only in rejection checks/messages.
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Toy object/runtime execution remains intentionally out of scope; next rebuild
+  work can add object/native compilation only under an explicit Toy runtime ABI
+  contract.
+
+
 ## Session 101: Extension bundle registry default plugin front door
 
 **Date**: 2026-05-17

@@ -36,6 +36,7 @@ add_mlir_library(TianChenRVToyPlugin
   TianChenRVToyConstructionProtocol
   TianChenRVToyDialect
   TianChenRVToyEmitCRouteProvider
+  TianChenRVToyTarget
   MLIRFuncDialect
   MLIRIR
   MLIRPass

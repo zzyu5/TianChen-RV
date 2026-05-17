@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack and no descriptor-driven computation invariants."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry/interface locality and bundle front-door ownership."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact handoff must use materialized EmitC route evidence, not direct C or descriptors."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Selected emission-plan to target artifact handoff and materialized EmitC provenance requirements."}
+{"file": ".trellis/tasks/archive/2026-05/05-17-extension-bundle-registry-default-plugin-front-door/prd.md", "reason": "Previous task that made ExtensionBundleRegistry the default built-in front door."}
+{"file": ".trellis/tasks/archive/2026-05/05-17-toy-extension-bundle-target-artifact-bridge/prd.md", "reason": "Current task goal, boundaries, acceptance criteria, and evidence plan."}
