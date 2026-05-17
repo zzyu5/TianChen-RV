@@ -346,17 +346,25 @@ plugin-owned runtime ABI contract.
 
 - Common config:
   `target::MaterializedEmitCHeaderArtifactConfig`.
+- Common object/header bundle config:
+  `target::MaterializedEmitCObjectBundleArtifactConfig`.
 - Common metadata evidence entry:
   `target::MaterializedEmitCHeaderArtifactMetadataEvidence`.
 - Common validator:
   `validateMaterializedEmitCHeaderArtifactCandidate(candidate, config)`.
 - Common exporter:
   `exportMaterializedEmitCHeaderArtifact(module, os, config)`.
+- Common object/header bundle construction helper:
+  `registerMaterializedEmitCObjectBundleArtifactExporters(registry, config)`.
 - The config wraps a `SelectedEmitCArtifactRouteConfig` plus plugin-supplied
   header guard, evidence prefix, includes, optional expected selected variant,
   emission kind, lowering boundary, runtime ABI fields or dynamic runtime ABI
   identity mode, ordered runtime ABI parameters, and required artifact metadata
   evidence.
+- The object/header bundle config wraps the header config plus plugin-supplied
+  object/header export callbacks, header route id, component group, optional
+  external ABI name, object handoff kind, and a bounded selected-object
+  description for diagnostics.
 - Dynamic runtime ABI identity flag:
   `MaterializedEmitCHeaderArtifactConfig::allowDynamicRuntimeABIIdentity`.
 
@@ -394,6 +402,16 @@ plugin-owned runtime ABI contract.
 - Plugin-local code remains responsible for construction protocol metadata,
   source-op/source-role/source-interface provenance keys, semantic role graph,
   typed role evidence, and any family-specific route mapping.
+- Common object/header bundle construction may register the object exporter and
+  object-backed declaration-only header composite from the same config, and may
+  own the reusable selected-object candidate selection, composite match,
+  composite validation, runtime ABI parameter extraction, component-group
+  metadata, external ABI name propagation, and object handoff metadata.
+- Common object/header bundle construction must still call the plugin-supplied
+  route-local candidate validation and export callbacks. It must not choose
+  extension semantics, build intrinsic/vendor payloads, select compiler flags,
+  infer role graphs, or branch on RVV, TensorExtLite, Toy, IME, Offload,
+  scalar, vendor, dtype, shape, runtime, toolchain, or microarchitecture names.
 
 ### 4. Validation & Error Matrix
 
@@ -405,6 +423,9 @@ plugin-owned runtime ABI contract.
   before output.
 - Object-backed header config lacks a route-local candidate validation callback
   -> fail before output.
+- Object/header bundle config lacks object/header callbacks, header route id,
+  component group, handoff kind, owner plugin, or a header artifact kind of
+  `runtime-callable-c-header` -> fail before registration.
 - Dynamic runtime ABI identity mode lacks a route-local candidate validation
   callback, or the selected candidate lacks non-empty runtime ABI identity ->
   fail before output.
@@ -419,6 +440,11 @@ plugin-owned runtime ABI contract.
   output.
 - Candidate metadata contains descriptor/direct-C/source-export/compute-body
   residue -> fail before output.
+- Object/header bundle construction sees no selected object candidate -> no
+  composite match; sees multiple selected object candidates, mixed candidate
+  groups, stale routes, wrong origin, mismatched runtime ABI signature, or a
+  selected candidate rejected by the route-local preflight -> fail before
+  bundle record or artifact output.
 - Materialized EmitC handoff lacks route/call source provenance, has non-EmitC
   residue, lacks the expected `emitc.func`, has multiple `emitc.func` roots, or
   has function arity different from the selected ABI parameter signature ->
@@ -435,6 +461,11 @@ plugin-owned runtime ABI contract.
   preflight, dynamic runtime ABI identity mode, and required RVV provenance
   evidence; the production header exporter calls the common declaration-only
   header helper while RVV keeps object packaging and bundle metadata local.
+- Good: RVV and TensorExtLite provide local object/header bundle config and
+  consume the common object/header bundle construction helper for their
+  materialized EmitC object exporter plus object-backed header composite
+  registration, while object packaging, route payloads, typed role validation,
+  and extension evidence remain plugin-owned.
 - Base: TensorExtLite may carry an ordered source-op/source-role evidence
   sequence because its selected route contains multiple typed role ops.
 - Base: Toy may carry one target-export-owned runtime element count parameter;
@@ -466,6 +497,12 @@ plugin-owned runtime ABI contract.
   is not regressed by the common header helper, including evidence that the RVV
   header production path is emitted by the common declaration-only helper while
   object packaging and bundle component metadata remain RVV-owned.
+- Focused common target artifact tests proving the object/header bundle
+  construction helper is code-consumed by at least RVV and TensorExtLite,
+  accepts zero-argument runtime ABI signatures when both components agree, and
+  fails closed for missing materialized EmitC provenance, mismatched ABI
+  signatures, mixed or ambiguous candidates, stale descriptor/direct-C/
+  source-export residue, and unsupported plugin routes.
 
 ### 7. Wrong vs Correct
 

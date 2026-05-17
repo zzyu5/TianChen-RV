@@ -1423,6 +1423,53 @@ llvm::Error validateMaterializedEmitCHeaderArtifactConfig(
   return llvm::Error::success();
 }
 
+llvm::StringRef getObjectBundleRouteDescription(
+    const MaterializedEmitCObjectBundleArtifactConfig &config) {
+  if (!config.selectedObjectDescription.empty())
+    return config.selectedObjectDescription;
+  return getHeaderRouteDescription(config.header);
+}
+
+llvm::Error validateMaterializedEmitCObjectBundleConfig(
+    const MaterializedEmitCObjectBundleArtifactConfig &config) {
+  llvm::StringRef routeDescription = getObjectBundleRouteDescription(config);
+  if (llvm::Error error =
+          validateMaterializedEmitCHeaderArtifactConfig(config.header))
+    return error;
+  if (config.headerRouteID.trim().empty())
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "object-backed header bundle construction requires a non-empty "
+        "header route id");
+  if (!isHeaderArtifactKind(config.headerArtifactKind))
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        llvm::Twine("object-backed header bundle construction requires "
+                    "runtime-callable-c-header artifact kind, got '") +
+            config.headerArtifactKind + "'");
+  if (!config.objectExportFn || !config.headerExportFn)
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "object-backed header bundle construction requires object and header "
+        "export callbacks");
+  if (config.componentGroup.trim().empty())
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "object-backed header bundle construction requires a non-empty "
+        "component group");
+  if (config.handoffKind.trim().empty())
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "object-backed header bundle construction requires a non-empty "
+        "handoff kind");
+  if (config.ownerPlugin.trim().empty() &&
+      config.header.selectedRoute.originPlugin.trim().empty())
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "object-backed header bundle construction requires an owner plugin");
+  return llvm::Error::success();
+}
+
 llvm::Error requireMaterializedEmitCHeaderCandidateField(
     const MaterializedEmitCHeaderArtifactConfig &config,
     llvm::StringRef fieldName, llvm::StringRef actual,
@@ -1697,6 +1744,170 @@ llvm::Error exportMaterializedEmitCHeaderArtifact(
 
   printMaterializedEmitCHeaderDeclaration(os, *functionName,
                                           target->candidate, config);
+  return llvm::Error::success();
+}
+
+llvm::Expected<const TargetArtifactCandidate *>
+selectMaterializedEmitCObjectBundleCandidate(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const MaterializedEmitCObjectBundleArtifactConfig &config) {
+  if (llvm::Error error =
+          validateMaterializedEmitCObjectBundleConfig(config))
+    return std::move(error);
+
+  llvm::SmallVector<const TargetArtifactCandidate *, 2> selectedCandidates;
+  for (const TargetArtifactCandidate &candidate : candidates) {
+    if (candidate.origin == config.header.selectedRoute.originPlugin ||
+        candidate.routeID == config.header.selectedRoute.routeID)
+      selectedCandidates.push_back(&candidate);
+  }
+
+  if (selectedCandidates.empty())
+    return static_cast<const TargetArtifactCandidate *>(nullptr);
+
+  llvm::StringRef description = getObjectBundleRouteDescription(config);
+  if (selectedCandidates.size() != 1 || candidates.size() != 1)
+    return makeSelectedEmitCArtifactError(
+        getHeaderRouteDescription(config.header),
+        llvm::Twine(description) +
+            " header/bundle route requires exactly one selected supported " +
+            description);
+
+  const TargetArtifactCandidate *candidate = selectedCandidates.front();
+  if (llvm::Error error = validateMaterializedEmitCHeaderArtifactCandidate(
+          *candidate, config.header))
+    return std::move(error);
+  return candidate;
+}
+
+llvm::Expected<bool> matchMaterializedEmitCObjectBundleHeaderArtifact(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const MaterializedEmitCObjectBundleArtifactConfig &config) {
+  llvm::Expected<const TargetArtifactCandidate *> selected =
+      selectMaterializedEmitCObjectBundleCandidate(candidates, config);
+  if (!selected)
+    return selected.takeError();
+  return *selected != nullptr;
+}
+
+llvm::Error validateMaterializedEmitCObjectBundleHeaderCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const MaterializedEmitCObjectBundleArtifactConfig &config) {
+  llvm::Expected<const TargetArtifactCandidate *> selected =
+      selectMaterializedEmitCObjectBundleCandidate(candidates, config);
+  if (!selected)
+    return selected.takeError();
+  if (!*selected)
+    return makeSelectedEmitCArtifactError(
+        getHeaderRouteDescription(config.header),
+        llvm::Twine(getObjectBundleRouteDescription(config)) +
+            " header route requires a selected supported " +
+            getObjectBundleRouteDescription(config));
+  return llvm::Error::success();
+}
+
+llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>>
+getMaterializedEmitCObjectBundleRuntimeABIParameters(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const MaterializedEmitCObjectBundleArtifactConfig &config) {
+  if (llvm::Error error =
+          validateMaterializedEmitCObjectBundleHeaderCandidates(candidates,
+                                                               config))
+    return std::move(error);
+
+  llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
+  parameters.append(config.header.runtimeABIParameters.begin(),
+                    config.header.runtimeABIParameters.end());
+  return parameters;
+}
+
+llvm::Expected<TargetArtifactCompositeBundleMetadata>
+getMaterializedEmitCObjectBundleMetadata(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const MaterializedEmitCObjectBundleArtifactConfig &config) {
+  llvm::Expected<const TargetArtifactCandidate *> selected =
+      selectMaterializedEmitCObjectBundleCandidate(candidates, config);
+  if (!selected)
+    return selected.takeError();
+  if (!*selected)
+    return makeSelectedEmitCArtifactError(
+        getHeaderRouteDescription(config.header),
+        llvm::Twine(getObjectBundleRouteDescription(config)) +
+            " bundle metadata requires a selected supported " +
+            getObjectBundleRouteDescription(config));
+
+  TargetArtifactCompositeBundleMetadata metadata;
+  if (config.header.allowDynamicRuntimeABIIdentity) {
+    metadata.runtimeABIKind = (*selected)->runtimeABIKind;
+    metadata.runtimeABIName = (*selected)->runtimeABIName;
+  } else {
+    metadata.runtimeABIKind = config.header.runtimeABIKind.str();
+    metadata.runtimeABIName = config.header.runtimeABIName.str();
+  }
+  metadata.componentGroup = config.componentGroup.str();
+  metadata.externalABIName = config.externalABIName.str();
+  metadata.handoffKind = config.handoffKind.str();
+  return metadata;
+}
+
+llvm::Error registerMaterializedEmitCObjectBundleArtifactExporters(
+    TargetArtifactExporterRegistry &registry,
+    const MaterializedEmitCObjectBundleArtifactConfig &config) {
+  if (llvm::Error error =
+          validateMaterializedEmitCObjectBundleConfig(config))
+    return error;
+
+  llvm::StringRef owner = config.ownerPlugin.empty()
+                              ? config.header.selectedRoute.originPlugin
+                              : config.ownerPlugin;
+  TargetArtifactCandidateValidationFn objectValidation =
+      [config](const TargetArtifactCandidate &candidate) {
+        return validateMaterializedEmitCHeaderArtifactCandidate(candidate,
+                                                               config.header);
+      };
+
+  if (!registry.lookup(config.header.selectedRoute.routeID)) {
+    if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
+            config.header.selectedRoute.routeID,
+            config.header.selectedRoute.artifactKind,
+            config.header.selectedRoute.originPlugin, config.header.emissionKind,
+            config.objectExportFn, config.header.runtimeABIParameters,
+            config.handoffKind, objectValidation, config.componentGroup,
+            config.externalABIName)))
+      return error;
+  }
+
+  if (!registry.lookupComposite(config.headerRouteID)) {
+    TargetArtifactCompositeMatchFn matchFn =
+        [config](llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+          return matchMaterializedEmitCObjectBundleHeaderArtifact(candidates,
+                                                                 config);
+        };
+    TargetArtifactCompositeCandidateValidationFn validationFn =
+        [config](llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+          return validateMaterializedEmitCObjectBundleHeaderCandidates(
+              candidates, config);
+        };
+    TargetArtifactCompositeRuntimeABIParametersFn parametersFn =
+        [config](llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+          return getMaterializedEmitCObjectBundleRuntimeABIParameters(
+              candidates, config);
+        };
+    TargetArtifactCompositeBundleMetadataFn bundleMetadataFn =
+        [config](llvm::ArrayRef<TargetArtifactCandidate> candidates) {
+          return getMaterializedEmitCObjectBundleMetadata(candidates, config);
+        };
+
+    if (llvm::Error error = registry.registerCompositeExporter(
+            TargetArtifactCompositeExporter(
+                config.headerRouteID, config.headerArtifactKind, matchFn,
+                config.headerExportFn, owner,
+                /*runtimeABIKind=*/{}, /*runtimeABIName=*/{}, parametersFn,
+                config.componentGroup, config.externalABIName, validationFn,
+                bundleMetadataFn)))
+      return error;
+  }
+
   return llvm::Error::success();
 }
 

@@ -14,6 +14,7 @@
 #include "llvm/Support/Error.h"
 
 #include <cstddef>
+#include <functional>
 #include <string>
 
 namespace llvm {
@@ -44,17 +45,20 @@ namespace tianchenrv::target {
 
 using TargetArtifactExportFn = llvm::Error (*)(mlir::ModuleOp module,
                                                llvm::raw_ostream &os);
-using TargetArtifactCandidateValidationFn = llvm::Error (*)(
-    const TargetArtifactCandidate &candidate);
+using TargetArtifactCandidateValidationFn =
+    std::function<llvm::Error(const TargetArtifactCandidate &candidate)>;
 using PluginTargetArtifactExporterRegistrationFn =
     llvm::Error (*)(TargetArtifactExporterRegistry &registry);
-using TargetArtifactCompositeMatchFn = llvm::Expected<bool> (*)(
-    llvm::ArrayRef<TargetArtifactCandidate> candidates);
-using TargetArtifactCompositeCandidateValidationFn = llvm::Error (*)(
-    llvm::ArrayRef<TargetArtifactCandidate> candidates);
+using TargetArtifactCompositeMatchFn =
+    std::function<llvm::Expected<bool>(
+        llvm::ArrayRef<TargetArtifactCandidate> candidates)>;
+using TargetArtifactCompositeCandidateValidationFn =
+    std::function<llvm::Error(
+        llvm::ArrayRef<TargetArtifactCandidate> candidates)>;
 using TargetArtifactCompositeRuntimeABIParametersFn =
-    llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>> (*)(
-        llvm::ArrayRef<TargetArtifactCandidate> candidates);
+    std::function<llvm::Expected<
+        llvm::SmallVector<support::RuntimeABIParameter, 5>>(
+        llvm::ArrayRef<TargetArtifactCandidate> candidates)>;
 using SelectedEmitCArtifactRouteBuilderFn = llvm::Error (*)(
     const plugin::VariantEmitCLowerableRequest &request,
     conversion::emitc::TCRVEmitCLowerableRoute &out);
@@ -175,8 +179,21 @@ struct TargetArtifactCompositeBundleMetadata {
 };
 
 using TargetArtifactCompositeBundleMetadataFn =
-    llvm::Expected<TargetArtifactCompositeBundleMetadata> (*)(
-        llvm::ArrayRef<TargetArtifactCandidate> candidates);
+    std::function<llvm::Expected<TargetArtifactCompositeBundleMetadata>(
+        llvm::ArrayRef<TargetArtifactCandidate> candidates)>;
+
+struct MaterializedEmitCObjectBundleArtifactConfig {
+  MaterializedEmitCHeaderArtifactConfig header;
+  llvm::StringRef headerRouteID;
+  llvm::StringRef headerArtifactKind;
+  llvm::StringRef ownerPlugin;
+  TargetArtifactExportFn objectExportFn = nullptr;
+  TargetArtifactExportFn headerExportFn = nullptr;
+  llvm::StringRef componentGroup;
+  llvm::StringRef externalABIName;
+  llvm::StringRef handoffKind;
+  llvm::StringRef selectedObjectDescription;
+};
 
 struct TargetArtifactBundleRecord {
   tcrv::exec::KernelOp kernel;
@@ -392,6 +409,33 @@ llvm::Error validateMaterializedEmitCHeaderArtifactCandidate(
 llvm::Error exportMaterializedEmitCHeaderArtifact(
     mlir::ModuleOp module, llvm::raw_ostream &os,
     const MaterializedEmitCHeaderArtifactConfig &config);
+
+llvm::Expected<const TargetArtifactCandidate *>
+selectMaterializedEmitCObjectBundleCandidate(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const MaterializedEmitCObjectBundleArtifactConfig &config);
+
+llvm::Expected<bool> matchMaterializedEmitCObjectBundleHeaderArtifact(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const MaterializedEmitCObjectBundleArtifactConfig &config);
+
+llvm::Error validateMaterializedEmitCObjectBundleHeaderCandidates(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const MaterializedEmitCObjectBundleArtifactConfig &config);
+
+llvm::Expected<llvm::SmallVector<support::RuntimeABIParameter, 5>>
+getMaterializedEmitCObjectBundleRuntimeABIParameters(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const MaterializedEmitCObjectBundleArtifactConfig &config);
+
+llvm::Expected<TargetArtifactCompositeBundleMetadata>
+getMaterializedEmitCObjectBundleMetadata(
+    llvm::ArrayRef<TargetArtifactCandidate> candidates,
+    const MaterializedEmitCObjectBundleArtifactConfig &config);
+
+llvm::Error registerMaterializedEmitCObjectBundleArtifactExporters(
+    TargetArtifactExporterRegistry &registry,
+    const MaterializedEmitCObjectBundleArtifactConfig &config);
 
 llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>>
 materializeSelectedEmitCArtifactModule(

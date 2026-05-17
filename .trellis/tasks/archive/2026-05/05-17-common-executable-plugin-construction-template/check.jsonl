@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify changes stay in the C++/MLIR/LLVM stack and do not add Python compiler-core behavior"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify common code does not take over RVV/TensorExtLite extension semantics"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact export remains materialized-EmitC-owned and fail-closed"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify object/header/bundle construction follows the common materialized EmitC handoff contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests match changed target artifact construction behavior"}

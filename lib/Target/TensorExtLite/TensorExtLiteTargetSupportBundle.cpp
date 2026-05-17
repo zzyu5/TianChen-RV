@@ -471,73 +471,23 @@ llvm::Error exportTensorExtLiteEmitCToCpp(mlir::ModuleOp module,
   return llvm::Error::success();
 }
 
-bool isTensorExtLiteMaterializedEmitCArtifactCandidate(
-    const TargetArtifactCandidate &candidate) {
+MaterializedEmitCObjectBundleArtifactConfig
+getTensorExtLiteObjectBundleConfig() {
   const auto &manifest = getTensorExtLiteManifest();
   const auto &route = getTensorExtLiteRoute();
-  return candidate.origin == manifest.family.pluginName ||
-         candidate.routeID == route.routeID;
-}
-
-llvm::Expected<const TargetArtifactCandidate *>
-selectSingleTensorExtLiteMaterializedEmitCCandidate(
-    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
-  llvm::SmallVector<const TargetArtifactCandidate *, 2> tensorExtLiteCandidates;
-  for (const TargetArtifactCandidate &candidate : candidates)
-    if (isTensorExtLiteMaterializedEmitCArtifactCandidate(candidate))
-      tensorExtLiteCandidates.push_back(&candidate);
-
-  if (tensorExtLiteCandidates.empty())
-    return static_cast<const TargetArtifactCandidate *>(nullptr);
-  if (tensorExtLiteCandidates.size() != 1 || candidates.size() != 1)
-    return makeTensorExtLiteEmitCToCppRouteError(
-        "TensorExtLite materialized EmitC header route requires exactly one "
-        "selected supported TensorExtLite materialized EmitC object candidate");
-
-  if (llvm::Error error = validateTensorExtLiteTargetArtifactCandidate(
-          *tensorExtLiteCandidates.front()))
-    return std::move(error);
-  return tensorExtLiteCandidates.front();
-}
-
-llvm::Expected<bool> matchTensorExtLiteHeaderArtifact(
-    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
-  llvm::Expected<const TargetArtifactCandidate *> selected =
-      selectSingleTensorExtLiteMaterializedEmitCCandidate(candidates);
-  if (!selected)
-    return selected.takeError();
-  return *selected != nullptr;
-}
-
-llvm::Error validateTensorExtLiteHeaderArtifactCandidates(
-    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
-  llvm::Expected<const TargetArtifactCandidate *> selected =
-      selectSingleTensorExtLiteMaterializedEmitCCandidate(candidates);
-  if (!selected)
-    return selected.takeError();
-  if (!*selected)
-    return makeTensorExtLiteEmitCToCppRouteError(
-        "TensorExtLite materialized EmitC header route requires a selected "
-        "supported TensorExtLite materialized EmitC object candidate");
-  return llvm::Error::success();
-}
-
-llvm::Expected<TargetArtifactCompositeBundleMetadata>
-getTensorExtLiteHeaderBundleMetadata(
-    llvm::ArrayRef<TargetArtifactCandidate> candidates) {
-  if (llvm::Error error =
-          validateTensorExtLiteHeaderArtifactCandidates(candidates))
-    return std::move(error);
-
-  const auto &route = getTensorExtLiteRoute();
-  TargetArtifactCompositeBundleMetadata metadata;
-  metadata.runtimeABIKind = route.runtimeABIKind.str();
-  metadata.runtimeABIName = route.runtimeABIName.str();
-  metadata.componentGroup =
-      kTensorExtLiteMaterializedEmitCBundleComponentGroup.str();
-  metadata.externalABIName = route.runtimeABIName.str();
-  metadata.handoffKind = kTensorExtLiteObjectHandoffKind.str();
-  return metadata;
+  MaterializedEmitCObjectBundleArtifactConfig config;
+  config.header = getTensorExtLiteHeaderArtifactConfig();
+  config.headerRouteID = kTensorExtLiteHeaderRouteID;
+  config.headerArtifactKind = kRuntimeCallableCHeaderArtifactKind;
+  config.ownerPlugin = manifest.family.pluginName;
+  config.objectExportFn = exportTensorExtLiteObjectArtifact;
+  config.headerExportFn = exportTensorExtLiteHeaderArtifact;
+  config.componentGroup = kTensorExtLiteMaterializedEmitCBundleComponentGroup;
+  config.externalABIName = route.runtimeABIName;
+  config.handoffKind = kTensorExtLiteObjectHandoffKind;
+  config.selectedObjectDescription =
+      "TensorExtLite materialized EmitC object candidate";
+  return config;
 }
 
 llvm::Error registerTensorExtLiteTargetArtifactExporter(
@@ -546,35 +496,8 @@ llvm::Error registerTensorExtLiteTargetArtifactExporter(
           plugin::tensorext_lite::verifyTensorExtLiteConstructionProtocolReady())
     return error;
 
-  const auto &manifest = getTensorExtLiteManifest();
-  const auto &route = getTensorExtLiteRoute();
-  if (!registry.lookup(route.routeID)) {
-    if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
-            route.routeID, route.artifactKind, manifest.family.pluginName,
-            route.emissionKind, exportTensorExtLiteObjectArtifact,
-            /*requiredRuntimeABIParameters=*/{}, kTensorExtLiteObjectHandoffKind,
-            validateTensorExtLiteTargetArtifactCandidate,
-            kTensorExtLiteMaterializedEmitCBundleComponentGroup,
-            route.runtimeABIName)))
-      return error;
-  }
-
-  if (!registry.lookupComposite(kTensorExtLiteHeaderRouteID)) {
-    if (llvm::Error error = registry.registerCompositeExporter(
-            TargetArtifactCompositeExporter(
-                kTensorExtLiteHeaderRouteID, kRuntimeCallableCHeaderArtifactKind,
-                matchTensorExtLiteHeaderArtifact,
-                exportTensorExtLiteHeaderArtifact, manifest.family.pluginName,
-                /*runtimeABIKind=*/{},
-                /*runtimeABIName=*/{}, /*runtimeABIParameters=*/{},
-                kTensorExtLiteMaterializedEmitCBundleComponentGroup,
-                route.runtimeABIName,
-                validateTensorExtLiteHeaderArtifactCandidates,
-                getTensorExtLiteHeaderBundleMetadata)))
-      return error;
-  }
-
-  return llvm::Error::success();
+  return registerMaterializedEmitCObjectBundleArtifactExporters(
+      registry, getTensorExtLiteObjectBundleConfig());
 }
 
 } // namespace

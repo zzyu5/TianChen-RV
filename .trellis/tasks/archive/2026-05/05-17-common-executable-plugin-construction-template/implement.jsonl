@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global compiler stack, unified extension-family boundary, and descriptor/direct-C prohibitions"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin ownership boundary and reusable construction protocol constraints"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export routing, materialized EmitC route authority, and fail-closed exporter behavior"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common materialized EmitC header foundation, selected artifact handoff, and runtime-callable C ABI bundle rules"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/FileCheck expectations for target artifact bundle behavior"}

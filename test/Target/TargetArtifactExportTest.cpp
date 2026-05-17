@@ -943,7 +943,7 @@ bool expectTensorExtLiteTargetHeaderCompositeShape(
       !exporter->getMatchFn() ||
       !exporter->getExportFn() || !exporter->getCandidateValidationFn() ||
       !exporter->getRuntimeABIParameters().empty() ||
-      exporter->getRuntimeABIParametersFn() ||
+      !exporter->getRuntimeABIParametersFn() ||
       !exporter->getBundleMetadataFn()) {
     llvm::errs() << context << ": malformed TensorExtLite materialized EmitC "
                     "header composite route metadata\n";
@@ -969,6 +969,17 @@ bool expectTensorExtLiteTargetHeaderCompositeShape(
                      "validate TensorExtLite materialized EmitC header "
                      "candidate"))
     return false;
+
+  llvm::Expected<llvm::SmallVector<RuntimeABIParameter, 5>> parameters =
+      exporter->getRuntimeABIParametersFn()(candidates);
+  if (!parameters || !parameters->empty()) {
+    llvm::errs() << context << ": TensorExtLite header common runtime ABI "
+                    "parameter extraction did not preserve the zero-argument "
+                    "signature\n";
+    if (!parameters)
+      llvm::errs() << llvm::toString(parameters.takeError()) << "\n";
+    return false;
+  }
 
   llvm::Expected<TargetArtifactCompositeBundleMetadata> metadata =
       exporter->getBundleMetadataFn()(candidates);
@@ -2863,6 +2874,216 @@ module {
   return true;
 }
 
+bool expectCommonMaterializedEmitCObjectBundleConstructionSurface() {
+  static const llvm::SmallVector<RuntimeABIParameter, 1> kRuntimeABIParameters =
+      {tianchenrv::support::makeTargetExportABIParameter(
+          "n", "size_t", RuntimeABIParameterRole::RuntimeElementCount)};
+  static const MaterializedEmitCHeaderArtifactMetadataEvidence
+      kMetadataEvidence[] = {
+          {"emitc_lowerable_route", "test_emitc_lowerable_route",
+           "test-materialized-emitc-object-route"}};
+
+  MaterializedEmitCHeaderArtifactConfig headerConfig;
+  headerConfig.selectedRoute.routeID = "test-materialized-emitc-object-route";
+  headerConfig.selectedRoute.artifactKind = "riscv-elf-relocatable-object";
+  headerConfig.selectedRoute.originPlugin = "test-materialized-plugin";
+  headerConfig.selectedRoute.routeDescription =
+      "test materialized EmitC object-backed header";
+  headerConfig.selectedRoute.candidateValidationFn =
+      [](const TargetArtifactCandidate &candidate) -> llvm::Error {
+    if (candidate.loweringBoundary != "test.lowering_boundary")
+      return makeTestSelectedEmitCError(
+          "candidate did not preserve test lowering boundary");
+    return llvm::Error::success();
+  };
+  headerConfig.selectedRoute.routeBuilderFn = buildTestSelectedEmitCRoute;
+  headerConfig.headerGuard = "TEST_MATERIALIZED_EMITC_HEADER_H";
+  headerConfig.evidencePrefix = "test.materialized";
+  headerConfig.emissionKind = "test-materialized-emission";
+  headerConfig.loweringBoundary = "test.lowering_boundary";
+  headerConfig.runtimeABI = "test-runtime-abi.v1";
+  headerConfig.runtimeABIKind = "test-runtime-kind";
+  headerConfig.runtimeABIName = "test-runtime-name";
+  headerConfig.runtimeGlueRole = "test-runtime-glue";
+  headerConfig.runtimeABIParameters = kRuntimeABIParameters;
+  headerConfig.metadataEvidence = kMetadataEvidence;
+
+  MaterializedEmitCObjectBundleArtifactConfig config;
+  config.header = headerConfig;
+  config.headerRouteID = "test-materialized-emitc-header-route";
+  config.headerArtifactKind = "runtime-callable-c-header";
+  config.ownerPlugin = "test-materialized-plugin";
+  config.objectExportFn = objectMarkerExporter;
+  config.headerExportFn = headerMarkerExporter;
+  config.componentGroup = "test-materialized-emitc-bundle.v1";
+  config.externalABIName = "test-runtime-name";
+  config.handoffKind = "test-materialized-emitc-object-handoff";
+  config.selectedObjectDescription =
+      "test materialized EmitC object candidate";
+
+  TargetArtifactExporterRegistry registry;
+  if (!expectSuccess(registerMaterializedEmitCObjectBundleArtifactExporters(
+                         registry, config),
+                     "register common materialized EmitC bundle construction"))
+    return false;
+  if (registry.size() != 1 || registry.compositeSize() != 1) {
+    llvm::errs() << "common materialized EmitC bundle construction registered "
+                    "unexpected route counts\n";
+    return false;
+  }
+
+  const TargetArtifactExporter *objectExporter =
+      registry.lookup("test-materialized-emitc-object-route");
+  const TargetArtifactCompositeExporter *headerExporter =
+      registry.lookupComposite("test-materialized-emitc-header-route");
+  if (!objectExporter || !headerExporter) {
+    llvm::errs() << "common materialized EmitC bundle construction did not "
+                    "register object/header routes\n";
+    return false;
+  }
+  if (objectExporter->getComponentGroup() !=
+          "test-materialized-emitc-bundle.v1" ||
+      objectExporter->getExternalABIName() != "test-runtime-name" ||
+      objectExporter->getHandoffKind() !=
+          "test-materialized-emitc-object-handoff" ||
+      !objectExporter->getCandidateValidationFn() ||
+      !headerExporter->getMatchFn() ||
+      !headerExporter->getCandidateValidationFn() ||
+      !headerExporter->getRuntimeABIParametersFn() ||
+      !headerExporter->getBundleMetadataFn()) {
+    llvm::errs() << "common materialized EmitC bundle construction registered "
+                    "malformed route metadata\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate;
+  candidate.selectedVariant = "selected";
+  candidate.role = "direct variant";
+  candidate.routeID = "test-materialized-emitc-object-route";
+  candidate.origin = "test-materialized-plugin";
+  candidate.emissionKind = "test-materialized-emission";
+  candidate.artifactKind = "riscv-elf-relocatable-object";
+  candidate.loweringBoundary = "test.lowering_boundary";
+  candidate.runtimeABI = "test-runtime-abi.v1";
+  candidate.runtimeABIKind = "test-runtime-kind";
+  candidate.runtimeABIName = "test-runtime-name";
+  candidate.runtimeGlueRole = "test-runtime-glue";
+  candidate.runtimeABIParameters.append(kRuntimeABIParameters.begin(),
+                                        kRuntimeABIParameters.end());
+  candidate.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "test_emitc_lowerable_route",
+          "test-materialized-emitc-object-route"));
+
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         candidate, *objectExporter),
+                     "common object exporter validates selected materialized "
+                     "EmitC candidate"))
+    return false;
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
+  candidates.push_back(candidate);
+  llvm::Expected<bool> matched = headerExporter->getMatchFn()(candidates);
+  if (!matched || !*matched) {
+    llvm::errs() << "common materialized EmitC bundle header route did not "
+                    "match valid object candidate";
+    if (!matched)
+      llvm::errs() << ": " << llvm::toString(matched.takeError());
+    llvm::errs() << "\n";
+    return false;
+  }
+  if (!expectSuccess(headerExporter->getCandidateValidationFn()(candidates),
+                     "common header composite validates selected materialized "
+                     "EmitC candidate"))
+    return false;
+
+  llvm::Expected<llvm::SmallVector<RuntimeABIParameter, 5>> parameters =
+      headerExporter->getRuntimeABIParametersFn()(candidates);
+  if (!parameters ||
+      !tianchenrv::support::runtimeABIParametersEqual(*parameters,
+                                                      kRuntimeABIParameters)) {
+    llvm::errs() << "common header composite did not preserve runtime ABI "
+                    "parameter signature\n";
+    if (!parameters)
+      llvm::errs() << llvm::toString(parameters.takeError()) << "\n";
+    return false;
+  }
+
+  llvm::Expected<TargetArtifactCompositeBundleMetadata> metadata =
+      headerExporter->getBundleMetadataFn()(candidates);
+  if (!metadata) {
+    llvm::errs() << "common header composite bundle metadata failed: "
+                 << llvm::toString(metadata.takeError()) << "\n";
+    return false;
+  }
+  if (metadata->runtimeABIKind != "test-runtime-kind" ||
+      metadata->runtimeABIName != "test-runtime-name" ||
+      metadata->componentGroup != "test-materialized-emitc-bundle.v1" ||
+      metadata->externalABIName != "test-runtime-name" ||
+      metadata->handoffKind != "test-materialized-emitc-object-handoff") {
+    llvm::errs() << "common header composite bundle metadata did not preserve "
+                    "ABI/component/handoff identity\n";
+    return false;
+  }
+
+  TargetArtifactCandidate missingProvenance = candidate;
+  missingProvenance.artifactMetadata.clear();
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               missingProvenance, *objectExporter),
+                           "common object exporter rejects missing "
+                           "materialized EmitC provenance",
+                           {"test_emitc_lowerable_route"}))
+    return false;
+
+  TargetArtifactCandidate staleRuntimeSignature = candidate;
+  staleRuntimeSignature.runtimeABIParameters.push_back(
+      tianchenrv::support::makeTargetExportABIParameter(
+          "extra", "size_t", RuntimeABIParameterRole::RuntimeElementCount));
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               staleRuntimeSignature, *objectExporter),
+                           "common object exporter rejects stale runtime ABI "
+                           "signature",
+                           {"runtime ABI parameter signature"}))
+    return false;
+
+  TargetArtifactCandidate directCResidue = candidate;
+  directCResidue.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry("test.direct_c_export",
+                                                 "stale"));
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               directCResidue, *objectExporter),
+                           "common object exporter rejects direct-C residue",
+                           {"descriptor-driven computation"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> ambiguous(candidates);
+  ambiguous.push_back(candidate);
+  if (!expectErrorContains(
+          headerExporter->getMatchFn()(ambiguous).takeError(),
+          "common header composite rejects ambiguous selected object "
+          "candidates",
+          {"requires exactly one selected supported test materialized EmitC "
+           "object candidate"}))
+    return false;
+
+  TargetArtifactCandidate unrelated = candidate;
+  unrelated.routeID = "unsupported-route";
+  unrelated.origin = "unsupported-plugin";
+  llvm::SmallVector<TargetArtifactCandidate, 1> unsupportedCandidates;
+  unsupportedCandidates.push_back(unrelated);
+  llvm::Expected<bool> unsupportedMatch =
+      headerExporter->getMatchFn()(unsupportedCandidates);
+  if (!unsupportedMatch || *unsupportedMatch) {
+    llvm::errs() << "common header composite should fail closed for "
+                    "unsupported plugin routes\n";
+    if (!unsupportedMatch)
+      llvm::errs() << llvm::toString(unsupportedMatch.takeError()) << "\n";
+    return false;
+  }
+
+  return true;
+}
+
 bool expectTargetArtifactBundleDiscovery(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -3356,6 +3577,8 @@ int main() {
   if (!expectGenericHeaderArtifactRouteSelection(context))
     return 1;
   if (!expectCommonSelectedEmitCArtifactFrontDoor(context))
+    return 1;
+  if (!expectCommonMaterializedEmitCObjectBundleConstructionSurface())
     return 1;
   if (!expectTensorExtLiteHeaderArtifactExport(context))
     return 1;
