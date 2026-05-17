@@ -71,3 +71,53 @@ Added a code-consumed common materialized EmitC object/header bundle constructio
 ### Next Steps
 
 - None - task complete
+
+
+## Session 103: RVV generated bundle ABI execution proof on ssh rvv
+
+**Date**: 2026-05-17
+**Task**: RVV generated bundle ABI execution proof on ssh rvv
+**Branch**: `main`
+
+### Summary
+
+Added a bounded generated-bundle ABI evidence runner for the current RVV
+i32m1 vector-source add path and proved that the generated declaration-only
+header plus generated relocatable object can be compiled, linked, and run by an
+external C harness on `ssh rvv`.
+
+### Main Changes
+
+- Created Trellis task `05-17-rvv-generated-bundle-abi-execution-proof` from the Hermes brief and wrote a PRD around the current RVV generated object/header bundle ABI proof.
+- Added `scripts/rvv_generated_bundle_abi_e2e.py` to invoke the existing `tcrv-opt` source artifact front door and `tcrv-translate` target artifact bundle exporter, verify generated bundle metadata, generate an external C ABI consumer, and run it on `ssh rvv`.
+- Added local self-test coverage for missing header/object-style failures, stale ABI order, missing multi-VL metadata, intrinsic body residue in the generated header, and mismatched selected variant.
+- Added `test/Scripts/rvv-generated-bundle-abi-e2e-self-test.test`.
+- Updated `.trellis/spec/testing/mlir-testing-contract.md` to state the durable boundary for live RVV generated-bundle ABI correctness evidence.
+
+### Runtime Evidence
+
+- Evidence directory: `artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-rvv-generated-bundle-abi-ssh`.
+- Generated bundle command:
+  `build/bin/tcrv-opt test/Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir --tcrv-source-artifact-front-door-pipeline | build/bin/tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-rvv-generated-bundle-abi-ssh/generated_bundle`.
+- Generated artifacts:
+  `tianchenrv-target-artifact-bundle.index`,
+  `artifact-0-riscv-elf-relocatable-object-rvv-i32m1-arithmetic-emitc-route-family.o`,
+  `artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h`,
+  and `rvv_generated_bundle_abi_harness.c`.
+- `ssh rvv` compile/link/run succeeded for runtime counts `1,7,16,17,257` and printed `tcrv_rvv_generated_bundle_abi_ok counts=1,7,16,17,257`.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] local dry-run bundle verifier for counts `1,7,16,17,257`
+- [OK] focused lit: `Scripts/rvv-generated-bundle-abi-e2e-self-test.test Target/RVV/vector-source-target-artifact-object.mlir Target/RVV/vector-source-target-artifact-header.mlir`, 3/3 passed
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 113/113 lit tests passed
+- [OK] `git diff --check`
+- [OK] targeted scans found descriptor/direct-C/source-export strings only in fail-closed validation, forbidden-token lists, explanatory non-authority text, or `CHECK-NOT` assertions.
+
+### Status
+
+[OK] Completed. Ready for archive and commit.

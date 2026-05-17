@@ -1,0 +1,3 @@
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --self-test | FileCheck %s
+
+# CHECK: rvv_generated_bundle_abi_e2e self-test passed

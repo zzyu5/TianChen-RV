@@ -197,6 +197,16 @@ Use lit/FileCheck for:
   agree and the generated header declaration uses `(void)`.
   Bundle tests must not commit generated binary artifacts or treat object
   creation as link, runtime, correctness, or performance evidence.
+  When a task claims live RVV generated-bundle ABI correctness, the evidence
+  must use a bounded external ABI consumer on `ssh rvv`: generate the bundle
+  through the public target artifact exporter, verify that the index ties the
+  generated header and object to the same selected variant, route, component
+  group, runtime ABI identity, ordered ABI parameters, materialized EmitC
+  provenance, and RVV runtime AVL/VL metadata, then compile/link/run a small C
+  harness against only the generated header and object. Such harnesses and
+  Python runners are evidence tooling only; they must not become compiler
+  semantic paths, descriptor adapters, direct C exporters, fallback compute
+  implementations, artifact ledgers, or replacements for MLIR/C++ lowering.
 - plan-and-export target artifact bundle front-door coverage through
   `tcrv-translate`, including an input fixture that contains only kernel and
   capability anchors rather than hand-authored selected-path diagnostics,
