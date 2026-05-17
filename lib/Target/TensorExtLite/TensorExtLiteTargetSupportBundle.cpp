@@ -23,35 +23,6 @@
 namespace tianchenrv::target::tensorext_lite {
 namespace {
 
-constexpr llvm::StringLiteral kTensorExtLiteObjectHandoffKind(
-    "materialized-emitc-cpp-tensorext-lite-fragment-object");
-constexpr llvm::StringLiteral
-    kTensorExtLiteMaterializedEmitCBundleComponentGroup(
-        "tensorext-lite-fragment-mma-materialized-emitc-bundle.v1");
-constexpr llvm::StringLiteral kTensorExtLiteHeaderRouteID(
-    "tensorext-lite-fragment-mma-emitc-route.header");
-constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
-    "runtime-callable-c-header");
-constexpr llvm::StringLiteral kTensorExtLiteEmitCToCppRouteID(
-    "tcrv-tensorext-lite-emitc-to-cpp");
-constexpr llvm::StringLiteral kTensorExtLiteRouteMetadataKey(
-    "tensorext_lite_emitc_lowerable_route");
-constexpr llvm::StringLiteral kTensorExtLiteRoleSequenceMetadataKey(
-    "tensorext_lite_role_sequence");
-constexpr llvm::StringLiteral kTensorExtLiteSourceOpsMetadataKey(
-    "tensorext_lite_source_ops");
-constexpr llvm::StringLiteral kTensorExtLiteSourceRolesMetadataKey(
-    "tensorext_lite_source_roles");
-constexpr llvm::StringLiteral kTensorExtLiteSourceOpInterfaceMetadataKey(
-    "tensorext_lite_source_op_interface");
-constexpr llvm::StringLiteral kTensorExtLiteConstructionProtocolMetadataKey(
-    "tensorext_lite_construction_protocol");
-constexpr llvm::StringLiteral kTensorExtLiteSemanticRoleGraphMetadataKey(
-    "tensorext_lite_semantic_role_graph");
-constexpr llvm::StringLiteral kTensorExtLiteTypedRoleRealizationMetadataKey(
-    "tensorext_lite_typed_role_realization");
-constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
-    "TCRVEmitCLowerableOpInterface");
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
@@ -329,32 +300,34 @@ MaterializedEmitCHeaderArtifactConfig getTensorExtLiteHeaderArtifactConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stdint.h"};
   static const MaterializedEmitCHeaderArtifactMetadataEvidence
       kMetadataEvidence[] = {
-          {"emitc_lowerable_route", kTensorExtLiteRouteMetadataKey,
+          {"emitc_lowerable_route",
+           plugin::tensorext_lite::getTensorExtLiteEmitCLowerableRouteMetadataName(),
            plugin::tensorext_lite::
                getTensorExtLiteFragmentMmaEmitCConstructionRoute()
                    .routeID},
-          {"role_sequence", kTensorExtLiteRoleSequenceMetadataKey,
+          {"role_sequence",
+           plugin::tensorext_lite::getTensorExtLiteRoleSequenceMetadataName(),
            plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
                .semanticRoleGraph},
-          {"source_ops", kTensorExtLiteSourceOpsMetadataKey,
-           "tcrv_tensorext_lite.config_skeleton->"
-           "tcrv_tensorext_lite.load_frag_skeleton->"
-           "tcrv_tensorext_lite.tile_mma_skeleton->"
-           "tcrv_tensorext_lite.store_frag_skeleton"},
-          {"source_roles", kTensorExtLiteSourceRolesMetadataKey,
-           plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
-               .semanticRoleGraph},
-          {"source_op_interface", kTensorExtLiteSourceOpInterfaceMetadataKey,
-           kEmitCLowerableOpInterfaceName},
+          {"source_ops",
+           plugin::tensorext_lite::getTensorExtLiteSourceOpsMetadataName(),
+           plugin::tensorext_lite::getTensorExtLiteFragmentMmaSourceOps()},
+          {"source_roles",
+           plugin::tensorext_lite::getTensorExtLiteSourceRolesMetadataName(),
+           plugin::tensorext_lite::getTensorExtLiteFragmentMmaSourceRoles()},
+          {"source_op_interface",
+           plugin::tensorext_lite::getTensorExtLiteSourceOpInterfaceMetadataName(),
+           plugin::tensorext_lite::getTensorExtLiteEmitCLowerableOpInterfaceName()},
           {"construction_protocol",
-           kTensorExtLiteConstructionProtocolMetadataKey,
+           plugin::tensorext_lite::getTensorExtLiteConstructionProtocolMetadataName(),
            plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
                .protocolVersion},
-          {"semantic_role_graph", kTensorExtLiteSemanticRoleGraphMetadataKey,
+          {"semantic_role_graph",
+           plugin::tensorext_lite::getTensorExtLiteSemanticRoleGraphMetadataName(),
            plugin::tensorext_lite::getTensorExtLiteConstructionManifest()
                .semanticRoleGraph},
           {"typed_role_realization",
-           kTensorExtLiteTypedRoleRealizationMetadataKey,
+           plugin::tensorext_lite::getTensorExtLiteTypedRoleRealizationMetadataName(),
            plugin::tensorext_lite::
                getTensorExtLiteTypedRoleRealizationSummary()},
       };
@@ -377,6 +350,8 @@ MaterializedEmitCHeaderArtifactConfig getTensorExtLiteHeaderArtifactConfig() {
   config.runtimeABIKind = route.runtimeABIKind;
   config.runtimeABIName = route.runtimeABIName;
   config.runtimeGlueRole = route.runtimeGlueRole;
+  config.runtimeABIParameters =
+      plugin::tensorext_lite::getTensorExtLiteFragmentMmaRuntimeABIParameters();
   config.metadataEvidence = kMetadataEvidence;
   return config;
 }
@@ -477,14 +452,14 @@ getTensorExtLiteObjectBundleConfig() {
   const auto &route = getTensorExtLiteRoute();
   MaterializedEmitCObjectBundleArtifactConfig config;
   config.header = getTensorExtLiteHeaderArtifactConfig();
-  config.headerRouteID = kTensorExtLiteHeaderRouteID;
-  config.headerArtifactKind = kRuntimeCallableCHeaderArtifactKind;
+  config.headerRouteID = route.headerRouteID;
+  config.headerArtifactKind = route.headerArtifactKind;
   config.ownerPlugin = manifest.family.pluginName;
   config.objectExportFn = exportTensorExtLiteObjectArtifact;
   config.headerExportFn = exportTensorExtLiteHeaderArtifact;
-  config.componentGroup = kTensorExtLiteMaterializedEmitCBundleComponentGroup;
+  config.componentGroup = route.bundleComponentGroup;
   config.externalABIName = route.runtimeABIName;
-  config.handoffKind = kTensorExtLiteObjectHandoffKind;
+  config.handoffKind = route.objectHandoffKind;
   config.selectedObjectDescription =
       "TensorExtLite materialized EmitC object candidate";
   return config;
@@ -503,7 +478,7 @@ llvm::Error registerTensorExtLiteTargetArtifactExporter(
 } // namespace
 
 llvm::StringRef getTensorExtLiteMaterializedEmitCHeaderArtifactRouteID() {
-  return kTensorExtLiteHeaderRouteID;
+  return getTensorExtLiteRoute().headerRouteID;
 }
 
 llvm::StringRef getTensorExtLiteMaterializedEmitCTargetArtifactRouteID() {
@@ -511,7 +486,7 @@ llvm::StringRef getTensorExtLiteMaterializedEmitCTargetArtifactRouteID() {
 }
 
 llvm::StringRef getTensorExtLiteEmitCToCppTranslateRouteID() {
-  return kTensorExtLiteEmitCToCppRouteID;
+  return getTensorExtLiteRoute().emitCToCppTranslateRouteID;
 }
 
 llvm::Error registerTensorExtLiteTargetSupportPluginTargetExporterBundles(
@@ -543,11 +518,12 @@ llvm::Error registerTensorExtLiteTargetSupportTargetTranslateRoutes(
   if (llvm::Error error =
           plugin::tensorext_lite::verifyTensorExtLiteConstructionProtocolReady())
     return error;
-  if (registry.lookup(kTensorExtLiteEmitCToCppRouteID))
+  const auto &route = getTensorExtLiteRoute();
+  if (registry.lookup(route.emitCToCppTranslateRouteID))
     return llvm::Error::success();
 
   return registry.registerRoute(TargetTranslateRoute(
-      kTensorExtLiteEmitCToCppRouteID,
+      route.emitCToCppTranslateRouteID,
       "export the selected TensorExtLite materialized EmitC module through "
       "the MLIR EmitC C/C++ emitter",
       exportTensorExtLiteEmitCToCpp));

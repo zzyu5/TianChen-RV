@@ -296,3 +296,63 @@ This commit.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 106: TensorExtLite construction protocol consumption
+
+**Date**: 2026-05-17
+**Task**: TensorExtLite construction protocol consumption
+**Branch**: `main`
+
+### Summary
+
+Rewired TensorExtLite source-front-door, EmitC route, plugin emission plan, and target artifact bundle to consume the plugin-owned construction protocol for role, route, runtime ABI, and artifact metadata coherence.
+
+### Main Changes
+
+### Summary
+
+Made TensorExtLite's existing fragment-MMA source-to-artifact path consume one plugin-owned construction protocol instead of preserving duplicated role, route, runtime ABI, and artifact metadata constants across production surfaces.
+
+### Main Changes
+
+- Extended `TensorExtLiteConstructionProtocol` with protocol-owned role-step, source-op/source-role, EmitC-lowerable interface, route, runtime ABI, artifact metadata, header, bundle, and evidence-profile accessors.
+- Rewired the TensorExtLite source front door to materialize configure/load_frag/tile_mma/store_frag role ops from protocol role steps.
+- Rewired the TensorExtLite EmitC route provider to use protocol role order, role lookup, route identity, and call-opaque callee mapping.
+- Rewired the TensorExtLite plugin emission plan and target support bundle to use protocol runtime ABI, artifact metadata, header route, bundle group, object handoff, and EmitC-to-C++ route data.
+- Rewrote focused TensorExtLite plugin and target artifact C++ tests so stale protocol or metadata mismatch fails before artifact export.
+- Preserved the existing production/default source marker -> role ops -> materialized EmitC -> object/header/bundle behavior.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-tensorext-lite-extension-plugin-test tianchenrv-target-artifact-export-test tianchenrv-construction-protocol-common-test -j2`
+- [OK] `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] focused lit from `build/test` with `--filter='TensorExtLite|tensorext-lite'`: 13/13 passed.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 115/115 lit tests passed.
+- [OK] `git diff --check`
+- [OK] targeted scans found no TensorExtLite descriptor route authority, direct C semantic exporter, source-export route, Python compiler-core path, or common/core TensorExtLite semantic branch.
+
+### Status
+
+[OK] Completed. Ready for archive and commit.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -20,15 +20,10 @@ namespace emitc = tianchenrv::conversion::emitc;
 
 constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
 constexpr llvm::StringLiteral kRoleAttrName("role");
-constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
-    "TCRVEmitCLowerableOpInterface");
 
 struct TensorExtLiteSelectedRoleStep {
-  llvm::StringRef sourceRole;
-  llvm::StringRef operationName;
-  llvm::StringRef callee;
+  const TensorExtLiteFragmentMmaRoleStep *constructionStep = nullptr;
   mlir::Operation *operation = nullptr;
-  unsigned order = 0;
 };
 
 llvm::Error makeTensorExtLiteEmitCRouteProviderError(llvm::Twine message) {
@@ -75,17 +70,10 @@ findSelectedTensorExtLiteRoleSequence(
         "selected TensorExtLite EmitC route requires a materialized selected "
         "variant body");
 
-  const TensorExtLiteFragmentMmaEmitCConstructionRoute &route =
-      getTensorExtLiteFragmentMmaEmitCConstructionRoute();
   llvm::SmallVector<TensorExtLiteSelectedRoleStep, 4> steps;
-  steps.push_back({"configure", "tcrv_tensorext_lite.config_skeleton",
-                   route.configCallee, nullptr, 0});
-  steps.push_back({"load_frag", "tcrv_tensorext_lite.load_frag_skeleton",
-                   route.loadFragCallee, nullptr, 1});
-  steps.push_back({"tile_mma", "tcrv_tensorext_lite.tile_mma_skeleton",
-                   route.tileMmaCallee, nullptr, 2});
-  steps.push_back({"store_frag", "tcrv_tensorext_lite.store_frag_skeleton",
-                   route.storeFragCallee, nullptr, 3});
+  for (const TensorExtLiteFragmentMmaRoleStep &roleStep :
+       getTensorExtLiteFragmentMmaRoleSteps())
+    steps.push_back({&roleStep, nullptr});
 
   llvm::StringRef expectedPathRole =
       stringifyVariantEmissionRole(request.getRole());
@@ -100,31 +88,35 @@ findSelectedTensorExtLiteRoleSequence(
       continue;
     llvm::StringRef operationName = getOperationName(&op);
     for (TensorExtLiteSelectedRoleStep &step : steps) {
-      if (operationName != step.operationName)
+      if (!step.constructionStep ||
+          operationName != step.constructionStep->operationName)
         continue;
       if (step.operation)
         return makeTensorExtLiteEmitCRouteProviderError(
             llvm::Twine("selected TensorExtLite EmitC route requires exactly "
                         "one ") +
-            step.operationName + " role op for @" + variant.getSymName());
+            step.constructionStep->operationName + " role op for @" +
+            variant.getSymName());
       step.operation = &op;
     }
   }
 
   for (const TensorExtLiteSelectedRoleStep &step : steps) {
-    if (!step.operation)
+    if (!step.constructionStep || !step.operation)
       return makeTensorExtLiteEmitCRouteProviderError(
           llvm::Twine("selected TensorExtLite EmitC route requires one "
                       "materialized ") +
-          step.operationName + " role op for @" + variant.getSymName());
+          (step.constructionStep ? step.constructionStep->operationName
+                                 : llvm::StringRef("<unknown>")) +
+          " role op for @" + variant.getSymName());
   }
 
   for (unsigned order = 1; order < steps.size(); ++order) {
     if (bodyOrder[steps[order - 1].operation] >=
         bodyOrder[steps[order].operation])
       return makeTensorExtLiteEmitCRouteProviderError(
-          "selected TensorExtLite role ops must appear in "
-          "configure->load_frag->tile_mma->store_frag order");
+          llvm::Twine("selected TensorExtLite role ops must appear in ") +
+          getTensorExtLiteConstructionManifest().semanticRoleGraph + " order");
   }
 
   return steps;
@@ -136,20 +128,20 @@ getTensorExtLiteRoleSourceProvenance(
   if (llvm::Error error = verifyTensorExtLiteRoleOpInterface(
           getTensorExtLiteConstructionManifest(),
           getTensorExtLiteTypedRoleGraphRealization(), step.operation,
-          step.sourceRole))
+          step.constructionStep->sourceRole))
     return std::move(error);
 
   auto lowerable =
       llvm::dyn_cast<emitc::TCRVEmitCLowerableOpInterface>(step.operation);
   if (!lowerable)
     return makeTensorExtLiteEmitCRouteProviderError(
-        llvm::Twine(step.operationName) + " must implement "
+        llvm::Twine(step.constructionStep->operationName) + " must implement "
         "TCRVEmitCLowerableOpInterface before route construction");
 
   emitc::TCRVEmitCSourceOpProvenance source;
   source.opName = lowerable.getTCRVEmitCLowerableSourceOpName().str();
   source.role = lowerable.getTCRVEmitCLowerableSourceRole().str();
-  source.opInterface = kEmitCLowerableOpInterfaceName.str();
+  source.opInterface = getTensorExtLiteEmitCLowerableOpInterfaceName().str();
   return source;
 }
 
@@ -181,10 +173,8 @@ llvm::Error buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
       constructionRoute.routeID,
       "extension-family-role-sequence-to-emitc-call-opaque");
   route.addHeader("stdint.h");
-  route.addFunctionDeclaration(constructionRoute.configCallee);
-  route.addFunctionDeclaration(constructionRoute.loadFragCallee);
-  route.addFunctionDeclaration(constructionRoute.tileMmaCallee);
-  route.addFunctionDeclaration(constructionRoute.storeFragCallee);
+  for (const TensorExtLiteSelectedRoleStep &step : *steps)
+    route.addFunctionDeclaration(step.constructionStep->callee);
 
   llvm::SmallVector<emitc::TCRVEmitCSourceOpProvenance, 4> sources;
   for (const TensorExtLiteSelectedRoleStep &step : *steps) {
@@ -199,7 +189,7 @@ llvm::Error buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
   for (auto [step, source] : llvm::zip(*steps, sources)) {
     emitc::TCRVEmitCCallOpaqueStep call;
     call.sourceOp = source;
-    call.callee = step.callee.str();
+    call.callee = step.constructionStep->callee.str();
     route.addCallOpaqueStep(std::move(call));
   }
 

@@ -164,40 +164,25 @@ TileMmaSkeletonOp findTensorExtLiteNestedComputeRole(
   return result;
 }
 
-struct TensorExtLiteTestRoleSpec {
-  llvm::StringRef operationName;
-  llvm::StringRef typedRole;
-  llvm::StringRef sourceRole;
-  llvm::StringRef roleSpecificInterface;
-  int64_t roleOrder = 0;
-};
-
 void materializeTensorExtLiteRoleSequence(mlir::OpBuilder &builder,
                                           KernelOp kernel,
                                           VariantOp variant,
                                           bool reorderLoadAndTile = false) {
-  static constexpr TensorExtLiteTestRoleSpec kRoleSpecs[] = {
-      {"tcrv_tensorext_lite.config_skeleton", "tel.role.config",
-       "configure", "TCRVConfigOpInterface", 0},
-      {"tcrv_tensorext_lite.load_frag_skeleton", "tel.role.load_frag",
-       "load_frag", "TCRVMemoryOpInterface", 1},
-      {"tcrv_tensorext_lite.tile_mma_skeleton", "tel.role.tile_mma",
-       "tile_mma", "TCRVComputeOpInterface", 2},
-      {"tcrv_tensorext_lite.store_frag_skeleton", "tel.role.store_frag",
-       "store_frag", "TCRVMemoryOpInterface", 3},
-  };
-
   mlir::Block &body = variant.getBody().front();
   builder.setInsertionPointToEnd(&body);
   auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  llvm::ArrayRef<tianchenrv::plugin::tensorext_lite::
+                     TensorExtLiteFragmentMmaRoleStep>
+      roleSteps = tianchenrv::plugin::tensorext_lite::
+          getTensorExtLiteFragmentMmaRoleSteps();
   const unsigned orderedIndices[] = {0, 1, 2, 3};
   const unsigned reorderedIndices[] = {0, 2, 1, 3};
   llvm::ArrayRef<unsigned> indices =
       reorderLoadAndTile ? llvm::ArrayRef<unsigned>(reorderedIndices)
                          : llvm::ArrayRef<unsigned>(orderedIndices);
   for (unsigned specIndex : indices) {
-    const TensorExtLiteTestRoleSpec &spec = kRoleSpecs[specIndex];
-    mlir::OperationState state(variant.getLoc(), spec.operationName);
+    const auto &step = roleSteps[specIndex];
+    mlir::OperationState state(variant.getLoc(), step.operationName);
     state.addAttribute("source_kernel",
                        builder.getStringAttr(kernel.getSymName()));
     state.addAttribute("selected_variant",
@@ -213,12 +198,12 @@ void materializeTensorExtLiteRoleSequence(mlir::OpBuilder &builder,
             VariantEmissionRole::DirectVariant)));
     state.addAttribute("status", builder.getStringAttr("role-op-boundary"));
     state.addAttribute("required_capabilities", variantRequires);
-    state.addAttribute("typed_role", builder.getStringAttr(spec.typedRole));
+    state.addAttribute("typed_role", builder.getStringAttr(step.typedRoleID));
     state.addAttribute("role_order",
-                       builder.getI64IntegerAttr(spec.roleOrder));
-    state.addAttribute("source_role", builder.getStringAttr(spec.sourceRole));
+                       builder.getI64IntegerAttr(step.order));
+    state.addAttribute("source_role", builder.getStringAttr(step.sourceRole));
     state.addAttribute("role_specific_interface",
-                       builder.getStringAttr(spec.roleSpecificInterface));
+                       builder.getStringAttr(step.roleSpecificInterface));
     builder.create(state);
   }
 }
@@ -337,6 +322,28 @@ int runRegistrationAndCapabilityMetadataTest() {
 
   const auto &route = tianchenrv::plugin::tensorext_lite::
       getTensorExtLiteFragmentMmaEmitCConstructionRoute();
+  llvm::ArrayRef<tianchenrv::plugin::tensorext_lite::
+                     TensorExtLiteFragmentMmaRoleStep>
+      roleSteps = tianchenrv::plugin::tensorext_lite::
+          getTensorExtLiteFragmentMmaRoleSteps();
+  if (int result =
+          expect(roleSteps.size() == realization.roles.size() &&
+                     roleSteps[0].operationName ==
+                         realization.roles[0].operationName &&
+                     roleSteps[1].sourceRole == "load_frag" &&
+                     roleSteps[2].typedRoleID ==
+                         realization.roles[2].typedRoleID &&
+                     roleSteps[3].callee ==
+                         route.storeFragCallee &&
+                     tianchenrv::plugin::tensorext_lite::
+                         getTensorExtLiteFragmentMmaSourceOps() ==
+                         "tcrv_tensorext_lite.config_skeleton->"
+                         "tcrv_tensorext_lite.load_frag_skeleton->"
+                         "tcrv_tensorext_lite.tile_mma_skeleton->"
+                         "tcrv_tensorext_lite.store_frag_skeleton",
+                 "TensorExtLite construction protocol exposes ordered "
+                 "role-step and route-callee data"))
+    return result;
   if (int result =
           expect(manifest.emitcRoute.routeID == route.routeID &&
                      manifest.emitcRoute.emissionKind == route.emissionKind &&
@@ -359,6 +366,41 @@ int runRegistrationAndCapabilityMetadataTest() {
                   route.runtimeABI, route.runtimeABIKind, route.runtimeABIName,
                   route.runtimeGlueRole),
           "TensorExtLite active EmitC route mapping validates"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::tensorext_lite::
+              verifyTensorExtLiteFragmentMmaTargetArtifactBundleMapping(
+                  route.headerRouteID, route.headerArtifactKind,
+                  route.bundleComponentGroup, route.objectHandoffKind,
+                  route.emitCToCppTranslateRouteID),
+          "TensorExtLite target artifact bundle mapping validates"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::tensorext_lite::
+              verifyTensorExtLiteFragmentMmaArtifactMetadata(
+                  tianchenrv::plugin::tensorext_lite::
+                      getTensorExtLiteFragmentMmaArtifactMetadata(),
+                  "TensorExtLite construction test"),
+          "TensorExtLite artifact metadata validates from protocol"))
+    return result;
+  llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 8>
+      staleProtocolMetadata(
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteFragmentMmaArtifactMetadata()
+                  .begin(),
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteFragmentMmaArtifactMetadata()
+                  .end());
+  staleProtocolMetadata[2].value = "tcrv_tensorext_lite.stale_skeleton";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::tensorext_lite::
+              verifyTensorExtLiteFragmentMmaArtifactMetadata(
+                  staleProtocolMetadata,
+                  "TensorExtLite construction test stale metadata"),
+          {tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteSourceOpsMetadataName(),
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteFragmentMmaSourceOps()}))
     return result;
   if (int result = expectErrorContains(
           tianchenrv::plugin::tensorext_lite::
@@ -716,6 +758,12 @@ module {
     return result;
   const auto &routeMetadata = tianchenrv::plugin::tensorext_lite::
       getTensorExtLiteFragmentMmaEmitCConstructionRoute();
+  const auto &manifest = tianchenrv::plugin::tensorext_lite::
+      getTensorExtLiteConstructionManifest();
+  llvm::ArrayRef<tianchenrv::plugin::tensorext_lite::
+                     TensorExtLiteFragmentMmaRoleStep>
+      roleSteps = tianchenrv::plugin::tensorext_lite::
+          getTensorExtLiteFragmentMmaRoleSteps();
   if (int result =
           expect(status.isSupported() &&
                      status.getEmissionPath() == routeMetadata.routeID,
@@ -755,6 +803,10 @@ module {
                          routeMetadata.runtimeGlueRole &&
                      emissionPlan.getLoweringBoundaryOpName() ==
                          routeMetadata.loweringBoundaryOpName &&
+                     tianchenrv::support::runtimeABIParametersEqual(
+                         emissionPlan.getRuntimeABIParameters(),
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteFragmentMmaRuntimeABIParameters()) &&
                      emissionPlan.getExplanation().contains(
                          "relocatable object artifact") &&
                      emissionPlan.getRequiredCapabilitySymbols().size() == 1 &&
@@ -763,42 +815,58 @@ module {
                              getTensorExtLiteFragmentPreferredCapabilitySymbol() &&
                      emissionPlan.getArtifactMetadata().size() == 8 &&
                      emissionPlan.getArtifactMetadata()[0].key ==
-                         "tensorext_lite_emitc_lowerable_route" &&
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteEmitCLowerableRouteMetadataName() &&
                      emissionPlan.getArtifactMetadata()[0].value ==
                          routeMetadata.routeID &&
                      emissionPlan.getArtifactMetadata()[1].key ==
-                         "tensorext_lite_role_sequence" &&
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteRoleSequenceMetadataName() &&
                      emissionPlan.getArtifactMetadata()[1].value ==
-                         "configure->load_frag->tile_mma->store_frag" &&
+                         manifest.semanticRoleGraph &&
                      emissionPlan.getArtifactMetadata()[2].key ==
-                         "tensorext_lite_source_ops" &&
-                     llvm::StringRef(
-                         emissionPlan.getArtifactMetadata()[2].value)
-                         .contains("tcrv_tensorext_lite.config_skeleton->"
-                                   "tcrv_tensorext_lite.load_frag_skeleton") &&
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteSourceOpsMetadataName() &&
+                     emissionPlan.getArtifactMetadata()[2].value ==
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteFragmentMmaSourceOps() &&
                      emissionPlan.getArtifactMetadata()[3].key ==
-                         "tensorext_lite_source_roles" &&
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteSourceRolesMetadataName() &&
                      emissionPlan.getArtifactMetadata()[3].value ==
-                         "configure->load_frag->tile_mma->store_frag" &&
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteFragmentMmaSourceRoles() &&
                      emissionPlan.getArtifactMetadata()[4].key ==
-                         "tensorext_lite_source_op_interface" &&
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteSourceOpInterfaceMetadataName() &&
                      emissionPlan.getArtifactMetadata()[4].value ==
-                         "TCRVEmitCLowerableOpInterface" &&
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteEmitCLowerableOpInterfaceName() &&
                      emissionPlan.getArtifactMetadata()[5].key ==
-                         "tensorext_lite_construction_protocol" &&
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteConstructionProtocolMetadataName() &&
                      emissionPlan.getArtifactMetadata()[5].value ==
-                         "extension-family-construction-protocol.v1" &&
+                         manifest.protocolVersion &&
                      emissionPlan.getArtifactMetadata()[6].key ==
-                         "tensorext_lite_semantic_role_graph" &&
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteSemanticRoleGraphMetadataName() &&
                      emissionPlan.getArtifactMetadata()[6].value ==
-                         "configure->load_frag->tile_mma->store_frag" &&
+                         manifest.semanticRoleGraph &&
                      emissionPlan.getArtifactMetadata()[7].key ==
-                         "tensorext_lite_typed_role_realization" &&
-                     llvm::StringRef(
-                         emissionPlan.getArtifactMetadata()[7].value)
-                         .contains("configure:tel.role.config"),
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteTypedRoleRealizationMetadataName() &&
+                     emissionPlan.getArtifactMetadata()[7].value ==
+                         tianchenrv::plugin::tensorext_lite::
+                             getTensorExtLiteTypedRoleRealizationSummary(),
                  "TensorExtLite emission plan is a supported object artifact "
                  "candidate backed by EmitC route provenance"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::tensorext_lite::
+              verifyTensorExtLiteFragmentMmaArtifactMetadata(
+                  emissionPlan.getArtifactMetadata(),
+                  "TensorExtLite emission plan metadata"),
+          "TensorExtLite emission-plan artifact metadata matches protocol"))
     return result;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute emitcRoute;
@@ -814,19 +882,19 @@ module {
           expect(emitcRoute.getRouteID() == routeMetadata.routeID &&
                      emitcRoute.getFunctionDeclarations().size() == 4 &&
                      emitcRoute.getFunctionDeclarations()[0].name ==
-                         routeMetadata.configCallee &&
+                         roleSteps[0].callee &&
                      emitcRoute.getSourceOpProvenance().size() == 4 &&
                      emitcRoute.getCallOpaqueSteps().size() == 4 &&
                      emitcRoute.getSourceOpProvenance()[0].role ==
-                         "configure" &&
+                         roleSteps[0].sourceRole &&
                      emitcRoute.getSourceOpProvenance()[1].role ==
-                         "load_frag" &&
+                         roleSteps[1].sourceRole &&
                      emitcRoute.getSourceOpProvenance()[2].role ==
-                         "tile_mma" &&
+                         roleSteps[2].sourceRole &&
                      emitcRoute.getSourceOpProvenance()[3].role ==
-                         "store_frag" &&
+                         roleSteps[3].sourceRole &&
                      emitcRoute.getCallOpaqueSteps()[2].callee ==
-                         routeMetadata.tileMmaCallee,
+                         roleSteps[2].callee,
                  "TensorExtLite route preserves role sequence provenance and "
                  "call-opaque mapping"))
     return result;
@@ -905,8 +973,11 @@ module {
           tensorext_liteVariant, kernel, capabilities,
           VariantEmissionRole::DirectVariant),
                                                emitcRoute),
-      {"selected TensorExtLite role ops must appear in "
-       "configure->load_frag->tile_mma->store_frag order"});
+      {"selected TensorExtLite role ops must appear in",
+       tianchenrv::plugin::tensorext_lite::
+           getTensorExtLiteConstructionManifest()
+               .semanticRoleGraph,
+       "order"});
 }
 
 } // namespace

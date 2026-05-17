@@ -11,6 +11,7 @@
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Error.h"
 
 #include <cctype>
 #include <cstdint>
@@ -48,25 +49,6 @@ constexpr llvm::StringLiteral kSelectedDiagnosticMessage(
     "selected TensorExtLite source front-door route");
 constexpr llvm::StringLiteral kFragmentReason(
     "tensorext-lite-source-front-door-fragment-mma-template");
-
-struct TensorExtLiteSourceRoleSpec {
-  llvm::StringLiteral operationName;
-  llvm::StringLiteral typedRole;
-  llvm::StringLiteral sourceRole;
-  llvm::StringLiteral roleSpecificInterface;
-  std::int64_t roleOrder = 0;
-};
-
-constexpr TensorExtLiteSourceRoleSpec kRoleSpecs[] = {
-    {"tcrv_tensorext_lite.config_skeleton", "tel.role.config", "configure",
-     "TCRVConfigOpInterface", 0},
-    {"tcrv_tensorext_lite.load_frag_skeleton", "tel.role.load_frag",
-     "load_frag", "TCRVMemoryOpInterface", 1},
-    {"tcrv_tensorext_lite.tile_mma_skeleton", "tel.role.tile_mma",
-     "tile_mma", "TCRVComputeOpInterface", 2},
-    {"tcrv_tensorext_lite.store_frag_skeleton", "tel.role.store_frag",
-     "store_frag", "TCRVMemoryOpInterface", 3},
-};
 
 mlir::LogicalResult failMaterializer(mlir::Operation *op,
                                      llvm::StringRef message) {
@@ -238,10 +220,10 @@ void createTensorExtLiteVariant(mlir::OpBuilder &builder, mlir::Location loc,
 }
 
 void createTensorExtLiteRoleOp(mlir::OpBuilder &builder, mlir::Location loc,
-                               const TensorExtLiteSourceRoleSpec &spec,
+                               const TensorExtLiteFragmentMmaRoleStep &step,
                                llvm::StringRef kernelName,
                                mlir::ArrayAttr requires) {
-  mlir::OperationState state(loc, spec.operationName);
+  mlir::OperationState state(loc, step.operationName);
   state.addAttribute(kSourceKernelBoundaryAttrName,
                      builder.getStringAttr(kernelName));
   state.addAttribute(
@@ -256,13 +238,14 @@ void createTensorExtLiteRoleOp(mlir::OpBuilder &builder, mlir::Location loc,
   state.addAttribute(kStatusAttrName,
                      builder.getStringAttr(kRoleOpBoundaryStatusValue));
   state.addAttribute(kRequiredCapabilitiesAttrName, requires);
-  state.addAttribute(kTypedRoleAttrName, builder.getStringAttr(spec.typedRole));
+  state.addAttribute(kTypedRoleAttrName,
+                     builder.getStringAttr(step.typedRoleID));
   state.addAttribute(kRoleOrderAttrName,
-                     builder.getI64IntegerAttr(spec.roleOrder));
+                     builder.getI64IntegerAttr(step.order));
   state.addAttribute(kSourceRoleAttrName,
-                     builder.getStringAttr(spec.sourceRole));
+                     builder.getStringAttr(step.sourceRole));
   state.addAttribute(kRoleSpecificInterfaceAttrName,
-                     builder.getStringAttr(spec.roleSpecificInterface));
+                     builder.getStringAttr(step.roleSpecificInterface));
   state.addAttribute(kFragmentReasonAttrName,
                      builder.getStringAttr(kFragmentReason));
   (void)builder.create(state);
@@ -334,8 +317,9 @@ void materializeTensorExtLiteSourceKernel(mlir::OpBuilder &builder,
       kernel.getBody().front().back());
   mlir::OpBuilder::InsertionGuard variantGuard(builder);
   builder.setInsertionPointToStart(&variant.getBody().front());
-  for (const TensorExtLiteSourceRoleSpec &spec : kRoleSpecs)
-    createTensorExtLiteRoleOp(builder, loc, spec, kernelName, requires);
+  for (const TensorExtLiteFragmentMmaRoleStep &step :
+       getTensorExtLiteFragmentMmaRoleSteps())
+    createTensorExtLiteRoleOp(builder, loc, step, kernelName, requires);
 
   builder.setInsertionPointAfter(variant);
   createTensorExtLiteLoweringBoundary(builder, loc, kernelName, requires);
@@ -371,6 +355,13 @@ public:
     }
     if (kernelName->empty())
       return;
+
+    if (llvm::Error error = verifyTensorExtLiteConstructionProtocolReady()) {
+      std::string message = llvm::toString(std::move(error));
+      (void)failMaterializer(module, message);
+      signalPassFailure();
+      return;
+    }
 
     mlir::OpBuilder builder(module.getContext());
     builder.setInsertionPointToStart(module.getBody());

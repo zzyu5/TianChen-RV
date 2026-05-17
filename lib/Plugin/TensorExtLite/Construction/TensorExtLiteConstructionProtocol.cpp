@@ -1,6 +1,12 @@
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
 
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/raw_ostream.h"
+
+#include <string>
+#include <tuple>
 
 namespace tianchenrv::plugin::tensorext_lite {
 namespace {
@@ -25,6 +31,16 @@ constexpr llvm::StringLiteral kEvidenceProfile(
     "parse_verify|capability|interface|selected_boundary_or_route|"
     "emitc_route_mapping|materialized_emitc_module");
 
+constexpr llvm::StringLiteral kEmitCLowerableRouteMetadataName(
+    "tensorext_lite_emitc_lowerable_route");
+constexpr llvm::StringLiteral kRoleSequenceMetadataName(
+    "tensorext_lite_role_sequence");
+constexpr llvm::StringLiteral kSourceOpsMetadataName(
+    "tensorext_lite_source_ops");
+constexpr llvm::StringLiteral kSourceRolesMetadataName(
+    "tensorext_lite_source_roles");
+constexpr llvm::StringLiteral kSourceOpInterfaceMetadataName(
+    "tensorext_lite_source_op_interface");
 constexpr llvm::StringLiteral kProtocolMetadataName(
     "tensorext_lite_construction_protocol");
 constexpr llvm::StringLiteral kArchetypeMetadataName(
@@ -71,6 +87,16 @@ constexpr llvm::StringLiteral kTensorExtLiteRuntimeGlueRole(
     "emitc-cpp-tensorext-lite-fragment-runtime-glue");
 constexpr llvm::StringLiteral kTensorExtLiteLoweringBoundaryOpName(
     "tcrv_tensorext_lite.lowering_boundary");
+constexpr llvm::StringLiteral kTensorExtLiteHeaderRouteID(
+    "tensorext-lite-fragment-mma-emitc-route.header");
+constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
+    "runtime-callable-c-header");
+constexpr llvm::StringLiteral kTensorExtLiteMaterializedEmitCBundleComponentGroup(
+    "tensorext-lite-fragment-mma-materialized-emitc-bundle.v1");
+constexpr llvm::StringLiteral kTensorExtLiteObjectHandoffKind(
+    "materialized-emitc-cpp-tensorext-lite-fragment-object");
+constexpr llvm::StringLiteral kTensorExtLiteEmitCToCppRouteID(
+    "tcrv-tensorext-lite-emitc-to-cpp");
 constexpr llvm::StringLiteral kTensorExtLiteConfigCallee(
     "tcrv_tensorext_lite_config");
 constexpr llvm::StringLiteral kTensorExtLiteLoadFragCallee(
@@ -95,6 +121,8 @@ constexpr llvm::StringLiteral kTensorExtLiteComputeOperationName(
     "tcrv_tensorext_lite.tile_mma_skeleton");
 constexpr llvm::StringLiteral kTensorExtLiteComputeTypedRoleID(
     "tel.role.tile_mma");
+constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
+    "TCRVEmitCLowerableOpInterface");
 
 const TensorExtLiteConstructionSemanticRole kSemanticRoles[] = {
     {"configure", 0, "tcrv_tensorext_lite.config_skeleton",
@@ -149,6 +177,11 @@ const TensorExtLiteFragmentMmaEmitCConstructionRoute kFragmentMmaEmitCRoute = {
     kTensorExtLiteRuntimeABI,
     kTensorExtLiteRuntimeGlueRole,
     kTensorExtLiteLoweringBoundaryOpName,
+    kTensorExtLiteHeaderRouteID,
+    kRuntimeCallableCHeaderArtifactKind,
+    kTensorExtLiteMaterializedEmitCBundleComponentGroup,
+    kTensorExtLiteObjectHandoffKind,
+    kTensorExtLiteEmitCToCppRouteID,
     kTensorExtLiteConfigCallee,
     kTensorExtLiteLoadFragCallee,
     kTensorExtLiteTileMmaCallee,
@@ -199,6 +232,37 @@ const TensorExtLiteTypedRoleGraphRealization kTypedRoleGraphRealization = {
     kEvidenceProfile,
 };
 
+const TensorExtLiteFragmentMmaRoleStep kFragmentMmaRoleSteps[] = {
+    {"configure",
+     "tcrv_tensorext_lite.config_skeleton",
+     "tel.role.config",
+     "TCRVConfigOpInterface",
+     "TCRVEmitCLowerableInterface",
+     kTensorExtLiteConfigCallee,
+     0},
+    {"load_frag",
+     "tcrv_tensorext_lite.load_frag_skeleton",
+     "tel.role.load_frag",
+     "TCRVMemoryOpInterface",
+     "TCRVEmitCLowerableInterface",
+     kTensorExtLiteLoadFragCallee,
+     1},
+    {"tile_mma",
+     "tcrv_tensorext_lite.tile_mma_skeleton",
+     "tel.role.tile_mma",
+     "TCRVComputeOpInterface",
+     "TCRVEmitCLowerableInterface",
+     kTensorExtLiteTileMmaCallee,
+     2},
+    {"store_frag",
+     "tcrv_tensorext_lite.store_frag_skeleton",
+     "tel.role.store_frag",
+     "TCRVMemoryOpInterface",
+     "TCRVEmitCLowerableInterface",
+     kTensorExtLiteStoreFragCallee,
+     3},
+};
+
 const construction::RoleExpectation kRoleExpectations[] = {
     {"configure", "TCRVConfigOpInterface", false},
     {"load_frag", "TCRVMemoryOpInterface", true},
@@ -229,6 +293,82 @@ construction::ValidationSpec getTensorExtLiteConstructionValidationSpec() {
           kTypedRoleRealizationSummary,
           kRoleExpectations,
           kRequiredEvidence};
+}
+
+std::string joinTensorExtLiteFragmentMmaRoles(
+    llvm::function_ref<llvm::StringRef(const TensorExtLiteFragmentMmaRoleStep &)>
+        select) {
+  std::string joined;
+  llvm::raw_string_ostream stream(joined);
+  for (auto [index, step] : llvm::enumerate(kFragmentMmaRoleSteps)) {
+    if (index != 0)
+      stream << "->";
+    stream << select(step);
+  }
+  stream.flush();
+  return joined;
+}
+
+const TensorExtLiteFragmentMmaRoleStep *
+findTensorExtLiteFragmentMmaRoleStep(llvm::StringRef sourceRole) {
+  for (const TensorExtLiteFragmentMmaRoleStep &step : kFragmentMmaRoleSteps)
+    if (step.sourceRole == sourceRole)
+      return &step;
+  return nullptr;
+}
+
+llvm::Error verifyTensorExtLiteFragmentMmaRoleSteps() {
+  if (llvm::ArrayRef<TensorExtLiteFragmentMmaRoleStep>(kFragmentMmaRoleSteps)
+          .size() !=
+      llvm::ArrayRef<TensorExtLiteTypedRoleInterfaceRealization>(
+          kTypedRoleRealizations)
+          .size())
+    return makeTensorExtLiteConstructionProtocolError(
+        "fragment-MMA route role steps must contain exactly one entry per "
+        "typed role realization");
+
+  for (auto [index, step] : llvm::enumerate(kFragmentMmaRoleSteps)) {
+    const TensorExtLiteTypedRoleInterfaceRealization &typedRole =
+        kTypedRoleRealizations[index];
+    if (step.order != index || typedRole.order != index)
+      return makeTensorExtLiteConstructionProtocolError(
+          "fragment-MMA route role steps must preserve contiguous role order");
+    if (step.sourceRole != typedRole.role ||
+        step.operationName != typedRole.operationName ||
+        step.typedRoleID != typedRole.typedRoleID ||
+        step.roleSpecificInterface != typedRole.roleSpecificInterface ||
+        step.emitCLowerableInterface != typedRole.emitCLowerableInterface)
+      return makeTensorExtLiteConstructionProtocolError(
+          llvm::Twine("fragment-MMA route role step '") + step.sourceRole +
+          "' must match the typed role interface realization");
+    if (step.callee.empty())
+      return makeTensorExtLiteConstructionProtocolError(
+          llvm::Twine("fragment-MMA route role step '") + step.sourceRole +
+          "' must name a non-empty EmitC callee");
+
+    const TensorExtLiteFragmentMmaRoleStep *lookup =
+        findTensorExtLiteFragmentMmaRoleStep(typedRole.role);
+    if (lookup != &step)
+      return makeTensorExtLiteConstructionProtocolError(
+          llvm::Twine("fragment-MMA route role step '") + typedRole.role +
+          "' must be uniquely addressable by source role");
+  }
+
+  if (getTensorExtLiteFragmentMmaSourceRoles() != kSemanticRoleGraph)
+    return makeTensorExtLiteConstructionProtocolError(
+        "fragment-MMA route source roles must match the semantic role graph");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyTensorExtLiteFragmentMmaStaticArtifactMetadata() {
+  llvm::ArrayRef<support::ArtifactMetadataEntry> expected =
+      getTensorExtLiteFragmentMmaArtifactMetadata();
+  if (expected.size() != 8)
+    return makeTensorExtLiteConstructionProtocolError(
+        "fragment-MMA artifact evidence profile requires exactly 8 metadata "
+        "entries");
+  return verifyTensorExtLiteFragmentMmaArtifactMetadata(
+      expected, "TensorExtLite construction protocol");
 }
 
 construction::RoleOpValidationSpec getTensorExtLiteRoleValidationSpec() {
@@ -279,6 +419,46 @@ llvm::StringRef getTensorExtLiteConstructionInterfaceRealization() {
 
 llvm::StringRef getTensorExtLiteTypedRoleRealizationSummary() {
   return kTypedRoleRealizationSummary;
+}
+
+llvm::StringRef getTensorExtLiteFragmentMmaSourceOps() {
+  static const std::string kSourceOps = joinTensorExtLiteFragmentMmaRoles(
+      [](const TensorExtLiteFragmentMmaRoleStep &step) {
+        return step.operationName;
+      });
+  return kSourceOps;
+}
+
+llvm::StringRef getTensorExtLiteFragmentMmaSourceRoles() {
+  static const std::string kSourceRoles = joinTensorExtLiteFragmentMmaRoles(
+      [](const TensorExtLiteFragmentMmaRoleStep &step) {
+        return step.sourceRole;
+      });
+  return kSourceRoles;
+}
+
+llvm::StringRef getTensorExtLiteEmitCLowerableOpInterfaceName() {
+  return kEmitCLowerableOpInterfaceName;
+}
+
+llvm::StringRef getTensorExtLiteEmitCLowerableRouteMetadataName() {
+  return kEmitCLowerableRouteMetadataName;
+}
+
+llvm::StringRef getTensorExtLiteRoleSequenceMetadataName() {
+  return kRoleSequenceMetadataName;
+}
+
+llvm::StringRef getTensorExtLiteSourceOpsMetadataName() {
+  return kSourceOpsMetadataName;
+}
+
+llvm::StringRef getTensorExtLiteSourceRolesMetadataName() {
+  return kSourceRolesMetadataName;
+}
+
+llvm::StringRef getTensorExtLiteSourceOpInterfaceMetadataName() {
+  return kSourceOpInterfaceMetadataName;
 }
 
 llvm::StringRef getTensorExtLiteConstructionProtocolMetadataName() {
@@ -351,6 +531,31 @@ getTensorExtLiteFragmentMmaEmitCConstructionRoute() {
   return kFragmentMmaEmitCRoute;
 }
 
+llvm::ArrayRef<TensorExtLiteFragmentMmaRoleStep>
+getTensorExtLiteFragmentMmaRoleSteps() {
+  return kFragmentMmaRoleSteps;
+}
+
+llvm::ArrayRef<support::ArtifactMetadataEntry>
+getTensorExtLiteFragmentMmaArtifactMetadata() {
+  static const support::ArtifactMetadataEntry kMetadata[] = {
+      {kEmitCLowerableRouteMetadataName, kFragmentMmaEmitCRoute.routeID},
+      {kRoleSequenceMetadataName, kSemanticRoleGraph},
+      {kSourceOpsMetadataName, getTensorExtLiteFragmentMmaSourceOps()},
+      {kSourceRolesMetadataName, getTensorExtLiteFragmentMmaSourceRoles()},
+      {kSourceOpInterfaceMetadataName, kEmitCLowerableOpInterfaceName},
+      {kProtocolMetadataName, kProtocolVersion},
+      {kRoleGraphMetadataName, kSemanticRoleGraph},
+      {kTypedRoleRealizationMetadataName, kTypedRoleRealizationSummary},
+  };
+  return kMetadata;
+}
+
+llvm::ArrayRef<support::RuntimeABIParameter>
+getTensorExtLiteFragmentMmaRuntimeABIParameters() {
+  return {};
+}
+
 llvm::Error verifyTensorExtLiteConstructionManifest(
     const TensorExtLiteConstructionManifest &manifest) {
   return construction::verifyConstructionManifest(
@@ -370,12 +575,27 @@ llvm::Error verifyTensorExtLiteConstructionProtocolReady() {
   if (llvm::Error error = verifyTensorExtLiteTypedRoleGraphRealization(
           kManifest, kTypedRoleGraphRealization))
     return error;
-  return verifyTensorExtLiteFragmentMmaEmitCConstructionRouteMapping(
-      kFragmentMmaEmitCRoute.routeID, kFragmentMmaEmitCRoute.emissionKind,
-      kFragmentMmaEmitCRoute.artifactKind, kFragmentMmaEmitCRoute.runtimeABI,
-      kFragmentMmaEmitCRoute.runtimeABIKind,
-      kFragmentMmaEmitCRoute.runtimeABIName,
-      kFragmentMmaEmitCRoute.runtimeGlueRole);
+  if (llvm::Error error = verifyTensorExtLiteFragmentMmaRoleSteps())
+    return error;
+  if (llvm::Error error =
+          verifyTensorExtLiteFragmentMmaEmitCConstructionRouteMapping(
+              kFragmentMmaEmitCRoute.routeID,
+              kFragmentMmaEmitCRoute.emissionKind,
+              kFragmentMmaEmitCRoute.artifactKind,
+              kFragmentMmaEmitCRoute.runtimeABI,
+              kFragmentMmaEmitCRoute.runtimeABIKind,
+              kFragmentMmaEmitCRoute.runtimeABIName,
+              kFragmentMmaEmitCRoute.runtimeGlueRole))
+    return error;
+  if (llvm::Error error =
+          verifyTensorExtLiteFragmentMmaTargetArtifactBundleMapping(
+              kFragmentMmaEmitCRoute.headerRouteID,
+              kFragmentMmaEmitCRoute.headerArtifactKind,
+              kFragmentMmaEmitCRoute.bundleComponentGroup,
+              kFragmentMmaEmitCRoute.objectHandoffKind,
+              kFragmentMmaEmitCRoute.emitCToCppTranslateRouteID))
+    return error;
+  return verifyTensorExtLiteFragmentMmaStaticArtifactMetadata();
 }
 
 llvm::Error verifyTensorExtLiteFragmentMmaEmitCConstructionRouteMapping(
@@ -414,6 +634,68 @@ llvm::Error verifyTensorExtLiteFragmentMmaEmitCConstructionRouteMapping(
         llvm::Twine("TensorExtLite runtime glue role must be '") +
         expected.runtimeGlueRole + "'");
   return llvm::Error::success();
+}
+
+llvm::Error verifyTensorExtLiteFragmentMmaTargetArtifactBundleMapping(
+    llvm::StringRef headerRouteID, llvm::StringRef headerArtifactKind,
+    llvm::StringRef bundleComponentGroup, llvm::StringRef objectHandoffKind,
+    llvm::StringRef emitCToCppTranslateRouteID) {
+  const TensorExtLiteFragmentMmaEmitCConstructionRoute &expected =
+      getTensorExtLiteFragmentMmaEmitCConstructionRoute();
+  if (headerRouteID != expected.headerRouteID)
+    return makeTensorExtLiteConstructionProtocolError(
+        llvm::Twine("TensorExtLite header route id must be '") +
+        expected.headerRouteID + "'");
+  if (headerArtifactKind != expected.headerArtifactKind)
+    return makeTensorExtLiteConstructionProtocolError(
+        llvm::Twine("TensorExtLite header artifact kind must be '") +
+        expected.headerArtifactKind + "'");
+  if (bundleComponentGroup != expected.bundleComponentGroup)
+    return makeTensorExtLiteConstructionProtocolError(
+        llvm::Twine("TensorExtLite bundle component group must be '") +
+        expected.bundleComponentGroup + "'");
+  if (objectHandoffKind != expected.objectHandoffKind)
+    return makeTensorExtLiteConstructionProtocolError(
+        llvm::Twine("TensorExtLite object handoff kind must be '") +
+        expected.objectHandoffKind + "'");
+  if (emitCToCppTranslateRouteID != expected.emitCToCppTranslateRouteID)
+    return makeTensorExtLiteConstructionProtocolError(
+        llvm::Twine("TensorExtLite EmitC-to-C++ translate route id must be '") +
+        expected.emitCToCppTranslateRouteID + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyTensorExtLiteFragmentMmaArtifactMetadata(
+    llvm::ArrayRef<support::ArtifactMetadataEntry> metadata,
+    llvm::StringRef context) {
+  llvm::ArrayRef<support::ArtifactMetadataEntry> expected =
+      getTensorExtLiteFragmentMmaArtifactMetadata();
+  if (support::artifactMetadataEntriesEqual(metadata, expected))
+    return llvm::Error::success();
+
+  if (metadata.size() != expected.size())
+    return makeTensorExtLiteConstructionProtocolError(
+        llvm::Twine(context) + " must carry exactly " +
+        llvm::Twine(expected.size()) +
+        " TensorExtLite fragment-MMA artifact metadata entries");
+
+  for (auto [index, pair] : llvm::enumerate(llvm::zip(metadata, expected))) {
+    const support::ArtifactMetadataEntry &actual = std::get<0>(pair);
+    const support::ArtifactMetadataEntry &want = std::get<1>(pair);
+    if (actual.key != want.key)
+      return makeTensorExtLiteConstructionProtocolError(
+          llvm::Twine(context) + " artifact_metadata[" +
+          llvm::Twine(index) + "] key must be '" + want.key + "'");
+    if (actual.value != want.value)
+      return makeTensorExtLiteConstructionProtocolError(
+          llvm::Twine(context) + " artifact_metadata[" +
+          llvm::Twine(index) + "] value for key '" + want.key +
+          "' must be '" + want.value + "'");
+  }
+
+  return makeTensorExtLiteConstructionProtocolError(
+      llvm::Twine(context) +
+      " must carry TensorExtLite fragment-MMA construction artifact metadata");
 }
 
 llvm::Error verifyTensorExtLiteRoleOpInterface(

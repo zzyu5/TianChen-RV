@@ -745,7 +745,7 @@ TargetArtifactCandidate makeValidTensorExtLiteTargetArtifactCandidate() {
       getTensorExtLiteFragmentMmaEmitCConstructionRoute();
 
   TargetArtifactCandidate candidate;
-  candidate.selectedVariant = "tensorext_lite_tile_mma_first_slice";
+  candidate.selectedVariant = manifest.family.firstSliceVariantName.str();
   candidate.role = "direct variant";
   candidate.routeID = route.routeID.str();
   candidate.origin = manifest.family.pluginName.str();
@@ -756,39 +756,13 @@ TargetArtifactCandidate makeValidTensorExtLiteTargetArtifactCandidate() {
   candidate.runtimeABIKind = route.runtimeABIKind.str();
   candidate.runtimeABIName = route.runtimeABIName.str();
   candidate.runtimeGlueRole = route.runtimeGlueRole.str();
-  candidate.artifactMetadata.push_back(
-      tianchenrv::support::ArtifactMetadataEntry(
-          "tensorext_lite_emitc_lowerable_route", route.routeID));
-  candidate.artifactMetadata.push_back(
-      tianchenrv::support::ArtifactMetadataEntry(
-          "tensorext_lite_role_sequence", manifest.semanticRoleGraph));
-  candidate.artifactMetadata.push_back(
-      tianchenrv::support::ArtifactMetadataEntry(
-          "tensorext_lite_source_ops",
-          "tcrv_tensorext_lite.config_skeleton->"
-          "tcrv_tensorext_lite.load_frag_skeleton->"
-          "tcrv_tensorext_lite.tile_mma_skeleton->"
-          "tcrv_tensorext_lite.store_frag_skeleton"));
-  candidate.artifactMetadata.push_back(
-      tianchenrv::support::ArtifactMetadataEntry(
-          "tensorext_lite_source_roles", manifest.semanticRoleGraph));
-  candidate.artifactMetadata.push_back(
-      tianchenrv::support::ArtifactMetadataEntry(
-          "tensorext_lite_source_op_interface",
-          "TCRVEmitCLowerableOpInterface"));
-  candidate.artifactMetadata.push_back(
-      tianchenrv::support::ArtifactMetadataEntry(
-          "tensorext_lite_construction_protocol",
-          manifest.protocolVersion));
-  candidate.artifactMetadata.push_back(
-      tianchenrv::support::ArtifactMetadataEntry(
-          "tensorext_lite_semantic_role_graph",
-          manifest.semanticRoleGraph));
-  candidate.artifactMetadata.push_back(
-      tianchenrv::support::ArtifactMetadataEntry(
-          "tensorext_lite_typed_role_realization",
-          tianchenrv::plugin::tensorext_lite::
-              getTensorExtLiteTypedRoleRealizationSummary()));
+  candidate.artifactMetadata.append(
+      tianchenrv::plugin::tensorext_lite::
+          getTensorExtLiteFragmentMmaArtifactMetadata()
+              .begin(),
+      tianchenrv::plugin::tensorext_lite::
+          getTensorExtLiteFragmentMmaArtifactMetadata()
+              .end());
   return candidate;
 }
 
@@ -811,12 +785,13 @@ bool expectTensorExtLiteTargetArtifactExporterShape(
   if (exporter->getArtifactKind() != route.artifactKind ||
       exporter->getOriginPlugin() != manifest.family.pluginName ||
       exporter->getEmissionKind() != route.emissionKind ||
-      exporter->getHandoffKind() !=
-          "materialized-emitc-cpp-tensorext-lite-fragment-object" ||
-      exporter->getComponentGroup() !=
-          "tensorext-lite-fragment-mma-materialized-emitc-bundle.v1" ||
+      exporter->getHandoffKind() != route.objectHandoffKind ||
+      exporter->getComponentGroup() != route.bundleComponentGroup ||
       exporter->getExternalABIName() != route.runtimeABIName ||
-      !exporter->getRequiredRuntimeABIParameters().empty() ||
+      !tianchenrv::support::runtimeABIParametersEqual(
+          exporter->getRequiredRuntimeABIParameters(),
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteFragmentMmaRuntimeABIParameters()) ||
       !exporter->getExportFn() || !exporter->getCandidateValidationFn()) {
     llvm::errs() << context << ": malformed TensorExtLite object artifact "
                     "exporter metadata\n";
@@ -837,19 +812,39 @@ bool expectTensorExtLiteTargetArtifactExporterShape(
                                missingRouteMetadata, *exporter),
                            "TensorExtLite artifact rejects missing EmitC "
                            "route provenance",
-                           {"tensorext_lite_emitc_lowerable_route"}))
+                           {tianchenrv::plugin::tensorext_lite::
+                                getTensorExtLiteEmitCLowerableRouteMetadataName()}))
     return false;
 
   TargetArtifactCandidate staleRoleSequence = candidate;
   rewriteArtifactMetadataValue(staleRoleSequence,
-                               "tensorext_lite_role_sequence",
+                               tianchenrv::plugin::tensorext_lite::
+                                   getTensorExtLiteRoleSequenceMetadataName(),
                                "configure->descriptor->store_frag");
   if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
                                staleRoleSequence, *exporter),
                            "TensorExtLite artifact rejects descriptor-like "
                            "metadata provenance",
-                           {"tensorext_lite_role_sequence",
-                            "configure->load_frag->tile_mma->store_frag"}))
+                           {tianchenrv::plugin::tensorext_lite::
+                                getTensorExtLiteRoleSequenceMetadataName(),
+                            manifest.semanticRoleGraph}))
+    return false;
+
+  TargetArtifactCandidate staleSourceOps = candidate;
+  rewriteArtifactMetadataValue(
+      staleSourceOps,
+      tianchenrv::plugin::tensorext_lite::
+          getTensorExtLiteSourceOpsMetadataName(),
+      "tcrv_tensorext_lite.config_skeleton->"
+      "tcrv_tensorext_lite.stale_skeleton");
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               staleSourceOps, *exporter),
+                           "TensorExtLite artifact rejects stale source-op "
+                           "metadata provenance",
+                           {tianchenrv::plugin::tensorext_lite::
+                                getTensorExtLiteSourceOpsMetadataName(),
+                            tianchenrv::plugin::tensorext_lite::
+                                getTensorExtLiteFragmentMmaSourceOps()}))
     return false;
 
   TargetArtifactCandidate descriptorMetadata = candidate;
@@ -882,7 +877,7 @@ bool expectTensorExtLiteTargetArtifactExporterShape(
                            "TensorExtLite artifact rejects missing runtime "
                            "ABI metadata",
                            {"runtime ABI",
-                            "tensorext-lite-fragment-mma-runtime-c-abi.v1"}))
+                            route.runtimeABI}))
     return false;
 
   TargetArtifactCandidate wrongRuntimeABIName = candidate;
@@ -892,7 +887,7 @@ bool expectTensorExtLiteTargetArtifactExporterShape(
                            "TensorExtLite artifact rejects mismatched runtime "
                            "ABI handoff metadata",
                            {"runtime ABI name",
-                            "tensorext-lite-fragment-mma-runtime-c-abi.v1"}))
+                            route.runtimeABIName}))
     return false;
 
   TargetArtifactCandidate fallbackRole = candidate;
@@ -912,7 +907,7 @@ bool expectTensorExtLiteTargetArtifactExporterShape(
                            "TensorExtLite artifact rejects wrong origin "
                            "plugin",
                            {"registered for origin",
-                            "tensorext-lite-plugin",
+                            manifest.family.pluginName,
                             "selected emission-plan origin is 'toy-plugin'"}))
     return false;
 
@@ -921,6 +916,8 @@ bool expectTensorExtLiteTargetArtifactExporterShape(
 
 bool expectTensorExtLiteTargetHeaderCompositeShape(
     const TargetArtifactExporterRegistry &registry, llvm::StringRef context) {
+  const auto &route = tianchenrv::plugin::tensorext_lite::
+      getTensorExtLiteFragmentMmaEmitCConstructionRoute();
   const TargetArtifactCompositeExporter *exporter =
       registry.lookupComposite(tianchenrv::target::tensorext_lite::
                                    getTensorExtLiteMaterializedEmitCHeaderArtifactRouteID());
@@ -934,15 +931,14 @@ bool expectTensorExtLiteTargetHeaderCompositeShape(
   if (exporter->getArtifactKind() != "runtime-callable-c-header" ||
       exporter->getOwner() != tianchenrv::plugin::tensorext_lite::
                                   getTensorExtLiteExtensionPluginName() ||
-      exporter->getComponentGroup() !=
-          "tensorext-lite-fragment-mma-materialized-emitc-bundle.v1" ||
-      exporter->getExternalABIName() !=
-          tianchenrv::plugin::tensorext_lite::
-              getTensorExtLiteFragmentMmaEmitCConstructionRoute()
-                  .runtimeABIName ||
+      exporter->getComponentGroup() != route.bundleComponentGroup ||
+      exporter->getExternalABIName() != route.runtimeABIName ||
       !exporter->getMatchFn() ||
       !exporter->getExportFn() || !exporter->getCandidateValidationFn() ||
-      !exporter->getRuntimeABIParameters().empty() ||
+      !tianchenrv::support::runtimeABIParametersEqual(
+          exporter->getRuntimeABIParameters(),
+          tianchenrv::plugin::tensorext_lite::
+              getTensorExtLiteFragmentMmaRuntimeABIParameters()) ||
       !exporter->getRuntimeABIParametersFn() ||
       !exporter->getBundleMetadataFn()) {
     llvm::errs() << context << ": malformed TensorExtLite materialized EmitC "
@@ -989,14 +985,11 @@ bool expectTensorExtLiteTargetHeaderCompositeShape(
     return false;
   }
   if (metadata->componentGroup !=
-          "tensorext-lite-fragment-mma-materialized-emitc-bundle.v1" ||
-      metadata->externalABIName !=
-          "tensorext-lite-fragment-mma-runtime-c-abi.v1" ||
+          route.bundleComponentGroup ||
+      metadata->externalABIName != route.runtimeABIName ||
       metadata->runtimeABIKind != "plugin-owned-runtime-abi" ||
-      metadata->runtimeABIName !=
-          "tensorext-lite-fragment-mma-runtime-c-abi.v1" ||
-      metadata->handoffKind !=
-          "materialized-emitc-cpp-tensorext-lite-fragment-object") {
+      metadata->runtimeABIName != route.runtimeABIName ||
+      metadata->handoffKind != route.objectHandoffKind) {
     llvm::errs() << context
                  << ": TensorExtLite header bundle metadata did not preserve "
                     "component group, ABI identity, and object handoff\n";
@@ -1008,7 +1001,8 @@ bool expectTensorExtLiteTargetHeaderCompositeShape(
   if (!expectErrorContains(
           exporter->getCandidateValidationFn()(missingRouteMetadata),
           "TensorExtLite header composite rejects missing EmitC provenance",
-          {"tensorext_lite_emitc_lowerable_route"}))
+          {tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteEmitCLowerableRouteMetadataName()}))
     return false;
 
   llvm::SmallVector<TargetArtifactCandidate, 2> wrongArtifactKind(candidates);
@@ -1024,7 +1018,7 @@ bool expectTensorExtLiteTargetHeaderCompositeShape(
   if (!expectErrorContains(
           exporter->getCandidateValidationFn()(wrongRouteID),
           "TensorExtLite header composite rejects wrong object route identity",
-          {"route id", "tensorext-lite-fragment-mma-emitc-route"}))
+          {"route id", route.routeID}))
     return false;
 
   llvm::SmallVector<TargetArtifactCandidate, 2> directCResidue(candidates);

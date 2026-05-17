@@ -74,26 +74,6 @@ constexpr llvm::StringLiteral kSelectedPlanCapabilityIDName(
 constexpr llvm::StringLiteral kSelectedPlanFragmentABIName(
     "tensorext_lite_tile_mma_abi");
 constexpr llvm::StringLiteral kSelectedPlanScopeName("tensorext_lite_tile_mma_scope");
-constexpr llvm::StringLiteral kTensorExtLiteRouteArtifactMetadataKey(
-    "tensorext_lite_emitc_lowerable_route");
-constexpr llvm::StringLiteral kTensorExtLiteRoleSequenceArtifactMetadataKey(
-    "tensorext_lite_role_sequence");
-constexpr llvm::StringLiteral kTensorExtLiteSourceOpsArtifactMetadataKey(
-    "tensorext_lite_source_ops");
-constexpr llvm::StringLiteral kTensorExtLiteSourceRolesArtifactMetadataKey(
-    "tensorext_lite_source_roles");
-constexpr llvm::StringLiteral
-    kTensorExtLiteSourceOpInterfaceArtifactMetadataKey(
-        "tensorext_lite_source_op_interface");
-constexpr llvm::StringLiteral
-    kTensorExtLiteConstructionProtocolArtifactMetadataKey(
-        "tensorext_lite_construction_protocol");
-constexpr llvm::StringLiteral
-    kTensorExtLiteSemanticRoleGraphArtifactMetadataKey(
-        "tensorext_lite_semantic_role_graph");
-constexpr llvm::StringLiteral
-    kTensorExtLiteTypedRoleRealizationArtifactMetadataKey(
-        "tensorext_lite_typed_role_realization");
 
 struct TensorExtLiteFragmentCapabilityView {
   std::string fragmentABI;
@@ -763,29 +743,43 @@ llvm::Error TensorExtLiteExtensionPlugin::buildVariantEmissionPlan(
   out.setRuntimeABIName(constructionRoute.runtimeABIName);
   out.setRuntimeGlueRole(constructionRoute.runtimeGlueRole);
   out.setLoweringBoundaryOpName(constructionRoute.loweringBoundaryOpName);
-  out.addArtifactMetadata(kTensorExtLiteRouteArtifactMetadataKey,
-                          route.getRouteID());
-  out.addArtifactMetadata(kTensorExtLiteRoleSequenceArtifactMetadataKey,
-                          manifest.semanticRoleGraph);
-  out.addArtifactMetadata(kTensorExtLiteSourceOpsArtifactMetadataKey,
-                          joinTensorExtLiteRouteSourceOps(
-                              route.getSourceOpProvenance()));
-  out.addArtifactMetadata(kTensorExtLiteSourceRolesArtifactMetadataKey,
-                          joinTensorExtLiteRouteSourceRoles(
-                              route.getSourceOpProvenance()));
+  out.addRuntimeABIParameters(
+      tensorext_lite::getTensorExtLiteFragmentMmaRuntimeABIParameters());
+
+  llvm::SmallVector<support::ArtifactMetadataEntry, 8> artifactMetadata;
+  artifactMetadata.push_back(support::ArtifactMetadataEntry(
+      tensorext_lite::getTensorExtLiteEmitCLowerableRouteMetadataName(),
+      route.getRouteID()));
+  artifactMetadata.push_back(support::ArtifactMetadataEntry(
+      tensorext_lite::getTensorExtLiteRoleSequenceMetadataName(),
+      manifest.semanticRoleGraph));
+  artifactMetadata.push_back(support::ArtifactMetadataEntry(
+      tensorext_lite::getTensorExtLiteSourceOpsMetadataName(),
+      joinTensorExtLiteRouteSourceOps(route.getSourceOpProvenance())));
+  artifactMetadata.push_back(support::ArtifactMetadataEntry(
+      tensorext_lite::getTensorExtLiteSourceRolesMetadataName(),
+      joinTensorExtLiteRouteSourceRoles(route.getSourceOpProvenance())));
   llvm::Expected<std::string> sourceOpInterface =
       getTensorExtLiteRouteSourceOpInterface(route.getSourceOpProvenance());
   if (!sourceOpInterface)
     return sourceOpInterface.takeError();
-  out.addArtifactMetadata(kTensorExtLiteSourceOpInterfaceArtifactMetadataKey,
-                          *sourceOpInterface);
-  out.addArtifactMetadata(kTensorExtLiteConstructionProtocolArtifactMetadataKey,
-                          manifest.protocolVersion);
-  out.addArtifactMetadata(kTensorExtLiteSemanticRoleGraphArtifactMetadataKey,
-                          manifest.semanticRoleGraph);
-  out.addArtifactMetadata(kTensorExtLiteTypedRoleRealizationArtifactMetadataKey,
-                          tensorext_lite::
-                              getTensorExtLiteTypedRoleRealizationSummary());
+  artifactMetadata.push_back(support::ArtifactMetadataEntry(
+      tensorext_lite::getTensorExtLiteSourceOpInterfaceMetadataName(),
+      *sourceOpInterface));
+  artifactMetadata.push_back(support::ArtifactMetadataEntry(
+      tensorext_lite::getTensorExtLiteConstructionProtocolMetadataName(),
+      manifest.protocolVersion));
+  artifactMetadata.push_back(support::ArtifactMetadataEntry(
+      tensorext_lite::getTensorExtLiteSemanticRoleGraphMetadataName(),
+      manifest.semanticRoleGraph));
+  artifactMetadata.push_back(support::ArtifactMetadataEntry(
+      tensorext_lite::getTensorExtLiteTypedRoleRealizationMetadataName(),
+      tensorext_lite::getTensorExtLiteTypedRoleRealizationSummary()));
+  if (llvm::Error error =
+          tensorext_lite::verifyTensorExtLiteFragmentMmaArtifactMetadata(
+              artifactMetadata, "TensorExtLite emission plan"))
+    return error;
+  out.addArtifactMetadataEntries(artifactMetadata);
   if (llvm::Error error =
           out.setRequiredCapabilitySymbolsFromVariant(request.getVariant()))
     return error;
