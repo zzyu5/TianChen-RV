@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify implementation stayed in compiler stack boundaries and Python remained evidence tooling."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV runtime claim is scoped to the bounded existing add/sub/mul route and ssh rvv evidence."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check no descriptor/direct-C/source-export authority was restored."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated object/header/bundle evidence uses selected materialized EmitC route authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check lit, script self-test, dry-run, and real ssh rvv evidence are interpreted correctly."}

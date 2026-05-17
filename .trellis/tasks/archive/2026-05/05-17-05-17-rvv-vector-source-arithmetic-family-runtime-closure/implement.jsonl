@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global stack boundary, Python evidence-tooling limit, and ssh rvv evidence requirement."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, bounded i32m1 add/sub/mul route, and selected materialized EmitC artifact constraints."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Extension-family ops to EmitC to native compiler route and descriptor/direct-C prohibition."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Selected emission-plan to target artifact handoff, runtime ABI, and bundle packaging contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated bundle ABI correctness evidence policy and focused lit/Python runner testing boundary."}

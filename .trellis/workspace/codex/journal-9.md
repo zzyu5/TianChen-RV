@@ -177,3 +177,73 @@ artifact export level.
 ### Status
 
 [OK] Completed. Ready for archive and commit.
+
+
+## Session 105: RVV vector-source arithmetic family ssh-rvv runtime closure
+
+**Date**: 2026-05-17
+**Task**: RVV vector-source arithmetic family ssh-rvv runtime closure
+**Branch**: `main`
+
+### Summary
+
+Generalized the generated-bundle ABI evidence runner to cover source-derived
+RVV add/sub/mul, captured per-op generated artifacts, and proved all three
+generated header/object bundles on real `ssh rvv`.
+
+### Main Changes
+
+- Created Trellis task
+  `05-17-05-17-rvv-vector-source-arithmetic-family-runtime-closure` from the
+  direction brief and wrote the PRD around hardware runtime closure.
+- Reworked `scripts/rvv_generated_bundle_abi_e2e.py` from add-only constants
+  into per-op expectations for add/sub/mul source fixtures, selected variants,
+  runtime ABI names, generated function symbols, EmitC route metadata, harness
+  expected arithmetic, and PASS markers.
+- Default runner behavior now covers add, sub, and mul in one run; `--op-kind`
+  supports focused single-op or repeated-op subsets, and `--input` is limited
+  to exactly one selected op kind.
+- Each op records its own `source.mlir`, generated bundle index, generated
+  object/header, generated external ABI harness, per-op `evidence.json`, remote
+  compile log, and remote run log.
+- The harness remains an external ABI consumer of generated header/object only;
+  it does not contain RVV intrinsic bodies or become compiler lowering/runtime
+  fallback.
+- No `.trellis/spec/` update was needed; the existing testing/lowering specs
+  already define this generated-bundle ABI evidence contract and Python
+  evidence-tooling boundary.
+
+### Git Commits
+
+This commit.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] local dry-run for add/sub/mul:
+  `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --run-id codex-rvv-vector-source-family-dry --overwrite --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 17 --runtime-count 257`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit from `build/test`: script self-test plus RVV
+  add/sub/mul source-front-door and target object/header coverage, 6/6 passed.
+- [OK] real `ssh rvv` run:
+  `python3 scripts/rvv_generated_bundle_abi_e2e.py --run-id codex-rvv-vector-source-family-ssh --overwrite --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 17 --runtime-count 257 --timeout 180`
+- [OK] remote PASS output:
+  `PASS op=add counts=1,7,16,17,257`,
+  `PASS op=sub counts=1,7,16,17,257`,
+  `PASS op=mul counts=1,7,16,17,257`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 115/115 lit tests passed.
+- [OK] `git diff --check`
+- [OK] targeted scans found descriptor/direct-C/source-export strings only in
+  fail-closed validation, forbidden-token lists, non-authority docstrings,
+  existing target preflight rejection, or `CHECK-NOT` assertions.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
