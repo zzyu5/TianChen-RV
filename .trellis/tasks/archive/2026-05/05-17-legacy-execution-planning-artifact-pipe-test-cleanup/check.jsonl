@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check must preserve stack boundary and descriptor/direct-C/source-export deletion rules."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify retained target artifact tests do not restore descriptor/direct-C/source authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify source-level coverage uses the one-command front door and low-level exporters start from materialized/planned IR."}
+{"file": ".trellis/tasks/archive/2026-05/05-17-legacy-execution-planning-artifact-pipe-test-cleanup/prd.md", "reason": "Task-local acceptance criteria and deletion-only boundaries for this round."}
+{"file": "test/Target/Template/template-target-artifact-object.mlir", "reason": "Focused scan and lit validation for rewritten Template materialized low-level exporter coverage."}
+{"file": "test/Target/Template/template-emitc-to-cpp.mlir", "reason": "Focused scan and lit validation for rewritten Template low-level EmitC-to-C++ coverage."}
+{"file": "test/Target/Template/template-emitc-to-cpp-compile.test", "reason": "Focused compile validation for Template EmitC-to-C++ output."}
+{"file": "test/Target/Template/template-target-artifact-fail-closed.mlir", "reason": "Focused fail-closed validation for stale Template route inputs."}
+{"file": "test/Target/Toy/toy-materialized-target-artifact-object.mlir", "reason": "Focused scan and lit validation for retained Toy materialized exporter coverage."}
+{"file": "test/Target/Toy/toy-target-artifact-stale-provenance.mlir", "reason": "Focused scan and lit validation for Toy stale-provenance fail-closed coverage."}
+{"file": "test/Target/TargetArtifactBundleExport/source-artifact-bundle-front-door-toy.mlir", "reason": "Focused validation for retained Toy one-command source bundle front-door coverage."}
+{"file": "test/Target/TargetArtifactBundleExport/source-artifact-bundle-front-door-rvv.mlir", "reason": "Focused validation for retained RVV one-command source bundle front-door coverage."}
+{"file": "test/Target/TargetArtifactBundleExport/source-artifact-bundle-front-door-fail-closed.mlir", "reason": "Focused validation for retained one-command source bundle fail-closed coverage."}

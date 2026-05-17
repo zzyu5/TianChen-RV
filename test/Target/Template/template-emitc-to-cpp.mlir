@@ -1,17 +1,9 @@
 // RUN: tcrv-translate --help | FileCheck %s --check-prefix=HELP
-// RUN: tcrv-opt %s --tcrv-execution-planning-pipeline | tcrv-translate --tcrv-template-emitc-to-cpp | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="descriptor" --implicit-check-not="metadata-diagnostic" --implicit-check-not="source-export" --implicit-check-not="direct-C" --implicit-check-not="tcrv_rvv" --implicit-check-not="tcrv_toy" --implicit-check-not="tcrv_tensorext_lite" --implicit-check-not="int main"
+// RUN: tcrv-translate --tcrv-template-emitc-to-cpp %S/template-target-artifact-object.mlir | FileCheck %s --check-prefix=SOURCE --implicit-check-not="__riscv_" --implicit-check-not="descriptor" --implicit-check-not="metadata-diagnostic" --implicit-check-not="source-export" --implicit-check-not="direct-C" --implicit-check-not="tcrv_rvv" --implicit-check-not="tcrv_toy" --implicit-check-not="tcrv_tensorext_lite" --implicit-check-not="int main"
 
-module {
-  tcrv.exec.kernel @template_emitc_kernel {
-    tcrv.exec.capability @template_extension {
-      id = "template.extension",
-      kind = "future-extension-template",
-      status = "available",
-      integration_contract = "template-zero-core-handoff.v1",
-      handoff_kind = "template-extension-lowering-boundary"
-    }
-  }
-}
+// This route is a low-level Template EmitC-to-C++ translator. The positive
+// test consumes the materialized/planned Template fixture directly instead of
+// accepting a manual execution-planning-pipeline pipe.
 
 // HELP: --tcrv-template-emitc-to-cpp
 // HELP-SAME: MLIR EmitC C/C++ emitter

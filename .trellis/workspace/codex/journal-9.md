@@ -770,6 +770,59 @@ exporter coverage starts from explicit materialized IR.
 - None - task complete.
 
 
+## Session 114: Legacy execution-planning artifact pipe test cleanup
+
+**Date**: 2026-05-17
+**Task**: Legacy execution-planning artifact pipe test cleanup
+**Branch**: `main`
+
+### Summary
+
+Removed the remaining positive Template/Toy target tests that accepted a
+manual `tcrv-opt --tcrv-execution-planning-pipeline | tcrv-translate` chain as
+the successful input path for low-level target artifact/header/bundle or
+Template EmitC-to-C++ routes. Retained low-level coverage now consumes explicit
+materialized/planned IR fixtures, while source-level bundle coverage remains on
+the one-command front door.
+
+### Main Changes
+
+- Created Trellis task
+  `05-17-legacy-execution-planning-artifact-pipe-test-cleanup` from the
+  Direction Brief and repaired its PRD/context before source edits.
+- Rewrote `test/Target/Template/template-target-artifact-object.mlir` into
+  materialized/planned Template object/header/bundle exporter coverage with
+  direct `tcrv-translate` invocations.
+- Rewrote `test/Target/Template/template-emitc-to-cpp.mlir` and
+  `template-emitc-to-cpp-compile.test` to consume the Template materialized
+  fixture directly.
+- Rewrote Template stale-route fail-closed coverage to mutate the materialized
+  fixture rather than a manual planning-pipeline stream.
+- Deleted stale positive header tests:
+  `test/Target/Template/template-target-artifact-header.mlir` and
+  `test/Target/Toy/toy-target-artifact-header.mlir`.
+- Reviewed spec update need; no `.trellis/spec/` change was needed because the
+  durable deletion/source-front-door/materialized-fixture boundary is already
+  documented.
+
+### Testing
+
+- [OK] Manual Template direct probes for object, header, EmitC-to-C++ source,
+  and bundle output from `template-target-artifact-object.mlir`.
+- [OK] Focused lit from `build/test` with the touched Template/Toy/source
+  bundle filter: 9/9 passed.
+- [OK] `git diff --check`
+- [OK] Forbidden manual-pipe scan over Template/Toy/Target bundle tests,
+  scripts, `tools/tcrv-translate/tcrv-translate.cpp`, and
+  `lib/Transforms/ExecutionPlanningPipeline.cpp`: no matches.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 124/124 passed.
+- [OK] No production code changed; no fresh `ssh rvv` proof required.
+
+### Status
+
+[OK] Completed. Ready for archive and commit.
+
+
 ## Session 112: RVV source-bundle runtime ABI execution proof
 
 **Date**: 2026-05-17
