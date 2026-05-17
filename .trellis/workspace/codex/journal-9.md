@@ -1950,3 +1950,44 @@ Included in the final task commit for this round.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 122: RVV production construction-template artifact adapter consumption
+
+**Date**: 2026-05-18
+**Task**: RVV production construction-template artifact adapter consumption
+**Branch**: `main`
+
+### Summary
+
+Migrated RVV target-support object/header/bundle artifact plumbing onto the production ConstructionTemplateArtifactAdapter, preserving dynamic selected variant/runtime ABI identity and refreshed ssh rvv generated-bundle ABI evidence.
+
+### Main Changes
+
+- Created and archived Trellis task `05-18-rvv-production-construction-template-artifact-adapter` from the Direction Brief.
+- Added dynamic runtime ABI identity support to `ConstructionTemplateArtifactAdapterConfig` and forwarded it into the common materialized EmitC header/object bundle helper.
+- Rewired `lib/Target/RVV/RVVTargetSupportBundle.cpp` so RVV supplies local candidate validation, construction/runtime metadata evidence, route builder, and RISC-V clang object packager callback while the production adapter owns object/header/bundle registration and export wiring.
+- Deleted RVV-local bespoke `MaterializedEmitCHeaderArtifactConfig`, `MaterializedEmitCObjectBundleArtifactConfig`, direct selected EmitC source-to-object export composition, and direct common bundle registration.
+- Updated `.trellis/spec/lowering-runtime/emitc-route.md` with the durable construction-template adapter dynamic selected-candidate identity contract.
+- Checks passed: task context validate, focused C++ build, `tianchenrv-target-artifact-export-test`, `tianchenrv-rvv-extension-plugin-test`, `tianchenrv-construction-protocol-common-test`, focused RVV lit 30/123, `git diff --check`, and `check-tianchenrv` 123/123.
+- `ssh rvv` evidence refreshed via `scripts/rvv_generated_bundle_abi_e2e.py --op-kind add --runtime-count 7 --runtime-count 16 --run-id rvv-adapter-consumption-add-20260518`; evidence path `artifacts/tmp/rvv_generated_bundle_abi_e2e/rvv-adapter-consumption-add-20260518/add/evidence.json` records remote compile/run success and `PASS op=add counts=7,16`.
+- Residue scans found no duplicate RVV bespoke adapter surface and no descriptor/direct-C/source-export authority beyond fail-closed rejection strings and negative FileCheck assertions.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

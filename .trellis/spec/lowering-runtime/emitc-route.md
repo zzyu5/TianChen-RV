@@ -490,6 +490,8 @@ candidate preflight that preserves the plugin-owned runtime ABI contract.
   description for diagnostics.
 - Dynamic runtime ABI identity flag:
   `MaterializedEmitCHeaderArtifactConfig::allowDynamicRuntimeABIIdentity`.
+- Construction-template adapter dynamic runtime ABI identity wrapper:
+  `ConstructionTemplateArtifactAdapterConfig::allowDynamicRuntimeABIIdentity`.
 
 ### 3. Contracts
 
@@ -511,6 +513,13 @@ candidate preflight that preserves the plugin-owned runtime ABI contract.
   with a route-local candidate validation callback. The common helper still
   requires non-empty candidate runtime ABI identity, a static runtime ABI kind,
   a static runtime glue role, and an exact ordered ABI parameter signature.
+- Construction-template artifact adapter configs may leave
+  `selectedVariant`, `runtimeABI`, `runtimeABIName`, or `externalABIName`
+  empty only when the selected candidate owns that identity and a route-local
+  candidate validation callback proves it. The adapter must forward dynamic
+  runtime ABI mode into the common header/object bundle helper; it must not
+  replace candidate-owned identity with a static first-slice name or route
+  family placeholder.
 - Common target code may reject forbidden artifact metadata containing
   descriptor, metadata-diagnostic, direct-C, source-export, or compute-body
   residue.
@@ -552,6 +561,10 @@ candidate preflight that preserves the plugin-owned runtime ABI contract.
 - Dynamic runtime ABI identity mode lacks a route-local candidate validation
   callback, or the selected candidate lacks non-empty runtime ABI identity ->
   fail before output.
+- Construction-template adapter dynamic mode lacks the route-local candidate
+  validator, selected candidate runtime ABI identity, runtime ABI kind,
+  runtime glue role, ordered ABI parameter signature, or required metadata
+  evidence -> fail before object, header, or bundle output.
 - Static runtime ABI identity mode lacks configured runtime ABI/name -> fail
   before output.
 - Selected candidate has wrong route id, artifact kind, origin, selected
@@ -589,6 +602,10 @@ candidate preflight that preserves the plugin-owned runtime ABI contract.
   materialized EmitC object exporter plus object-backed header composite
   registration, while object packaging, route payloads, typed role validation,
   and extension evidence remain plugin-owned.
+- Good: RVV may consume the construction-template artifact adapter with dynamic
+  selected variant and runtime ABI identity, so source-front-door selected
+  variants such as add/sub/mul keep their candidate-owned callable ABI names
+  while the adapter owns only generic object/header/bundle wiring.
 - Good: Toy may consume the same common object/header bundle construction
   helper once its selected typed role-op path materializes through the
   plugin-owned EmitC route. Toy may carry a target-export-owned runtime element
@@ -610,6 +627,9 @@ candidate preflight that preserves the plugin-owned runtime ABI contract.
 - Bad: an object-backed header helper has no route-local candidate validation
   callback, or derives runtime ABI identity from a route name instead of the
   selected candidate and plugin-owned preflight.
+- Bad: a construction-template adapter forces a static selected variant or
+  static runtime ABI identity for a route family whose selected candidate owns
+  the concrete operation ABI.
 - Bad: a header helper prints C/C++ compute bodies, direct source exporters,
   descriptor-derived loops, or runtime execution code.
 

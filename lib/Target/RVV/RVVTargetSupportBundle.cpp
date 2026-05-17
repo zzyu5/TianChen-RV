@@ -4,6 +4,7 @@
 #include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "TianChenRV/Target/ConstructionTemplateArtifactAdapter.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
 
@@ -326,8 +327,8 @@ SelectedEmitCArtifactRouteConfig getRVVI32M1ArithmeticArtifactConfig() {
   return config;
 }
 
-MaterializedEmitCHeaderArtifactConfig
-getRVVI32M1ArithmeticHeaderArtifactConfig() {
+ConstructionTemplateArtifactAdapterConfig
+getRVVI32M1ArithmeticArtifactAdapterConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stddef.h", "stdint.h"};
   static const MaterializedEmitCHeaderArtifactMetadataEvidence
       kMetadataEvidence[] = {
@@ -387,13 +388,21 @@ getRVVI32M1ArithmeticHeaderArtifactConfig() {
       kRuntimeABIParameters =
           plugin::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
 
-  MaterializedEmitCHeaderArtifactConfig config;
+  const plugin::rvv::RVVConstructionManifest &manifest = getRVVManifest();
+  const plugin::rvv::RVVI32M1ArithmeticTargetArtifactMapping &mapping =
+      getRVVTargetMapping();
+
+  ConstructionTemplateArtifactAdapterConfig config;
   config.selectedRoute = getRVVI32M1ArithmeticArtifactConfig();
   config.selectedRoute.routeDescription =
-      "RVV i32m1 materialized EmitC header artifact bridge";
+      "RVV i32m1 construction-template materialized EmitC artifact adapter";
+  config.headerRouteID = mapping.headerRouteID;
+  config.headerArtifactKind = mapping.headerArtifactKind;
+  config.ownerPlugin = manifest.family.pluginName;
   config.headerGuard = "TIANCHENRV_RVV_MATERIALIZED_EMITC_HEADER_H";
   config.evidencePrefix = "tianchenrv.rvv";
   config.includes = kHeaderIncludes;
+  config.selectedVariant = "";
   config.emissionKind = plugin::rvv::getRVVI32M1ArithmeticEmissionKind();
   config.loweringBoundary =
       plugin::rvv::getRVVI32M1ArithmeticLoweringBoundaryOpName();
@@ -404,39 +413,24 @@ getRVVI32M1ArithmeticHeaderArtifactConfig() {
   config.allowDynamicRuntimeABIIdentity = true;
   config.runtimeABIParameters = kRuntimeABIParameters;
   config.metadataEvidence = kMetadataEvidence;
+  config.componentGroup = mapping.bundleComponentGroup;
+  config.externalABIName = "";
+  config.handoffKind = mapping.objectHandoffKind;
+  config.selectedObjectDescription = "RVV materialized EmitC candidate";
+  config.objectPackagerFn = compileRVVGeneratedSourceToObject;
   return config;
 }
 
 llvm::Error exportRVVI32M1ArithmeticTargetArtifact(mlir::ModuleOp module,
                                                    llvm::raw_ostream &os) {
-  llvm::Expected<std::string> source = emitSelectedEmitCArtifactCppSource(
-      module, getRVVI32M1ArithmeticArtifactConfig());
-  if (!source)
-    return source.takeError();
-  return compileRVVGeneratedSourceToObject(*source, os);
+  return exportConstructionTemplateObjectArtifact(
+      module, os, getRVVI32M1ArithmeticArtifactAdapterConfig());
 }
 
 llvm::Error exportRVVI32M1ArithmeticHeaderArtifact(mlir::ModuleOp module,
                                                    llvm::raw_ostream &os) {
-  return exportMaterializedEmitCHeaderArtifact(
-      module, os, getRVVI32M1ArithmeticHeaderArtifactConfig());
-}
-
-MaterializedEmitCObjectBundleArtifactConfig
-getRVVI32M1ArithmeticObjectBundleConfig() {
-  const plugin::rvv::RVVI32M1ArithmeticTargetArtifactMapping &mapping =
-      getRVVTargetMapping();
-  MaterializedEmitCObjectBundleArtifactConfig config;
-  config.header = getRVVI32M1ArithmeticHeaderArtifactConfig();
-  config.headerRouteID = mapping.headerRouteID;
-  config.headerArtifactKind = mapping.headerArtifactKind;
-  config.ownerPlugin = getRVVManifest().family.pluginName;
-  config.objectExportFn = exportRVVI32M1ArithmeticTargetArtifact;
-  config.headerExportFn = exportRVVI32M1ArithmeticHeaderArtifact;
-  config.componentGroup = mapping.bundleComponentGroup;
-  config.handoffKind = mapping.objectHandoffKind;
-  config.selectedObjectDescription = "RVV materialized EmitC candidate";
-  return config;
+  return exportConstructionTemplateHeaderArtifact(
+      module, os, getRVVI32M1ArithmeticArtifactAdapterConfig());
 }
 
 llvm::Error registerRVVI32M1ArithmeticTargetArtifactExporter(
@@ -444,8 +438,10 @@ llvm::Error registerRVVI32M1ArithmeticTargetArtifactExporter(
   if (llvm::Error error = plugin::rvv::verifyRVVConstructionProtocolReady())
     return error;
 
-  return registerMaterializedEmitCObjectBundleArtifactExporters(
-      registry, getRVVI32M1ArithmeticObjectBundleConfig());
+  return registerConstructionTemplateArtifactAdapterExporters(
+      registry, getRVVI32M1ArithmeticArtifactAdapterConfig(),
+      exportRVVI32M1ArithmeticTargetArtifact,
+      exportRVVI32M1ArithmeticHeaderArtifact);
 }
 
 } // namespace

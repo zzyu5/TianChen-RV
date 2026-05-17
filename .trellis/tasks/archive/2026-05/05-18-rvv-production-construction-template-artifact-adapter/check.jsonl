@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV stack, source-of-truth, descriptor/direct-C/source-export red lines"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV production artifact route, route-local ownership, and fail-closed metadata contracts"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "materialized EmitC route and deleted direct C/source-authority constraints"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "selected emission-plan to target artifact handoff and common materialized object/header bundle contract"}
+{"file": ".trellis/tasks/archive/2026-05/05-18-production-construction-template-artifact-adapter/prd.md", "reason": "previous production adapter scope and Template consumer precedent"}

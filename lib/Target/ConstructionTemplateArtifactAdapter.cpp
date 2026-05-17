@@ -73,31 +73,27 @@ llvm::Error validateConstructionTemplateArtifactAdapterConfig(
           requireNonEmpty("evidence prefix", config.evidencePrefix))
     return error;
   if (llvm::Error error =
-          requireNonEmpty("selected variant", config.selectedVariant))
-    return error;
-  if (llvm::Error error =
           requireNonEmpty("emission kind", config.emissionKind))
     return error;
   if (llvm::Error error =
           requireNonEmpty("lowering boundary", config.loweringBoundary))
     return error;
   if (llvm::Error error =
-          requireNonEmpty("runtime ABI", config.runtimeABI))
-    return error;
-  if (llvm::Error error =
           requireNonEmpty("runtime ABI kind", config.runtimeABIKind))
     return error;
-  if (llvm::Error error =
-          requireNonEmpty("runtime ABI name", config.runtimeABIName))
-    return error;
+  if (!config.allowDynamicRuntimeABIIdentity) {
+    if (llvm::Error error =
+            requireNonEmpty("runtime ABI", config.runtimeABI))
+      return error;
+    if (llvm::Error error =
+            requireNonEmpty("runtime ABI name", config.runtimeABIName))
+      return error;
+  }
   if (llvm::Error error =
           requireNonEmpty("runtime glue role", config.runtimeGlueRole))
     return error;
   if (llvm::Error error =
           requireNonEmpty("component group", config.componentGroup))
-    return error;
-  if (llvm::Error error =
-          requireNonEmpty("external ABI name", config.externalABIName))
     return error;
   if (llvm::Error error =
           requireNonEmpty("object handoff kind", config.handoffKind))
@@ -128,6 +124,8 @@ getConstructionTemplateHeaderArtifactConfig(
   header.runtimeABIKind = config.runtimeABIKind;
   header.runtimeABIName = config.runtimeABIName;
   header.runtimeGlueRole = config.runtimeGlueRole;
+  header.allowDynamicRuntimeABIIdentity =
+      config.allowDynamicRuntimeABIIdentity;
   header.runtimeABIParameters = config.runtimeABIParameters;
   header.metadataEvidence = config.metadataEvidence;
   return header;

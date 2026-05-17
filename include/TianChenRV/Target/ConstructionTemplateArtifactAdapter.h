@@ -27,6 +27,7 @@ struct ConstructionTemplateArtifactAdapterConfig {
   llvm::StringRef runtimeABIKind;
   llvm::StringRef runtimeABIName;
   llvm::StringRef runtimeGlueRole;
+  bool allowDynamicRuntimeABIIdentity = false;
   llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters;
   llvm::ArrayRef<MaterializedEmitCHeaderArtifactMetadataEvidence>
       metadataEvidence;
