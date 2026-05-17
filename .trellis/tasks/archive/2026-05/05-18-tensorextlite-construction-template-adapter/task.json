@@ -1,0 +1,30 @@
+{
+  "id": "tensorextlite-construction-template-adapter",
+  "name": "tensorextlite-construction-template-adapter",
+  "title": "TensorExtLite production construction-template artifact adapter consumption",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "target-artifact",
+  "package": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-18",
+  "completedAt": "2026-05-18",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "lib/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.cpp",
+    "test/Target/TargetArtifactExportTest.cpp",
+    ".trellis/tasks/05-18-tensorextlite-construction-template-adapter/prd.md"
+  ],
+  "notes": "Migrated TensorExtLite target artifact production registration/export plumbing to the common ConstructionTemplateArtifactAdapter while preserving TensorExtLite-owned validation and object packaging.",
+  "meta": {}
+}

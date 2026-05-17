@@ -22,6 +22,7 @@
 #include "TianChenRV/Support/RuntimeABIContract.h"
 #include "TianChenRV/Target/BuiltinTargetArtifactExporters.h"
 #include "TianChenRV/Target/BuiltinTargetTranslateRoutes.h"
+#include "TianChenRV/Target/ConstructionTemplateArtifactAdapter.h"
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
 #include "TianChenRV/Target/Template/TemplateTargetSupportBundle.h"
 #include "TianChenRV/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.h"
@@ -1122,6 +1123,246 @@ bool expectTensorExtLiteTargetHeaderCompositeShape(
           "TensorExtLite header composite rejects ambiguous candidates",
           {"requires exactly one selected supported TensorExtLite materialized "
            "EmitC object candidate"}))
+    return false;
+
+  return true;
+}
+
+llvm::Error validateTensorExtLiteAdapterTestSelectedObject(
+    const TargetArtifactCandidate &candidate) {
+  if (llvm::StringRef(candidate.role) != "direct variant")
+    return makeTestSelectedEmitCError(
+        "TensorExtLite adapter test candidate must be a direct variant");
+  return llvm::Error::success();
+}
+
+llvm::Error packageTensorExtLiteAdapterTestObject(llvm::StringRef source,
+                                                  llvm::raw_ostream &os) {
+  if (source.empty())
+    return makeTestSelectedEmitCError(
+        "TensorExtLite adapter test object packager requires source text");
+  os << "tensorext-lite-adapter-object\n";
+  return llvm::Error::success();
+}
+
+ConstructionTemplateArtifactAdapterConfig
+makeTensorExtLiteAdapterTestConfig() {
+  static const llvm::StringRef kHeaderIncludes[] = {"stdint.h"};
+  static const MaterializedEmitCHeaderArtifactMetadataEvidence
+      kMetadataEvidence[] = {
+          {"emitc_lowerable_route",
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteEmitCLowerableRouteMetadataName(),
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteFragmentMmaEmitCConstructionRoute()
+                   .routeID},
+          {"role_sequence",
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteRoleSequenceMetadataName(),
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteConstructionManifest()
+                   .semanticRoleGraph},
+          {"source_ops",
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteSourceOpsMetadataName(),
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteFragmentMmaSourceOps()},
+          {"source_roles",
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteSourceRolesMetadataName(),
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteFragmentMmaSourceRoles()},
+          {"source_op_interface",
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteSourceOpInterfaceMetadataName(),
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteEmitCLowerableOpInterfaceName()},
+          {"construction_protocol",
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteConstructionProtocolMetadataName(),
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteConstructionManifest()
+                   .protocolVersion},
+          {"extension_archetype",
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteConstructionArchetypeMetadataName(),
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteConstructionManifest()
+                   .archetype},
+          {"semantic_role_graph",
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteSemanticRoleGraphMetadataName(),
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteConstructionManifest()
+                   .semanticRoleGraph},
+          {"common_interface_realization",
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteCommonInterfaceRealizationMetadataName(),
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteConstructionInterfaceRealization()},
+          {"typed_role_realization",
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteTypedRoleRealizationMetadataName(),
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteTypedRoleRealizationSummary()},
+          {"emitc_route_mapping",
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteEmitCRouteMappingMetadataName(),
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteConstructionManifest()
+                   .emitcRoute.routeID},
+          {"evidence_profile",
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteEvidenceProfileMetadataName(),
+           tianchenrv::plugin::tensorext_lite::
+               getTensorExtLiteConstructionManifest()
+                   .evidenceProfile},
+      };
+
+  const auto &manifest =
+      tianchenrv::plugin::tensorext_lite::
+          getTensorExtLiteConstructionManifest();
+  const auto &route =
+      tianchenrv::plugin::tensorext_lite::
+          getTensorExtLiteFragmentMmaEmitCConstructionRoute();
+
+  ConstructionTemplateArtifactAdapterConfig config;
+  config.selectedRoute.routeID = route.routeID;
+  config.selectedRoute.artifactKind = route.artifactKind;
+  config.selectedRoute.originPlugin = manifest.family.pluginName;
+  config.selectedRoute.routeDescription =
+      "TensorExtLite adapter test materialized EmitC route";
+  config.selectedRoute.candidateValidationFn =
+      validateTensorExtLiteAdapterTestSelectedObject;
+  config.selectedRoute.routeBuilderFn = buildTestSelectedEmitCRoute;
+  config.headerRouteID = route.headerRouteID;
+  config.headerArtifactKind = route.headerArtifactKind;
+  config.ownerPlugin = manifest.family.pluginName;
+  config.headerGuard = "TIANCHENRV_TENSOREXTLITE_TEST_ADAPTER_HEADER_H";
+  config.evidencePrefix = "tianchenrv.tensorext_lite";
+  config.includes = kHeaderIncludes;
+  config.selectedVariant = manifest.family.firstSliceVariantName;
+  config.emissionKind = route.emissionKind;
+  config.loweringBoundary = route.loweringBoundaryOpName;
+  config.runtimeABI = route.runtimeABI;
+  config.runtimeABIKind = route.runtimeABIKind;
+  config.runtimeABIName = route.runtimeABIName;
+  config.runtimeGlueRole = route.runtimeGlueRole;
+  config.runtimeABIParameters =
+      tianchenrv::plugin::tensorext_lite::
+          getTensorExtLiteFragmentMmaRuntimeABIParameters();
+  config.metadataEvidence = kMetadataEvidence;
+  config.componentGroup = route.bundleComponentGroup;
+  config.externalABIName = route.runtimeABIName;
+  config.handoffKind = route.objectHandoffKind;
+  config.selectedObjectDescription =
+      "TensorExtLite materialized EmitC object candidate";
+  config.objectPackagerFn = packageTensorExtLiteAdapterTestObject;
+  return config;
+}
+
+bool expectTensorExtLiteConstructionTemplateAdapterSurface() {
+  ConstructionTemplateArtifactAdapterConfig config =
+      makeTensorExtLiteAdapterTestConfig();
+  const auto &manifest =
+      tianchenrv::plugin::tensorext_lite::
+          getTensorExtLiteConstructionManifest();
+  const auto &route =
+      tianchenrv::plugin::tensorext_lite::
+          getTensorExtLiteFragmentMmaEmitCConstructionRoute();
+
+  if (!expectSuccess(validateConstructionTemplateArtifactAdapterConfig(config),
+                     "validate TensorExtLite construction-template adapter "
+                     "config"))
+    return false;
+
+  TargetArtifactExporterRegistry registry;
+  if (!expectSuccess(registerConstructionTemplateArtifactAdapterExporters(
+                         registry, config, objectMarkerExporter,
+                         headerMarkerExporter),
+                     "register TensorExtLite exporters through the "
+                     "construction-template adapter"))
+    return false;
+  const TargetArtifactExporter *objectExporter = registry.lookup(route.routeID);
+  const TargetArtifactCompositeExporter *headerExporter =
+      registry.lookupComposite(route.headerRouteID);
+  if (!objectExporter || !headerExporter) {
+    llvm::errs() << "TensorExtLite construction-template adapter did not "
+                    "register object/header routes\n";
+    return false;
+  }
+  if (objectExporter->getOriginPlugin() != manifest.family.pluginName ||
+      objectExporter->getComponentGroup() != route.bundleComponentGroup ||
+      objectExporter->getExternalABIName() != route.runtimeABIName ||
+      headerExporter->getOwner() != manifest.family.pluginName ||
+      headerExporter->getComponentGroup() != route.bundleComponentGroup ||
+      headerExporter->getExternalABIName() != route.runtimeABIName) {
+    llvm::errs() << "TensorExtLite construction-template adapter registered "
+                    "malformed route metadata\n";
+    return false;
+  }
+
+  TargetArtifactCandidate candidate =
+      makeValidTensorExtLiteTargetArtifactCandidate();
+  if (!expectSuccess(validateConstructionTemplateTargetArtifactCandidate(
+                         candidate, config),
+                     "validate TensorExtLite object candidate through the "
+                     "construction-template adapter"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         candidate, *objectExporter),
+                     "validate TensorExtLite registered object exporter "
+                     "candidate"))
+    return false;
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> candidates;
+  candidates.push_back(candidate);
+  llvm::Expected<bool> matched = headerExporter->getMatchFn()(candidates);
+  if (!matched || !*matched) {
+    llvm::errs() << "TensorExtLite construction-template adapter header "
+                    "composite did not match the object candidate";
+    if (!matched)
+      llvm::errs() << ": " << llvm::toString(matched.takeError());
+    llvm::errs() << "\n";
+    return false;
+  }
+  if (!expectSuccess(headerExporter->getCandidateValidationFn()(candidates),
+                     "validate TensorExtLite adapter header composite "
+                     "candidate"))
+    return false;
+
+  ConstructionTemplateArtifactAdapterConfig noPackager = config;
+  noPackager.objectPackagerFn = nullptr;
+  if (!expectErrorContains(
+          validateConstructionTemplateArtifactAdapterConfig(noPackager),
+          "TensorExtLite adapter rejects missing object packager",
+          {"object packager callback"}))
+    return false;
+
+  ConstructionTemplateArtifactAdapterConfig noValidator = config;
+  noValidator.selectedRoute.candidateValidationFn = nullptr;
+  if (!expectErrorContains(
+          validateConstructionTemplateArtifactAdapterConfig(noValidator),
+          "TensorExtLite adapter rejects missing route-local validator",
+          {"route-local candidate validator"}))
+    return false;
+
+  TargetArtifactCandidate fallback = candidate;
+  fallback.role = "dispatch fallback";
+  if (!expectErrorContains(
+          validateConstructionTemplateTargetArtifactCandidate(fallback,
+                                                              config),
+          "TensorExtLite adapter rejects fallback-only candidate",
+          {"direct variant"}))
+    return false;
+
+  TargetArtifactCandidate mixedOrigin = candidate;
+  mixedOrigin.origin = "toy-plugin";
+  if (!expectErrorContains(
+          validateConstructionTemplateTargetArtifactCandidate(mixedOrigin,
+                                                              config),
+          "TensorExtLite adapter rejects mixed plugin candidate",
+          {"origin", manifest.family.pluginName, "toy-plugin"}))
     return false;
 
   return true;
@@ -4383,6 +4624,8 @@ int main() {
   if (!expectCommonSelectedEmitCArtifactFrontDoor(context))
     return 1;
   if (!expectCommonMaterializedEmitCObjectBundleConstructionSurface())
+    return 1;
+  if (!expectTensorExtLiteConstructionTemplateAdapterSurface())
     return 1;
   if (!expectTensorExtLiteHeaderArtifactExport(context))
     return 1;
