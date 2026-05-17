@@ -328,10 +328,11 @@ selected dispatch or selected-path diagnostic
 
 Use this contract when multiple extension-family target exporters need the same
 declaration-only runtime-callable C header artifact shape from a selected
-materialized EmitC route. The first required consumers are Toy and
-TensorExtLite. RVV object/header/bundle behavior may keep RVV-specific object
-packaging and composite bundle logic unless it explicitly opts into the common
-header helper.
+materialized EmitC route. Toy and TensorExtLite consume it as standalone header
+artifact routes. RVV may consume it as an object-backed composite header route
+when the selected materialized EmitC object candidate is already the production
+handoff authority and a route-local candidate preflight preserves the
+plugin-owned runtime ABI contract.
 
 ### 2. Signatures
 
@@ -345,16 +346,32 @@ header helper.
   `exportMaterializedEmitCHeaderArtifact(module, os, config)`.
 - The config wraps a `SelectedEmitCArtifactRouteConfig` plus plugin-supplied
   header guard, evidence prefix, includes, optional expected selected variant,
-  emission kind, lowering boundary, runtime ABI fields, ordered runtime ABI
-  parameters, and required artifact metadata evidence.
+  emission kind, lowering boundary, runtime ABI fields or dynamic runtime ABI
+  identity mode, ordered runtime ABI parameters, and required artifact metadata
+  evidence.
+- Dynamic runtime ABI identity flag:
+  `MaterializedEmitCHeaderArtifactConfig::allowDynamicRuntimeABIIdentity`.
 
 ### 3. Contracts
 
 - Common target code may validate extension-agnostic selected candidate fields
-  supplied through the config: route id, artifact kind, origin plugin,
+  supplied through the config: route id, selected candidate artifact kind,
+  origin plugin,
   selected variant identity when configured, emission kind, lowering boundary,
   runtime ABI, runtime ABI kind/name, runtime glue role, ordered ABI parameter
   signature, and required artifact metadata values.
+- A header helper may consume either a selected header candidate or a selected
+  object candidate, but the generated artifact remains a header declaration.
+  Object-backed header routes require a route-local candidate validation
+  callback; the common layer must not infer object/header coherence from route
+  names alone.
+- If runtime ABI name is static for the route, the config must provide
+  `runtimeABI` and `runtimeABIName` and the common validator must require exact
+  equality with the selected candidate. If runtime ABI name is candidate-owned
+  or route-family-owned, `allowDynamicRuntimeABIIdentity` may be enabled only
+  with a route-local candidate validation callback. The common helper still
+  requires non-empty candidate runtime ABI identity, a static runtime ABI kind,
+  a static runtime glue role, and an exact ordered ABI parameter signature.
 - Common target code may reject forbidden artifact metadata containing
   descriptor, metadata-diagnostic, direct-C, source-export, or compute-body
   residue.
@@ -373,10 +390,18 @@ header helper.
 ### 4. Validation & Error Matrix
 
 - Config lacks route id, artifact kind, origin plugin, route builder, header
-  guard, evidence prefix, emission kind, lowering boundary, runtime ABI fields,
-  or runtime glue role -> fail before output.
-- Config artifact kind is not `runtime-callable-c-header` -> fail before
-  output.
+  guard, evidence prefix, emission kind, lowering boundary, required runtime
+  ABI identity fields, or runtime glue role -> fail before output.
+- Config selected candidate artifact kind is neither
+  `runtime-callable-c-header` nor `riscv-elf-relocatable-object` -> fail
+  before output.
+- Object-backed header config lacks a route-local candidate validation callback
+  -> fail before output.
+- Dynamic runtime ABI identity mode lacks a route-local candidate validation
+  callback, or the selected candidate lacks non-empty runtime ABI identity ->
+  fail before output.
+- Static runtime ABI identity mode lacks configured runtime ABI/name -> fail
+  before output.
 - Selected candidate has wrong route id, artifact kind, origin, selected
   variant, emission kind, lowering boundary, runtime ABI field, or runtime glue
   role -> fail before output.
@@ -396,6 +421,10 @@ header helper.
 - Good: Toy and TensorExtLite provide only local config and metadata evidence
   requirements; both call the same common header validator/exporter through
   their production target artifact exporters.
+- Good: RVV provides local object route config, RVV-specific candidate
+  preflight, dynamic runtime ABI identity mode, and required RVV provenance
+  evidence; the production header exporter calls the common declaration-only
+  header helper while RVV keeps object packaging and bundle metadata local.
 - Base: TensorExtLite may carry an ordered source-op/source-role evidence
   sequence because its selected route contains multiple typed role ops.
 - Base: Toy may carry one target-export-owned runtime element count parameter;
@@ -404,6 +433,9 @@ header helper.
 - Bad: common target code branches on Toy, TensorExtLite, RVV, operation names,
   role graph strings, intrinsic names, or metadata keys to decide computation
   semantics.
+- Bad: an object-backed header helper has no route-local candidate validation
+  callback, or derives runtime ABI identity from a route name instead of the
+  selected candidate and plugin-owned preflight.
 - Bad: a header helper prints C/C++ compute bodies, direct source exporters,
   descriptor-derived loops, or runtime execution code.
 
@@ -421,7 +453,9 @@ header helper.
   source-op/interface provenance, construction protocol, semantic role graph,
   and typed role evidence.
 - Focused RVV target artifact tests proving RVV object/header/bundle behavior
-  is not regressed by the common header helper.
+  is not regressed by the common header helper, including evidence that the RVV
+  header production path is emitted by the common declaration-only helper while
+  object packaging and bundle component metadata remain RVV-owned.
 
 ### 7. Wrong vs Correct
 

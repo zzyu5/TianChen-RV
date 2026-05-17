@@ -1362,11 +1362,18 @@ llvm::Error validateMaterializedEmitCHeaderArtifactConfig(
   if (llvm::Error error =
           validateSelectedEmitCArtifactRouteConfig(config.selectedRoute))
     return error;
-  if (!isHeaderArtifactKind(config.selectedRoute.artifactKind))
+  if (!isCurrentMaterializedArtifactKind(config.selectedRoute.artifactKind))
     return makeSelectedEmitCArtifactError(
         routeDescription,
-        llvm::Twine("requires runtime-callable-c-header artifact kind, got '") +
+        llvm::Twine("requires a current materialized header/object candidate "
+                    "artifact kind, got '") +
             config.selectedRoute.artifactKind + "'");
+  if (!isHeaderArtifactKind(config.selectedRoute.artifactKind) &&
+      !config.selectedRoute.candidateValidationFn)
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "object-backed materialized EmitC header routes require a "
+        "route-local candidate validation callback");
   if (config.headerGuard.trim().empty())
     return makeSelectedEmitCArtifactError(
         routeDescription, "requires a non-empty C header include guard");
@@ -1375,14 +1382,24 @@ llvm::Error validateMaterializedEmitCHeaderArtifactConfig(
         routeDescription, "requires a non-empty evidence comment prefix");
   if (config.emissionKind.trim().empty() ||
       config.loweringBoundary.trim().empty() ||
-      config.runtimeABI.trim().empty() ||
       config.runtimeABIKind.trim().empty() ||
-      config.runtimeABIName.trim().empty() ||
       config.runtimeGlueRole.trim().empty())
     return makeSelectedEmitCArtifactError(
         routeDescription,
-        "requires non-empty emission kind, lowering boundary, runtime ABI, "
-        "runtime ABI kind/name, and runtime glue role");
+        "requires non-empty emission kind, lowering boundary, runtime ABI "
+        "kind, and runtime glue role");
+  if (config.allowDynamicRuntimeABIIdentity) {
+    if (!config.selectedRoute.candidateValidationFn)
+      return makeSelectedEmitCArtifactError(
+          routeDescription,
+          "dynamic runtime ABI identity requires a route-local candidate "
+          "validation callback");
+  } else if (config.runtimeABI.trim().empty() ||
+             config.runtimeABIName.trim().empty()) {
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        "requires non-empty runtime ABI and runtime ABI name");
+  }
 
   for (auto [index, include] : llvm::enumerate(config.includes))
     if (include.trim().empty() || include.contains("<") ||
@@ -1533,6 +1550,10 @@ llvm::Error validateMaterializedEmitCHeaderArtifactCandidate(
     const MaterializedEmitCHeaderArtifactConfig &config) {
   if (llvm::Error error = validateMaterializedEmitCHeaderArtifactConfig(config))
     return error;
+  if (config.selectedRoute.candidateValidationFn)
+    if (llvm::Error error =
+            config.selectedRoute.candidateValidationFn(candidate))
+      return error;
 
   if (candidate.selectedVariant.empty())
     return makeSelectedEmitCArtifactError(
@@ -1574,17 +1595,27 @@ llvm::Error validateMaterializedEmitCHeaderArtifactCandidate(
           config, "lowering boundary", candidate.loweringBoundary,
           config.loweringBoundary))
     return error;
-  if (llvm::Error error = requireMaterializedEmitCHeaderCandidateField(
-          config, "runtime ABI", candidate.runtimeABI, config.runtimeABI))
+  if (config.allowDynamicRuntimeABIIdentity) {
+    if (llvm::StringRef(candidate.runtimeABI).trim().empty() ||
+        llvm::StringRef(candidate.runtimeABIName).trim().empty())
+      return makeSelectedEmitCArtifactError(
+          getHeaderRouteDescription(config),
+          "candidate runtime ABI and runtime ABI name must be non-empty");
+  } else if (llvm::Error error =
+                 requireMaterializedEmitCHeaderCandidateField(
+                     config, "runtime ABI", candidate.runtimeABI,
+                     config.runtimeABI)) {
     return error;
+  }
   if (llvm::Error error = requireMaterializedEmitCHeaderCandidateField(
           config, "runtime ABI kind", candidate.runtimeABIKind,
           config.runtimeABIKind))
     return error;
-  if (llvm::Error error = requireMaterializedEmitCHeaderCandidateField(
-          config, "runtime ABI name", candidate.runtimeABIName,
-          config.runtimeABIName))
-    return error;
+  if (!config.allowDynamicRuntimeABIIdentity)
+    if (llvm::Error error = requireMaterializedEmitCHeaderCandidateField(
+            config, "runtime ABI name", candidate.runtimeABIName,
+            config.runtimeABIName))
+      return error;
   if (llvm::Error error = requireMaterializedEmitCHeaderCandidateField(
           config, "runtime glue role", candidate.runtimeGlueRole,
           config.runtimeGlueRole))

@@ -7,7 +7,6 @@
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
 
-#include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -125,15 +124,6 @@ llvm::Error validateRVVRuntimeAVLVLArtifactMetadata(
   }
   return tcrv::rvv::verifyRVVI32M1ArithmeticArtifactMetadata(
       rvvMetadata, "selected RVV materialized EmitC candidate");
-}
-
-llvm::StringRef lookupArtifactMetadataValue(
-    llvm::ArrayRef<support::ArtifactMetadataEntry> metadata,
-    llvm::StringRef key) {
-  for (const support::ArtifactMetadataEntry &entry : metadata)
-    if (entry.key == key)
-      return entry.value;
-  return {};
 }
 
 llvm::Error validateRVVI32M1ArithmeticTargetArtifactCandidate(
@@ -306,105 +296,48 @@ SelectedEmitCArtifactRouteConfig getRVVI32M1ArithmeticArtifactConfig() {
   return config;
 }
 
-llvm::Expected<mlir::emitc::FuncOp>
-getSingleMaterializedEmitCFunction(mlir::ModuleOp module,
-                                   llvm::StringRef expectedFunctionName) {
-  mlir::emitc::FuncOp selectedFunc;
-  unsigned functionCount = 0;
-  module->walk([&](mlir::emitc::FuncOp func) {
-    ++functionCount;
-    if (func.getSymName() == expectedFunctionName)
-      selectedFunc = func;
-  });
+MaterializedEmitCHeaderArtifactConfig
+getRVVI32M1ArithmeticHeaderArtifactConfig() {
+  static const llvm::StringRef kHeaderIncludes[] = {"stddef.h", "stdint.h"};
+  static const MaterializedEmitCHeaderArtifactMetadataEvidence
+      kMetadataEvidence[] = {
+          {"runtime_avl_source", "tcrv_rvv.runtime_avl_source",
+           "runtime_abi:n"},
+          {"runtime_avl_abi_parameter",
+           "tcrv_rvv.runtime_avl_abi_parameter", "n"},
+          {"vl_def", "tcrv_rvv.vl_def", "tcrv_rvv.setvl"},
+          {"vl_scope", "tcrv_rvv.vl_scope", "tcrv_rvv.with_vl"},
+          {"emitc_loop", "tcrv_rvv.emitc_loop", "emitc.for"},
+          {"loop_induction", "tcrv_rvv.loop_induction", "offset"},
+          {"loop_step", "tcrv_rvv.loop_step", "full_chunk_vl"},
+          {"remaining_avl", "tcrv_rvv.remaining_avl", "n-offset"},
+          {"pointer_advance", "tcrv_rvv.pointer_advance", "offset"},
+          {"bounded_slice", "tcrv_rvv.bounded_slice",
+           "multi-vl-i32m1-arithmetic"},
+          {"multi_vl", "tcrv_rvv.multi_vl", "supported"},
+      };
+  static const llvm::SmallVector<support::RuntimeABIParameter, 4>
+      kRuntimeABIParameters =
+          plugin::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
 
-  if (!selectedFunc)
-    return makeRVVTargetRouteError(
-        llvm::Twine("materialized EmitC header route requires EmitC function "
-                    "boundary '") +
-        expectedFunctionName + "'");
-  if (functionCount != 1)
-    return makeRVVTargetRouteError(
-        "materialized EmitC header route requires exactly one EmitC function "
-        "boundary");
-  return selectedFunc;
-}
-
-std::string formatCParameter(const support::RuntimeABIParameter &parameter) {
-  std::string text;
-  llvm::raw_string_ostream os(text);
-  os << parameter.cType;
-  llvm::StringRef cType(parameter.cType);
-  if (!cType.ends_with("*") && !cType.ends_with("&"))
-    os << " ";
-  os << parameter.cName;
-  os.flush();
-  return text;
-}
-
-void printRVVMaterializedEmitCHeaderDeclaration(
-    llvm::raw_ostream &os, llvm::StringRef functionName,
-    llvm::StringRef objectRouteID, llvm::StringRef runtimeABIName,
-    llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters,
-    llvm::ArrayRef<support::ArtifactMetadataEntry> artifactMetadata) {
-  os << "#ifndef TIANCHENRV_RVV_MATERIALIZED_EMITC_HEADER_H\n";
-  os << "#define TIANCHENRV_RVV_MATERIALIZED_EMITC_HEADER_H\n";
-  os << "\n";
-  os << "#include <stddef.h>\n";
-  os << "#include <stdint.h>\n";
-  os << "\n";
-  os << "/* tianchenrv.rvv.materialized_emitc_header.version: 1 */\n";
-  os << "/* tianchenrv.rvv.selected_object_route: " << objectRouteID
-     << " */\n";
-  os << "/* tianchenrv.rvv.runtime_abi_name: " << runtimeABIName << " */\n";
-  os << "/* tianchenrv.rvv.runtime_avl_source: "
-     << lookupArtifactMetadataValue(artifactMetadata,
-                                    "tcrv_rvv.runtime_avl_source")
-     << " */\n";
-  os << "/* tianchenrv.rvv.runtime_avl_abi_parameter: "
-     << lookupArtifactMetadataValue(artifactMetadata,
-                                    "tcrv_rvv.runtime_avl_abi_parameter")
-     << " */\n";
-  os << "/* tianchenrv.rvv.vl_def: "
-     << lookupArtifactMetadataValue(artifactMetadata, "tcrv_rvv.vl_def")
-     << " */\n";
-  os << "/* tianchenrv.rvv.vl_scope: "
-     << lookupArtifactMetadataValue(artifactMetadata, "tcrv_rvv.vl_scope")
-     << " */\n";
-  os << "/* tianchenrv.rvv.emitc_loop: "
-     << lookupArtifactMetadataValue(artifactMetadata, "tcrv_rvv.emitc_loop")
-     << " */\n";
-  os << "/* tianchenrv.rvv.loop_induction: "
-     << lookupArtifactMetadataValue(artifactMetadata,
-                                    "tcrv_rvv.loop_induction")
-     << " */\n";
-  os << "/* tianchenrv.rvv.loop_step: "
-     << lookupArtifactMetadataValue(artifactMetadata, "tcrv_rvv.loop_step")
-     << " */\n";
-  os << "/* tianchenrv.rvv.remaining_avl: "
-     << lookupArtifactMetadataValue(artifactMetadata,
-                                    "tcrv_rvv.remaining_avl")
-     << " */\n";
-  os << "/* tianchenrv.rvv.pointer_advance: "
-     << lookupArtifactMetadataValue(artifactMetadata,
-                                    "tcrv_rvv.pointer_advance")
-     << " */\n";
-  os << "/* tianchenrv.rvv.bounded_slice: "
-     << lookupArtifactMetadataValue(artifactMetadata,
-                                    "tcrv_rvv.bounded_slice")
-     << " */\n";
-  os << "/* tianchenrv.rvv.multi_vl: "
-     << lookupArtifactMetadataValue(artifactMetadata, "tcrv_rvv.multi_vl")
-     << " */\n";
-  os << "\n";
-  os << "void " << functionName << "(";
-  for (auto [index, parameter] : llvm::enumerate(runtimeABIParameters)) {
-    if (index != 0)
-      os << ", ";
-    os << formatCParameter(parameter);
-  }
-  os << ");\n";
-  os << "\n";
-  os << "#endif /* TIANCHENRV_RVV_MATERIALIZED_EMITC_HEADER_H */\n";
+  MaterializedEmitCHeaderArtifactConfig config;
+  config.selectedRoute = getRVVI32M1ArithmeticArtifactConfig();
+  config.selectedRoute.routeDescription =
+      "RVV i32m1 materialized EmitC header artifact bridge";
+  config.headerGuard = "TIANCHENRV_RVV_MATERIALIZED_EMITC_HEADER_H";
+  config.evidencePrefix = "tianchenrv.rvv";
+  config.includes = kHeaderIncludes;
+  config.emissionKind = plugin::rvv::getRVVI32M1ArithmeticEmissionKind();
+  config.loweringBoundary =
+      plugin::rvv::getRVVI32M1ArithmeticLoweringBoundaryOpName();
+  config.runtimeABIKind =
+      plugin::rvv::getRVVI32M1ArithmeticRuntimeABIKind();
+  config.runtimeGlueRole =
+      plugin::rvv::getRVVI32M1ArithmeticRuntimeGlueRole();
+  config.allowDynamicRuntimeABIIdentity = true;
+  config.runtimeABIParameters = kRuntimeABIParameters;
+  config.metadataEvidence = kMetadataEvidence;
+  return config;
 }
 
 llvm::Error exportRVVI32M1ArithmeticTargetArtifact(mlir::ModuleOp module,
@@ -418,42 +351,8 @@ llvm::Error exportRVVI32M1ArithmeticTargetArtifact(mlir::ModuleOp module,
 
 llvm::Error exportRVVI32M1ArithmeticHeaderArtifact(mlir::ModuleOp module,
                                                    llvm::raw_ostream &os) {
-  SelectedEmitCArtifactRouteConfig config =
-      getRVVI32M1ArithmeticArtifactConfig();
-
-  llvm::Expected<SelectedEmitCArtifactTarget> target =
-      selectSelectedEmitCArtifactTarget(module, config);
-  if (!target)
-    return target.takeError();
-
-  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
-      materializeSelectedEmitCArtifactModule(module, config);
-  if (!emitcModule)
-    return emitcModule.takeError();
-
-  llvm::Expected<std::string> functionName =
-      getSelectedEmitCArtifactFunctionName(module, config);
-  if (!functionName)
-    return functionName.takeError();
-
-  llvm::Expected<mlir::emitc::FuncOp> func =
-      getSingleMaterializedEmitCFunction(**emitcModule, *functionName);
-  if (!func)
-    return func.takeError();
-
-  llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters =
-      target->candidate.runtimeABIParameters;
-  if ((*func).getFunctionType().getNumInputs() !=
-      runtimeABIParameters.size())
-    return makeRVVTargetRouteError(
-        "materialized EmitC header route function boundary arity must match "
-        "the selected ordered runtime ABI parameter signature");
-
-  printRVVMaterializedEmitCHeaderDeclaration(
-      os, *functionName, target->candidate.routeID,
-      target->candidate.runtimeABIName, runtimeABIParameters,
-      target->candidate.artifactMetadata);
-  return llvm::Error::success();
+  return exportMaterializedEmitCHeaderArtifact(
+      module, os, getRVVI32M1ArithmeticHeaderArtifactConfig());
 }
 
 bool isRVVMaterializedEmitCArtifactCandidate(
@@ -479,9 +378,9 @@ selectSingleRVVMaterializedEmitCCandidate(
         "RVV materialized EmitC header/bundle route requires exactly one "
         "selected supported RVV materialized EmitC candidate");
 
-  if (llvm::Error error =
-          validateRVVI32M1ArithmeticTargetArtifactCandidate(
-              *rvvCandidates.front()))
+  if (llvm::Error error = validateMaterializedEmitCHeaderArtifactCandidate(
+          *rvvCandidates.front(),
+          getRVVI32M1ArithmeticHeaderArtifactConfig()))
     return std::move(error);
   return rvvCandidates.front();
 }

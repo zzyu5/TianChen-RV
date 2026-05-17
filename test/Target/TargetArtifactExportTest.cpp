@@ -690,6 +690,32 @@ bool expectRVVTargetHeaderCompositeShape(
           {"config/runtime-VL artifact metadata"}))
     return false;
 
+  llvm::SmallVector<TargetArtifactCandidate, 2> wrongArtifactKind(candidates);
+  wrongArtifactKind.front().artifactKind = "runtime-callable-c-header";
+  if (!expectErrorContains(
+          exporter->getCandidateValidationFn()(wrongArtifactKind),
+          "RVV header composite rejects wrong candidate artifact kind",
+          {"artifact kind", "riscv-elf-relocatable-object"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> staleDeletedRoute(candidates);
+  staleDeletedRoute.front().routeID = "rvv-direct-microkernel-header";
+  if (!expectErrorContains(
+          exporter->getCandidateValidationFn()(staleDeletedRoute),
+          "RVV header composite rejects historical deleted route ids",
+          {"route id", "rvv-i32m1-arithmetic-emitc-route-family"}))
+    return false;
+
+  llvm::SmallVector<TargetArtifactCandidate, 2> directCResidue(candidates);
+  directCResidue.front().artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "rvv.direct_c_compute_body", "stale"));
+  if (!expectErrorContains(
+          exporter->getCandidateValidationFn()(directCResidue),
+          "RVV header composite rejects direct-C compute-body metadata",
+          {"descriptor-driven computation"}))
+    return false;
+
   llvm::SmallVector<TargetArtifactCandidate, 2> ambiguous(candidates);
   ambiguous.push_back(candidates.front());
   if (!expectErrorContains(

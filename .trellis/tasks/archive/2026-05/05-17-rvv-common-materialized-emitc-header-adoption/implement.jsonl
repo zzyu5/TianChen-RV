@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and implementation-stack invariants for this migration round."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Selected EmitC target artifact handoff and common materialized EmitC header helper contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime artifact route boundaries and deletion of descriptor/direct-C source authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV first executable plugin path, selected i32m1 materialized EmitC object/header/bundle boundary, and RVV-specific fail-closed rules."}

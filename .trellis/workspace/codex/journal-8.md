@@ -1735,3 +1735,65 @@ generic consumer of plugin-owned bundle registries.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 102: RVV common materialized EmitC header adoption
+
+**Date**: 2026-05-17
+**Task**: RVV common materialized EmitC header adoption
+**Branch**: `main`
+
+### Summary
+
+Migrated the selected RVV i32m1 materialized EmitC header artifact onto the
+common target-layer `MaterializedEmitCHeaderArtifact` helper while preserving
+the RVV object exporter and coherent object+header bundle composition.
+
+### Main Changes
+
+- Extended the common materialized EmitC header helper so object-backed
+  selected materialized EmitC candidates can emit declaration-only headers
+  when a route-local candidate validation callback owns the runtime ABI
+  contract.
+- Added dynamic runtime ABI identity mode for route families such as RVV
+  add/sub/mul, where the selected candidate carries the op-specific ABI name
+  and RVV-local preflight validates it.
+- Replaced the RVV-local header declaration renderer and duplicated EmitC
+  function boundary/arity checks with an RVV-local common header config plus
+  `exportMaterializedEmitCHeaderArtifact`.
+- Kept RVV-specific object packaging, runtime AVL/VL metadata validation,
+  arithmetic route/op consistency checks, and bundle component metadata in RVV
+  target support.
+- Updated RVV header and bundle lit expectations to check common helper
+  evidence: origin plugin, selected variant, selected route, runtime ABI
+  kind/name, ordered ABI parameters, and required RVV provenance metadata.
+- Updated the lowering-runtime spec for object-backed common header helper
+  usage and dynamic runtime ABI identity preflight.
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test tcrv-opt tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused RVV lit filter for RVV target artifacts and source-seed
+  materialization: 6/6 passed.
+- [OK] focused Toy/TensorExtLite target artifact lit filter: 4/4 passed.
+- [OK] `cmake --build build --target tianchenrv-toy-extension-plugin-test tianchenrv-tensorext-lite-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-toy-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- [OK] targeted scan over RVV target/plugin/translate/tests and common target
+  files showed no stale RVV local header renderer and no descriptor/direct-C/
+  source-export route authority beyond fail-closed rejection text and
+  `CHECK-NOT` assertions.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 102/102 lit tests
+  passed.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-17-rvv-common-materialized-emitc-header-adoption`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
