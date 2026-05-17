@@ -416,6 +416,16 @@ bool expectRVVEmitCTranslateRoute(
                               "MLIR EmitC C/C++ emitter");
 }
 
+bool expectTensorExtLiteEmitCTranslateRoute(
+    const TargetTranslateRouteRegistry &registry, llvm::StringRef context) {
+  (void)context;
+  return expectTranslateRoute(
+      registry,
+      tianchenrv::target::tensorext_lite::
+          getTensorExtLiteEmitCToCppTranslateRouteID(),
+      /*expectedBinaryStdout=*/false, "MLIR EmitC C/C++ emitter");
+}
+
 TargetArtifactCandidate makeValidRVVTargetArtifactCandidate() {
   const tianchenrv::plugin::rvv::RVVConstructionManifest &manifest =
       tianchenrv::plugin::rvv::getRVVConstructionManifest();
@@ -862,6 +872,27 @@ bool expectTensorExtLiteTargetArtifactExporterShape(
                            "TensorExtLite artifact rejects unexpected runtime "
                            "ABI parameter",
                            {"ordered runtime ABI parameter signature"}))
+    return false;
+
+  TargetArtifactCandidate fallbackRole = candidate;
+  fallbackRole.role = "dispatch fallback";
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               fallbackRole, *exporter),
+                           "TensorExtLite C++ emitter rejects fallback-only "
+                           "selection",
+                           {"candidate selected path role",
+                            "direct variant"}))
+    return false;
+
+  TargetArtifactCandidate wrongOrigin = candidate;
+  wrongOrigin.origin = "toy-plugin";
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               wrongOrigin, *exporter),
+                           "TensorExtLite artifact rejects wrong origin "
+                           "plugin",
+                           {"registered for origin",
+                            "tensorext-lite-plugin",
+                            "selected emission-plan origin is 'toy-plugin'"}))
     return false;
 
   return true;
@@ -1848,16 +1879,19 @@ bool expectRVVPluginManifestTargetSupportActivation() {
                      "register built-in target translate routes through "
                      "generic plugin manifest aggregation"))
     return false;
-  if (builtinRoutes.size() != 1) {
+  if (builtinRoutes.size() != 2) {
     llvm::errs() << "built-in target translate route aggregation did not "
-                    "publish only the RVV EmitC target route; Toy currently "
-                    "publishes a target artifact route but no target "
-                    "translate route, got "
+                    "publish the RVV and TensorExtLite EmitC target routes; "
+                    "Toy currently publishes a target artifact route but no "
+                    "target translate route, got "
                  << builtinRoutes.size() << "\n";
     return false;
   }
   if (!expectRVVEmitCTranslateRoute(
           builtinRoutes, "built-in RVV target routes"))
+    return false;
+  if (!expectTensorExtLiteEmitCTranslateRoute(
+          builtinRoutes, "built-in TensorExtLite target routes"))
     return false;
 
   return true;
@@ -1893,6 +1927,56 @@ bool expectToyPluginManifestTargetSupportActivation() {
                  << pluginRoutes.size() << "\n";
     return false;
   }
+  return true;
+}
+
+bool expectTensorExtLitePluginManifestTargetSupportActivation() {
+  tianchenrv::plugin::tensorext_lite::TensorExtLiteExtensionPlugin
+      tensorExtLitePlugin;
+  ExtensionBundle bundle("tensorext-lite-extension-bundle",
+                         tensorExtLitePlugin.getName(),
+                         tianchenrv::plugin::
+                             registerTensorExtLiteExtensionPlugin);
+  if (!expectSuccess(
+          tensorExtLitePlugin.configureTargetSupportExtensionBundle(bundle),
+          "activate TensorExtLite target-support extension bundle through "
+          "plugin manifest hook"))
+    return false;
+  if (!containsString(bundle.getRequiredDialectNames(),
+                      "tcrv_tensorext_lite") ||
+      !bundle.getLoweringBoundaryOps().empty() ||
+      !bundle.getTargetArtifactExporterBundleRegistrationFn()) {
+    llvm::errs() << "TensorExtLite plugin manifest hook did not configure the "
+                    "target-support extension bundle\n";
+    return false;
+  }
+
+  TargetTranslateRouteRegistry pluginRoutes;
+  if (!expectSuccess(tensorExtLitePlugin.registerTargetSupportTranslateRoutes(
+                         pluginRoutes),
+                     "activate TensorExtLite target translate routes through "
+                     "plugin manifest hook"))
+    return false;
+  if (pluginRoutes.size() != 1) {
+    llvm::errs() << "TensorExtLite plugin manifest hook should publish one "
+                    "materialized EmitC C++ emitter route, got "
+                 << pluginRoutes.size() << "\n";
+    return false;
+  }
+  if (!expectTensorExtLiteEmitCTranslateRoute(
+          pluginRoutes, "TensorExtLite plugin manifest target routes"))
+    return false;
+  if (!expectSuccess(tensorExtLitePlugin.registerTargetSupportTranslateRoutes(
+                         pluginRoutes),
+                     "repeat TensorExtLite target translate route "
+                     "registration is a no-op"))
+    return false;
+  if (pluginRoutes.size() != 1) {
+    llvm::errs() << "TensorExtLite target translate route registration was "
+                    "not idempotent\n";
+    return false;
+  }
+
   return true;
 }
 
@@ -2073,14 +2157,17 @@ bool expectTargetTranslateRouteRegistryShape() {
   if (!expectSuccess(registerBuiltinTargetTranslateRoutes(builtinRoutes),
                      "register built-in target translate routes"))
     return false;
-  if (builtinRoutes.size() != 1) {
+  if (builtinRoutes.size() != 2) {
     llvm::errs() << "built-in target translate routes did not expose the "
-                    "materialized RVV EmitC handoff as the only current "
-                    "target translate route, got "
+                    "materialized RVV and TensorExtLite EmitC handoffs as "
+                    "the current target translate routes, got "
                  << builtinRoutes.size() << "\n";
     return false;
   }
   if (!expectRVVEmitCTranslateRoute(
+          builtinRoutes, "built-in target translate routes"))
+    return false;
+  if (!expectTensorExtLiteEmitCTranslateRoute(
           builtinRoutes, "built-in target translate routes"))
     return false;
   return expectSuccess(
@@ -2102,13 +2189,16 @@ bool expectBundleDrivenTargetTranslateRouteRegistration() {
                      "register built-in target translate routes through "
                      "extension bundle frontdoor"))
     return false;
-  if (builtinRoutes.size() != 1) {
+  if (builtinRoutes.size() != 2) {
     llvm::errs() << "bundle-driven built-in target translate routes expected "
-                    "one RVV EmitC route, got "
+                    "RVV and TensorExtLite EmitC routes, got "
                  << builtinRoutes.size() << "\n";
     return false;
   }
   if (!expectRVVEmitCTranslateRoute(
+          builtinRoutes, "bundle-driven built-in target translate routes"))
+    return false;
+  if (!expectTensorExtLiteEmitCTranslateRoute(
           builtinRoutes, "bundle-driven built-in target translate routes"))
     return false;
 
@@ -3113,6 +3203,8 @@ int main() {
   if (!expectRVVTargetSupportBundleExtractionRegistration())
     return 1;
   if (!expectToyPluginManifestTargetSupportActivation())
+    return 1;
+  if (!expectTensorExtLitePluginManifestTargetSupportActivation())
     return 1;
   if (!expectRVVPluginManifestTargetSupportActivation())
     return 1;

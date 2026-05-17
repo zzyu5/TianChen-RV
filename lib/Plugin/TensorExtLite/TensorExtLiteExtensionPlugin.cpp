@@ -909,6 +909,12 @@ TensorExtLiteExtensionPlugin::configureTargetSupportExtensionBundle(
       configureTensorExtLiteTargetSupportExtensionBundle(bundle);
 }
 
+llvm::Error TensorExtLiteExtensionPlugin::registerTargetSupportTranslateRoutes(
+    target::TargetTranslateRouteRegistry &registry) const {
+  return target::tensorext_lite::
+      registerTensorExtLiteTargetSupportTargetTranslateRoutes(registry);
+}
+
 } // namespace tensorext_lite
 
 llvm::Error registerTensorExtLiteExtensionPlugin(ExtensionPluginRegistry &registry) {

@@ -1,5 +1,6 @@
 // RUN: tcrv-translate --tcrv-export-target-header-artifact %s | FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="descriptor" --implicit-check-not="source-export" --implicit-check-not="int main"
 // RUN: not tcrv-translate --tcrv-export-target-artifact %s 2>&1 | FileCheck %s --check-prefix=OBJECT-FAIL
+// RUN: not tcrv-translate --tcrv-tensorext-lite-emitc-to-cpp %s 2>&1 | FileCheck %s --check-prefix=CPP-MISSING-BOUNDARY --implicit-check-not="tcrv_tensorext_lite_config" --implicit-check-not="tcrv_tensorext_lite_tile_mma"
 
 module {
   tcrv.exec.kernel @tensorext_lite_header_export {
@@ -86,3 +87,6 @@ module {
 // HEADER: #endif
 
 // OBJECT-FAIL: requires exactly one supported target artifact emission-plan route; found none
+
+// CPP-MISSING-BOUNDARY: TensorExtLite materialized EmitC C/C++ emitter bridge failed
+// CPP-MISSING-BOUNDARY-SAME: requires one selected materialized tcrv_tensorext_lite.lowering_boundary before C/C++ emission

@@ -6,6 +6,7 @@
 
 namespace tianchenrv::target {
 class PluginTargetArtifactExporterRegistry;
+class TargetTranslateRouteRegistry;
 } // namespace tianchenrv::target
 
 namespace tianchenrv::plugin {
@@ -15,6 +16,7 @@ class ExtensionBundle;
 namespace tianchenrv::target::tensorext_lite {
 
 llvm::StringRef getTensorExtLiteMaterializedEmitCHeaderArtifactRouteID();
+llvm::StringRef getTensorExtLiteEmitCToCppTranslateRouteID();
 
 llvm::Error registerTensorExtLiteTargetSupportPluginTargetExporterBundles(
     PluginTargetArtifactExporterRegistry &registry);
@@ -22,6 +24,9 @@ llvm::Error registerTensorExtLiteTargetSupportPluginTargetExporterBundles(
 llvm::Error
 configureTensorExtLiteTargetSupportExtensionBundle(
     plugin::ExtensionBundle &bundle);
+
+llvm::Error registerTensorExtLiteTargetSupportTargetTranslateRoutes(
+    TargetTranslateRouteRegistry &registry);
 
 } // namespace tianchenrv::target::tensorext_lite
 

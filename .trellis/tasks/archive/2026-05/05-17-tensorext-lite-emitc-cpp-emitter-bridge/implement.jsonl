@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "global project and stack invariants for compiler implementation"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "plugin-owned source front door, target support, and TensorExtLite source-front-door contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "selected materialized EmitC handoff and MLIR EmitC C/C++ emitter route contract"}
+{"file": ".trellis/tasks/05-17-tensorext-lite-emitc-cpp-emitter-bridge/prd.md", "reason": "task requirements and acceptance criteria for this implementation round"}
