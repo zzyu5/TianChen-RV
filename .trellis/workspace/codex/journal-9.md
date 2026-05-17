@@ -73,6 +73,71 @@ Added a code-consumed common materialized EmitC object/header bundle constructio
 - None - task complete
 
 
+## Session 121: TensorExtLite executable construction-template artifact closure
+
+**Date**: 2026-05-18
+**Task**: TensorExtLite executable construction-template artifact closure
+**Branch**: `main`
+
+### Summary
+
+Closed the remaining TensorExtLite default selected-path gap by making the
+plugin-owned lowering-boundary materializer create or reuse the same ordered
+construction-template role sequence and direct lowering-boundary surface that
+the TensorExtLite target artifact exporter already requires.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `05-18-tensorextlite-construction-template-artifact-closure` from the
+  Direction Brief.
+- Replaced the TensorExtLite active-route no-boundary result with production
+  selected-surface materialization in
+  `TensorExtLiteExtensionPlugin::materializeSelectedLoweringBoundary`.
+- The default TensorExtLite selected path now materializes
+  `configure -> load_frag -> tile_mma -> store_frag` role ops inside the
+  selected variant body when no role sequence exists, validates an existing
+  complete role sequence when present, and fail-closes on partial or duplicate
+  role materialization.
+- The same hook now creates or reuses one direct
+  `tcrv_tensorext_lite.lowering_boundary` and validates it before returning a
+  materialized boundary result.
+- Updated the TensorExtLite plugin C++ test so the generic proposal/selection
+  path proves an active route, supported emission plan, route provenance, and
+  materialized EmitC module without relying on hand-written role ops.
+- Added partial role-sequence negative coverage proving stale partial typed
+  role realization is not auto-completed into artifact authority.
+- Added no descriptor adapter, compatibility wrapper, direct-C semantic
+  exporter, source-export route, Python compiler-core path, RVV expansion, or
+  common/core TensorExtLite branch.
+
+### Git Commits
+
+Included in the final task commit for this round.
+
+### Testing
+
+- [OK] Trellis context validation for the task.
+- [OK] `cmake --build build --target tianchenrv-tensorext-lite-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-tensorext-lite-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-construction-protocol-common-test tianchenrv-target-artifact-export-test tianchenrv-tensorext-lite-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused TensorExtLite lit from `build/test` passed 14/14.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` -> 122/122 passed.
+- [OK] TensorExtLite residue scan found only fail-closed/prohibitive test
+  strings and source-only stale-residue rejection text.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 123: RVV construction-template metadata closure on real hardware path
 
 **Date**: 2026-05-17

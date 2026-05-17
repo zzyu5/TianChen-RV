@@ -68,7 +68,16 @@ constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
     "required_capabilities");
 constexpr llvm::StringLiteral kFragmentABIAttrName("fragment_abi");
 constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
+constexpr llvm::StringLiteral kTypedRoleAttrName("typed_role");
+constexpr llvm::StringLiteral kRoleOrderAttrName("role_order");
+constexpr llvm::StringLiteral kSourceRoleAttrName("source_role");
+constexpr llvm::StringLiteral kRoleSpecificInterfaceAttrName(
+    "role_specific_interface");
+constexpr llvm::StringLiteral kFragmentReasonAttrName("fragment_reason");
+constexpr llvm::StringLiteral kRoleOpBoundaryStatusValue("role-op-boundary");
 constexpr llvm::StringLiteral kNoActiveRouteStatusValue("no-active-route");
+constexpr llvm::StringLiteral kSelectedConstructionFragmentReason(
+    "tensorext-lite-selected-construction-template-route");
 constexpr llvm::StringLiteral kSelectedPlanCapabilityIDName(
     "tensorext_lite_tile_mma_capability_id");
 constexpr llvm::StringLiteral kSelectedPlanFragmentABIName(
@@ -434,6 +443,206 @@ llvm::Error validateBoundaryStringAttr(mlir::Operation *op,
         "' does not match expected selected-path value '" + expectedValue +
         "'");
   return llvm::Error::success();
+}
+
+mlir::FlatSymbolRefAttr makeTensorExtLiteSymbolRef(mlir::MLIRContext *context,
+                                                   llvm::StringRef symbol) {
+  return mlir::FlatSymbolRefAttr::get(context, symbol);
+}
+
+bool isSelectedTensorExtLiteRoleOp(mlir::Operation &op,
+                                   llvm::StringRef variantSymbol,
+                                   llvm::StringRef role) {
+  auto selectedVariant =
+      op.getAttrOfType<mlir::FlatSymbolRefAttr>(kSelectedVariantAttrName);
+  auto pathRole = op.getAttrOfType<mlir::StringAttr>(kRoleAttrName);
+  if (!selectedVariant || selectedVariant.getValue() != variantSymbol ||
+      !pathRole || pathRole.getValue() != role)
+    return false;
+
+  llvm::StringRef opName = op.getName().getStringRef();
+  for (const tensorext_lite::TensorExtLiteFragmentMmaRoleStep &step :
+       tensorext_lite::getTensorExtLiteFragmentMmaRoleSteps())
+    if (opName == step.operationName)
+      return true;
+  return false;
+}
+
+llvm::Error materializeTensorExtLiteRoleOp(
+    mlir::OpBuilder &builder, tcrv::exec::KernelOp kernel,
+    tcrv::exec::VariantOp variant, VariantEmissionRole role,
+    mlir::ArrayAttr requires,
+    const tensorext_lite::TensorExtLiteFragmentMmaRoleStep &step) {
+  mlir::OperationState state(variant.getLoc(), step.operationName);
+  state.addAttribute(kSourceKernelAttrName,
+                     builder.getStringAttr(kernel.getSymName()));
+  state.addAttribute(kSelectedVariantAttrName,
+                     makeTensorExtLiteSymbolRef(builder.getContext(),
+                                                variant.getSymName()));
+  state.addAttribute(kOriginAttrName,
+                     builder.getStringAttr(kTensorExtLitePluginName));
+  state.addAttribute(kRoleAttrName,
+                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
+  state.addAttribute(kStatusAttrName,
+                     builder.getStringAttr(kRoleOpBoundaryStatusValue));
+  state.addAttribute(kRequiredCapabilitiesAttrName, requires);
+  state.addAttribute(kTypedRoleAttrName, builder.getStringAttr(step.typedRoleID));
+  state.addAttribute(kRoleOrderAttrName, builder.getI64IntegerAttr(step.order));
+  state.addAttribute(kSourceRoleAttrName,
+                     builder.getStringAttr(step.sourceRole));
+  state.addAttribute(kRoleSpecificInterfaceAttrName,
+                     builder.getStringAttr(step.roleSpecificInterface));
+  state.addAttribute(kFragmentReasonAttrName,
+                     builder.getStringAttr(kSelectedConstructionFragmentReason));
+  builder.create(state);
+  return llvm::Error::success();
+}
+
+llvm::Error materializeTensorExtLiteSelectedRoleSequenceIfNeeded(
+    const VariantLoweringBoundaryRequest &request) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (variant.getBody().empty())
+    return makeTensorExtLitePluginError(
+        "selected TensorExtLite construction-template path requires a "
+        "materialized selected variant body before role-sequence "
+        "materialization");
+
+  llvm::ArrayRef<tensorext_lite::TensorExtLiteFragmentMmaRoleStep> roleSteps =
+      tensorext_lite::getTensorExtLiteFragmentMmaRoleSteps();
+  llvm::SmallVector<mlir::Operation *, 4> existing(roleSteps.size(), nullptr);
+  unsigned matchedRoleOps = 0;
+  llvm::StringRef role = stringifyVariantEmissionRole(request.getRole());
+  for (mlir::Operation &op : variant.getBody().front()) {
+    if (!isSelectedTensorExtLiteRoleOp(op, variant.getSymName(), role))
+      continue;
+
+    for (auto [index, step] : llvm::enumerate(roleSteps)) {
+      if (op.getName().getStringRef() != step.operationName)
+        continue;
+      if (existing[index])
+        return makeTensorExtLitePluginError(
+            llvm::Twine("selected TensorExtLite construction-template path "
+                        "has duplicate materialized role op '") +
+            step.operationName + "' for @" + variant.getSymName());
+      existing[index] = &op;
+      ++matchedRoleOps;
+      break;
+    }
+  }
+
+  if (matchedRoleOps != 0 && matchedRoleOps != roleSteps.size())
+    return makeTensorExtLitePluginError(
+        llvm::Twine("selected TensorExtLite construction-template path has a "
+                    "partial materialized role sequence for @") +
+        variant.getSymName() + "; expected " +
+        tensorext_lite::getTensorExtLiteConstructionManifest()
+            .semanticRoleGraph);
+
+  if (matchedRoleOps == roleSteps.size()) {
+    conversion::emitc::TCRVEmitCLowerableRoute route;
+    VariantEmitCLowerableRequest routeRequest(
+        request.getVariant(), request.getKernel(), request.getCapabilities(),
+        request.getRole());
+    return tensorext_lite::buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
+        routeRequest, route);
+  }
+
+  auto requires = variant->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+  if (!requires || requires.empty())
+    return makeTensorExtLitePluginError(
+        "selected TensorExtLite construction-template path requires "
+        "non-empty selected variant requires metadata before role-sequence "
+        "materialization");
+
+  mlir::OpBuilder::InsertionGuard guard(request.getBuilder());
+  request.getBuilder().setInsertionPointToEnd(&variant.getBody().front());
+  for (const tensorext_lite::TensorExtLiteFragmentMmaRoleStep &step :
+       roleSteps) {
+    if (llvm::Error error = materializeTensorExtLiteRoleOp(
+            request.getBuilder(), request.getKernel(), variant,
+            request.getRole(), requires, step))
+      return error;
+  }
+
+  conversion::emitc::TCRVEmitCLowerableRoute route;
+  VariantEmitCLowerableRequest routeRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole());
+  return tensorext_lite::buildTensorExtLiteFragmentMmaEmitCLowerableRoute(
+      routeRequest, route);
+}
+
+bool isSelectedTensorExtLiteLoweringBoundary(
+    tcrv::tensorext_lite::LoweringBoundaryOp boundary,
+    llvm::StringRef variantSymbol, llvm::StringRef role) {
+  auto selectedVariant =
+      boundary->getAttrOfType<mlir::FlatSymbolRefAttr>(
+          kSelectedVariantAttrName);
+  auto pathRole = boundary->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
+  return selectedVariant && selectedVariant.getValue() == variantSymbol &&
+         pathRole && pathRole.getValue() == role;
+}
+
+llvm::Expected<mlir::Operation *> getOrCreateTensorExtLiteLoweringBoundary(
+    const VariantLoweringBoundaryRequest &request) {
+  llvm::StringRef role = stringifyVariantEmissionRole(request.getRole());
+  tcrv::tensorext_lite::LoweringBoundaryOp selectedBoundary;
+  unsigned matchingBoundaries = 0;
+  for (mlir::Operation &op : request.getKernel().getBody().front()) {
+    auto boundary =
+        llvm::dyn_cast<tcrv::tensorext_lite::LoweringBoundaryOp>(op);
+    if (!boundary ||
+        !isSelectedTensorExtLiteLoweringBoundary(
+            boundary, request.getVariant().getSymName(), role))
+      continue;
+    selectedBoundary = boundary;
+    ++matchingBoundaries;
+  }
+
+  if (matchingBoundaries > 1)
+    return makeTensorExtLitePluginError(
+        llvm::Twine("selected TensorExtLite construction-template path has "
+                    "duplicate materialized lowering boundaries for @") +
+        request.getVariant().getSymName());
+  if (selectedBoundary)
+    return selectedBoundary.getOperation();
+
+  auto requires =
+      request.getVariant()->getAttrOfType<mlir::ArrayAttr>(kRequiresAttrName);
+  if (!requires || requires.empty())
+    return makeTensorExtLitePluginError(
+        "selected TensorExtLite construction-template path requires "
+        "non-empty selected variant requires metadata before "
+        "lowering-boundary materialization");
+
+  mlir::OperationState state(request.getVariant().getLoc(),
+                             "tcrv_tensorext_lite.lowering_boundary");
+  state.addAttribute(kSourceKernelAttrName,
+                     request.getBuilder().getStringAttr(
+                         request.getKernel().getSymName()));
+  state.addAttribute(kSelectedVariantAttrName,
+                     makeTensorExtLiteSymbolRef(
+                         request.getBuilder().getContext(),
+                         request.getVariant().getSymName()));
+  state.addAttribute(kOriginAttrName,
+                     request.getBuilder().getStringAttr(
+                         kTensorExtLitePluginName));
+  state.addAttribute(kRoleAttrName,
+                     request.getBuilder().getStringAttr(role));
+  state.addAttribute(kStatusAttrName,
+                     request.getBuilder().getStringAttr(
+                         kNoActiveRouteStatusValue));
+  state.addAttribute(kRequiredCapabilitiesAttrName, requires);
+  state.addAttribute(kFragmentABIAttrName,
+                     request.getBuilder().getStringAttr(
+                         kExpectedFragmentABI));
+  state.addAttribute(kHandoffKindAttrName,
+                     request.getBuilder().getStringAttr(
+                         kExpectedHandoffKind));
+  state.addAttribute(kFragmentReasonAttrName,
+                     request.getBuilder().getStringAttr(
+                         kSelectedConstructionFragmentReason));
+  return request.getBuilder().create(state);
 }
 
 std::string joinTensorExtLiteRouteSourceOps(
@@ -821,12 +1030,23 @@ llvm::Error TensorExtLiteExtensionPlugin::materializeSelectedLoweringBoundary(
         " failed plugin legality before boundary materialization: " + message);
   }
 
-  out = VariantLoweringBoundaryResult::getNoBoundary(
+  if (llvm::Error error =
+          materializeTensorExtLiteSelectedRoleSequenceIfNeeded(request))
+    return error;
+
+  llvm::Expected<mlir::Operation *> boundary =
+      getOrCreateTensorExtLiteLoweringBoundary(request);
+  if (!boundary)
+    return boundary.takeError();
+
+  VariantLoweringBoundaryValidationRequest validationRequest(
+      variant, kernel, request.getCapabilities(), request.getRole(), *boundary);
+  if (llvm::Error error = validateSelectedLoweringBoundary(validationRequest))
+    return error;
+
+  out = VariantLoweringBoundaryResult::getMaterialized(
       kTensorExtLitePluginName, kernel.getSymName(), variant.getSymName(),
-      request.getRole(),
-      "TensorExtLite active EmitC route consumes an explicit typed role "
-      "sequence inside the selected variant body and does not synthesize a "
-      "separate selected lowering-boundary op");
+      request.getRole(), *boundary);
   return llvm::Error::success();
 }
 

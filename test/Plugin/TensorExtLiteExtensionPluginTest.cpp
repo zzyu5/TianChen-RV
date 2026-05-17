@@ -126,25 +126,6 @@ LoweringBoundaryOp findTensorExtLiteBoundary(KernelOp kernel,
   return result;
 }
 
-TileMmaSkeletonOp findTensorExtLiteComputeRole(KernelOp kernel,
-                                     llvm::StringRef selectedVariantSymbol) {
-  TileMmaSkeletonOp result;
-  if (!kernel || kernel.getBody().empty())
-    return result;
-
-  for (mlir::Operation &op : kernel.getBody().front()) {
-    auto compute = llvm::dyn_cast<TileMmaSkeletonOp>(op);
-    if (!compute)
-      continue;
-
-    auto selectedVariant =
-        op.getAttrOfType<mlir::FlatSymbolRefAttr>("selected_variant");
-    if (selectedVariant && selectedVariant.getValue() == selectedVariantSymbol)
-      result = compute;
-  }
-  return result;
-}
-
 TileMmaSkeletonOp findTensorExtLiteNestedComputeRole(
     VariantOp variant, llvm::StringRef selectedVariantSymbol) {
   TileMmaSkeletonOp result;
@@ -167,7 +148,8 @@ TileMmaSkeletonOp findTensorExtLiteNestedComputeRole(
 void materializeTensorExtLiteRoleSequence(mlir::OpBuilder &builder,
                                           KernelOp kernel,
                                           VariantOp variant,
-                                          bool reorderLoadAndTile = false) {
+                                          bool reorderLoadAndTile = false,
+                                          unsigned roleCount = 4) {
   mlir::Block &body = variant.getBody().front();
   builder.setInsertionPointToEnd(&body);
   auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
@@ -180,7 +162,7 @@ void materializeTensorExtLiteRoleSequence(mlir::OpBuilder &builder,
   llvm::ArrayRef<unsigned> indices =
       reorderLoadAndTile ? llvm::ArrayRef<unsigned>(reorderedIndices)
                          : llvm::ArrayRef<unsigned>(orderedIndices);
-  for (unsigned specIndex : indices) {
+  for (unsigned specIndex : indices.take_front(roleCount)) {
     const auto &step = roleSteps[specIndex];
     mlir::OperationState state(variant.getLoc(), step.operationName);
     state.addAttribute("source_kernel",
@@ -690,50 +672,18 @@ module {
   LoweringBoundaryOp boundary =
       findTensorExtLiteBoundary(kernel, tensorext_liteVariant.getSymName());
   if (int result =
-          expect(!boundary,
-                 "TensorExtLite selected path does not materialize a route boundary"))
+          expect(boundary,
+                 "TensorExtLite selected path materializes a route boundary"))
     return result;
   if (int result = expect(mlir::succeeded(mlir::verify(*module)),
-                          "TensorExtLite no-boundary module verifies"))
-    return result;
-
-  TileMmaSkeletonOp computeRole =
-      findTensorExtLiteComputeRole(kernel, tensorext_liteVariant.getSymName());
-  if (int result =
-          expect(!computeRole,
-                 "TensorExtLite selected path does not materialize a tile_mma role op"))
-    return result;
-
-  VariantEmissionStatus status;
-  if (int result = expectErrorContains(
-          registry.checkVariantEmissionReadiness(
-              VariantEmissionRequest(tensorext_liteVariant, kernel,
-                                     capabilities,
-                                     VariantEmissionRole::DirectVariant),
-              status),
-          {"reported unsupported emission path",
-           "requires one materialized tcrv_tensorext_lite.config_skeleton"}))
-    return result;
-
-  VariantEmissionPlan emissionPlan;
-  if (int result = expectErrorContains(
-          registry.buildVariantEmissionPlan(
-              VariantEmissionRequest(tensorext_liteVariant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
-              emissionPlan),
-          {"requires one materialized tcrv_tensorext_lite.config_skeleton"}))
-    return result;
-
-  materializeTensorExtLiteRoleSequence(builder, kernel, tensorext_liteVariant);
-  if (int result = expect(mlir::succeeded(mlir::verify(*module)),
-                          "TensorExtLite explicit role-body module verifies"))
+                          "TensorExtLite boundary and role-body module verifies"))
     return result;
 
   TileMmaSkeletonOp nestedComputeRole = findTensorExtLiteNestedComputeRole(
       tensorext_liteVariant, tensorext_liteVariant.getSymName());
   if (int result =
           expect(nestedComputeRole,
-                 "TensorExtLite explicit body materializes tile_mma role op"))
+                 "TensorExtLite selected path materializes tile_mma role op"))
     return result;
 
   if (int result = expectSuccess(
@@ -747,7 +697,7 @@ module {
           "TensorExtLite tile_mma role op validates through construction interface"))
     return result;
 
-  status = VariantEmissionStatus();
+  VariantEmissionStatus status;
   if (int result = expectSuccess(
           registry.checkVariantEmissionReadiness(
               VariantEmissionRequest(tensorext_liteVariant, kernel,
@@ -770,6 +720,7 @@ module {
                  "TensorExtLite readiness reports supported active route id"))
     return result;
 
+  VariantEmissionPlan emissionPlan;
   emissionPlan = VariantEmissionPlan();
   if (int result = expectSuccess(
           registry.buildVariantEmissionPlan(
@@ -1001,6 +952,91 @@ module {
        "order"});
 }
 
+int runPartialRoleSequenceMaterializationNegativeTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @partial_tensorext_lite_tile_mma_kernel attributes {} {
+    tcrv.exec.capability @tensorext_lite_tile_mma {
+      id = "tensorext_lite.tile_mma",
+      kind = "fragment-mma-like",
+      status = "available",
+      fragment_abi = "tensorext-lite-fragment-boundary.v1",
+      handoff_kind = "tensorext-lite-fragment-mma-template"
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse partial TensorExtLite role-sequence module");
+
+  KernelOp kernel =
+      findKernel(*module, "partial_tensorext_lite_tile_mma_kernel");
+  if (int result =
+          expect(kernel, "partial TensorExtLite module has kernel anchor"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerTensorExtLiteExtensionPlugin(
+                            registry),
+                        "register TensorExtLite plugin for partial role "
+                        "negative"))
+    return result;
+
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+  VariantProposalRequest request(kernel.getOperation(), kernel, capabilities);
+  mlir::OpBuilder builder(&context);
+  llvm::SmallVector<VariantOp, 1> materializedVariants;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, request, &materializedVariants),
+          "materialize TensorExtLite proposal for partial role negative"))
+    return result;
+
+  VariantOp tensorext_liteVariant = findVariant(
+      kernel,
+      tianchenrv::plugin::tensorext_lite::
+          getTensorExtLiteFragmentFirstSliceVariantName());
+  if (int result =
+          expect(tensorext_liteVariant,
+                 "TensorExtLite partial negative materializes variant"))
+    return result;
+
+  llvm::Expected<VariantSelectionPlan> planOrError =
+      tianchenrv::transforms::planKernelVariantSelection(kernel, capabilities,
+                                                         registry);
+  if (!planOrError)
+    return fail("TensorExtLite partial role selection planning failed: " +
+                llvm::toString(planOrError.takeError()));
+  VariantSelectionPlan selectionPlan = std::move(*planOrError);
+  DiagnosticOp marker;
+  if (int result = expectSuccess(
+          tianchenrv::transforms::materializeSelectedVariantMarker(
+              builder, selectionPlan, &marker),
+          "materialize TensorExtLite selected marker for partial role negative"))
+    return result;
+
+  materializeTensorExtLiteRoleSequence(builder, kernel, tensorext_liteVariant,
+                                       /*reorderLoadAndTile=*/false,
+                                       /*roleCount=*/1);
+  if (int result = expect(mlir::succeeded(mlir::verify(*module)),
+                          "partial TensorExtLite role module verifies before "
+                          "construction-template fail-closed check"))
+    return result;
+
+  return expectErrorContains(
+      tianchenrv::plugin::materializeSelectedLoweringBoundaries(
+          kernel, capabilities, registry),
+      {"partial materialized role sequence",
+       tianchenrv::plugin::tensorext_lite::
+           getTensorExtLiteConstructionManifest()
+               .semanticRoleGraph});
+}
+
 } // namespace
 
 int main() {
@@ -1024,6 +1060,8 @@ int main() {
   if (int result = runPipelineHookTest(context))
     return result;
   if (int result = runRoleSequenceOrderingNegativeTest(context))
+    return result;
+  if (int result = runPartialRoleSequenceMaterializationNegativeTest(context))
     return result;
 
   llvm::outs() << "TensorExtLite extension plugin fragment smoke test passed\n";
