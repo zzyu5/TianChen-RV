@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, descriptor boundary, plugin/core branch, and EmitC route invariants"}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin construction and registry pre-development checklist"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Executable construction template, conformance surface, and new family construction protocol"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Registry, plugin hooks, and source/front-door interface boundaries"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common TCRVEmitCLowerableRoute to in-memory MLIR EmitC materialization contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "No direct C/source-export authority and materialized EmitC route constraints"}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++ and lit evidence requirements"}

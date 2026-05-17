@@ -73,6 +73,68 @@ Added a code-consumed common materialized EmitC object/header bundle constructio
 - None - task complete
 
 
+## Session 124: Executable extension-family construction template consumer
+
+**Date**: 2026-05-18
+**Task**: Executable extension-family construction template consumer
+**Branch**: `main`
+
+### Summary
+
+Added a test-local executable construction template consumer that proves a new
+bounded plugin instance can pass the common registry conformance gate, build a
+plugin-owned EmitC lowerable route from a selected boundary fixture, and
+materialize that route through the common MLIR EmitC materializer without
+production common/core family branches.
+
+### Main Changes
+
+- Created Trellis task
+  `05-18-executable-extension-family-construction-template-consumer` from the
+  Direction Brief and wrote the PRD before source edits.
+- Extended `ConstructionProtocolCommonTest.cpp` with a test-local
+  `template-consumer-plugin` fixture carrying its own manifest, semantic role
+  graph, family declaration, common-interface realization, typed-role
+  realization, executable role step, route mapping, artifact metadata, and
+  evidence profile.
+- Added valid registry coverage plus fail-closed stale manifest, stale
+  typed-role/interface, stale route mapping, and stale artifact metadata
+  coverage through `ExtensionPluginRegistry::registerPlugin()`.
+- Added selected-boundary route construction coverage using common selected
+  role-sequence and selected-boundary conformance before returning a
+  plugin-owned `TCRVEmitCLowerableRoute`.
+- Added common EmitC materializer coverage proving the consumer route verifies
+  and materializes to a verified MLIR EmitC module.
+- Updated the common construction test target to link the common EmitC
+  materializer dependencies.
+- No production plugin, target exporter, object/header/bundle packaging path,
+  RVV runtime path, descriptor/direct-C/source-export path, Python
+  compiler-core behavior, or common/core family semantic branch was added.
+
+### Testing
+
+- [OK] Trellis context validation for the task.
+- [OK] `cmake --build build --target tianchenrv-construction-protocol-common-test -j2`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] Toy, Template, RVV, and TensorExtLite plugin smoke tests.
+- [OK] Common construction/registry family-name scan returned no matches.
+- [OK] Touched-source descriptor/direct-C/source-export scan returned no
+  matches.
+- [OK] Production-surface consumer scan returned no matches.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` -> 122/122 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Target object/header/bundle packaging for any future template consumer
+  remains a separate rebuild gap; do not restore descriptor/direct-C/export
+  paths to close it.
+
+
 ## Session 121: Executable construction gate closure for remaining builtin plugins
 
 **Date**: 2026-05-18

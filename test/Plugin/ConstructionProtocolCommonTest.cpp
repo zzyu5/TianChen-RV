@@ -1,3 +1,4 @@
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Plugin/ConstructionProtocol.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
@@ -9,6 +10,10 @@
 #include "TianChenRV/Plugin/Toy/ToyConstructionProtocol.h"
 #include "TianChenRV/Plugin/Toy/ToyExtensionPlugin.h"
 
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/Operation.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
@@ -16,6 +21,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <initializer_list>
+#include <iterator>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -26,6 +32,8 @@ using tianchenrv::plugin::construction::ExecutableRoleStep;
 using tianchenrv::plugin::ExtensionPlugin;
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
+using tianchenrv::plugin::VariantEmissionRole;
+using tianchenrv::plugin::VariantEmitCLowerableRequest;
 using tianchenrv::support::ArtifactMetadataEntry;
 
 static_assert(std::is_same<
@@ -147,6 +155,480 @@ public:
         staleMetadata, "Template registry construction artifact metadata");
   }
 };
+
+int fail(const llvm::Twine &message);
+int expectSuccess(llvm::Error error, llvm::StringRef message);
+int expectErrorContains(llvm::Error error,
+                        std::initializer_list<llvm::StringRef> fragments,
+                        llvm::StringRef context);
+
+namespace template_consumer {
+
+namespace construction = tianchenrv::plugin::construction;
+namespace emitc = tianchenrv::conversion::emitc;
+
+constexpr llvm::StringLiteral kPluginName("template-consumer-plugin");
+constexpr llvm::StringLiteral kCapabilityID("template_consumer.compute");
+constexpr llvm::StringLiteral kCapabilityKind(
+    "construction-template-consumer");
+constexpr llvm::StringLiteral kCapabilitySymbol(
+    "template_consumer_compute");
+constexpr llvm::StringLiteral kProtocolVersion(
+    "extension-family-construction-protocol.v1");
+constexpr llvm::StringLiteral kArchetype(
+    "custom-riscv-extension-template-consumer");
+constexpr llvm::StringLiteral kSemanticRoleGraph("compute");
+constexpr llvm::StringLiteral kFamilyName("template_consumer");
+constexpr llvm::StringLiteral kArchitecturalNamespace(
+    "tcrv.template_consumer");
+constexpr llvm::StringLiteral kConcreteNamespace("tcrv_template_consumer");
+constexpr llvm::StringLiteral kVariantName("template_consumer_first_slice");
+constexpr llvm::StringLiteral kSourceKernel("template_consumer_kernel");
+constexpr llvm::StringLiteral kComputeOperationName(
+    "tcrv_template_consumer.compute_sentinel");
+constexpr llvm::StringLiteral kTypedRoleID(
+    "template_consumer.role.compute.compute_sentinel");
+constexpr llvm::StringLiteral kRoleSpecificInterface(
+    "TCRVComputeOpInterface");
+constexpr llvm::StringLiteral kEmitCLowerableInterface(
+    "TCRVEmitCLowerableInterface");
+constexpr llvm::StringLiteral kRouteID(
+    "template-consumer-compute-sentinel-emitc-route");
+constexpr llvm::StringLiteral kEmissionKind(
+    "materialized-emitc-template-consumer-module");
+constexpr llvm::StringLiteral kArtifactKind("riscv-elf-relocatable-object");
+constexpr llvm::StringLiteral kRuntimeABI(
+    "template-consumer-compute-sentinel-runtime-c-abi.v1");
+constexpr llvm::StringLiteral kRuntimeABIKind("plugin-owned-runtime-abi");
+constexpr llvm::StringLiteral kRuntimeGlueRole(
+    "emitc-cpp-template-consumer-runtime-glue");
+constexpr llvm::StringLiteral kInterfaceRealization(
+    "compute=TCRVExtensionOpInterface+TCRVComputeOpInterface+"
+    "TCRVResourceOpInterface+TCRVEmitCLowerableInterface");
+constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
+    "compute:template_consumer.role.compute.compute_sentinel:"
+    "tcrv_template_consumer.compute_sentinel:TCRVComputeOpInterface:"
+    "TCRVEmitCLowerableInterface");
+constexpr llvm::StringLiteral kEvidenceProfile(
+    "parse_verify|capability|interface|selected_boundary_or_route|"
+    "emitc_route_mapping|materialized_emitc_module");
+constexpr llvm::StringLiteral kCallee(
+    "tcrv_template_consumer_compute_sentinel");
+constexpr llvm::StringLiteral kResultName("template_consumer_sentinel");
+constexpr llvm::StringLiteral kResultCType("int32_t");
+constexpr llvm::StringLiteral kRoleOpBoundaryStatus("role-op-boundary");
+constexpr llvm::StringLiteral kSourceOpInterfaceName(
+    "TCRVEmitCLowerableInterface");
+
+constexpr llvm::StringLiteral kRouteMetadataName(
+    "template_consumer_emitc_route_mapping");
+constexpr llvm::StringLiteral kSourceOpMetadataName(
+    "template_consumer_source_op");
+constexpr llvm::StringLiteral kSourceRoleMetadataName(
+    "template_consumer_source_role");
+constexpr llvm::StringLiteral kSourceOpInterfaceMetadataName(
+    "template_consumer_source_op_interface");
+constexpr llvm::StringLiteral kProtocolMetadataName(
+    "template_consumer_construction_protocol");
+constexpr llvm::StringLiteral kRoleGraphMetadataName(
+    "template_consumer_semantic_role_graph");
+constexpr llvm::StringLiteral kTypedRoleMetadataName(
+    "template_consumer_typed_role_realization");
+
+const construction::SemanticRole kSemanticRoles[] = {
+    {"compute", 0, kComputeOperationName,
+     "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
+     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
+     "bounded test-local compute role for construction-template consumption"},
+};
+
+const construction::Manifest kManifest = {
+    kProtocolVersion,
+    kArchetype,
+    kSemanticRoleGraph,
+    {kFamilyName,
+     kArchitecturalNamespace,
+     kConcreteNamespace,
+     kPluginName,
+     kCapabilityID,
+     kCapabilityKind,
+     kVariantName},
+    kSemanticRoles,
+    {kRouteID,
+     kEmissionKind,
+     kArtifactKind,
+     kRuntimeABI,
+     kRuntimeABIKind,
+     kRuntimeABI,
+     kRuntimeGlueRole},
+    kEvidenceProfile,
+};
+
+const construction::TypedRoleInterfaceRealization kTypedRoles[] = {
+    {kTypedRoleID,
+     "compute",
+     0,
+     kComputeOperationName,
+     "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
+     "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
+     kRoleSpecificInterface,
+     kEmitCLowerableInterface},
+};
+
+const construction::TypedRoleGraphRealization kTypedRoleRealization = {
+    kProtocolVersion,
+    kArchetype,
+    kSemanticRoleGraph,
+    kFamilyName,
+    kTypedRoleRealizationSummary,
+    kTypedRoles,
+    kEvidenceProfile,
+};
+
+const construction::ExecutableRoleStep kExecutableRoleSteps[] = {
+    {"compute",
+     kComputeOperationName,
+     kTypedRoleID,
+     kRoleSpecificInterface,
+     kEmitCLowerableInterface,
+     kCallee,
+     0},
+};
+
+const construction::RoleExpectation kRoleExpectations[] = {
+    {"compute", kRoleSpecificInterface, true},
+};
+
+const llvm::StringRef kRequiredEvidence[] = {
+    "parse_verify", "capability", "interface",
+    "selected_boundary_or_route", "emitc_route_mapping",
+    "materialized_emitc_module"};
+
+const ArtifactMetadataEntry kConstructionMetadata[] = {
+    {kRouteMetadataName, kRouteID},
+    {kSourceOpMetadataName, kComputeOperationName},
+    {kSourceRoleMetadataName, "compute"},
+    {kSourceOpInterfaceMetadataName, kSourceOpInterfaceName},
+    {kProtocolMetadataName, kProtocolVersion},
+    {kRoleGraphMetadataName, kSemanticRoleGraph},
+    {kTypedRoleMetadataName, kTypedRoleRealizationSummary},
+};
+
+construction::ValidationSpec getValidationSpec() {
+  return {"TemplateConsumer",
+          kProtocolVersion,
+          kArchetype,
+          kSemanticRoleGraph,
+          kManifest.family,
+          kManifest.emitcRoute,
+          kInterfaceRealization,
+          kTypedRoleRealizationSummary,
+          kRoleExpectations,
+          kRequiredEvidence};
+}
+
+llvm::Error verifyConformance(
+    const construction::Manifest &manifest,
+    const construction::TypedRoleGraphRealization &realization,
+    llvm::ArrayRef<ArtifactMetadataEntry> metadata) {
+  construction::ValidationSpec validation = getValidationSpec();
+  const construction::ConstructionArtifactMetadataConformanceSpec
+      artifactChecks[] = {
+          {metadata, kConstructionMetadata,
+           "TemplateConsumer construction artifact metadata"},
+      };
+
+  construction::ConstructionConformanceGateSpec gate;
+  gate.gateDescription = "TemplateConsumer executable construction protocol";
+  gate.manifest = &manifest;
+  gate.typedRoleRealization = &realization;
+  gate.validationSpec = &validation;
+  gate.executableRoleSteps = kExecutableRoleSteps;
+  gate.artifactMetadata = artifactChecks;
+  return construction::verifyConstructionConformanceGate(gate);
+}
+
+llvm::Error verifySelectedBoundary(mlir::Operation *boundary,
+                                   mlir::ArrayAttr requiredCapabilities,
+                                   VariantEmissionRole role) {
+  const llvm::StringRef pathRole =
+      tianchenrv::plugin::stringifyVariantEmissionRole(role);
+  llvm::SmallVector<mlir::Operation *, 1> operations = {boundary};
+  llvm::SmallVector<unsigned, 1> operationOrders = {0};
+
+  construction::SelectedExecutableRoleSequenceSpec sequence;
+  sequence.selectedPathDescription =
+      "TemplateConsumer selected role sequence";
+  sequence.missingRoleDescription =
+      "TemplateConsumer selected role sequence";
+  sequence.roleOrderDescription =
+      "TemplateConsumer selected role sequence";
+  sequence.selectedVariantSymbol = kVariantName;
+  sequence.pathRole = pathRole;
+  sequence.semanticRoleGraph = kSemanticRoleGraph;
+  sequence.roleSteps = kExecutableRoleSteps;
+  sequence.orderedRoleOperations = operations;
+  sequence.orderedRoleOperationOrders = operationOrders;
+  sequence.requireRoleStepAttributes = true;
+
+  llvm::Expected<llvm::SmallVector<construction::SelectedExecutableRoleStep, 4>>
+      selected = construction::collectSelectedExecutableRoleSequence(sequence);
+  if (!selected)
+    return selected.takeError();
+
+  const construction::SelectedBoundaryStringAttrExpectation extraAttrs[] = {
+      {"typed_role", kTypedRoleID},
+      {"source_role", "compute"},
+      {"role_specific_interface", kRoleSpecificInterface},
+  };
+  construction::SelectedLoweringBoundaryConformanceSpec boundarySpec;
+  boundarySpec.boundaryDescription =
+      "TemplateConsumer selected compute boundary";
+  boundarySpec.selectedVariantSymbol = kVariantName;
+  boundarySpec.sourceKernelSymbol = kSourceKernel;
+  boundarySpec.originPlugin = kPluginName;
+  boundarySpec.pathRole = pathRole;
+  boundarySpec.status = kRoleOpBoundaryStatus;
+  boundarySpec.requiredCapabilities = requiredCapabilities;
+  boundarySpec.extraStringAttributes = extraAttrs;
+  return construction::verifySelectedLoweringBoundaryConformance(boundary,
+                                                                 boundarySpec);
+}
+
+emitc::TCRVEmitCLowerableRoute buildRoute() {
+  emitc::TCRVEmitCLowerableRoute route(
+      kRouteID, "extension-family-construction-template-consumer-to-emitc");
+  route.addHeader("stdint.h");
+  route.addFunctionDeclaration(kCallee, kResultCType);
+
+  emitc::TCRVEmitCSourceOpProvenance source;
+  source.opName = kComputeOperationName.str();
+  source.role = "compute";
+  source.opInterface = kSourceOpInterfaceName.str();
+  route.addSourceOpProvenance(source);
+
+  emitc::TCRVEmitCCallOpaqueStep step;
+  step.sourceOp = source;
+  step.callee = kCallee.str();
+  step.result =
+      emitc::TCRVEmitCCallOpaqueResult{kResultName.str(), kResultCType.str()};
+  route.addCallOpaqueStep(std::move(step));
+  return route;
+}
+
+class TemplateConsumerPlugin final : public ExtensionPlugin {
+public:
+  enum class Mode {
+    Valid,
+    StaleManifest,
+    StaleTypedRole,
+    StaleRouteMapping,
+    StaleArtifactMetadata,
+  };
+
+  explicit TemplateConsumerPlugin(
+      Mode mode = Mode::Valid, mlir::Operation *selectedBoundary = nullptr,
+      mlir::ArrayAttr requiredCapabilities = {},
+      VariantEmissionRole role = VariantEmissionRole::DirectVariant)
+      : mode(mode), selectedBoundary(selectedBoundary),
+        requiredCapabilities(requiredCapabilities), role(role) {
+    capabilities.push_back(PluginCapability(
+        kCapabilityID, kCapabilityKind,
+        "test-local executable construction template consumer capability"));
+  }
+
+  llvm::StringRef getName() const override { return kPluginName; }
+
+  llvm::ArrayRef<PluginCapability> getCapabilities() const override {
+    return capabilities;
+  }
+
+  void registerDialects(mlir::DialectRegistry &registry) const override {
+    (void)registry;
+  }
+
+  llvm::Error verifyExecutableConstructionConformance() const override {
+    construction::Manifest manifest = kManifest;
+    construction::TypedRoleGraphRealization realization =
+        kTypedRoleRealization;
+    llvm::SmallVector<ArtifactMetadataEntry, 8> metadata(
+        std::begin(kConstructionMetadata), std::end(kConstructionMetadata));
+    llvm::SmallVector<construction::TypedRoleInterfaceRealization, 1>
+        staleTypedRoles;
+
+    switch (mode) {
+    case Mode::Valid:
+      break;
+    case Mode::StaleManifest:
+      manifest.protocolVersion = "stale-template-consumer-protocol";
+      break;
+    case Mode::StaleTypedRole:
+      staleTypedRoles.append(std::begin(kTypedRoles), std::end(kTypedRoles));
+      staleTypedRoles.front().roleSpecificInterface =
+          "TCRVMemoryOpInterface";
+      realization.roles = staleTypedRoles;
+      break;
+    case Mode::StaleRouteMapping: {
+      construction::EmitCMapping staleRoute = manifest.emitcRoute;
+      staleRoute.routeID = "stale-template-consumer-route";
+      manifest.emitcRoute = staleRoute;
+      break;
+    }
+    case Mode::StaleArtifactMetadata:
+      metadata.front().value = "stale-template-consumer-route";
+      break;
+    }
+
+    return verifyConformance(manifest, realization, metadata);
+  }
+
+  llvm::Error buildVariantEmitCLowerableRoute(
+      const VariantEmitCLowerableRequest &request,
+      emitc::TCRVEmitCLowerableRoute &out) const override {
+    (void)request;
+    if (llvm::Error error = verifyExecutableConstructionConformance())
+      return error;
+    if (!selectedBoundary || !requiredCapabilities)
+      return llvm::make_error<llvm::StringError>(
+          "TemplateConsumer route construction requires a selected boundary "
+          "fixture",
+          llvm::errc::invalid_argument);
+    if (llvm::Error error =
+            verifySelectedBoundary(selectedBoundary, requiredCapabilities, role))
+      return error;
+
+    out = buildRoute();
+    return llvm::Error::success();
+  }
+
+private:
+  Mode mode = Mode::Valid;
+  mlir::Operation *selectedBoundary = nullptr;
+  mlir::ArrayAttr requiredCapabilities;
+  VariantEmissionRole role = VariantEmissionRole::DirectVariant;
+  llvm::SmallVector<PluginCapability, 1> capabilities;
+};
+
+mlir::Operation *createSelectedBoundary(mlir::OpBuilder &builder,
+                                        mlir::ModuleOp module,
+                                        mlir::ArrayAttr requiredCapabilities) {
+  builder.setInsertionPointToStart(module.getBody());
+  mlir::OperationState state(builder.getUnknownLoc(), kComputeOperationName);
+  state.addAttribute("source_kernel", builder.getStringAttr(kSourceKernel));
+  state.addAttribute(
+      "selected_variant",
+      mlir::FlatSymbolRefAttr::get(builder.getContext(), kVariantName));
+  state.addAttribute("origin", builder.getStringAttr(kPluginName));
+  state.addAttribute(
+      "role",
+      builder.getStringAttr(tianchenrv::plugin::stringifyVariantEmissionRole(
+          VariantEmissionRole::DirectVariant)));
+  state.addAttribute("status", builder.getStringAttr(kRoleOpBoundaryStatus));
+  state.addAttribute("required_capabilities", requiredCapabilities);
+  state.addAttribute("typed_role", builder.getStringAttr(kTypedRoleID));
+  state.addAttribute("role_order", builder.getI64IntegerAttr(0));
+  state.addAttribute("source_role", builder.getStringAttr("compute"));
+  state.addAttribute("role_specific_interface",
+                     builder.getStringAttr(kRoleSpecificInterface));
+  return builder.create(state);
+}
+
+int runValidWorkflowTest() {
+  ExtensionPluginRegistry registry;
+  TemplateConsumerPlugin plugin;
+  if (int result = expectSuccess(
+          registry.registerPlugin(plugin),
+          "register TemplateConsumer through executable construction gate"))
+    return result;
+  if (registry.size() != 1)
+    return fail("TemplateConsumer registry should contain one plugin");
+
+  mlir::MLIRContext context;
+  context.allowUnregisteredDialects();
+  mlir::OpBuilder builder(&context);
+  mlir::OwningOpRef<mlir::ModuleOp> module =
+      mlir::ModuleOp::create(builder.getUnknownLoc());
+  mlir::ArrayAttr requiredCapabilities = builder.getArrayAttr(
+      {mlir::FlatSymbolRefAttr::get(&context, kCapabilitySymbol)});
+  mlir::Operation *boundary =
+      createSelectedBoundary(builder, *module, requiredCapabilities);
+
+  TemplateConsumerPlugin routePlugin(TemplateConsumerPlugin::Mode::Valid,
+                                     boundary, requiredCapabilities);
+  emitc::TCRVEmitCLowerableRoute route;
+  tianchenrv::support::TargetCapabilitySet capabilities;
+  VariantEmitCLowerableRequest request(
+      tianchenrv::tcrv::exec::VariantOp(),
+      tianchenrv::tcrv::exec::KernelOp(), capabilities,
+      VariantEmissionRole::DirectVariant);
+  if (int result = expectSuccess(
+          routePlugin.buildVariantEmitCLowerableRoute(request, route),
+          "TemplateConsumer builds plugin-owned EmitC lowerable route from "
+          "selected boundary fixture"))
+    return result;
+  if (route.getRouteID() != kRouteID)
+    return fail("TemplateConsumer route id must come from plugin-owned route "
+                "mapping");
+
+  if (int result = expectSuccess(
+          route.verify(), "TemplateConsumer EmitC lowerable route verifies"))
+    return result;
+
+  return expectSuccess(
+      emitc::verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
+          route, "tcrv_template_consumer_emitc_route_test"),
+      "TemplateConsumer route materializes to a verified MLIR EmitC module");
+}
+
+int runFailClosedRegistryTest() {
+  {
+    ExtensionPluginRegistry registry;
+    TemplateConsumerPlugin plugin(TemplateConsumerPlugin::Mode::StaleManifest);
+    if (int result = expectErrorContains(
+            registry.registerPlugin(plugin),
+            {"failed executable construction conformance gate",
+             "TemplateConsumer construction manifest invalid",
+             "protocol version"},
+            "stale TemplateConsumer manifest"))
+      return result;
+  }
+  {
+    ExtensionPluginRegistry registry;
+    TemplateConsumerPlugin plugin(TemplateConsumerPlugin::Mode::StaleTypedRole);
+    if (int result = expectErrorContains(
+            registry.registerPlugin(plugin),
+            {"failed executable construction conformance gate",
+             "typed role realization entry", "TCRVComputeOpInterface"},
+            "stale TemplateConsumer typed-role/interface realization"))
+      return result;
+  }
+  {
+    ExtensionPluginRegistry registry;
+    TemplateConsumerPlugin plugin(
+        TemplateConsumerPlugin::Mode::StaleRouteMapping);
+    if (int result = expectErrorContains(
+            registry.registerPlugin(plugin),
+            {"failed executable construction conformance gate",
+             "EmitC route mapping", "TemplateConsumer artifact route fields"},
+            "stale TemplateConsumer route mapping"))
+      return result;
+  }
+  {
+    ExtensionPluginRegistry registry;
+    TemplateConsumerPlugin plugin(
+        TemplateConsumerPlugin::Mode::StaleArtifactMetadata);
+    if (int result = expectErrorContains(
+            registry.registerPlugin(plugin),
+            {"failed executable construction conformance gate",
+             "TemplateConsumer construction artifact metadata",
+             kRouteMetadataName},
+            "stale TemplateConsumer artifact metadata"))
+      return result;
+  }
+  return 0;
+}
+
+} // namespace template_consumer
 
 int fail(const llvm::Twine &message) {
   llvm::errs() << message << "\n";
@@ -771,6 +1253,10 @@ int main() {
   if (int result = runBuiltinConstructionPluginRegistrationGateTest())
     return result;
   if (int result = runUnsupportedArtifactKindConstructionTest())
+    return result;
+  if (int result = template_consumer::runValidWorkflowTest())
+    return result;
+  if (int result = template_consumer::runFailClosedRegistryTest())
     return result;
   return 0;
 }
