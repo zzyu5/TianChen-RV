@@ -308,17 +308,18 @@ llvm::Error rejectForbiddenRVVArtifactMetadata(
 
 llvm::Error validateRVVConstructionArtifactMetadata(
     const TargetArtifactCandidate &candidate,
-    llvm::StringRef selectedBodyEmitCRouteID) {
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   llvm::SmallVector<support::ArtifactMetadataEntry, 16> rvvMetadata;
   for (const support::ArtifactMetadataEntry &entry :
        candidate.artifactMetadata) {
     if (llvm::StringRef(entry.key).starts_with("rvv_"))
       rvvMetadata.push_back(entry);
   }
+  plugin::rvv::RVVSelectedBodyConstructionMetadataFacts facts =
+      plugin::rvv::getRVVSelectedBodyConstructionMetadataFacts(description);
   return plugin::rvv::
-      verifyRVVSelectedBodyConstructionArtifactMetadataForEmitCRoute(
-          rvvMetadata, selectedBodyEmitCRouteID,
-          "selected RVV materialized EmitC candidate");
+      verifyRVVSelectedBodyConstructionArtifactMetadata(
+          rvvMetadata, facts, "selected RVV materialized EmitC candidate");
 }
 
 llvm::Error validateRVVConfigArtifactMetadataMirrorsSelectedBody(
@@ -370,8 +371,7 @@ llvm::Error validateRVVRuntimeAVLVLArtifactMetadata(
   if (llvm::Error error = rejectForbiddenRVVArtifactMetadata(candidate))
     return error;
   if (llvm::Error error =
-          validateRVVConstructionArtifactMetadata(candidate,
-                                                  description.emitCRouteID))
+          validateRVVConstructionArtifactMetadata(candidate, description))
     return error;
 
   return validateRVVConfigArtifactMetadataMirrorsSelectedBody(candidate,
@@ -486,11 +486,14 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       {"emitc_route_mapping",
        plugin::rvv::getRVVEmitCRouteMappingMetadataName(),
        getRVVManifest().emitcRoute.routeID},
+      {"target_artifact_route",
+       plugin::rvv::getRVVTargetArtifactRouteMetadataName(),
+       getRVVManifest().emitcRoute.routeID},
+      {"target_artifact_kind",
+       plugin::rvv::getRVVTargetArtifactKindMetadataName(),
+       getRVVManifest().emitcRoute.artifactKind},
       {"evidence_profile", plugin::rvv::getRVVEvidenceProfileMetadataName(),
        plugin::rvv::getRVVConstructionManifest().evidenceProfile},
-      {"runtime_abi_contract",
-       plugin::rvv::getRVVRuntimeABIContractMetadataName(),
-       plugin::rvv::getRVVConstructionManifest().emitcRoute.runtimeABI},
       {"bundle_component_group",
        plugin::rvv::getRVVBundleComponentGroupMetadataName(),
        plugin::rvv::getRVVSelectedBodyTargetArtifactMapping()

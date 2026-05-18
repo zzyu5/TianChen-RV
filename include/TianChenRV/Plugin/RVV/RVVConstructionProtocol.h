@@ -47,6 +47,18 @@ struct RVVSelectedBodyTargetArtifactMapping {
   llvm::StringRef emitCToCppTranslateRouteID;
 };
 
+struct RVVSelectedBodyConstructionMetadataFacts {
+  llvm::StringRef operationMnemonic;
+  llvm::StringRef typedComputeOpName;
+  llvm::StringRef emitCRouteID;
+  llvm::StringRef targetArtifactRouteID;
+  llvm::StringRef targetArtifactKind;
+  llvm::StringRef runtimeABIName;
+  llvm::StringRef runtimeABIContractName;
+  llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter>
+      runtimeABIParameters;
+};
+
 llvm::StringRef getRVVConstructionProtocolVersion();
 llvm::StringRef getRVVConstructionArchetype();
 llvm::StringRef getRVVConstructionSemanticRoleGraph();
@@ -61,6 +73,7 @@ llvm::StringRef getRVVEmitCLowerableOpInterfaceName();
 
 llvm::StringRef getRVVEmitCLowerableRouteMetadataName();
 llvm::StringRef getRVVSelectedBodyOperationMetadataName();
+llvm::StringRef getRVVSelectedBodyTypedComputeOpMetadataName();
 llvm::StringRef getRVVSourceOpsMetadataName();
 llvm::StringRef getRVVSourceRolesMetadataName();
 llvm::StringRef getRVVSourceOpInterfaceMetadataName();
@@ -70,7 +83,10 @@ llvm::StringRef getRVVSemanticRoleGraphMetadataName();
 llvm::StringRef getRVVCommonInterfaceRealizationMetadataName();
 llvm::StringRef getRVVTypedRoleRealizationMetadataName();
 llvm::StringRef getRVVEmitCRouteMappingMetadataName();
+llvm::StringRef getRVVTargetArtifactRouteMetadataName();
+llvm::StringRef getRVVTargetArtifactKindMetadataName();
 llvm::StringRef getRVVEvidenceProfileMetadataName();
+llvm::StringRef getRVVRuntimeABINameMetadataName();
 llvm::StringRef getRVVRuntimeABIContractMetadataName();
 llvm::StringRef getRVVBundleComponentGroupMetadataName();
 llvm::StringRef getRVVObjectHandoffMetadataName();
@@ -98,7 +114,7 @@ llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyConstructionRuntimeABIParameters();
 llvm::Expected<llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 16>>
 getRVVSelectedBodyConstructionArtifactMetadata(
-    llvm::StringRef emitCRouteID);
+    const RVVSelectedBodyConstructionMetadataFacts &facts);
 llvm::Expected<llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10>>
 getRVVSelectedBodyExecutableRoleSteps(llvm::StringRef typedComputeOpName);
 llvm::Expected<llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10>>
@@ -117,12 +133,13 @@ llvm::Error verifyRVVSelectedBodyTargetArtifactBundleMapping(
     llvm::StringRef headerRouteID, llvm::StringRef headerArtifactKind,
     llvm::StringRef bundleComponentGroup, llvm::StringRef objectHandoffKind,
     llvm::StringRef emitCToCppTranslateRouteID);
+llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
+    const RVVSelectedBodyConstructionMetadataFacts &facts,
+    llvm::StringRef context);
 llvm::Error verifyRVVSelectedBodyConstructionArtifactMetadata(
     llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
+    const RVVSelectedBodyConstructionMetadataFacts &facts,
     llvm::StringRef context);
-llvm::Error verifyRVVSelectedBodyConstructionArtifactMetadataForEmitCRoute(
-    llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
-    llvm::StringRef emitCRouteID, llvm::StringRef context);
 llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
     llvm::ArrayRef<mlir::Operation *> orderedRoleOperations,
     llvm::ArrayRef<unsigned> orderedRoleOperationOrders,

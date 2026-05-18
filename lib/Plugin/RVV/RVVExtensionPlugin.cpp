@@ -424,9 +424,11 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
   out.setRuntimeGlueRole(getRVVSelectedBodyRuntimeGlueRole());
   out.setLoweringBoundaryOpName(getRVVSelectedBodyLoweringBoundaryOpName());
   out.addRuntimeABIParameters(routeDescription->runtimeABIParameters);
+  RVVSelectedBodyConstructionMetadataFacts constructionFacts =
+      getRVVSelectedBodyConstructionMetadataFacts(*routeDescription);
   llvm::Expected<llvm::SmallVector<support::ArtifactMetadataEntry, 16>>
       constructionMetadata = getRVVSelectedBodyConstructionArtifactMetadata(
-          routeDescription->emitCRouteID);
+          constructionFacts);
   if (!constructionMetadata)
     return constructionMetadata.takeError();
   for (const support::ArtifactMetadataEntry &entry : *constructionMetadata)

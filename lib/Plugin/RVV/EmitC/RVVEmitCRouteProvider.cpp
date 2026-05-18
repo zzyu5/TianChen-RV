@@ -41,7 +41,7 @@ constexpr llvm::StringLiteral
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);
 
-struct RVVSelectedBodyDescriptorMapping {
+struct RVVSelectedBodySpecializationMapping {
   RVVSelectedBodyOperationKind operation;
   std::int64_t sew;
   llvm::StringLiteral lmul;
@@ -64,8 +64,8 @@ struct RVVSelectedBodyDescriptorMapping {
   llvm::StringLiteral maskName;
 };
 
-constexpr RVVSelectedBodyDescriptorMapping
-    kRVVSelectedBodyDescriptorMappings[] = {
+constexpr RVVSelectedBodySpecializationMapping
+    kRVVSelectedBodySpecializationMappings[] = {
         {RVVSelectedBodyOperationKind::Add,
          32,
          "m1",
@@ -152,18 +152,18 @@ constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::Add, RVVSelectedBodyOperationKind::Sub,
     RVVSelectedBodyOperationKind::Mul, RVVSelectedBodyOperationKind::CmpSelect};
 
-const RVVSelectedBodyDescriptorMapping &
-getRVVSelectedBodyDescriptorMappingByOperation(
+const RVVSelectedBodySpecializationMapping &
+getRVVSelectedBodySpecializationMappingByOperation(
     RVVSelectedBodyOperationKind op) {
-  for (const RVVSelectedBodyDescriptorMapping &spec :
-       kRVVSelectedBodyDescriptorMappings)
+  for (const RVVSelectedBodySpecializationMapping &spec :
+       kRVVSelectedBodySpecializationMappings)
     if (spec.operation == op)
       return spec;
   llvm_unreachable("unknown RVV selected-body operation");
 }
 
 bool supportsRVVSelectedBodyMemoryForm(
-    const RVVSelectedBodyDescriptorMapping &mapping,
+    const RVVSelectedBodySpecializationMapping &mapping,
     RVVSelectedBodyMemoryForm memoryForm) {
   switch (memoryForm) {
   case RVVSelectedBodyMemoryForm::VectorRHSLoad:
@@ -174,11 +174,11 @@ bool supportsRVVSelectedBodyMemoryForm(
   llvm_unreachable("unknown RVV selected-body memory form");
 }
 
-llvm::Expected<const RVVSelectedBodyDescriptorMapping *>
-lookupRVVSelectedBodyDescriptorMapping(
+llvm::Expected<const RVVSelectedBodySpecializationMapping *>
+lookupRVVSelectedBodySpecializationMapping(
     const RVVSelectedBodyEmitCRouteDescription &description) {
-  for (const RVVSelectedBodyDescriptorMapping &mapping :
-       kRVVSelectedBodyDescriptorMappings) {
+  for (const RVVSelectedBodySpecializationMapping &mapping :
+       kRVVSelectedBodySpecializationMappings) {
     if (mapping.operation == description.operation &&
         mapping.sew == description.sew && mapping.lmul == description.lmul &&
         mapping.tailPolicy == description.tailPolicy &&
@@ -189,7 +189,7 @@ lookupRVVSelectedBodyDescriptorMapping(
 
   return makeRVVEmitCRouteProviderError(
       llvm::Twine(
-          "unsupported RVV selected-body route descriptor: operation=") +
+          "unsupported RVV selected-body route specialization: operation=") +
       stringifyRVVSelectedBodyOperationKind(description.operation) +
       ", memory_form=" +
       stringifyRVVSelectedBodyMemoryForm(description.memoryForm) +
@@ -220,8 +220,8 @@ llvm::StringRef stringifyRVVMaskPolicy(tcrv::rvv::MaskPolicy policy) {
 
 const RVVSelectedBodyConstructionRoute &
 getRVVSelectedBodyConstructionRouteOrDie(RVVSelectedBodyOperationKind op) {
-  const RVVSelectedBodyDescriptorMapping &spec =
-      getRVVSelectedBodyDescriptorMappingByOperation(op);
+  const RVVSelectedBodySpecializationMapping &spec =
+      getRVVSelectedBodySpecializationMappingByOperation(op);
   llvm::Expected<const RVVSelectedBodyConstructionRoute *> route =
       lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
           spec.operationMnemonic);
@@ -301,7 +301,7 @@ struct RVVSelectedBodyRouteSlice {
 
 struct RVVSelectedBodyRouteAnalysis {
   RVVSelectedBodyRouteSlice slice;
-  const RVVSelectedBodyDescriptorMapping *descriptorMapping = nullptr;
+  const RVVSelectedBodySpecializationMapping *specializationMapping = nullptr;
   const RVVSelectedBodyConstructionRoute *constructionRoute = nullptr;
   RVVSelectedBodyEmitCRouteDescription description;
 };
@@ -933,15 +933,16 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.runtimeABIParameters.push_back(
       analysis.slice.runtimeElementCountABI);
 
-  llvm::Expected<const RVVSelectedBodyDescriptorMapping *> descriptorMapping =
-      lookupRVVSelectedBodyDescriptorMapping(analysis.description);
-  if (!descriptorMapping)
-    return descriptorMapping.takeError();
-  analysis.descriptorMapping = *descriptorMapping;
+  llvm::Expected<const RVVSelectedBodySpecializationMapping *>
+      specializationMapping =
+          lookupRVVSelectedBodySpecializationMapping(analysis.description);
+  if (!specializationMapping)
+    return specializationMapping.takeError();
+  analysis.specializationMapping = *specializationMapping;
 
   llvm::Expected<const RVVSelectedBodyConstructionRoute *> constructionRoute =
       lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
-          analysis.descriptorMapping->operationMnemonic);
+          analysis.specializationMapping->operationMnemonic);
   if (!constructionRoute)
     return constructionRoute.takeError();
   analysis.constructionRoute = *constructionRoute;
@@ -953,25 +954,28 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       analysis.constructionRoute->runtimeABIName;
   analysis.description.runtimeABIContractName =
       analysis.constructionRoute->runtimeABIContractName;
-  analysis.description.vlCType = analysis.descriptorMapping->vlCType;
+  analysis.description.vlCType = analysis.specializationMapping->vlCType;
   analysis.description.vectorTypeName =
-      analysis.descriptorMapping->vectorTypeName;
-  analysis.description.maskTypeName = analysis.descriptorMapping->maskTypeName;
-  analysis.description.vectorCType = analysis.descriptorMapping->vectorCType;
-  analysis.description.maskCType = analysis.descriptorMapping->maskCType;
+      analysis.specializationMapping->vectorTypeName;
+  analysis.description.maskTypeName =
+      analysis.specializationMapping->maskTypeName;
+  analysis.description.vectorCType =
+      analysis.specializationMapping->vectorCType;
+  analysis.description.maskCType = analysis.specializationMapping->maskCType;
   analysis.description.setVLIntrinsic =
-      analysis.descriptorMapping->setVLIntrinsic;
+      analysis.specializationMapping->setVLIntrinsic;
   analysis.description.vectorLoadIntrinsic =
-      analysis.descriptorMapping->vectorLoadIntrinsic;
+      analysis.specializationMapping->vectorLoadIntrinsic;
   analysis.description.rhsBroadcastIntrinsic =
-      analysis.descriptorMapping->rhsBroadcastIntrinsic;
+      analysis.specializationMapping->rhsBroadcastIntrinsic;
   analysis.description.storeIntrinsic =
-      analysis.descriptorMapping->storeIntrinsic;
-  analysis.description.intrinsic = analysis.descriptorMapping->computeIntrinsic;
+      analysis.specializationMapping->storeIntrinsic;
+  analysis.description.intrinsic =
+      analysis.specializationMapping->computeIntrinsic;
   analysis.description.compareIntrinsic =
-      analysis.descriptorMapping->compareIntrinsic;
-  analysis.description.resultName = analysis.descriptorMapping->resultName;
-  analysis.description.maskName = analysis.descriptorMapping->maskName;
+      analysis.specializationMapping->compareIntrinsic;
+  analysis.description.resultName = analysis.specializationMapping->resultName;
+  analysis.description.maskName = analysis.specializationMapping->maskName;
 
   if (llvm::Error error = validateRVVSelectedBodyRuntimeABIParameters(
           analysis.slice, *analysis.constructionRoute,
@@ -982,9 +986,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected typed RVV body route expected compute op '") +
         analysis.constructionRoute->typedComputeOpName +
-        "' from the descriptor-derived construction mapping");
+        "' from the selected-body specialization mapping");
   if (llvm::Error error = verifyRVVSelectedBodyConstructionRouteMapping(
-          analysis.descriptorMapping->operationMnemonic,
+          analysis.specializationMapping->operationMnemonic,
           analysis.constructionRoute->typedComputeOpName,
           analysis.constructionRoute->emitCRouteID,
           analysis.constructionRoute->runtimeABIName))
@@ -1004,7 +1008,8 @@ getRVVSelectedBodyOperationKinds() {
 
 llvm::StringRef
 stringifyRVVSelectedBodyOperationKind(RVVSelectedBodyOperationKind op) {
-  return getRVVSelectedBodyDescriptorMappingByOperation(op).operationMnemonic;
+  return getRVVSelectedBodySpecializationMappingByOperation(op)
+      .operationMnemonic;
 }
 
 llvm::StringRef
@@ -1047,6 +1052,22 @@ llvm::StringRef getRVVSelectedBodyRuntimeGlueRole() {
 llvm::SmallVector<support::RuntimeABIParameter, 4>
 getRVVSelectedBodyRuntimeABIParameters() {
   return tcrv::rvv::getRVVSelectedBodyRuntimeABIParameters();
+}
+
+RVVSelectedBodyConstructionMetadataFacts
+getRVVSelectedBodyConstructionMetadataFacts(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  RVVSelectedBodyConstructionMetadataFacts facts;
+  facts.operationMnemonic =
+      stringifyRVVSelectedBodyOperationKind(description.operation);
+  facts.typedComputeOpName = description.typedComputeOpName;
+  facts.emitCRouteID = description.emitCRouteID;
+  facts.targetArtifactRouteID = description.targetArtifactRouteID;
+  facts.targetArtifactKind = description.targetArtifactKind;
+  facts.runtimeABIName = description.runtimeABIName;
+  facts.runtimeABIContractName = description.runtimeABIContractName;
+  facts.runtimeABIParameters = description.runtimeABIParameters;
+  return facts;
 }
 
 llvm::SmallVector<support::ArtifactMetadataEntry, 16>

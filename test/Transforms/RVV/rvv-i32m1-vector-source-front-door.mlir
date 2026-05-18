@@ -81,6 +81,7 @@ module {
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: artifact_metadata = [{key = "rvv_emitc_lowerable_route", value = "rvv-i32m1-add-emitc-route"}
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "add"}
+// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.i32_add"}
 // PLAN-SAME: {key = "rvv_source_ops", value = "tcrv_rvv.runtime_abi_value->tcrv_rvv.setvl->tcrv_rvv.with_vl->tcrv_rvv.i32_load->(tcrv_rvv.i32_load|tcrv_rvv.i32_broadcast_load)->(tcrv_rvv.i32_arithmetic|tcrv_rvv.i32_cmp_eq->tcrv_rvv.i32_select)->tcrv_rvv.i32_store"}
 // PLAN-SAME: {key = "rvv_source_roles", value = "runtime_abi->configure->scope->load->load->compute->optional_compute->store"}
 // PLAN-SAME: {key = "rvv_source_op_interface", value = "TCRVEmitCLowerableOpInterface"}
@@ -90,8 +91,11 @@ module {
 // PLAN-SAME: {key = "rvv_common_interface_realization", value = "runtime_abi/resource+emitc
 // PLAN-SAME: {key = "rvv_typed_role_realization", value = "runtime_abi:tcrv_rvv.runtime_abi_value
 // PLAN-SAME: {key = "rvv_emitc_route_mapping", value = "rvv-i32m1-arithmetic-emitc-route-family"}
+// PLAN-SAME: {key = "rvv_target_artifact_route", value = "rvv-i32m1-arithmetic-emitc-route-family"}
+// PLAN-SAME: {key = "rvv_target_artifact_kind", value = "riscv-elf-relocatable-object"}
 // PLAN-SAME: {key = "rvv_evidence_profile", value = "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims"}
-// PLAN-SAME: {key = "rvv_runtime_abi_contract", value = "rvv-i32m1-arithmetic-callable-c-abi-family.v1"}
+// PLAN-SAME: {key = "rvv_runtime_abi_name", value = "rvv-i32m1-add-callable-c-abi.v1"}
+// PLAN-SAME: {key = "rvv_runtime_abi_contract", value = "rvv-i32m1-add-callable-c-abi"}
 // PLAN-SAME: {key = "rvv_bundle_component_group", value = "rvv-i32m1-arithmetic-materialized-emitc-bundle.v1"}
 // PLAN-SAME: {key = "rvv_object_handoff", value = "materialized-emitc-cpp-rvv-intrinsic-object"}
 // PLAN-SAME: {key = "tcrv_rvv.config_contract", value = "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"}

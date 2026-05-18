@@ -44,6 +44,65 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 ### Next Steps
 
 - None - task complete
+
+
+## Session 130: RVV construction manifest route-authority demotion
+
+**Date**: 2026-05-19
+**Task**: RVV construction manifest route-authority demotion
+**Branch**: `main`
+
+### Summary
+
+Demoted RVV construction artifact metadata from route-ID lookup authority to a
+provider-selected route-description mirror. Construction metadata now flows
+through selected-body facts derived after `describeRVVSelectedBodyEmitCRoute`
+validates the explicit typed `tcrv_rvv` body.
+
+### Main Changes
+
+- Created Trellis task
+  `05-19-rvv-construction-manifest-route-authority-demotion` from the Hermes
+  Direction Brief and wrote the PRD/context.
+- Added `RVVSelectedBodyConstructionMetadataFacts` and facts-aware construction
+  metadata generation/verification.
+- Rewired `RVVExtensionPlugin::buildVariantEmissionPlan` to generate
+  construction metadata from provider route-description facts instead of
+  `emitCRouteID` alone.
+- Updated RVV target/export validation to check construction metadata against
+  provider-derived facts before object/header/bundle output.
+- Added metadata for typed compute op, target artifact route/kind, runtime ABI
+  name, and provider-selected runtime ABI contract.
+- Renamed provider-local route "descriptor" diagnostics to selected-body
+  "specialization" diagnostics to avoid descriptor-authority language.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `cmake --build build --target tianchenrv-construction-protocol-common-test -j2`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Focused lit filter for RVV source-front-door metadata, RVV target
+  artifact export, and RVV EmitC selected-body materialization/negative tests
+  passed 9/9.
+- [OK] Bounded residue scan over RVV construction/provider/target files found
+  retained i32m1 strings only as specialization/static target labels and
+  descriptor/direct-C/source-export strings only in target-side rejection
+  guards.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-19-rvv-construction-manifest-route-authority-demotion`
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed; ready to archive and commit**
+
+### Next Steps
+
+- Archive the task with `--no-commit` and create one coherent commit for the
+  implementation, task, and journal record.
 ## Session 130: RVV selected-body target artifact export gate
 
 **Date**: 2026-05-19

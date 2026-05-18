@@ -75,8 +75,9 @@ module {
 // HEADER: tianchenrv.rvv.common_interface_realization: runtime_abi/resource+emitc
 // HEADER: tianchenrv.rvv.typed_role_realization: runtime_abi:tcrv_rvv.runtime_abi_value
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-i32m1-arithmetic-emitc-route-family
+// HEADER: tianchenrv.rvv.target_artifact_route: rvv-i32m1-arithmetic-emitc-route-family
+// HEADER: tianchenrv.rvv.target_artifact_kind: riscv-elf-relocatable-object
 // HEADER: tianchenrv.rvv.evidence_profile: parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims
-// HEADER: tianchenrv.rvv.runtime_abi_contract: rvv-i32m1-arithmetic-callable-c-abi-family.v1
 // HEADER: tianchenrv.rvv.bundle_component_group: rvv-i32m1-arithmetic-materialized-emitc-bundle.v1
 // HEADER: tianchenrv.rvv.object_handoff: materialized-emitc-cpp-rvv-intrinsic-object
 // HEADER: tianchenrv.rvv.config_contract: rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1
@@ -118,8 +119,14 @@ module {
 // BUNDLE-INDEX: key: "rvv_common_interface_realization"
 // BUNDLE-INDEX: key: "rvv_emitc_route_mapping"
 // BUNDLE-INDEX: value: "rvv-i32m1-arithmetic-emitc-route-family"
+// BUNDLE-INDEX: key: "rvv_target_artifact_route"
+// BUNDLE-INDEX: value: "rvv-i32m1-arithmetic-emitc-route-family"
+// BUNDLE-INDEX: key: "rvv_target_artifact_kind"
+// BUNDLE-INDEX: value: "riscv-elf-relocatable-object"
+// BUNDLE-INDEX: key: "rvv_runtime_abi_name"
+// BUNDLE-INDEX: value: "rvv-i32m1-add-callable-c-abi.v1"
 // BUNDLE-INDEX: key: "rvv_runtime_abi_contract"
-// BUNDLE-INDEX: value: "rvv-i32m1-arithmetic-callable-c-abi-family.v1"
+// BUNDLE-INDEX: value: "rvv-i32m1-add-callable-c-abi"
 // BUNDLE-INDEX: key: "rvv_object_handoff"
 // BUNDLE-INDEX: value: "materialized-emitc-cpp-rvv-intrinsic-object"
 // BUNDLE-INDEX: key: "tcrv_rvv.emitc_loop"

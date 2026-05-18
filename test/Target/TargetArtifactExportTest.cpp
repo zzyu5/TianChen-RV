@@ -351,6 +351,16 @@ void appendRVVRuntimeAVLVLArtifactMetadata(TargetArtifactCandidate &candidate) {
     candidate.artifactMetadata.push_back(entry);
 }
 
+void appendRVVRuntimeAVLVLArtifactMetadata(
+    TargetArtifactCandidate &candidate,
+    const tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription
+        &description) {
+  for (const tianchenrv::support::ArtifactMetadataEntry &entry :
+       tianchenrv::plugin::rvv::getRVVSelectedBodyConfigArtifactMetadata(
+           description))
+    candidate.artifactMetadata.push_back(entry);
+}
+
 bool eraseArtifactMetadataKey(TargetArtifactCandidate &candidate,
                               llvm::StringRef key) {
   auto *it = llvm::find_if(
@@ -557,6 +567,19 @@ findSingleRVVTestKernel(mlir::ModuleOp module) {
   return kernel;
 }
 
+tianchenrv::tcrv::exec::VariantOp
+findRVVTestVariant(tianchenrv::tcrv::exec::KernelOp kernel,
+                   llvm::StringRef symbol) {
+  if (!kernel || kernel.getBody().empty())
+    return {};
+  for (mlir::Operation &op : kernel.getBody().front()) {
+    auto variant = llvm::dyn_cast<tianchenrv::tcrv::exec::VariantOp>(op);
+    if (variant && variant.getSymName() == symbol)
+      return variant;
+  }
+  return {};
+}
+
 TargetArtifactCandidate makeValidRVVTargetArtifactCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel = {},
     tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op =
@@ -586,12 +609,79 @@ TargetArtifactCandidate makeValidRVVTargetArtifactCandidate(
       tianchenrv::plugin::rvv::getRVVSelectedBodyRuntimeGlueRole().str();
   candidate.runtimeABIParameters =
       tianchenrv::plugin::rvv::getRVVSelectedBodyRuntimeABIParameters();
+
+  if (kernel) {
+    tianchenrv::tcrv::exec::VariantOp variant =
+        findRVVTestVariant(kernel, getRVVTestVariantSymbol(op));
+    tianchenrv::support::TargetCapabilitySet capabilities =
+        tianchenrv::support::TargetCapabilitySet::buildFromKernel(kernel);
+    llvm::Expected<
+        tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
+        description =
+            tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+                tianchenrv::plugin::VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    tianchenrv::plugin::VariantEmissionRole::DirectVariant));
+    if (description) {
+      candidate.routeID = description->targetArtifactRouteID.str();
+      candidate.artifactKind = description->targetArtifactKind.str();
+      candidate.runtimeABI = description->runtimeABIName.str();
+      candidate.runtimeABIName = candidate.runtimeABI;
+      candidate.runtimeABIParameters.clear();
+      candidate.runtimeABIParameters.append(
+          description->runtimeABIParameters.begin(),
+          description->runtimeABIParameters.end());
+      tianchenrv::plugin::rvv::RVVSelectedBodyConstructionMetadataFacts facts =
+          tianchenrv::plugin::rvv::
+              getRVVSelectedBodyConstructionMetadataFacts(*description);
+      llvm::Expected<llvm::SmallVector<
+          tianchenrv::support::ArtifactMetadataEntry, 16>>
+          constructionMetadata =
+              tianchenrv::plugin::rvv::
+                  getRVVSelectedBodyConstructionArtifactMetadata(facts);
+      if (!constructionMetadata) {
+        llvm::errs()
+            << "failed to build RVV provider-derived construction metadata: "
+            << llvm::toString(constructionMetadata.takeError()) << "\n";
+        return candidate;
+      }
+      candidate.artifactMetadata.append(constructionMetadata->begin(),
+                                        constructionMetadata->end());
+      appendRVVRuntimeAVLVLArtifactMetadata(candidate, *description);
+      return candidate;
+    }
+    llvm::consumeError(description.takeError());
+  }
+
+  llvm::Expected<const tianchenrv::plugin::rvv::RVVSelectedBodyConstructionRoute
+                     *>
+      fallbackRoute =
+          tianchenrv::plugin::rvv::
+              lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
+                  tianchenrv::plugin::rvv::
+                      stringifyRVVSelectedBodyOperationKind(op));
+  if (!fallbackRoute) {
+    llvm::errs() << "failed to resolve fallback RVV construction route: "
+                 << llvm::toString(fallbackRoute.takeError()) << "\n";
+    return candidate;
+  }
+  const tianchenrv::plugin::rvv::RVVSelectedBodyConstructionRoute &route =
+      **fallbackRoute;
+  candidate.runtimeABI = route.runtimeABIName.str();
+  candidate.runtimeABIName = candidate.runtimeABI;
+  tianchenrv::plugin::rvv::RVVSelectedBodyConstructionMetadataFacts facts;
+  facts.operationMnemonic = route.operationMnemonic;
+  facts.typedComputeOpName = route.typedComputeOpName;
+  facts.emitCRouteID = route.emitCRouteID;
+  facts.targetArtifactRouteID = manifest.emitcRoute.routeID;
+  facts.targetArtifactKind = manifest.emitcRoute.artifactKind;
+  facts.runtimeABIName = route.runtimeABIName;
+  facts.runtimeABIContractName = route.runtimeABIContractName;
+  facts.runtimeABIParameters = candidate.runtimeABIParameters;
   llvm::Expected<llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 16>>
       constructionMetadata =
           tianchenrv::plugin::rvv::
-              getRVVSelectedBodyConstructionArtifactMetadata(
-                  tianchenrv::plugin::rvv::
-                      getRVVSelectedBodyEmitCRouteID(op));
+              getRVVSelectedBodyConstructionArtifactMetadata(facts);
   if (!constructionMetadata) {
     llvm::errs() << "failed to build RVV construction metadata: "
                  << llvm::toString(constructionMetadata.takeError()) << "\n";
@@ -731,7 +821,7 @@ bool expectRVVTargetArtifactExporterShape(
           "RVV artifact rejects unsupported selected-body config through "
           "provider route description",
           {"selected typed RVV body could not build",
-           "unsupported RVV selected-body route descriptor", "LMUL=m2"}))
+           "unsupported RVV selected-body route specialization", "LMUL=m2"}))
     return false;
 
   TargetArtifactCandidate metadataOnlyCandidate =
@@ -884,6 +974,41 @@ bool expectRVVTargetArtifactExporterShape(
                            {tianchenrv::plugin::rvv::
                                 getRVVEmitCRouteMappingMetadataName(),
                             manifest.emitcRoute.routeID}))
+    return false;
+
+  TargetArtifactCandidate staleConstructionRuntimeABI = candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleConstructionRuntimeABI,
+          tianchenrv::plugin::rvv::getRVVRuntimeABINameMetadataName(),
+          "rvv-i32m1-sub-callable-c-abi.v1")) {
+    llvm::errs() << "test fixture did not contain RVV runtime ABI metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               staleConstructionRuntimeABI, *exporter),
+                           "RVV artifact rejects stale construction runtime "
+                           "metadata",
+                           {tianchenrv::plugin::rvv::
+                                getRVVRuntimeABINameMetadataName(),
+                            "rvv-i32m1-add-callable-c-abi.v1"}))
+    return false;
+
+  TargetArtifactCandidate staleTypedComputeOp = candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleTypedComputeOp,
+          tianchenrv::plugin::rvv::
+              getRVVSelectedBodyTypedComputeOpMetadataName(),
+          "tcrv_rvv.i32_sub")) {
+    llvm::errs() << "test fixture did not contain RVV typed compute metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               staleTypedComputeOp, *exporter),
+                           "RVV artifact rejects stale construction typed "
+                           "compute metadata",
+                           {tianchenrv::plugin::rvv::
+                                getRVVSelectedBodyTypedComputeOpMetadataName(),
+                            "tcrv_rvv.i32_add"}))
     return false;
 
   TargetArtifactCandidate staleSourceOps = candidate;
@@ -1416,7 +1541,7 @@ module {
       "RVV adapter rejects unsupported selected-body LMUL through provider "
       "route description before C++ output",
       {"selected typed RVV body could not build",
-       "unsupported RVV selected-body route descriptor", "LMUL=m2"});
+       "unsupported RVV selected-body route specialization", "LMUL=m2"});
 }
 
 TargetArtifactCandidate makeValidTensorExtLiteTargetArtifactCandidate() {

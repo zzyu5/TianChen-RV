@@ -22,6 +22,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <string>
@@ -610,10 +611,40 @@ module {
                 routeDescription->vectorLoadIntrinsic ==
                     "__riscv_vle32_v_i32m1" &&
                 routeDescription->storeIntrinsic == "__riscv_vse32_v_i32m1",
-            llvm::Twine("RVV selected-body route descriptor carries "
+            llvm::Twine("RVV selected-body route specialization carries "
                         "typed config and intrinsic mapping for @") +
                 variantName))
       return result;
+
+    tianchenrv::plugin::rvv::RVVSelectedBodyConstructionMetadataFacts facts =
+        tianchenrv::plugin::rvv::
+            getRVVSelectedBodyConstructionMetadataFacts(*routeDescription);
+    llvm::Expected<llvm::SmallVector<
+        tianchenrv::support::ArtifactMetadataEntry, 16>>
+        expectedConstructionMetadata =
+            tianchenrv::plugin::rvv::
+                getRVVSelectedBodyConstructionArtifactMetadata(facts);
+    if (!expectedConstructionMetadata)
+      return fail(llvm::Twine("build provider-derived construction metadata "
+                              "for @") +
+                  variantName + ": " +
+                  llvm::toString(expectedConstructionMetadata.takeError()));
+    if (plan.getArtifactMetadata().size() <
+        expectedConstructionMetadata->size())
+      return fail(llvm::Twine("RVV emission plan missing construction "
+                              "metadata for @") +
+                  variantName);
+    for (std::size_t index = 0; index < expectedConstructionMetadata->size();
+         ++index) {
+      const tianchenrv::support::ArtifactMetadataEntry &got =
+          plan.getArtifactMetadata()[index];
+      const tianchenrv::support::ArtifactMetadataEntry &want =
+          (*expectedConstructionMetadata)[index];
+      if (got.key != want.key || got.value != want.value)
+        return fail(llvm::Twine("RVV emission plan construction metadata[") +
+                    llvm::Twine(index) + "] for @" + variantName +
+                    " must mirror provider-derived route facts");
+    }
 
     VariantEmissionStatus readiness;
     if (int result = expectSuccess(
@@ -781,7 +812,7 @@ module {
           VariantEmissionRequest(variant, kernel, capabilities,
                                  VariantEmissionRole::DirectVariant),
           plan),
-      {"unsupported RVV selected-body route descriptor", "LMUL=m2"});
+      {"unsupported RVV selected-body route specialization", "LMUL=m2"});
 }
 
 int runBroadcastSelectedBodyRouteTest(mlir::MLIRContext &context) {

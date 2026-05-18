@@ -1,6 +1,7 @@
 #ifndef TIANCHENRV_PLUGIN_RVV_RVVEMITCROUTEPROVIDER_H
 #define TIANCHENRV_PLUGIN_RVV_RVVEMITCROUTEPROVIDER_H
 
+#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Support/ArtifactMetadata.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 
@@ -95,6 +96,10 @@ llvm::StringRef getRVVSelectedBodyRuntimeGlueRole();
 
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyRuntimeABIParameters();
+
+RVVSelectedBodyConstructionMetadataFacts
+getRVVSelectedBodyConstructionMetadataFacts(
+    const RVVSelectedBodyEmitCRouteDescription &description);
 
 llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 16>
 getRVVSelectedBodyConfigArtifactMetadata(

@@ -1644,17 +1644,27 @@ int runRVVCommonValidationTest() {
     return result;
 
   for (const auto &route : rvv::getRVVSelectedBodyConstructionRoutes()) {
+    rvv::RVVSelectedBodyConstructionMetadataFacts facts;
+    facts.operationMnemonic = route.operationMnemonic;
+    facts.typedComputeOpName = route.typedComputeOpName;
+    facts.emitCRouteID = route.emitCRouteID;
+    facts.targetArtifactRouteID = manifest.emitcRoute.routeID;
+    facts.targetArtifactKind = manifest.emitcRoute.artifactKind;
+    facts.runtimeABIName = route.runtimeABIName;
+    facts.runtimeABIContractName = route.runtimeABIContractName;
+    facts.runtimeABIParameters = parameters;
+
     llvm::Expected<llvm::SmallVector<
         tianchenrv::support::ArtifactMetadataEntry, 16>>
         metadata =
-            rvv::getRVVSelectedBodyConstructionArtifactMetadata(
-                route.emitCRouteID);
+            rvv::getRVVSelectedBodyConstructionArtifactMetadata(facts);
     if (!metadata)
-      return fail(llvm::Twine("RVV construction metadata is built from route: ") +
+      return fail(llvm::Twine("RVV construction metadata is built from "
+                              "selected-body facts: ") +
                   llvm::toString(metadata.takeError()));
     if (int result = expectSuccess(
             rvv::verifyRVVSelectedBodyConstructionArtifactMetadata(
-                *metadata, "RVV construction protocol test"),
+                *metadata, facts, "RVV construction protocol test"),
             "RVV construction artifact metadata validates"))
       return result;
   }
@@ -1737,10 +1747,23 @@ int runRVVFailClosedConstructionValidationTest() {
       "RVV construction rejects missing runtime ABI parameter"))
     return result;
 
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+      validParameters =
+          rvv::getRVVSelectedBodyConstructionRuntimeABIParameters();
+  rvv::RVVSelectedBodyConstructionMetadataFacts addFacts;
+  addFacts.operationMnemonic = addRoute->operationMnemonic;
+  addFacts.typedComputeOpName = addRoute->typedComputeOpName;
+  addFacts.emitCRouteID = addRoute->emitCRouteID;
+  addFacts.targetArtifactRouteID =
+      rvv::getRVVConstructionManifest().emitcRoute.routeID;
+  addFacts.targetArtifactKind =
+      rvv::getRVVConstructionManifest().emitcRoute.artifactKind;
+  addFacts.runtimeABIName = addRoute->runtimeABIName;
+  addFacts.runtimeABIContractName = addRoute->runtimeABIContractName;
+  addFacts.runtimeABIParameters = validParameters;
   llvm::Expected<llvm::SmallVector<
       tianchenrv::support::ArtifactMetadataEntry, 16>>
-      metadata = rvv::getRVVSelectedBodyConstructionArtifactMetadata(
-          addRoute->emitCRouteID);
+      metadata = rvv::getRVVSelectedBodyConstructionArtifactMetadata(addFacts);
   if (!metadata)
     return fail(llvm::Twine("RVV construction metadata fixture is available: ") +
                 llvm::toString(metadata.takeError()));
@@ -1752,10 +1775,19 @@ int runRVVFailClosedConstructionValidationTest() {
   }
   if (int result = expectErrorContains(
           rvv::verifyRVVSelectedBodyConstructionArtifactMetadata(
-              *metadata, "RVV construction fail-closed test"),
+              *metadata, addFacts, "RVV construction fail-closed test"),
           {rvv::getRVVConstructionProtocolMetadataName(),
            rvv::getRVVConstructionProtocolVersion()},
           "RVV construction rejects stale construction artifact metadata"))
+    return result;
+
+  rvv::RVVSelectedBodyConstructionMetadataFacts staleRuntimeFacts = addFacts;
+  staleRuntimeFacts.runtimeABIName = "rvv-i32m1-stale-callable-c-abi.v1";
+  if (int result = expectErrorContains(
+          rvv::verifyRVVSelectedBodyConstructionMetadataFacts(
+              staleRuntimeFacts, "RVV construction stale facts test"),
+          {"runtime ABI name", addRoute->runtimeABIName},
+          "RVV construction rejects stale provider-derived runtime ABI facts"))
     return result;
 
   const auto &mapping = rvv::getRVVSelectedBodyTargetArtifactMapping();

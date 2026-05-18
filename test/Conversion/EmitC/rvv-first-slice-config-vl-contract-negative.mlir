@@ -31,4 +31,4 @@ module {
   }
 }
 
-// CHECK: unsupported RVV selected-body route descriptor: operation=add, memory_form=vector-rhs-load, SEW=32, LMUL=m1, tail_policy=undisturbed, mask_policy=agnostic
+// CHECK: unsupported RVV selected-body route specialization: operation=add, memory_form=vector-rhs-load, SEW=32, LMUL=m1, tail_policy=undisturbed, mask_policy=agnostic
