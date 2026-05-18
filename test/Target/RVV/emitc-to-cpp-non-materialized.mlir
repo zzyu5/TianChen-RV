@@ -10,6 +10,5 @@ module {
   }
 }
 
-// CHECK: TianChen-RV RVV EmitC C/C++ translate route failed:
-// CHECK-SAME: requires an already materialized EmitC module
-// CHECK-SAME: found non-EmitC op 'tcrv.exec.
+// CHECK: TianChen-RV target artifact export failed for kernel @rvv_i32_add_kernel
+// CHECK-SAME: requires a selected path surface before exporting a target artifact

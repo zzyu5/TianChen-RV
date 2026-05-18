@@ -439,10 +439,13 @@ buildRVVI32M1ArithmeticHeaderMetadataEvidence() {
   return evidence;
 }
 
+ConstructionTemplateArtifactAdapterConfig
+getRVVI32M1ArithmeticArtifactAdapterConfig();
+
 llvm::Error exportMaterializedRVVEmitCToCpp(mlir::ModuleOp module,
                                             llvm::raw_ostream &os) {
-  return exportMaterializedEmitCModuleToCpp(
-      module, os, "RVV EmitC C/C++ translate route");
+  return exportConstructionTemplateEmitCToCpp(
+      module, os, getRVVI32M1ArithmeticArtifactAdapterConfig());
 }
 
 llvm::Error compileRVVGeneratedSourceToObject(llvm::StringRef source,
@@ -555,6 +558,11 @@ SelectedEmitCArtifactRouteConfig getRVVI32M1ArithmeticArtifactConfig() {
 ConstructionTemplateArtifactAdapterConfig
 getRVVI32M1ArithmeticArtifactAdapterConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stddef.h", "stdint.h"};
+  static const ConstructionTemplateSelectedBoundaryAttributeExpectation
+      kBoundaryAttributeExpectations[] = {
+          {"lmul", tcrv::rvv::getRVVI32M1ArithmeticConfigVLContract().lmul,
+           {}},
+      };
   static const llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence,
                                  32>
       kMetadataEvidence = buildRVVI32M1ArithmeticHeaderMetadataEvidence();
@@ -591,6 +599,27 @@ getRVVI32M1ArithmeticArtifactAdapterConfig() {
   config.externalABIName = "";
   config.handoffKind = mapping.objectHandoffKind;
   config.selectedObjectDescription = "RVV materialized EmitC candidate";
+  config.selectedLoweringBoundary.required = true;
+  config.selectedLoweringBoundary.boundaryDescription =
+      "selected RVV construction-template artifact boundary";
+  config.selectedLoweringBoundary.status =
+      plugin::rvv::getRVVLoweringBoundaryStatus();
+  config.selectedLoweringBoundary.sourceKernelAttrName =
+      plugin::rvv::getRVVSourceKernelAttrName();
+  config.selectedLoweringBoundary.selectedVariantAttrName =
+      plugin::rvv::getRVVSelectedVariantAttrName();
+  config.selectedLoweringBoundary.originAttrName =
+      plugin::rvv::getRVVOriginAttrName();
+  config.selectedLoweringBoundary.roleAttrName =
+      plugin::rvv::getRVVSelectedPathRoleAttrName();
+  config.selectedLoweringBoundary.statusAttrName =
+      plugin::rvv::getRVVStatusAttrName();
+  config.selectedLoweringBoundary.requiredCapabilitiesAttrName =
+      plugin::rvv::getRVVRequiredCapabilitiesAttrName();
+  config.selectedLoweringBoundary.extraStringAttributes =
+      kBoundaryAttributeExpectations;
+  config.selectedLoweringBoundary.searchSelectedVariantBody = true;
+  config.selectedLoweringBoundary.synthesizeMissingConformanceAttributes = true;
   config.objectPackagerFn = compileRVVGeneratedSourceToObject;
   return config;
 }

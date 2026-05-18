@@ -823,6 +823,148 @@ bool expectRVVTargetHeaderCompositeShape(
   return true;
 }
 
+mlir::OwningOpRef<mlir::ModuleOp>
+parseRVVSelectedBoundaryAdapterFixture(mlir::MLIRContext &context,
+                                       llvm::StringRef source) {
+  return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+}
+
+bool expectRVVSelectedBoundaryAdapterFailures() {
+  tianchenrv::plugin::ExtensionPluginRegistry dialectPlugins;
+  if (!expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(
+                         dialectPlugins),
+                     "register RVV plugin for selected-boundary adapter "
+                     "fixture"))
+    return false;
+
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  tianchenrv::registerPluginDialects(dialectPlugins, dialectRegistry);
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+
+  TargetTranslateRouteRegistry routes;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::registerRVVTargetSupportTargetTranslateRoutes(
+              routes),
+          "register RVV EmitC-to-C++ translate route for adapter fixture"))
+    return false;
+  const TargetTranslateRoute *route = routes.lookup("tcrv-rvv-emitc-to-cpp");
+  if (!route || !route->getExportFn()) {
+    llvm::errs() << "RVV EmitC-to-C++ translate route was not registered\n";
+    return false;
+  }
+
+  constexpr llvm::StringLiteral missingBoundarySource = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_missing_with_vl_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_i32_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+    }
+    tcrv.exec.diagnostic {
+      reason = "variant-selected",
+      message = "selected stale RVV route",
+      severity = "note",
+      status = "selected",
+      target = @rvv_i32_add,
+      selection_kind = "static-variant"
+    }
+    tcrv.exec.diagnostic {
+      artifact_kind = "riscv-elf-relocatable-object",
+      emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object",
+      lowering_boundary = "tcrv_rvv.with_vl",
+      lowering_pipeline = "rvv-i32m1-arithmetic-emitc-route-family",
+      message = "stale RVV plan missing the selected with_vl boundary",
+      origin = "rvv-plugin",
+      plan_kind = "plugin-emission-plan",
+      reason = "emission_plan",
+      required_capabilities = [@rvv],
+      role = "direct variant",
+      runtime_abi = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_abi_kind = "plugin-owned-runtime-abi",
+      runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue",
+      severity = "info",
+      status = "supported",
+      target = @rvv_i32_add
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> missingBoundary =
+      parseRVVSelectedBoundaryAdapterFixture(context, missingBoundarySource);
+  if (!missingBoundary) {
+    llvm::errs() << "failed to parse RVV missing-boundary adapter fixture\n";
+    return false;
+  }
+  std::string missingBoundaryOutput;
+  llvm::raw_string_ostream missingBoundaryOS(missingBoundaryOutput);
+  if (!expectErrorContains(
+          route->getExportFn()(*missingBoundary, missingBoundaryOS),
+          "RVV adapter rejects missing selected with_vl before C++ output",
+          {"construction-template artifact adapter",
+           "requires one selected materialized tcrv_rvv.with_vl"}))
+    return false;
+
+  constexpr llvm::StringLiteral staleLMULSource = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_stale_lmul_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_i32_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+      } : !tcrv_rvv.vl
+    }
+    tcrv.exec.diagnostic {
+      reason = "variant-selected",
+      message = "selected stale RVV route",
+      severity = "note",
+      status = "selected",
+      target = @rvv_i32_add,
+      selection_kind = "static-variant"
+    }
+    tcrv.exec.diagnostic {
+      artifact_kind = "riscv-elf-relocatable-object",
+      emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object",
+      lowering_boundary = "tcrv_rvv.with_vl",
+      lowering_pipeline = "rvv-i32m1-arithmetic-emitc-route-family",
+      message = "stale RVV plan with mismatched selected boundary LMUL",
+      origin = "rvv-plugin",
+      plan_kind = "plugin-emission-plan",
+      reason = "emission_plan",
+      required_capabilities = [@rvv],
+      role = "direct variant",
+      runtime_abi = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_abi_kind = "plugin-owned-runtime-abi",
+      runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue",
+      severity = "info",
+      status = "supported",
+      target = @rvv_i32_add
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> staleLMUL =
+      parseRVVSelectedBoundaryAdapterFixture(context, staleLMULSource);
+  if (!staleLMUL) {
+    llvm::errs() << "failed to parse RVV stale-LMUL adapter fixture\n";
+    return false;
+  }
+  std::string staleLMULOutput;
+  llvm::raw_string_ostream staleLMULOS(staleLMULOutput);
+  return expectErrorContains(
+      route->getExportFn()(*staleLMUL, staleLMULOS),
+      "RVV adapter rejects stale selected with_vl lmul before C++ output",
+      {"selected RVV construction-template artifact boundary", "lmul", "m1",
+       "m2"});
+}
+
 TargetArtifactCandidate makeValidTensorExtLiteTargetArtifactCandidate() {
   const auto &manifest =
       tianchenrv::plugin::tensorext_lite::getTensorExtLiteConstructionManifest();
@@ -4931,6 +5073,8 @@ int main() {
   if (!expectOffloadTargetArtifactExportersAbsent())
     return 1;
   if (!expectRVVTargetSupportBundleExtractionRegistration())
+    return 1;
+  if (!expectRVVSelectedBoundaryAdapterFailures())
     return 1;
   if (!expectToyTargetSupportBundleExtractionRegistration())
     return 1;

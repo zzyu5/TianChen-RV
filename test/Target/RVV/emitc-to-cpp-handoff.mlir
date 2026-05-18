@@ -1,11 +1,16 @@
 // RUN: tcrv-translate --help | FileCheck %s --check-prefix=HELP
-// RUN: tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes | tcrv-translate --tcrv-rvv-emitc-to-cpp | FileCheck %s --check-prefix=SOURCE
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-rvv-emitc-to-cpp | FileCheck %s --check-prefix=SOURCE
 
 module {
   tcrv.exec.kernel @rvv_i32_add_kernel {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
+      status = "available"
+    }
+    tcrv.exec.capability @scalar_fallback {
+      id = "scalar.fallback",
+      kind = "fallback",
       status = "available"
     }
     tcrv.exec.variant @rvv_i32_add attributes {
@@ -32,6 +37,17 @@ module {
         %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         tcrv_rvv.i32_store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
+    }
+    tcrv.exec.variant @rvv_i32_add_scalar_fallback attributes {
+      fallback_role = "conservative",
+      origin = "scalar-plugin",
+      policy = "portable_scalar_fallback_first_slice",
+      requires = [@scalar_fallback]
+    } {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @rvv_i32_add {origin = "rvv-plugin", policy = "selected-rvv-case"}
+      tcrv.exec.fallback @rvv_i32_add_scalar_fallback {fallback_role = "conservative", origin = "scalar-plugin", policy = "selected-scalar-fallback"}
     }
   }
 }

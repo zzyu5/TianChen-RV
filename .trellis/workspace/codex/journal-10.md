@@ -46,6 +46,67 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 130: RVV construction-template selected-boundary handoff
+
+**Date**: 2026-05-18
+**Task**: RVV construction-template selected-boundary handoff
+**Branch**: `main`
+
+### Summary
+
+Moved the bounded RVV i32m1 materialized EmitC target artifact path onto the
+same common construction-template selected-lowering-boundary adapter that
+TensorExtLite now uses, including the public RVV EmitC-to-C++ translate route.
+
+### Main Changes
+
+- Extended the common construction-template artifact adapter with a generic
+  plugin-configured mode for selected boundaries nested inside the selected
+  variant body.
+- Added optional synthesis of missing generic selected-boundary conformance
+  attrs before calling the common verifier; existing/stale attrs are left in
+  place so stale values still fail.
+- Configured RVV target support to require the selected `tcrv_rvv.with_vl`
+  boundary with RVV construction-protocol attr names, status
+  `selected-lowering-boundary`, and route-local `lmul = "m1"` expectation.
+- Routed `tcrv-rvv-emitc-to-cpp` through the construction-template adapter
+  instead of the direct materialized EmitC C++ bridge.
+- Added C++ and lit negative coverage for missing/stale RVV selected boundary
+  before C++ output.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-18-rvv-construction-template-selected-boundary-handoff`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tianchenrv-construction-protocol-common-test -j2`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] Focused RVV EmitC-to-C++ FileCheck commands for help, positive,
+  selected-boundary negative, and non-selected input behavior.
+- [OK] Focused RVV materialized/source object, header, and bundle artifact
+  FileCheck commands.
+- [OK] `git diff --check`
+- [OK] Targeted residue scan over touched common/RVV target/test surfaces.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 126/126.
+
+### Runtime Evidence
+
+- Real `ssh rvv` was not rerun. The generated object/harness semantics did not
+  change; this round changed adapter validation and the RVV EmitC-to-C++
+  front-door handoff.
+- Preserved evidence:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260518T-rvv-source-bundle-ssh-runtime-abi-proof-add`.
+
+### Status
+
+[OK] **Completed; ready to archive and commit**
+
+### Next Steps
+
+- Archive the task with `--no-commit` and create one coherent commit for the
+  code, tests, task PRD, and journal record.
+
+
 ## Session 127: RVV source-front-door i32m1 arithmetic family production closure
 
 **Date**: 2026-05-18

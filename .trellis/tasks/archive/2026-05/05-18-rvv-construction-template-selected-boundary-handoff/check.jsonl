@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global architecture and testing invariants for final verification."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Verify construction-template selected-boundary consumption and forbidden residue scans."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV-specific boundary, ABI, object/header/bundle, and ssh evidence claims."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify selected materialized EmitC artifact front-door and bundle coherence behavior."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify no descriptor/direct-C/source-export authority was restored."}

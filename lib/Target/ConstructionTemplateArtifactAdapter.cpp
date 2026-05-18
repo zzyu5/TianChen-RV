@@ -116,6 +116,26 @@ llvm::Expected<mlir::Operation *> findSelectedLoweringBoundary(
       config.selectedLoweringBoundary;
   mlir::Operation *selectedBoundary = nullptr;
   unsigned matchingBoundaries = 0;
+
+  if (boundary.searchSelectedVariantBody) {
+    variant.getBody().walk([&](mlir::Operation *op) {
+      if (op->getName().getStringRef() != config.loweringBoundary)
+        return;
+      selectedBoundary = op;
+      ++matchingBoundaries;
+    });
+    if (matchingBoundaries == 0)
+      return makeConstructionTemplateAdapterError(
+          llvm::Twine("requires one selected materialized ") +
+          config.loweringBoundary + " before artifact export");
+    if (matchingBoundaries != 1)
+      return makeConstructionTemplateAdapterError(
+          llvm::Twine("requires exactly one selected materialized ") +
+          config.loweringBoundary + " before artifact export");
+
+    return selectedBoundary;
+  }
+
   for (mlir::Operation &op : kernel.getBody().front()) {
     if (op.getName().getStringRef() != config.loweringBoundary)
       continue;
@@ -142,6 +162,51 @@ llvm::Expected<mlir::Operation *> findSelectedLoweringBoundary(
         config.loweringBoundary + " before artifact export");
 
   return selectedBoundary;
+}
+
+void setMissingBoundaryAttr(mlir::Operation *boundary,
+                            llvm::StringRef attrName, mlir::Attribute value,
+                            llvm::SmallVectorImpl<llvm::StringRef> &added) {
+  if (boundary->getAttr(attrName))
+    return;
+  boundary->setAttr(attrName, value);
+  added.push_back(attrName);
+}
+
+llvm::Error verifySelectedLoweringBoundaryConformanceWithConfig(
+    mlir::Operation *boundary,
+    const construction::SelectedLoweringBoundaryConformanceSpec &spec,
+    bool synthesizeMissingConformanceAttributes) {
+  if (!synthesizeMissingConformanceAttributes)
+    return construction::verifySelectedLoweringBoundaryConformance(boundary,
+                                                                   spec);
+
+  llvm::SmallVector<llvm::StringRef, 8> addedAttrs;
+  mlir::MLIRContext *context = boundary->getContext();
+  setMissingBoundaryAttr(
+      boundary, spec.sourceKernelAttrName,
+      mlir::StringAttr::get(context, spec.sourceKernelSymbol), addedAttrs);
+  setMissingBoundaryAttr(
+      boundary, spec.selectedVariantAttrName,
+      mlir::FlatSymbolRefAttr::get(context, spec.selectedVariantSymbol),
+      addedAttrs);
+  setMissingBoundaryAttr(boundary, spec.originAttrName,
+                         mlir::StringAttr::get(context, spec.originPlugin),
+                         addedAttrs);
+  setMissingBoundaryAttr(boundary, spec.roleAttrName,
+                         mlir::StringAttr::get(context, spec.pathRole),
+                         addedAttrs);
+  setMissingBoundaryAttr(boundary, spec.statusAttrName,
+                         mlir::StringAttr::get(context, spec.status),
+                         addedAttrs);
+  setMissingBoundaryAttr(boundary, spec.requiredCapabilitiesAttrName,
+                         spec.requiredCapabilities, addedAttrs);
+
+  llvm::Error error =
+      construction::verifySelectedLoweringBoundaryConformance(boundary, spec);
+  for (llvm::StringRef attrName : addedAttrs)
+    boundary->removeAttr(attrName);
+  return error;
 }
 
 llvm::Expected<
@@ -222,8 +287,24 @@ llvm::Error validateSelectedLoweringBoundary(
   spec.statusAttrName = boundaryConfig.statusAttrName;
   spec.requiredCapabilitiesAttrName =
       boundaryConfig.requiredCapabilitiesAttrName;
-  return construction::verifySelectedLoweringBoundaryConformance(*boundary,
-                                                                 spec);
+  return verifySelectedLoweringBoundaryConformanceWithConfig(
+      *boundary, spec, boundaryConfig.synthesizeMissingConformanceAttributes);
+}
+
+SelectedEmitCArtifactRouteConfig
+getRouteConfigWithoutCandidateValidation(
+    const SelectedEmitCArtifactRouteConfig &config) {
+  SelectedEmitCArtifactRouteConfig route = config;
+  route.candidateValidationFn = nullptr;
+  return route;
+}
+
+llvm::Expected<SelectedEmitCArtifactTarget>
+selectConstructionTemplateArtifactTarget(
+    mlir::ModuleOp module,
+    const ConstructionTemplateArtifactAdapterConfig &config) {
+  return selectSelectedEmitCArtifactTarget(
+      module, getRouteConfigWithoutCandidateValidation(config.selectedRoute));
 }
 
 } // namespace
@@ -369,13 +450,13 @@ llvm::Error exportConstructionTemplateHeaderArtifact(
           validateConstructionTemplateArtifactAdapterConfig(config))
     return error;
   llvm::Expected<SelectedEmitCArtifactTarget> target =
-      selectSelectedEmitCArtifactTarget(module, config.selectedRoute);
+      selectConstructionTemplateArtifactTarget(module, config);
   if (!target)
     return target.takeError();
+  if (llvm::Error error = validateSelectedLoweringBoundary(*target, config))
+    return error;
   if (llvm::Error error = validateConstructionTemplateTargetArtifactCandidate(
           target->candidate, config))
-    return error;
-  if (llvm::Error error = validateSelectedLoweringBoundary(*target, config))
     return error;
   return exportMaterializedEmitCHeaderArtifact(
       module, os, getConstructionTemplateHeaderArtifactConfig(config));
@@ -389,13 +470,13 @@ llvm::Error exportConstructionTemplateObjectArtifact(
     return error;
 
   llvm::Expected<SelectedEmitCArtifactTarget> target =
-      selectSelectedEmitCArtifactTarget(module, config.selectedRoute);
+      selectConstructionTemplateArtifactTarget(module, config);
   if (!target)
     return target.takeError();
+  if (llvm::Error error = validateSelectedLoweringBoundary(*target, config))
+    return error;
   if (llvm::Error error = validateConstructionTemplateTargetArtifactCandidate(
           target->candidate, config))
-    return error;
-  if (llvm::Error error = validateSelectedLoweringBoundary(*target, config))
     return error;
 
   llvm::Expected<std::string> source =
@@ -413,13 +494,13 @@ llvm::Error exportConstructionTemplateEmitCToCpp(
     return error;
 
   llvm::Expected<SelectedEmitCArtifactTarget> target =
-      selectSelectedEmitCArtifactTarget(module, config.selectedRoute);
+      selectConstructionTemplateArtifactTarget(module, config);
   if (!target)
     return target.takeError();
+  if (llvm::Error error = validateSelectedLoweringBoundary(*target, config))
+    return error;
   if (llvm::Error error = validateConstructionTemplateTargetArtifactCandidate(
           target->candidate, config))
-    return error;
-  if (llvm::Error error = validateSelectedLoweringBoundary(*target, config))
     return error;
 
   llvm::Expected<std::string> source =

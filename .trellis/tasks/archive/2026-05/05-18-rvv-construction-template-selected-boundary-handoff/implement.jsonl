@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and source-of-truth boundary."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Construction-template selected-boundary and executable route contracts."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Extension plugin registry and target-support locality rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV bounded i32m1 selected with_vl, EmitC, and target artifact contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Selected EmitC target artifact handoff and construction-template adapter rules."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime route, deleted direct-C residue, and target artifact fail-closed rules."}
