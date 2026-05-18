@@ -1,13 +1,13 @@
 // RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
 
 module {
-  tcrv.exec.kernel @rvv_i32m2_rejected {
+  tcrv.exec.kernel @rvv_i32m2_broadcast_rejected {
     tcrv.exec.capability @rvv {
       id = "rvv",
       kind = "isa-vector",
       status = "available"
     }
-    tcrv.exec.variant @rvv_i32m2_add attributes {
+    tcrv.exec.variant @rvv_i32m2_broadcast_add attributes {
       origin = "rvv-plugin",
       requires = [@rvv],
       tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
@@ -27,7 +27,7 @@ module {
         sew = 32 : i64
       } {
         %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
-        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
+        %rhs = tcrv_rvv.i32_broadcast_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
         %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m2, !tcrv_rvv.i32m2, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
         tcrv_rvv.i32_store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m2, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
@@ -35,4 +35,4 @@ module {
   }
 }
 
-// CHECK: unsupported RVV selected-body route specialization: operation=add, memory_form=vector-rhs-load, SEW=32, LMUL=m2
+// CHECK: unsupported RVV selected-body route specialization: operation=add, memory_form=rhs-broadcast-load, SEW=32, LMUL=m2

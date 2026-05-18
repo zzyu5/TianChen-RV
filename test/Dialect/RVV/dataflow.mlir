@@ -97,6 +97,28 @@ module {
 // -----
 
 module {
+  tcrv.exec.kernel @rvv_i32m2_reject_m1_dataflow {
+    %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+    %vl = tcrv_rvv.setvl %avl {
+      lmul = "m2",
+      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      sew = 32 : i64
+    } : index -> !tcrv_rvv.vl
+    tcrv_rvv.with_vl %vl attributes {
+      lmul = "m2",
+      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      sew = 32 : i64
+    } {
+      // expected-error@+1 {{requires result type '!tcrv_rvv.i32m1' to agree with enclosing tcrv_rvv.with_vl LMUL metadata 'm2'}}
+      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+    } : !tcrv_rvv.vl
+  }
+}
+
+// -----
+
+module {
   tcrv.exec.kernel @rvv_compare_reject_m2_predicate_form {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
     %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value

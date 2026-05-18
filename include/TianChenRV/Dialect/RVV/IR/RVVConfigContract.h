@@ -22,7 +22,7 @@ struct RVVCompileTimeConfig {
   PolicyAttr policy;
 };
 
-struct RVVI32M1ArithmeticConfigVLContract {
+struct RVVSelectedBodyConfigVLContract {
   std::int64_t sew = 0;
   llvm::StringRef lmul;
   TailPolicy tailPolicy = TailPolicy::Agnostic;
@@ -44,6 +44,8 @@ struct RVVI32M1ArithmeticConfigVLContract {
   llvm::StringRef multiVL;
 };
 
+using RVVI32M1ArithmeticConfigVLContract = RVVSelectedBodyConfigVLContract;
+
 struct RVVConfigContractDiagnostic {
   bool ok = true;
   std::string message;
@@ -57,6 +59,8 @@ llvm::StringRef getRVVI32M1LMUL();
 llvm::StringRef getRVVI32M2LMUL();
 const RVVI32M1ArithmeticConfigVLContract &
 getRVVI32M1ArithmeticConfigVLContract();
+const RVVSelectedBodyConfigVLContract &
+getRVVI32M2ArithmeticConfigVLContract();
 PolicyAttr getRVVI32M1ArithmeticPolicy(mlir::MLIRContext *context);
 void populateRVVI32M1ArithmeticConfigAttrs(mlir::Builder &builder,
                                            mlir::OperationState &state);
@@ -74,7 +78,10 @@ bool areRVVCompileTimeConfigsEqual(const RVVCompileTimeConfig &lhs,
 
 RVVConfigContractDiagnostic
 validateRVVSelectedBodyConfigVLStructure(SetVLOp setvl, WithVLOp withVL);
-const RVVI32M1ArithmeticConfigVLContract &getRVVSelectedBodyConfigVLContract();
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyConfigVLContract();
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyConfigVLContract(llvm::StringRef lmul);
 RVVConfigContractDiagnostic
 validateRVVI32M1ArithmeticConfigVLContract(SetVLOp setvl, WithVLOp withVL);
 

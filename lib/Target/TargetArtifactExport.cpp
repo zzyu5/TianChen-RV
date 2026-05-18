@@ -1412,13 +1412,26 @@ llvm::Error validateMaterializedEmitCHeaderArtifactConfig(
 
   for (auto [index, evidence] : llvm::enumerate(config.metadataEvidence)) {
     if (evidence.commentName.trim().empty() ||
-        evidence.metadataKey.trim().empty() ||
-        evidence.expectedValue.trim().empty())
+        evidence.metadataKey.trim().empty())
       return makeSelectedEmitCArtifactError(
           routeDescription,
           llvm::Twine("metadata evidence[") + llvm::Twine(index) +
-              "] requires non-empty comment name, metadata key, and expected "
-              "value");
+              "] requires non-empty comment name and metadata key");
+    if (evidence.allowDynamicValue) {
+      if (!config.selectedRoute.candidateValidationFn)
+        return makeSelectedEmitCArtifactError(
+            routeDescription,
+            llvm::Twine("metadata evidence[") + llvm::Twine(index) +
+                "] uses a dynamic value and requires route-local candidate "
+                "validation");
+      continue;
+    }
+    if (evidence.expectedValue.trim().empty())
+      return makeSelectedEmitCArtifactError(
+          routeDescription,
+          llvm::Twine("metadata evidence[") + llvm::Twine(index) +
+              "] requires a non-empty expected value unless dynamic value "
+              "validation is enabled");
   }
   return llvm::Error::success();
 }
@@ -1694,6 +1707,8 @@ llvm::Error validateMaterializedEmitCHeaderArtifactCandidate(
           getHeaderRouteDescription(config),
           llvm::Twine("candidate metadata must carry '") +
               evidence.metadataKey + "' provenance");
+    if (evidence.allowDynamicValue)
+      continue;
     if (value != evidence.expectedValue)
       return makeSelectedEmitCArtifactError(
           getHeaderRouteDescription(config),

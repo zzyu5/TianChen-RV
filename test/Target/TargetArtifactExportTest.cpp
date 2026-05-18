@@ -813,20 +813,39 @@ bool expectRVVTargetArtifactExporterShape(
                      "artifact candidate"))
     return false;
 
-  RVVTargetArtifactCandidateFixture unsupportedLMULFixture(
+  RVVTargetArtifactCandidateFixture lmulM2Fixture(
       tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Add,
       /*useRHSBroadcast=*/false, tianchenrv::tcrv::rvv::getRVVI32M2LMUL());
   if (!expectRVVTargetArtifactCandidateFixtureReady(
-          unsupportedLMULFixture,
-          "build unsupported RVV LMUL selected-body candidate fixture"))
+          lmulM2Fixture,
+          "build valid RVV LMUL m2 selected-body candidate fixture"))
     return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         lmulM2Fixture.candidate, *exporter),
+                     "validate RVV LMUL m2 selected-body target artifact "
+                     "candidate"))
+    return false;
+  bool sawLMULM2 = false;
+  for (const tianchenrv::support::ArtifactMetadataEntry &entry :
+       lmulM2Fixture.candidate.artifactMetadata)
+    if (entry.key == "tcrv_rvv.lmul" && entry.value == "m2")
+      sawLMULM2 = true;
+  if (!sawLMULM2) {
+    llvm::errs() << "RVV LMUL m2 target artifact candidate mirrors LMUL m2\n";
+    return false;
+  }
+  TargetArtifactCandidate staleLMULM2Candidate = lmulM2Fixture.candidate;
+  for (tianchenrv::support::ArtifactMetadataEntry &entry :
+       staleLMULM2Candidate.artifactMetadata)
+    if (entry.key == "tcrv_rvv.lmul")
+      entry.value = "m1";
   if (!expectErrorContains(
           validateTargetArtifactCandidateAgainstExporter(
-              unsupportedLMULFixture.candidate, *exporter),
-          "RVV artifact rejects unsupported selected-body config through "
-          "provider route description",
-          {"selected typed RVV body could not build",
-           "unsupported RVV selected-body route specialization", "LMUL=m2"}))
+              staleLMULM2Candidate, *exporter),
+          "RVV artifact rejects stale LMUL metadata for selected-body m2 "
+          "candidate",
+          {"candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.lmul'",
+           "m2", "m1"}))
     return false;
 
   TargetArtifactCandidate metadataOnlyCandidate =
@@ -1544,10 +1563,9 @@ module {
   llvm::raw_string_ostream staleLMULOS(staleLMULOutput);
   return expectErrorContains(
       route->getExportFn()(*staleLMUL, staleLMULOS),
-      "RVV adapter rejects unsupported selected-body LMUL through provider "
-      "route description before C++ output",
-      {"selected typed RVV body could not build",
-       "unsupported RVV selected-body route specialization", "LMUL=m2"});
+      "RVV adapter rejects hand-written LMUL m2 plan without provider-derived "
+      "construction metadata before C++ output",
+      {"candidate metadata must carry rvv_emitc_lowerable_route provenance"});
 }
 
 TargetArtifactCandidate makeValidTensorExtLiteTargetArtifactCandidate() {

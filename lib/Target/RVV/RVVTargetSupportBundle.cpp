@@ -453,7 +453,8 @@ void appendRVVConfigVLMetadataEvidence(
     llvm::StringRef commentName = key;
     if (key.starts_with(kRVVMetadataPrefix))
       commentName = key.drop_front(kRVVMetadataPrefix.size());
-    out.push_back({commentName, key, entry.value});
+    out.push_back({commentName, key, /*expectedValue=*/"",
+                   /*allowDynamicValue=*/true});
   }
 }
 
@@ -614,7 +615,8 @@ SelectedEmitCArtifactRouteConfig getRVVSelectedBodyArtifactConfig() {
   config.artifactKind = plugin::rvv::getRVVSelectedBodyTargetArtifactKind();
   config.originPlugin = manifest.family.pluginName;
   config.routeDescription = "RVV selected-body materialized EmitC target "
-                            "artifact bridge for the bounded i32m1 slice";
+                            "artifact bridge for the bounded i32 arithmetic "
+                            "selected-body slice";
   config.candidateValidationFn =
       validateRVVSelectedBodyTargetArtifactCandidate;
   config.routeBuilderFn =
@@ -645,7 +647,7 @@ getRVVSelectedBodyArtifactAdapterConfig() {
   config.selectedRoute = getRVVSelectedBodyArtifactConfig();
   config.selectedRoute.routeDescription =
       "RVV selected-body construction-template materialized EmitC artifact "
-      "adapter for the bounded i32m1 slice";
+      "adapter for the bounded i32 arithmetic selected-body slice";
   config.headerRouteID = mapping.headerRouteID;
   config.headerArtifactKind = mapping.headerArtifactKind;
   config.ownerPlugin = manifest.family.pluginName;

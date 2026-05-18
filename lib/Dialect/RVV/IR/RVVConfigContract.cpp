@@ -16,10 +16,14 @@ constexpr llvm::StringLiteral kRVVI32M1LMUL("m1");
 constexpr llvm::StringLiteral kRVVI32M2LMUL("m2");
 constexpr llvm::StringLiteral kRVVI32M1ConfigContract(
     "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1");
+constexpr llvm::StringLiteral kRVVI32M2ConfigContract(
+    "rvv-i32m2-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1");
 constexpr llvm::StringLiteral kRVVI32M1RuntimeVLContract(
     "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1");
 constexpr llvm::StringLiteral
     kRVVI32M1BoundedSlice("multi-vl-i32m1-arithmetic");
+constexpr llvm::StringLiteral
+    kRVVI32M2BoundedSlice("multi-vl-i32m2-arithmetic");
 constexpr llvm::StringLiteral kRVVI32M1MultiVLSupport("supported");
 constexpr llvm::StringLiteral kRVVI32M1RuntimeAVLABIParameter("n");
 constexpr llvm::StringLiteral kRVVI32M1RuntimeAVLASource("runtime_abi:n");
@@ -36,7 +40,7 @@ constexpr llvm::StringLiteral kRVVI32M1EmitCLoopVL("vl");
 constexpr llvm::StringLiteral kRVVI32M1RemainingAVLMetadata("n-offset");
 constexpr llvm::StringLiteral kRVVI32M1PointerAdvanceMetadata("offset");
 
-const RVVI32M1ArithmeticConfigVLContract kRVVI32M1ConfigVLContract = {
+const RVVSelectedBodyConfigVLContract kRVVI32M1ConfigVLContract = {
     kRVVFirstSliceSEWBits,
     kRVVI32M1LMUL,
     TailPolicy::Agnostic,
@@ -55,6 +59,27 @@ const RVVI32M1ArithmeticConfigVLContract kRVVI32M1ConfigVLContract = {
     kRVVI32M1RemainingAVLMetadata,
     kRVVI32M1PointerAdvanceMetadata,
     kRVVI32M1BoundedSlice,
+    kRVVI32M1MultiVLSupport};
+
+const RVVSelectedBodyConfigVLContract kRVVI32M2ConfigVLContract = {
+    kRVVFirstSliceSEWBits,
+    kRVVI32M2LMUL,
+    TailPolicy::Agnostic,
+    MaskPolicy::Agnostic,
+    kRVVI32M2ConfigContract,
+    kRVVI32M1RuntimeVLContract,
+    kRVVI32M1RuntimeAVLABIParameter,
+    kRVVI32M1RuntimeAVLASource,
+    kRVVI32M1RuntimeABIOrder,
+    kRVVI32M1VLDefOpName,
+    kRVVI32M1VLScopeOpName,
+    kRVVI32M1VLUses,
+    kRVVI32M1EmitCLoopKind,
+    kRVVI32M1EmitCLoopInduction,
+    kRVVI32M1EmitCFullChunkVL,
+    kRVVI32M1RemainingAVLMetadata,
+    kRVVI32M1PointerAdvanceMetadata,
+    kRVVI32M2BoundedSlice,
     kRVVI32M1MultiVLSupport};
 
 std::string toString(llvm::Twine message) {
@@ -104,6 +129,11 @@ llvm::StringRef getRVVI32M2LMUL() { return kRVVI32M2LMUL; }
 const RVVI32M1ArithmeticConfigVLContract &
 getRVVI32M1ArithmeticConfigVLContract() {
   return kRVVI32M1ConfigVLContract;
+}
+
+const RVVSelectedBodyConfigVLContract &
+getRVVI32M2ArithmeticConfigVLContract() {
+  return kRVVI32M2ConfigVLContract;
 }
 
 PolicyAttr getRVVI32M1ArithmeticPolicy(mlir::MLIRContext *context) {
@@ -194,7 +224,14 @@ validateRVVSelectedBodyConfigVLStructure(SetVLOp setvl, WithVLOp withVL) {
   return RVVConfigContractDiagnostic::success();
 }
 
-const RVVI32M1ArithmeticConfigVLContract &getRVVSelectedBodyConfigVLContract() {
+const RVVSelectedBodyConfigVLContract &getRVVSelectedBodyConfigVLContract() {
+  return getRVVI32M1ArithmeticConfigVLContract();
+}
+
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyConfigVLContract(llvm::StringRef lmul) {
+  if (lmul == getRVVI32M2LMUL())
+    return getRVVI32M2ArithmeticConfigVLContract();
   return getRVVI32M1ArithmeticConfigVLContract();
 }
 

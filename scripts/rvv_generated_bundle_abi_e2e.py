@@ -69,6 +69,9 @@ class OpExpectation:
     lhs_initializer: str
     rhs_initializer: str
     expected_expression: str
+    lmul: str = "m1"
+    config_contract: str = "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
+    bounded_slice: str = "multi-vl-i32m1-arithmetic"
 
     @property
     def prototype(self) -> str:
@@ -186,6 +189,39 @@ RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS = {
     ),
 }
 
+LMUL_M2_SELECTED_BODY_OP_EXPECTATIONS = {
+    "add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-m2-add.mlir"),
+        input_mode="lmul-m2-selected-body",
+        selected_variant="explicit_selected_body_rvv_i32m2_add",
+        function_name="tcrv_emitc_explicit_selected_body_m2_add_kernel_explicit_selected_body_rvv_i32m2_add",
+        lmul="m2",
+        config_contract="rvv-i32m2-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-i32m2-arithmetic",
+    ),
+    "sub": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["sub"],
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-m2-sub.mlir"),
+        input_mode="lmul-m2-selected-body",
+        selected_variant="explicit_selected_body_rvv_i32m2_sub",
+        function_name="tcrv_emitc_explicit_selected_body_m2_sub_kernel_explicit_selected_body_rvv_i32m2_sub",
+        lmul="m2",
+        config_contract="rvv-i32m2-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-i32m2-arithmetic",
+    ),
+    "mul": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["mul"],
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-m2-mul.mlir"),
+        input_mode="lmul-m2-selected-body",
+        selected_variant="explicit_selected_body_rvv_i32m2_mul",
+        function_name="tcrv_emitc_explicit_selected_body_m2_mul_kernel_explicit_selected_body_rvv_i32m2_mul",
+        lmul="m2",
+        config_contract="rvv-i32m2-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-i32m2-arithmetic",
+    ),
+}
+
 PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
     "add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
@@ -264,7 +300,6 @@ EXPECTED_RUNTIME_PARAMETERS = (
     },
 )
 COMMON_EXPECTED_METADATA = {
-    "tcrv_rvv.config_contract": "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
     "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
     "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
     "tcrv_rvv.vl_def": "tcrv_rvv.setvl",
@@ -276,7 +311,6 @@ COMMON_EXPECTED_METADATA = {
     "tcrv_rvv.loop_step": "full_chunk_vl",
     "tcrv_rvv.remaining_avl": "n-offset",
     "tcrv_rvv.pointer_advance": "offset",
-    "tcrv_rvv.bounded_slice": "multi-vl-i32m1-arithmetic",
     "tcrv_rvv.multi_vl": "supported",
 }
 FORBIDDEN_PUBLIC_RESIDUE_TOKENS = (
@@ -625,7 +659,13 @@ def verify_record_metadata(
         "rvv_emitc_lowerable_route": expectation.emitc_route,
         "rvv_selected_body_operation": expectation.kind,
         "rvv_selected_body_typed_compute_op": expectation.typed_compute_op,
+        "tcrv_rvv.config_contract": expectation.config_contract,
+        "tcrv_rvv.sew": "32",
+        "tcrv_rvv.lmul": expectation.lmul,
+        "tcrv_rvv.tail_policy": "agnostic",
+        "tcrv_rvv.mask_policy": "agnostic",
         "tcrv_rvv.memory_form": expectation.memory_form,
+        "tcrv_rvv.bounded_slice": expectation.bounded_slice,
     }
     for key, expected in {**per_op_metadata, **COMMON_EXPECTED_METADATA}.items():
         require_equal(metadata.get(key), expected, f"{context} metadata {key}")
@@ -792,6 +832,11 @@ def verify_materialized_selected_body(
         expectation.typed_compute_op,
         "materialized selected-body MLIR typed compute op",
     )
+    require_contains(
+        text,
+        f'lmul = "{expectation.lmul}"',
+        "materialized selected-body MLIR LMUL config",
+    )
     if expectation.is_rhs_broadcast:
         require_contains(
             text,
@@ -811,6 +856,7 @@ def verify_materialized_selected_body(
         "selected_variant": expectation.selected_variant,
         "typed_compute_op": expectation.typed_compute_op,
         "memory_form": expectation.memory_form,
+        "lmul": expectation.lmul,
         "contains_with_vl": True,
         "pre_realized_body_consumed": expectation.is_pre_realized,
     }
@@ -1109,11 +1155,13 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
         args.source_seed,
         args.pre_realized_selected_body,
         args.rhs_broadcast_selected_body,
+        args.lmul_m2_selected_body,
     ]
     if sum(1 for selected in selected_modes if selected) > 1:
         raise EvidenceError(
-            "--source-seed, --pre-realized-selected-body, and "
-            "--rhs-broadcast-selected-body are mutually exclusive"
+            "--source-seed, --pre-realized-selected-body, "
+            "--rhs-broadcast-selected-body, and --lmul-m2-selected-body are "
+            "mutually exclusive"
         )
 
     if args.source_seed:
@@ -1125,6 +1173,9 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
     elif args.rhs_broadcast_selected_body:
         expectation_table = RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS
         mode = "rhs-broadcast-selected-body"
+    elif args.lmul_m2_selected_body:
+        expectation_table = LMUL_M2_SELECTED_BODY_OP_EXPECTATIONS
+        mode = "lmul-m2-selected-body"
     else:
         expectation_table = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS
         mode = "explicit-selected-body"
@@ -1314,6 +1365,7 @@ def run_e2e(args: argparse.Namespace) -> int:
         "source_seed": bool(args.source_seed),
         "pre_realized_selected_body": bool(args.pre_realized_selected_body),
         "rhs_broadcast_selected_body": bool(args.rhs_broadcast_selected_body),
+        "lmul_m2_selected_body": bool(args.lmul_m2_selected_body),
         "artifact_dir": str(artifact_dir),
         "runtime_counts": runtime_counts,
         "op_results": {},
@@ -1324,6 +1376,8 @@ def run_e2e(args: argparse.Namespace) -> int:
         evidence["input_mode"] = "pre-realized-selected-body"
     elif args.rhs_broadcast_selected_body:
         evidence["input_mode"] = "rhs-broadcast-selected-body"
+    elif args.lmul_m2_selected_body:
+        evidence["input_mode"] = "lmul-m2-selected-body"
     try:
         validate_runtime_counts(runtime_counts)
         evidence["runtime_count_contract"] = runtime_count_contract_summary(
@@ -1410,7 +1464,13 @@ extern "C" {{
         "rvv_emitc_lowerable_route": expectation.emitc_route,
         "rvv_selected_body_operation": expectation.kind,
         "rvv_selected_body_typed_compute_op": expectation.typed_compute_op,
+        "tcrv_rvv.config_contract": expectation.config_contract,
+        "tcrv_rvv.sew": "32",
+        "tcrv_rvv.lmul": expectation.lmul,
+        "tcrv_rvv.tail_policy": "agnostic",
+        "tcrv_rvv.mask_policy": "agnostic",
         "tcrv_rvv.memory_form": expectation.memory_form,
+        "tcrv_rvv.bounded_slice": expectation.bounded_slice,
         **COMMON_EXPECTED_METADATA,
     }
     metadata_lines = "\n".join(
@@ -1512,6 +1572,7 @@ def run_self_test() -> int:
         for expectation in (
             list(EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS.values())
             + list(RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS.values())
+            + list(LMUL_M2_SELECTED_BODY_OP_EXPECTATIONS.values())
             + list(PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS.values())
         ):
             bundle = make_fake_bundle(
@@ -1742,7 +1803,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "use the pre-realized selected-body add/sub/mul fixtures and run "
             "public selected lowering-boundary materialization before emission "
             "planning; mutually exclusive with --source-seed and "
-            "--rhs-broadcast-selected-body"
+            "--rhs-broadcast-selected-body and --lmul-m2-selected-body"
         ),
     )
     parser.add_argument(
@@ -1751,7 +1812,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=(
             "use explicit selected-body add/sub/mul fixtures where rhs is "
             "produced by tcrv_rvv.i32_broadcast_load; mutually exclusive with "
-            "--source-seed and --pre-realized-selected-body"
+            "--source-seed, --pre-realized-selected-body, and "
+            "--lmul-m2-selected-body"
+        ),
+    )
+    parser.add_argument(
+        "--lmul-m2-selected-body",
+        action="store_true",
+        help=(
+            "use explicit selected-body add/sub/mul fixtures with "
+            "!tcrv_rvv.i32m2 dataflow and lmul=m2 config; mutually exclusive "
+            "with source-seed, pre-realized, and rhs-broadcast modes"
         ),
     )
     parser.add_argument("--artifact-root", type=Path, default=DEFAULT_ARTIFACT_ROOT)

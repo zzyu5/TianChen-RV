@@ -150,6 +150,7 @@ struct MaterializedEmitCHeaderArtifactMetadataEvidence {
   llvm::StringRef commentName;
   llvm::StringRef metadataKey;
   llvm::StringRef expectedValue;
+  bool allowDynamicValue = false;
 };
 
 struct MaterializedEmitCHeaderArtifactConfig {

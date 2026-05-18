@@ -46,6 +46,58 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 131: RVV LMUL m2 arithmetic selected-body executable route
+
+**Date**: 2026-05-19
+**Task**: RVV LMUL m2 arithmetic selected-body executable route
+**Branch**: `main`
+
+### Summary
+
+Added provider-derived LMUL m2 vector-RHS add/sub/mul selected-body support,
+focused explicit m2 target fixtures, fail-closed mismatch/stale metadata
+coverage, generated-bundle evidence mode, and real `ssh rvv` correctness
+evidence for counts `7,16,23`.
+
+### Main Changes
+
+- Added the explicit RVV selected-body config/VL contract for
+  `rvv-i32m2-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1`.
+- Extended RVV provider arithmetic mapping to derive m2 vector type, C type,
+  vsetvl, vector load/store, and add/sub/mul intrinsic spelling from typed
+  `!tcrv_rvv.i32m2` body/config facts.
+- Kept common target export neutral by adding only route-candidate dynamic
+  metadata validation, with no RVV semantic branch in common code.
+- Added `--lmul-m2-selected-body` generated-bundle evidence mode and focused
+  lit/C++/script tests.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | `rvv: prove lmul m2 selected body route` |
+
+### Testing
+
+- [OK] focused build targets for `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-rvv-extension-plugin-test`, and
+  `tianchenrv-target-artifact-export-test`
+- [OK] focused RVV plugin and target artifact C++ tests
+- [OK] focused lit for m2 add/sub/mul fixtures, m2 negative coverage, dataflow
+  mismatch, and generated-bundle dry-run test
+- [OK] runner `py_compile`, `--self-test`, local dry run, and real `ssh rvv`
+  add/sub/mul evidence for counts `7,16,23`
+- [OK] bounded residue scans over touched code/tests and generated artifacts
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 130: RVV compare/select selected-body executable route
 
 **Date**: 2026-05-19

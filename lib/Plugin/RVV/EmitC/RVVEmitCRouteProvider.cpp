@@ -75,14 +75,34 @@ constexpr RVVSelectedBodySpecializationMapping
          "add",
          "size_t",
          "!tcrv_rvv.i32m1",
-         "!tcrv_rvv.i32m1_mask",
+         "",
          "vint32m1_t",
-         "vbool32_t",
+         "",
          "__riscv_vsetvl_e32m1",
          "__riscv_vle32_v_i32m1",
          "__riscv_vmv_v_x_i32m1",
          "__riscv_vse32_v_i32m1",
          "__riscv_vadd_vv_i32m1",
+         "",
+         "sum_vec",
+         ""},
+        {RVVSelectedBodyOperationKind::Add,
+         32,
+         "m2",
+         "agnostic",
+         "agnostic",
+         false,
+         "add",
+         "size_t",
+         "!tcrv_rvv.i32m2",
+         "",
+         "vint32m2_t",
+         "",
+         "__riscv_vsetvl_e32m2",
+         "__riscv_vle32_v_i32m2",
+         "",
+         "__riscv_vse32_v_i32m2",
+         "__riscv_vadd_vv_i32m2",
          "",
          "sum_vec",
          ""},
@@ -95,14 +115,34 @@ constexpr RVVSelectedBodySpecializationMapping
          "sub",
          "size_t",
          "!tcrv_rvv.i32m1",
-         "!tcrv_rvv.i32m1_mask",
+         "",
          "vint32m1_t",
-         "vbool32_t",
+         "",
          "__riscv_vsetvl_e32m1",
          "__riscv_vle32_v_i32m1",
          "__riscv_vmv_v_x_i32m1",
          "__riscv_vse32_v_i32m1",
          "__riscv_vsub_vv_i32m1",
+         "",
+         "difference_vec",
+         ""},
+        {RVVSelectedBodyOperationKind::Sub,
+         32,
+         "m2",
+         "agnostic",
+         "agnostic",
+         false,
+         "sub",
+         "size_t",
+         "!tcrv_rvv.i32m2",
+         "",
+         "vint32m2_t",
+         "",
+         "__riscv_vsetvl_e32m2",
+         "__riscv_vle32_v_i32m2",
+         "",
+         "__riscv_vse32_v_i32m2",
+         "__riscv_vsub_vv_i32m2",
          "",
          "difference_vec",
          ""},
@@ -115,14 +155,34 @@ constexpr RVVSelectedBodySpecializationMapping
          "mul",
          "size_t",
          "!tcrv_rvv.i32m1",
-         "!tcrv_rvv.i32m1_mask",
+         "",
          "vint32m1_t",
-         "vbool32_t",
+         "",
          "__riscv_vsetvl_e32m1",
          "__riscv_vle32_v_i32m1",
          "__riscv_vmv_v_x_i32m1",
          "__riscv_vse32_v_i32m1",
          "__riscv_vmul_vv_i32m1",
+         "",
+         "product_vec",
+         ""},
+        {RVVSelectedBodyOperationKind::Mul,
+         32,
+         "m2",
+         "agnostic",
+         "agnostic",
+         false,
+         "mul",
+         "size_t",
+         "!tcrv_rvv.i32m2",
+         "",
+         "vint32m2_t",
+         "",
+         "__riscv_vsetvl_e32m2",
+         "__riscv_vle32_v_i32m2",
+         "",
+         "__riscv_vse32_v_i32m2",
+         "__riscv_vmul_vv_i32m2",
          "",
          "product_vec",
          ""},
@@ -445,7 +505,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
           "int32_t *"});
   llvm::Expected<support::FiniteBinaryCallableRuntimeABIParameterBindings>
       bindings = support::bindFiniteBinaryCallableRuntimeABIParametersByRole(
-          ordered, "RVV i32m1 arithmetic explicit runtime ABI values",
+          ordered, "RVV selected-body arithmetic explicit runtime ABI values",
           contract);
   if (!bindings)
     return bindings.takeError();
@@ -915,7 +975,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
 
   tcrv::rvv::RVVCompileTimeConfig config =
       tcrv::rvv::getRVVSetVLCompileTimeConfig(slice->setvl);
-  const auto &configContract = tcrv::rvv::getRVVSelectedBodyConfigVLContract();
+  const auto &configContract =
+      tcrv::rvv::getRVVSelectedBodyConfigVLContract(config.lmul);
 
   RVVSelectedBodyRouteAnalysis analysis;
   analysis.slice = std::move(*slice);
@@ -1159,15 +1220,28 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           mapping.vectorTypeName))
     return error;
   if (llvm::Error error = requireRouteDescriptionField(
-          context, "mask type", description.maskTypeName, mapping.maskTypeName))
-    return error;
-  if (llvm::Error error = requireRouteDescriptionField(
           context, "vector C type", description.vectorCType,
           mapping.vectorCType))
     return error;
-  if (llvm::Error error = requireRouteDescriptionField(
-          context, "mask C type", description.maskCType, mapping.maskCType))
-    return error;
+  if (description.operation == RVVSelectedBodyOperationKind::CmpSelect) {
+    if (llvm::Error error =
+            requireRouteDescriptionField(context, "mask type",
+                                         description.maskTypeName,
+                                         mapping.maskTypeName))
+      return error;
+    if (llvm::Error error =
+            requireRouteDescriptionField(context, "mask C type",
+                                         description.maskCType,
+                                         mapping.maskCType))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask type", description.maskTypeName, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask C type", description.maskCType, ""))
+      return error;
+  }
   if (llvm::Error error = requireRouteDescriptionField(
           context, "setvl intrinsic", description.setVLIntrinsic,
           mapping.setVLIntrinsic))
@@ -1184,17 +1258,30 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           context, "compute intrinsic", description.intrinsic,
           mapping.computeIntrinsic))
     return error;
-  if (llvm::Error error = requireRouteDescriptionField(
-          context, "compare intrinsic", description.compareIntrinsic,
-          mapping.compareIntrinsic))
-    return error;
+  if (description.operation == RVVSelectedBodyOperationKind::CmpSelect) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "compare intrinsic", description.compareIntrinsic,
+            mapping.compareIntrinsic))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "compare intrinsic", description.compareIntrinsic, ""))
+      return error;
+  }
   if (llvm::Error error = requireRouteDescriptionField(
           context, "result value name", description.resultName,
           mapping.resultName))
     return error;
-  if (llvm::Error error = requireRouteDescriptionField(
-          context, "mask value name", description.maskName, mapping.maskName))
-    return error;
+  if (description.operation == RVVSelectedBodyOperationKind::CmpSelect) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask value name", description.maskName,
+            mapping.maskName))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask value name", description.maskName, ""))
+      return error;
+  }
   if (description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad)
     if (llvm::Error error = requireRouteDescriptionText(
             context, "RHS broadcast intrinsic",
@@ -1264,7 +1351,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   route.addHeader("riscv_vector.h");
   route.addTypeMapping("!tcrv_rvv.vl", description.vlCType);
   route.addTypeMapping(description.vectorTypeName, description.vectorCType);
-  route.addTypeMapping(description.maskTypeName, description.maskCType);
+  if (!description.maskTypeName.empty())
+    route.addTypeMapping(description.maskTypeName, description.maskCType);
   const support::RuntimeABIParameter runtimeABIParameters[] = {
       slice->lhsABI, slice->rhsABI, slice->outABI,
       slice->runtimeElementCountABI};

@@ -806,8 +806,7 @@ module {
        "tcrv_rvv.i32_broadcast_load"});
 }
 
-int runUnsupportedSelectedBodyDescriptorConfigRejectionTest(
-    mlir::MLIRContext &context) {
+int runLMULM2SelectedBodyRouteTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
   tcrv.exec.kernel @rvv_unsupported_lmul_kernel {
@@ -840,16 +839,67 @@ module {
   ExtensionPluginRegistry registry;
   if (int result = expectSuccess(
           tianchenrv::plugin::registerRVVExtensionPlugin(registry),
-          "register RVV plugin for unsupported descriptor test"))
+          "register RVV plugin for LMUL m2 route test"))
     return result;
 
   VariantEmissionPlan plan;
-  return expectErrorContains(
-      registry.buildVariantEmissionPlan(
-          VariantEmissionRequest(variant, kernel, capabilities,
-                                 VariantEmissionRole::DirectVariant),
-          plan),
-      {"unsupported RVV selected-body route specialization", "LMUL=m2"});
+  if (int result = expectSuccess(
+          registry.buildVariantEmissionPlan(
+              VariantEmissionRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              plan),
+          "build RVV LMUL m2 selected-body emission plan"))
+    return result;
+  if (int result = expect(
+          plan.isSupported() &&
+              plan.getRuntimeABI() ==
+                  tianchenrv::plugin::rvv::getRVVSelectedBodyRuntimeABIName(
+                      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
+                          Add),
+          "RVV LMUL m2 body keeps the stable callable ABI while typed config "
+          "owns LMUL semantics"))
+    return result;
+
+  bool sawLMULM2Metadata = false;
+  for (const tianchenrv::support::ArtifactMetadataEntry &entry :
+       plan.getArtifactMetadata()) {
+    if (entry.key == "tcrv_rvv.lmul" && entry.value == "m2")
+      sawLMULM2Metadata = true;
+  }
+  if (int result = expect(
+          sawLMULM2Metadata,
+          "RVV LMUL m2 emission plan mirrors typed selected-body LMUL m2"))
+    return result;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+  if (int result = expectSuccess(
+          registry.buildVariantEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(variant, kernel, capabilities,
+                                           VariantEmissionRole::DirectVariant),
+              route),
+          "build RVV LMUL m2 selected-body EmitC route"))
+    return result;
+  if (int result =
+          expect(route.getForLoops().size() == 1 &&
+                     route.getForLoops().front().bodySteps.size() == 5 &&
+                     route.getForLoops().front().bodySteps[0].callee ==
+                         "__riscv_vsetvl_e32m2" &&
+                     route.getForLoops().front().bodySteps[1].callee ==
+                         "__riscv_vle32_v_i32m2" &&
+                     route.getForLoops().front().bodySteps[2].callee ==
+                         "__riscv_vle32_v_i32m2" &&
+                     route.getForLoops().front().bodySteps[3].callee ==
+                         "__riscv_vadd_vv_i32m2" &&
+                     route.getForLoops().front().bodySteps[4].callee ==
+                         "__riscv_vse32_v_i32m2",
+                 "RVV LMUL m2 route derives m2 setvl/load/add/store "
+                 "intrinsics from typed config"))
+    return result;
+  return expectSuccess(
+      tianchenrv::conversion::emitc::
+          verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
+              route, "tcrv_rvv_lmul_m2_selected_body", {}),
+      "RVV LMUL m2 EmitC lowerable route materializes to EmitC");
 }
 
 int runBroadcastSelectedBodyRouteTest(mlir::MLIRContext &context) {
@@ -1121,8 +1171,7 @@ int main() {
   if (int result =
           runStaleWithVLRouteMetadataDoesNotAuthorizeEmissionTest(context))
     return result;
-  if (int result =
-          runUnsupportedSelectedBodyDescriptorConfigRejectionTest(context))
+  if (int result = runLMULM2SelectedBodyRouteTest(context))
     return result;
   if (int result = runBroadcastSelectedBodyRouteTest(context))
     return result;
