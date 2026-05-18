@@ -116,11 +116,41 @@ proof after deletion should be RVV; it does not permit new RVV emission,
 high-level frontend lowering, new artifact routes, or executable plugin
 templates while old descriptor/direct-C/core-branch authority remains.
 
-After campaign exit, the mature route is explicit extension-family ops ->
-materialized common EmitC module -> MLIR C/C++ emitter -> intrinsic/vendor
-runtime ABI -> target export validation/packaging -> ssh rvv evidence for RVV.
-This is a route order, not a new state machine, bundle index, artifact ledger,
-or checkpoint protocol.
+After campaign exit, the immediate RVV work is Stage 1: route-authority
+replacement. Replace or fail-close active compiler paths that treat bounded
+`i32m1` arithmetic, source-front-door patterns, route ids, artifact names,
+descriptor residue, or intrinsic spellings as RVV architecture authority.
+
+Stage 1 authority is the selected `tcrv.exec` RVV variant with an explicit
+vector-level `tcrv_rvv` body, RVV-owned legality/realization/route provider
+logic, fail-closed unsupported combinations, and common EmitC/export as neutral
+mechanics. The route builder must faithfully emit from the selected and, when
+needed, realized `tcrv_rvv` body; it must not invent RVV semantics, schedule,
+dtype, policy, or body shape from old i32 helpers, metadata, tests, route
+strings, artifacts, or common target-export code.
+
+Do not switch early to Scalar, IME, Offload, TensorExt, high-level Linalg/
+Vector/StableHLO frontend work, or second-family generalization while Stage 1
+is open, except for removing residue that directly blocks RVV route-authority
+replacement. Do not spend a round mainly on tests, reports, dashboard/status
+indexes, artifact catalogs, loop-health paperwork, or task bookkeeping and call
+that main progress.
+
+Do not build high-level kernel ops, `tcrv_rvv.matmul`/`softmax`-style compute
+ops, one-intrinsic wrapper dialects, global autotune dashboards/databases,
+state-machine readiness markers, compatibility wrappers that preserve the old
+i32 route, or dtype/LMUL/source clone batches. Stage 2 begins only after no
+active compiler path treats i32m1 arithmetic as RVV route authority; Stage 2
+then expands route-supported RVV coverage on the corrected vector-level
+`tcrv_rvv` surface, including plugin-local selected-body realization where
+needed.
+
+The mature route is explicit extension-family ops -> selected-body realization
+when needed -> materialized common EmitC module -> MLIR C/C++ emitter ->
+intrinsic/vendor runtime ABI -> target export validation/packaging -> ssh rvv
+evidence for RVV runtime/correctness claims. This is a route order, not a new
+state machine, bundle index, artifact ledger, dashboard, readiness marker, or
+checkpoint protocol.
 
 ## One-Round Trellis Flow
 

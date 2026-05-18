@@ -40,6 +40,24 @@ MLIR vector, LLVM scalable vector, LLVM RVV intrinsic IR, inline assembly, and
 backend patches are future optional routes. They are not the current default
 system definition.
 
+EmitC and `TCRVEmitCLowerableRoute` are faithful emission mechanics, not the
+place where performance structure, scheduling, or missing computation
+semantics are invented. For RVV, the route consumes the selected vector-level
+`tcrv_rvv` body after any RVV plugin-local selected-body realization. The
+route builder may map that body to includes, C vector types, intrinsic/runtime
+callee names, ABI bindings, loops, and `emitc.call_opaque` calls. It must not
+derive RVV dtype, SEW/LMUL policy, mask/tail behavior, reduction layout,
+unroll/prefetch structure, or operation semantics from route ids, artifact
+metadata, test names, descriptor residue, i32m1 helper names, or common target
+export code.
+
+Common EmitC lowering remains a neutral materialization shell. It must not
+branch on RVV, IME, TensorExt, Offload, scalar, vendor names, dtype names,
+kernel names, or intrinsic spellings to choose extension semantics. Unsupported
+or unrealized extension-family body shapes must fail closed in the plugin-owned
+route provider or selected-body realization boundary before C/C++ or target
+artifacts become authoritative.
+
 ## Common EmitC Lowering Template
 
 All extension families should reuse common lowering infrastructure:
@@ -58,7 +76,7 @@ generated C compile test harness
 Each extension family contributes only the mapping:
 
 ```text
-extension op
+selected and, when needed, realized extension-family body structure
   -> intrinsic / runtime call name
   -> header
   -> operand mapping
@@ -518,7 +536,7 @@ candidate preflight that preserves the plugin-owned runtime ABI contract.
   empty only when the selected candidate owns that identity and a route-local
   candidate validation callback proves it. The adapter must forward dynamic
   runtime ABI mode into the common header/object bundle helper; it must not
-  replace candidate-owned identity with a static first-slice name or route
+  replace candidate-owned identity with a static legacy-route name or route
   family placeholder.
 - Common target code may reject forbidden artifact metadata containing
   descriptor, metadata-diagnostic, direct-C, source-export, or compute-body

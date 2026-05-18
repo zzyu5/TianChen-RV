@@ -228,7 +228,7 @@ include:
 - capability model;
 - `tcrv.exec` ODS contract;
 - plugin registry interfaces;
-- RVV extension first slice;
+- RVV Stage 1 route-authority replacement and RVV extension-family surface;
 - variant generation, legality, and selection;
 - lowering and emission diagnostics;
 - `ssh rvv` evidence-producing RVV probe;
@@ -348,6 +348,7 @@ After campaign exit, the intended mature route is:
 
 ```text
 explicit extension-family ops
+-> selected-body realization when needed by the origin plugin
 -> materialized common EmitC module
 -> MLIR C/C++ emitter
 -> intrinsic/vendor runtime ABI
@@ -356,10 +357,11 @@ explicit extension-family ops
 ```
 
 This is a route order, not a new state machine, bundle index, artifact ledger,
-or checkpoint protocol. Target export validates and packages supported emitted
-artifacts; it must not synthesize compute semantics. One-shot steering may name
-the next bounded owner, but it must not create durable architecture outside the
-specs and committed prompt.
+dashboard, readiness marker, or checkpoint protocol. Target export validates
+and packages supported emitted artifacts; it must not synthesize compute
+semantics, scheduling, dtype/LMUL policy, or RVV body shape. One-shot steering
+may name the next bounded owner, but it must not create durable architecture
+outside the specs and committed prompt.
 
 Hermes should prefer owners that are large enough to remove a real compiler
 spine bottleneck in one round. A good owner may span several tightly related

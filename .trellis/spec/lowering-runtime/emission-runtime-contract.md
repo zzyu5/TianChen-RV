@@ -201,13 +201,15 @@ future rebuild:
 explicit extension-family ops -> materialized MLIR EmitC route -> source contract
 ```
 
-## Emission Readiness First Slice
+## Selected-Body Realization Boundary
 
-The first compiler-visible emission slice is a target-neutral readiness check.
-It does not lower IR, generate runtime ABI glue, invoke a toolchain, run a
-kernel, or prove correctness/performance. It verifies that current
-`tcrv.exec` structure can be routed to the origin plugin that owns each
-materialized variant.
+The compiler-visible pre-emission slice is a target-neutral selected-body
+realization boundary. It is not a readiness state machine, dashboard, progress
+marker, runtime ABI generator, toolchain invocation, hardware run, or
+correctness/performance proof. It verifies that current `tcrv.exec` selected
+structure can be routed to the origin plugin that owns each materialized
+variant, and gives that plugin one linear opportunity to validate or rewrite
+the selected extension-family body into route-emittable form.
 
 Rules:
 
@@ -215,8 +217,9 @@ Rules:
 - carry the variant, enclosing `tcrv.exec.kernel`, generic
   `TargetCapabilitySet`, and target-neutral role (`direct variant`,
   `dispatch case`, or `dispatch fallback`);
-- require supported plugin results to contain a non-empty plugin-owned emission
-  path identifier or description;
+- require realized plugin results to identify the origin plugin and selected
+  variant, and either report that the selected body is already realized or
+  point at the rewritten body accepted by the origin plugin;
 - require unsupported plugin results to contain a non-empty reason;
 - diagnose missing/empty origin, unknown plugin, disabled plugin, malformed
   plugin result, missing kernel/variant, and non-direct variant/kernel
@@ -229,17 +232,27 @@ Rules:
   must carry a direct sibling variant `target` and a generic `selection_kind`
   such as `static-variant` or `fallback-only`;
 - avoid core branches on RVV, IME, offload, scalar, vendor, dtype, shape,
-  runtime, toolchain, or microarchitecture details.
+  runtime, toolchain, scheduling, or microarchitecture details.
 
-## Emission Plan First Slice
+For RVV, this boundary is where plugin-local target-performance realization
+belongs. The RVV plugin may consume the selected vector-level `tcrv_rvv` body,
+capability facts, runtime SSA/ABI values, and optional hints/profile inputs to
+materialize legal SEW/LMUL/policy choices, dynamic VL/setvl placement,
+register-pressure-safe unroll or software pipeline structure, prefetch forms,
+memory movement forms, and accumulator/reduction organization. Common
+orchestration must not synthesize those choices from route ids, artifact names,
+test names, descriptor residue, or old `i32m1` helper names.
 
-After readiness and selected-path traversal, the compiler may collect
-plugin-owned emission plans. An emission plan is a target-neutral compiler
-decision object, not an executable artifact.
+## Emission Plan After Selected-Body Realization
+
+After selected-body realization and selected-path traversal, the compiler may
+collect plugin-owned emission plans. An emission plan is a target-neutral
+compiler decision object, not an executable artifact.
 
 Rules:
 
-- route by the same materialized variant `origin` plugin as readiness;
+- route by the same materialized variant `origin` plugin as selected-body
+  realization;
 - carry kernel symbol, variant symbol, selected-path role, support status,
   origin plugin, runtime ABI ownership metadata, and diagnostic/explanation
   metadata;
@@ -271,13 +284,13 @@ Rules:
   `role` must match the selected path, `origin` must match the selected
   variant origin, `required_capabilities` must be a safe subset of the selected
   variant `requires`, and stale or duplicate competing boundaries are fatal;
-- for RVV's current bounded i32m1 materialized EmitC route, the selected
-  boundary is the existing `tcrv_rvv.with_vl` op and the same conformance facts
-  must already be present on that op before plugin planning or target artifact
-  export. Plugin and target/export code may validate those facts but must not
-  synthesize missing source kernel, selected variant, origin, selected-path
-  role, status, required capabilities, construction protocol, route mapping, or
-  RVV config boundary attrs;
+- while RVV's legacy bounded i32m1 materialized EmitC route still exists, the
+  selected boundary is the existing `tcrv_rvv.with_vl` op and the same
+  conformance facts must already be present on that op before plugin planning
+  or target artifact export. Plugin and target/export code may validate those
+  facts but must not synthesize missing source kernel, selected variant,
+  origin, selected-path role, status, required capabilities, construction
+  protocol, route mapping, RVV config boundary attrs, or performance structure;
 - recognize selected lowering-boundary candidates only when they are actual
   plugin-local `*.lowering_boundary` operations or explicit lowering-boundary
   diagnostic metadata. A plugin-local executable attachment may also carry
@@ -286,9 +299,10 @@ Rules:
 - allow public tools to populate a deterministic built-in plugin registry before
   constructing registry-dependent passes, while keeping the traversal and
   selected-path routing target-neutral in shared pass code;
-- keep the boundary clear: readiness says whether a selected path is
-  supportable, while the plan describes the plugin-owned lowering/runtime route
-  or the structured unsupported reason;
+- keep the boundary clear: selected-body realization validates or rewrites the
+  selected extension-family body into route-emittable form, while the plan
+  describes the plugin-owned lowering/runtime route or the structured
+  unsupported reason;
 - do not claim generated code, runtime ABI glue, linked artifacts, RVV hardware
   execution, correctness, or performance from an emission plan alone.
 
@@ -1329,12 +1343,13 @@ required capabilities. Target artifact export must not recover route
 selection, route preflight, runtime ABI, shape, VL/AVL, or performance evidence
 from plugin-specific dictionary entries.
 
-The current public `tcrv-opt` built-in registry includes the RVV first-slice
-plugin. Therefore an `origin = "rvv-plugin"` selected path can route through
-RVV plugin diagnostics instead of a generic unregistered-origin failure. RVV
-emission planning still fails closed until explicit extension-family IR plus a
-  materialized EmitC route exists; no unsupported route metadata may be promoted
-to runtime ABI, artifact, correctness, or performance evidence. The tool-level
+The current public `tcrv-opt` built-in registry includes the RVV plugin.
+Therefore an `origin = "rvv-plugin"` selected path can route through RVV
+plugin diagnostics instead of a generic unregistered-origin failure. RVV
+emission planning must fail closed until explicit extension-family IR, any
+required RVV plugin-local selected-body realization, and a materialized EmitC
+route exist; no unsupported route metadata may be promoted to runtime ABI,
+artifact, correctness, or performance evidence. The tool-level
 `--tcrv-disable-builtin-plugins` option preserves an explicit empty-registry
 surface for negative parser/diagnostic tests.
 
@@ -1348,7 +1363,7 @@ proves that the remote host can compile and execute that probe program.
 
 Do not reinterpret an RVV probe artifact as:
 
-- plugin-supported emission readiness;
+- plugin-supported selected-body realization or emission route;
 - compiler lowering to LLVM, RISC-V, or RVV intrinsics;
 - generated object, executable, runtime ABI glue, or dispatch lowering;
 - TianChen-RV compiler correctness;
@@ -1388,7 +1403,7 @@ llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
   smoke-probe route identity or any standalone direct C output artifact kind as
   a supported RVV output route.
 - `RVVExtensionPlugin` must not turn plugin-local smoke-probe metadata or route
-  records into supported emission readiness or a supported emission plan.
+  records into supported selected-body realization or a supported emission plan.
 - Historical standalone smoke-probe metadata must not remain as active
   code/spec/test fixtures or plugin special-case legality input.
 - No output may contain `#include <riscv_vector.h>`, `__riscv_` intrinsic
@@ -1565,11 +1580,12 @@ bridge, not a handoff to a direct C source exporter.
 
 ## Scalar Fallback Unsupported Boundary
 
-The first scalar fallback plugin slice may keep the portable fallback proposal
-visible to generic planning, but selected scalar fallback has no active EmitC
-lowering, runtime ABI, target artifact route, or legacy metadata emission route.
-It must therefore return an unsupported emission readiness result and materialize
-only a fail-closed emission-plan diagnostic:
+The scalar fallback plugin may keep the portable fallback proposal visible to
+generic planning, but selected scalar fallback has no active EmitC lowering,
+runtime ABI, target artifact route, or legacy metadata emission route. It must
+therefore return an unsupported selected-body realization or unsupported
+emission-plan result, and materialize only a fail-closed emission-plan
+diagnostic:
 
 ```text
 status: unsupported
@@ -1586,8 +1602,8 @@ This is still compiler-decision metadata. It does not prove that TianChen-RV
 emitted LLVM IR, generated an object, linked a runtime, executed a scalar
 kernel, proved correctness, or measured performance. Later scalar fallback
 lowering must add plugin-local lowering code and validation artifacts before
-reporting executable support. This unsupported readiness/plan result also does
-not license metadata-alone selected-boundary materialization.
+reporting executable support. This unsupported realization/plan result also
+does not license metadata-alone selected-boundary materialization.
 
 ## Deleted Scalar Explicit Microkernel Target Export Boundary
 
@@ -1917,11 +1933,11 @@ be used as active selection authority, test API, or diagnostic API.
 
 ## Runtime Offload No-Route Boundary
 
-The first runtime-offload plugin slice may return an unsupported emission
-readiness result. Production boundary materialization must return no selected
-`tcrv_offload.lowering_boundary` until a real materialized EmitC/runtime/artifact
-route exists. After descriptor-route deletion, its emission plan must be
-unsupported:
+The runtime-offload plugin may return an unsupported selected-body realization
+or unsupported emission-plan result. Production boundary materialization must
+return no selected `tcrv_offload.lowering_boundary` until a real materialized
+EmitC/runtime/artifact route exists. After descriptor-route deletion, its
+emission plan must be unsupported:
 
 ```text
 status: unsupported

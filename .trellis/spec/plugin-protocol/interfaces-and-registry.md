@@ -502,11 +502,27 @@ target-family object, hardware performance claim, correctness result, or
 benchmark. The default plugin hook returns a deterministic neutral
 no-explicit-preference estimate for the request variant and origin plugin.
 
-### EmissionReadinessProvider
+### SelectedBodyRealizationProvider
 
-Before final lowering, the core may ask the selected variant's origin plugin
-whether a compiler-visible emission path exists. This is a readiness check, not
-lowering or runtime generation.
+Before emission planning, the core may route the selected variant back to its
+origin plugin for selected-body realization. This is a target-neutral
+orchestration point, not a readiness state machine, progress marker, dashboard,
+or runtime generation step.
+
+The durable contract is:
+
+```text
+selected tcrv.exec path
+  -> origin plugin
+  -> selected extension-family body validation/rewrite
+  -> realized body consumed by plugin-owned emission-route construction
+```
+
+The core owns traversal, origin-plugin routing, result-shape validation, and
+generic fail-closed diagnostics. The origin plugin owns extension-family
+semantics. For RVV, that means SEW/LMUL/policy legality, `vsetvl` placement,
+vector register pressure, memory form, unroll/prefetch shape, and accumulator
+layout stay inside the RVV plugin, not in common orchestration.
 
 ```cpp
 enum class VariantEmissionRole {
@@ -523,39 +539,42 @@ public:
   VariantEmissionRole getRole() const;
 };
 
-class VariantEmissionStatus {
+class VariantSelectedBodyRealizationResult {
 public:
-  bool isSupported() const;
+  bool isRealized() const;
+  bool isUnchanged() const;
   bool isUnsupported() const;
   StringRef getOriginPlugin() const;
   StringRef getVariantSymbol() const;
-  StringRef getEmissionPath() const;
+  Operation *getRealizedBodyOrNull() const;
   StringRef getReason() const;
 };
 
 class ExtensionPlugin {
 public:
-  virtual Error checkVariantEmissionReadiness(
+  virtual Error realizeSelectedVariantBody(
       const VariantEmissionRequest &request,
-      VariantEmissionStatus &out) const;
+      VariantSelectedBodyRealizationResult &out) const;
 };
 ```
 
 Registry routing is by the generic `origin` string on the materialized
 `tcrv.exec.variant`. The request carries only the materialized variant, its
-enclosing kernel, generic `TargetCapabilitySet`, and target-neutral role. A
-supported result must include a non-empty plugin-owned emission path identifier
-or description. An unsupported result must include a non-empty reason. The core
-validates result shape, origin/variant identity, plugin enablement, and sibling
-structure generically, but does not interpret RVV, IME, offload, scalar,
-vendor, dtype, shape, runtime, toolchain, or microarchitecture semantics.
+enclosing kernel, generic `TargetCapabilitySet`, and target-neutral selected
+path role. A realized result means the selected extension-family body is
+already valid for later route construction, either because the plugin rewrote
+it or because it was already in the realized form. An unsupported result must
+include a non-empty reason. The core validates result shape, origin/variant
+identity, plugin enablement, and sibling structure generically, but does not
+interpret RVV, IME, offload, scalar, vendor, dtype, shape, runtime, toolchain,
+or microarchitecture semantics.
 
 If variant selection materialized a direct selected-path `tcrv.exec.diagnostic`
-marker for a static or fallback-only plan, the emission readiness pass resolves
-that marker to the target `tcrv.exec.variant` before registry routing. The
-plugin still receives the same `VariantEmissionRequest` with role
+marker for a static or fallback-only plan, the selected-body realization pass
+resolves that marker to the target `tcrv.exec.variant` before registry routing.
+The plugin still receives the same `VariantEmissionRequest` with role
 `DirectVariant`; the marker is core control metadata, not plugin-specific
-lowering or runtime input.
+lowering, scheduling, or runtime input.
 
 ### SelectedLoweringBoundaryMaterializer
 
@@ -643,9 +662,12 @@ Core pass flow:
 5. Plugins propose one or more tcrv.exec.variant values.
 6. Core verifier orchestrates plugin verifier calls.
 7. Core selector chooses a static variant or dispatch set.
-8. Core emission-readiness check routes selected/direct/dispatch/fallback
-   variants to their origin plugin and rejects missing or unsupported paths.
-9. Emission stage calls common EmitC lowering over extension family interfaces,
+8. Core selected-body realization routes selected/direct/dispatch/fallback
+   variants to their origin plugin and rejects missing or unsupported selected
+   bodies.
+9. Core emission-plan collection asks the origin plugin for a faithful route
+   over the selected and, when needed, realized extension-family body.
+10. Emission stage calls common EmitC lowering over extension family interfaces,
    then target-owned emission/export helpers.
 ```
 
@@ -676,7 +698,8 @@ if (target.hasIME()) { ... }
 if (target.hasSophgo()) { ... }
 ```
 
-The registry-level first slice provides deterministic proposal orchestration:
+The registry-level proposal surface provides deterministic proposal
+orchestration:
 
 - iterate plugins in registration order;
 - skip disabled plugins before support queries;
@@ -767,7 +790,8 @@ orchestration:
   target-family branches.
 
 The registry-level emission-plan slice provides plugin-owned selected-path
-planning after readiness, without generating executable artifacts:
+planning after selected-body realization, without generating executable
+artifacts:
 
 - create a `VariantEmissionRequest` containing the materialized
   `tcrv.exec.variant`, its enclosing `tcrv.exec.kernel`, the generic
@@ -811,9 +835,10 @@ planning after readiness, without generating executable artifacts:
   unbounded hardware output;
 - treat plans as plugin-owned compiler metadata/intent only; a supported plan is
   not proof that code was generated, linked, executed, correct, or performant;
-- keep readiness and planning separate: readiness answers whether the selected
-  path is supportable, while the plan describes the plugin-owned
-  lowering/runtime route or structured unsupported reason.
+- keep realization and planning separate: realization validates or rewrites the
+  selected extension-family body into route-emittable form, while the plan
+  describes the plugin-owned lowering/runtime route or structured unsupported
+  reason.
 
 The compiler may materialize collected `VariantEmissionPlan` results as
 structured `tcrv.exec.diagnostic` metadata with `reason = "emission_plan"`.
@@ -850,7 +875,7 @@ the planner may use only a plugin-provided generic fallback role from
 proposal/materialized metadata or cost-estimate metadata; it must not invent
 fallback coverage from an arbitrary available variant.
 
-When legality verification, selection, emission-readiness, or emission-plan
+When legality verification, selection, selected-body realization, or emission-plan
 collection is run as an MLIR pass, the pass must receive the same registry
 object explicitly from the owning tool or plugin loader. A public tool such as
 `tcrv-opt` may own a deterministic process-local registry and register built-in
@@ -859,7 +884,7 @@ not move concrete extension branches into core orchestration. Default factory
 constructors with no injected plugins remain an honest diagnostic surface for
 C++ tests and embedded users: they must fail on unregistered variant `origin`
 plugins rather than falling back to core-side string attributes, target-family
-switches, or Python legality/cost/readiness models. This keeps the dependency
+switches, or Python legality/cost/realization models. This keeps the dependency
 direction `tool/plugin loader -> registry -> core orchestration -> abstract
 plugin interface -> concrete extension implementation`.
 

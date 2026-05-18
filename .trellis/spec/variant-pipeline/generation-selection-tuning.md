@@ -4,20 +4,22 @@
 
 Do not generate generic `tcrv` compute ops first. Extension plugins propose execution variants directly, and core passes organize, verify, select, dispatch, and lower them.
 
-Current TianChen-RV work may start from hand-written or test TianChen-RV MLIR,
-already materialized `tcrv.exec.variant`, selected-boundary IR,
-`tcrv.exec.mem_window`, `tcrv.exec.runtime_param`, typed extension-family
-bodies, or selected-path metadata. High-level MLIR op analysis is a future
-extension point for `linalg`, `stablehlo`, `tosa`, and similar inputs; it is
-not a precondition for integrating a new extension plugin today. When the
-frontend lowering owner is selected, the first high-level path may start from
-hand-written or test `linalg` inputs and lower them into TianChen-RV surfaces
-that the backend/plugin pipeline can consume.
+Current RVV Stage 1/2 work starts from TianChen-RV execution surfaces:
+hand-written or test TianChen-RV MLIR, already materialized
+`tcrv.exec.variant`, selected-boundary IR, `tcrv.exec.mem_window`,
+`tcrv.exec.runtime_param`, typed extension-family bodies, or selected-path
+metadata. High-level MLIR op analysis is a future extension point for
+`linalg`, `stablehlo`, `tosa`, and similar inputs; it is not current RVV route
+authority and is not a prerequisite for replacing the bounded i32m1 route
+architecture.
 
-Correct:
+Correct future high-level shape:
 
 ```text
-high-level op -> plugin-proposed execution variants -> capability-driven selection/lowering
+high-level op
+  -> semantic-preserving construction of tcrv.exec envelope plus typed
+     extension-family bodies
+  -> capability-driven selection/lowering
 ```
 
 Wrong:
@@ -28,7 +30,7 @@ high-level op -> generic tcrv op -> backend-specific lowering
 
 ## Input
 
-Inputs may include:
+Current backend/plugin inputs may include:
 
 ```text
 hand-written TianChen-RV MLIR
@@ -40,23 +42,26 @@ tcrv.exec.mem_window
 tcrv.exec.runtime_param
 typed extension-family body
 bounded selected-path metadata
+```
+
+Future high-level frontend inputs may include:
+
+```text
 linalg.matmul
 linalg.generic reduction
 stablehlo dot_general
 stablehlo softmax-like region
 tosa ops
-custom high-level kernel dialect
+other high-level source dialect ops with already-expressed semantics
 ```
 
 When the input is high-level MLIR, TianChen-RV assumes the high-level op already
 expresses computation semantics. It does not recover or reinvent algorithm
 semantics. When the input is already TianChen-RV MLIR, plugin work should focus
 on capability, variant, selected-boundary, lowering, emission, runtime ABI, and
-artifact routes rather than inventing a high-level lowering layer.
-The backend-first path and the `linalg` frontend path are compatible: backend
-plugin integration may proceed from hand-written TianChen-RV MLIR while a
-frontend owner later introduces `linalg` tests that feed those same backend
-surfaces.
+artifact routes rather than inventing a high-level lowering layer. The
+backend-first path and a future high-level frontend path are compatible only
+when the frontend lowers into those same TianChen-RV execution surfaces.
 
 Future high-level frontend work is semantic-preserving conversion, not semantic
 recognition. It maps semantics already expressed by the source dialect into
@@ -127,23 +132,24 @@ plugin/interface-owned frontend construction
   -> common EmitC route
 ```
 
-## Scenario: RVV-Owned Bounded Vector I32 Add Source Pattern
+## Scenario: Legacy RVV-Owned Bounded Vector I32 Add Source Pattern
 
 ### 1. Scope / Trigger
 
-This scenario applies to the bounded RVV-owned source materializer that accepts
-one structurally recognized MLIR vector/arithmetic i32 add source shape and
-materializes the existing RVV i32m1 selected-boundary route. It is a
-plugin-owned RVV entry point, not a restoration of the deleted core
-linalg/vector RVV source frontend family.
+This scenario applies only while the bounded RVV-owned source materializer
+remains as a legacy narrow source front door. It accepts one structurally
+recognized MLIR vector/arithmetic i32 add source shape and materializes the
+legacy RVV i32m1 selected-boundary route. It is a plugin-owned compatibility
+entry point, not a restoration of the deleted core linalg/vector RVV source
+frontend family and not RVV maturity work.
 
 ### 2. Signatures
 
 - Public pass option:
   `--tcrv-rvv-materialize-i32m1-vector-source-front-door`.
-- The pass option names the bounded production source front door. It does not
-  make a `seed` attribute, seed metadata, route id, or artifact name the route
-  authority.
+- The pass option names the bounded legacy source front door. It does not make
+  a `seed` attribute, seed metadata, route id, artifact name, source pattern,
+  or i32m1 route the durable route authority.
 - No positive source marker is required for the RVV i32 add slice.
 - Stale RVV source marker metadata such as
   `tcrv_rvv.lowering_seed = "i32m1_add"` must not create a selected RVV route
@@ -162,7 +168,8 @@ linalg/vector RVV source frontend family.
   `tcrv_rvv.runtime_abi_value` operands for `lhs`, `rhs`, `out`, and `n` ->
   `tcrv_rvv.setvl` -> selected `tcrv_rvv.with_vl` -> RVV
   `i32_load` / `i32_add` / `i32_store`.
-- The accepted source function ABI is positional for this first slice:
+- The accepted source function ABI is positional for this legacy compatibility
+  source slice:
   source arguments 0, 1, 2, and 3 map to `lhs`, `rhs`, `out`, and `n`. The
   produced `tcrv_rvv.runtime_abi_value` ops must preserve that source-derived
   mapping in bounded provenance, using purpose strings
@@ -173,15 +180,18 @@ linalg/vector RVV source frontend family.
 - The produced variant must require `@rvv` and must keep computation semantics
   in `tcrv_rvv` extension-family ops. `tcrv.exec` remains the execution
   envelope and selection surface only.
-- The route must be consumed by the existing RVV construction/EmitC/target path;
-  it must not introduce descriptor-driven computation, direct C semantic
-  export, Python compiler-core logic, or a common/core RVV semantic branch.
+- If retained, the route must be consumed by the RVV construction/EmitC/target
+  path through the explicit typed `tcrv_rvv` body; it must not introduce
+  descriptor-driven computation, direct C semantic export, Python
+  compiler-core logic, or a common/core RVV semantic branch.
 - The pass is source-only. Pre-existing `tcrv.exec` or `tcrv_rvv` operations in
   the input are stale selected-boundary or variant residue for this pass and
   must fail closed instead of being merged with source lowering.
-- The bounded source body is the positive authority for this slice. Route ids,
-  descriptors, artifact names, stale seed metadata, deleted family records, and
-  common/core source scans must not authorize RVV materialization.
+- The bounded source body may authorize only construction of the legacy typed
+  `tcrv_rvv` body for this compatibility slice. Route ids, descriptors,
+  artifact names, stale seed metadata, deleted family records, common/core
+  source scans, and i32m1 route identity must not authorize downstream RVV
+  materialization.
 
 ### 4. Validation & Error Matrix
 
@@ -200,9 +210,10 @@ linalg/vector RVV source frontend family.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: an unmarked `func.func` with the exact i32 add vector source shape
-  materializes a selected RVV i32m1 variant that the existing EmitC route
-  accepts.
+- Good while retained: an unmarked `func.func` with the exact i32 add vector
+  source shape materializes a selected RVV variant containing explicit
+  `tcrv_rvv` body IR, and downstream routing consumes that body rather than
+  the source pattern or route name.
 - Base: hand-written TianChen-RV MLIR with explicit RVV variant bodies remains
   a valid backend-first input and does not require this source materializer.
 - Bad: a common transform scans arbitrary linalg/vector/add/sub/mul source
@@ -215,17 +226,18 @@ linalg/vector RVV source frontend family.
   `tcrv.exec.variant` containing explicit runtime ABI bindings,
   source-argument provenance purpose strings, `tcrv_rvv.with_vl`, and
   `tcrv_rvv.i32_add`.
-- Positive route-consumption coverage proving the materializer output reaches
-  existing RVV emission-plan and EmitC materialization.
+- Positive route-consumption coverage, if this legacy source path is retained,
+  must prove the materializer output reaches RVV emission-plan and EmitC
+  materialization through the explicit `tcrv_rvv` body.
 - Negative lit/FileCheck coverage for missing ABI operands, unsupported
   dtype/rank/shape, malformed source body, stale seed metadata, and stale
   pre-existing `tcrv.exec`/`tcrv_rvv` residue.
 - Negative source-shape coverage must include wrong arithmetic op, wrong
   buffer role/use, missing or extra runtime `n`, unsupported loop bounds/step,
   loop-carried values, missing store, extra loop ops, and unrelated body.
-- Existing explicit RVV i32m1 construction/EmitC/target tests must continue to
-  pass so the source materializer is proven to feed the current route instead
-  of replacing it.
+- Stage 1 may instead fail-close or delete this path when replacing
+  i32m1-as-route-authority. In that case tests must assert the fail-closed
+  boundary rather than preserving this source path as compatibility glue.
 
 ### 7. Wrong vs Correct
 
@@ -239,10 +251,10 @@ arbitrary vector/linalg source -> core RVV arithmetic recognizer
 Correct:
 
 ```text
-exact bounded RVV-owned source shape
+legacy bounded RVV-owned source shape
   -> RVV-owned materialization pass
   -> plugin-owned typed RVV selected-boundary body
-  -> existing construction/EmitC/target route
+  -> RVV route consumes the typed body, not the source route identity
 ```
 
 ## Pipeline
@@ -301,6 +313,7 @@ tcrv-materialize-plugin-variants
   -> tcrv-materialize-dispatch-runtime-guards
   -> tcrv-check-capability-requires
   -> tcrv-materialize-selected-lowering-boundaries
+  -> selected-body realization through origin-plugin registry hook
   -> tcrv-materialize-emission-plans
   -> tcrv-check-execution-plan-coherence
 ```
@@ -367,16 +380,23 @@ selected lowering-boundary materialization, or emission-plan diagnostics are
 created. This stage complements, and does not replace,
 `tcrv-check-capability-requires`.
 
-Emission readiness is not part of this public planning pipeline while the RVV
-first slice reports unsupported readiness as a fatal boundary. Instead, the
-pipeline materializes plugin-owned emission-plan diagnostics after selected
-lowering-boundary materialization. Emission-plan materialization must validate
-the selected plugin-owned boundary surface before producing diagnostics and
-should record a generic `lowering_boundary` diagnostic metadata field naming
-the boundary operation used by each selected plan. These diagnostics are
-reproducibility metadata only: they do not lower IR, emit LLVM/RISC-V/RVV code,
-create runtime ABI glue, generate artifacts, run hardware, prove correctness,
-or measure performance.
+The selected-body realization slot is the target-neutral orchestration point
+between selected lowering-boundary materialization and emission planning. The
+common pass finds the selected path, reads the selected variant origin, calls
+the origin plugin through `ExtensionPluginRegistry`, propagates diagnostics, and
+fails closed. It must not know RVV concepts such as SEW, LMUL, mask/tail policy,
+`vsetvl` placement, vector register pressure, memory forms, prefetch/unroll
+shape, or reduction accumulator layout. For RVV, the plugin consumes the
+selected vector-level `tcrv_rvv` body, capability facts, runtime SSA/ABI values,
+and optional hints into a realized vector-level `tcrv_rvv` body.
+
+Emission-plan materialization runs after selected-body realization. It must
+validate the selected plugin-owned boundary/body surface before producing
+diagnostics and should record a generic `lowering_boundary` diagnostic metadata
+field naming the boundary operation used by each selected plan when one exists.
+These diagnostics are reproducibility metadata only: they do not lower IR, emit
+LLVM/RISC-V/RVV code, create runtime ABI glue, generate artifacts, run hardware,
+prove correctness, measure performance, or act as a status/dashboard marker.
 
 After emission-plan materialization, the canonical pipeline runs the existing
 execution-plan coherence gate over the same selected-path metadata. This final
@@ -549,7 +569,7 @@ single `tcrv.exec.dispatch`. This slice consumes real MLIR ops and the generic
 variants, tune, lower, emit, probe hardware, or interpret target-family
 semantics.
 
-The deterministic first-slice policy is:
+The deterministic bounded dispatch policy is:
 
 - scan direct `tcrv.exec.variant` children of each `tcrv.exec.kernel` in IR
   order;
@@ -864,8 +884,9 @@ tcrv.exec.diagnostic {
 ```
 
 The marker is generic control metadata. `target` references the selected direct
-variant, and `selection_kind` is `static-variant` or `fallback-only` in the
-first slice. It is not lowering IR, runtime ABI glue, or target-family logic.
+variant, and `selection_kind` is `static-variant` or `fallback-only` for this
+bounded selection surface. It is not lowering IR, runtime ABI glue, or
+target-family logic.
 Re-running selection must reuse an equivalent direct marker rather than
 duplicating it.
 
@@ -1020,15 +1041,17 @@ unavailable required capability only when the case carries typed generic
 the same target capability set, so runtime dispatch always has an executable
 fallback path when guarded cases are unavailable.
 
-## Emission Readiness After Selection
+## Selected-Path Realization And Emission Planning
 
-After materialization, legality, cost ranking, selection, and dispatch
-synthesis, the compiler may run a generic emission-readiness check before final
-lowering. This pass does not create lowering IR or runtime glue. It verifies
-that the current execution path can be routed back to the origin plugin that
-owns each selected materialized variant.
+After materialization, legality, cost ranking, selection, dispatch synthesis,
+and selected lowering-boundary materialization, the compiler may run a
+target-neutral selected-body realization orchestration step before emission
+planning. This step is not a readiness state machine, progress marker,
+dashboard, or acceptance status. It verifies that the selected path can be
+routed back to the origin plugin and lets that plugin rewrite or validate its
+selected extension-family body before emission plans are collected.
 
-First-slice behavior:
+Selected-path traversal behavior:
 
 - kernels with a direct `tcrv.exec.dispatch` check every `tcrv.exec.case`
   target and the `tcrv.exec.fallback` target;
@@ -1042,26 +1065,48 @@ First-slice behavior:
 - dispatch and fallback targets must resolve to direct sibling variants in the
   same kernel before plugin routing;
 - missing, duplicate, non-variant, or non-sibling dispatch references are
-  diagnosed generically before plugin emission-readiness hooks are called;
+  diagnosed generically before plugin realization or emission-plan hooks are
+  called;
 - routing is by the generic variant `origin` attribute through
   `ExtensionPluginRegistry`, with no target-family branches in core code.
 
+The common realization step owns only orchestration:
+
+```text
+find selected path
+read selected variant origin
+call the origin plugin registry hook
+propagate diagnostics
+fail closed on missing or unsupported selected-body realization
+```
+
+It must not know RVV-specific concepts such as SEW, LMUL, mask/tail policy,
+`vsetvl` placement, vector register pressure, memory forms, prefetch/unroll
+shape, or reduction accumulator layout. For RVV, selected-body realization is
+plugin-local: it consumes the selected vector-level `tcrv_rvv` body,
+capability facts, runtime SSA/ABI values, and optional hints/policy/profile,
+then produces the realized vector-level `tcrv_rvv` body consumed by the EmitC
+route. It is one normal compilation step, not a repeated optimization loop or
+global autotuning database.
+
 The same selected-path traversal may be reused to collect plugin-owned emission
-plans after readiness. Emission-plan collection must keep dispatch cases and
-fallbacks in dispatch body order, consume a single selected-path marker before
-falling back to conservative all-direct-variant traversal, and diagnose the
-same malformed selected-path structure before invoking plugin hooks. For
-dispatch or selected-marker surfaces that have passed through selected
-lowering-boundary materialization, collection must first validate that each
-selected reference has exactly one matching plugin-owned boundary. Missing,
-stale, duplicate, origin-mismatched, selected-variant-mismatched, or
-required-capability-mismatched boundaries are deterministic failures and must
-not result in appended emission-plan diagnostics. Each collected plan is a
-structured compiler decision object for the selected path: it records origin
-plugin, kernel symbol, variant symbol, selected-path role, support status, the
-validated lowering-boundary operation when present, and either supported route
-metadata or an unsupported diagnostic. It does not lower IR, generate
-executable code, prove runtime correctness, or justify performance claims.
+plans after selected-body realization. Emission-plan collection must keep
+dispatch cases and fallbacks in dispatch body order, consume a single
+selected-path marker before falling back to conservative all-direct-variant
+traversal, and diagnose the same malformed selected-path structure before
+invoking plugin hooks. For dispatch or selected-marker surfaces that have
+passed through selected lowering-boundary materialization, collection must
+first validate that each selected reference has exactly one matching
+plugin-owned boundary. Missing, stale, duplicate, origin-mismatched,
+selected-variant-mismatched, or required-capability-mismatched boundaries are
+deterministic failures and must not result in appended emission-plan
+diagnostics. Each collected plan is a structured compiler decision object for
+the selected path: it records origin plugin, kernel symbol, variant symbol,
+selected-path role, support status, the validated lowering-boundary operation
+when present, and either supported route metadata or an unsupported diagnostic.
+It does not lower IR, generate executable code, prove runtime correctness,
+justify performance claims, or act as a dashboard/status/report progress
+surface.
 
 ## Parameter Flow Boundary
 
@@ -1104,7 +1149,12 @@ IME: fragment shape, K-block, accumulator policy, packing
 Offload: transfer threshold, batch size, async overlap, buffer reuse
 ```
 
-Tuning must remain part of selection/variant quality. Do not present ordinary parameter search as the main theory.
+Tuning must remain part of selection/variant quality. Do not present ordinary
+parameter search as the main theory. Current RVV Stage 2 needs selected-variant
+internal realization over the corrected vector-level `tcrv_rvv` surface, not a
+global multi-candidate autotuning system, tuning dashboard, database, or
+readiness marker. Hints and profile data may influence generated code only
+after the RVV plugin consumes them into operative selected-body structure.
 
 ## Cost Model Boundary
 

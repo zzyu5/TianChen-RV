@@ -113,9 +113,10 @@ Use lit/FileCheck for:
 - default public pass diagnostics when origin plugins are not registered.
 - emission-plan diagnostic verifier behavior and default public
   materialization-pass diagnostics when origin plugins are not registered.
-- public tool built-in plugin routing, including `tcrv-opt` RVV first-slice
-  unsupported readiness/plan diagnostics, unknown-origin diagnostics, selected
-  marker traversal, dispatch case/fallback ordering, and
+- public tool built-in plugin routing, including `tcrv-opt` RVV plugin
+  selected-body realization / emission-plan fail-closed diagnostics,
+  unknown-origin diagnostics, selected marker traversal, dispatch
+  case/fallback ordering, and
   `--tcrv-disable-builtin-plugins` negative coverage for empty-registry plugin
   dialect behavior.
 - generic selected lowering-boundary pass routing through
@@ -313,7 +314,8 @@ Use C++ tests for:
   missing vector hints, non-`riscv64` architecture, compile/run failure,
   missing clang/CMake availability, deterministic sanitized capability
   identities, `rvv.hart_count` providing `target.hart_count`, and preservation
-  of unsupported RVV emission readiness/plans;
+  of unsupported RVV selected-body realization / emission-plan fail-closed
+  behavior;
 - cost model helper logic;
 - concrete first-slice plugin registration, proposal metadata, legality, and
   registry-backed selection consumption;
@@ -337,7 +339,7 @@ Use C++ tests for:
   element-count metadata fail-closed behavior when no typed scalar body exists,
   absence of descriptorless default microkernel materialization, stable
   unsupported emission-plan fields when no matching microkernel exists, and
-  deleted-route readiness/plan fields only when a matching explicit scalar
+  deleted-route fail-closed fields only when a matching explicit scalar
   microkernel and scalar lowering boundary are present.
 
 ## CMake Checks

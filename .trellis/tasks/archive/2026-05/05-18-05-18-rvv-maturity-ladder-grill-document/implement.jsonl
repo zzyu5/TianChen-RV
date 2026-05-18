@@ -1,0 +1,6 @@
+{"file": "artifacts/grill-consensus-20260515.md", "reason": "Prior grill consensus and mature path framing to avoid overwriting history."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Current durable RVV plugin scope that later spec updates should refine."}
+{"file": "scripts/codex_serial_supervisor_prompt.md", "reason": "Current canonical supervisor prompt that later steering updates should refine."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Durable pipeline/spec promotion from 5/18 grill."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Durable runtime/emission wording promotion from 5/18 grill."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Durable plugin protocol selected-body realization wording."}
