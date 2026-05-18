@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Prove generated RVV object/header bundle ABI consumption on ``ssh rvv``.
 
-This is evidence tooling only. It invokes the one-command MLIR/C++ source
-artifact bundle front door, checks the generated target artifact bundle,
-builds a small external C ABI consumer, and optionally runs that consumer on
-the real RVV target. It does not implement compiler IR, lowering, plugin
-selection, emission, descriptors, fallback computation, or runtime glue.
+This is evidence tooling only. It explicitly materializes the bounded RVV
+typed selected body from the legacy source seed, exports the generated target
+artifact bundle from that typed-body IR, checks the bundle, builds a small
+external C ABI consumer, and optionally runs that consumer on the real RVV
+target. It does not implement compiler IR, lowering, plugin selection,
+emission, descriptors, fallback computation, or runtime glue.
 """
 
 from __future__ import annotations
@@ -707,24 +708,48 @@ int main(void) {{
 
 
 def generate_bundle(
+    tcrv_opt: str,
     tcrv_translate: str,
     input_path: Path,
     bundle_dir: Path,
     timeout: int,
 ) -> dict[str, Any]:
+    materialized_path = bundle_dir.parent / "materialized_selected_body.mlir"
+    materialize_command = [
+        tcrv_opt,
+        str(input_path),
+        "--tcrv-rvv-materialize-i32m1-vector-source-front-door",
+        "--tcrv-materialize-emission-plans",
+        "-o",
+        str(materialized_path),
+    ]
+    materialize_record = run_command(materialize_command, timeout=timeout)
+    require_command_success(
+        materialize_record, "tcrv-opt explicit RVV typed-body materialization"
+    )
+
     translate_command = [
         tcrv_translate,
-        "--tcrv-source-artifact-bundle-front-door",
+        "--tcrv-export-target-artifact-bundle",
         f"--tcrv-target-artifact-bundle-output-dir={bundle_dir}",
-        str(input_path),
+        str(materialized_path),
     ]
     translate_record = run_command(translate_command, timeout=timeout)
     require_command_success(
-        translate_record, "tcrv-translate source artifact bundle front door"
+        translate_record,
+        "tcrv-translate selected typed-body artifact bundle export",
     )
     return {
-        "front_door": "tcrv-source-artifact-bundle-front-door",
-        "pipeline": command_display(translate_command),
+        "front_door": "explicit-rvv-source-seed-to-selected-typed-body",
+        "materializer": "tcrv-rvv-materialize-i32m1-vector-source-front-door",
+        "target_export": "tcrv-export-target-artifact-bundle",
+        "materialized_selected_body": str(materialized_path),
+        "pipeline": (
+            command_display(materialize_command)
+            + " && "
+            + command_display(translate_command)
+        ),
+        "tcrv_opt": materialize_record,
         "tcrv_translate": translate_record,
     }
 
@@ -941,6 +966,7 @@ def run_one_op_e2e(
     run_id: str,
     artifact_dir: Path,
     expectation: OpExpectation,
+    tcrv_opt: str,
     tcrv_translate: str,
     readobj: str | None,
     runtime_counts: list[int],
@@ -976,7 +1002,11 @@ def run_one_op_e2e(
         }
 
         local = generate_bundle(
-            tcrv_translate, expectation.input_path, bundle_dir, args.timeout
+            tcrv_opt,
+            tcrv_translate,
+            expectation.input_path,
+            bundle_dir,
+            args.timeout,
         )
         evidence["local_bundle_generation"] = local
         bundle_checks = verify_bundle(bundle_dir, readobj, expectation)
@@ -1052,6 +1082,7 @@ def run_e2e(args: argparse.Namespace) -> int:
         )
         expectations = selected_expectations(args)
         evidence["op_kinds"] = [expectation.kind for expectation in expectations]
+        tcrv_opt = ensure_tool(args.tcrv_opt)
         tcrv_translate = ensure_tool(args.tcrv_translate)
         readobj = ensure_tool(args.llvm_readobj) if args.llvm_readobj else None
 
@@ -1061,6 +1092,7 @@ def run_e2e(args: argparse.Namespace) -> int:
                 run_id=run_id,
                 artifact_dir=artifact_dir,
                 expectation=expectation,
+                tcrv_opt=tcrv_opt,
                 tcrv_translate=tcrv_translate,
                 readobj=readobj,
                 runtime_counts=runtime_counts,
@@ -1454,6 +1486,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help="override the source MLIR fixture for exactly one --op-kind",
     )
+    parser.add_argument("--tcrv-opt", default="build/bin/tcrv-opt")
     parser.add_argument("--tcrv-translate", default="build/bin/tcrv-translate")
     parser.add_argument("--llvm-readobj", default=default_readobj())
     parser.add_argument("--ssh-target", default=DEFAULT_SSH_TARGET)

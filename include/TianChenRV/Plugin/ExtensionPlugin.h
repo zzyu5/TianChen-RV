@@ -61,23 +61,35 @@ private:
 class SourceFrontDoorPassRegistration {
 public:
   using Factory = std::function<std::unique_ptr<mlir::Pass>()>;
+  enum class DefaultArtifactFrontDoorPolicy { Eligible, ExplicitOnly };
 
   SourceFrontDoorPassRegistration() = default;
   SourceFrontDoorPassRegistration(llvm::StringRef ownerPlugin,
                                   llvm::StringRef argument,
                                   llvm::StringRef description,
-                                  Factory factory);
+                                  Factory factory,
+                                  DefaultArtifactFrontDoorPolicy policy =
+                                      DefaultArtifactFrontDoorPolicy::Eligible);
 
   llvm::StringRef getOwnerPlugin() const { return ownerPlugin; }
   llvm::StringRef getArgument() const { return argument; }
   llvm::StringRef getDescription() const { return description; }
   const Factory &getFactory() const { return factory; }
+  DefaultArtifactFrontDoorPolicy getDefaultArtifactFrontDoorPolicy() const {
+    return defaultArtifactFrontDoorPolicy;
+  }
+  bool isDefaultArtifactFrontDoorEligible() const {
+    return defaultArtifactFrontDoorPolicy ==
+           DefaultArtifactFrontDoorPolicy::Eligible;
+  }
 
 private:
   std::string ownerPlugin;
   std::string argument;
   std::string description;
   Factory factory;
+  DefaultArtifactFrontDoorPolicy defaultArtifactFrontDoorPolicy =
+      DefaultArtifactFrontDoorPolicy::Eligible;
 };
 
 class VariantProposalRequest {

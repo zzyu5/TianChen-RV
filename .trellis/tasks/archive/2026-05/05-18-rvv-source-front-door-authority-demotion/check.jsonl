@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants for implementation and evidence claims"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check that RVV source-front-door demotion preserves Stage 1 authority boundaries"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check source-only default flows fail closed before target artifact output"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check common registry/pipeline changes stay generic and plugin-local"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/lit coverage and runtime-claim boundaries"}

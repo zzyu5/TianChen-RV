@@ -178,6 +178,11 @@ int runRegistrationAndCapabilityMetadataTest() {
                      "tcrv-rvv-materialize-i32m1-vector-source-front-door",
                  "RVV source front-door pass keeps the public pass argument"))
     return result;
+  if (int result = expect(
+          !sourceFrontDoorPasses.front().isDefaultArtifactFrontDoorEligible(),
+          "RVV source front-door pass is explicit-only and not default "
+          "artifact-front-door eligible"))
+    return result;
   return expect(static_cast<bool>(sourceFrontDoorPasses.front().getFactory()),
                 "RVV source front-door pass factory is present");
 }

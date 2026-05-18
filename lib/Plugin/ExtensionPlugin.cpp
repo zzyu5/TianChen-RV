@@ -352,9 +352,11 @@ PluginCapability::PluginCapability(llvm::StringRef id, llvm::StringRef kind,
 
 SourceFrontDoorPassRegistration::SourceFrontDoorPassRegistration(
     llvm::StringRef ownerPlugin, llvm::StringRef argument,
-    llvm::StringRef description, Factory factory)
+    llvm::StringRef description, Factory factory,
+    DefaultArtifactFrontDoorPolicy policy)
     : ownerPlugin(ownerPlugin.str()), argument(argument.str()),
-      description(description.str()), factory(std::move(factory)) {}
+      description(description.str()), factory(std::move(factory)),
+      defaultArtifactFrontDoorPolicy(policy) {}
 
 VariantProposalRequest::VariantProposalRequest(
     mlir::Operation *highLevelOp, tcrv::exec::KernelOp kernel,

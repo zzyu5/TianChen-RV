@@ -63,9 +63,12 @@ family's durable contract.
 ```cpp
 class SourceFrontDoorPassRegistration {
 public:
+  enum class DefaultArtifactFrontDoorPolicy { Eligible, ExplicitOnly };
   StringRef getOwnerPlugin() const;
   StringRef getArgument() const;
   StringRef getDescription() const;
+  DefaultArtifactFrontDoorPolicy getDefaultArtifactFrontDoorPolicy() const;
+  bool isDefaultArtifactFrontDoorEligible() const;
   std::function<std::unique_ptr<mlir::Pass>()> getFactory() const;
 };
 
@@ -77,10 +80,19 @@ public:
 ```
 
 The registration object is pass plumbing only. It may name the owning plugin,
-the public pass argument, a bounded description, and a factory for the
-plugin-owned pass. It must not carry computation semantics, target-family
-semantic branches, descriptor fields, route ids, runtime ABI identities,
-artifact kinds, tuning state, or source-export payloads.
+the public pass argument, a bounded description, a factory for the plugin-owned
+pass, and whether the pass may run inside the default source-artifact front
+door pipeline. It must not carry computation semantics, target-family semantic
+branches, descriptor fields, route ids, runtime ABI identities, artifact
+kinds, tuning state, or source-export payloads.
+
+`DefaultArtifactFrontDoorPolicy::Eligible` is the safe default for durable
+source front doors whose selected extension-family body may feed the default
+source-artifact pipeline. `ExplicitOnly` keeps a pass available as an explicit
+tool option while preventing common default artifact front doors from using
+that source recognizer as route or artifact authority. The common pipeline may
+filter by this policy, but it must not special-case RVV, Toy, TensorExtLite,
+dtype, source op names, route ids, artifact kinds, or arithmetic patterns.
 
 Public tools such as `tcrv-opt` may collect source front-door pass
 registrations from enabled plugins and register those pass factories at the

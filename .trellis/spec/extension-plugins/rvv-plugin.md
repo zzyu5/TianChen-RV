@@ -198,11 +198,14 @@ callable ABI, artifact kind, or emitted body.
 
 ### 1. Scope / Trigger
 
-This applies only while the RVV plugin keeps the legacy source front door that
-recognizes source MLIR and materializes the bounded i32m1 add/sub/mul selected
-boundary for runtime counts provided by the callable ABI parameter `n`. This
-front door is not a maturity unit, not a template for future source recognizers,
-and not route authority after the selected typed `tcrv_rvv` body exists.
+This applies only while the RVV plugin keeps the legacy source front door as an
+explicit, non-default materialization seed that recognizes source MLIR and
+materializes the bounded i32m1 add/sub/mul selected boundary for runtime counts
+provided by the callable ABI parameter `n`. This front door is not a maturity
+unit, not a template for future source recognizers, and not route authority
+after the selected typed `tcrv_rvv` body exists. Default source-artifact
+front-door pipelines must not run this RVV source recognizer as an artifact
+route authority.
 
 ### 2. Signatures
 
@@ -241,18 +244,30 @@ and not route authority after the selected typed `tcrv_rvv` body exists.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: masked `vector.transfer_read`/`vector.transfer_write` source with
-  `n - iv` tail mask materializes the existing RVV selected boundary and target
-  artifact route.
+- Good: explicit invocation of the RVV source materializer on masked
+  `vector.transfer_read`/`vector.transfer_write` source with `n - iv` tail mask
+  materializes the existing selected typed `tcrv_rvv` boundary. The resulting
+  already materialized selected-body IR may then flow through selected-body
+  route construction and target artifact export.
+- Good: default source-artifact front doors reject source-only RVV input before
+  object/header/bundle export.
 - Base: materialized hand-authored `tcrv_rvv` selected-boundary fixtures remain
   valid for target/export tests when they already contain explicit typed RVV IR.
 - Bad: fixed step-4 `vector.load`/`vector.store` source is accepted and then
   used to claim correctness for runtime counts such as 7 or 23.
+- Bad: a default source-artifact pipeline uses source pattern matching,
+  `source-pattern-selected-rvv-case`, lowering-seed metadata, route ids, or
+  artifact names to produce RVV target artifacts from source-only input.
 
 ### 6. Tests Required
 
-- Positive lit coverage for add/sub/mul tail-safe source fixtures reaching
-  selected dispatch, emission-plan metadata, object, header, and bundle export.
+- Positive lit coverage for add/sub/mul tail-safe source fixtures through
+  explicit RVV source materializer invocation and selected-body-derived
+  emission-plan metadata.
+- Positive target artifact coverage for object/header/bundle export from
+  already materialized selected typed `tcrv_rvv` IR.
+- Negative lit coverage proving default source-artifact front-door pipelines
+  reject source-only RVV inputs before target artifact export.
 - Negative lit coverage for the old fixed `vector.load`/`vector.store` source
   shape and for stale metadata/residue, ABI order mismatch, loop bound
   mismatch, missing mask, and unsupported arithmetic.

@@ -1,6 +1,6 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door | FileCheck %s --check-prefix=BOUNDARY --implicit-check-not="func.func"
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
-// RUN: tcrv-opt %s --tcrv-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
+// RUN: not tcrv-opt %s --tcrv-source-artifact-front-door-pipeline 2>&1 | FileCheck %s --check-prefix=PIPE-FAIL --implicit-check-not="rvv-i32m1-add-emitc-route" --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
 // RUN: not tcrv-opt %s --tcrv-disable-builtin-plugins --tcrv-rvv-materialize-i32m1-vector-source-front-door 2>&1 | FileCheck %s --check-prefix=NO-BUILTIN
 
 module {
@@ -133,3 +133,6 @@ module {
 
 // NO-BUILTIN: Unknown command line argument
 // NO-BUILTIN-SAME: tcrv-rvv-materialize-i32m1-vector-source-front-door
+
+// PIPE-FAIL: TianChen-RV execution plan coherence check failed for kernel <missing>
+// PIPE-FAIL-SAME: requires at least one tcrv.exec.kernel

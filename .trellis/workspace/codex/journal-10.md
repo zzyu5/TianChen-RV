@@ -46,6 +46,59 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 128: RVV source-front-door authority demotion
+
+**Date**: 2026-05-18
+**Task**: RVV source-front-door authority demotion
+**Branch**: `main`
+
+### Summary
+
+Demoted the legacy RVV vector source front door out of the production/default
+source-artifact flow. The RVV source materializer remains available as an
+explicit typed-body seed, but default source-artifact pipelines no longer use
+RVV source pattern matching as route or artifact authority.
+
+### Main Changes
+
+- Added a generic `SourceFrontDoorPassRegistration` default-artifact-front-door
+  policy with safe default eligibility.
+- Made the generic source-artifact pipeline skip explicit-only registrations
+  without branching on RVV or other concrete families.
+- Registered the RVV vector source materializer as explicit-only while keeping
+  the public pass option available.
+- Rewrote RVV source-to-artifact positive tests into fail-closed default-front-
+  door coverage and explicit materializer emission-plan coverage.
+- Updated the generated RVV bundle ABI evidence helper to run the explicit RVV
+  materializer first, then export from selected typed-body MLIR.
+- Updated Trellis specs to record the explicit-only source-front-door policy
+  and RVV Stage 1 evidence boundary.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-18-rvv-source-front-door-authority-demotion`
+- [OK] `ninja -C build tcrv-opt tcrv-translate tianchenrv-plugin-registry-test tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-plugin-registry-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused lit for RVV explicit source materialization, default source
+  fail-closed behavior, selected typed-body target artifacts, and source
+  bundle fail-closed behavior passed 9/9.
+- [OK] Focused lit for Toy/TensorExtLite default source-front-door paths
+  passed 6/6.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `git diff --check`
+- [OK] `ninja -C build check-tianchenrv` passed 127/127.
+
+### Status
+
+[OK] **Completed; ready to archive and commit**
+
+### Next Steps
+
+- Archive the task and create one coherent commit.
+
+
 ## Session 130: RVV selected-body authority for target artifacts
 
 **Date**: 2026-05-18

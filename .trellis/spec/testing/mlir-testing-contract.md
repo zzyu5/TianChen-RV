@@ -211,10 +211,16 @@ Use lit/FileCheck for:
 - deleted plan-and-export target artifact bundle route coverage: active tests
   must not protect a `tcrv-translate` wrapper that runs execution planning
   before target artifact bundle export. Target bundle exporter tests should
-  consume already planned/materialized MLIR, and source-level positive coverage
-  should use the plugin source artifact bundle front door. Deletion rounds may
-  use focused help/unknown-option probes to prove the wrapper is absent, but
-  should not keep a durable named absence fixture as a production workflow.
+  consume already planned/materialized MLIR. Source-level positive coverage
+  may use the plugin source artifact bundle front door only when the plugin
+  source-front-door registration is default-artifact-front-door eligible. For
+  explicit-only legacy RVV source seeds, positive generated-bundle evidence
+  must first invoke the explicit RVV materializer to produce selected typed
+  `tcrv_rvv` IR, then export through the selected typed-body target artifact
+  bundle route; default source-artifact front doors must remain fail-closed for
+  source-only RVV input. Deletion rounds may use focused help/unknown-option
+  probes to prove the wrapper is absent, but should not keep a durable named
+  absence fixture as a production workflow.
 - deleted core RVV source-to-exec fixture erasure, proving active tests no
   longer invoke the historical source, linalg RVV, linalg i32 compatibility, or
   vector i32 arithmetic public options as named absence fixtures. Tests that

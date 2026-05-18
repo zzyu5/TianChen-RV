@@ -62,8 +62,11 @@ void buildSourceArtifactFrontDoorPipeline(
     const plugin::ExtensionPluginRegistry &registry,
     const target::TargetArtifactExporterRegistry &targetExporters) {
   for (const plugin::SourceFrontDoorPassRegistration &sourceFrontDoorPass :
-       sourceFrontDoorPasses)
+       sourceFrontDoorPasses) {
+    if (!sourceFrontDoorPass.isDefaultArtifactFrontDoorEligible())
+      continue;
     pm.addPass(sourceFrontDoorPass.getFactory()());
+  }
 
   pm.addPass(createCheckHartParallelCapabilitiesPass());
   pm.addPass(createVerifyPluginVariantLegalityPass(registry));

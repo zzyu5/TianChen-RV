@@ -256,8 +256,11 @@ llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
       kRVVPluginName,
       "tcrv-rvv-materialize-i32m1-vector-source-front-door",
       "Materialize one bounded MLIR vector i32 add/sub/mul source pattern "
-      "into the RVV i32m1 selected boundary and dispatch front door",
-      [] { return createMaterializeRVVI32M1VectorSourceFrontDoorPass(); }));
+      "into the RVV i32m1 selected boundary and dispatch front door as an "
+      "explicit non-default typed-body seed",
+      [] { return createMaterializeRVVI32M1VectorSourceFrontDoorPass(); },
+      SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
+          ExplicitOnly));
   return llvm::Error::success();
 }
 

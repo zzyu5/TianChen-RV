@@ -1,33 +1,14 @@
-// RUN: tcrv-opt %s --split-input-file --verify-diagnostics --tcrv-source-artifact-front-door-pipeline
+// RUN: not tcrv-opt %s --tcrv-source-artifact-front-door-pipeline 2>&1 | FileCheck %s --implicit-check-not="rvv-i32m1-add-emitc-route" --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
+
+// The default source-artifact pipeline no longer runs the RVV source
+// recognizer. Stale RVV source metadata therefore cannot become selected-body
+// or target artifact authority.
 
 module {
-  // expected-error@+1 {{bounded RVV i32m1 vector-source front door failed: stale tcrv_rvv.lowering_seed metadata is not accepted as source-route authority}}
   func.func @stale_rvv_marker(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) attributes {tcrv_rvv.lowering_seed = "i32m1_add"} {
     return
   }
 }
 
-// -----
-
-module {
-  tcrv.exec.kernel @stale_unselected_variant {
-    // expected-error@+1 {{bounded RVV i32m1 vector-source front door failed: source materializer requires source-only MLIR input; pre-existing tcrv.exec/tcrv_rvv selected-boundary or unselected variant residue is not accepted}}
-    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
-    tcrv.exec.variant @rvv_i32_add attributes {origin = "rvv-plugin", requires = [@rvv]} {
-    }
-  }
-  func.func @rvv_with_stale_residue(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
-    %c0 = arith.constant 0 : index
-    %pad = arith.constant 0 : i32
-    %c4 = arith.constant 4 : index
-    scf.for %i = %c0 to %n step %c4 {
-      %remaining = arith.subi %n, %i : index
-      %mask = vector.create_mask %remaining : vector<4xi1>
-      %a = vector.transfer_read %lhs[%i], %pad, %mask : memref<?xi32>, vector<4xi32>
-      %b = vector.transfer_read %rhs[%i], %pad, %mask : memref<?xi32>, vector<4xi32>
-      %sum = arith.addi %a, %b : vector<4xi32>
-      vector.transfer_write %sum, %out[%i], %mask : vector<4xi32>, memref<?xi32>
-    }
-    return
-  }
-}
+// CHECK: TianChen-RV execution plan coherence check failed for kernel <missing>
+// CHECK-SAME: requires at least one tcrv.exec.kernel

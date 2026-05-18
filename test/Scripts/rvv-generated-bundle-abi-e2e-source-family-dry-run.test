@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id source-family --overwrite --op-kind add --op-kind sub --op-kind mul --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id source-family --overwrite --op-kind add --op-kind sub --op-kind mul --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/source-family/evidence.json
 # RUN: FileCheck %s --check-prefix=ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/source-family/add/evidence.json
 # RUN: FileCheck %s --check-prefix=SUB --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/source-family/sub/evidence.json
@@ -44,8 +44,11 @@
 # ADD: "expected_selected_variant": "vector_source_rvv_i32_add"
 # ADD: "boundary": "external C ABI consumer of generated header and object only"
 # ADD: "pass_marker": "tcrv_rvv_generated_bundle_abi_add_ok"
-# ADD: "front_door": "tcrv-source-artifact-bundle-front-door"
-# ADD: --tcrv-source-artifact-bundle-front-door
+# ADD: "front_door": "explicit-rvv-source-seed-to-selected-typed-body"
+# ADD: "materializer": "tcrv-rvv-materialize-i32m1-vector-source-front-door"
+# ADD: --tcrv-rvv-materialize-i32m1-vector-source-front-door
+# ADD: "target_export": "tcrv-export-target-artifact-bundle"
+# ADD: --tcrv-export-target-artifact-bundle
 # ADD: "runtime_count_contract": {
 # ADD: "case_count": 3
 # ADD: "max_runtime_count": 23
@@ -59,8 +62,11 @@
 # SUB: "expected_selected_variant": "vector_source_sub_rvv_i32_sub"
 # SUB: "boundary": "external C ABI consumer of generated header and object only"
 # SUB: "pass_marker": "tcrv_rvv_generated_bundle_abi_sub_ok"
-# SUB: "front_door": "tcrv-source-artifact-bundle-front-door"
-# SUB: --tcrv-source-artifact-bundle-front-door
+# SUB: "front_door": "explicit-rvv-source-seed-to-selected-typed-body"
+# SUB: "materializer": "tcrv-rvv-materialize-i32m1-vector-source-front-door"
+# SUB: --tcrv-rvv-materialize-i32m1-vector-source-front-door
+# SUB: "target_export": "tcrv-export-target-artifact-bundle"
+# SUB: --tcrv-export-target-artifact-bundle
 # SUB: "runtime_count_contract": {
 # SUB: "case_count": 3
 # SUB: "max_runtime_count": 23
@@ -74,8 +80,11 @@
 # MUL: "expected_selected_variant": "vector_source_mul_rvv_i32_mul"
 # MUL: "boundary": "external C ABI consumer of generated header and object only"
 # MUL: "pass_marker": "tcrv_rvv_generated_bundle_abi_mul_ok"
-# MUL: "front_door": "tcrv-source-artifact-bundle-front-door"
-# MUL: --tcrv-source-artifact-bundle-front-door
+# MUL: "front_door": "explicit-rvv-source-seed-to-selected-typed-body"
+# MUL: "materializer": "tcrv-rvv-materialize-i32m1-vector-source-front-door"
+# MUL: --tcrv-rvv-materialize-i32m1-vector-source-front-door
+# MUL: "target_export": "tcrv-export-target-artifact-bundle"
+# MUL: --tcrv-export-target-artifact-bundle
 # MUL: "runtime_count_contract": {
 # MUL: "case_count": 3
 # MUL: "max_runtime_count": 23

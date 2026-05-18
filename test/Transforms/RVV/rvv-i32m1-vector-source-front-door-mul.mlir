@@ -1,5 +1,5 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door | FileCheck %s --check-prefix=BOUNDARY --implicit-check-not="func.func" --implicit-check-not="tcrv_rvv.i32_add" --implicit-check-not="tcrv_rvv.i32_sub"
-// RUN: tcrv-opt %s --tcrv-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PLAN
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 
 module {
   func.func @vector_source_mul(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {

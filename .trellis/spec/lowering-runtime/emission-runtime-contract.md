@@ -1097,8 +1097,12 @@ already exist in the input; it does not run the execution planning pipeline
 in-process. The deleted `tcrv-translate` plan-and-export target artifact bundle
 entry must stay absent and must not be restored as a compatibility alias or a
 second production front door. Source-level one-command bundle export belongs to
-the plugin source artifact bundle front door, which materializes source routes
-through plugin registrations before invoking the same target bundle exporter.
+the plugin source artifact bundle front door only for plugin registrations that
+are explicitly eligible for default artifact-front-door use. A plugin may mark
+a legacy source materializer as explicit-only; in that case default source
+artifact bundle export must fail closed for source-only input, and any positive
+artifact evidence must first materialize an explicit selected typed
+extension-family body before invoking the same target bundle exporter.
 Bundle export must still fail before printing completion if execution-plan
 coherence, route validation, or artifact materialization fails, and it must not
 weaken the bundle component contract or runtime ABI signature validation.

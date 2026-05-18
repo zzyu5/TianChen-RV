@@ -11,7 +11,7 @@
 // RUN: not test -e %t.noartifact.bundle/tianchenrv-target-artifact-bundle.index
 
 // RUN: rm -rf %t.missing.bundle
-// RUN: not tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.missing.bundle %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir 2>&1 | FileCheck %s --check-prefix=MISSING-DIR --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
+// RUN: not tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.missing.bundle %S/../../Transforms/Toy/toy-template-source-front-door.mlir 2>&1 | FileCheck %s --check-prefix=MISSING-DIR --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
 // RUN: not test -e %t.missing.bundle/tianchenrv-target-artifact-bundle.index
 
 // DISABLED: TianChen-RV source-artifact bundle front door requires at least one registered source front-door pass

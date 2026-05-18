@@ -219,12 +219,17 @@ int main() {
   if (int result = expect(sourceFrontDoorPasses[0].getOwnerPlugin() == "alpha" &&
                               sourceFrontDoorPasses[0].getArgument() ==
                                   "alpha-source-front-door" &&
+                              sourceFrontDoorPasses[0]
+                                  .isDefaultArtifactFrontDoorEligible() &&
                               sourceFrontDoorPasses[1].getOwnerPlugin() ==
                                   "gamma" &&
                               sourceFrontDoorPasses[1].getArgument() ==
-                                  "gamma-source-front-door",
+                                  "gamma-source-front-door" &&
+                              sourceFrontDoorPasses[1]
+                                  .isDefaultArtifactFrontDoorEligible(),
                           "source front-door pass order follows enabled plugin "
-                          "order"))
+                          "order and default artifact eligibility defaults to "
+                          "true"))
     return result;
   if (int result = expect(static_cast<bool>(
                               sourceFrontDoorPasses[0].getFactory()),

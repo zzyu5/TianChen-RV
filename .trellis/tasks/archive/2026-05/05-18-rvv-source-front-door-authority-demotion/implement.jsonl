@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, source-of-truth, and descriptor/direct-C red lines"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage 1 source-front-door and selected typed-body authority contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Selected-body realization, emission-plan, and target artifact export authority contract"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "SourceFrontDoorPassRegistration and registry/pipeline boundary contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++ evidence requirements for compiler behavior changes"}
