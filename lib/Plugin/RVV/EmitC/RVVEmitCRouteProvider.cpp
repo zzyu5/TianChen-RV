@@ -41,221 +41,199 @@ constexpr llvm::StringLiteral
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);
 
-struct RVVSelectedBodySpecializationMapping {
+struct RVVSelectedBodyOperationProfile {
   RVVSelectedBodyOperationKind operation;
-  std::int64_t sew;
-  llvm::StringLiteral lmul;
-  llvm::StringLiteral tailPolicy;
-  llvm::StringLiteral maskPolicy;
-  bool supportsRHSBroadcastLoad;
-  llvm::StringLiteral operationMnemonic;
-  llvm::StringLiteral vlCType;
-  llvm::StringLiteral vectorTypeName;
-  llvm::StringLiteral maskTypeName;
-  llvm::StringLiteral vectorCType;
-  llvm::StringLiteral maskCType;
-  llvm::StringLiteral setVLIntrinsic;
-  llvm::StringLiteral vectorLoadIntrinsic;
-  llvm::StringLiteral rhsBroadcastIntrinsic;
-  llvm::StringLiteral storeIntrinsic;
-  llvm::StringLiteral computeIntrinsic;
-  llvm::StringLiteral compareIntrinsic;
-  llvm::StringLiteral resultName;
-  llvm::StringLiteral maskName;
+  llvm::StringRef operationMnemonic;
+  llvm::StringRef resultName;
+  llvm::StringRef maskName;
+  bool isCompareSelect;
 };
 
-constexpr RVVSelectedBodySpecializationMapping
-    kRVVSelectedBodySpecializationMappings[] = {
-        {RVVSelectedBodyOperationKind::Add,
-         32,
-         "m1",
-         "agnostic",
-         "agnostic",
-         true,
-         "add",
-         "size_t",
-         "!tcrv_rvv.i32m1",
-         "",
-         "vint32m1_t",
-         "",
-         "__riscv_vsetvl_e32m1",
-         "__riscv_vle32_v_i32m1",
-         "__riscv_vmv_v_x_i32m1",
-         "__riscv_vse32_v_i32m1",
-         "__riscv_vadd_vv_i32m1",
-         "",
-         "sum_vec",
-         ""},
-        {RVVSelectedBodyOperationKind::Add,
-         32,
-         "m2",
-         "agnostic",
-         "agnostic",
-         false,
-         "add",
-         "size_t",
-         "!tcrv_rvv.i32m2",
-         "",
-         "vint32m2_t",
-         "",
-         "__riscv_vsetvl_e32m2",
-         "__riscv_vle32_v_i32m2",
-         "",
-         "__riscv_vse32_v_i32m2",
-         "__riscv_vadd_vv_i32m2",
-         "",
-         "sum_vec",
-         ""},
-        {RVVSelectedBodyOperationKind::Sub,
-         32,
-         "m1",
-         "agnostic",
-         "agnostic",
-         true,
-         "sub",
-         "size_t",
-         "!tcrv_rvv.i32m1",
-         "",
-         "vint32m1_t",
-         "",
-         "__riscv_vsetvl_e32m1",
-         "__riscv_vle32_v_i32m1",
-         "__riscv_vmv_v_x_i32m1",
-         "__riscv_vse32_v_i32m1",
-         "__riscv_vsub_vv_i32m1",
-         "",
-         "difference_vec",
-         ""},
-        {RVVSelectedBodyOperationKind::Sub,
-         32,
-         "m2",
-         "agnostic",
-         "agnostic",
-         false,
-         "sub",
-         "size_t",
-         "!tcrv_rvv.i32m2",
-         "",
-         "vint32m2_t",
-         "",
-         "__riscv_vsetvl_e32m2",
-         "__riscv_vle32_v_i32m2",
-         "",
-         "__riscv_vse32_v_i32m2",
-         "__riscv_vsub_vv_i32m2",
-         "",
-         "difference_vec",
-         ""},
-        {RVVSelectedBodyOperationKind::Mul,
-         32,
-         "m1",
-         "agnostic",
-         "agnostic",
-         true,
-         "mul",
-         "size_t",
-         "!tcrv_rvv.i32m1",
-         "",
-         "vint32m1_t",
-         "",
-         "__riscv_vsetvl_e32m1",
-         "__riscv_vle32_v_i32m1",
-         "__riscv_vmv_v_x_i32m1",
-         "__riscv_vse32_v_i32m1",
-         "__riscv_vmul_vv_i32m1",
-         "",
-         "product_vec",
-         ""},
-        {RVVSelectedBodyOperationKind::Mul,
-         32,
-         "m2",
-         "agnostic",
-         "agnostic",
-         false,
-         "mul",
-         "size_t",
-         "!tcrv_rvv.i32m2",
-         "",
-         "vint32m2_t",
-         "",
-         "__riscv_vsetvl_e32m2",
-         "__riscv_vle32_v_i32m2",
-         "",
-         "__riscv_vse32_v_i32m2",
-         "__riscv_vmul_vv_i32m2",
-         "",
-         "product_vec",
-         ""},
-        {RVVSelectedBodyOperationKind::CmpSelect,
-         32,
-         "m1",
-         "agnostic",
-         "agnostic",
-         false,
-         "cmp_select",
-         "size_t",
-         "!tcrv_rvv.i32m1",
-         "!tcrv_rvv.i32m1_mask",
-         "vint32m1_t",
-         "vbool32_t",
-         "__riscv_vsetvl_e32m1",
-         "__riscv_vle32_v_i32m1",
-         "",
-         "__riscv_vse32_v_i32m1",
-         "__riscv_vmerge_vvm_i32m1",
-         "__riscv_vmseq_vv_i32m1_b32",
-         "selected_vec",
-         "cmp_mask"},
+struct RVVSelectedBodyConfigProfile {
+  std::int64_t sew;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  const tcrv::rvv::RVVSelectedBodyConfigVLContract *configContract = nullptr;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef maskTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef maskCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef rhsBroadcastIntrinsic;
+  llvm::StringRef storeIntrinsic;
+};
+
+struct RVVSelectedBodyTargetLeafProfile {
+  llvm::StringRef intrinsic;
+  llvm::StringRef compareIntrinsic;
+  llvm::StringRef rhsBroadcastIntrinsic;
+};
+
+struct RVVSelectedBodyRouteProfile {
+  RVVSelectedBodyOperationProfile operation;
+  RVVSelectedBodyConfigProfile config;
+  RVVSelectedBodyTargetLeafProfile targetLeaves;
 };
 
 constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::Add, RVVSelectedBodyOperationKind::Sub,
     RVVSelectedBodyOperationKind::Mul, RVVSelectedBodyOperationKind::CmpSelect};
 
-const RVVSelectedBodySpecializationMapping &
-getRVVSelectedBodySpecializationMappingByOperation(
-    RVVSelectedBodyOperationKind op) {
-  for (const RVVSelectedBodySpecializationMapping &spec :
-       kRVVSelectedBodySpecializationMappings)
-    if (spec.operation == op)
-      return spec;
+const RVVSelectedBodyOperationProfile &
+getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
+  static const RVVSelectedBodyOperationProfile kAdd = {
+      RVVSelectedBodyOperationKind::Add, "add", "sum_vec", "",
+      /*isCompareSelect=*/false};
+  static const RVVSelectedBodyOperationProfile kSub = {
+      RVVSelectedBodyOperationKind::Sub, "sub", "difference_vec", "",
+      /*isCompareSelect=*/false};
+  static const RVVSelectedBodyOperationProfile kMul = {
+      RVVSelectedBodyOperationKind::Mul, "mul", "product_vec", "",
+      /*isCompareSelect=*/false};
+  static const RVVSelectedBodyOperationProfile kCmpSelect = {
+      RVVSelectedBodyOperationKind::CmpSelect, "cmp_select", "selected_vec",
+      "cmp_mask", /*isCompareSelect=*/true};
+
+  switch (op) {
+  case RVVSelectedBodyOperationKind::Add:
+    return kAdd;
+  case RVVSelectedBodyOperationKind::Sub:
+    return kSub;
+  case RVVSelectedBodyOperationKind::Mul:
+    return kMul;
+  case RVVSelectedBodyOperationKind::CmpSelect:
+    return kCmpSelect;
+  }
   llvm_unreachable("unknown RVV selected-body operation");
 }
 
-bool supportsRVVSelectedBodyMemoryForm(
-    const RVVSelectedBodySpecializationMapping &mapping,
-    RVVSelectedBodyMemoryForm memoryForm) {
-  switch (memoryForm) {
-  case RVVSelectedBodyMemoryForm::VectorRHSLoad:
-    return true;
-  case RVVSelectedBodyMemoryForm::RHSBroadcastLoad:
-    return mapping.supportsRHSBroadcastLoad;
-  }
-  llvm_unreachable("unknown RVV selected-body memory form");
-}
-
-llvm::Expected<const RVVSelectedBodySpecializationMapping *>
-lookupRVVSelectedBodySpecializationMapping(
+llvm::Error makeUnsupportedRVVSelectedBodyRouteProfileError(
     const RVVSelectedBodyEmitCRouteDescription &description) {
-  for (const RVVSelectedBodySpecializationMapping &mapping :
-       kRVVSelectedBodySpecializationMappings) {
-    if (mapping.operation == description.operation &&
-        mapping.sew == description.sew && mapping.lmul == description.lmul &&
-        mapping.tailPolicy == description.tailPolicy &&
-        mapping.maskPolicy == description.maskPolicy &&
-        supportsRVVSelectedBodyMemoryForm(mapping, description.memoryForm))
-      return &mapping;
-  }
-
   return makeRVVEmitCRouteProviderError(
-      llvm::Twine(
-          "unsupported RVV selected-body route specialization: operation=") +
+      llvm::Twine("unsupported RVV selected-body route profile: operation=") +
       stringifyRVVSelectedBodyOperationKind(description.operation) +
       ", memory_form=" +
       stringifyRVVSelectedBodyMemoryForm(description.memoryForm) +
       ", SEW=" + llvm::Twine(description.sew) + ", LMUL=" + description.lmul +
       ", tail_policy=" + description.tailPolicy +
       ", mask_policy=" + description.maskPolicy);
+}
+
+llvm::Expected<RVVSelectedBodyConfigProfile>
+deriveRVVSelectedBodyConfigProfile(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      description.tailPolicy != "agnostic" ||
+      description.maskPolicy != "agnostic")
+    return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+
+  if (description.lmul == tcrv::rvv::getRVVI32M1LMUL())
+    return RVVSelectedBodyConfigProfile{
+        32,
+        "m1",
+        "agnostic",
+        "agnostic",
+        &tcrv::rvv::getRVVSelectedBodyConfigVLContract("m1"),
+        "size_t",
+        "!tcrv_rvv.i32m1",
+        "!tcrv_rvv.i32m1_mask",
+        "vint32m1_t",
+        "vbool32_t",
+        "__riscv_vsetvl_e32m1",
+        "__riscv_vle32_v_i32m1",
+        "__riscv_vmv_v_x_i32m1",
+        "__riscv_vse32_v_i32m1"};
+
+  if (description.lmul == tcrv::rvv::getRVVI32M2LMUL())
+    return RVVSelectedBodyConfigProfile{
+        32,
+        "m2",
+        "agnostic",
+        "agnostic",
+        &tcrv::rvv::getRVVSelectedBodyConfigVLContract("m2"),
+        "size_t",
+        "!tcrv_rvv.i32m2",
+        "",
+        "vint32m2_t",
+        "",
+        "__riscv_vsetvl_e32m2",
+        "__riscv_vle32_v_i32m2",
+        "",
+        "__riscv_vse32_v_i32m2"};
+
+  return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+}
+
+llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
+    RVVSelectedBodyOperationKind operation, llvm::StringRef lmul) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::Add:
+    return lmul == tcrv::rvv::getRVVI32M2LMUL() ? "__riscv_vadd_vv_i32m2"
+                                                : "__riscv_vadd_vv_i32m1";
+  case RVVSelectedBodyOperationKind::Sub:
+    return lmul == tcrv::rvv::getRVVI32M2LMUL() ? "__riscv_vsub_vv_i32m2"
+                                                : "__riscv_vsub_vv_i32m1";
+  case RVVSelectedBodyOperationKind::Mul:
+    return lmul == tcrv::rvv::getRVVI32M2LMUL() ? "__riscv_vmul_vv_i32m2"
+                                                : "__riscv_vmul_vv_i32m1";
+  case RVVSelectedBodyOperationKind::CmpSelect:
+    llvm_unreachable("compare/select uses dedicated compare and merge leaves");
+  }
+  llvm_unreachable("unknown RVV selected-body operation");
+}
+
+llvm::Expected<RVVSelectedBodyTargetLeafProfile>
+deriveRVVSelectedBodyTargetLeafProfile(
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    const RVVSelectedBodyOperationProfile &operationProfile,
+    const RVVSelectedBodyConfigProfile &configProfile) {
+  if (operationProfile.isCompareSelect &&
+      description.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad)
+    return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+
+  if (operationProfile.isCompareSelect) {
+    if (configProfile.lmul != tcrv::rvv::getRVVI32M1LMUL())
+      return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+    return RVVSelectedBodyTargetLeafProfile{
+        "__riscv_vmerge_vvm_i32m1", "__riscv_vmseq_vv_i32m1_b32", ""};
+  }
+
+  if (description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad &&
+      configProfile.lmul != tcrv::rvv::getRVVI32M1LMUL())
+    return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+
+  llvm::StringRef rhsBroadcastIntrinsic =
+      description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad
+          ? configProfile.rhsBroadcastIntrinsic
+          : "";
+  return RVVSelectedBodyTargetLeafProfile{
+      getRVVSelectedBodyArithmeticIntrinsic(description.operation,
+                                           configProfile.lmul),
+      "", rhsBroadcastIntrinsic};
+}
+
+llvm::Expected<RVVSelectedBodyRouteProfile>
+deriveRVVSelectedBodyRouteProfile(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  RVVSelectedBodyRouteProfile profile;
+  profile.operation = getRVVSelectedBodyOperationProfile(description.operation);
+
+  llvm::Expected<RVVSelectedBodyConfigProfile> config =
+      deriveRVVSelectedBodyConfigProfile(description);
+  if (!config)
+    return config.takeError();
+  profile.config = *config;
+
+  llvm::Expected<RVVSelectedBodyTargetLeafProfile> targetLeaves =
+      deriveRVVSelectedBodyTargetLeafProfile(description, profile.operation,
+                                            profile.config);
+  if (!targetLeaves)
+    return targetLeaves.takeError();
+  profile.targetLeaves = *targetLeaves;
+  return profile;
 }
 
 llvm::Error requireRouteDescriptionText(llvm::StringRef context,
@@ -276,7 +254,7 @@ llvm::Error requireRouteDescriptionField(llvm::StringRef context,
     return llvm::Error::success();
   return makeRVVEmitCRouteProviderError(
       llvm::Twine(context) + " " + field +
-      " must mirror selected-body specialization fact '" + expected +
+      " must mirror selected-body route profile fact '" + expected +
       "' but was '" + actual + "'");
 }
 
@@ -302,11 +280,11 @@ llvm::StringRef stringifyRVVMaskPolicy(tcrv::rvv::MaskPolicy policy) {
 
 const RVVSelectedBodyConstructionRoute &
 getRVVSelectedBodyConstructionRouteOrDie(RVVSelectedBodyOperationKind op) {
-  const RVVSelectedBodySpecializationMapping &spec =
-      getRVVSelectedBodySpecializationMappingByOperation(op);
+  const RVVSelectedBodyOperationProfile &profile =
+      getRVVSelectedBodyOperationProfile(op);
   llvm::Expected<const RVVSelectedBodyConstructionRoute *> route =
       lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
-          spec.operationMnemonic);
+          profile.operationMnemonic);
   if (!route) {
     std::string message = llvm::toString(route.takeError());
     llvm::report_fatal_error(llvm::StringRef(message));
@@ -383,7 +361,7 @@ struct RVVSelectedBodyRouteSlice {
 
 struct RVVSelectedBodyRouteAnalysis {
   RVVSelectedBodyRouteSlice slice;
-  const RVVSelectedBodySpecializationMapping *specializationMapping = nullptr;
+  RVVSelectedBodyRouteProfile routeProfile;
   const RVVSelectedBodyConstructionRoute *constructionRoute = nullptr;
   RVVSelectedBodyEmitCRouteDescription description;
 };
@@ -1022,16 +1000,15 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.runtimeABIParameters.push_back(
       analysis.slice.runtimeElementCountABI);
 
-  llvm::Expected<const RVVSelectedBodySpecializationMapping *>
-      specializationMapping =
-          lookupRVVSelectedBodySpecializationMapping(analysis.description);
-  if (!specializationMapping)
-    return specializationMapping.takeError();
-  analysis.specializationMapping = *specializationMapping;
+  llvm::Expected<RVVSelectedBodyRouteProfile> routeProfile =
+      deriveRVVSelectedBodyRouteProfile(analysis.description);
+  if (!routeProfile)
+    return routeProfile.takeError();
+  analysis.routeProfile = *routeProfile;
 
   llvm::Expected<const RVVSelectedBodyConstructionRoute *> constructionRoute =
       lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
-          analysis.specializationMapping->operationMnemonic);
+          analysis.routeProfile.operation.operationMnemonic);
   if (!constructionRoute)
     return constructionRoute.takeError();
   analysis.constructionRoute = *constructionRoute;
@@ -1043,28 +1020,31 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       analysis.constructionRoute->runtimeABIName;
   analysis.description.runtimeABIContractName =
       analysis.constructionRoute->runtimeABIContractName;
-  analysis.description.vlCType = analysis.specializationMapping->vlCType;
+  analysis.description.vlCType = analysis.routeProfile.config.vlCType;
   analysis.description.vectorTypeName =
-      analysis.specializationMapping->vectorTypeName;
+      analysis.routeProfile.config.vectorTypeName;
   analysis.description.maskTypeName =
-      analysis.specializationMapping->maskTypeName;
-  analysis.description.vectorCType =
-      analysis.specializationMapping->vectorCType;
-  analysis.description.maskCType = analysis.specializationMapping->maskCType;
+      analysis.routeProfile.operation.isCompareSelect
+          ? analysis.routeProfile.config.maskTypeName
+          : "";
+  analysis.description.vectorCType = analysis.routeProfile.config.vectorCType;
+  analysis.description.maskCType =
+      analysis.routeProfile.operation.isCompareSelect
+          ? analysis.routeProfile.config.maskCType
+          : "";
   analysis.description.setVLIntrinsic =
-      analysis.specializationMapping->setVLIntrinsic;
+      analysis.routeProfile.config.setVLIntrinsic;
   analysis.description.vectorLoadIntrinsic =
-      analysis.specializationMapping->vectorLoadIntrinsic;
+      analysis.routeProfile.config.vectorLoadIntrinsic;
   analysis.description.rhsBroadcastIntrinsic =
-      analysis.specializationMapping->rhsBroadcastIntrinsic;
+      analysis.routeProfile.targetLeaves.rhsBroadcastIntrinsic;
   analysis.description.storeIntrinsic =
-      analysis.specializationMapping->storeIntrinsic;
-  analysis.description.intrinsic =
-      analysis.specializationMapping->computeIntrinsic;
+      analysis.routeProfile.config.storeIntrinsic;
+  analysis.description.intrinsic = analysis.routeProfile.targetLeaves.intrinsic;
   analysis.description.compareIntrinsic =
-      analysis.specializationMapping->compareIntrinsic;
-  analysis.description.resultName = analysis.specializationMapping->resultName;
-  analysis.description.maskName = analysis.specializationMapping->maskName;
+      analysis.routeProfile.targetLeaves.compareIntrinsic;
+  analysis.description.resultName = analysis.routeProfile.operation.resultName;
+  analysis.description.maskName = analysis.routeProfile.operation.maskName;
 
   if (llvm::Error error = validateRVVSelectedBodyRuntimeABIParameters(
           analysis.slice, *analysis.constructionRoute,
@@ -1075,9 +1055,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected typed RVV body route expected compute op '") +
         analysis.constructionRoute->typedComputeOpName +
-        "' from the selected-body specialization mapping");
+        "' from the selected-body route profile");
   if (llvm::Error error = verifyRVVSelectedBodyConstructionRouteMapping(
-          analysis.specializationMapping->operationMnemonic,
+          analysis.routeProfile.operation.operationMnemonic,
           analysis.constructionRoute->typedComputeOpName,
           analysis.constructionRoute->emitCRouteID,
           analysis.constructionRoute->runtimeABIName))
@@ -1100,8 +1080,7 @@ getRVVSelectedBodyOperationKinds() {
 
 llvm::StringRef
 stringifyRVVSelectedBodyOperationKind(RVVSelectedBodyOperationKind op) {
-  return getRVVSelectedBodySpecializationMappingByOperation(op)
-      .operationMnemonic;
+  return getRVVSelectedBodyOperationProfile(op).operationMnemonic;
 }
 
 llvm::StringRef
@@ -1170,15 +1149,21 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
         "selected-body route description verification requires a non-empty "
         "context");
 
-  llvm::Expected<const RVVSelectedBodySpecializationMapping *>
-      specialization = lookupRVVSelectedBodySpecializationMapping(description);
-  if (!specialization)
-    return specialization.takeError();
-  const RVVSelectedBodySpecializationMapping &mapping = **specialization;
+  llvm::Expected<RVVSelectedBodyRouteProfile> profile =
+      deriveRVVSelectedBodyRouteProfile(description);
+  if (!profile)
+    return profile.takeError();
+  const RVVSelectedBodyOperationProfile &operationProfile =
+      profile->operation;
+  const RVVSelectedBodyConfigProfile &configProfile = profile->config;
+  const RVVSelectedBodyTargetLeafProfile &targetLeaves =
+      profile->targetLeaves;
+  const tcrv::rvv::RVVSelectedBodyConfigVLContract &configContract =
+      *configProfile.configContract;
 
   llvm::Expected<const RVVSelectedBodyConstructionRoute *> route =
       lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
-          mapping.operationMnemonic);
+          operationProfile.operationMnemonic);
   if (!route)
     return route.takeError();
   const RVVSelectedBodyConstructionRoute &constructionRoute = **route;
@@ -1213,26 +1198,86 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           kRVVSelectedBodyLoweringBoundaryOpName))
     return error;
   if (llvm::Error error = requireRouteDescriptionField(
-          context, "VL C type", description.vlCType, mapping.vlCType))
+          context, "config contract", description.configContractID,
+          configContract.configContractID))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "runtime VL contract", description.runtimeVLContractID,
+          configContract.runtimeVLContractID))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "runtime AVL source", description.runtimeAVLASource,
+          configContract.runtimeAVLASource))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "runtime ABI order", description.runtimeABIOrder,
+          configContract.runtimeABIOrder))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "VL def op", description.vlDefOpName,
+          configContract.vlDefOpName))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "VL scope op", description.vlScopeOpName,
+          configContract.vlScopeOpName))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "VL uses", description.vlUses, configContract.vlUses))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "EmitC loop kind", description.emitCLoopKind,
+          configContract.emitCLoopKind))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "EmitC loop induction", description.emitCLoopInductionName,
+          configContract.emitCLoopInductionName))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "EmitC full-chunk VL", description.emitCFullChunkVLName,
+          configContract.emitCFullChunkVLName))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "EmitC loop VL", description.emitCLoopVLName,
+          tcrv::rvv::getRVVSelectedBodyEmitCLoopVLName()))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "remaining AVL metadata",
+          description.remainingAVLMetadata, configContract.remainingAVLMetadata))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "pointer advance metadata",
+          description.pointerAdvanceMetadata,
+          configContract.pointerAdvanceMetadata))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "bounded slice", description.boundedSlice,
+          configContract.boundedSlice))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "multi-VL support", description.multiVL,
+          configContract.multiVL))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "VL C type", description.vlCType, configProfile.vlCType))
     return error;
   if (llvm::Error error = requireRouteDescriptionField(
           context, "vector type", description.vectorTypeName,
-          mapping.vectorTypeName))
+          configProfile.vectorTypeName))
     return error;
   if (llvm::Error error = requireRouteDescriptionField(
           context, "vector C type", description.vectorCType,
-          mapping.vectorCType))
+          configProfile.vectorCType))
     return error;
-  if (description.operation == RVVSelectedBodyOperationKind::CmpSelect) {
+  if (operationProfile.isCompareSelect) {
     if (llvm::Error error =
             requireRouteDescriptionField(context, "mask type",
                                          description.maskTypeName,
-                                         mapping.maskTypeName))
+                                         configProfile.maskTypeName))
       return error;
     if (llvm::Error error =
             requireRouteDescriptionField(context, "mask C type",
                                          description.maskCType,
-                                         mapping.maskCType))
+                                         configProfile.maskCType))
       return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -1244,24 +1289,24 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   }
   if (llvm::Error error = requireRouteDescriptionField(
           context, "setvl intrinsic", description.setVLIntrinsic,
-          mapping.setVLIntrinsic))
+          configProfile.setVLIntrinsic))
     return error;
   if (llvm::Error error = requireRouteDescriptionField(
           context, "vector-load intrinsic", description.vectorLoadIntrinsic,
-          mapping.vectorLoadIntrinsic))
+          configProfile.vectorLoadIntrinsic))
     return error;
   if (llvm::Error error = requireRouteDescriptionField(
           context, "store intrinsic", description.storeIntrinsic,
-          mapping.storeIntrinsic))
+          configProfile.storeIntrinsic))
     return error;
   if (llvm::Error error = requireRouteDescriptionField(
           context, "compute intrinsic", description.intrinsic,
-          mapping.computeIntrinsic))
+          targetLeaves.intrinsic))
     return error;
-  if (description.operation == RVVSelectedBodyOperationKind::CmpSelect) {
+  if (operationProfile.isCompareSelect) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "compare intrinsic", description.compareIntrinsic,
-            mapping.compareIntrinsic))
+            targetLeaves.compareIntrinsic))
       return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -1270,12 +1315,12 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   }
   if (llvm::Error error = requireRouteDescriptionField(
           context, "result value name", description.resultName,
-          mapping.resultName))
+          operationProfile.resultName))
     return error;
-  if (description.operation == RVVSelectedBodyOperationKind::CmpSelect) {
+  if (operationProfile.isCompareSelect) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "mask value name", description.maskName,
-            mapping.maskName))
+            operationProfile.maskName))
       return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -1289,7 +1334,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
   if (llvm::Error error = requireRouteDescriptionField(
           context, "RHS broadcast intrinsic",
-          description.rhsBroadcastIntrinsic, mapping.rhsBroadcastIntrinsic))
+          description.rhsBroadcastIntrinsic,
+          targetLeaves.rhsBroadcastIntrinsic))
     return error;
 
   if (llvm::Error error = verifyRVVSelectedBodyConstructionRuntimeABIParameters(

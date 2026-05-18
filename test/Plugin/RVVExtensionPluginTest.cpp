@@ -610,8 +610,9 @@ module {
                 routeDescription->setVLIntrinsic == "__riscv_vsetvl_e32m1" &&
                 routeDescription->vectorLoadIntrinsic ==
                     "__riscv_vle32_v_i32m1" &&
-                routeDescription->storeIntrinsic == "__riscv_vse32_v_i32m1",
-            llvm::Twine("RVV selected-body route specialization carries "
+                routeDescription->storeIntrinsic == "__riscv_vse32_v_i32m1" &&
+                routeDescription->rhsBroadcastIntrinsic.empty(),
+            llvm::Twine("RVV selected-body route profile carries "
                         "typed config and intrinsic mapping for @") +
                 variantName))
       return result;
@@ -650,6 +651,43 @@ module {
                tianchenrv::plugin::rvv::
                    getRVVSelectedBodyTargetArtifactRouteID(),
                "rvv-stale-target-artifact-route"}))
+        return result;
+
+      tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription
+          staleEmitCRoute = *routeDescription;
+      staleEmitCRoute.emitCRouteID = "rvv-stale-emitc-route";
+      if (int result = expectErrorContains(
+              tianchenrv::plugin::rvv::
+                  verifyRVVSelectedBodyEmitCRouteDescription(
+                      staleEmitCRoute,
+                      "RVV selected-body stale EmitC route id test"),
+              {"EmitC route id", routeDescription->emitCRouteID,
+               "rvv-stale-emitc-route"}))
+        return result;
+
+      tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription
+          staleRuntimeABI = *routeDescription;
+      staleRuntimeABI.runtimeABIName = "rvv-stale-callable-c-abi.v1";
+      if (int result = expectErrorContains(
+              tianchenrv::plugin::rvv::
+                  verifyRVVSelectedBodyEmitCRouteDescription(
+                      staleRuntimeABI,
+                      "RVV selected-body stale runtime ABI label test"),
+              {"runtime ABI name", routeDescription->runtimeABIName,
+               "rvv-stale-callable-c-abi.v1"}))
+        return result;
+
+      tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription
+          staleConfigContract = *routeDescription;
+      staleConfigContract.configContractID =
+          "rvv-i32m2-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1";
+      if (int result = expectErrorContains(
+              tianchenrv::plugin::rvv::
+                  verifyRVVSelectedBodyEmitCRouteDescription(
+                      staleConfigContract,
+                      "RVV selected-body stale config contract test"),
+              {"config contract", routeDescription->configContractID,
+               staleConfigContract.configContractID}))
         return result;
     }
 
@@ -967,6 +1005,23 @@ module {
           sawBroadcastSourceMetadata,
           "RVV broadcast emission plan advertises typed broadcast-load source "
           "coverage"))
+    return result;
+
+  llvm::Expected<
+      tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
+      routeDescription =
+          tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+              VariantEmitCLowerableRequest(
+                  variant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant));
+  if (!routeDescription)
+    return fail(llvm::Twine("describe RVV broadcast selected-body route: ") +
+                llvm::toString(routeDescription.takeError()));
+  if (int result = expect(
+          routeDescription->rhsBroadcastIntrinsic ==
+              "__riscv_vmv_v_x_i32m1",
+          "RVV broadcast route profile exposes the broadcast intrinsic only "
+          "for the validated broadcast memory form"))
     return result;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;

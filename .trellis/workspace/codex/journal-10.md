@@ -46,6 +46,60 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 131: RVV selected-body route-profile authority replacement
+
+**Date**: 2026-05-19
+**Task**: RVV selected-body route-profile authority replacement
+**Branch**: `main`
+
+### Summary
+
+Replaced the RVV provider's selected-body finite specialization mapping with
+operation/config/target-leaf route-profile derivation. Existing m1 arithmetic,
+m2 arithmetic, m1 RHS broadcast, and m1 compare/select routes remain supported
+from typed selected-body/config facts, while unsupported combinations fail
+closed before artifact construction.
+
+### Main Changes
+
+- Removed the provider-local `RVVSelectedBodySpecializationMapping` table.
+- Added operation, config, and target-leaf profile derivation inside
+  `RVVEmitCRouteProvider.cpp`.
+- Strengthened route-description verification against stale EmitC route IDs,
+  target artifact route IDs, runtime ABI labels, config contracts, metadata
+  mirrors, type names, and intrinsic spellings.
+- Updated focused negative expectations from route specialization to route
+  profile diagnostics.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused lit for m1 arithmetic, m2 arithmetic, m1 RHS broadcast, m1
+  compare/select, and route-profile/config negatives.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] generated-bundle dry runs:
+  `20260519T-route-profile-default-dry`,
+  `20260519T-route-profile-broadcast-dry`,
+  `20260519T-route-profile-lmul-m2-dry`.
+- [OK] real `ssh rvv` evidence:
+  `20260519T-route-profile-default-rvv`,
+  `20260519T-route-profile-broadcast-rvv`,
+  `20260519T-route-profile-lmul-m2-rvv`.
+- [OK] bounded residue scans and `git diff --check`.
+- [OK] Trellis context validation.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete.
+
+
 ## Session 131: RVV LMUL m2 arithmetic selected-body executable route
 
 **Date**: 2026-05-19
