@@ -1,8 +1,10 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
+#include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
@@ -31,6 +33,7 @@ using tianchenrv::plugin::VariantEmissionPlan;
 using tianchenrv::plugin::VariantEmissionRequest;
 using tianchenrv::plugin::VariantEmissionRole;
 using tianchenrv::plugin::VariantEmissionStatus;
+using tianchenrv::plugin::VariantEmitCLowerableRequest;
 using tianchenrv::plugin::VariantLegalityRequest;
 using tianchenrv::plugin::VariantLoweringBoundaryRequest;
 using tianchenrv::plugin::VariantLoweringBoundaryResult;
@@ -661,6 +664,100 @@ module {
        "tcrv_rvv.with_vl op"});
 }
 
+int runBroadcastSelectedBodyRouteTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32m1_broadcast_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_i32_add_broadcast attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_add_broadcast, sew = 32 : i64, source_kernel = "rvv_i32m1_broadcast_kernel", status = "selected-lowering-boundary"} {
+        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %rhs = tcrv_rvv.i32_broadcast_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        tcrv_rvv.i32_store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV broadcast selected-body module");
+  KernelOp kernel = findKernel(*module, "rvv_i32m1_broadcast_kernel");
+  VariantOp variant = findVariant(kernel, "rvv_i32_add_broadcast");
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+                        "register RVV plugin for broadcast route test"))
+    return result;
+
+  VariantEmissionPlan plan;
+  if (int result = expectSuccess(
+          registry.buildVariantEmissionPlan(
+              VariantEmissionRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              plan),
+          "build RVV broadcast selected-body emission plan"))
+    return result;
+  if (int result =
+          expect(plan.isSupported() &&
+                     plan.getRuntimeABI() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVI32M1ArithmeticRuntimeABIName(
+                                 tianchenrv::plugin::rvv::
+                                     RVVI32M1ArithmeticOp::Add),
+                 "RVV broadcast body reuses the bounded add callable ABI "
+                 "while selected typed body owns broadcast semantics"))
+    return result;
+
+  bool sawBroadcastSourceMetadata = false;
+  for (const tianchenrv::support::ArtifactMetadataEntry &entry :
+       plan.getArtifactMetadata()) {
+    if (entry.key == tianchenrv::plugin::rvv::getRVVSourceOpsMetadataName() &&
+        llvm::StringRef(entry.value).contains("tcrv_rvv.i32_broadcast_load"))
+      sawBroadcastSourceMetadata = true;
+  }
+  if (int result = expect(
+          sawBroadcastSourceMetadata,
+          "RVV broadcast emission plan advertises typed broadcast-load source "
+          "coverage"))
+    return result;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+  if (int result = expectSuccess(
+          registry.buildVariantEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(variant, kernel, capabilities,
+                                           VariantEmissionRole::DirectVariant),
+              route),
+          "build RVV broadcast selected-body EmitC route"))
+    return result;
+  if (int result =
+          expect(route.getForLoops().size() == 1 &&
+                     route.getForLoops().front().bodySteps.size() == 5 &&
+                     route.getForLoops().front().bodySteps[2].sourceOp.opName ==
+                         "tcrv_rvv.i32_broadcast_load" &&
+                     route.getForLoops().front().bodySteps[2].callee ==
+                         "__riscv_vmv_v_x_i32m1" &&
+                     route.getForLoops().front().bodySteps[3].callee ==
+                         "__riscv_vadd_vv_i32m1",
+                 "RVV broadcast route materializes explicit broadcast-load "
+                 "before vector arithmetic"))
+    return result;
+  return expectSuccess(
+      tianchenrv::conversion::emitc::
+          verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
+              route, "tcrv_rvv_broadcast_selected_body", {}),
+      "RVV broadcast EmitC lowerable route materializes to EmitC");
+}
+
 int runOutOfOrderSelectedRoleSequenceRejectionTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
@@ -731,6 +828,8 @@ int main() {
     return result;
   if (int result =
           runWithVLSelectedLoweringBoundaryDuplicateRejectionTest(context))
+    return result;
+  if (int result = runBroadcastSelectedBodyRouteTest(context))
     return result;
   if (int result = runOutOfOrderSelectedRoleSequenceRejectionTest(context))
     return result;

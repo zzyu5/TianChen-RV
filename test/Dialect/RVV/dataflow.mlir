@@ -20,10 +20,12 @@ module {
       // CHECK: tcrv_rvv.i32_load
       %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
       %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+      // CHECK: tcrv_rvv.i32_broadcast_load
+      %rhs_broadcast = tcrv_rvv.i32_broadcast_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
       // CHECK: tcrv_rvv.i32_add
       %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
       // CHECK: tcrv_rvv.i32_sub
-      %diff = tcrv_rvv.i32_sub %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+      %diff = tcrv_rvv.i32_sub %lhs, %rhs_broadcast, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
       // CHECK: tcrv_rvv.i32_mul
       %product = tcrv_rvv.i32_mul %sum, %diff, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
       // CHECK: tcrv_rvv.i32_store
@@ -58,6 +60,28 @@ module {
       %diff = tcrv_rvv.i32_sub %lhs, %rhs, %vl : !tcrv_rvv.i32m2, !tcrv_rvv.i32m2, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
       // CHECK: tcrv_rvv.i32_store
       tcrv_rvv.i32_store %out_ptr, %diff, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m2, !tcrv_rvv.vl
+    } : !tcrv_rvv.vl
+  }
+}
+
+// -----
+
+module {
+  tcrv.exec.kernel @rvv_broadcast_load_reject_lhs_role {
+    %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+    %vl = tcrv_rvv.setvl %avl {
+      lmul = "m1",
+      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      sew = 32 : i64
+    } : index -> !tcrv_rvv.vl
+    tcrv_rvv.with_vl %vl attributes {
+      lmul = "m1",
+      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      sew = 32 : i64
+    } {
+      // expected-error@+1 {{requires broadcast RHS buffer operand to bind runtime ABI role 'rhs-input-buffer'}}
+      %rhs = tcrv_rvv.i32_broadcast_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
     } : !tcrv_rvv.vl
   }
 }

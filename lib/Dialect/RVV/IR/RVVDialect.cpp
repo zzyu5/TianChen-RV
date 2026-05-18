@@ -133,6 +133,10 @@ bool isAllowedI32LoadAttr(llvm::StringRef) {
   return false;
 }
 
+bool isAllowedI32BroadcastLoadAttr(llvm::StringRef) {
+  return false;
+}
+
 bool isAllowedI32AddAttr(llvm::StringRef name) {
   return false;
 }
@@ -401,6 +405,14 @@ llvm::StringRef I32LoadOp::getTCRVEmitCLowerableSourceOpName() {
 }
 
 llvm::StringRef I32LoadOp::getTCRVEmitCLowerableSourceRole() {
+  return "load";
+}
+
+llvm::StringRef I32BroadcastLoadOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef I32BroadcastLoadOp::getTCRVEmitCLowerableSourceRole() {
   return "load";
 }
 
@@ -679,6 +691,49 @@ mlir::LogicalResult I32LoadOp::verify() {
     return mlir::failure();
   if (mlir::failed(
           verifyI32VectorTypeForWithVL(op, getLoaded(), "result")))
+    return mlir::failure();
+
+  return mlir::success();
+}
+
+mlir::LogicalResult I32BroadcastLoadOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.i32_broadcast_load keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+
+    if (!isAllowedI32BroadcastLoadAttr(attrName))
+      return emitOpError()
+             << "does not accept dataflow attributes; broadcast RHS ABI "
+                "provenance must come from the explicit buffer SSA operand; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires exactly one explicit RHS buffer ABI operand, one "
+              "!tcrv_rvv.vl operand, and one bounded RVV i32 vector result";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getBuffer(), "broadcast RHS buffer",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyI32VectorTypeForWithVL(op, getBroadcast(), "result")))
     return mlir::failure();
 
   return mlir::success();

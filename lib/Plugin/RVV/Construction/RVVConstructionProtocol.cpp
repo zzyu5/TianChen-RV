@@ -49,7 +49,8 @@ constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "TCRVConfigOpInterface:TCRVEmitCLowerableInterface;"
     "scope:rvv.role.scope.with_vl:tcrv_rvv.with_vl:"
     "TCRVConfigOpInterface:TCRVEmitCLowerableInterface;"
-    "load:rvv.role.load.i32_load:tcrv_rvv.i32_load:"
+    "load:rvv.role.load.i32_load:tcrv_rvv.i32_load|"
+    "tcrv_rvv.i32_broadcast_load:"
     "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;"
     "compute:rvv.role.compute.i32_arithmetic:"
     "tcrv_rvv.i32_add|tcrv_rvv.i32_sub|tcrv_rvv.i32_mul:"
@@ -63,6 +64,7 @@ constexpr llvm::StringLiteral kInterfaceRealizationArtifactSummary(
 constexpr llvm::StringLiteral kTypedRoleArtifactSummary(
     "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;"
     "scope:tcrv_rvv.with_vl;load:tcrv_rvv.i32_load;"
+    "broadcast_load:tcrv_rvv.i32_broadcast_load;"
     "compute:tcrv_rvv.i32_add|tcrv_rvv.i32_sub|tcrv_rvv.i32_mul;"
     "store:tcrv_rvv.i32_store");
 
@@ -70,7 +72,8 @@ constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
     "TCRVEmitCLowerableOpInterface");
 constexpr llvm::StringLiteral kSourceOps(
     "tcrv_rvv.runtime_abi_value->tcrv_rvv.setvl->tcrv_rvv.with_vl->"
-    "tcrv_rvv.i32_load->tcrv_rvv.i32_load->tcrv_rvv.i32_arithmetic->"
+    "tcrv_rvv.i32_load->(tcrv_rvv.i32_load|"
+    "tcrv_rvv.i32_broadcast_load)->tcrv_rvv.i32_arithmetic->"
     "tcrv_rvv.i32_store");
 constexpr llvm::StringLiteral kSourceRoles(
     "runtime_abi->configure->scope->load->load->compute->store");
@@ -161,10 +164,11 @@ const RVVConstructionSemanticRole kSemanticRoles[] = {
      "TCRVExtensionOpInterface+TCRVConfigOpInterface+"
      "TCRVEmitCLowerableInterface",
      "own the selected with_vl lowering boundary for the arithmetic body"},
-    {"load", 3, "tcrv_rvv.i32_load",
+    {"load", 3, "tcrv_rvv.i32_load|tcrv_rvv.i32_broadcast_load",
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "load explicit ABI buffers into RVV i32m1 dataflow values"},
+     "load explicit ABI buffers into RVV i32m1 dataflow values or broadcast "
+     "the explicit RHS ABI buffer into an RVV i32m1 dataflow value"},
     {"compute", 4, "tcrv_rvv.i32_add|tcrv_rvv.i32_sub|tcrv_rvv.i32_mul",
      "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
@@ -225,7 +229,7 @@ const RVVTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
     {"rvv.role.load.i32_load",
      "load",
      3,
-     "tcrv_rvv.i32_load",
+     "tcrv_rvv.i32_load|tcrv_rvv.i32_broadcast_load",
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVMemoryOpInterface",
@@ -457,13 +461,19 @@ findRouteByOperationNameRaw(llvm::StringRef operationName) {
 }
 
 llvm::Expected<llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10>>
-buildRVVI32M1ArithmeticExecutableRoleSteps(llvm::StringRef operationName) {
+buildRVVI32M1ArithmeticExecutableRoleSteps(
+    llvm::StringRef operationName, llvm::StringRef rhsSourceOperationName) {
   const RVVI32M1ArithmeticConstructionRoute *route =
       findRouteByOperationNameRaw(operationName);
   if (!route)
     return makeRVVConstructionError(
         llvm::Twine("unknown RVV i32m1 arithmetic operation '") +
         operationName + "'");
+  if (rhsSourceOperationName != "tcrv_rvv.i32_load" &&
+      rhsSourceOperationName != "tcrv_rvv.i32_broadcast_load")
+    return makeRVVConstructionError(
+        llvm::Twine("unknown RVV i32m1 RHS source operation '") +
+        rhsSourceOperationName + "'");
 
   llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10> steps;
   steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
@@ -491,9 +501,12 @@ buildRVVI32M1ArithmeticExecutableRoleSteps(llvm::StringRef operationName) {
   steps.push_back({"load", "tcrv_rvv.i32_load", "rvv.role.load.i32_load",
                    "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
                    "lhs_load", 6});
-  steps.push_back({"load", "tcrv_rvv.i32_load", "rvv.role.load.i32_load",
+  steps.push_back({"load", rhsSourceOperationName, "rvv.role.load.i32_load",
                    "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                   "rhs_load", 7});
+                   rhsSourceOperationName == "tcrv_rvv.i32_broadcast_load"
+                       ? "rhs_broadcast"
+                       : "rhs_load",
+                   7});
   steps.push_back({"compute", route->operationName,
                    "rvv.role.compute.i32_arithmetic",
                    "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
@@ -677,7 +690,15 @@ getRVVI32M1ArithmeticConstructionArtifactMetadata(
 
 llvm::Expected<llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10>>
 getRVVI32M1ArithmeticExecutableRoleSteps(llvm::StringRef operationName) {
-  return buildRVVI32M1ArithmeticExecutableRoleSteps(operationName);
+  return buildRVVI32M1ArithmeticExecutableRoleSteps(operationName,
+                                                   "tcrv_rvv.i32_load");
+}
+
+llvm::Expected<llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10>>
+getRVVI32M1ArithmeticExecutableRoleSteps(
+    llvm::StringRef operationName, llvm::StringRef rhsSourceOperationName) {
+  return buildRVVI32M1ArithmeticExecutableRoleSteps(operationName,
+                                                   rhsSourceOperationName);
 }
 
 llvm::Error
@@ -822,9 +843,11 @@ llvm::Error verifyRVVI32M1ArithmeticSelectedRoleSequence(
     llvm::ArrayRef<mlir::Operation *> orderedRoleOperations,
     llvm::ArrayRef<unsigned> orderedRoleOperationOrders,
     llvm::StringRef selectedVariantSymbol, llvm::StringRef pathRole,
-    llvm::StringRef operationName, llvm::StringRef context) {
+    llvm::StringRef operationName, llvm::StringRef rhsSourceOperationName,
+    llvm::StringRef context) {
   llvm::Expected<llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10>>
-      steps = buildRVVI32M1ArithmeticExecutableRoleSteps(operationName);
+      steps = buildRVVI32M1ArithmeticExecutableRoleSteps(
+          operationName, rhsSourceOperationName);
   if (!steps)
     return steps.takeError();
 

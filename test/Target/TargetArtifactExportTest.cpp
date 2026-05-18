@@ -463,7 +463,8 @@ std::string getRVVTestVariantSymbol(
 
 mlir::OwningOpRef<mlir::ModuleOp> parseRVVSelectedBodyCandidateModule(
     mlir::MLIRContext &context,
-    tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp op) {
+    tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp op,
+    bool useRHSBroadcast = false) {
   std::string source;
   llvm::raw_string_ostream os(source);
   std::string variant = getRVVTestVariantSymbol(op);
@@ -481,7 +482,16 @@ module {
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
      << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
         %lhs_vec = tcrv_rvv.i32_load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+)mlir";
+  if (useRHSBroadcast)
+    os << R"mlir(
+        %rhs_vec = tcrv_rvv.i32_broadcast_load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+)mlir";
+  else
+    os << R"mlir(
         %rhs_vec = tcrv_rvv.i32_load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+)mlir";
+  os << R"mlir(
         %result = )mlir"
      << getRVVTestArithmeticOperationName(op)
      << R"mlir( %lhs_vec, %rhs_vec, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
@@ -577,7 +587,8 @@ struct RVVTargetArtifactCandidateFixture {
 
   explicit RVVTargetArtifactCandidateFixture(
       tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp op =
-          tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Add) {
+          tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Add,
+      bool useRHSBroadcast = false) {
     tianchenrv::plugin::ExtensionPluginRegistry plugins;
     if (llvm::Error registerError =
             tianchenrv::plugin::registerRVVExtensionPlugin(plugins)) {
@@ -590,7 +601,7 @@ struct RVVTargetArtifactCandidateFixture {
     tianchenrv::registerPluginDialects(plugins, registry);
     context.appendDialectRegistry(registry);
     context.loadAllAvailableDialects();
-    module = parseRVVSelectedBodyCandidateModule(context, op);
+    module = parseRVVSelectedBodyCandidateModule(context, op, useRHSBroadcast);
     if (!module) {
       error = "failed to parse RVV selected-body candidate module";
       return;
@@ -655,6 +666,19 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
                          candidate, *exporter),
                      "validate RVV materialized EmitC artifact candidate"))
+    return false;
+
+  RVVTargetArtifactCandidateFixture broadcastFixture(
+      tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Add,
+      /*useRHSBroadcast=*/true);
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          broadcastFixture,
+          "build valid RVV broadcast selected-body candidate fixture"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         broadcastFixture.candidate, *exporter),
+                     "validate RVV broadcast selected-body target artifact "
+                     "candidate"))
     return false;
 
   TargetArtifactCandidate metadataOnlyCandidate =

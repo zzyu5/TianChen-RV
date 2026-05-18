@@ -82,7 +82,7 @@ module {
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: artifact_metadata = [{key = "rvv_emitc_lowerable_route", value = "rvv-i32m1-add-emitc-route"}
 // PLAN-SAME: {key = "rvv_arithmetic_op", value = "add"}
-// PLAN-SAME: {key = "rvv_source_ops", value = "tcrv_rvv.runtime_abi_value->tcrv_rvv.setvl->tcrv_rvv.with_vl->tcrv_rvv.i32_load->tcrv_rvv.i32_load->tcrv_rvv.i32_arithmetic->tcrv_rvv.i32_store"}
+// PLAN-SAME: {key = "rvv_source_ops", value = "tcrv_rvv.runtime_abi_value->tcrv_rvv.setvl->tcrv_rvv.with_vl->tcrv_rvv.i32_load->(tcrv_rvv.i32_load|tcrv_rvv.i32_broadcast_load)->tcrv_rvv.i32_arithmetic->tcrv_rvv.i32_store"}
 // PLAN-SAME: {key = "rvv_source_roles", value = "runtime_abi->configure->scope->load->load->compute->store"}
 // PLAN-SAME: {key = "rvv_source_op_interface", value = "TCRVEmitCLowerableOpInterface"}
 // PLAN-SAME: {key = "rvv_construction_protocol", value = "extension-family-construction-protocol.v1"}

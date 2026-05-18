@@ -27,7 +27,8 @@ constexpr llvm::StringLiteral kRVVI32M1RuntimeABIOrder("lhs,rhs,out,n");
 constexpr llvm::StringLiteral kRVVI32M1VLDefOpName("tcrv_rvv.setvl");
 constexpr llvm::StringLiteral kRVVI32M1VLScopeOpName("tcrv_rvv.with_vl");
 constexpr llvm::StringLiteral kRVVI32M1VLUses(
-    "emitc_for,with_vl,i32_load,i32_load,i32_arithmetic,i32_store");
+    "emitc_for,with_vl,i32_load,(i32_load|i32_broadcast_load),"
+    "i32_arithmetic,i32_store");
 constexpr llvm::StringLiteral kRVVI32M1EmitCLoopKind("emitc.for");
 constexpr llvm::StringLiteral kRVVI32M1EmitCLoopInduction("offset");
 constexpr llvm::StringLiteral kRVVI32M1EmitCFullChunkVL("full_chunk_vl");

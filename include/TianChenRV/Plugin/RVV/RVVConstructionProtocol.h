@@ -101,6 +101,9 @@ getRVVI32M1ArithmeticConstructionArtifactMetadata(
     llvm::StringRef emitCRouteID);
 llvm::Expected<llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10>>
 getRVVI32M1ArithmeticExecutableRoleSteps(llvm::StringRef operationName);
+llvm::Expected<llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10>>
+getRVVI32M1ArithmeticExecutableRoleSteps(llvm::StringRef operationName,
+                                         llvm::StringRef rhsSourceOperationName);
 
 llvm::Error verifyRVVConstructionManifest(
     const RVVConstructionManifest &manifest);
@@ -124,7 +127,8 @@ llvm::Error verifyRVVI32M1ArithmeticSelectedRoleSequence(
     llvm::ArrayRef<mlir::Operation *> orderedRoleOperations,
     llvm::ArrayRef<unsigned> orderedRoleOperationOrders,
     llvm::StringRef selectedVariantSymbol, llvm::StringRef pathRole,
-    llvm::StringRef operationName, llvm::StringRef context);
+    llvm::StringRef operationName, llvm::StringRef rhsSourceOperationName,
+    llvm::StringRef context);
 
 llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>
 lookupRVVI32M1ArithmeticConstructionRouteByMnemonic(llvm::StringRef mnemonic);

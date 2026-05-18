@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project boundary, source of truth, compiler stack and descriptor boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage 1/Stage 2 authority surface, selected typed body, and Stage 2 coverage constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute, common EmitC neutrality, selected emission-plan to target artifact contract."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin locality and no core family-specific semantic branching requirements."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/C++ evidence and RVV runtime evidence policy."}
+{"file": ".trellis/spec/implementation-stack/index.md", "reason": "C++/MLIR/TableGen/CMake implementation boundary and Python tooling-only rule."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected variant legality, emission metadata, and diagnostics expectations."}

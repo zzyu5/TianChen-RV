@@ -280,6 +280,36 @@ def I32LoadOp : TCRVRVV_Op<"i32_load",
   let hasVerifier = 1;
 }
 
+def I32BroadcastLoadOp : TCRVRVV_Op<"i32_broadcast_load",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "bounded RVV i32 broadcast load dataflow op";
+  let description = [{
+    Records one bounded plugin-local RVV i32 broadcast dataflow step. The op
+    is nested directly under tcrv_rvv.with_vl, consumes one explicit RHS
+    runtime ABI buffer SSA value plus the same runtime !tcrv_rvv.vl control
+    token as the surrounding scope, and produces one bounded
+    !tcrv_rvv.i32m1 or !tcrv_rvv.i32m2 value matching the enclosing LMUL
+    scope.
+
+    This is the typed Stage 2 broadcast surface for the current i32m1/i32m2
+    slice. The broadcast source is the explicit RHS ABI operand, not a route
+    id, artifact name, source-front-door name, descriptor, ABI parameter name,
+    or target/export-side inference.
+  }];
+
+  let arguments = (ins
+    AnyType:$buffer,
+    AnyType:$vl
+  );
+  let results = (outs AnyType:$broadcast);
+
+  let assemblyFormat =
+    "$buffer `,` $vl attr-dict `:` type($buffer) `,` type($vl) `->` type($broadcast)";
+  let hasVerifier = 1;
+}
+
 def I32AddOp : TCRVRVV_Op<"i32_add",
     [TCRVEmitCLowerableOpInterface]> {
   let summary = "bounded RVV i32 add dataflow op";

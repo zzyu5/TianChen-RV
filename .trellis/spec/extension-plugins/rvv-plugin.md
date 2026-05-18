@@ -104,6 +104,95 @@ Stage 2 must not be implemented as per-Linalg-op lowerers, high-level kernel
 ops, one-op-per-intrinsic wrappers, dtype/LMUL clone batches, a global
 autotuning database, a dashboard, or a readiness state machine.
 
+## Scenario: RVV i32 broadcast-load selected-body route
+
+### 1. Scope / Trigger
+
+Use this contract when Stage 2 selected-body coverage needs a bounded i32
+broadcast/vector-scalar source inside the existing RVV i32m1 arithmetic route.
+The route remains selected `tcrv.exec` RVV variant -> explicit typed
+`tcrv_rvv` body -> RVV plugin-owned route construction -> common EmitC/target
+artifact mechanics.
+
+### 2. Signatures
+
+- Typed op: `tcrv_rvv.i32_broadcast_load`.
+- Operands: explicit RHS `!tcrv_rvv.runtime_abi_value` buffer and the enclosing
+  `!tcrv_rvv.vl` token.
+- Result: bounded `!tcrv_rvv.i32m1` or `!tcrv_rvv.i32m2`, matching enclosing
+  `tcrv_rvv.with_vl` SEW/LMUL/policy metadata.
+- Generated interface role: `TCRVEmitCLowerableOpInterface` with source role
+  `load`.
+- Current route use: `lhs i32_load -> rhs i32_broadcast_load -> i32_add/sub/mul
+  -> i32_store` under one selected `tcrv_rvv.with_vl`.
+
+### 3. Contracts
+
+- Broadcast semantics must be represented by the typed
+  `tcrv_rvv.i32_broadcast_load` op before route construction.
+- The broadcast operand must bind runtime ABI role `rhs-input-buffer`; route
+  ids, artifact names, source-front-door names, ABI parameter names, descriptor
+  residue, and test fixture names must not imply broadcast behavior.
+- The op must be nested directly in the selected `tcrv_rvv.with_vl` body and
+  consume that same `with_vl` VL token.
+- RVV route construction may materialize the RHS broadcast as a plugin-owned
+  EmitC call step before vector arithmetic, but common EmitC/target export must
+  only consume the validated route payload and selected-candidate mirrors.
+- Existing callable ABI order remains `lhs,rhs,out,n` for this bounded slice;
+  the typed body, not the ABI name, determines whether RHS is vector-loaded or
+  broadcast-loaded.
+
+### 4. Validation & Error Matrix
+
+- `i32_broadcast_load` missing while metadata claims broadcast -> no broadcast
+  route step is allowed.
+- `i32_broadcast_load` RHS operand is not a `rhs-input-buffer`
+  `runtime_abi_value` -> verifier fails.
+- Broadcast op is outside `with_vl` or consumes a different VL token ->
+  verifier fails.
+- Selected route has two vector RHS sources plus broadcast source -> RVV route
+  construction fails before EmitC/export.
+- Target artifact candidate metadata disagrees with the rebuilt typed-body
+  route -> target validation fails before object/header/bundle bytes.
+
+### 5. Good/Base/Bad Cases
+
+- Good: selected RVV variant contains explicit `i32_broadcast_load` for RHS,
+  arithmetic consumes its result, route emits a broadcast/splat step and then
+  vector arithmetic.
+- Base: selected RVV variant uses two `i32_load` ops and keeps the existing
+  vector-vector arithmetic route.
+- Bad: artifact metadata, route id, source-front-door pattern, or ABI parameter
+  name says "broadcast" while the selected typed body only contains ordinary
+  vector loads.
+
+### 6. Tests Required
+
+- lit coverage for `i32_broadcast_load` syntax, verifier success, wrong role,
+  wrong VL, and forbidden dataflow attributes.
+- C++ plugin coverage proving selected-body legality, emission plan, route
+  builder payload, source-op provenance, and EmitC materialization.
+- Target artifact coverage proving a broadcast selected body reaches candidate
+  validation/export through the existing selected route and metadata-only
+  candidates still fail closed.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+route id or ABI name says broadcast -> common export chooses broadcast code
+```
+
+Correct:
+
+```text
+typed tcrv_rvv.i32_broadcast_load in selected body
+  -> RVV route builder validates RHS ABI and role sequence
+  -> RVV route emits broadcast/splat step
+  -> common EmitC/target export consumes validated route payload only
+```
+
 ## Legacy Narrow C++ Slice
 
 The existing bounded C++ RVV slice is a legacy narrow path from earlier

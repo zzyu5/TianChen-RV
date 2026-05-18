@@ -46,6 +46,67 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 130: RVV Stage 2 elementwise broadcast selected-body coverage
+
+**Date**: 2026-05-18
+**Task**: RVV Stage 2 elementwise broadcast selected-body coverage
+**Branch**: `main`
+
+### Summary
+
+Added a bounded RVV Stage 2 broadcast selected-body slice on the corrected
+typed `tcrv_rvv` authority surface. The new typed RHS broadcast load is
+accepted only as explicit selected-body IR and is consumed by RVV plugin-local
+route construction before common EmitC/materialized target artifact mechanics.
+
+### Main Changes
+
+- Created Trellis task
+  `05-18-rvv-stage2-elementwise-broadcast-selected-body`, wrote PRD/context,
+  and kept the scope to RVV plugin-local i32m1 broadcast coverage.
+- Added `tcrv_rvv.i32_broadcast_load`, verifier rules, generated
+  `TCRVEmitCLowerableOpInterface` provenance, and lit coverage for valid use
+  plus wrong-role rejection.
+- Extended RVV construction protocol metadata and selected role sequence
+  validation so the RHS source can be either `i32_load` or explicit
+  `i32_broadcast_load`.
+- Extended RVV EmitC route construction to collect
+  `lhs i32_load + rhs i32_broadcast_load + i32_add/sub/mul + i32_store` and
+  emit `__riscv_vmv_v_x_i32m1` before vector arithmetic.
+- Added C++ coverage proving broadcast selected-body emission plan, route
+  payload, source-op provenance, EmitC materialization, and target artifact
+  candidate validation.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the durable
+  broadcast-load selected-body contract.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-dialect-test tianchenrv-rvv-extension-plugin-test tianchenrv-construction-protocol-common-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-dialect-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused lit for RVV dataflow, RVV vector source front door, and RVV
+  materialized target artifact exporters passed 6/6.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-18-rvv-stage2-elementwise-broadcast-selected-body`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 127/127.
+
+### Runtime Evidence
+
+- Real `ssh rvv` was not rerun: this round changed typed selected-body route
+  coverage and EmitC materialization evidence, but did not claim runtime
+  correctness or performance.
+
+### Status
+
+[OK] **Completed; ready to archive and commit**
+
+### Next Steps
+
+- Archive the task with `--no-commit` and create one coherent commit.
+
+
 ## Session 128: RVV source-front-door authority demotion
 
 **Date**: 2026-05-18
