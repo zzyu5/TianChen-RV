@@ -31,4 +31,4 @@ module {
   }
 }
 
-// CHECK: bounded RVV i32m1 arithmetic compile-time config requires tcrv_rvv.setvl tail agnostic, mask agnostic policy
+// CHECK: unsupported RVV selected-body route descriptor: operation=add, memory_form=vector-rhs-load, SEW=32, LMUL=m1, tail_policy=undisturbed, mask_policy=agnostic

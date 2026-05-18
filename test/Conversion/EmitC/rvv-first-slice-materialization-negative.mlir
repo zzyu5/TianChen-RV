@@ -35,4 +35,4 @@ module {
   }
 }
 
-// CHECK: bounded RVV i32m1 arithmetic compile-time config requires tcrv_rvv.setvl SEW32 LMUL m1
+// CHECK: unsupported RVV selected-body route descriptor: operation=add, memory_form=vector-rhs-load, SEW=32, LMUL=m2

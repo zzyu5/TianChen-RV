@@ -27,6 +27,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 
 namespace tianchenrv::target::rvv {
@@ -320,24 +321,61 @@ llvm::Error validateRVVConstructionArtifactMetadata(
           "selected RVV materialized EmitC candidate");
 }
 
+llvm::Error validateRVVConfigArtifactMetadataMirrorsSelectedBody(
+    const TargetArtifactCandidate &candidate,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  llvm::SmallVector<support::ArtifactMetadataEntry, 16> actual;
+  for (const support::ArtifactMetadataEntry &entry :
+       candidate.artifactMetadata) {
+    if (llvm::StringRef(entry.key).starts_with("tcrv_rvv."))
+      actual.push_back(entry);
+  }
+
+  llvm::SmallVector<support::ArtifactMetadataEntry, 16> expected =
+      plugin::rvv::getRVVSelectedBodyConfigArtifactMetadata(description);
+  if (support::artifactMetadataEntriesEqual(actual, expected))
+    return llvm::Error::success();
+
+  if (actual.size() != expected.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine("candidate metadata must carry exactly ") +
+        llvm::Twine(expected.size()) +
+        " tcrv_rvv selected-body config/runtime-VL artifact metadata entries "
+        "derived from the provider route description");
+
+  for (auto [index, pair] : llvm::enumerate(llvm::zip(actual, expected))) {
+    const support::ArtifactMetadataEntry &got = std::get<0>(pair);
+    const support::ArtifactMetadataEntry &want = std::get<1>(pair);
+    if (got.key != want.key)
+      return makeRVVTargetRouteError(
+          llvm::Twine("candidate tcrv_rvv selected-body metadata[") +
+          llvm::Twine(index) + "] key must mirror provider route description "
+                               "key '" +
+          want.key + "' but was '" + got.key + "'");
+    if (got.value != want.value)
+      return makeRVVTargetRouteError(
+          llvm::Twine("candidate tcrv_rvv selected-body metadata key '") +
+          want.key + "' must mirror provider route description value '" +
+          want.value + "' but was '" + got.value + "'");
+  }
+
+  return makeRVVTargetRouteError(
+      "candidate tcrv_rvv selected-body config/runtime-VL artifact metadata "
+      "must mirror the provider route description");
+}
+
 llvm::Error validateRVVRuntimeAVLVLArtifactMetadata(
     const TargetArtifactCandidate &candidate,
-    llvm::StringRef selectedBodyEmitCRouteID) {
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   if (llvm::Error error = rejectForbiddenRVVArtifactMetadata(candidate))
     return error;
   if (llvm::Error error =
           validateRVVConstructionArtifactMetadata(candidate,
-                                                  selectedBodyEmitCRouteID))
+                                                  description.emitCRouteID))
     return error;
 
-  llvm::SmallVector<support::ArtifactMetadataEntry, 16> rvvMetadata;
-  for (const support::ArtifactMetadataEntry &entry :
-       candidate.artifactMetadata) {
-    if (llvm::StringRef(entry.key).starts_with("tcrv_rvv."))
-      rvvMetadata.push_back(entry);
-  }
-  return tcrv::rvv::verifyRVVI32M1ArithmeticArtifactMetadata(
-      rvvMetadata, "selected RVV materialized EmitC candidate");
+  return validateRVVConfigArtifactMetadataMirrorsSelectedBody(candidate,
+                                                             description);
 }
 
 llvm::Error validateRVVSelectedBodyTargetArtifactCandidate(
@@ -400,7 +438,7 @@ llvm::Error validateRVVSelectedBodyTargetArtifactCandidate(
           selectedBodyRuntimeABIName))
     return error;
   if (llvm::Error error = validateRVVRuntimeAVLVLArtifactMetadata(
-          candidate, selectedRoute->description.emitCRouteID))
+          candidate, selectedRoute->description))
     return error;
   return llvm::Error::success();
 }
@@ -410,7 +448,7 @@ void appendRVVConfigVLMetadataEvidence(
         &out) {
   constexpr llvm::StringLiteral kRVVMetadataPrefix("tcrv_rvv.");
   for (const support::ArtifactMetadataEntry &entry :
-       tcrv::rvv::getRVVI32M1ArithmeticArtifactMetadata()) {
+       tcrv::rvv::getRVVSelectedBodyConfigArtifactMetadata()) {
     llvm::StringRef key(entry.key);
     llvm::StringRef commentName = key;
     if (key.starts_with(kRVVMetadataPrefix))
@@ -447,7 +485,7 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        plugin::rvv::getRVVArtifactTypedRoleRealizationSummary()},
       {"emitc_route_mapping",
        plugin::rvv::getRVVEmitCRouteMappingMetadataName(),
-       plugin::rvv::getRVVConstructionManifest().emitcRoute.routeID},
+       getRVVManifest().emitcRoute.routeID},
       {"evidence_profile", plugin::rvv::getRVVEvidenceProfileMetadataName(),
        plugin::rvv::getRVVConstructionManifest().evidenceProfile},
       {"runtime_abi_contract",
@@ -586,8 +624,6 @@ getRVVSelectedBodyArtifactAdapterConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stddef.h", "stdint.h"};
   static const ConstructionTemplateSelectedBoundaryAttributeExpectation
       kBoundaryAttributeExpectations[] = {
-          {"lmul", tcrv::rvv::getRVVI32M1ArithmeticConfigVLContract().lmul,
-           {}},
           {plugin::rvv::getRVVConstructionProtocolMetadataName(),
            plugin::rvv::getRVVConstructionProtocolVersion(), {}},
       };

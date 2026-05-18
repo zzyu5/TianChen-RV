@@ -347,7 +347,7 @@ bool expectErrorContains(llvm::Error error, llvm::StringRef context,
 
 void appendRVVRuntimeAVLVLArtifactMetadata(TargetArtifactCandidate &candidate) {
   for (const tianchenrv::support::ArtifactMetadataEntry &entry :
-       tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticArtifactMetadata())
+       tianchenrv::tcrv::rvv::getRVVSelectedBodyConfigArtifactMetadata())
     candidate.artifactMetadata.push_back(entry);
 }
 
@@ -466,10 +466,14 @@ std::string getRVVTestVariantSymbol(
 mlir::OwningOpRef<mlir::ModuleOp> parseRVVSelectedBodyCandidateModule(
     mlir::MLIRContext &context,
     tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op,
-    bool useRHSBroadcast = false) {
+    bool useRHSBroadcast = false, llvm::StringRef lmul = "m1") {
   std::string source;
   llvm::raw_string_ostream os(source);
   std::string variant = getRVVTestVariantSymbol(op);
+  std::string vectorType =
+      (lmul == tianchenrv::tcrv::rvv::getRVVI32M2LMUL())
+          ? "!tcrv_rvv.i32m2"
+          : "!tcrv_rvv.i32m1";
   os << R"mlir(
 module {
   tcrv.exec.kernel @rvv_i32_body_kernel {
@@ -480,33 +484,42 @@ module {
       %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "source-arg-1:rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "source-arg-2:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "source-arg-3:n", role = "runtime-element-count"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+      %vl = tcrv_rvv.setvl %n {lmul = ")mlir" << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir" << lmul << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
      << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
-        %lhs_vec = tcrv_rvv.i32_load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %lhs_vec = tcrv_rvv.i32_load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+     << vectorType << R"mlir(
 )mlir";
   if (useRHSBroadcast)
     os << R"mlir(
-        %rhs_vec = tcrv_rvv.i32_broadcast_load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %rhs_vec = tcrv_rvv.i32_broadcast_load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
 )mlir";
   else
     os << R"mlir(
-        %rhs_vec = tcrv_rvv.i32_load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %rhs_vec = tcrv_rvv.i32_load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
 )mlir";
   if (op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect) {
     os << R"mlir(
-        %mask = tcrv_rvv.i32_cmp_eq %lhs_vec, %rhs_vec, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1_mask
-        %result = tcrv_rvv.i32_select %mask, %lhs_vec, %rhs_vec, %vl : !tcrv_rvv.i32m1_mask, !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %mask = tcrv_rvv.i32_cmp_eq %lhs_vec, %rhs_vec, %vl : )mlir"
+       << vectorType << R"mlir(, )mlir" << vectorType << R"mlir(, !tcrv_rvv.vl -> !tcrv_rvv.i32m1_mask
+        %result = tcrv_rvv.i32_select %mask, %lhs_vec, %rhs_vec, %vl : !tcrv_rvv.i32m1_mask, )mlir"
+       << vectorType << R"mlir(, )mlir" << vectorType << R"mlir(, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
 )mlir";
   } else {
     os << R"mlir(
         %result = )mlir"
        << getRVVTestArithmeticOperationName(op)
-       << R"mlir( %lhs_vec, %rhs_vec, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+       << R"mlir( %lhs_vec, %rhs_vec, %vl : )mlir" << vectorType
+       << R"mlir(, )mlir" << vectorType << R"mlir(, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
 )mlir";
   }
   os << R"mlir(
-        tcrv_rvv.i32_store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+        tcrv_rvv.i32_store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+     << vectorType << R"mlir(, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -599,7 +612,7 @@ struct RVVTargetArtifactCandidateFixture {
   explicit RVVTargetArtifactCandidateFixture(
       tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op =
           tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Add,
-      bool useRHSBroadcast = false) {
+      bool useRHSBroadcast = false, llvm::StringRef lmul = "m1") {
     tianchenrv::plugin::ExtensionPluginRegistry plugins;
     if (llvm::Error registerError =
             tianchenrv::plugin::registerRVVExtensionPlugin(plugins)) {
@@ -612,7 +625,8 @@ struct RVVTargetArtifactCandidateFixture {
     tianchenrv::registerPluginDialects(plugins, registry);
     context.appendDialectRegistry(registry);
     context.loadAllAvailableDialects();
-    module = parseRVVSelectedBodyCandidateModule(context, op, useRHSBroadcast);
+    module =
+        parseRVVSelectedBodyCandidateModule(context, op, useRHSBroadcast, lmul);
     if (!module) {
       error = "failed to parse RVV selected-body candidate module";
       return;
@@ -702,6 +716,22 @@ bool expectRVVTargetArtifactExporterShape(
                          compareSelectFixture.candidate, *exporter),
                      "validate RVV compare/select selected-body target "
                      "artifact candidate"))
+    return false;
+
+  RVVTargetArtifactCandidateFixture unsupportedLMULFixture(
+      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Add,
+      /*useRHSBroadcast=*/false, tianchenrv::tcrv::rvv::getRVVI32M2LMUL());
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          unsupportedLMULFixture,
+          "build unsupported RVV LMUL selected-body candidate fixture"))
+    return false;
+  if (!expectErrorContains(
+          validateTargetArtifactCandidateAgainstExporter(
+              unsupportedLMULFixture.candidate, *exporter),
+          "RVV artifact rejects unsupported selected-body config through "
+          "provider route description",
+          {"selected typed RVV body could not build",
+           "unsupported RVV selected-body route descriptor", "LMUL=m2"}))
     return false;
 
   TargetArtifactCandidate metadataOnlyCandidate =
@@ -1324,9 +1354,16 @@ module {
   tcrv.exec.kernel @rvv_stale_lmul_kernel {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     tcrv.exec.variant @rvv_i32_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_add, sew = 32 : i64, source_kernel = "rvv_stale_lmul_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.i32_load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
+        %rhs_vec = tcrv_rvv.i32_load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
+        %result = tcrv_rvv.i32_add %lhs_vec, %rhs_vec, %vl : !tcrv_rvv.i32m2, !tcrv_rvv.i32m2, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
+        tcrv_rvv.i32_store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m2, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
     tcrv.exec.diagnostic {
@@ -1351,6 +1388,12 @@ module {
       runtime_abi = "rvv-i32m1-add-callable-c-abi.v1",
       runtime_abi_kind = "plugin-owned-runtime-abi",
       runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_abi_parameters = [
+        {c_name = "lhs", c_type = "const int32_t *", role = "lhs-input-buffer", ownership = "target-export-abi-owned"},
+        {c_name = "rhs", c_type = "const int32_t *", role = "rhs-input-buffer", ownership = "target-export-abi-owned"},
+        {c_name = "out", c_type = "int32_t *", role = "output-buffer", ownership = "target-export-abi-owned"},
+        {c_name = "n", c_type = "size_t", role = "runtime-element-count", ownership = "target-export-abi-owned"}
+      ],
       runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue",
       severity = "info",
       status = "supported",
@@ -1370,9 +1413,10 @@ module {
   llvm::raw_string_ostream staleLMULOS(staleLMULOutput);
   return expectErrorContains(
       route->getExportFn()(*staleLMUL, staleLMULOS),
-      "RVV adapter rejects stale selected with_vl lmul before C++ output",
-      {"selected RVV construction-template artifact boundary", "lmul", "m1",
-       "m2"});
+      "RVV adapter rejects unsupported selected-body LMUL through provider "
+      "route description before C++ output",
+      {"selected typed RVV body could not build",
+       "unsupported RVV selected-body route descriptor", "LMUL=m2"});
 }
 
 TargetArtifactCandidate makeValidTensorExtLiteTargetArtifactCandidate() {

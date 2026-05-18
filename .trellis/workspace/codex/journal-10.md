@@ -44,6 +44,45 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 ### Next Steps
 
 - None - task complete
+## Session 130: RVV selected-body target artifact export gate
+
+**Date**: 2026-05-19
+**Task**: RVV selected-body target artifact export gate
+**Branch**: `main`
+
+### Summary
+
+Rewired the RVV target/export gate so target-side RVV config/runtime-VL artifact metadata is verified as a mirror of the provider-derived selected-body route description, not by the old fixed i32m1 artifact metadata verifier. The construction-template adapter no longer uses a static target-side LMUL expectation to reject unsupported selected-body config before the RVV provider sees it.
+
+### Main Changes
+
+- Created Trellis task `05-19-rvv-selected-body-target-artifact-export-gate` from the Direction Brief and wrote the PRD/context files.
+- Changed `lib/Target/RVV/RVVTargetSupportBundle.cpp` so `validateRVVRuntimeAVLVLArtifactMetadata` consumes `RVVSelectedBodyEmitCRouteDescription` and compares `tcrv_rvv.*` candidate metadata against `getRVVSelectedBodyConfigArtifactMetadata(description)`.
+- Removed target/export use of `getRVVI32M1ArithmeticArtifactMetadata` and `verifyRVVI32M1ArithmeticArtifactMetadata`.
+- Removed the target adapter's static selected-boundary LMUL expectation; unsupported LMUL now reaches provider route description and fails closed as an unsupported selected-body descriptor.
+- Extended `test/Target/TargetArtifactExportTest.cpp` with unsupported LMUL selected-body target validation coverage, while keeping stale route metadata, stale operation metadata, missing selected body, stale runtime ABI, descriptor/direct-C residue, and header composite negatives.
+- Updated focused conversion negative FileCheck expectations to match current selected-body descriptor/config diagnostics.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'Target/RVV/(vector-materialized-target-artifact-exporters|emitc-to-cpp-selected-boundary-negative|emitc-to-cpp-selected-boundary-attrs-negative|emitc-to-cpp-non-materialized)'` from `build/test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'Conversion/EmitC/rvv-first-slice-(materialization|materialization-negative|materialization-missing-abi|config-vl-contract-negative|vl-contract-negative)'` from `build/test`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-19-05-19-rvv-selected-body-target-artifact-export-gate`
+- [OK] Bounded ref-scans found no target-side `getRVVI32M1ArithmeticArtifactMetadata` / `verifyRVVI32M1ArithmeticArtifactMetadata` gate; the remaining direct `getRVVConstructionManifest().emitcRoute.routeID` hit is inside the RVV provider description construction, not target/export candidate validation.
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed; ready to archive and commit**
+
+### Next Steps
+
+- Archive the task with `--no-commit` and create one coherent commit for the task.
 
 
 ## Session 130: RVV selected-body config and intrinsic route surface

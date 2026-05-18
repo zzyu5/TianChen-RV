@@ -32,4 +32,4 @@ module {
   }
 }
 
-// CHECK: bounded RVV i32m1 arithmetic runtime VL contract requires tcrv_rvv.with_vl to consume the visible tcrv_rvv.setvl result
+// CHECK: selected RVV body config/VL structure requires tcrv_rvv.with_vl to consume the visible tcrv_rvv.setvl result
