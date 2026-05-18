@@ -46,6 +46,95 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 132: RVV pre-realized arithmetic executable ABI gate
+
+**Date**: 2026-05-19
+**Task**: `05-19-rvv-pre-realized-arithmetic-executable-abi-gate`
+**Branch**: `main`
+
+### Summary
+
+Moved the just-completed pre-realized RVV add/sub/mul selected-body path from
+local route-supported evidence to real executable ABI evidence. The evidence
+now starts from the pre-realized fixtures, materializes the selected lowering
+boundary through the public pass, exports generated object/header bundles,
+links an external C ABI harness, and runs on real `ssh rvv`.
+
+### Main Changes
+
+- Created the Trellis task from the Hermes Direction Brief and wrote PRD plus
+  implement/check context files.
+- Added `--pre-realized-selected-body` to
+  `scripts/rvv_generated_bundle_abi_e2e.py`; it selects the pre-realized
+  add/sub/mul fixtures and is mutually exclusive with `--source-seed`.
+- In pre-realized mode, the runner now invokes
+  `--tcrv-materialize-selected-lowering-boundaries` before emission planning
+  and target bundle export.
+- Added materialized MLIR checks proving the pre-realized op is consumed and
+  replaced by `tcrv_rvv.with_vl` plus the realized typed compute op.
+- Added focused script lit coverage for pre-realized dry-run evidence, with
+  guards against legacy source-seed and fully realized explicit-body evidence.
+
+### Evidence
+
+- Dry-run artifact:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260519T-rvv-pre-realized-arithmetic-executable-abi-gate-dry`.
+- Real `ssh rvv` artifact:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260519T-rvv-pre-realized-arithmetic-executable-abi-gate`.
+- Remote compile facts for add/sub/mul:
+  `remote_arch=riscv64`,
+  `clang_path=/usr/bin/clang`,
+  `clang_version=Ubuntu clang version 18.1.3 (1ubuntu1)`.
+- Remote run output:
+
+```text
+add case n=7 ok
+add case n=16 ok
+add case n=23 ok
+tcrv_rvv_generated_bundle_abi_add_ok counts=7,16,23
+PASS op=add counts=7,16,23
+
+sub case n=7 ok
+sub case n=16 ok
+sub case n=23 ok
+tcrv_rvv_generated_bundle_abi_sub_ok counts=7,16,23
+PASS op=sub counts=7,16,23
+
+mul case n=7 ok
+mul case n=16 ok
+mul case n=23 ok
+tcrv_rvv_generated_bundle_abi_mul_ok counts=7,16,23
+PASS op=mul counts=7,16,23
+```
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Pre-realized dry-run generated and verified add/sub/mul bundles for
+  counts `7,16,23`.
+- [OK] Pre-realized real `ssh rvv` generated bundle ABI proof passed add/sub/mul
+  for counts `7,16,23`.
+- [OK] Focused script lit 3/3 passed after fixing new-test FileCheck ordering.
+- [OK] Focused pre-realized/explicit target lit 7/7 passed.
+- [OK] Residue scans found no legacy source-seed, explicit-body fallback,
+  descriptor/direct-C/source-export, route-table, or common EmitC RVV semantic
+  branch matches in the checked surfaces/artifacts.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-19-rvv-pre-realized-arithmetic-executable-abi-gate`
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed; ready to archive and commit**
+
+### Next Steps
+
+- Archive the task with `--no-commit` and create one coherent commit.
+
+
 ## Session 130: RVV arithmetic-family pre-realized realization closure
 
 **Date**: 2026-05-19

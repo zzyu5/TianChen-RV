@@ -5,10 +5,12 @@ This is evidence tooling only. By default it starts from hand-authored explicit
 selected ``tcrv.exec`` / ``tcrv_rvv`` body fixtures, materializes selected
 emission plans, exports the generated target artifact bundle, checks the
 bundle, builds a small external C ABI consumer, and optionally runs that
-consumer on the real RVV target. An explicit ``--source-seed`` mode remains
-only for the legacy RVV source-front-door seed. The script does not implement
-compiler IR, lowering, plugin selection, emission, descriptors, fallback
-computation, or runtime glue.
+consumer on the real RVV target. ``--pre-realized-selected-body`` starts from
+the bounded pre-realized selected-body fixtures and uses the public selected
+lowering-boundary materialization pass before emission planning. An explicit
+``--source-seed`` mode remains only for the legacy RVV source-front-door seed.
+The script does not implement compiler IR, lowering, plugin selection,
+emission, descriptors, fallback computation, or runtime glue.
 """
 
 from __future__ import annotations
@@ -77,6 +79,10 @@ class OpExpectation:
     def pass_marker(self) -> str:
         return f"tcrv_rvv_generated_bundle_abi_{self.kind}_ok"
 
+    @property
+    def is_pre_realized(self) -> bool:
+        return self.input_mode == "pre-realized-selected-body"
+
 
 EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
     "add": OpExpectation(
@@ -120,6 +126,30 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         lhs_initializer="(int32_t)((int)(index % 13) - 6)",
         rhs_initializer="(int32_t)((int)(index % 17) - 8)",
         expected_expression="lhs[index] * rhs[index]",
+    ),
+}
+
+PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
+    "add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-add.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_i32_add",
+        function_name="tcrv_emitc_pre_realized_body_add_kernel_pre_realized_body_rvv_i32_add",
+    ),
+    "sub": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["sub"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-sub.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_i32_sub",
+        function_name="tcrv_emitc_pre_realized_body_sub_kernel_pre_realized_body_rvv_i32_sub",
+    ),
+    "mul": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["mul"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-mul.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_i32_mul",
+        function_name="tcrv_emitc_pre_realized_body_mul_kernel_pre_realized_body_rvv_i32_mul",
     ),
 }
 
@@ -681,6 +711,46 @@ def verify_bundle(
     }
 
 
+def verify_materialized_selected_body(
+    materialized_path: Path, expectation: OpExpectation
+) -> dict[str, Any]:
+    if not materialized_path.exists():
+        raise EvidenceError(
+            f"materialized selected-body MLIR is missing: {materialized_path}"
+        )
+    text = materialized_path.read_text(encoding="utf-8")
+    require_contains(
+        text,
+        f"@{expectation.selected_variant}",
+        "materialized selected-body MLIR selected variant",
+    )
+    require_contains(
+        text,
+        "tcrv_rvv.with_vl",
+        "materialized selected-body MLIR lowering boundary",
+    )
+    require_contains(
+        text,
+        expectation.typed_compute_op,
+        "materialized selected-body MLIR typed compute op",
+    )
+    if expectation.is_pre_realized:
+        require_not_contains(
+            text,
+            "tcrv_rvv.i32_binary_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
+    require_no_forbidden_public_residue(text, "materialized selected-body MLIR")
+    return {
+        "path": str(materialized_path),
+        "sha256": sha256_file(materialized_path),
+        "selected_variant": expectation.selected_variant,
+        "typed_compute_op": expectation.typed_compute_op,
+        "contains_with_vl": True,
+        "pre_realized_body_consumed": expectation.is_pre_realized,
+    }
+
+
 def harness_source(
     header_file_name: str, runtime_counts: list[int], expectation: OpExpectation
 ) -> str:
@@ -762,6 +832,8 @@ def generate_bundle(
         materialize_command.append(
             "--tcrv-rvv-materialize-i32m1-vector-source-front-door"
         )
+    if expectation.is_pre_realized:
+        materialize_command.append("--tcrv-materialize-selected-lowering-boundaries")
     materialize_command.extend(
         ["--tcrv-materialize-emission-plans", "-o", str(materialized_path)]
     )
@@ -784,16 +856,8 @@ def generate_bundle(
     )
     result = {
         "input_mode": expectation.input_mode,
-        "front_door": (
-            "legacy-rvv-source-front-door-seed"
-            if expectation.source_seed
-            else "explicit-selected-tcrv-exec-rvv-body"
-        ),
-        "materializer": (
-            "tcrv-rvv-materialize-i32m1-vector-source-front-door"
-            if expectation.source_seed
-            else "none-selected-body-already-explicit"
-        ),
+        "front_door": "explicit-selected-tcrv-exec-rvv-body",
+        "materializer": "none-selected-body-already-explicit",
         "source_seed": expectation.source_seed,
         "target_export": "tcrv-export-target-artifact-bundle",
         "materialized_selected_body": str(materialized_path),
@@ -806,9 +870,18 @@ def generate_bundle(
         "tcrv_translate": translate_record,
     }
     if expectation.source_seed:
+        result["front_door"] = "legacy-rvv-source-front-door-seed"
+        result["materializer"] = "tcrv-rvv-materialize-i32m1-vector-source-front-door"
         result["seed_boundary"] = (
             "legacy source may only construct typed tcrv_rvv selected-body IR "
             "before provider route construction"
+        )
+    elif expectation.is_pre_realized:
+        result["front_door"] = "pre-realized-selected-tcrv-exec-rvv-body"
+        result["materializer"] = "tcrv-materialize-selected-lowering-boundaries"
+        result["realization_boundary"] = (
+            "public selected lowering-boundary materialization consumed the "
+            "pre-realized typed tcrv_rvv body before provider route construction"
         )
     return result
 
@@ -967,12 +1040,17 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
         raise EvidenceError(f"duplicate --op-kind values are not allowed: {op_kinds}")
     if args.input is not None and len(op_kinds) != 1:
         raise EvidenceError("--input may only be used with exactly one --op-kind")
+    if args.source_seed and args.pre_realized_selected_body:
+        raise EvidenceError(
+            "--source-seed and --pre-realized-selected-body are mutually exclusive"
+        )
 
-    expectation_table = (
-        SOURCE_SEED_OP_EXPECTATIONS
-        if args.source_seed
-        else EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS
-    )
+    if args.source_seed:
+        expectation_table = SOURCE_SEED_OP_EXPECTATIONS
+    elif args.pre_realized_selected_body:
+        expectation_table = PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS
+    else:
+        expectation_table = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS
     expectations = [expectation_table[kind] for kind in op_kinds]
     if args.input is not None:
         expectations = [replace(expectations[0], input_path=args.input)]
@@ -1059,9 +1137,12 @@ def run_one_op_e2e(
     }
 
     try:
-        input_copy_name = (
-            "source_seed.mlir" if expectation.source_seed else "selected_body_input.mlir"
-        )
+        if expectation.source_seed:
+            input_copy_name = "source_seed.mlir"
+        elif expectation.is_pre_realized:
+            input_copy_name = "pre_realized_selected_body_input.mlir"
+        else:
+            input_copy_name = "selected_body_input.mlir"
         input_copy = op_artifact_dir / input_copy_name
         shutil.copyfile(expectation.input_path, input_copy)
         evidence["selected_input"] = {
@@ -1080,6 +1161,11 @@ def run_one_op_e2e(
             args.timeout,
         )
         evidence["local_bundle_generation"] = local
+        evidence["materialized_selected_body_checks"] = (
+            verify_materialized_selected_body(
+                Path(local["materialized_selected_body"]), expectation
+            )
+        )
         bundle_checks = verify_bundle(bundle_dir, readobj, expectation)
         evidence["bundle_checks"] = bundle_checks
 
@@ -1142,16 +1228,17 @@ def run_e2e(args: argparse.Namespace) -> int:
         "created_at": utc_timestamp(),
         "run_id": run_id,
         "dry_run": bool(args.dry_run),
-        "input_mode": (
-            "legacy-rvv-source-seed"
-            if args.source_seed
-            else "explicit-selected-body"
-        ),
+        "input_mode": "explicit-selected-body",
         "source_seed": bool(args.source_seed),
+        "pre_realized_selected_body": bool(args.pre_realized_selected_body),
         "artifact_dir": str(artifact_dir),
         "runtime_counts": runtime_counts,
         "op_results": {},
     }
+    if args.source_seed:
+        evidence["input_mode"] = "legacy-rvv-source-seed"
+    elif args.pre_realized_selected_body:
+        evidence["input_mode"] = "pre-realized-selected-body"
     try:
         validate_runtime_counts(runtime_counts)
         evidence["runtime_count_contract"] = runtime_count_contract_summary(
@@ -1336,8 +1423,13 @@ def run_self_test() -> int:
             lambda: validate_runtime_counts([7, 16]),
         )
 
-        for expectation in EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS.values():
-            bundle = make_fake_bundle(tmp / expectation.kind, expectation)
+        for expectation in (
+            list(EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS.values())
+            + list(PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS.values())
+        ):
+            bundle = make_fake_bundle(
+                tmp / expectation.input_mode / expectation.kind, expectation
+            )
             verify_bundle(bundle, readobj=None, expectation=expectation)
             harness = harness_source(
                 "artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h",
@@ -1556,6 +1648,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "artifact export; default input is explicit selected-body IR"
         ),
     )
+    parser.add_argument(
+        "--pre-realized-selected-body",
+        action="store_true",
+        help=(
+            "use the pre-realized selected-body add/sub/mul fixtures and run "
+            "public selected lowering-boundary materialization before emission "
+            "planning; mutually exclusive with --source-seed"
+        ),
+    )
     parser.add_argument("--artifact-root", type=Path, default=DEFAULT_ARTIFACT_ROOT)
     parser.add_argument("--run-id", default="")
     parser.add_argument("--overwrite", action="store_true")
@@ -1571,8 +1672,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=Path,
         default=None,
         help=(
-            "override the explicit selected-body MLIR fixture for exactly one "
-            "--op-kind, or the legacy source seed when --source-seed is set"
+            "override the selected-body MLIR fixture for exactly one --op-kind; "
+            "applies to explicit, pre-realized, or legacy source-seed mode"
         ),
     )
     parser.add_argument("--tcrv-opt", default="build/bin/tcrv-opt")
