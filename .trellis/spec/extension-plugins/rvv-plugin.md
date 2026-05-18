@@ -153,15 +153,17 @@ provider route.
   `tcrv_rvv.runtime_abi_value` result, with `n` using index type.
 - Required attributes:
   `op_kind`, `memory_form`, `sew`, `lmul`, and `policy`.
-- First supported specialization:
-  `op_kind = "add"`, `memory_form = "vector-rhs-load"`, `sew = 32`,
-  `lmul = "m1"`, and tail/mask agnostic policy.
+- Supported arithmetic specializations:
+  `op_kind = "add"`, `"sub"`, or `"mul"`, with
+  `memory_form = "vector-rhs-load"`, `sew = 32`, `lmul = "m1"`, and
+  tail/mask agnostic policy.
 - Realization entry point:
   selected lowering-boundary materialization routed through the selected
   variant's origin plugin.
 - Realized output:
-  `tcrv_rvv.setvl`, `tcrv_rvv.with_vl`, two `tcrv_rvv.i32_load` ops,
-  `tcrv_rvv.i32_add`, and `tcrv_rvv.i32_store` in the same selected variant.
+  `tcrv_rvv.setvl`, `tcrv_rvv.with_vl`, two `tcrv_rvv.i32_load` ops, the
+  matching `tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`, or `tcrv_rvv.i32_mul`
+  compute op, and `tcrv_rvv.i32_store` in the same selected variant.
 
 #### 3. Contracts
 
@@ -204,9 +206,9 @@ provider route.
 #### 5. Good/Base/Bad Cases
 
 - Good: selected variant contains explicit runtime ABI values and one
-  `tcrv_rvv.i32_binary_pre_realized_body` for add; the RVV plugin realizes it
-  into the existing add body, then the provider derives the EmitC route from
-  that realized body.
+  `tcrv_rvv.i32_binary_pre_realized_body` for add, sub, or mul; the RVV plugin
+  realizes it into the matching existing arithmetic body, then the provider
+  derives the EmitC route from that realized body.
 - Base: already realized explicit selected-body add/sub/mul fixtures remain
   valid and do not require this rewrite.
 - Bad: common EmitC/export, route ids, artifact names, stale
@@ -215,9 +217,9 @@ provider route.
 
 #### 6. Tests Required
 
-- Positive lit coverage for pre-realized add reaching selected-boundary
-  realization, supported emission-plan metadata, and target artifact/header or
-  object routing.
+- Positive lit coverage for pre-realized add, sub, and mul reaching
+  selected-boundary realization, supported emission-plan metadata, and target
+  artifact/header or object routing.
 - Negative lit coverage for unsupported operation, unsupported config/policy,
   wrong runtime ABI role, missing runtime `n`/AVL authority, and stale route or
   source metadata on the pre-realized op.

@@ -145,6 +145,10 @@ bool isAllowedI32BinaryPreRealizedBodyAttr(llvm::StringRef name) {
          name == kPolicyAttrName;
 }
 
+bool isSupportedI32BinaryPreRealizedBodyOpKind(llvm::StringRef opKind) {
+  return opKind == "add" || opKind == "sub" || opKind == "mul";
+}
+
 bool isAllowedI32AddAttr(llvm::StringRef name) {
   return false;
 }
@@ -868,10 +872,10 @@ mlir::LogicalResult I32BinaryPreRealizedBodyOp::verify() {
            << "requires lhs, rhs, out, and runtime n/AVL operands and no "
               "results";
 
-  if (getOpKind() != "add")
+  if (!isSupportedI32BinaryPreRealizedBodyOpKind(getOpKind()))
     return emitOpError()
-           << "currently supports only op_kind \"add\" for the bounded "
-              "selected-body realization hook";
+           << "currently supports only op_kind \"add\", \"sub\", or "
+              "\"mul\" for the bounded selected-body realization hook";
   if (getMemoryForm() != "vector-rhs-load")
     return emitOpError()
            << "currently supports only memory_form \"vector-rhs-load\" for "

@@ -73,6 +73,10 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
   return found;
 }
 
+bool isSupportedPreRealizedArithmeticOpKind(llvm::StringRef opKind) {
+  return opKind == "add" || opKind == "sub" || opKind == "mul";
+}
+
 llvm::Error requireExplicitTypedRVVBody(tcrv::exec::VariantOp variant) {
   if (variantContainsExplicitTypedRVVBody(variant))
     return llvm::Error::success();
@@ -189,10 +193,10 @@ llvm::Error validatePreRealizedRVVSelectedBody(
         "pre-realized RVV selected body must be a direct child of the "
         "selected tcrv.exec.variant");
 
-  if (body.getOpKind() != "add")
+  if (!isSupportedPreRealizedArithmeticOpKind(body.getOpKind()))
     return makeRVVPluginError(
         "pre-realized RVV selected body currently supports only op_kind "
-        "'add'");
+        "'add', 'sub', or 'mul'");
   if (body.getMemoryForm() != "vector-rhs-load")
     return makeRVVPluginError(
         "pre-realized RVV selected body currently supports only memory_form "
@@ -316,10 +320,23 @@ mlir::Operation *createRealizedI32Load(mlir::OpBuilder &builder,
   return builder.create(state);
 }
 
-mlir::Operation *createRealizedI32Add(mlir::OpBuilder &builder,
-                                      mlir::Location loc, mlir::Value lhs,
-                                      mlir::Value rhs, mlir::Value vl) {
-  mlir::OperationState state(loc, "tcrv_rvv.i32_add");
+llvm::Expected<mlir::Operation *>
+createRealizedI32BinaryCompute(mlir::OpBuilder &builder, mlir::Location loc,
+                               llvm::StringRef opKind, mlir::Value lhs,
+                               mlir::Value rhs, mlir::Value vl) {
+  llvm::StringRef opName;
+  if (opKind == "add")
+    opName = "tcrv_rvv.i32_add";
+  else if (opKind == "sub")
+    opName = "tcrv_rvv.i32_sub";
+  else if (opKind == "mul")
+    opName = "tcrv_rvv.i32_mul";
+  else
+    return makeRVVPluginError(
+        "pre-realized RVV selected-body realization supports only op_kind "
+        "'add', 'sub', or 'mul'");
+
+  mlir::OperationState state(loc, opName);
   state.addOperands({lhs, rhs, vl});
   state.addTypes(tcrv::rvv::I32M1VectorType::get(builder.getContext()));
   return builder.create(state);
@@ -367,11 +384,13 @@ realizePreRealizedRVVSelectedBody(
       createRealizedI32Load(builder, loc, body->getLhs(), setvl.getVl()));
   auto rhsLoad = llvm::cast<tcrv::rvv::I32LoadOp>(
       createRealizedI32Load(builder, loc, body->getRhs(), setvl.getVl()));
-  auto add = llvm::cast<tcrv::rvv::I32AddOp>(
-      createRealizedI32Add(builder, loc, lhsLoad.getLoaded(),
-                           rhsLoad.getLoaded(), setvl.getVl()));
-  createRealizedI32Store(builder, loc, body->getOut(), add.getSum(),
-                         setvl.getVl());
+  llvm::Expected<mlir::Operation *> compute = createRealizedI32BinaryCompute(
+      builder, loc, body->getOpKind(), lhsLoad.getLoaded(),
+      rhsLoad.getLoaded(), setvl.getVl());
+  if (!compute)
+    return compute.takeError();
+  createRealizedI32Store(builder, loc, body->getOut(),
+                         (*compute)->getResult(0), setvl.getVl());
   body->erase();
   return withVL;
 }
@@ -727,6 +746,10 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
     boundary = realizePreRealizedRVVSelectedBody(request);
     if (!boundary)
       return boundary.takeError();
+  } else if (variantContainsPreRealizedRVVSelectedBody(request.getVariant())) {
+    return makeRVVPluginError(
+        "pre-realized RVV selected body must not be mixed with an already "
+        "realized setvl/with_vl body before route construction");
   }
 
   VariantLoweringBoundaryValidationRequest validationRequest(

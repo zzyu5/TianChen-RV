@@ -46,6 +46,56 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 130: RVV arithmetic-family pre-realized realization closure
+
+**Date**: 2026-05-19
+**Task**: RVV arithmetic-family pre-realized realization closure
+**Branch**: `main`
+
+### Summary
+
+Extended the RVV plugin-local pre-realized selected-body hook from the prior
+add-only proof to the existing add/sub/mul i32m1 arithmetic family, while
+keeping common EmitC and target export neutral.
+
+### Main Changes
+
+- Created Trellis task `05-19-rvv-arithmetic-pre-realized-realization-closure`
+  from the Hermes Direction Brief and wrote a bounded PRD.
+- Updated `tcrv_rvv.i32_binary_pre_realized_body` verification to accept only
+  add/sub/mul on the existing SEW32 LMUL m1 vector-rhs-load policy surface.
+- Updated RVV plugin selected-body realization to materialize matching
+  `tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`, or `tcrv_rvv.i32_mul` compute ops.
+- Added fail-closed mixed-body rejection when pre-realized and already-realized
+  selected bodies appear together before route construction.
+- Added pre-realized sub/mul target fixtures and extended negative coverage.
+- Updated the RVV plugin spec scenario from add-only to add/sub/mul arithmetic
+  family scope.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused lit for pre-realized add/sub/mul, negative pre-realized boundary,
+  and explicit selected-body add/sub/mul passed 7/7.
+- [OK] Local target artifact bundles generated for pre-realized add/sub/mul
+  under `artifacts/tmp/rvv_arithmetic_pre_realized_realization_closure/`.
+- [OK] Bounded residue scan found no common EmitC RVV semantic branch; touched
+  RVV matches are expected explicit source-front-door registration, negative
+  stale-metadata tests, and forbidden-pattern spec text.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-19-rvv-arithmetic-pre-realized-realization-closure`
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 130: RVV plugin-local selected-body realization hook
 
 **Date**: 2026-05-19
