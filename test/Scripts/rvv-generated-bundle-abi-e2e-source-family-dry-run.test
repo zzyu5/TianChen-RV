@@ -2,9 +2,9 @@
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id source-family --overwrite --op-kind add --op-kind sub --op-kind mul --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/source-family/evidence.json
-# RUN: FileCheck %s --check-prefix=ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/source-family/add/evidence.json
-# RUN: FileCheck %s --check-prefix=SUB --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/source-family/sub/evidence.json
-# RUN: FileCheck %s --check-prefix=MUL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/source-family/mul/evidence.json
+# RUN: FileCheck %s --check-prefix=ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv_arithmetic_op" < %t.artifacts/source-family/add/evidence.json
+# RUN: FileCheck %s --check-prefix=SUB --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv_arithmetic_op" < %t.artifacts/source-family/sub/evidence.json
+# RUN: FileCheck %s --check-prefix=MUL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv_arithmetic_op" < %t.artifacts/source-family/mul/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS-ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/source-family/add/rvv_generated_bundle_abi_add_harness.c
 # RUN: FileCheck %s --check-prefix=HARNESS-SUB --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/source-family/sub/rvv_generated_bundle_abi_sub_harness.c
 # RUN: FileCheck %s --check-prefix=HARNESS-MUL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/source-family/mul/rvv_generated_bundle_abi_mul_harness.c
@@ -39,6 +39,10 @@
 # ROOT: "status": "dry_run_success"
 
 # ADD: "prototype": "void tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
+# ADD: "key": "rvv_selected_body_operation"
+# ADD: "value": "add"
+# ADD: "key": "rvv_selected_body_typed_compute_op"
+# ADD: "value": "tcrv_rvv.i32_add"
 # ADD: "expected_function": "tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add"
 # ADD: "expected_runtime_abi_name": "rvv-i32m1-add-callable-c-abi.v1"
 # ADD: "expected_selected_variant": "vector_source_rvv_i32_add"
@@ -57,6 +61,10 @@
 # ADD: "status": "dry_run_success"
 
 # SUB: "prototype": "void tcrv_emitc_vector_source_sub_kernel_vector_source_sub_rvv_i32_sub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
+# SUB: "key": "rvv_selected_body_operation"
+# SUB: "value": "sub"
+# SUB: "key": "rvv_selected_body_typed_compute_op"
+# SUB: "value": "tcrv_rvv.i32_sub"
 # SUB: "expected_function": "tcrv_emitc_vector_source_sub_kernel_vector_source_sub_rvv_i32_sub"
 # SUB: "expected_runtime_abi_name": "rvv-i32m1-sub-callable-c-abi.v1"
 # SUB: "expected_selected_variant": "vector_source_sub_rvv_i32_sub"
@@ -75,6 +83,10 @@
 # SUB: "status": "dry_run_success"
 
 # MUL: "prototype": "void tcrv_emitc_vector_source_mul_kernel_vector_source_mul_rvv_i32_mul(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
+# MUL: "key": "rvv_selected_body_operation"
+# MUL: "value": "mul"
+# MUL: "key": "rvv_selected_body_typed_compute_op"
+# MUL: "value": "tcrv_rvv.i32_mul"
 # MUL: "expected_function": "tcrv_emitc_vector_source_mul_kernel_vector_source_mul_rvv_i32_mul"
 # MUL: "expected_runtime_abi_name": "rvv-i32m1-mul-callable-c-abi.v1"
 # MUL: "expected_selected_variant": "vector_source_mul_rvv_i32_mul"

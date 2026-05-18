@@ -57,6 +57,7 @@ class OpExpectation:
     external_abi_name: str
     function_name: str
     emitc_route: str
+    typed_compute_op: str
     lhs_initializer: str
     rhs_initializer: str
     expected_expression: str
@@ -81,6 +82,7 @@ OP_EXPECTATIONS = {
         external_abi_name="rvv-i32m1-add-callable-c-abi.v1",
         function_name="tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add",
         emitc_route="rvv-i32m1-add-emitc-route",
+        typed_compute_op="tcrv_rvv.i32_add",
         lhs_initializer="(int32_t)(7 + (int32_t)(index * 3))",
         rhs_initializer="(int32_t)(1000 - (int32_t)(index * 5))",
         expected_expression="lhs[index] + rhs[index]",
@@ -92,6 +94,7 @@ OP_EXPECTATIONS = {
         external_abi_name="rvv-i32m1-sub-callable-c-abi.v1",
         function_name="tcrv_emitc_vector_source_sub_kernel_vector_source_sub_rvv_i32_sub",
         emitc_route="rvv-i32m1-sub-emitc-route",
+        typed_compute_op="tcrv_rvv.i32_sub",
         lhs_initializer="(int32_t)(500 - (int32_t)(index * 2))",
         rhs_initializer="(int32_t)(13 + (int32_t)(index * 5))",
         expected_expression="lhs[index] - rhs[index]",
@@ -103,6 +106,7 @@ OP_EXPECTATIONS = {
         external_abi_name="rvv-i32m1-mul-callable-c-abi.v1",
         function_name="tcrv_emitc_vector_source_mul_kernel_vector_source_mul_rvv_i32_mul",
         emitc_route="rvv-i32m1-mul-emitc-route",
+        typed_compute_op="tcrv_rvv.i32_mul",
         lhs_initializer="(int32_t)((int)(index % 13) - 6)",
         rhs_initializer="(int32_t)((int)(index % 17) - 8)",
         expected_expression="lhs[index] * rhs[index]",
@@ -495,7 +499,8 @@ def verify_record_metadata(
     metadata = metadata_map(record)
     per_op_metadata = {
         "rvv_emitc_lowerable_route": expectation.emitc_route,
-        "rvv_arithmetic_op": expectation.kind,
+        "rvv_selected_body_operation": expectation.kind,
+        "rvv_selected_body_typed_compute_op": expectation.typed_compute_op,
     }
     for key, expected in {**per_op_metadata, **COMMON_EXPECTED_METADATA}.items():
         require_equal(metadata.get(key), expected, f"{context} metadata {key}")
@@ -1159,7 +1164,8 @@ extern "C" {{
     )
     expected_metadata = {
         "rvv_emitc_lowerable_route": expectation.emitc_route,
-        "rvv_arithmetic_op": expectation.kind,
+        "rvv_selected_body_operation": expectation.kind,
+        "rvv_selected_body_typed_compute_op": expectation.typed_compute_op,
         **COMMON_EXPECTED_METADATA,
     }
     metadata_lines = "\n".join(

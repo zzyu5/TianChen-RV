@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "review that selected typed tcrv_rvv body remains the sole RVV semantic authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "review that common EmitC and target export consume provider-built routes neutrally"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "review descriptor/direct-C/source-export residue and runtime ABI claim boundaries"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "review focused local checks and required real ssh rvv evidence for runtime/correctness claims"}

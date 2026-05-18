@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV stack, architecture, and evidence invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body route authority, dtype/config/body authority, and target artifact export contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC route, selected emission-plan handoff, and source artifact bundle front-door constraints"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission/runtime boundary, target artifact export route, and descriptor/direct-C fail-closed rules"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused MLIR/C++ checks and real ssh rvv evidence requirements"}
+{"file": ".trellis/tasks/archive/2026-05/05-19-05-19-rvv-selected-route-artifact-identity-closure/prd.md", "reason": "previous completed route/artifact/runtime identity closure baseline"}
+{"file": ".trellis/tasks/archive/2026-05/05-18-rvv-source-bundle-ssh-runtime-abi-proof/prd.md", "reason": "previous generated bundle ssh rvv ABI evidence path and runner usage"}

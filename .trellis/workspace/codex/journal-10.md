@@ -46,6 +46,76 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 131: RVV selected-body executable artifact gate
+
+**Date**: 2026-05-19
+**Task**: `05-19-rvv-selected-body-executable-artifact-gate`
+**Branch**: `main`
+
+### Summary
+
+Moved the current bounded RVV selected-body artifact path from route-supported
+to executable evidence for the add specialization. The compiler-generated
+object/header bundle was validated locally and consumed by an external C ABI
+harness on real `ssh rvv` hardware for runtime counts 7, 16, and 23.
+
+### Main Changes
+
+- Created Trellis task `05-19-rvv-selected-body-executable-artifact-gate`
+  from the Direction Brief and wrote PRD/context files.
+- Found the local artifact path already generated a coherent selected-body
+  object/header bundle, but the evidence runner still required the old
+  `rvv_arithmetic_op` metadata key.
+- Updated `scripts/rvv_generated_bundle_abi_e2e.py` to require
+  `rvv_selected_body_operation` and
+  `rvv_selected_body_typed_compute_op` from the generated bundle index.
+- Updated focused script lit coverage to reject `rvv_arithmetic_op` and assert
+  selected-body operation/typed-compute metadata for add/sub/mul dry-run
+  evidence.
+- Spec update review found no `.trellis/spec/` edit required because this
+  aligned evidence tooling to the existing selected-body artifact contract.
+
+### Evidence
+
+- Dry-run artifact:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260519T-rvv-selected-body-executable-artifact-gate-add-dry`.
+- Real `ssh rvv` artifact:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260519T-rvv-selected-body-executable-artifact-gate-add`.
+- Remote compile facts: `remote_arch=riscv64`, `clang_path=/usr/bin/clang`,
+  `clang_version=Ubuntu clang version 18.1.3 (1ubuntu1)`.
+- Remote run output:
+
+```text
+add case n=7 ok
+add case n=16 ok
+add case n=23 ok
+tcrv_rvv_generated_bundle_abi_add_ok counts=7,16,23
+PASS op=add counts=7,16,23
+```
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] add-only dry-run generated and verified selected-body object/header/bundle artifacts for counts `7,16,23`.
+- [OK] add-only real `ssh rvv` generated bundle ABI proof passed for counts `7,16,23`.
+- [OK] Focused script lit 2/2 passed.
+- [OK] Focused RVV target/export lit 4/4 passed.
+- [OK] Focused RVV EmitC materialization lit 5/5 passed.
+- [OK] Bounded residue scan found `rvv_arithmetic_op` only in lit negative guards.
+
+### Status
+
+[OK] **Completed; ready to archive and commit**
+
+### Next Steps
+
+- Archive the task with `--no-commit` and create one coherent commit.
+
+
 ## Session 130: RVV construction manifest route-authority demotion
 
 **Date**: 2026-05-19
