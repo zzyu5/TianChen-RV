@@ -46,6 +46,74 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 129: RVV Stage 2 compare/select mask selected-body route
+
+**Date**: 2026-05-18
+**Task**: RVV Stage 2 compare/select mask selected-body route
+**Branch**: `main`
+
+### Summary
+
+Added a bounded i32m1 compare/select selected-body route on the corrected
+vector-level `tcrv_rvv` surface. Semantics now come from explicit typed
+`tcrv_rvv.i32_cmp_eq` and `tcrv_rvv.i32_select` ops inside the selected
+`with_vl` body, with RVV-owned legality, route construction, EmitC
+materialization, and target artifact validation.
+
+### Main Changes
+
+- Added typed `tcrv_rvv.i32m1_mask`, `tcrv_rvv.i32_cmp_eq`, and
+  `tcrv_rvv.i32_select` IR surface plus dialect verification for same-body,
+  same-VL, typed mask/dataflow legality.
+- Extended the RVV construction protocol and RVV EmitC route provider with a
+  plugin-owned `cmp_select` route that emits compare before select/merge and
+  records source-op provenance.
+- Extended target artifact and plugin coverage so compare/select reaches export
+  through the materialized typed-body route while metadata-only authority stays
+  fail-closed.
+- Kept common EmitC/export neutral; no descriptor/direct-C/source-front-door
+  compare/select authority was added.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-dialect-test tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-dialect-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tcrv-opt -j2`
+- [OK] Focused lit filter for RVV dataflow, RVV source-front-door metadata, and
+  EmitC RVV first-slice materialization passed 11/11.
+- [OK] `cmake --build build --target tianchenrv-construction-protocol-common-test tianchenrv-rvv-dialect-test tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 127/127.
+- [OK] Targeted scans over changed RVV/common surfaces found compare/select only
+  in RVV dialect, RVV construction, RVV route provider, and focused tests; no
+  descriptor route authority, direct-C semantic exporter, common/core RVV
+  compute branch, or source-front-door compare/select authority was found.
+
+### Self-Repair
+
+- Rebuilt stale `tcrv-opt` after the first focused lit run exposed stale parser
+  behavior.
+- Updated the construction-protocol common test after the new compare/select
+  route correctly introduced an additional compute role.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 130: RVV Stage 2 elementwise broadcast selected-body coverage
 
 **Date**: 2026-05-18

@@ -1629,9 +1629,11 @@ int runRVVCommonValidationTest() {
       return fail(llvm::Twine("RVV executable role steps are built from "
                               "route operation: ") +
                   llvm::toString(steps.takeError()));
-    if (steps->size() != 10)
+    const bool isCompareSelect = route.operationName == "tcrv_rvv.i32_select";
+    if (steps->size() != (isCompareSelect ? 11u : 10u))
       return fail("RVV executable role sequence must include explicit ABI, "
-                  "config, scope, load, compute, and store steps");
+                  "config, scope, load, compute, optional compare/select "
+                  "compute, and store steps");
   }
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
       rvv::getRVVI32M1ArithmeticConstructionRuntimeABIParameters();

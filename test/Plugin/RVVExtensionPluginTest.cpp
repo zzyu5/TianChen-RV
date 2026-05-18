@@ -758,6 +758,107 @@ module {
       "RVV broadcast EmitC lowerable route materializes to EmitC");
 }
 
+int runCompareSelectSelectedBodyRouteTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32m1_compare_select_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_i32_cmp_select attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_cmp_select, sew = 32 : i64, source_kernel = "rvv_i32m1_compare_select_kernel", status = "selected-lowering-boundary"} {
+        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        %mask = tcrv_rvv.i32_cmp_eq %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1_mask
+        %selected = tcrv_rvv.i32_select %mask, %lhs, %rhs, %vl : !tcrv_rvv.i32m1_mask, !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+        tcrv_rvv.i32_store %out_ptr, %selected, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV compare/select selected-body module");
+  KernelOp kernel = findKernel(*module, "rvv_i32m1_compare_select_kernel");
+  VariantOp variant = findVariant(kernel, "rvv_i32_cmp_select");
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+                        "register RVV plugin for compare/select route test"))
+    return result;
+
+  VariantEmissionPlan plan;
+  if (int result = expectSuccess(
+          registry.buildVariantEmissionPlan(
+              VariantEmissionRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              plan),
+          "build RVV compare/select selected-body emission plan"))
+    return result;
+  if (int result =
+          expect(plan.isSupported() &&
+                     plan.getRuntimeABI() ==
+                         tianchenrv::plugin::rvv::
+                             getRVVI32M1ArithmeticRuntimeABIName(
+                                 tianchenrv::plugin::rvv::
+                                     RVVI32M1ArithmeticOp::CmpSelect),
+                 "RVV compare/select body owns a bounded callable ABI"))
+    return result;
+
+  bool sawCompareSelectSourceMetadata = false;
+  bool sawCompareSelectOpMetadata = false;
+  for (const tianchenrv::support::ArtifactMetadataEntry &entry :
+       plan.getArtifactMetadata()) {
+    if (entry.key == tianchenrv::plugin::rvv::getRVVSourceOpsMetadataName() &&
+        llvm::StringRef(entry.value).contains("tcrv_rvv.i32_cmp_eq") &&
+        llvm::StringRef(entry.value).contains("tcrv_rvv.i32_select"))
+      sawCompareSelectSourceMetadata = true;
+    if (entry.key == tianchenrv::plugin::rvv::getRVVArithmeticOpMetadataName() &&
+        entry.value == "cmp_select")
+      sawCompareSelectOpMetadata = true;
+  }
+  if (int result = expect(
+          sawCompareSelectSourceMetadata && sawCompareSelectOpMetadata,
+          "RVV compare/select emission plan advertises typed compare/select "
+          "source coverage and route provenance"))
+    return result;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+  if (int result = expectSuccess(
+          registry.buildVariantEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(variant, kernel, capabilities,
+                                           VariantEmissionRole::DirectVariant),
+              route),
+          "build RVV compare/select selected-body EmitC route"))
+    return result;
+  if (int result =
+          expect(route.getForLoops().size() == 1 &&
+                     route.getForLoops().front().bodySteps.size() == 6 &&
+                     route.getForLoops().front().bodySteps[3].sourceOp.opName ==
+                         "tcrv_rvv.i32_cmp_eq" &&
+                     route.getForLoops().front().bodySteps[3].callee ==
+                         "__riscv_vmseq_vv_i32m1_b32" &&
+                     route.getForLoops().front().bodySteps[4].sourceOp.opName ==
+                         "tcrv_rvv.i32_select" &&
+                     route.getForLoops().front().bodySteps[4].callee ==
+                         "__riscv_vmerge_vvm_i32m1",
+                 "RVV compare/select route materializes compare before "
+                 "select/merge"))
+    return result;
+  return expectSuccess(
+      tianchenrv::conversion::emitc::
+          verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
+              route, "tcrv_rvv_compare_select_selected_body", {}),
+      "RVV compare/select EmitC lowerable route materializes to EmitC");
+}
+
 int runOutOfOrderSelectedRoleSequenceRejectionTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
@@ -830,6 +931,8 @@ int main() {
           runWithVLSelectedLoweringBoundaryDuplicateRejectionTest(context))
     return result;
   if (int result = runBroadcastSelectedBodyRouteTest(context))
+    return result;
+  if (int result = runCompareSelectSelectedBodyRouteTest(context))
     return result;
   if (int result = runOutOfOrderSelectedRoleSequenceRejectionTest(context))
     return result;

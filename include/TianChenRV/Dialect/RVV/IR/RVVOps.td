@@ -124,6 +124,20 @@ def TCRVRVV_I32M1VectorType : TCRVRVV_Type<"I32M1Vector", "i32m1"> {
   }];
 }
 
+def TCRVRVV_I32M1MaskType : TCRVRVV_Type<"I32M1Mask", "i32m1_mask"> {
+  let summary = "finite RVV i32 m1 predicate mask dataflow token type";
+  let description = [{
+    A bounded plugin-local predicate token for explicit RVV i32m1 compare and
+    select dataflow under an existing tcrv_rvv.with_vl scope. It represents
+    the compiler-visible result of a typed tcrv_rvv.i32_cmp_eq op and may be
+    consumed by a typed tcrv_rvv.i32_select op in the same bounded scope.
+
+    This is not a generic mask register type, vector dialect mask, descriptor,
+    route selector, artifact authority, hardware fact, correctness evidence,
+    or performance evidence.
+  }];
+}
+
 def TCRVRVV_I32M2VectorType : TCRVRVV_Type<"I32M2Vector", "i32m2"> {
   let summary = "finite RVV i32 m2 vector dataflow token type";
   let description = [{
@@ -385,6 +399,64 @@ def I32MulOp : TCRVRVV_Op<"i32_mul",
 
   let assemblyFormat =
     "$lhs `,` $rhs `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($vl) `->` type($product)";
+  let hasVerifier = 1;
+}
+
+def I32CmpEqOp : TCRVRVV_Op<"i32_cmp_eq",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary = "bounded RVV i32m1 equality compare dataflow op";
+  let description = [{
+    Records one bounded plugin-local RVV i32m1 predicate-producing compare
+    step. The op is nested directly under tcrv_rvv.with_vl, consumes two
+    !tcrv_rvv.i32m1 dataflow tokens and the same runtime !tcrv_rvv.vl control
+    token as the surrounding scope, and produces one !tcrv_rvv.i32m1_mask
+    predicate token.
+
+    Compare semantics come only from this typed operation in the selected RVV
+    body. Route ids, artifact names, source-front-door names, descriptor
+    residue, ABI parameter names, and common/export code must not infer or
+    choose compare behavior.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$vl
+  );
+  let results = (outs AnyType:$mask);
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($vl) `->` type($mask)";
+  let hasVerifier = 1;
+}
+
+def I32SelectOp : TCRVRVV_Op<"i32_select",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary = "bounded RVV i32m1 predicate-consuming select dataflow op";
+  let description = [{
+    Records one bounded plugin-local RVV i32m1 select dataflow step. The op is
+    nested directly under tcrv_rvv.with_vl, consumes one
+    !tcrv_rvv.i32m1_mask predicate produced by tcrv_rvv.i32_cmp_eq in the same
+    selected VL scope, consumes true and false !tcrv_rvv.i32m1 dataflow
+    values, consumes the same runtime !tcrv_rvv.vl control token as the
+    surrounding scope, and produces one selected !tcrv_rvv.i32m1 value.
+
+    Select semantics come only from this typed operation and its explicit
+    predicate operand in the selected RVV body. They must not be inferred from
+    route metadata, artifact names, source-front-door names, descriptors, ABI
+    parameter names, or common/export code.
+  }];
+
+  let arguments = (ins
+    AnyType:$mask,
+    AnyType:$true_value,
+    AnyType:$false_value,
+    AnyType:$vl
+  );
+  let results = (outs AnyType:$selected);
+
+  let assemblyFormat =
+    "$mask `,` $true_value `,` $false_value `,` $vl attr-dict `:` type($mask) `,` type($true_value) `,` type($false_value) `,` type($vl) `->` type($selected)";
   let hasVerifier = 1;
 }
 

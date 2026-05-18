@@ -450,6 +450,8 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     return "tcrv_rvv.i32_sub";
   case tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Mul:
     return "tcrv_rvv.i32_mul";
+  case tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::CmpSelect:
+    return "tcrv_rvv.i32_select";
   }
   llvm_unreachable("unknown RVV test arithmetic op");
 }
@@ -491,10 +493,19 @@ module {
     os << R"mlir(
         %rhs_vec = tcrv_rvv.i32_load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
 )mlir";
-  os << R"mlir(
+  if (op == tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::CmpSelect) {
+    os << R"mlir(
+        %mask = tcrv_rvv.i32_cmp_eq %lhs_vec, %rhs_vec, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1_mask
+        %result = tcrv_rvv.i32_select %mask, %lhs_vec, %rhs_vec, %vl : !tcrv_rvv.i32m1_mask, !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+)mlir";
+  } else {
+    os << R"mlir(
         %result = )mlir"
-     << getRVVTestArithmeticOperationName(op)
-     << R"mlir( %lhs_vec, %rhs_vec, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+       << getRVVTestArithmeticOperationName(op)
+       << R"mlir( %lhs_vec, %rhs_vec, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+)mlir";
+  }
+  os << R"mlir(
         tcrv_rvv.i32_store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
@@ -679,6 +690,18 @@ bool expectRVVTargetArtifactExporterShape(
                          broadcastFixture.candidate, *exporter),
                      "validate RVV broadcast selected-body target artifact "
                      "candidate"))
+    return false;
+
+  RVVTargetArtifactCandidateFixture compareSelectFixture(
+      tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::CmpSelect);
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          compareSelectFixture,
+          "build valid RVV compare/select selected-body candidate fixture"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         compareSelectFixture.candidate, *exporter),
+                     "validate RVV compare/select selected-body target "
+                     "artifact candidate"))
     return false;
 
   TargetArtifactCandidate metadataOnlyCandidate =

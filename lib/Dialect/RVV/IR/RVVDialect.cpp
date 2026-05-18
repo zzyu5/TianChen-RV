@@ -149,6 +149,14 @@ bool isAllowedI32MulAttr(llvm::StringRef name) {
   return false;
 }
 
+bool isAllowedI32CmpEqAttr(llvm::StringRef) {
+  return false;
+}
+
+bool isAllowedI32SelectAttr(llvm::StringRef) {
+  return false;
+}
+
 bool isAllowedI32StoreAttr(llvm::StringRef) {
   return false;
 }
@@ -303,6 +311,10 @@ bool isSupportedI32Vector(mlir::Type type) {
   return !getI32VectorLMUL(type).empty();
 }
 
+bool isI32M1Mask(mlir::Type type) {
+  return llvm::isa<I32M1MaskType>(type);
+}
+
 mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
                                                  mlir::Value value,
                                                  llvm::StringRef role) {
@@ -348,6 +360,15 @@ mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
   return mlir::success();
 }
 
+mlir::LogicalResult verifyI32M1VectorTypeForWithVL(mlir::Operation *op,
+                                                   mlir::Value value,
+                                                   llvm::StringRef role) {
+  if (!isI32M1Vector(value.getType()))
+    return op->emitOpError()
+           << "requires " << role << " type to be !tcrv_rvv.i32m1";
+  return verifyI32VectorTypeForWithVL(op, value, role);
+}
+
 mlir::FailureOr<WithVLOp> verifyNestedDataflowOp(mlir::Operation *op) {
   auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
   if (!withVL)
@@ -371,6 +392,27 @@ mlir::LogicalResult verifyDataflowVLOperandMatchesWithVL(mlir::Operation *op,
            << "requires RVV dataflow op to consume the !tcrv_rvv.vl token "
               "owned by the surrounding tcrv_rvv.with_vl";
 
+  return mlir::success();
+}
+
+mlir::LogicalResult verifyNoDataflowAttrs(mlir::Operation *op,
+                                          llvm::StringRef opName,
+                                          bool (*isAllowed)(llvm::StringRef)) {
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return op->emitOpError()
+             << "does not accept attribute '" << attr.getName() << "'; "
+             << opName
+             << " keeps SEW/LMUL/policy on setvl/with_vl, runtime n/AVL/VL "
+                "in the surrounding control-plane IR, and rejects deleted "
+                "local element_count metadata";
+
+    if (!isAllowed(attrName))
+      return op->emitOpError()
+             << "does not accept dataflow attributes; unexpected attribute '"
+             << attr.getName() << "'";
+  }
   return mlir::success();
 }
 
@@ -878,6 +920,95 @@ mlir::LogicalResult I32MulOp::verify() {
   if (mlir::failed(verifyI32VectorTypeForWithVL(op, getRhs(), "rhs")))
     return mlir::failure();
   return verifyI32VectorTypeForWithVL(op, getProduct(), "result");
+}
+
+mlir::LogicalResult I32CmpEqOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(
+          verifyNoDataflowAttrs(op, "tcrv_rvv.i32_cmp_eq",
+                                isAllowedI32CmpEqAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires lhs/rhs !tcrv_rvv.i32m1 operands, one "
+              "!tcrv_rvv.vl operand, and one !tcrv_rvv.i32m1_mask result";
+  if (getLhs().getType() != getRhs().getType())
+    return emitOpError()
+           << "requires lhs and rhs to have the same bounded RVV i32m1 "
+              "vector type";
+  if (!isI32M1Mask(getMask().getType()))
+    return emitOpError()
+           << "requires result type to be !tcrv_rvv.i32m1_mask";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (mlir::failed(verifyI32M1VectorTypeForWithVL(op, getLhs(), "lhs")))
+    return mlir::failure();
+  return verifyI32M1VectorTypeForWithVL(op, getRhs(), "rhs");
+}
+
+mlir::LogicalResult I32SelectOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(
+          verifyNoDataflowAttrs(op, "tcrv_rvv.i32_select",
+                                isAllowedI32SelectAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one !tcrv_rvv.i32m1_mask predicate, true/false "
+              "!tcrv_rvv.i32m1 operands, one !tcrv_rvv.vl operand, and one "
+              "!tcrv_rvv.i32m1 result";
+  if (!isI32M1Mask(getMask().getType()))
+    return emitOpError()
+           << "requires mask operand type to be !tcrv_rvv.i32m1_mask";
+  if (!isI32M1Vector(getTrueValue().getType()) ||
+      !isI32M1Vector(getFalseValue().getType()) ||
+      !isI32M1Vector(getSelected().getType()))
+    return emitOpError()
+           << "requires true, false, and result types to be "
+              "!tcrv_rvv.i32m1";
+  if (getTrueValue().getType() != getFalseValue().getType() ||
+      getTrueValue().getType() != getSelected().getType())
+    return emitOpError()
+           << "requires true, false, and result to have the same bounded "
+              "RVV i32m1 vector type";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto compare = getMask().getDefiningOp<I32CmpEqOp>();
+  if (!compare)
+    return emitOpError()
+           << "requires mask operand to be produced by tcrv_rvv.i32_cmp_eq "
+              "inside the selected RVV typed body";
+  if (compare.getVl() != getVl())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.i32_cmp_eq to consume the "
+              "same !tcrv_rvv.vl token as tcrv_rvv.i32_select";
+  if (compare->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.i32_cmp_eq to be in the "
+              "same tcrv_rvv.with_vl body as tcrv_rvv.i32_select";
+
+  if (mlir::failed(
+          verifyI32M1VectorTypeForWithVL(op, getTrueValue(), "true value")))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyI32M1VectorTypeForWithVL(op, getFalseValue(), "false value")))
+    return mlir::failure();
+  return verifyI32M1VectorTypeForWithVL(op, getSelected(), "result");
 }
 
 mlir::LogicalResult I32StoreOp::verify() {

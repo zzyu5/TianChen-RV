@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify implementation stays in the approved C++/MLIR/LLVM/TableGen/CMake/lit/FileCheck stack."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV-specific compare/select semantics remain plugin-owned and selected-body driven."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export remain neutral consumers of validated route payloads."}
+{"file": ".trellis/tasks/archive/2026-05/05-18-05-18-rvv-stage2-compare-select-selected-body-route/prd.md", "reason": "Verify code and tests satisfy this task's acceptance criteria."}

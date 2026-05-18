@@ -245,8 +245,10 @@ llvm::StringRef getRVVI32M1ArithmeticOperationName(RVVI32M1ArithmeticOp op) {
     return "tcrv_rvv.i32_sub";
   case RVVI32M1ArithmeticOp::Mul:
     return "tcrv_rvv.i32_mul";
+  default:
+    break;
   }
-  llvm_unreachable("unknown RVV i32m1 arithmetic op");
+  llvm_unreachable("unsupported RVV i32m1 source-front-door op");
 }
 
 bool hasForeignLoweringSeedAttr(mlir::func::FuncOp func) {

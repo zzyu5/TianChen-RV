@@ -44,19 +44,25 @@ struct RVVI32M1ArithmeticRouteSpec {
   llvm::StringLiteral mnemonic;
   llvm::StringLiteral intrinsic;
   llvm::StringLiteral resultName;
+  llvm::StringLiteral compareIntrinsic;
+  llvm::StringLiteral maskName;
 };
 
 constexpr RVVI32M1ArithmeticRouteSpec kRVVI32M1ArithmeticRoutes[] = {
-    {RVVI32M1ArithmeticOp::Add, "add", "__riscv_vadd_vv_i32m1", "sum_vec"},
+    {RVVI32M1ArithmeticOp::Add, "add", "__riscv_vadd_vv_i32m1", "sum_vec",
+     "", ""},
     {RVVI32M1ArithmeticOp::Sub, "sub", "__riscv_vsub_vv_i32m1",
-     "difference_vec"},
+     "difference_vec", "", ""},
     {RVVI32M1ArithmeticOp::Mul, "mul", "__riscv_vmul_vv_i32m1",
-     "product_vec"},
+     "product_vec", "", ""},
+    {RVVI32M1ArithmeticOp::CmpSelect, "cmp_select",
+     "__riscv_vmerge_vvm_i32m1", "selected_vec",
+     "__riscv_vmseq_vv_i32m1_b32", "cmp_mask"},
 };
 
 constexpr RVVI32M1ArithmeticOp kRVVI32M1ArithmeticOps[] = {
     RVVI32M1ArithmeticOp::Add, RVVI32M1ArithmeticOp::Sub,
-    RVVI32M1ArithmeticOp::Mul};
+    RVVI32M1ArithmeticOp::Mul, RVVI32M1ArithmeticOp::CmpSelect};
 
 const RVVI32M1ArithmeticRouteSpec &
 getRVVI32M1ArithmeticRouteSpec(RVVI32M1ArithmeticOp op) {
@@ -131,6 +137,15 @@ struct RVVI32M1ArithmeticSlice {
   mlir::Value arithmeticRhs;
   mlir::Value arithmeticResult;
   RVVI32M1ArithmeticOp arithmeticKind;
+  tcrv::rvv::I32CmpEqOp compareOp;
+  tcrv::rvv::I32SelectOp selectOp;
+  mlir::Value compareLhs;
+  mlir::Value compareRhs;
+  mlir::Value compareMask;
+  mlir::Value selectMask;
+  mlir::Value selectTrueValue;
+  mlir::Value selectFalseValue;
+  mlir::Value selectResult;
   tcrv::rvv::I32StoreOp store;
   support::RuntimeABIParameter lhsABI;
   support::RuntimeABIParameter rhsABI;
@@ -276,12 +291,40 @@ llvm::Error recordRVVI32M1ArithmeticOp(RVVI32M1ArithmeticSlice &slice,
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one supported "
-        "tcrv_rvv.i32_add, tcrv_rvv.i32_sub, or tcrv_rvv.i32_mul op");
+        "tcrv_rvv.i32_add, tcrv_rvv.i32_sub, tcrv_rvv.i32_mul, or "
+        "tcrv_rvv.i32_select op");
   slice.arithmeticOp = op;
   slice.arithmeticKind = kind;
   slice.arithmeticLhs = lhs;
   slice.arithmeticRhs = rhs;
   slice.arithmeticResult = result;
+  return llvm::Error::success();
+}
+
+llvm::Error recordRVVI32M1CompareOp(RVVI32M1ArithmeticSlice &slice,
+                                    tcrv::rvv::I32CmpEqOp compare) {
+  if (slice.compareOp)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV compare/select EmitC route requires exactly one "
+        "tcrv_rvv.i32_cmp_eq op");
+  slice.compareOp = compare;
+  slice.compareLhs = compare.getLhs();
+  slice.compareRhs = compare.getRhs();
+  slice.compareMask = compare.getMask();
+  return llvm::Error::success();
+}
+
+llvm::Error recordRVVI32M1SelectOp(RVVI32M1ArithmeticSlice &slice,
+                                   tcrv::rvv::I32SelectOp select) {
+  if (llvm::Error error = recordRVVI32M1ArithmeticOp(
+          slice, select.getOperation(), RVVI32M1ArithmeticOp::CmpSelect,
+          select.getTrueValue(), select.getFalseValue(), select.getSelected()))
+    return error;
+  slice.selectOp = select;
+  slice.selectMask = select.getMask();
+  slice.selectTrueValue = select.getTrueValue();
+  slice.selectFalseValue = select.getFalseValue();
+  slice.selectResult = select.getSelected();
   return llvm::Error::success();
 }
 
@@ -364,6 +407,16 @@ collectRVVI32M1ArithmeticSlice(tcrv::exec::VariantOp variant) {
         return std::move(error);
       continue;
     }
+    if (auto compare = llvm::dyn_cast<tcrv::rvv::I32CmpEqOp>(op)) {
+      if (llvm::Error error = recordRVVI32M1CompareOp(slice, compare))
+        return std::move(error);
+      continue;
+    }
+    if (auto select = llvm::dyn_cast<tcrv::rvv::I32SelectOp>(op)) {
+      if (llvm::Error error = recordRVVI32M1SelectOp(slice, select))
+        return std::move(error);
+      continue;
+    }
     if (auto store = llvm::dyn_cast<tcrv::rvv::I32StoreOp>(op)) {
       slice.store = store;
       ++storeCount;
@@ -373,10 +426,21 @@ collectRVVI32M1ArithmeticSlice(tcrv::exec::VariantOp variant) {
         llvm::Twine("bounded RVV EmitC route does not support op '") +
         op.getName().getStringRef() +
         "' inside tcrv_rvv.with_vl; expected load or broadcast-load, "
-        "arithmetic, and store only");
+        "arithmetic or compare/select compute, and store only");
   }
 
-  if (loads.size() != 2) {
+  const bool isCompareSelect = slice.compareOp || slice.selectOp;
+  if (isCompareSelect) {
+    if (!slice.compareOp || !slice.selectOp)
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV compare/select EmitC route requires explicit "
+          "tcrv_rvv.i32_cmp_eq and tcrv_rvv.i32_select ops");
+    if (loads.size() != 2 || !broadcastLoads.empty())
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV compare/select EmitC route requires exactly two "
+          "tcrv_rvv.i32_load ops and does not support broadcast predicates in "
+          "this slice");
+  } else if (loads.size() != 2) {
     if (!(loads.size() == 1 && broadcastLoads.size() == 1))
       return makeRVVEmitCRouteProviderError(
           "bounded RVV EmitC route requires either two tcrv_rvv.i32_load ops "
@@ -394,16 +458,18 @@ collectRVVI32M1ArithmeticSlice(tcrv::exec::VariantOp variant) {
   if (!slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one supported "
-        "tcrv_rvv.i32_add, tcrv_rvv.i32_sub, or tcrv_rvv.i32_mul op");
+        "tcrv_rvv.i32_add, tcrv_rvv.i32_sub, tcrv_rvv.i32_mul, or "
+        "tcrv_rvv.i32_select op");
   if (storeCount != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one tcrv_rvv.i32_store op");
-  if (rvvOpCount != 10)
+  unsigned expectedRVVOpCount = isCompareSelect ? 11 : 10;
+  if (rvvOpCount != expectedRVVOpCount)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route supports only runtime_abi_value/"
         "runtime_abi_value/runtime_abi_value/runtime_abi_value/setvl/"
         "with_vl/i32_load/i32_load_or_i32_broadcast_load/"
-        "i32_add_or_i32_sub_or_i32_mul/i32_store");
+        "i32_add_or_i32_sub_or_i32_mul_or_i32_cmp_eq_i32_select/i32_store");
 
   for (tcrv::rvv::I32LoadOp load : loads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
@@ -449,16 +515,38 @@ collectRVVI32M1ArithmeticSlice(tcrv::exec::VariantOp variant) {
   mlir::Value rhsValue = slice.rhsBroadcastLoad
                              ? slice.rhsBroadcastLoad.getBroadcast()
                              : slice.rhsLoad.getLoaded();
-  if (slice.arithmeticLhs != slice.lhsLoad.getLoaded() ||
-      slice.arithmeticRhs != rhsValue)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("bounded RVV EmitC route requires tcrv_rvv.i32_") +
-        spec.mnemonic + " to consume lhs load and explicit rhs vector or "
-                        "broadcast results");
-  if (slice.store.getValue() != slice.arithmeticResult)
-    return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route requires tcrv_rvv.i32_store to consume the "
-        "arithmetic result");
+  if (slice.arithmeticKind == RVVI32M1ArithmeticOp::CmpSelect) {
+    if (slice.compareLhs != slice.lhsLoad.getLoaded() ||
+        slice.compareRhs != slice.rhsLoad.getLoaded())
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV compare/select EmitC route requires "
+          "tcrv_rvv.i32_cmp_eq to consume lhs and rhs vector load results");
+    if (slice.selectMask != slice.compareMask)
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV compare/select EmitC route requires "
+          "tcrv_rvv.i32_select to consume the typed mask produced by "
+          "tcrv_rvv.i32_cmp_eq");
+    if (slice.selectTrueValue != slice.lhsLoad.getLoaded() ||
+        slice.selectFalseValue != slice.rhsLoad.getLoaded())
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV compare/select EmitC route requires "
+          "tcrv_rvv.i32_select to consume explicit lhs/rhs vector values");
+    if (slice.store.getValue() != slice.selectResult)
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV compare/select EmitC route requires tcrv_rvv.i32_store "
+          "to consume the select result");
+  } else {
+    if (slice.arithmeticLhs != slice.lhsLoad.getLoaded() ||
+        slice.arithmeticRhs != rhsValue)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine("bounded RVV EmitC route requires tcrv_rvv.i32_") +
+          spec.mnemonic + " to consume lhs load and explicit rhs vector or "
+                          "broadcast results");
+    if (slice.store.getValue() != slice.arithmeticResult)
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV EmitC route requires tcrv_rvv.i32_store to consume the "
+          "arithmetic result");
+  }
 
   return slice;
 }
@@ -561,10 +649,15 @@ unsigned getRVVCanonicalRoleOrder(RVVI32M1ArithmeticSlice &slice,
     return 7;
   if (slice.rhsBroadcastLoad && op == slice.rhsBroadcastLoad.getOperation())
     return 7;
+  if (slice.compareOp && op == slice.compareOp.getOperation())
+    return 8;
+  if (slice.arithmeticKind == RVVI32M1ArithmeticOp::CmpSelect &&
+      op == slice.arithmeticOp)
+    return 9;
   if (op == slice.arithmeticOp)
     return 8;
   if (op == slice.store.getOperation())
-    return 9;
+    return slice.arithmeticKind == RVVI32M1ArithmeticOp::CmpSelect ? 10 : 9;
   return 10;
 }
 
@@ -737,6 +830,7 @@ llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
   route.addHeader("riscv_vector.h");
   route.addTypeMapping("!tcrv_rvv.vl", "size_t");
   route.addTypeMapping("!tcrv_rvv.i32m1", "vint32m1_t");
+  route.addTypeMapping("!tcrv_rvv.i32m1_mask", "vbool32_t");
   const support::RuntimeABIParameter runtimeABIParameters[] = {
       slice->lhsABI, slice->rhsABI, slice->outABI,
       slice->runtimeElementCountABI};
@@ -826,14 +920,36 @@ llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
             TCRVEmitCCallOpaqueResult{"rhs_vec", "vint32m1_t"}))
       return error;
   }
-  if (llvm::Error error = addLoopStep(
-          slice->arithmeticOp, "compute", expectedSpec.intrinsic,
-          {TCRVEmitCCallOpaqueOperand{"lhs_vec", "vint32m1_t"},
-           TCRVEmitCCallOpaqueOperand{"rhs_vec", "vint32m1_t"},
-           TCRVEmitCCallOpaqueOperand{loopVLName.str(), "size_t"}},
-          TCRVEmitCCallOpaqueResult{expectedSpec.resultName.str(),
-                                    "vint32m1_t"}))
-    return error;
+  if (slice->arithmeticKind == RVVI32M1ArithmeticOp::CmpSelect) {
+    if (llvm::Error error = addLoopStep(
+            slice->compareOp.getOperation(), "compute",
+            expectedSpec.compareIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{"lhs_vec", "vint32m1_t"},
+             TCRVEmitCCallOpaqueOperand{"rhs_vec", "vint32m1_t"},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), "size_t"}},
+            TCRVEmitCCallOpaqueResult{expectedSpec.maskName.str(),
+                                      "vbool32_t"}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", expectedSpec.intrinsic,
+            {TCRVEmitCCallOpaqueOperand{"rhs_vec", "vint32m1_t"},
+             TCRVEmitCCallOpaqueOperand{"lhs_vec", "vint32m1_t"},
+             TCRVEmitCCallOpaqueOperand{expectedSpec.maskName.str(),
+                                        "vbool32_t"},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), "size_t"}},
+            TCRVEmitCCallOpaqueResult{expectedSpec.resultName.str(),
+                                      "vint32m1_t"}))
+      return error;
+  } else {
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", expectedSpec.intrinsic,
+            {TCRVEmitCCallOpaqueOperand{"lhs_vec", "vint32m1_t"},
+             TCRVEmitCCallOpaqueOperand{"rhs_vec", "vint32m1_t"},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), "size_t"}},
+            TCRVEmitCCallOpaqueResult{expectedSpec.resultName.str(),
+                                      "vint32m1_t"}))
+      return error;
+  }
   if (llvm::Error error = addLoopStep(
           slice->store.getOperation(), "store", "__riscv_vse32_v_i32m1",
           {TCRVEmitCCallOpaqueOperand{

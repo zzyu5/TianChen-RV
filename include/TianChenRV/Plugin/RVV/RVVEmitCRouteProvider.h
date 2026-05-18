@@ -22,6 +22,7 @@ enum class RVVI32M1ArithmeticOp {
   Add,
   Sub,
   Mul,
+  CmpSelect,
 };
 
 llvm::ArrayRef<RVVI32M1ArithmeticOp> getRVVI32M1ArithmeticOps();

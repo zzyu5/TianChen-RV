@@ -420,7 +420,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
       request.getVariant().getSymName(), request.getRole(),
       getRVVI32M1ArithmeticEmissionKind(), manifest.emitcRoute.routeID,
       runtimeABIName, manifest.emitcRoute.artifactKind,
-      "RVV selected i32m1 arithmetic route materializes a verified EmitC "
+      "RVV selected i32m1 dataflow route materializes a verified EmitC "
       "module through the common TCRVEmitCLowerableRoute materializer, then "
       "uses the MLIR EmitC C/C++ emitter before RISC-V object packaging");
   out.setRuntimeABIKind(getRVVI32M1ArithmeticRuntimeABIKind());

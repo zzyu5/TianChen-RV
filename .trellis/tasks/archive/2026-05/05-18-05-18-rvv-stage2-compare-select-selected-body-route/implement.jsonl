@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global compiler stack, execution envelope, extension-family, and descriptor/direct-C boundary rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage 2 selected-body route authority and compare/select coverage boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route neutrality and generated interface/provenance contracts."}
+{"file": ".trellis/tasks/archive/2026-05/05-18-rvv-stage2-elementwise-broadcast-selected-body/prd.md", "reason": "Immediate prior selected-body route slice pattern to preserve and extend."}
