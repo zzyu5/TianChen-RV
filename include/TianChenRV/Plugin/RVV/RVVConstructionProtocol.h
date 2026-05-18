@@ -105,6 +105,8 @@ llvm::StringRef getRVVLoweringBoundaryStatus();
 
 const RVVConstructionManifest &getRVVConstructionManifest();
 const RVVTypedRoleGraphRealization &getRVVTypedRoleGraphRealization();
+llvm::StringRef getRVVSelectedBodyTargetArtifactRouteID();
+llvm::StringRef getRVVSelectedBodyTargetArtifactKind();
 llvm::ArrayRef<RVVSelectedBodyConstructionRoute>
 getRVVSelectedBodyConstructionRoutes();
 const RVVSelectedBodyTargetArtifactMapping &

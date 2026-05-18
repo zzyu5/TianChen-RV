@@ -111,6 +111,10 @@ describeRVVSelectedBodyEmitCRoute(
     tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute *verifiedRoute =
         nullptr);
 
+llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context);
+
 llvm::Error buildRVVSelectedBodyEmitCLowerableRoute(
     const tianchenrv::plugin::VariantEmitCLowerableRequest &request,
     tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &out);

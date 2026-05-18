@@ -485,13 +485,13 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        plugin::rvv::getRVVArtifactTypedRoleRealizationSummary()},
       {"emitc_route_mapping",
        plugin::rvv::getRVVEmitCRouteMappingMetadataName(),
-       getRVVManifest().emitcRoute.routeID},
+       plugin::rvv::getRVVSelectedBodyTargetArtifactRouteID()},
       {"target_artifact_route",
        plugin::rvv::getRVVTargetArtifactRouteMetadataName(),
-       getRVVManifest().emitcRoute.routeID},
+       plugin::rvv::getRVVSelectedBodyTargetArtifactRouteID()},
       {"target_artifact_kind",
        plugin::rvv::getRVVTargetArtifactKindMetadataName(),
-       getRVVManifest().emitcRoute.artifactKind},
+       plugin::rvv::getRVVSelectedBodyTargetArtifactKind()},
       {"evidence_profile", plugin::rvv::getRVVEvidenceProfileMetadataName(),
        plugin::rvv::getRVVConstructionManifest().evidenceProfile},
       {"bundle_component_group",
@@ -610,8 +610,8 @@ SelectedEmitCArtifactRouteConfig getRVVSelectedBodyArtifactConfig() {
   const plugin::rvv::RVVConstructionManifest &manifest = getRVVManifest();
 
   SelectedEmitCArtifactRouteConfig config;
-  config.routeID = manifest.emitcRoute.routeID;
-  config.artifactKind = manifest.emitcRoute.artifactKind;
+  config.routeID = plugin::rvv::getRVVSelectedBodyTargetArtifactRouteID();
+  config.artifactKind = plugin::rvv::getRVVSelectedBodyTargetArtifactKind();
   config.originPlugin = manifest.family.pluginName;
   config.routeDescription = "RVV selected-body materialized EmitC target "
                             "artifact bridge for the bounded i32m1 slice";
@@ -717,7 +717,7 @@ llvm::Error registerRVVSelectedBodyTargetArtifactExporter(
 } // namespace
 
 llvm::StringRef getRVVMaterializedEmitCTargetArtifactRouteID() {
-  return getRVVManifest().emitcRoute.routeID;
+  return plugin::rvv::getRVVSelectedBodyTargetArtifactRouteID();
 }
 
 llvm::StringRef getRVVMaterializedEmitCHeaderArtifactRouteID() {

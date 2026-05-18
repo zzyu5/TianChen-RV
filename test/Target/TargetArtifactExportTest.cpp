@@ -591,10 +591,12 @@ TargetArtifactCandidate makeValidRVVTargetArtifactCandidate(
   candidate.kernel = kernel;
   candidate.selectedVariant = getRVVTestVariantSymbol(op);
   candidate.role = "direct variant";
-  candidate.routeID = manifest.emitcRoute.routeID.str();
+  candidate.routeID =
+      tianchenrv::plugin::rvv::getRVVSelectedBodyTargetArtifactRouteID().str();
   candidate.origin = manifest.family.pluginName.str();
   candidate.emissionKind = manifest.emitcRoute.emissionKind.str();
-  candidate.artifactKind = manifest.emitcRoute.artifactKind.str();
+  candidate.artifactKind =
+      tianchenrv::plugin::rvv::getRVVSelectedBodyTargetArtifactKind().str();
   candidate.loweringBoundary =
       tianchenrv::plugin::rvv::
           getRVVSelectedBodyLoweringBoundaryOpName()
@@ -673,8 +675,10 @@ TargetArtifactCandidate makeValidRVVTargetArtifactCandidate(
   facts.operationMnemonic = route.operationMnemonic;
   facts.typedComputeOpName = route.typedComputeOpName;
   facts.emitCRouteID = route.emitCRouteID;
-  facts.targetArtifactRouteID = manifest.emitcRoute.routeID;
-  facts.targetArtifactKind = manifest.emitcRoute.artifactKind;
+  facts.targetArtifactRouteID =
+      tianchenrv::plugin::rvv::getRVVSelectedBodyTargetArtifactRouteID();
+  facts.targetArtifactKind =
+      tianchenrv::plugin::rvv::getRVVSelectedBodyTargetArtifactKind();
   facts.runtimeABIName = route.runtimeABIName;
   facts.runtimeABIContractName = route.runtimeABIContractName;
   facts.runtimeABIParameters = candidate.runtimeABIParameters;
@@ -755,7 +759,8 @@ bool expectRVVTargetArtifactExporterShape(
                  << ": missing RVV materialized EmitC target artifact route\n";
     return false;
   }
-  if (exporter->getArtifactKind() != manifest.emitcRoute.artifactKind ||
+  if (exporter->getArtifactKind() !=
+          tianchenrv::plugin::rvv::getRVVSelectedBodyTargetArtifactKind() ||
       exporter->getOriginPlugin() != manifest.family.pluginName ||
       exporter->getEmissionKind() != manifest.emitcRoute.emissionKind ||
       exporter->getHandoffKind() !=
@@ -973,7 +978,8 @@ bool expectRVVTargetArtifactExporterShape(
                            "metadata",
                            {tianchenrv::plugin::rvv::
                                 getRVVEmitCRouteMappingMetadataName(),
-                            manifest.emitcRoute.routeID}))
+                            tianchenrv::plugin::rvv::
+                                getRVVSelectedBodyTargetArtifactRouteID()}))
     return false;
 
   TargetArtifactCandidate staleConstructionRuntimeABI = candidate;

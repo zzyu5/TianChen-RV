@@ -372,6 +372,58 @@ materialization, and target artifact validation.
 - None - task complete
 
 
+## Session 131: RVV selected-route artifact identity closure
+
+**Date**: 2026-05-19
+**Task**: RVV selected-route artifact identity closure
+**Branch**: `main`
+
+### Summary
+
+Closed the residual RVV selected-route identity boundary so target artifact
+route labels, runtime ABI labels, retained i32m1 names, and exact intrinsic
+spellings are checked as provider-derived selected-body specialization facts
+before construction metadata or target export consumes them.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `05-19-05-19-rvv-selected-route-artifact-identity-closure`.
+- Added explicit selected-body target artifact route/kind accessors and routed
+  provider/target code through those labels instead of scattered manifest route
+  field reads.
+- Renamed the construction-local retained i32m1 table to
+  `kRetainedSelectedBodySpecializations` and documented that it is post-body
+  specialization facts, not public route authority.
+- Added `verifyRVVSelectedBodyEmitCRouteDescription` and invoked it from the
+  RVV provider after selected typed body/config/runtime ABI/role validation.
+- Updated RVV target support and tests to mirror provider-selected route facts,
+  with provider-level negative coverage for stale intrinsic and stale target
+  artifact route labels.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the new verifier
+  signature and fail-closed identity contract.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-construction-protocol-common-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-first-slice|vector-materialized-target-artifact-exporters|emitc-to-cpp|rvv-i32m1-vector-source-front-door'` from `build/test`: 21/21 selected tests passed.
+- [OK] Bounded residue scan over RVV provider/construction/source/target files.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-19-05-19-rvv-selected-route-artifact-identity-closure`
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 130: RVV Stage 2 elementwise broadcast selected-body coverage
 
 **Date**: 2026-05-18

@@ -615,6 +615,43 @@ module {
                         "typed config and intrinsic mapping for @") +
                 variantName))
       return result;
+    if (int result = expectSuccess(
+            tianchenrv::plugin::rvv::
+                verifyRVVSelectedBodyEmitCRouteDescription(
+                    *routeDescription,
+                    "RVV selected-body provider identity test"),
+            llvm::Twine("verify provider-derived selected-body identity for @") +
+                variantName))
+      return result;
+    if (routeDescription->operation ==
+        tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Add) {
+      tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription
+          staleIntrinsic = *routeDescription;
+      staleIntrinsic.intrinsic = "__riscv_vsub_vv_i32m1";
+      if (int result = expectErrorContains(
+              tianchenrv::plugin::rvv::
+                  verifyRVVSelectedBodyEmitCRouteDescription(
+                      staleIntrinsic,
+                      "RVV selected-body stale intrinsic test"),
+              {"compute intrinsic", "__riscv_vadd_vv_i32m1",
+               "__riscv_vsub_vv_i32m1"}))
+        return result;
+
+      tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription
+          staleArtifactRoute = *routeDescription;
+      staleArtifactRoute.targetArtifactRouteID =
+          "rvv-stale-target-artifact-route";
+      if (int result = expectErrorContains(
+              tianchenrv::plugin::rvv::
+                  verifyRVVSelectedBodyEmitCRouteDescription(
+                      staleArtifactRoute,
+                      "RVV selected-body stale target artifact route test"),
+              {"target artifact route id",
+               tianchenrv::plugin::rvv::
+                   getRVVSelectedBodyTargetArtifactRouteID(),
+               "rvv-stale-target-artifact-route"}))
+        return result;
+    }
 
     tianchenrv::plugin::rvv::RVVSelectedBodyConstructionMetadataFacts facts =
         tianchenrv::plugin::rvv::

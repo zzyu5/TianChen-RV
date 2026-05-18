@@ -157,6 +157,8 @@ materialization. The trigger is a selected `tcrv.exec.variant` owned by
   `runtimeABIName`, and structured runtime ABI parameters.
 - Description builder:
   `describeRVVSelectedBodyEmitCRoute(const VariantEmitCLowerableRequest &request, TCRVEmitCLowerableRoute *verifiedRoute = nullptr)`.
+- Description verifier:
+  `verifyRVVSelectedBodyEmitCRouteDescription(const RVVSelectedBodyEmitCRouteDescription &description, StringRef context)`.
 - Route builder:
   `buildRVVSelectedBodyEmitCLowerableRoute(const VariantEmitCLowerableRequest &request, TCRVEmitCLowerableRoute &out)`.
 
@@ -173,6 +175,12 @@ materialization. The trigger is a selected `tcrv.exec.variant` owned by
 - The optional `verifiedRoute` output may be filled only from the same
   validated selected-body description; it must not bypass body/config/runtime
   checks.
+- Before a provider-built description is returned or consumed to build an
+  EmitC route, `verifyRVVSelectedBodyEmitCRouteDescription` must prove that
+  target artifact route/kind, EmitC route ID, runtime ABI name/contract,
+  boundary op, vector/mask C types, exact intrinsic spellings, and ordered
+  runtime ABI parameters mirror the selected-body specialization derived from
+  validated operation, memory form, SEW, LMUL, tail policy, and mask policy.
 - RVV emission readiness, emission-plan materialization, and target artifact
   candidate validation may consume `targetArtifactRouteID` and
   `targetArtifactKind` only after `describeRVVSelectedBodyEmitCRoute` has
@@ -200,6 +208,10 @@ materialization. The trigger is a selected `tcrv.exec.variant` owned by
   description.
 - Typed compute/dataflow does not match the bounded selected-body route shape
   -> fail before route id or intrinsic labels are emitted.
+- Provider description has a stale target artifact route, runtime ABI label,
+  typed compute op, vector type, or intrinsic spelling relative to the
+  selected-body specialization -> fail before construction metadata, EmitC
+  route materialization, or target artifact export consumes it.
 - Artifact metadata disagrees with the rebuilt selected-body route description
   -> target export must fail before object/header/bundle output.
 - `tcrv_rvv.with_vl` carries stale or missing `rvv_emitc_route_mapping`
@@ -223,6 +235,9 @@ materialization. The trigger is a selected `tcrv.exec.variant` owned by
 - Positive provider or lit coverage for at least one selected typed
   `tcrv_rvv` body route materializing through common EmitC.
 - Negative provider/lit coverage for missing runtime ABI or config/VL facts.
+- Negative provider coverage proving stale description identity facts such as
+  target artifact route IDs or intrinsic spellings fail
+  `verifyRVVSelectedBodyEmitCRouteDescription`.
 - Target/export coverage proving stale route-id or arithmetic metadata that
   disagrees with the rebuilt selected-body description fails closed.
 - Source-front-door or plugin-boundary coverage proving a valid typed body does

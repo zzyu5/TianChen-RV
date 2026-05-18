@@ -138,7 +138,7 @@ constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
 constexpr llvm::StringLiteral kRVVCapabilityKind("isa-vector");
 constexpr llvm::StringLiteral kRVVFirstSliceVariantName(
     "rvv_i32m1_arithmetic_first_slice");
-constexpr llvm::StringLiteral kRVVSelectedBodyRouteFamilyID(
+constexpr llvm::StringLiteral kRVVSelectedBodyTargetArtifactRouteID(
     "rvv-i32m1-arithmetic-emitc-route-family");
 constexpr llvm::StringLiteral kRVVSelectedBodyEmissionKind(
     "materialized-emitc-cpp-rvv-intrinsic-object");
@@ -206,7 +206,7 @@ const RVVConstructionManifest kManifest = {
      kRVVCapabilityKind,
      kRVVFirstSliceVariantName},
     kSemanticRoles,
-    {kRVVSelectedBodyRouteFamilyID,
+    {kRVVSelectedBodyTargetArtifactRouteID,
      kRVVSelectedBodyEmissionKind,
      kRVVSelectedBodyArtifactKind,
      kRVVSelectedBodyRuntimeABIFamily,
@@ -278,7 +278,9 @@ const RVVTypedRoleGraphRealization kTypedRoleGraphRealization = {
     kEvidenceProfile,
 };
 
-const RVVSelectedBodyConstructionRoute kSelectedBodyRoutes[] = {
+// Retained i32m1 labels are specialization facts checked after selected-body
+// validation; they are not a public route-authority table.
+const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = {
     {"add",
      "tcrv_rvv.i32_add",
      "rvv.role.compute.i32_arithmetic",
@@ -381,7 +383,8 @@ llvm::Error verifySelectedBodyRoutes() {
   llvm::StringSet<> seenOperations;
   llvm::StringSet<> seenTypedComputeOps;
   llvm::StringSet<> seenEmitCRoutes;
-  for (const RVVSelectedBodyConstructionRoute &route : kSelectedBodyRoutes) {
+  for (const RVVSelectedBodyConstructionRoute &route :
+       kRetainedSelectedBodySpecializations) {
     if (llvm::Error error =
             requireRouteText("operation_mnemonic", route.operationMnemonic))
       return error;
@@ -417,7 +420,8 @@ llvm::Error verifySelectedBodyRoutes() {
           route.operationMnemonic +
           "' must match the RVV compute typed role realization");
   }
-  if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(kSelectedBodyRoutes)
+  if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
+          kRetainedSelectedBodySpecializations)
           .size() != 4)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, and "
@@ -473,7 +477,8 @@ lookupRouteBy(llvm::StringRef value, llvm::StringRef label,
                               llvm::StringRef)) {
   if (llvm::Error error = verifyRVVConstructionProtocolReady())
     return std::move(error);
-  for (const RVVSelectedBodyConstructionRoute &route : kSelectedBodyRoutes)
+  for (const RVVSelectedBodyConstructionRoute &route :
+       kRetainedSelectedBodySpecializations)
     if (matches(route, value))
       return &route;
   return makeRVVConstructionError(llvm::Twine("unknown RVV selected-body ") +
@@ -482,7 +487,8 @@ lookupRouteBy(llvm::StringRef value, llvm::StringRef label,
 
 const RVVSelectedBodyConstructionRoute *
 findRouteByTypedComputeOpNameRaw(llvm::StringRef typedComputeOpName) {
-  for (const RVVSelectedBodyConstructionRoute &route : kSelectedBodyRoutes)
+  for (const RVVSelectedBodyConstructionRoute &route :
+       kRetainedSelectedBodySpecializations)
     if (route.typedComputeOpName == typedComputeOpName)
       return &route;
   return nullptr;
@@ -496,8 +502,8 @@ makeConstructionMetadataFactsForRoute(
   facts.operationMnemonic = route.operationMnemonic;
   facts.typedComputeOpName = route.typedComputeOpName;
   facts.emitCRouteID = route.emitCRouteID;
-  facts.targetArtifactRouteID = kManifest.emitcRoute.routeID;
-  facts.targetArtifactKind = kManifest.emitcRoute.artifactKind;
+  facts.targetArtifactRouteID = kRVVSelectedBodyTargetArtifactRouteID;
+  facts.targetArtifactKind = kRVVSelectedBodyArtifactKind;
   facts.runtimeABIName = route.runtimeABIName;
   facts.runtimeABIContractName = route.runtimeABIContractName;
   facts.runtimeABIParameters = runtimeABIParameters;
@@ -743,9 +749,17 @@ const RVVTypedRoleGraphRealization &getRVVTypedRoleGraphRealization() {
   return kTypedRoleGraphRealization;
 }
 
+llvm::StringRef getRVVSelectedBodyTargetArtifactRouteID() {
+  return kRVVSelectedBodyTargetArtifactRouteID;
+}
+
+llvm::StringRef getRVVSelectedBodyTargetArtifactKind() {
+  return kRVVSelectedBodyArtifactKind;
+}
+
 llvm::ArrayRef<RVVSelectedBodyConstructionRoute>
 getRVVSelectedBodyConstructionRoutes() {
-  return kSelectedBodyRoutes;
+  return kRetainedSelectedBodySpecializations;
 }
 
 const RVVSelectedBodyTargetArtifactMapping &
@@ -809,7 +823,8 @@ llvm::Error verifyRVVConstructionProtocolReady() {
                     3>
       artifactChecks;
   metadataStorage.reserve(
-      llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(kSelectedBodyRoutes)
+      llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
+          kRetainedSelectedBodySpecializations)
           .size());
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters =
       buildExpectedRuntimeABIParameters();
@@ -817,7 +832,8 @@ llvm::Error verifyRVVConstructionProtocolReady() {
           verifyRVVSelectedBodyConstructionRuntimeABIParameters(
               runtimeABIParameters))
     return error;
-  for (const RVVSelectedBodyConstructionRoute &route : kSelectedBodyRoutes) {
+  for (const RVVSelectedBodyConstructionRoute &route :
+       kRetainedSelectedBodySpecializations) {
     RVVSelectedBodyConstructionMetadataFacts facts =
         makeConstructionMetadataFactsForRoute(route, runtimeABIParameters);
     metadataStorage.push_back(buildExpectedConstructionArtifactMetadata(facts));
@@ -949,17 +965,17 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         facts.typedComputeOpName + "' as '" +
         route->runtimeABIContractName + "' but was '" +
         facts.runtimeABIContractName + "'");
-  if (facts.targetArtifactRouteID != kManifest.emitcRoute.routeID)
+  if (facts.targetArtifactRouteID != kRVVSelectedBodyTargetArtifactRouteID)
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " target artifact route must mirror the selected provider route "
-        "description as '" + kManifest.emitcRoute.routeID + "' but was '" +
-        facts.targetArtifactRouteID + "'");
-  if (facts.targetArtifactKind != kManifest.emitcRoute.artifactKind)
+        "description as '" + kRVVSelectedBodyTargetArtifactRouteID +
+        "' but was '" + facts.targetArtifactRouteID + "'");
+  if (facts.targetArtifactKind != kRVVSelectedBodyArtifactKind)
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " target artifact kind must mirror the selected provider route "
-        "description as '" + kManifest.emitcRoute.artifactKind +
+        "description as '" + kRVVSelectedBodyArtifactKind +
         "' but was '" + facts.targetArtifactKind + "'");
   if (llvm::Error error =
           verifyRVVSelectedBodyConstructionRuntimeABIParameters(

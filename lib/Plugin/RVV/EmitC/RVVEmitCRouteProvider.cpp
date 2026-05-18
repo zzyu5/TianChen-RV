@@ -198,6 +198,28 @@ lookupRVVSelectedBodySpecializationMapping(
       ", mask_policy=" + description.maskPolicy);
 }
 
+llvm::Error requireRouteDescriptionText(llvm::StringRef context,
+                                        llvm::StringRef field,
+                                        llvm::StringRef value) {
+  if (!value.trim().empty())
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(llvm::Twine(context) + " " + field +
+                                        " must be provider-derived and "
+                                        "non-empty");
+}
+
+llvm::Error requireRouteDescriptionField(llvm::StringRef context,
+                                         llvm::StringRef field,
+                                         llvm::StringRef actual,
+                                         llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) + " " + field +
+      " must mirror selected-body specialization fact '" + expected +
+      "' but was '" + actual + "'");
+}
+
 llvm::StringRef stringifyRVVTailPolicy(tcrv::rvv::TailPolicy policy) {
   switch (policy) {
   case tcrv::rvv::TailPolicy::Agnostic:
@@ -924,9 +946,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.multiVL = configContract.multiVL;
   analysis.description.boundaryOpName = kRVVSelectedBodyLoweringBoundaryOpName;
   analysis.description.targetArtifactRouteID =
-      getRVVConstructionManifest().emitcRoute.routeID;
+      getRVVSelectedBodyTargetArtifactRouteID();
   analysis.description.targetArtifactKind =
-      getRVVConstructionManifest().emitcRoute.artifactKind;
+      getRVVSelectedBodyTargetArtifactKind();
   analysis.description.runtimeABIParameters.push_back(analysis.slice.lhsABI);
   analysis.description.runtimeABIParameters.push_back(analysis.slice.rhsABI);
   analysis.description.runtimeABIParameters.push_back(analysis.slice.outABI);
@@ -995,6 +1017,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     return std::move(error);
   if (llvm::Error error = verifySelectedRVVRoleSequence(
           analysis.slice, request, *analysis.constructionRoute))
+    return std::move(error);
+  if (llvm::Error error = verifyRVVSelectedBodyEmitCRouteDescription(
+          analysis.description, "selected RVV EmitC route description"))
     return std::move(error);
   return analysis;
 }
@@ -1068,6 +1093,117 @@ getRVVSelectedBodyConstructionMetadataFacts(
   facts.runtimeABIContractName = description.runtimeABIContractName;
   facts.runtimeABIParameters = description.runtimeABIParameters;
   return facts;
+}
+
+llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  if (context.trim().empty())
+    return makeRVVEmitCRouteProviderError(
+        "selected-body route description verification requires a non-empty "
+        "context");
+
+  llvm::Expected<const RVVSelectedBodySpecializationMapping *>
+      specialization = lookupRVVSelectedBodySpecializationMapping(description);
+  if (!specialization)
+    return specialization.takeError();
+  const RVVSelectedBodySpecializationMapping &mapping = **specialization;
+
+  llvm::Expected<const RVVSelectedBodyConstructionRoute *> route =
+      lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
+          mapping.operationMnemonic);
+  if (!route)
+    return route.takeError();
+  const RVVSelectedBodyConstructionRoute &constructionRoute = **route;
+
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "typed compute op", description.typedComputeOpName,
+          constructionRoute.typedComputeOpName))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "EmitC route id", description.emitCRouteID,
+          constructionRoute.emitCRouteID))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "target artifact route id",
+          description.targetArtifactRouteID,
+          getRVVSelectedBodyTargetArtifactRouteID()))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "target artifact kind", description.targetArtifactKind,
+          getRVVSelectedBodyTargetArtifactKind()))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "runtime ABI name", description.runtimeABIName,
+          constructionRoute.runtimeABIName))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "runtime ABI contract", description.runtimeABIContractName,
+          constructionRoute.runtimeABIContractName))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "lowering boundary op", description.boundaryOpName,
+          kRVVSelectedBodyLoweringBoundaryOpName))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "VL C type", description.vlCType, mapping.vlCType))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "vector type", description.vectorTypeName,
+          mapping.vectorTypeName))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "mask type", description.maskTypeName, mapping.maskTypeName))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "vector C type", description.vectorCType,
+          mapping.vectorCType))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "mask C type", description.maskCType, mapping.maskCType))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "setvl intrinsic", description.setVLIntrinsic,
+          mapping.setVLIntrinsic))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "vector-load intrinsic", description.vectorLoadIntrinsic,
+          mapping.vectorLoadIntrinsic))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "store intrinsic", description.storeIntrinsic,
+          mapping.storeIntrinsic))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "compute intrinsic", description.intrinsic,
+          mapping.computeIntrinsic))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "compare intrinsic", description.compareIntrinsic,
+          mapping.compareIntrinsic))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "result value name", description.resultName,
+          mapping.resultName))
+    return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "mask value name", description.maskName, mapping.maskName))
+    return error;
+  if (description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad)
+    if (llvm::Error error = requireRouteDescriptionText(
+            context, "RHS broadcast intrinsic",
+            description.rhsBroadcastIntrinsic))
+      return error;
+  if (llvm::Error error = requireRouteDescriptionField(
+          context, "RHS broadcast intrinsic",
+          description.rhsBroadcastIntrinsic, mapping.rhsBroadcastIntrinsic))
+    return error;
+
+  if (llvm::Error error = verifyRVVSelectedBodyConstructionRuntimeABIParameters(
+          description.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
+
+  return llvm::Error::success();
 }
 
 llvm::SmallVector<support::ArtifactMetadataEntry, 16>

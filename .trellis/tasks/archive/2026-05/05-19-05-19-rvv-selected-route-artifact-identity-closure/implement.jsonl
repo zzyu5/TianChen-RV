@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "global architecture and stack invariants for compiler implementation"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV route-authority replacement and selected-body route description contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC route and selected emission-plan to target artifact handoff contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "emission/runtime boundaries and descriptor/direct-C fail-closed rules"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "source-front-door registration policy and explicit-only boundary"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "legacy RVV source-front-door compatibility boundary"}
+{"file": ".trellis/tasks/archive/2026-05/05-19-rvv-construction-manifest-route-authority-demotion/prd.md", "reason": "previous completed task context for construction metadata demotion"}
