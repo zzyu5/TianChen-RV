@@ -466,3 +466,63 @@ single contract surface.
 
 - Archive the task with `--no-commit` and create one coherent commit including
   code, tests, task, and journal.
+
+
+## Session 129: RVV source-bundle ssh runtime ABI proof
+
+**Date**: 2026-05-18
+**Task**: RVV source-bundle ssh runtime ABI proof
+**Branch**: `main`
+
+### Summary
+
+Created Trellis task
+`05-18-rvv-source-bundle-ssh-runtime-abi-proof`, wrote the PRD/context files,
+and refreshed the missing real RVV evidence for the production source
+artifact bundle front door after commit `f4c5670`.
+
+### Main Result
+
+- No compiler source change was required: the current production path already
+  emits an externally consumable RVV i32m1 add object/header/bundle.
+- Generated bundle evidence lives under
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260518T-rvv-source-bundle-ssh-runtime-abi-proof-add`.
+- The external harness consumed the generated header and object directly from
+  the bundle and ran on `ssh rvv` with runtime counts `7,16,23`.
+- Remote environment recorded `remote_arch=riscv64`,
+  `clang_path=/usr/bin/clang`, and
+  `clang_version=Ubuntu clang version 18.1.3 (1ubuntu1)`.
+- Remote PASS output:
+
+```text
+add case n=7 ok
+add case n=16 ok
+add case n=23 ok
+tcrv_rvv_generated_bundle_abi_add_ok counts=7,16,23
+PASS op=add counts=7,16,23
+```
+
+### Checks
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-18-rvv-source-bundle-ssh-runtime-abi-proof`
+- [OK] `cmake --build build --target tcrv-translate tcrv-opt tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] add-only dry-run generated and verified source-front-door object/header/bundle artifacts for counts `7,16,23`.
+- [OK] add-only real `ssh rvv` generated bundle ABI proof passed for counts `7,16,23`.
+- [OK] Focused lit for source bundle, RVV target artifact, script dry-run/self-test, and source-bundle fail-closed coverage passed 5/5.
+- [OK] Targeted residue scan found only evidence-tool negative guards,
+  fail-closed target checks, FileCheck guards, and retained debug two-step
+  fixtures; no replacement descriptor/direct-C/source-export/wrapper path was
+  added.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 125/125.
+
+### Status
+
+[OK] **Completed; ready to archive and commit**
+
+### Next Steps
+
+- Archive the task with `--no-commit` and create one coherent commit for the
+  task/journal evidence record.

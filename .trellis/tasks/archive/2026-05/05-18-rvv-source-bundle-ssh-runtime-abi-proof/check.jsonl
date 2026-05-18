@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global architecture invariants for review"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "review RVV source front door and ssh runtime evidence requirements"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "review direct-C/source-export residue and runtime ABI boundary"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "review bundle front door, target handoff, and materialized EmitC constraints"}
+{"file": ".trellis/spec/testing/index.md", "reason": "review focused check and ssh rvv evidence requirements"}
