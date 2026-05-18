@@ -79,13 +79,13 @@ llvm::StringRef lookupCandidateMetadataValue(
 
 struct RVVSelectedVariantRouteValidation {
   conversion::emitc::TCRVEmitCLowerableRoute route;
-  plugin::rvv::RVVI32M1ArithmeticOp arithmetic;
+  plugin::rvv::RVVSelectedBodyEmitCRouteDescription description;
 };
 
 llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
     const TargetArtifactCandidate &candidate,
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
-    plugin::rvv::RVVI32M1ArithmeticOp bodyArithmetic) {
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   llvm::StringRef routeID = lookupCandidateMetadataValue(
       candidate, plugin::rvv::getRVVEmitCLowerableRouteMetadataName());
   llvm::StringRef arithmeticOp = lookupCandidateMetadataValue(
@@ -106,7 +106,8 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
     return makeRVVTargetRouteError(
         "candidate metadata must carry rvv_arithmetic_op provenance");
   llvm::StringRef expectedArithmetic =
-      plugin::rvv::stringifyRVVI32M1ArithmeticOp(bodyArithmetic);
+      plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+          description.operation);
   if (arithmeticOp != expectedArithmetic)
     return makeRVVTargetRouteError(
         llvm::Twine("candidate rvv_arithmetic_op provenance must mirror "
@@ -173,7 +174,7 @@ llvm::Error validateRVVRouteSourceProvenance(
 
   const conversion::emitc::TCRVEmitCSourceOpProvenance &source =
       route.getSourceOpProvenance().front();
-  if (source.opName != plugin::rvv::getRVVI32M1ArithmeticLoweringBoundaryOpName() ||
+  if (source.opName != plugin::rvv::getRVVSelectedBodyLoweringBoundaryOpName() ||
       source.role != "scope" ||
       source.opInterface != plugin::rvv::getRVVEmitCLowerableOpInterfaceName())
     return makeRVVTargetRouteError(
@@ -234,9 +235,11 @@ validateRVVSelectedVariantRouteAgreesWithCandidate(
   conversion::emitc::TCRVEmitCLowerableRoute route;
   plugin::VariantEmitCLowerableRequest request(
       *selectedVariant, candidate.kernel, *capabilities, *role);
-  if (llvm::Error error =
-          plugin::rvv::buildRVVI32M1ArithmeticEmitCLowerableRoute(request,
-                                                                  route)) {
+  llvm::Expected<plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
+      description =
+          plugin::rvv::describeRVVSelectedBodyEmitCRoute(request, &route);
+  if (!description) {
+    llvm::Error error = description.takeError();
     std::string message = llvm::toString(std::move(error));
     return makeRVVTargetRouteError(
         llvm::Twine("selected typed RVV body could not build the "
@@ -251,14 +254,8 @@ validateRVVSelectedVariantRouteAgreesWithCandidate(
         message);
   }
 
-  llvm::Expected<plugin::rvv::RVVI32M1ArithmeticOp> bodyArithmetic =
-      plugin::rvv::symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(
-          route.getRouteID());
-  if (!bodyArithmetic)
-    return bodyArithmetic.takeError();
-
   if (llvm::Error error = validateRVVRouteMetadataMirrorsSelectedBody(
-          candidate, route, *bodyArithmetic))
+          candidate, route, *description))
     return std::move(error);
 
   if (llvm::Error error = validateRVVRouteSourceProvenance(route))
@@ -268,7 +265,7 @@ validateRVVSelectedVariantRouteAgreesWithCandidate(
 
   RVVSelectedVariantRouteValidation validation;
   validation.route = std::move(route);
-  validation.arithmetic = *bodyArithmetic;
+  validation.description = std::move(*description);
   return validation;
 }
 
@@ -358,7 +355,7 @@ llvm::Error validateRVVI32M1ArithmeticTargetArtifactCandidate(
     return error;
   if (llvm::Error error =
           requireCandidateField("emission kind", candidate.emissionKind,
-                                plugin::rvv::getRVVI32M1ArithmeticEmissionKind()))
+                                plugin::rvv::getRVVSelectedBodyEmissionKind()))
     return error;
   if (llvm::Error error =
           requireCandidateField("artifact kind", candidate.artifactKind,
@@ -366,20 +363,20 @@ llvm::Error validateRVVI32M1ArithmeticTargetArtifactCandidate(
     return error;
   if (llvm::Error error = requireCandidateField(
           "lowering boundary", candidate.loweringBoundary,
-          plugin::rvv::getRVVI32M1ArithmeticLoweringBoundaryOpName()))
+          plugin::rvv::getRVVSelectedBodyLoweringBoundaryOpName()))
     return error;
   if (llvm::Error error = requireCandidateField(
           "runtime ABI kind", candidate.runtimeABIKind,
-          plugin::rvv::getRVVI32M1ArithmeticRuntimeABIKind()))
+          plugin::rvv::getRVVSelectedBodyRuntimeABIKind()))
     return error;
   if (llvm::Error error = requireCandidateField(
           "runtime glue role", candidate.runtimeGlueRole,
-          plugin::rvv::getRVVI32M1ArithmeticRuntimeGlueRole()))
+          plugin::rvv::getRVVSelectedBodyRuntimeGlueRole()))
     return error;
 
   if (!support::runtimeABIParametersEqual(
           candidate.runtimeABIParameters,
-          plugin::rvv::getRVVI32M1ArithmeticRuntimeABIParameters()))
+          plugin::rvv::getRVVSelectedBodyRuntimeABIParameters()))
     return makeRVVTargetRouteError(
         "candidate runtime ABI parameters must be lhs, rhs, out, n with "
         "stable C types, roles, and target-export ownership");
@@ -390,8 +387,7 @@ llvm::Error validateRVVI32M1ArithmeticTargetArtifactCandidate(
     return selectedRoute.takeError();
 
   llvm::StringRef selectedBodyRuntimeABIName =
-      plugin::rvv::getRVVI32M1ArithmeticRuntimeABIName(
-          selectedRoute->arithmetic);
+      selectedRoute->description.runtimeABIName;
   if (llvm::Error error = requireCandidateField(
           "runtime ABI", candidate.runtimeABI, selectedBodyRuntimeABIName))
     return error;
@@ -400,7 +396,7 @@ llvm::Error validateRVVI32M1ArithmeticTargetArtifactCandidate(
           selectedBodyRuntimeABIName))
     return error;
   if (llvm::Error error = validateRVVRuntimeAVLVLArtifactMetadata(
-          candidate, selectedRoute->route.getRouteID()))
+          candidate, selectedRoute->description.emitCRouteID))
     return error;
   return llvm::Error::success();
 }
@@ -577,7 +573,7 @@ SelectedEmitCArtifactRouteConfig getRVVI32M1ArithmeticArtifactConfig() {
   config.candidateValidationFn =
       validateRVVI32M1ArithmeticTargetArtifactCandidate;
   config.routeBuilderFn =
-      plugin::rvv::buildRVVI32M1ArithmeticEmitCLowerableRoute;
+      plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute;
   return config;
 }
 
@@ -615,13 +611,13 @@ getRVVI32M1ArithmeticArtifactAdapterConfig() {
   config.evidencePrefix = "tianchenrv.rvv";
   config.includes = kHeaderIncludes;
   config.selectedVariant = "";
-  config.emissionKind = plugin::rvv::getRVVI32M1ArithmeticEmissionKind();
+  config.emissionKind = plugin::rvv::getRVVSelectedBodyEmissionKind();
   config.loweringBoundary =
-      plugin::rvv::getRVVI32M1ArithmeticLoweringBoundaryOpName();
+      plugin::rvv::getRVVSelectedBodyLoweringBoundaryOpName();
   config.runtimeABIKind =
-      plugin::rvv::getRVVI32M1ArithmeticRuntimeABIKind();
+      plugin::rvv::getRVVSelectedBodyRuntimeABIKind();
   config.runtimeGlueRole =
-      plugin::rvv::getRVVI32M1ArithmeticRuntimeGlueRole();
+      plugin::rvv::getRVVSelectedBodyRuntimeGlueRole();
   config.allowDynamicRuntimeABIIdentity = true;
   config.runtimeABIParameters = kRuntimeABIParameters;
   config.metadataEvidence = kMetadataEvidence;
@@ -705,7 +701,7 @@ llvm::Error registerRVVTargetSupportPluginTargetExporterBundles(
 llvm::Error
 configureRVVTargetSupportExtensionBundle(plugin::ExtensionBundle &bundle) {
   bundle.addLoweringBoundaryOp(
-      plugin::rvv::getRVVI32M1ArithmeticLoweringBoundaryOpName());
+      plugin::rvv::getRVVSelectedBodyLoweringBoundaryOpName());
   bundle.setTargetArtifactExporterBundleRegistrationFn(
       registerRVVTargetSupportPluginTargetExporterBundles);
   return llvm::Error::success();

@@ -8,6 +8,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
+#include <cstdint>
+
 namespace tianchenrv::conversion::emitc {
 class TCRVEmitCLowerableRoute;
 } // namespace tianchenrv::conversion::emitc
@@ -18,44 +20,59 @@ class VariantEmitCLowerableRequest;
 
 namespace tianchenrv::plugin::rvv {
 
-enum class RVVI32M1ArithmeticOp {
+enum class RVVSelectedBodyOperationKind {
   Add,
   Sub,
   Mul,
   CmpSelect,
 };
 
-llvm::ArrayRef<RVVI32M1ArithmeticOp> getRVVI32M1ArithmeticOps();
+enum class RVVSelectedBodyMemoryForm {
+  VectorRHSLoad,
+  RHSBroadcastLoad,
+};
 
-llvm::StringRef stringifyRVVI32M1ArithmeticOp(RVVI32M1ArithmeticOp op);
-llvm::Expected<RVVI32M1ArithmeticOp>
-symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(llvm::StringRef routeID);
-llvm::StringRef getRVVI32M1ArithmeticEmitCRouteID(RVVI32M1ArithmeticOp op);
-llvm::StringRef getRVVI32M1ArithmeticEmissionKind();
-llvm::StringRef getRVVI32M1ArithmeticLoweringBoundaryOpName();
-llvm::StringRef getRVVI32M1ArithmeticRuntimeABIKind();
-llvm::StringRef getRVVI32M1ArithmeticRuntimeABIName(RVVI32M1ArithmeticOp op);
-llvm::StringRef getRVVI32M1ArithmeticRuntimeGlueRole();
+struct RVVSelectedBodyEmitCRouteDescription {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef typedComputeOpName;
+  llvm::StringRef emitCRouteID;
+  llvm::StringRef runtimeABIName;
+  llvm::StringRef runtimeABIContractName;
+  llvm::StringRef intrinsic;
+  llvm::StringRef compareIntrinsic;
+  llvm::StringRef resultName;
+  llvm::StringRef maskName;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+      runtimeABIParameters;
+};
+
+llvm::ArrayRef<RVVSelectedBodyOperationKind>
+getRVVSelectedBodyOperationKinds();
+
+llvm::StringRef
+stringifyRVVSelectedBodyOperationKind(RVVSelectedBodyOperationKind op);
+llvm::StringRef
+getRVVSelectedBodyEmitCRouteID(RVVSelectedBodyOperationKind op);
+llvm::StringRef getRVVSelectedBodyEmissionKind();
+llvm::StringRef getRVVSelectedBodyLoweringBoundaryOpName();
+llvm::StringRef getRVVSelectedBodyRuntimeABIKind();
+llvm::StringRef
+getRVVSelectedBodyRuntimeABIName(RVVSelectedBodyOperationKind op);
+llvm::StringRef getRVVSelectedBodyRuntimeGlueRole();
 
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
-getRVVI32M1ArithmeticRuntimeABIParameters();
+getRVVSelectedBodyRuntimeABIParameters();
 
-llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRoute(
+llvm::Expected<RVVSelectedBodyEmitCRouteDescription>
+describeRVVSelectedBodyEmitCRoute(
     const tianchenrv::plugin::VariantEmitCLowerableRequest &request,
-    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &out);
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute *verifiedRoute =
+        nullptr);
 
-llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
-    RVVI32M1ArithmeticOp op,
-    const tianchenrv::plugin::VariantEmitCLowerableRequest &request,
-    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &out);
-
-llvm::Error buildRVVI32M1AddEmitCLowerableRoute(
-    const tianchenrv::plugin::VariantEmitCLowerableRequest &request,
-    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &out);
-llvm::Error buildRVVI32M1SubEmitCLowerableRoute(
-    const tianchenrv::plugin::VariantEmitCLowerableRequest &request,
-    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &out);
-llvm::Error buildRVVI32M1MulEmitCLowerableRoute(
+llvm::Error buildRVVSelectedBodyEmitCLowerableRoute(
     const tianchenrv::plugin::VariantEmitCLowerableRequest &request,
     tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &out);
 

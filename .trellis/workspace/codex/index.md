@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-10.md`
-- **Total Sessions**: 128
-- **Last Active**: 2026-05-18
+- **Total Sessions**: 129
+- **Last Active**: 2026-05-19
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-10.md` | ~842 | Active |
+| `journal-10.md` | ~1045 | Active |
 | `journal-9.md` | ~1993 | Archived |
 | `journal-8.md` | ~1998 | Archived |
 | `journal-7.md` | ~1992 | Archived |
@@ -38,6 +38,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 129 | 2026-05-19 | RVV typed selected-body route authority | this commit | `main` |
 | 128 | 2026-05-18 | RVV Stage 1 typed-body route-authority closure | this commit | `main` |
 | 127 | 2026-05-18 | TensorExtLite construction-template production handoff | this commit | `main` |
 | 126 | 2026-05-18 | RVV runtime AVL/VL selected-boundary contract | this commit | `main` |

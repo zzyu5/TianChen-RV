@@ -194,7 +194,7 @@ llvm::Error validateSelectedRVVI32M1WithVLBoundary(
   VariantEmitCLowerableRequest routeRequest(
       variant, request.getKernel(), request.getCapabilities(),
       request.getRole());
-  return rvv::buildRVVI32M1ArithmeticEmitCLowerableRoute(routeRequest, route);
+  return rvv::buildRVVSelectedBodyEmitCLowerableRoute(routeRequest, route);
 }
 
 const rvv::RVVExtensionPlugin &getBuiltinRVVExtensionPlugin() {
@@ -403,34 +403,30 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
-  if (llvm::Error error =
-          buildRVVI32M1ArithmeticEmitCLowerableRoute(routeRequest, route))
-    return error;
-
-  llvm::Expected<RVVI32M1ArithmeticOp> arithmetic =
-      symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(route.getRouteID());
-  if (!arithmetic)
-    return arithmetic.takeError();
+  llvm::Expected<RVVSelectedBodyEmitCRouteDescription> routeDescription =
+      describeRVVSelectedBodyEmitCRoute(routeRequest, &route);
+  if (!routeDescription)
+    return routeDescription.takeError();
 
   const RVVConstructionManifest &manifest = getRVVConstructionManifest();
-  llvm::StringRef runtimeABIName =
-      getRVVI32M1ArithmeticRuntimeABIName(*arithmetic);
+  llvm::StringRef runtimeABIName = routeDescription->runtimeABIName;
   out = VariantEmissionPlan::getSupported(
       kRVVPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      getRVVI32M1ArithmeticEmissionKind(), manifest.emitcRoute.routeID,
+      getRVVSelectedBodyEmissionKind(), manifest.emitcRoute.routeID,
       runtimeABIName, manifest.emitcRoute.artifactKind,
       "RVV selected i32m1 dataflow route materializes a verified EmitC "
       "module through the common TCRVEmitCLowerableRoute materializer, then "
       "uses the MLIR EmitC C/C++ emitter before RISC-V object packaging");
-  out.setRuntimeABIKind(getRVVI32M1ArithmeticRuntimeABIKind());
+  out.setRuntimeABIKind(getRVVSelectedBodyRuntimeABIKind());
   out.setRuntimeABIName(runtimeABIName);
-  out.setRuntimeGlueRole(getRVVI32M1ArithmeticRuntimeGlueRole());
-  out.setLoweringBoundaryOpName(getRVVI32M1ArithmeticLoweringBoundaryOpName());
-  out.addRuntimeABIParameters(getRVVI32M1ArithmeticRuntimeABIParameters());
+  out.setRuntimeGlueRole(getRVVSelectedBodyRuntimeGlueRole());
+  out.setLoweringBoundaryOpName(getRVVSelectedBodyLoweringBoundaryOpName());
+  out.addRuntimeABIParameters(getRVVSelectedBodyRuntimeABIParameters());
   llvm::Expected<llvm::SmallVector<support::ArtifactMetadataEntry, 16>>
       constructionMetadata =
-          getRVVI32M1ArithmeticConstructionArtifactMetadata(route.getRouteID());
+          getRVVI32M1ArithmeticConstructionArtifactMetadata(
+              routeDescription->emitCRouteID);
   if (!constructionMetadata)
     return constructionMetadata.takeError();
   for (const support::ArtifactMetadataEntry &entry : *constructionMetadata)
@@ -488,7 +484,7 @@ llvm::Error RVVExtensionPlugin::validateSelectedLoweringBoundary(
 llvm::Error RVVExtensionPlugin::buildVariantEmitCLowerableRoute(
     const VariantEmitCLowerableRequest &request,
     conversion::emitc::TCRVEmitCLowerableRoute &out) const {
-  return buildRVVI32M1ArithmeticEmitCLowerableRoute(request, out);
+  return buildRVVSelectedBodyEmitCLowerableRoute(request, out);
 }
 
 llvm::Error RVVExtensionPlugin::configureTargetSupportExtensionBundle(

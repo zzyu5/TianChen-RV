@@ -982,3 +982,64 @@ Closed the RVV Stage 1 target artifact/export authority evidence around selected
 ### Next Steps
 
 - None - task complete
+
+
+## Session 129: RVV typed selected-body route authority
+
+**Date**: 2026-05-19
+**Task**: RVV typed selected-body route authority
+**Branch**: `main`
+
+### Summary
+
+Replaced the RVV EmitC provider public route-authority surface with a selected-body route description and rewired emission plan and target validation to consume body-derived route facts.
+
+### Main Changes
+
+### Main Changes
+
+- Created and archived Trellis task `05-19-rvv-typed-selected-body-route-authority` from the Hermes Direction Brief.
+- Replaced the RVV provider public route surface with `RVVSelectedBodyEmitCRouteDescription`, `describeRVVSelectedBodyEmitCRoute`, and `buildRVVSelectedBodyEmitCLowerableRoute`.
+- Removed route-id-to-operation symbolization and per-operation route-builder entry points from the provider surface; route ids/runtime ABI names are now labels after selected typed-body validation.
+- Rewired RVV emission planning and target artifact validation to consume the selected-body route description instead of deriving operation semantics from route ids.
+- Updated source-front-door and focused C++ tests to use selected-body operation terminology.
+- Added a durable RVV plugin spec scenario documenting the selected-body EmitC route description API, validation matrix, and wrong/correct authority boundary.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tcrv-opt test/Conversion/EmitC/rvv-first-slice-materialization.mlir --tcrv-materialize-emitc-lowerable-routes | /usr/lib/llvm-20/bin/FileCheck test/Conversion/EmitC/rvv-first-slice-materialization.mlir`
+- [OK] negative FileCheck equivalents for `rvv-first-slice-materialization-missing-abi.mlir`, `rvv-first-slice-materialization-negative.mlir`, and `rvv-first-slice-config-vl-contract-negative.mlir`
+- [OK] provider residue scan found no `RVVI32M1ArithmeticRouteSpec`, `RVVI32M1ArithmeticSlice`, `collectRVVI32M1ArithmeticSlice`, route-id symbolizer, or old per-operation route-builder entry point in the provider/callers under this task.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-19-rvv-typed-selected-body-route-authority` before archive
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -442,30 +442,30 @@ bool expectTemplateEmitCTranslateRoute(
 }
 
 llvm::StringRef getRVVTestArithmeticOperationName(
-    tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp op) {
+    tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op) {
   switch (op) {
-  case tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Add:
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Add:
     return "tcrv_rvv.i32_add";
-  case tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Sub:
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Sub:
     return "tcrv_rvv.i32_sub";
-  case tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Mul:
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Mul:
     return "tcrv_rvv.i32_mul";
-  case tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::CmpSelect:
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect:
     return "tcrv_rvv.i32_select";
   }
   llvm_unreachable("unknown RVV test arithmetic op");
 }
 
 std::string getRVVTestVariantSymbol(
-    tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp op) {
+    tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op) {
   return (llvm::Twine("rvv_i32_") +
-          tianchenrv::plugin::rvv::stringifyRVVI32M1ArithmeticOp(op))
+          tianchenrv::plugin::rvv::stringifyRVVSelectedBodyOperationKind(op))
       .str();
 }
 
 mlir::OwningOpRef<mlir::ModuleOp> parseRVVSelectedBodyCandidateModule(
     mlir::MLIRContext &context,
-    tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp op,
+    tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op,
     bool useRHSBroadcast = false) {
   std::string source;
   llvm::raw_string_ostream os(source);
@@ -493,7 +493,7 @@ module {
     os << R"mlir(
         %rhs_vec = tcrv_rvv.i32_load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
 )mlir";
-  if (op == tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::CmpSelect) {
+  if (op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect) {
     os << R"mlir(
         %mask = tcrv_rvv.i32_cmp_eq %lhs_vec, %rhs_vec, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1_mask
         %result = tcrv_rvv.i32_select %mask, %lhs_vec, %rhs_vec, %vl : !tcrv_rvv.i32m1_mask, !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
@@ -546,8 +546,8 @@ findSingleRVVTestKernel(mlir::ModuleOp module) {
 
 TargetArtifactCandidate makeValidRVVTargetArtifactCandidate(
     tianchenrv::tcrv::exec::KernelOp kernel = {},
-    tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp op =
-        tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Add) {
+    tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op =
+        tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Add) {
   const tianchenrv::plugin::rvv::RVVConstructionManifest &manifest =
       tianchenrv::plugin::rvv::getRVVConstructionManifest();
 
@@ -561,24 +561,24 @@ TargetArtifactCandidate makeValidRVVTargetArtifactCandidate(
   candidate.artifactKind = manifest.emitcRoute.artifactKind.str();
   candidate.loweringBoundary =
       tianchenrv::plugin::rvv::
-          getRVVI32M1ArithmeticLoweringBoundaryOpName()
+          getRVVSelectedBodyLoweringBoundaryOpName()
               .str();
   candidate.runtimeABI =
-      tianchenrv::plugin::rvv::getRVVI32M1ArithmeticRuntimeABIName(op)
+      tianchenrv::plugin::rvv::getRVVSelectedBodyRuntimeABIName(op)
           .str();
   candidate.runtimeABIKind =
-      tianchenrv::plugin::rvv::getRVVI32M1ArithmeticRuntimeABIKind().str();
+      tianchenrv::plugin::rvv::getRVVSelectedBodyRuntimeABIKind().str();
   candidate.runtimeABIName = candidate.runtimeABI;
   candidate.runtimeGlueRole =
-      tianchenrv::plugin::rvv::getRVVI32M1ArithmeticRuntimeGlueRole().str();
+      tianchenrv::plugin::rvv::getRVVSelectedBodyRuntimeGlueRole().str();
   candidate.runtimeABIParameters =
-      tianchenrv::plugin::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
+      tianchenrv::plugin::rvv::getRVVSelectedBodyRuntimeABIParameters();
   llvm::Expected<llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 16>>
       constructionMetadata =
           tianchenrv::plugin::rvv::
               getRVVI32M1ArithmeticConstructionArtifactMetadata(
                   tianchenrv::plugin::rvv::
-                      getRVVI32M1ArithmeticEmitCRouteID(op));
+                      getRVVSelectedBodyEmitCRouteID(op));
   if (!constructionMetadata) {
     llvm::errs() << "failed to build RVV construction metadata: "
                  << llvm::toString(constructionMetadata.takeError()) << "\n";
@@ -597,8 +597,8 @@ struct RVVTargetArtifactCandidateFixture {
   std::string error;
 
   explicit RVVTargetArtifactCandidateFixture(
-      tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp op =
-          tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Add,
+      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op =
+          tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Add,
       bool useRHSBroadcast = false) {
     tianchenrv::plugin::ExtensionPluginRegistry plugins;
     if (llvm::Error registerError =
@@ -662,7 +662,7 @@ bool expectRVVTargetArtifactExporterShape(
       !tianchenrv::support::runtimeABIParametersEqual(
           exporter->getRequiredRuntimeABIParameters(),
           tianchenrv::plugin::rvv::
-              getRVVI32M1ArithmeticRuntimeABIParameters()) ||
+              getRVVSelectedBodyRuntimeABIParameters()) ||
       !exporter->getExportFn() || !exporter->getCandidateValidationFn()) {
     llvm::errs() << context << ": malformed RVV target artifact exporter "
                  << "metadata\n";
@@ -680,7 +680,7 @@ bool expectRVVTargetArtifactExporterShape(
     return false;
 
   RVVTargetArtifactCandidateFixture broadcastFixture(
-      tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Add,
+      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Add,
       /*useRHSBroadcast=*/true);
   if (!expectRVVTargetArtifactCandidateFixtureReady(
           broadcastFixture,
@@ -693,7 +693,7 @@ bool expectRVVTargetArtifactExporterShape(
     return false;
 
   RVVTargetArtifactCandidateFixture compareSelectFixture(
-      tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::CmpSelect);
+      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect);
   if (!expectRVVTargetArtifactCandidateFixtureReady(
           compareSelectFixture,
           "build valid RVV compare/select selected-body candidate fixture"))
@@ -762,8 +762,8 @@ bool expectRVVTargetArtifactExporterShape(
   if (!rewriteArtifactMetadataValue(
           staleLowerableRoute,
           tianchenrv::plugin::rvv::getRVVEmitCLowerableRouteMetadataName(),
-          tianchenrv::plugin::rvv::getRVVI32M1ArithmeticEmitCRouteID(
-              tianchenrv::plugin::rvv::RVVI32M1ArithmeticOp::Sub))) {
+          tianchenrv::plugin::rvv::getRVVSelectedBodyEmitCRouteID(
+              tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Sub))) {
     llvm::errs() << "test fixture did not contain lowerable route metadata\n";
     return false;
   }
@@ -1017,7 +1017,7 @@ bool expectRVVTargetHeaderCompositeShape(
   if (!expectRuntimeABIParametersEqual(
           *parameters,
           tianchenrv::plugin::rvv::
-              getRVVI32M1ArithmeticRuntimeABIParameters(),
+              getRVVSelectedBodyRuntimeABIParameters(),
           "RVV header composite preserves ordered runtime ABI parameters"))
     return false;
 
@@ -3175,7 +3175,7 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
       !containsString(
           rvvBundle->getLoweringBoundaryOps(),
           tianchenrv::plugin::rvv::
-              getRVVI32M1ArithmeticLoweringBoundaryOpName()) ||
+              getRVVSelectedBodyLoweringBoundaryOpName()) ||
       !rvvBundle->getTargetArtifactExporterBundleRegistrationFn()) {
     llvm::errs() << "RVV extension bundle frontdoor is malformed\n";
     return false;
@@ -3592,7 +3592,7 @@ bool expectRVVTargetSupportBundleExtractionRegistration() {
   if (!containsString(
           bundle.getLoweringBoundaryOps(),
           tianchenrv::plugin::rvv::
-              getRVVI32M1ArithmeticLoweringBoundaryOpName())) {
+              getRVVSelectedBodyLoweringBoundaryOpName())) {
     llvm::errs() << "RVV target-support bundle did not publish the selected "
                     "with_vl lowering-boundary requirement\n";
     return false;
@@ -3816,7 +3816,7 @@ bool expectRVVPluginManifestTargetSupportActivation() {
       !containsString(
           bundle.getLoweringBoundaryOps(),
           tianchenrv::plugin::rvv::
-              getRVVI32M1ArithmeticLoweringBoundaryOpName()) ||
+              getRVVSelectedBodyLoweringBoundaryOpName()) ||
       !bundle.getTargetArtifactExporterBundleRegistrationFn()) {
     llvm::errs() << "RVV plugin manifest hook did not configure the "
                     "target-support extension bundle\n";

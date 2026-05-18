@@ -28,19 +28,19 @@ namespace tianchenrv::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
-constexpr llvm::StringLiteral kRVVI32M1ArithmeticEmissionKind(
+constexpr llvm::StringLiteral kRVVSelectedBodyEmissionKind(
     "materialized-emitc-cpp-rvv-intrinsic-object");
-constexpr llvm::StringLiteral kRVVI32M1ArithmeticLoweringBoundaryOpName(
+constexpr llvm::StringLiteral kRVVSelectedBodyLoweringBoundaryOpName(
     "tcrv_rvv.with_vl");
-constexpr llvm::StringLiteral kRVVI32M1ArithmeticRuntimeABIKind(
+constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeABIKind(
     "plugin-owned-runtime-abi");
-constexpr llvm::StringLiteral kRVVI32M1ArithmeticRuntimeGlueRole(
+constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeGlueRole(
     "emitc-cpp-rvv-intrinsic-runtime-glue");
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
     "TCRVEmitCLowerableOpInterface");
 
-struct RVVI32M1ArithmeticRouteSpec {
-  RVVI32M1ArithmeticOp op;
+struct RVVSelectedBodyIntrinsicMapping {
+  RVVSelectedBodyOperationKind operation;
   llvm::StringLiteral mnemonic;
   llvm::StringLiteral intrinsic;
   llvm::StringLiteral resultName;
@@ -48,35 +48,35 @@ struct RVVI32M1ArithmeticRouteSpec {
   llvm::StringLiteral maskName;
 };
 
-constexpr RVVI32M1ArithmeticRouteSpec kRVVI32M1ArithmeticRoutes[] = {
-    {RVVI32M1ArithmeticOp::Add, "add", "__riscv_vadd_vv_i32m1", "sum_vec",
-     "", ""},
-    {RVVI32M1ArithmeticOp::Sub, "sub", "__riscv_vsub_vv_i32m1",
+constexpr RVVSelectedBodyIntrinsicMapping kRVVSelectedBodyIntrinsicMappings[] = {
+    {RVVSelectedBodyOperationKind::Add, "add", "__riscv_vadd_vv_i32m1",
+     "sum_vec", "", ""},
+    {RVVSelectedBodyOperationKind::Sub, "sub", "__riscv_vsub_vv_i32m1",
      "difference_vec", "", ""},
-    {RVVI32M1ArithmeticOp::Mul, "mul", "__riscv_vmul_vv_i32m1",
+    {RVVSelectedBodyOperationKind::Mul, "mul", "__riscv_vmul_vv_i32m1",
      "product_vec", "", ""},
-    {RVVI32M1ArithmeticOp::CmpSelect, "cmp_select",
+    {RVVSelectedBodyOperationKind::CmpSelect, "cmp_select",
      "__riscv_vmerge_vvm_i32m1", "selected_vec",
      "__riscv_vmseq_vv_i32m1_b32", "cmp_mask"},
 };
 
-constexpr RVVI32M1ArithmeticOp kRVVI32M1ArithmeticOps[] = {
-    RVVI32M1ArithmeticOp::Add, RVVI32M1ArithmeticOp::Sub,
-    RVVI32M1ArithmeticOp::Mul, RVVI32M1ArithmeticOp::CmpSelect};
+constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
+    RVVSelectedBodyOperationKind::Add, RVVSelectedBodyOperationKind::Sub,
+    RVVSelectedBodyOperationKind::Mul, RVVSelectedBodyOperationKind::CmpSelect};
 
-const RVVI32M1ArithmeticRouteSpec &
-getRVVI32M1ArithmeticRouteSpec(RVVI32M1ArithmeticOp op) {
-  for (const RVVI32M1ArithmeticRouteSpec &spec :
-       kRVVI32M1ArithmeticRoutes)
-    if (spec.op == op)
+const RVVSelectedBodyIntrinsicMapping &
+getRVVSelectedBodyIntrinsicMapping(RVVSelectedBodyOperationKind op) {
+  for (const RVVSelectedBodyIntrinsicMapping &spec :
+       kRVVSelectedBodyIntrinsicMappings)
+    if (spec.operation == op)
       return spec;
-  llvm_unreachable("unknown RVV i32m1 arithmetic op");
+  llvm_unreachable("unknown RVV selected-body operation");
 }
 
 const RVVI32M1ArithmeticConstructionRoute &
-getRVVI32M1ArithmeticConstructionRouteOrDie(RVVI32M1ArithmeticOp op) {
-  const RVVI32M1ArithmeticRouteSpec &spec =
-      getRVVI32M1ArithmeticRouteSpec(op);
+getRVVSelectedBodyConstructionRouteOrDie(RVVSelectedBodyOperationKind op) {
+  const RVVSelectedBodyIntrinsicMapping &spec =
+      getRVVSelectedBodyIntrinsicMapping(op);
   llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *> route =
       lookupRVVI32M1ArithmeticConstructionRouteByMnemonic(
           spec.mnemonic);
@@ -126,7 +126,7 @@ llvm::Error requireRVVVariantLegality(tcrv::exec::VariantOp variant) {
       "extension-family body");
 }
 
-struct RVVI32M1ArithmeticSlice {
+struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::SetVLOp setvl;
   tcrv::rvv::WithVLOp withVL;
   tcrv::rvv::I32LoadOp lhsLoad;
@@ -136,7 +136,7 @@ struct RVVI32M1ArithmeticSlice {
   mlir::Value arithmeticLhs;
   mlir::Value arithmeticRhs;
   mlir::Value arithmeticResult;
-  RVVI32M1ArithmeticOp arithmeticKind;
+  RVVSelectedBodyOperationKind arithmeticKind;
   tcrv::rvv::I32CmpEqOp compareOp;
   tcrv::rvv::I32SelectOp selectOp;
   mlir::Value compareLhs;
@@ -151,6 +151,13 @@ struct RVVI32M1ArithmeticSlice {
   support::RuntimeABIParameter rhsABI;
   support::RuntimeABIParameter outABI;
   support::RuntimeABIParameter runtimeElementCountABI;
+};
+
+struct RVVSelectedBodyRouteAnalysis {
+  RVVSelectedBodyRouteSlice slice;
+  const RVVSelectedBodyIntrinsicMapping *intrinsicMapping = nullptr;
+  const RVVI32M1ArithmeticConstructionRoute *constructionRoute = nullptr;
+  RVVSelectedBodyEmitCRouteDescription description;
 };
 
 std::string formatRuntimeABIExpectedRoles(
@@ -209,7 +216,7 @@ getRuntimeABIParameterBindingFromValue(
 }
 
 llvm::Error assignRVVLoadBinding(
-    RVVI32M1ArithmeticSlice &slice, tcrv::rvv::I32LoadOp load,
+    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::I32LoadOp load,
     const support::RuntimeABIParameter &parameter) {
   if (parameter.role == support::RuntimeABIParameterRole::LHSInputBuffer) {
     if (slice.lhsLoad)
@@ -235,7 +242,7 @@ llvm::Error assignRVVLoadBinding(
 }
 
 llvm::Error assignRVVBroadcastLoadBinding(
-    RVVI32M1ArithmeticSlice &slice, tcrv::rvv::I32BroadcastLoadOp load,
+    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::I32BroadcastLoadOp load,
     const support::RuntimeABIParameter &parameter) {
   if (parameter.role != support::RuntimeABIParameterRole::RHSInputBuffer)
     return makeRVVEmitCRouteProviderError(
@@ -250,8 +257,8 @@ llvm::Error assignRVVBroadcastLoadBinding(
   return llvm::Error::success();
 }
 
-llvm::Error validateRVVI32M1ArithmeticRuntimeABIParameters(
-    RVVI32M1ArithmeticSlice &slice,
+llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
+    RVVSelectedBodyRouteSlice &slice,
     const RVVI32M1ArithmeticConstructionRoute &constructionRoute,
     const support::RuntimeABIParameter &runtimeElementCountABI,
     const support::RuntimeABIParameter &outABI) {
@@ -283,11 +290,10 @@ llvm::Error validateRVVI32M1ArithmeticRuntimeABIParameters(
   return llvm::Error::success();
 }
 
-llvm::Error recordRVVI32M1ArithmeticOp(RVVI32M1ArithmeticSlice &slice,
-                                       mlir::Operation *op,
-                                       RVVI32M1ArithmeticOp kind,
-                                       mlir::Value lhs, mlir::Value rhs,
-                                       mlir::Value result) {
+llvm::Error recordRVVSelectedBodyOperation(
+    RVVSelectedBodyRouteSlice &slice, mlir::Operation *op,
+    RVVSelectedBodyOperationKind kind, mlir::Value lhs, mlir::Value rhs,
+    mlir::Value result) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one supported "
@@ -301,7 +307,7 @@ llvm::Error recordRVVI32M1ArithmeticOp(RVVI32M1ArithmeticSlice &slice,
   return llvm::Error::success();
 }
 
-llvm::Error recordRVVI32M1CompareOp(RVVI32M1ArithmeticSlice &slice,
+llvm::Error recordRVVSelectedBodyCompareOp(RVVSelectedBodyRouteSlice &slice,
                                     tcrv::rvv::I32CmpEqOp compare) {
   if (slice.compareOp)
     return makeRVVEmitCRouteProviderError(
@@ -314,10 +320,10 @@ llvm::Error recordRVVI32M1CompareOp(RVVI32M1ArithmeticSlice &slice,
   return llvm::Error::success();
 }
 
-llvm::Error recordRVVI32M1SelectOp(RVVI32M1ArithmeticSlice &slice,
+llvm::Error recordRVVSelectedBodySelectOp(RVVSelectedBodyRouteSlice &slice,
                                    tcrv::rvv::I32SelectOp select) {
-  if (llvm::Error error = recordRVVI32M1ArithmeticOp(
-          slice, select.getOperation(), RVVI32M1ArithmeticOp::CmpSelect,
+  if (llvm::Error error = recordRVVSelectedBodyOperation(
+          slice, select.getOperation(), RVVSelectedBodyOperationKind::CmpSelect,
           select.getTrueValue(), select.getFalseValue(), select.getSelected()))
     return error;
   slice.selectOp = select;
@@ -328,8 +334,8 @@ llvm::Error recordRVVI32M1SelectOp(RVVI32M1ArithmeticSlice &slice,
   return llvm::Error::success();
 }
 
-llvm::Expected<RVVI32M1ArithmeticSlice>
-collectRVVI32M1ArithmeticSlice(tcrv::exec::VariantOp variant) {
+llvm::Expected<RVVSelectedBodyRouteSlice>
+collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   llvm::SmallVector<tcrv::rvv::SetVLOp, 2> setvls;
   llvm::SmallVector<tcrv::rvv::WithVLOp, 2> withVLs;
   unsigned rvvOpCount = 0;
@@ -350,7 +356,7 @@ collectRVVI32M1ArithmeticSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one tcrv_rvv.with_vl op");
 
-  RVVI32M1ArithmeticSlice slice;
+  RVVSelectedBodyRouteSlice slice;
   slice.setvl = setvls.front();
   slice.withVL = withVLs.front();
 
@@ -382,38 +388,35 @@ collectRVVI32M1ArithmeticSlice(tcrv::exec::VariantOp variant) {
     }
     if (auto add = llvm::dyn_cast<tcrv::rvv::I32AddOp>(op)) {
       if (llvm::Error error =
-              recordRVVI32M1ArithmeticOp(slice, add.getOperation(),
-                                         RVVI32M1ArithmeticOp::Add,
-                                         add.getLhs(), add.getRhs(),
-                                         add.getSum()))
+              recordRVVSelectedBodyOperation(
+                  slice, add.getOperation(), RVVSelectedBodyOperationKind::Add,
+                  add.getLhs(), add.getRhs(), add.getSum()))
         return std::move(error);
       continue;
     }
     if (auto sub = llvm::dyn_cast<tcrv::rvv::I32SubOp>(op)) {
       if (llvm::Error error =
-              recordRVVI32M1ArithmeticOp(slice, sub.getOperation(),
-                                         RVVI32M1ArithmeticOp::Sub,
-                                         sub.getLhs(), sub.getRhs(),
-                                         sub.getDifference()))
+              recordRVVSelectedBodyOperation(
+                  slice, sub.getOperation(), RVVSelectedBodyOperationKind::Sub,
+                  sub.getLhs(), sub.getRhs(), sub.getDifference()))
         return std::move(error);
       continue;
     }
     if (auto mul = llvm::dyn_cast<tcrv::rvv::I32MulOp>(op)) {
       if (llvm::Error error =
-              recordRVVI32M1ArithmeticOp(slice, mul.getOperation(),
-                                         RVVI32M1ArithmeticOp::Mul,
-                                         mul.getLhs(), mul.getRhs(),
-                                         mul.getProduct()))
+              recordRVVSelectedBodyOperation(
+                  slice, mul.getOperation(), RVVSelectedBodyOperationKind::Mul,
+                  mul.getLhs(), mul.getRhs(), mul.getProduct()))
         return std::move(error);
       continue;
     }
     if (auto compare = llvm::dyn_cast<tcrv::rvv::I32CmpEqOp>(op)) {
-      if (llvm::Error error = recordRVVI32M1CompareOp(slice, compare))
+      if (llvm::Error error = recordRVVSelectedBodyCompareOp(slice, compare))
         return std::move(error);
       continue;
     }
     if (auto select = llvm::dyn_cast<tcrv::rvv::I32SelectOp>(op)) {
-      if (llvm::Error error = recordRVVI32M1SelectOp(slice, select))
+      if (llvm::Error error = recordRVVSelectedBodySelectOp(slice, select))
         return std::move(error);
       continue;
     }
@@ -505,17 +508,17 @@ collectRVVI32M1ArithmeticSlice(tcrv::exec::VariantOp variant) {
           {support::RuntimeABIParameterRole::OutputBuffer});
   if (!outABI)
     return outABI.takeError();
-  const RVVI32M1ArithmeticRouteSpec &spec =
-      getRVVI32M1ArithmeticRouteSpec(slice.arithmeticKind);
+  const RVVSelectedBodyIntrinsicMapping &spec =
+      getRVVSelectedBodyIntrinsicMapping(slice.arithmeticKind);
   const RVVI32M1ArithmeticConstructionRoute &constructionRoute =
-      getRVVI32M1ArithmeticConstructionRouteOrDie(slice.arithmeticKind);
-  if (llvm::Error error = validateRVVI32M1ArithmeticRuntimeABIParameters(
+      getRVVSelectedBodyConstructionRouteOrDie(slice.arithmeticKind);
+  if (llvm::Error error = validateRVVSelectedBodyRuntimeABIParameters(
           slice, constructionRoute, *runtimeElementCountABI, *outABI))
     return error;
   mlir::Value rhsValue = slice.rhsBroadcastLoad
                              ? slice.rhsBroadcastLoad.getBroadcast()
                              : slice.rhsLoad.getLoaded();
-  if (slice.arithmeticKind == RVVI32M1ArithmeticOp::CmpSelect) {
+  if (slice.arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect) {
     if (slice.compareLhs != slice.lhsLoad.getLoaded() ||
         slice.compareRhs != slice.rhsLoad.getLoaded())
       return makeRVVEmitCRouteProviderError(
@@ -619,7 +622,7 @@ struct RVVOrderedRoleOperations {
   llvm::SmallVector<unsigned, 10> constructionOrders;
 };
 
-unsigned getRVVCanonicalRoleOrder(RVVI32M1ArithmeticSlice &slice,
+unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
                                   mlir::Operation *op) {
   auto lhsABI = slice.lhsLoad.getBuffer()
                     .getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
@@ -651,19 +654,19 @@ unsigned getRVVCanonicalRoleOrder(RVVI32M1ArithmeticSlice &slice,
     return 7;
   if (slice.compareOp && op == slice.compareOp.getOperation())
     return 8;
-  if (slice.arithmeticKind == RVVI32M1ArithmeticOp::CmpSelect &&
+  if (slice.arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect &&
       op == slice.arithmeticOp)
     return 9;
   if (op == slice.arithmeticOp)
     return 8;
   if (op == slice.store.getOperation())
-    return slice.arithmeticKind == RVVI32M1ArithmeticOp::CmpSelect ? 10 : 9;
+    return slice.arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect ? 10 : 9;
   return 10;
 }
 
 RVVOrderedRoleOperations
 collectRVVRoleOperationsInBodyOrder(tcrv::exec::VariantOp variant,
-                                    RVVI32M1ArithmeticSlice &slice) {
+                                    RVVSelectedBodyRouteSlice &slice) {
   RVVOrderedRoleOperations ordered;
   if (!variant || variant.getBody().empty())
     return ordered;
@@ -685,7 +688,7 @@ collectRVVRoleOperationsInBodyOrder(tcrv::exec::VariantOp variant,
 }
 
 llvm::Error verifySelectedRVVRoleSequence(
-    RVVI32M1ArithmeticSlice &slice, const VariantEmitCLowerableRequest &request,
+    RVVSelectedBodyRouteSlice &slice, const VariantEmitCLowerableRequest &request,
     const RVVI32M1ArithmeticConstructionRoute &constructionRoute) {
   auto lhsABI = slice.lhsLoad.getBuffer()
                     .getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
@@ -722,68 +725,8 @@ llvm::Error verifySelectedRVVRoleSequence(
       "selected RVV EmitC route");
 }
 
-} // namespace
-
-llvm::ArrayRef<RVVI32M1ArithmeticOp> getRVVI32M1ArithmeticOps() {
-  return kRVVI32M1ArithmeticOps;
-}
-
-llvm::StringRef stringifyRVVI32M1ArithmeticOp(RVVI32M1ArithmeticOp op) {
-  return getRVVI32M1ArithmeticRouteSpec(op).mnemonic;
-}
-
-llvm::Expected<RVVI32M1ArithmeticOp>
-symbolizeRVVI32M1ArithmeticOpFromEmitCRouteID(llvm::StringRef routeID) {
-  llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>
-      constructionRoute =
-          lookupRVVI32M1ArithmeticConstructionRouteByEmitCRouteID(routeID);
-  if (!constructionRoute)
-    return constructionRoute.takeError();
-  for (const RVVI32M1ArithmeticRouteSpec &spec :
-       kRVVI32M1ArithmeticRoutes)
-    if ((*constructionRoute)->mnemonic == spec.mnemonic)
-      return spec.op;
-  return makeRVVEmitCRouteProviderError(
-      llvm::Twine("RVV construction route mnemonic '") +
-      (*constructionRoute)->mnemonic + "' has no route provider operation");
-}
-
-llvm::StringRef
-getRVVI32M1ArithmeticEmitCRouteID(RVVI32M1ArithmeticOp op) {
-  return getRVVI32M1ArithmeticConstructionRouteOrDie(op).emitCRouteID;
-}
-
-llvm::StringRef getRVVI32M1ArithmeticEmissionKind() {
-  return kRVVI32M1ArithmeticEmissionKind;
-}
-
-llvm::StringRef getRVVI32M1ArithmeticLoweringBoundaryOpName() {
-  return kRVVI32M1ArithmeticLoweringBoundaryOpName;
-}
-
-llvm::StringRef getRVVI32M1ArithmeticRuntimeABIKind() {
-  return kRVVI32M1ArithmeticRuntimeABIKind;
-}
-
-llvm::StringRef
-getRVVI32M1ArithmeticRuntimeABIName(RVVI32M1ArithmeticOp op) {
-  return getRVVI32M1ArithmeticConstructionRouteOrDie(op).runtimeABIName;
-}
-
-llvm::StringRef getRVVI32M1ArithmeticRuntimeGlueRole() {
-  return kRVVI32M1ArithmeticRuntimeGlueRole;
-}
-
-llvm::SmallVector<support::RuntimeABIParameter, 4>
-getRVVI32M1ArithmeticRuntimeABIParameters() {
-  return tcrv::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
-}
-
-llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
-    RVVI32M1ArithmeticOp op, const VariantEmitCLowerableRequest &request,
-    conversion::emitc::TCRVEmitCLowerableRoute &out) {
-  const RVVI32M1ArithmeticRouteSpec &expectedSpec =
-      getRVVI32M1ArithmeticRouteSpec(op);
+llvm::Expected<RVVSelectedBodyRouteAnalysis>
+analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   if (!request.getVariant())
     return makeRVVEmitCRouteProviderError(
         "EmitC route construction requires a materialized tcrv.exec.variant");
@@ -792,38 +735,115 @@ llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
         "EmitC route construction requires an enclosing tcrv.exec.kernel");
 
   if (llvm::Error error = requireRVVVariantLegality(request.getVariant()))
-    return error;
+    return std::move(error);
   if (llvm::Error error = verifyRVVConstructionProtocolReady())
-    return error;
+    return std::move(error);
 
-  llvm::Expected<RVVI32M1ArithmeticSlice> slice =
-      collectRVVI32M1ArithmeticSlice(request.getVariant());
+  llvm::Expected<RVVSelectedBodyRouteSlice> slice =
+      collectRVVSelectedBodyRouteSlice(request.getVariant());
   if (!slice)
     return slice.takeError();
 
-  if (slice->arithmeticKind != op)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("selected RVV i32m1 arithmetic route expected i32_") +
-        expectedSpec.mnemonic + " but variant body contains i32_" +
-        stringifyRVVI32M1ArithmeticOp(slice->arithmeticKind));
-
+  const RVVSelectedBodyIntrinsicMapping &intrinsicMapping =
+      getRVVSelectedBodyIntrinsicMapping(slice->arithmeticKind);
   const RVVI32M1ArithmeticConstructionRoute &constructionRoute =
-      getRVVI32M1ArithmeticConstructionRouteOrDie(op);
+      getRVVSelectedBodyConstructionRouteOrDie(slice->arithmeticKind);
+
   if (slice->arithmeticOp->getName().getStringRef() !=
       constructionRoute.operationName)
     return makeRVVEmitCRouteProviderError(
-        llvm::Twine("selected RVV i32m1 arithmetic route expected typed op '") +
+        llvm::Twine("selected typed RVV body route expected compute op '") +
         constructionRoute.operationName + "' from the construction mapping");
   if (llvm::Error error = verifyRVVI32M1ArithmeticConstructionRouteMapping(
-          expectedSpec.mnemonic, constructionRoute.operationName,
+          intrinsicMapping.mnemonic, constructionRoute.operationName,
           constructionRoute.emitCRouteID, constructionRoute.runtimeABIName))
-    return error;
+    return std::move(error);
   if (llvm::Error error =
           verifySelectedRVVRoleSequence(*slice, request, constructionRoute))
-    return error;
+    return std::move(error);
+
+  tcrv::rvv::RVVCompileTimeConfig config =
+      tcrv::rvv::getRVVSetVLCompileTimeConfig(slice->setvl);
+
+  RVVSelectedBodyRouteAnalysis analysis;
+  analysis.slice = std::move(*slice);
+  analysis.intrinsicMapping = &intrinsicMapping;
+  analysis.constructionRoute = &constructionRoute;
+  analysis.description.operation = analysis.slice.arithmeticKind;
+  analysis.description.memoryForm =
+      analysis.slice.rhsBroadcastLoad
+          ? RVVSelectedBodyMemoryForm::RHSBroadcastLoad
+          : RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  analysis.description.sew = config.sew;
+  analysis.description.lmul = config.lmul;
+  analysis.description.typedComputeOpName = constructionRoute.operationName;
+  analysis.description.emitCRouteID = constructionRoute.emitCRouteID;
+  analysis.description.runtimeABIName = constructionRoute.runtimeABIName;
+  analysis.description.runtimeABIContractName =
+      constructionRoute.runtimeABIContractName;
+  analysis.description.intrinsic = intrinsicMapping.intrinsic;
+  analysis.description.compareIntrinsic = intrinsicMapping.compareIntrinsic;
+  analysis.description.resultName = intrinsicMapping.resultName;
+  analysis.description.maskName = intrinsicMapping.maskName;
+  analysis.description.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+  analysis.description.runtimeABIParameters.push_back(analysis.slice.rhsABI);
+  analysis.description.runtimeABIParameters.push_back(analysis.slice.outABI);
+  analysis.description.runtimeABIParameters.push_back(
+      analysis.slice.runtimeElementCountABI);
+  return analysis;
+}
+
+} // namespace
+
+llvm::ArrayRef<RVVSelectedBodyOperationKind> getRVVSelectedBodyOperationKinds() {
+  return kRVVSelectedBodyOperationKinds;
+}
+
+llvm::StringRef
+stringifyRVVSelectedBodyOperationKind(RVVSelectedBodyOperationKind op) {
+  return getRVVSelectedBodyIntrinsicMapping(op).mnemonic;
+}
+
+llvm::StringRef
+getRVVSelectedBodyEmitCRouteID(RVVSelectedBodyOperationKind op) {
+  return getRVVSelectedBodyConstructionRouteOrDie(op).emitCRouteID;
+}
+
+llvm::StringRef getRVVSelectedBodyEmissionKind() {
+  return kRVVSelectedBodyEmissionKind;
+}
+
+llvm::StringRef getRVVSelectedBodyLoweringBoundaryOpName() {
+  return kRVVSelectedBodyLoweringBoundaryOpName;
+}
+
+llvm::StringRef getRVVSelectedBodyRuntimeABIKind() {
+  return kRVVSelectedBodyRuntimeABIKind;
+}
+
+llvm::StringRef
+getRVVSelectedBodyRuntimeABIName(RVVSelectedBodyOperationKind op) {
+  return getRVVSelectedBodyConstructionRouteOrDie(op).runtimeABIName;
+}
+
+llvm::StringRef getRVVSelectedBodyRuntimeGlueRole() {
+  return kRVVSelectedBodyRuntimeGlueRole;
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVSelectedBodyRuntimeABIParameters() {
+  return tcrv::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
+}
+
+static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    conversion::emitc::TCRVEmitCLowerableRoute &out) {
+  RVVSelectedBodyRouteSlice *slice = &analysis.slice;
+  const RVVSelectedBodyIntrinsicMapping &expectedSpec =
+      *analysis.intrinsicMapping;
 
   conversion::emitc::TCRVEmitCLowerableRoute route(
-      constructionRoute.emitCRouteID,
+      analysis.description.emitCRouteID,
       "extension-family-ops-to-emitc-call-opaque");
   route.addHeader("stddef.h");
   route.addHeader("stdint.h");
@@ -920,7 +940,7 @@ llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
             TCRVEmitCCallOpaqueResult{"rhs_vec", "vint32m1_t"}))
       return error;
   }
-  if (slice->arithmeticKind == RVVI32M1ArithmeticOp::CmpSelect) {
+  if (slice->arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect) {
     if (llvm::Error error = addLoopStep(
             slice->compareOp.getOperation(), "compute",
             expectedSpec.compareIntrinsic,
@@ -967,46 +987,32 @@ llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
   return llvm::Error::success();
 }
 
-llvm::Error buildRVVI32M1ArithmeticEmitCLowerableRoute(
+llvm::Expected<RVVSelectedBodyEmitCRouteDescription>
+describeRVVSelectedBodyEmitCRoute(
     const VariantEmitCLowerableRequest &request,
-    conversion::emitc::TCRVEmitCLowerableRoute &out) {
-  if (!request.getVariant())
-    return makeRVVEmitCRouteProviderError(
-        "EmitC route construction requires a materialized tcrv.exec.variant");
-  if (!request.getKernel())
-    return makeRVVEmitCRouteProviderError(
-        "EmitC route construction requires an enclosing tcrv.exec.kernel");
+    conversion::emitc::TCRVEmitCLowerableRoute *verifiedRoute) {
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> analysis =
+      analyzeRVVSelectedBodyRoute(request);
+  if (!analysis)
+    return analysis.takeError();
 
-  if (llvm::Error error = requireRVVVariantLegality(request.getVariant()))
-    return error;
+  if (verifiedRoute)
+    if (llvm::Error error =
+            buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
+                *analysis, *verifiedRoute))
+      return std::move(error);
 
-  llvm::Expected<RVVI32M1ArithmeticSlice> slice =
-      collectRVVI32M1ArithmeticSlice(request.getVariant());
-  if (!slice)
-    return slice.takeError();
-  return buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
-      slice->arithmeticKind, request, out);
+  return analysis->description;
 }
 
-llvm::Error buildRVVI32M1AddEmitCLowerableRoute(
+llvm::Error buildRVVSelectedBodyEmitCLowerableRoute(
     const VariantEmitCLowerableRequest &request,
     conversion::emitc::TCRVEmitCLowerableRoute &out) {
-  return buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
-      RVVI32M1ArithmeticOp::Add, request, out);
-}
-
-llvm::Error buildRVVI32M1SubEmitCLowerableRoute(
-    const VariantEmitCLowerableRequest &request,
-    conversion::emitc::TCRVEmitCLowerableRoute &out) {
-  return buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
-      RVVI32M1ArithmeticOp::Sub, request, out);
-}
-
-llvm::Error buildRVVI32M1MulEmitCLowerableRoute(
-    const VariantEmitCLowerableRequest &request,
-    conversion::emitc::TCRVEmitCLowerableRoute &out) {
-  return buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation(
-      RVVI32M1ArithmeticOp::Mul, request, out);
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> analysis =
+      analyzeRVVSelectedBodyRoute(request);
+  if (!analysis)
+    return analysis.takeError();
+  return buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(*analysis, out);
 }
 
 } // namespace tianchenrv::plugin::rvv

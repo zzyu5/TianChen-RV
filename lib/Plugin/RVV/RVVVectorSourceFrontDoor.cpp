@@ -56,13 +56,13 @@ struct SourceRuntimeABIValue {
 
 struct BoundedI32ArithmeticSourcePattern {
   mlir::func::FuncOp func;
-  RVVI32M1ArithmeticOp arithmeticOp;
+  RVVSelectedBodyOperationKind arithmeticOp;
   llvm::SmallVector<SourceRuntimeABIValue, 4> runtimeABIValues;
 };
 
 struct SourceArithmeticOp {
   mlir::Operation *op;
-  RVVI32M1ArithmeticOp kind;
+  RVVSelectedBodyOperationKind kind;
   llvm::StringLiteral sourceName;
   mlir::Value lhs;
   mlir::Value rhs;
@@ -154,13 +154,13 @@ failMaterializerMatch(mlir::Operation *op, llvm::Twine message) {
 std::optional<SourceArithmeticOp>
 matchSupportedSourceArithmeticOp(mlir::Operation *op) {
   if (auto add = llvm::dyn_cast<mlir::arith::AddIOp>(op))
-    return SourceArithmeticOp{op, RVVI32M1ArithmeticOp::Add, "arith.addi",
+    return SourceArithmeticOp{op, RVVSelectedBodyOperationKind::Add, "arith.addi",
                               add.getLhs(), add.getRhs(), add.getResult()};
   if (auto sub = llvm::dyn_cast<mlir::arith::SubIOp>(op))
-    return SourceArithmeticOp{op, RVVI32M1ArithmeticOp::Sub, "arith.subi",
+    return SourceArithmeticOp{op, RVVSelectedBodyOperationKind::Sub, "arith.subi",
                               sub.getLhs(), sub.getRhs(), sub.getResult()};
   if (auto mul = llvm::dyn_cast<mlir::arith::MulIOp>(op))
-    return SourceArithmeticOp{op, RVVI32M1ArithmeticOp::Mul, "arith.muli",
+    return SourceArithmeticOp{op, RVVSelectedBodyOperationKind::Mul, "arith.muli",
                               mul.getLhs(), mul.getRhs(), mul.getResult()};
   return std::nullopt;
 }
@@ -237,13 +237,14 @@ mlir::LogicalResult requireTailSafeTransferWrite(
   return mlir::success();
 }
 
-llvm::StringRef getRVVI32M1ArithmeticOperationName(RVVI32M1ArithmeticOp op) {
+llvm::StringRef
+getRVVSelectedBodyOperationName(RVVSelectedBodyOperationKind op) {
   switch (op) {
-  case RVVI32M1ArithmeticOp::Add:
+  case RVVSelectedBodyOperationKind::Add:
     return "tcrv_rvv.i32_add";
-  case RVVI32M1ArithmeticOp::Sub:
+  case RVVSelectedBodyOperationKind::Sub:
     return "tcrv_rvv.i32_sub";
-  case RVVI32M1ArithmeticOp::Mul:
+  case RVVSelectedBodyOperationKind::Mul:
     return "tcrv_rvv.i32_mul";
   default:
     break;
@@ -537,11 +538,11 @@ mlir::Operation *createI32Load(mlir::OpBuilder &builder, mlir::Location loc,
 
 mlir::Operation *createI32Arithmetic(mlir::OpBuilder &builder,
                                      mlir::Location loc,
-                                     RVVI32M1ArithmeticOp arithmeticOp,
+                                     RVVSelectedBodyOperationKind arithmeticOp,
                                      mlir::Value lhs, mlir::Value rhs,
                                      mlir::Value vl) {
   mlir::OperationState state(loc,
-                             getRVVI32M1ArithmeticOperationName(arithmeticOp));
+                            getRVVSelectedBodyOperationName(arithmeticOp));
   state.addOperands({lhs, rhs, vl});
   state.addTypes(tcrv::rvv::I32M1VectorType::get(builder.getContext()));
   return builder.create(state);
@@ -603,7 +604,7 @@ void materializeSourceKernel(mlir::OpBuilder &builder,
   std::string kernelName = (func.getSymName() + "_kernel").str();
   std::string variantName =
       (func.getSymName() + "_rvv_i32_" +
-       stringifyRVVI32M1ArithmeticOp(source.arithmeticOp))
+       stringifyRVVSelectedBodyOperationKind(source.arithmeticOp))
           .str();
   std::string fallbackVariantName =
       (func.getSymName() + "_scalar_fallback").str();

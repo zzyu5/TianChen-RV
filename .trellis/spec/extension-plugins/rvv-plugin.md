@@ -135,6 +135,105 @@ Correct:
   RVV plugin validates/realizes it and then derives the route/intrinsic names.
 ```
 
+### Scenario: Selected-Body EmitC Route Description API
+
+#### 1. Scope / Trigger
+
+Use this contract when RVV plugin code decides whether a selected RVV variant
+is route-supported or builds a `TCRVEmitCLowerableRoute` for common EmitC
+materialization. The trigger is a selected `tcrv.exec.variant` owned by
+`rvv-plugin` with an explicit typed `tcrv_rvv` body.
+
+#### 2. Signatures
+
+- Operation kind:
+  `RVVSelectedBodyOperationKind`.
+- Memory form:
+  `RVVSelectedBodyMemoryForm`.
+- Route description:
+  `RVVSelectedBodyEmitCRouteDescription`.
+- Description builder:
+  `describeRVVSelectedBodyEmitCRoute(const VariantEmitCLowerableRequest &request, TCRVEmitCLowerableRoute *verifiedRoute = nullptr)`.
+- Route builder:
+  `buildRVVSelectedBodyEmitCLowerableRoute(const VariantEmitCLowerableRequest &request, TCRVEmitCLowerableRoute &out)`.
+
+#### 3. Contracts
+
+- `describeRVVSelectedBodyEmitCRoute` is the RVV provider authority boundary.
+  It must derive operation kind, memory form, SEW, LMUL, runtime ABI
+  parameters, runtime ABI name, EmitC route id, and intrinsic mapping from the
+  selected typed `tcrv_rvv` body plus RVV config/construction contracts.
+- A route id, runtime ABI name, artifact metadata entry, source-front-door
+  name, helper name, or intrinsic spelling is an output label after validation.
+  It must not be parsed as the input authority for operation semantics.
+- The optional `verifiedRoute` output may be filled only from the same
+  validated selected-body description; it must not bypass body/config/runtime
+  checks.
+- Common EmitC/export code may consume the provider-built route and generic
+  provenance fields, but it must not choose RVV operation, dtype, SEW/LMUL,
+  policy, memory form, or intrinsic mapping.
+- Retained i32m1 arithmetic support is an ordinary specialization of this
+  selected-body description API. It is not the public RVV route-provider
+  protocol.
+
+#### 4. Validation & Error Matrix
+
+- Missing materialized `tcrv.exec.variant` or enclosing `tcrv.exec.kernel` ->
+  fail before route description.
+- Variant origin is not `rvv-plugin` -> fail before route description.
+- Selected variant lacks explicit typed `tcrv_rvv` body -> fail before route
+  description.
+- Missing or inconsistent `setvl`/`with_vl` SEW, LMUL, policy, or visible VL
+  relationship -> fail before route description.
+- Runtime AVL, load, store, or buffer operands are not defined by explicit
+  `tcrv_rvv.runtime_abi_value` ops with expected roles -> fail before route
+  description.
+- Typed compute/dataflow does not match the bounded selected-body route shape
+  -> fail before route id or intrinsic labels are emitted.
+- Artifact metadata disagrees with the rebuilt selected-body route description
+  -> target export must fail before object/header/bundle output.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: selected RVV variant contains runtime ABI values, `setvl`, `with_vl`,
+  typed load/compute/store body, and compatible config; the provider derives a
+  selected-body description and then emits a matching `TCRVEmitCLowerableRoute`.
+- Base: the current bounded i32m1 add/sub/mul/compare-select slice remains
+  route-supported only after typed body/config/runtime ABI validation succeeds.
+- Bad: an emission plan or target artifact candidate parses
+  `rvv-i32m1-add-emitc-route`, `rvv_arithmetic_op`, artifact names, ABI names,
+  or intrinsic spellings to decide compute semantics without rebuilding the
+  selected typed body route description.
+
+#### 6. Tests Required
+
+- Positive provider or lit coverage for at least one selected typed
+  `tcrv_rvv` body route materializing through common EmitC.
+- Negative provider/lit coverage for missing runtime ABI or config/VL facts.
+- Target/export coverage proving stale route-id or arithmetic metadata that
+  disagrees with the rebuilt selected-body description fails closed.
+- Residue scan of the RVV route provider must not show public
+  route-id-to-operation symbolizers or per-operation route-builder entry
+  points as production authority.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+candidate route id -> parse add/sub/mul -> choose RVV intrinsic -> emit route
+```
+
+Correct:
+
+```text
+selected typed tcrv_rvv body/config/runtime ABI
+  -> RVVSelectedBodyEmitCRouteDescription
+  -> provider-built TCRVEmitCLowerableRoute
+  -> common EmitC materialization
+  -> route id and artifact metadata consumed only as mirrors
+```
+
 Route support has three distinct levels:
 
 ```text

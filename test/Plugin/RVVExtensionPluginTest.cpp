@@ -711,9 +711,9 @@ module {
           expect(plan.isSupported() &&
                      plan.getRuntimeABI() ==
                          tianchenrv::plugin::rvv::
-                             getRVVI32M1ArithmeticRuntimeABIName(
+                             getRVVSelectedBodyRuntimeABIName(
                                  tianchenrv::plugin::rvv::
-                                     RVVI32M1ArithmeticOp::Add),
+                                     RVVSelectedBodyOperationKind::Add),
                  "RVV broadcast body reuses the bounded add callable ABI "
                  "while selected typed body owns broadcast semantics"))
     return result;
@@ -806,9 +806,9 @@ module {
           expect(plan.isSupported() &&
                      plan.getRuntimeABI() ==
                          tianchenrv::plugin::rvv::
-                             getRVVI32M1ArithmeticRuntimeABIName(
+                             getRVVSelectedBodyRuntimeABIName(
                                  tianchenrv::plugin::rvv::
-                                     RVVI32M1ArithmeticOp::CmpSelect),
+                                     RVVSelectedBodyOperationKind::CmpSelect),
                  "RVV compare/select body owns a bounded callable ABI"))
     return result;
 
