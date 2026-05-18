@@ -1,0 +1,134 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id selected-body --overwrite --op-kind add --op-kind sub --op-kind mul --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/selected-body/evidence.json
+# RUN: FileCheck %s --check-prefix=ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv_arithmetic_op" --implicit-check-not="tcrv-rvv-materialize-i32m1-vector-source-front-door" < %t.artifacts/selected-body/add/evidence.json
+# RUN: FileCheck %s --check-prefix=SUB --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv_arithmetic_op" --implicit-check-not="tcrv-rvv-materialize-i32m1-vector-source-front-door" < %t.artifacts/selected-body/sub/evidence.json
+# RUN: FileCheck %s --check-prefix=MUL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv_arithmetic_op" --implicit-check-not="tcrv-rvv-materialize-i32m1-vector-source-front-door" < %t.artifacts/selected-body/mul/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS-ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/selected-body/add/rvv_generated_bundle_abi_add_harness.c
+# RUN: FileCheck %s --check-prefix=HARNESS-SUB --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/selected-body/sub/rvv_generated_bundle_abi_sub_harness.c
+# RUN: FileCheck %s --check-prefix=HARNESS-MUL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/selected-body/mul/rvv_generated_bundle_abi_mul_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "explicit-selected-body"
+# ROOT: "op_kinds": [
+# ROOT: "add"
+# ROOT: "sub"
+# ROOT: "mul"
+# ROOT: "op_results": {
+# ROOT: "add": {
+# ROOT: "pass_marker": "tcrv_rvv_generated_bundle_abi_add_ok"
+# ROOT: "status": "dry_run_success"
+# ROOT: "mul": {
+# ROOT: "pass_marker": "tcrv_rvv_generated_bundle_abi_mul_ok"
+# ROOT: "status": "dry_run_success"
+# ROOT: "sub": {
+# ROOT: "pass_marker": "tcrv_rvv_generated_bundle_abi_sub_ok"
+# ROOT: "status": "dry_run_success"
+# ROOT: "runtime_count_contract": {
+# ROOT: "case_count": 3
+# ROOT: "max_runtime_count": 23
+# ROOT: "minimum_case_count": 2
+# ROOT: "non_one_vector_sentinel_min_n": 17
+# ROOT: "runtime_counts": [
+# ROOT: 7
+# ROOT: 16
+# ROOT: 23
+# ROOT: "source_seed": false
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# ADD-DAG: "input_mode": "explicit-selected-body"
+# ADD-DAG: "source_seed": false
+# ADD-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-add.mlir"
+# ADD-DAG: "prototype": "void tcrv_emitc_explicit_selected_body_add_kernel_explicit_selected_body_rvv_i32_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
+# ADD-DAG: "key": "rvv_selected_body_operation"
+# ADD-DAG: "value": "add"
+# ADD-DAG: "key": "rvv_selected_body_typed_compute_op"
+# ADD-DAG: "value": "tcrv_rvv.i32_add"
+# ADD-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_add_kernel_explicit_selected_body_rvv_i32_add"
+# ADD-DAG: "expected_runtime_abi_name": "rvv-i32m1-add-callable-c-abi.v1"
+# ADD-DAG: "expected_selected_variant": "explicit_selected_body_rvv_i32_add"
+# ADD-DAG: "boundary": "external C ABI consumer of generated header and object only"
+# ADD-DAG: "pass_marker": "tcrv_rvv_generated_bundle_abi_add_ok"
+# ADD-DAG: "front_door": "explicit-selected-tcrv-exec-rvv-body"
+# ADD-DAG: "materializer": "none-selected-body-already-explicit"
+# ADD-DAG: "target_export": "tcrv-export-target-artifact-bundle"
+# ADD-DAG: --tcrv-materialize-emission-plans
+# ADD-DAG: --tcrv-export-target-artifact-bundle
+# ADD-DAG: "runtime_count_contract": {
+# ADD-DAG: "case_count": 3
+# ADD-DAG: "max_runtime_count": 23
+# ADD-DAG: "non_one_vector_sentinel_min_n": 17
+# ADD-DAG: "ssh_evidence": false
+# ADD-DAG: "status": "dry_run_success"
+
+# SUB-DAG: "input_mode": "explicit-selected-body"
+# SUB-DAG: "source_seed": false
+# SUB-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-sub.mlir"
+# SUB-DAG: "prototype": "void tcrv_emitc_explicit_selected_body_sub_kernel_explicit_selected_body_rvv_i32_sub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
+# SUB-DAG: "key": "rvv_selected_body_operation"
+# SUB-DAG: "value": "sub"
+# SUB-DAG: "key": "rvv_selected_body_typed_compute_op"
+# SUB-DAG: "value": "tcrv_rvv.i32_sub"
+# SUB-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_sub_kernel_explicit_selected_body_rvv_i32_sub"
+# SUB-DAG: "expected_runtime_abi_name": "rvv-i32m1-sub-callable-c-abi.v1"
+# SUB-DAG: "expected_selected_variant": "explicit_selected_body_rvv_i32_sub"
+# SUB-DAG: "boundary": "external C ABI consumer of generated header and object only"
+# SUB-DAG: "pass_marker": "tcrv_rvv_generated_bundle_abi_sub_ok"
+# SUB-DAG: "front_door": "explicit-selected-tcrv-exec-rvv-body"
+# SUB-DAG: "materializer": "none-selected-body-already-explicit"
+# SUB-DAG: "target_export": "tcrv-export-target-artifact-bundle"
+# SUB-DAG: --tcrv-materialize-emission-plans
+# SUB-DAG: --tcrv-export-target-artifact-bundle
+# SUB-DAG: "runtime_count_contract": {
+# SUB-DAG: "case_count": 3
+# SUB-DAG: "max_runtime_count": 23
+# SUB-DAG: "non_one_vector_sentinel_min_n": 17
+# SUB-DAG: "ssh_evidence": false
+# SUB-DAG: "status": "dry_run_success"
+
+# MUL-DAG: "input_mode": "explicit-selected-body"
+# MUL-DAG: "source_seed": false
+# MUL-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-mul.mlir"
+# MUL-DAG: "prototype": "void tcrv_emitc_explicit_selected_body_mul_kernel_explicit_selected_body_rvv_i32_mul(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
+# MUL-DAG: "key": "rvv_selected_body_operation"
+# MUL-DAG: "value": "mul"
+# MUL-DAG: "key": "rvv_selected_body_typed_compute_op"
+# MUL-DAG: "value": "tcrv_rvv.i32_mul"
+# MUL-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_mul_kernel_explicit_selected_body_rvv_i32_mul"
+# MUL-DAG: "expected_runtime_abi_name": "rvv-i32m1-mul-callable-c-abi.v1"
+# MUL-DAG: "expected_selected_variant": "explicit_selected_body_rvv_i32_mul"
+# MUL-DAG: "boundary": "external C ABI consumer of generated header and object only"
+# MUL-DAG: "pass_marker": "tcrv_rvv_generated_bundle_abi_mul_ok"
+# MUL-DAG: "front_door": "explicit-selected-tcrv-exec-rvv-body"
+# MUL-DAG: "materializer": "none-selected-body-already-explicit"
+# MUL-DAG: "target_export": "tcrv-export-target-artifact-bundle"
+# MUL-DAG: --tcrv-materialize-emission-plans
+# MUL-DAG: --tcrv-export-target-artifact-bundle
+# MUL-DAG: "runtime_count_contract": {
+# MUL-DAG: "case_count": 3
+# MUL-DAG: "max_runtime_count": 23
+# MUL-DAG: "non_one_vector_sentinel_min_n": 17
+# MUL-DAG: "ssh_evidence": false
+# MUL-DAG: "status": "dry_run_success"
+
+# HARNESS-ADD: #include "artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h"
+# HARNESS-ADD: tcrv_emitc_explicit_selected_body_add_kernel_explicit_selected_body_rvv_i32_add(lhs, rhs, out, n);
+# HARNESS-ADD: const size_t counts[] = {7, 16, 23};
+# HARNESS-ADD: tcrv_rvv_generated_bundle_abi_add_ok counts=7,16,23
+# HARNESS-ADD: PASS op=add counts=7,16,23
+
+# HARNESS-SUB: #include "artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h"
+# HARNESS-SUB: tcrv_emitc_explicit_selected_body_sub_kernel_explicit_selected_body_rvv_i32_sub(lhs, rhs, out, n);
+# HARNESS-SUB: const size_t counts[] = {7, 16, 23};
+# HARNESS-SUB: tcrv_rvv_generated_bundle_abi_sub_ok counts=7,16,23
+# HARNESS-SUB: PASS op=sub counts=7,16,23
+
+# HARNESS-MUL: #include "artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h"
+# HARNESS-MUL: tcrv_emitc_explicit_selected_body_mul_kernel_explicit_selected_body_rvv_i32_mul(lhs, rhs, out, n);
+# HARNESS-MUL: const size_t counts[] = {7, 16, 23};
+# HARNESS-MUL: tcrv_rvv_generated_bundle_abi_mul_ok counts=7,16,23
+# HARNESS-MUL: PASS op=mul counts=7,16,23

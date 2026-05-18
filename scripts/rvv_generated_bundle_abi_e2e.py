@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Prove generated RVV object/header bundle ABI consumption on ``ssh rvv``.
 
-This is evidence tooling only. It explicitly materializes the bounded RVV
-typed selected body from the legacy source seed, exports the generated target
-artifact bundle from that typed-body IR, checks the bundle, builds a small
-external C ABI consumer, and optionally runs that consumer on the real RVV
-target. It does not implement compiler IR, lowering, plugin selection,
-emission, descriptors, fallback computation, or runtime glue.
+This is evidence tooling only. By default it starts from hand-authored explicit
+selected ``tcrv.exec`` / ``tcrv_rvv`` body fixtures, materializes selected
+emission plans, exports the generated target artifact bundle, checks the
+bundle, builds a small external C ABI consumer, and optionally runs that
+consumer on the real RVV target. An explicit ``--source-seed`` mode remains
+only for the legacy RVV source-front-door seed. The script does not implement
+compiler IR, lowering, plugin selection, emission, descriptors, fallback
+computation, or runtime glue.
 """
 
 from __future__ import annotations
@@ -53,6 +55,8 @@ EXPECTED_HEADER_KIND = "runtime-callable-c-header"
 class OpExpectation:
     kind: str
     input_path: Path
+    input_mode: str
+    source_seed: bool
     selected_variant: str
     external_abi_name: str
     function_name: str
@@ -74,13 +78,15 @@ class OpExpectation:
         return f"tcrv_rvv_generated_bundle_abi_{self.kind}_ok"
 
 
-OP_EXPECTATIONS = {
+EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
     "add": OpExpectation(
         kind="add",
-        input_path=Path("test/Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir"),
-        selected_variant="vector_source_rvv_i32_add",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-add.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_i32_add",
         external_abi_name="rvv-i32m1-add-callable-c-abi.v1",
-        function_name="tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add",
+        function_name="tcrv_emitc_explicit_selected_body_add_kernel_explicit_selected_body_rvv_i32_add",
         emitc_route="rvv-i32m1-add-emitc-route",
         typed_compute_op="tcrv_rvv.i32_add",
         lhs_initializer="(int32_t)(7 + (int32_t)(index * 3))",
@@ -89,10 +95,12 @@ OP_EXPECTATIONS = {
     ),
     "sub": OpExpectation(
         kind="sub",
-        input_path=Path("test/Transforms/RVV/rvv-i32m1-vector-source-front-door-sub.mlir"),
-        selected_variant="vector_source_sub_rvv_i32_sub",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-sub.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_i32_sub",
         external_abi_name="rvv-i32m1-sub-callable-c-abi.v1",
-        function_name="tcrv_emitc_vector_source_sub_kernel_vector_source_sub_rvv_i32_sub",
+        function_name="tcrv_emitc_explicit_selected_body_sub_kernel_explicit_selected_body_rvv_i32_sub",
         emitc_route="rvv-i32m1-sub-emitc-route",
         typed_compute_op="tcrv_rvv.i32_sub",
         lhs_initializer="(int32_t)(500 - (int32_t)(index * 2))",
@@ -101,15 +109,44 @@ OP_EXPECTATIONS = {
     ),
     "mul": OpExpectation(
         kind="mul",
-        input_path=Path("test/Transforms/RVV/rvv-i32m1-vector-source-front-door-mul.mlir"),
-        selected_variant="vector_source_mul_rvv_i32_mul",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-mul.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_i32_mul",
         external_abi_name="rvv-i32m1-mul-callable-c-abi.v1",
-        function_name="tcrv_emitc_vector_source_mul_kernel_vector_source_mul_rvv_i32_mul",
+        function_name="tcrv_emitc_explicit_selected_body_mul_kernel_explicit_selected_body_rvv_i32_mul",
         emitc_route="rvv-i32m1-mul-emitc-route",
         typed_compute_op="tcrv_rvv.i32_mul",
         lhs_initializer="(int32_t)((int)(index % 13) - 6)",
         rhs_initializer="(int32_t)((int)(index % 17) - 8)",
         expected_expression="lhs[index] * rhs[index]",
+    ),
+}
+
+SOURCE_SEED_OP_EXPECTATIONS = {
+    "add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
+        input_path=Path("test/Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir"),
+        input_mode="legacy-rvv-source-seed",
+        source_seed=True,
+        selected_variant="vector_source_rvv_i32_add",
+        function_name="tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add",
+    ),
+    "sub": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["sub"],
+        input_path=Path("test/Transforms/RVV/rvv-i32m1-vector-source-front-door-sub.mlir"),
+        input_mode="legacy-rvv-source-seed",
+        source_seed=True,
+        selected_variant="vector_source_sub_rvv_i32_sub",
+        function_name="tcrv_emitc_vector_source_sub_kernel_vector_source_sub_rvv_i32_sub",
+    ),
+    "mul": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["mul"],
+        input_path=Path("test/Transforms/RVV/rvv-i32m1-vector-source-front-door-mul.mlir"),
+        input_mode="legacy-rvv-source-seed",
+        source_seed=True,
+        selected_variant="vector_source_mul_rvv_i32_mul",
+        function_name="tcrv_emitc_vector_source_mul_kernel_vector_source_mul_rvv_i32_mul",
     ),
 }
 
@@ -715,22 +752,23 @@ int main(void) {{
 def generate_bundle(
     tcrv_opt: str,
     tcrv_translate: str,
-    input_path: Path,
+    expectation: OpExpectation,
     bundle_dir: Path,
     timeout: int,
 ) -> dict[str, Any]:
     materialized_path = bundle_dir.parent / "materialized_selected_body.mlir"
-    materialize_command = [
-        tcrv_opt,
-        str(input_path),
-        "--tcrv-rvv-materialize-i32m1-vector-source-front-door",
-        "--tcrv-materialize-emission-plans",
-        "-o",
-        str(materialized_path),
-    ]
+    materialize_command = [tcrv_opt, str(expectation.input_path)]
+    if expectation.source_seed:
+        materialize_command.append(
+            "--tcrv-rvv-materialize-i32m1-vector-source-front-door"
+        )
+    materialize_command.extend(
+        ["--tcrv-materialize-emission-plans", "-o", str(materialized_path)]
+    )
     materialize_record = run_command(materialize_command, timeout=timeout)
     require_command_success(
-        materialize_record, "tcrv-opt explicit RVV typed-body materialization"
+        materialize_record,
+        "tcrv-opt explicit selected-body emission-plan materialization",
     )
 
     translate_command = [
@@ -744,9 +782,19 @@ def generate_bundle(
         translate_record,
         "tcrv-translate selected typed-body artifact bundle export",
     )
-    return {
-        "front_door": "explicit-rvv-source-seed-to-selected-typed-body",
-        "materializer": "tcrv-rvv-materialize-i32m1-vector-source-front-door",
+    result = {
+        "input_mode": expectation.input_mode,
+        "front_door": (
+            "legacy-rvv-source-front-door-seed"
+            if expectation.source_seed
+            else "explicit-selected-tcrv-exec-rvv-body"
+        ),
+        "materializer": (
+            "tcrv-rvv-materialize-i32m1-vector-source-front-door"
+            if expectation.source_seed
+            else "none-selected-body-already-explicit"
+        ),
+        "source_seed": expectation.source_seed,
         "target_export": "tcrv-export-target-artifact-bundle",
         "materialized_selected_body": str(materialized_path),
         "pipeline": (
@@ -757,6 +805,12 @@ def generate_bundle(
         "tcrv_opt": materialize_record,
         "tcrv_translate": translate_record,
     }
+    if expectation.source_seed:
+        result["seed_boundary"] = (
+            "legacy source may only construct typed tcrv_rvv selected-body IR "
+            "before provider route construction"
+        )
+    return result
 
 
 def ssh_base_command(ssh_target: str, connect_timeout: int) -> list[str]:
@@ -914,7 +968,12 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
     if args.input is not None and len(op_kinds) != 1:
         raise EvidenceError("--input may only be used with exactly one --op-kind")
 
-    expectations = [OP_EXPECTATIONS[kind] for kind in op_kinds]
+    expectation_table = (
+        SOURCE_SEED_OP_EXPECTATIONS
+        if args.source_seed
+        else EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS
+    )
+    expectations = [expectation_table[kind] for kind in op_kinds]
     if args.input is not None:
         expectations = [replace(expectations[0], input_path=args.input)]
     return [
@@ -987,6 +1046,8 @@ def run_one_op_e2e(
         "created_at": utc_timestamp(),
         "run_id": run_id,
         "op_kind": expectation.kind,
+        "input_mode": expectation.input_mode,
+        "source_seed": expectation.source_seed,
         "dry_run": bool(args.dry_run),
         "input": str(expectation.input_path),
         "artifact_dir": str(op_artifact_dir),
@@ -998,18 +1059,23 @@ def run_one_op_e2e(
     }
 
     try:
-        source_copy = op_artifact_dir / "source.mlir"
-        shutil.copyfile(expectation.input_path, source_copy)
-        evidence["source"] = {
+        input_copy_name = (
+            "source_seed.mlir" if expectation.source_seed else "selected_body_input.mlir"
+        )
+        input_copy = op_artifact_dir / input_copy_name
+        shutil.copyfile(expectation.input_path, input_copy)
+        evidence["selected_input"] = {
             "path": str(expectation.input_path),
-            "copy": str(source_copy),
-            "sha256": sha256_file(source_copy),
+            "copy": str(input_copy),
+            "sha256": sha256_file(input_copy),
+            "mode": expectation.input_mode,
+            "source_seed": expectation.source_seed,
         }
 
         local = generate_bundle(
             tcrv_opt,
             tcrv_translate,
-            expectation.input_path,
+            expectation,
             bundle_dir,
             args.timeout,
         )
@@ -1076,6 +1142,12 @@ def run_e2e(args: argparse.Namespace) -> int:
         "created_at": utc_timestamp(),
         "run_id": run_id,
         "dry_run": bool(args.dry_run),
+        "input_mode": (
+            "legacy-rvv-source-seed"
+            if args.source_seed
+            else "explicit-selected-body"
+        ),
+        "source_seed": bool(args.source_seed),
         "artifact_dir": str(artifact_dir),
         "runtime_counts": runtime_counts,
         "op_results": {},
@@ -1264,7 +1336,7 @@ def run_self_test() -> int:
             lambda: validate_runtime_counts([7, 16]),
         )
 
-        for expectation in OP_EXPECTATIONS.values():
+        for expectation in EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS.values():
             bundle = make_fake_bundle(tmp / expectation.kind, expectation)
             verify_bundle(bundle, readobj=None, expectation=expectation)
             harness = harness_source(
@@ -1281,7 +1353,7 @@ def run_self_test() -> int:
                     f"self-test harness generation lost {expectation.kind} ABI call"
                 )
 
-        expectation = OP_EXPECTATIONS["add"]
+        expectation = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"]
         missing_header = make_fake_bundle(tmp / "missing-header", expectation)
         header = next(missing_header.glob("*.h"))
         header.unlink()
@@ -1315,7 +1387,7 @@ def run_self_test() -> int:
             lambda: verify_bundle(missing_metadata, None, expectation),
         )
 
-        sub_expectation = OP_EXPECTATIONS["sub"]
+        sub_expectation = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["sub"]
         stale_arithmetic = make_fake_bundle(tmp / "stale-arithmetic", sub_expectation)
         index_path = stale_arithmetic / INDEX_FILE_NAME
         text = index_path.read_text(encoding="utf-8")
@@ -1476,6 +1548,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--self-test", action="store_true", help="run local parser/verifier self-tests")
     parser.add_argument("--dry-run", action="store_true", help="generate and verify local bundle without ssh rvv")
+    parser.add_argument(
+        "--source-seed",
+        action="store_true",
+        help=(
+            "use the legacy RVV source-front-door seed before selected-body "
+            "artifact export; default input is explicit selected-body IR"
+        ),
+    )
     parser.add_argument("--artifact-root", type=Path, default=DEFAULT_ARTIFACT_ROOT)
     parser.add_argument("--run-id", default="")
     parser.add_argument("--overwrite", action="store_true")
@@ -1490,7 +1570,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--input",
         type=Path,
         default=None,
-        help="override the source MLIR fixture for exactly one --op-kind",
+        help=(
+            "override the explicit selected-body MLIR fixture for exactly one "
+            "--op-kind, or the legacy source seed when --source-seed is set"
+        ),
     )
     parser.add_argument("--tcrv-opt", default="build/bin/tcrv-opt")
     parser.add_argument("--tcrv-translate", default="build/bin/tcrv-translate")
