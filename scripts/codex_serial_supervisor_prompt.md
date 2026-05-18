@@ -106,6 +106,30 @@ TianChen-RV MLIR / tcrv.exec envelope
 compute semantics. `tcrv_rvv` owns the low-level RVV body. The RVV plugin owns
 RVV legality, realization, intrinsic mapping, route construction, and
 fail-closed diagnostics. Common EmitC/export owns neutral mechanics only.
+An RVV route is not a decorator over an old `i32_*` op, route id, descriptor,
+or artifact. The provider builds `TCRVEmitCLowerableRoute` only after the
+selected vector-level `tcrv_rvv` body structurally carries the operation, dtype,
+config, memory form, runtime value use, and policy facts. Common materialization
+then lowers that route to MLIR EmitC; it must not choose RVV semantics itself.
+
+Dtype/config authority must stay layered. `tcrv.exec.mem_window` and
+`tcrv.exec.runtime_param` bind parameter roles and runtime SSA values; they do
+not define RVV compute, dtype, shape, or schedule. Current Stage 1/2 work starts
+from a selected RVV variant containing an explicit typed vector-level
+`tcrv_rvv` body. Dtype comes from source semantics in future frontend flows, or
+from that explicit `tcrv_rvv` body in current hand-authored/fixture flows.
+SEW, LMUL, policy, VL placement, memory form, operation kind, accumulator
+layout, and intrinsic spelling must be validated or derived by the RVV plugin
+from typed body/config/capability/runtime facts. They must not come from
+`i32m1` helper names, route ids, ABI strings, artifact names, test names,
+descriptor residue, or common EmitC/export code.
+
+Keep support levels separate: parseable/verifier-legal `tcrv_rvv` is not a
+route promise; route-supported means the RVV plugin declares legality and a
+lowering route with fail-closed unsupported cases; executable means the
+route-supported body sits in a selected `tcrv.exec` envelope with complete
+ABI/runtime/export support and real evidence when runtime/correctness/performance
+is claimed.
 
 RVV Stage 1 is route-authority replacement:
 
@@ -116,10 +140,13 @@ replace or fail-close bounded i32m1-as-route-authority.
 Stage 1 remains open while a production/default path treats bounded `i32m1`
 arithmetic, source-front-door patterns, route ids, artifact names, descriptor
 residue, intrinsic spellings, or common/export code as RVV route authority.
-During Stage 1, delete, rewrite, or fail-close obsolete paths instead of
-preserving them through compatibility wrappers. If removal exposes a missing
-new architecture gap, report that gap and keep the task state truthful instead
-of restoring the old path.
+Stage 1 also remains open while the active RVV provider route surface is still
+organized around `RVVI32M1*` specs/slices, finite `i32_*` route cases, route
+ids, or exact `__riscv_*_i32m1` spellings as the family architecture. During
+Stage 1, delete, rewrite, or fail-close obsolete paths instead of preserving
+them through compatibility wrappers. If removal exposes a missing new
+architecture gap, report that gap and keep the task state truthful instead of
+restoring the old path.
 
 Stage 1 may establish a selected-body realization boundary/hook or faithful
 selected-body consumption only when needed to replace old route authority.
@@ -127,11 +154,24 @@ Performance-sensitive selected-body realization and tuning are Stage 2 RVV
 completion work.
 
 Stage 2 begins only after Stage 1 evidence shows no active compiler path uses
-`i32m1` or source/artifact/route metadata as RVV authority. Stage 2 expands
-route-supported RVV coverage on the corrected vector-level `tcrv_rvv` surface
-using dependency order, not small completion batches, and includes RVV
-plugin-local selected-body realization for performance-sensitive vector-level
-bodies.
+`i32m1` or source/artifact/route metadata as RVV authority and the old i32m1
+route architecture has been replaced, deleted, or fail-closed. A retained
+i32m1 case is acceptable only as an ordinary specialization of the corrected
+typed vector-level `tcrv_rvv` value/config/body route surface. Stage 2 expands
+route-supported RVV coverage on that corrected surface using dependency order,
+not small completion batches, and includes RVV plugin-local selected-body
+realization for performance-sensitive vector-level bodies.
+
+If live evidence shows `RVVI32M1ArithmeticRouteSpec`,
+`RVVI32M1ArithmeticSlice`, `collectRVVI32M1ArithmeticSlice`, finite `i32_*`
+route-case growth, or exact `__riscv_*_i32m1` intrinsic spelling as the current
+route architecture, do not add broadcast, compare/select, reduction,
+conversion, dtype, LMUL, source-shape, or intrinsic cases to that table. The
+next owner is route-surface replacement: dtype, SEW, LMUL, policy, memory
+form, operation kind, runtime ABI use, and intrinsic mapping must be validated
+or derived from typed `tcrv_rvv` body/config structure by the RVV plugin. A
+new `tcrv_rvv.i32_*` helper or wrapper is not enough unless it is merely a
+retained ordinary specialization of the corrected vector-level surface.
 
 While Stage 1 is open, do not switch to Scalar, IME, Offload, TensorExt,
 high-level Linalg/Vector/StableHLO frontend generalization, Stage 2 coverage
@@ -145,6 +185,19 @@ compare/select, conversion/dtype/SEW/LMUL policy, reduction/accumulation,
 contraction-supporting multiply-add/movement, and runtime boundary. It must not
 become per-Linalg-op lowering, high-level kernel ops, or one-op-per-intrinsic
 wrapping.
+
+Stage 2 selected-body realization is a one-time RVV plugin-local transformation:
+
+```text
+selected pre-realized tcrv_rvv body
+  -> RVV plugin-local realization
+  -> realized tcrv_rvv body
+  -> route/emission
+```
+
+It may materialize legal RVV execution structure, but it must not change
+computation semantics, dtype semantics, parameter roles, variant origin,
+required capabilities, dispatch/fallback behavior, or runtime `n`/AVL values.
 
 Stage 2 completeness is judged by whether route-supported `tcrv_rvv` can cover
 the math and data-movement classes represented by structured kernels such as

@@ -186,6 +186,10 @@ Each review must check whether the worker preserved the TianChen-RV project boun
 - The current main route is extension family ops -> EmitC -> intrinsic/vendor
   builtin/runtime C/C++; descriptor-driven computation and descriptor-driven
   C/source export are implementation debt, not architecture.
+- RVV routes are provider-built lowering payloads over selected typed
+  `tcrv_rvv` bodies, not decorators over old `i32_*` op names, route ids,
+  descriptors, or artifact labels. Common EmitC/export materializes the
+  provider route and must not select RVV semantics itself.
 - Capability objects participate in compiler decisions rather than appearing only as comments or strings.
 - RVV hardware facts, compile-time variant config, runtime SSA/control values,
   and descriptor-local bounded parameters remain explicitly separated.
@@ -278,6 +282,11 @@ fail-closing the old authority. It must not preserve old logic through
 compatibility wrappers. This Stage 1 realization wording means boundary/hook
 authority and faithful selected-body consumption only; performance-sensitive
 selected-body realization and tuning belong to Stage 2 RVV completion.
+Adding another `tcrv_rvv.i32_*` helper, route-table case, intrinsic wrapper, or
+source-pattern recognizer is not route-authority replacement unless it is part
+of converting the old case into an ordinary specialization of the corrected
+vector-level body/config route surface or part of fail-closing/deleting that
+old case.
 
 Deletion-only cleanup remains valid for residue that is not yet part of a
 replacement owner. In that mode, Hermes must not choose finite RVV feature
@@ -336,8 +345,12 @@ Hermes may exit the campaign only when live repository evidence shows:
 
 Only after deletion-only cleanup exits may Hermes choose unrelated rebuild
 owners. Only after RVV Stage 1 evidence shows no active compiler path uses
-`i32m1` or source/artifact/route metadata as RVV authority may Hermes enter
-Stage 2 coverage/performance work.
+`i32m1` or source/artifact/route metadata as RVV authority, and no active RVV
+route provider is still organized around `RVVI32M1*` specs/slices, finite
+`i32_*` route cases, route ids, or exact `__riscv_*_i32m1` spellings as the
+family architecture, may Hermes enter Stage 2 coverage/performance work.
+Retained i32 behavior must be an ordinary instance of the corrected typed
+vector-level route surface, not the route table that defines the family.
 
 ### Grill Consensus And Mature Path Steering
 
@@ -384,6 +397,15 @@ runtime AVL/VL control, and supported movement/layout forms. It must not be
 turned into per-Linalg-op frontend work, high-level kernel ops, one-intrinsic
 wrappers, dtype/LMUL clone batches, global autotuning databases, dashboards, or
 readiness state machines.
+
+If the just-finished run added broadcast, compare/select, reduction,
+conversion, dtype, LMUL, source-shape, or intrinsic cases by extending a legacy
+`RVVI32M1*` route table, Hermes must treat that as a redirect case, not as a
+Stage 2 milestone. The next owner must replace the route surface so dtype,
+SEW, LMUL, policy, memory form, operation kind, runtime ABI use, and intrinsic
+mapping are derived from typed `tcrv_rvv` body/config structure by the RVV
+plugin. Common EmitC/export may only materialize and package the selected
+route.
 
 Hermes should prefer owners that are large enough to remove a real compiler
 spine bottleneck in one round. A good owner may span several tightly related

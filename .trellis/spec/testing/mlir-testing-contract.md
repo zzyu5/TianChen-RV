@@ -15,18 +15,24 @@ CMake configure/build checks
 
 ### 1. Scope / Trigger
 
-Use this contract for tests that touch RVV microkernel, scalar microkernel, or
-RVV+scalar dispatch source/header/object/self-check/bundle surfaces while no
-materialized MLIR EmitC route exists.
+Use this contract for tests that touch historical RVV microkernel, scalar
+microkernel, RVV+scalar dispatch source/header/object/self-check/bundle
+surfaces, or any selected path whose authority is still direct metadata,
+descriptor residue, route ids, or old target-owned C printers. The contract also
+applies to retained bounded RVV i32m1 materialized EmitC tests: those tests may
+exercise the current legacy provider route, but they must not present it as RVV
+maturity, Stage 2 coverage, or a template for dtype/LMUL/source-shape growth.
 
 ### 2. Signatures
 
 - Removed direct options include the historical RVV microkernel, self-check,
   scalar microkernel, and RVV+scalar dispatch C-output helpers.
-- Fail-closed diagnostic text must explain that no materialized MLIR EmitC
-  module route is available.
+- Fail-closed diagnostic text must explain that no supported materialized MLIR
+  EmitC module route is available for that selected path.
 - Generic target artifact front doors remain valid test commands, but they
-  must report absence of a currently supported route.
+  must report absence of a currently supported route unless the selected
+  candidate is already backed by explicit extension-family IR and a provider
+  built `TCRVEmitCLowerableRoute`.
 
 ### 3. Contracts
 
@@ -37,11 +43,22 @@ materialized MLIR EmitC route exists.
   unsupported behavior or serve as parseable input to another fail-closed test.
 - C++ tests for route registries must assert current generic registry behavior
   rather than old route-family absence.
+- Tests for the retained bounded RVV i32m1 materialized EmitC path must prove
+  provider-owned route construction over explicit typed `tcrv_rvv` body IR,
+  common MLIR EmitC materialization, and target packaging boundaries. They must
+  not expand the legacy `RVVI32M1*` route table as coverage, protect new
+  `tcrv_rvv.i32_*` helper growth as dtype propagation, or treat exact
+  `__riscv_*_i32m1` strings as the future route architecture.
 
 ### 4. Validation & Error Matrix
 
-- Old emitted RVV intrinsic body expected -> delete the test or rewrite it to
-  assert unsupported/no route.
+- Old emitted RVV intrinsic body expected from a direct C printer -> delete the
+  test or rewrite it to assert unsupported/no route.
+- Exact `__riscv_*_i32m1` intrinsic expected through the retained provider-built
+  materialized EmitC route -> allowed only as a bounded legacy Stage 1 fixture;
+  reject any test whose purpose is to add broadcast, compare/select, reduction,
+  dtype, LMUL, source-shape, or intrinsic cases to the old table as forward
+  coverage.
 - Old scalar arithmetic loop expected -> delete or rewrite to unsupported.
 - Old dispatch source/header/object/bundle expected -> delete or rewrite to
   unsupported/no supported artifact route.
@@ -50,14 +67,16 @@ materialized MLIR EmitC route exists.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: a lit test proves a selected RVV path materializes typed IR and then
-  receives an unsupported emission-plan diagnostic.
+- Good: a lit or C++ test proves a selected RVV path either fails closed before
+  artifact output because no supported materialized route exists, or uses
+  explicit typed RVV body IR -> provider-built `TCRVEmitCLowerableRoute` ->
+  common MLIR EmitC materialization for the retained bounded legacy path.
 - Base: RVV smoke-probe tests may remain only when they exercise selected RVV
   metadata through current unsupported emission-plan diagnostics without naming
   an old route-name fixture.
 - Bad: a test checks raw runtime-callable C output, a direct route id, or an
-  `__riscv_` intrinsic as proof that kernel semantic source export or
-  smoke-probe source export succeeded.
+  `__riscv_` intrinsic emitted by a direct target-owned route as proof that
+  kernel semantic source export or smoke-probe source export succeeded.
 
 ### 6. Tests Required
 
@@ -66,6 +85,9 @@ materialized MLIR EmitC route exists.
   available.
 - C++ plugin/registry coverage for unsupported emission plans and absent
   target artifact route registrations.
+- Focused retained-route coverage, when present, must stay on the provider-owned
+  bounded RVV i32m1 materialized EmitC path and must not expand the legacy route
+  table as a maturity owner.
 - Full `check-tianchenrv` after deleting stale positive fixtures.
 
 ### 7. Wrong vs Correct

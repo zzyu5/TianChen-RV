@@ -51,6 +51,13 @@ unroll/prefetch structure, or operation semantics from route ids, artifact
 metadata, test names, descriptor residue, i32m1 helper names, or common target
 export code.
 
+A route is not a semantic decorator over an existing op name or route id. The
+provider-built route is valid only after the selected family body already
+expresses the body/config facts that make the route legal. Common EmitC lowering
+then materializes that payload as MLIR EmitC; it must not inspect legacy
+`tcrv_rvv.i32_*` names, descriptors, or artifact labels to decide which RVV
+intrinsic, dtype, memory form, or runtime schedule should exist.
+
 Common EmitC lowering remains a neutral materialization shell. It must not
 branch on RVV, IME, TensorExt, Offload, scalar, vendor names, dtype names,
 kernel names, or intrinsic spellings to choose extension semantics. Unsupported

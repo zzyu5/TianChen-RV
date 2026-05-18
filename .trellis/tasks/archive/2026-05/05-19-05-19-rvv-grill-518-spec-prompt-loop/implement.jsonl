@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Primary RVV Stage 1/2 route-authority, dtype/config/body, and legacy route-table contracts."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-owned route construction and selected-body realization boundary."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant generation, selection, tuning, and Stage 2 entry constraints."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "EmitC/runtime/artifact boundary and parameter layering."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route neutrality and legacy route fixture constraints."}
+{"file": ".trellis/spec/implementation-stack/supervision-loop.md", "reason": "Hermes/Codex loop steering contract and grill note promotion rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Test fixture interpretation and deleted-route coverage policy."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first review checklist for route/target claims."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin locality checklist for RVV ownership."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute/envelope boundary checklist for tcrv.exec and tcrv_rvv."}

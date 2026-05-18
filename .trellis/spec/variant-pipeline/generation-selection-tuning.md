@@ -13,6 +13,13 @@ metadata. High-level MLIR op analysis is a future extension point for
 authority and is not a prerequisite for replacing the bounded i32m1 route
 architecture.
 
+Stage 2 is allowed only after the bounded i32m1 route architecture is no
+longer the active RVV family route surface. A provider still centered on
+`RVVI32M1*` route specs/slices, finite `i32_*` route cases, route ids, or exact
+`__riscv_*_i32m1` spellings must be treated as Stage 1 route-surface debt.
+Adding more cases to that provider is not capability expansion; the expansion
+unit is the corrected typed vector-level `tcrv_rvv` value/config/body surface.
+
 Correct future high-level shape:
 
 ```text
@@ -395,6 +402,30 @@ fails closed. It must not know RVV concepts such as SEW, LMUL, mask/tail policy,
 shape, or reduction accumulator layout. For RVV, the plugin consumes the
 selected vector-level `tcrv_rvv` body, capability facts, runtime SSA/ABI values,
 and optional hints into a realized vector-level `tcrv_rvv` body.
+
+The slot's contract is a one-time selected-body transformation:
+
+```text
+selected pre-realized extension-family body
+  -> origin-plugin selected-body realization
+  -> realized extension-family body accepted for route construction
+```
+
+For RVV, dtype and operation semantics must already be carried by the selected
+vector-level `tcrv_rvv` body. Realization may legalize and materialize RVV
+execution structure such as SEW/LMUL/policy, dynamic VL/setvl placement, memory
+forms, mask/tail behavior, accumulator layout, and unroll/pipeline structure.
+It must not change dtype semantics, parameter roles, variant origin, required
+capabilities, dispatch/fallback semantics, runtime SSA values, or turn the body
+into EmitC/C. Hints are inputs to plugin validation/realization only; they are
+not route authority unless consumed into the realized body.
+
+For RVV, this slot must not decorate or prolong the old `RVVI32M1*` route
+table. Before performance-sensitive realization can count as Stage 2 progress,
+the selected body consumed by the RVV plugin must expose typed value/config/body
+structure rich enough for dtype, SEW, LMUL, policy, memory form, operation
+kind, runtime ABI values, and intrinsic mapping to be validated or derived
+plugin-locally.
 
 Emission-plan materialization runs after selected-body realization. It must
 validate the selected plugin-owned boundary/body surface before producing

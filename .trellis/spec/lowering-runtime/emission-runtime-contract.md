@@ -243,6 +243,15 @@ memory movement forms, and accumulator/reduction organization. Common
 orchestration must not synthesize those choices from route ids, artifact names,
 test names, descriptor residue, or old `i32m1` helper names.
 
+This boundary must not repair missing computation by inventing dtype or
+operation semantics. For RVV, dtype comes from source semantics in future
+frontend flows or from the explicit typed `tcrv_rvv` body in current selected
+variant flows. Realization may change RVV execution structure, but it must not
+change dtype semantics, parameter roles, variant origin, required capabilities,
+dispatch/fallback semantics, runtime SSA values, or lower the body directly to
+EmitC/C. If only legacy `RVVI32M1*` metadata/route ids identify the body, the
+route is Stage 1 debt and must fail closed or be replaced before Stage 2 claims.
+
 ## Emission Plan After Selected-Body Realization
 
 After selected-body realization and selected-path traversal, the compiler may
@@ -356,15 +365,15 @@ evidence.
 The artifact-kind-aware generic route may select target-owned bounded
 RISC-V ELF relocatable object and declaration-only header exporters only when
 the selected candidate is already backed by explicit extension-family IR plus a
-materialized MLIR EmitC module route. The current bounded RVV i32m1 arithmetic
-object/header/bundle path uses the selected materialized EmitC candidate, MLIR
-EmitC C/C++ emission, and target artifact packaging. It is not a direct RVV
-microkernel path, not an RVV+scalar dispatch path, and not a source-export
-exception. The generic source-only front door is deleted; source artifacts are
-not generic-front-door selectable until a future materialized EmitC route
-rebuild defines a new contract. The object and header routes are still bounded
-target artifacts; they do not link, run hardware, perform automatic probing,
-prove correctness, or measure performance.
+materialized MLIR EmitC module route. The current bounded RVV i32m1 legacy
+route-table object/header/bundle path uses the selected materialized EmitC
+candidate, MLIR EmitC C/C++ emission, and target artifact packaging. It is not a
+direct RVV microkernel path, not an RVV+scalar dispatch path, and not a
+source-export exception. The generic source-only front door is deleted; source
+artifacts are not generic-front-door selectable until a future materialized
+EmitC route rebuild defines a new contract. The object and header routes are
+still bounded target artifacts; they do not link, run hardware, perform
+automatic probing, prove correctness, or measure performance.
 Historical direct RVV microkernel library-object provenance sections are
 deleted as active route authority. Future object provenance must be derived
 from explicit extension-family IR, the materialized EmitC/runtime route, and
@@ -606,15 +615,16 @@ preserve parameter layering:
   arguments, length `n`, and dispatch guards may be emitted only as real
   IR/control fields or generated ABI parameters;
 - generated ABI parameters must state whether they are actually IR-modeled or
-  target/export ABI-owned. The current bounded RVV i32m1 materialized EmitC
-  route may pass `lhs`, `rhs`, `out`, and runtime `n` as C ABI parameters, but
-  the callable parameter plan must be built from real `tcrv.exec.mem_window` IR
-  for lhs/rhs/out buffer meanings and real direct `tcrv.exec.runtime_param` IR
-  for runtime-element-count. Historical scalar source exports are deleted and
-  cannot provide this plan. Candidate/emission-plan parameter metadata may only
-  mirror that IR-backed plan, while runtime ABI strings and glue roles come
-  from plugin/target-owned route construction. Runtime `n` remains a runtime
-  ABI/control value, not deleted local count residue;
+  target/export ABI-owned. The current bounded RVV i32m1 legacy route-table
+  materialized EmitC route may pass `lhs`, `rhs`, `out`, and runtime `n` as C
+  ABI parameters, but the callable parameter plan must be built from real
+  `tcrv.exec.mem_window` IR for lhs/rhs/out buffer meanings and real direct
+  `tcrv.exec.runtime_param` IR for runtime-element-count. Historical scalar
+  source exports are deleted and cannot provide this plan.
+  Candidate/emission-plan parameter metadata may only mirror that IR-backed
+  plan, while runtime ABI strings and glue roles come from plugin/target-owned
+  route construction. Runtime `n` remains a runtime ABI/control value, not
+  deleted local count residue;
 - RVV multi-VL execution over runtime `n` is valid only when selected
   `tcrv_rvv` runtime AVL/VL control and the plugin-owned EmitC route materialize
   the repeated chunk loop as IR. The loop must use a real induction value,
@@ -1471,9 +1481,11 @@ from selected metadata and target records.
 This boundary is deleted for historical direct microkernel source/header/object
 and self-check exports. It does not authorize direct C semantic export. The
 only bounded RVV object rebuild allowed under this boundary is the explicit
-typed RVV i32m1 arithmetic route that materializes a real MLIR EmitC module,
-emits C/C++ through the MLIR EmitC emitter, and packages that emitted source as
-a RISC-V relocatable object.
+typed RVV i32m1 legacy route-table path that materializes a real MLIR EmitC
+module, emits C/C++ through the MLIR EmitC emitter, and packages that emitted
+source as a RISC-V relocatable object. Because that path is still organized
+around `RVVI32M1*` route-table authority in current code, it remains Stage 1
+debt rather than mature RVV route-surface evidence.
 
 ### 2. Signatures
 
@@ -1555,8 +1567,8 @@ artifact under test when runtime correctness or object usability is claimed.
 
 When historical selected RVV metadata reaches emission planning, the RVV plugin
 must return an unsupported deleted-route plan. When an explicit typed RVV i32m1
-arithmetic body reaches emission planning, the RVV plugin may return the
-supported materialized EmitC object plan:
+legacy route-table body reaches emission planning, the RVV plugin may return
+the supported materialized EmitC object plan:
 
 ```text
 historical metadata:
@@ -1569,11 +1581,11 @@ historical metadata:
   runtime glue role: no-runtime-glue-unsupported
   artifact kind: unsupported-deleted-direct-c-route
 
-explicit typed RVV i32m1 arithmetic:
+explicit typed RVV i32m1 legacy route-table case:
   status: supported
   emission kind: materialized-emitc-cpp-rvv-intrinsic-object
   lowering pipeline: rvv-i32m1-arithmetic-emitc-route-family
-  runtime ABI: rvv-i32m1-{add,sub,mul}-callable-c-abi.v1
+  runtime ABI: rvv-i32m1-{add,sub,mul,cmp-select}-callable-c-abi.v1
   runtime ABI kind: plugin-owned-runtime-abi
   runtime glue role: emitc-cpp-rvv-intrinsic-runtime-glue
   artifact kind: riscv-elf-relocatable-object

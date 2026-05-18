@@ -62,6 +62,15 @@ payloads, but it must not invent missing RVV computation, schedule, dtype,
 SEW/LMUL policy, or body shape from route strings, artifact metadata, test
 names, or old i32m1 helpers.
 
+An RVV route is not a decorator on an old operation, route id, descriptor, or
+artifact. It is the provider-built lowering payload after the selected
+vector-level `tcrv_rvv` body already carries the operation, dtype, config,
+memory form, runtime value use, and policy facts needed for legality. The RVV
+provider builds `TCRVEmitCLowerableRoute`; the common materializer lowers that
+route to MLIR EmitC. Neither route construction nor common EmitC/export may
+retrofit semantics onto a body that only encodes legacy `i32_*` names or
+metadata.
+
 RVV target artifact export is part of the same authority chain. Object,
 declaration-header, and bundle export may consume route ids, artifact names,
 runtime ABI parameter lists, arithmetic metadata, source-op provenance, and
@@ -72,11 +81,93 @@ boundary does not match the selected variant, the runtime ABI roles are missing
 or reordered, or the candidate metadata disagrees with the rebuilt body, target
 export must fail before emitting object/header/bundle bytes.
 
+### Dtype / Config / Body Authority
+
+For current Stage 1 and Stage 2 work, "start from `tcrv.exec`" means start from
+a complete TianChen-RV execution surface:
+
+```text
+tcrv.exec.kernel
+  -> selected tcrv.exec.variant {origin = "rvv-plugin", requires = [...]}
+  -> explicit typed vector-level tcrv_rvv body inside that variant
+```
+
+It does not mean a bare `tcrv.exec.kernel` may infer RVV compute, dtype, shape,
+or schedule from capability names, route ids, ABI strings, parameter names,
+artifact metadata, or test filenames.
+
+Authority is layered:
+
+```text
+tcrv.exec envelope:
+  declares kernel/capability/variant/dispatch/fallback and binds ABI/runtime
+  roles through mem_window/runtime_param.
+
+tcrv_rvv body:
+  imports those ABI/runtime values and carries the vector-level RVV dataflow,
+  dtype semantics, memory forms, operation kinds, VL/AVL use, mask/tail policy,
+  and config constraints needed by RVV lowering.
+
+RVV plugin:
+  validates the selected body against target capability, consumes runtime SSA
+  values and optional hints, realizes legal RVV structure when needed, and
+  derives concrete vector type, intrinsic, ABI, and EmitC route payload choices.
+```
+
+Dtype comes from source semantics in future frontend flows, or from the explicit
+typed `tcrv_rvv` body in current hand-authored / fixture-generated Stage 1/2
+flows. SEW, LMUL, vtype policy, VL placement, memory form, accumulator layout,
+and unroll/prefetch choices are RVV config/realization decisions constrained by
+that dtype/body, target capability, runtime SSA values, and optional hints.
+They must be present in the typed `tcrv_rvv` body or consumed into a realized
+`tcrv_rvv` body before route construction. They must not be recovered from
+`!tcrv_rvv.i32m1` helper names, route strings, intrinsic spellings, ABI strings,
+artifact names, descriptor residue, or common EmitC/export code.
+
+Wrong vs correct:
+
+```text
+Wrong:
+  route id says rvv-i32m1-add -> therefore dtype/config/body is i32/m1/add.
+
+Correct:
+  selected tcrv_rvv body contains typed vector dataflow and config constraints;
+  RVV plugin validates/realizes it and then derives the route/intrinsic names.
+```
+
+Route support has three distinct levels:
+
+```text
+parseable / verifier-legal:
+  The dialect accepts the IR. This is not a lowering, artifact, runtime, or
+  performance promise.
+
+route-supported:
+  The RVV plugin declares legality and a lowering route for the selected op,
+  body pattern, or region. Valid instances lower through that route; invalid or
+  unsupported combinations fail closed with targeted diagnostics.
+
+executable:
+  The route-supported body is inside a selected tcrv.exec envelope with complete
+  ABI/runtime binding, materialization, target artifact/export support, and
+  runtime evidence when runtime/correctness/performance is claimed.
+```
+
 Stage 2 is RVV completion work on this corrected vector-level surface. It
 includes both route-supported RVV coverage expansion and RVV plugin-local
 selected-body realization for performance-sensitive vector-level bodies.
 Implementation order may follow dependencies, but early executable subsets are
 plumbing proofs only and must not be treated as RVV maturity.
+
+Stage 2 must not start by adding more cases to the legacy `i32m1` route
+architecture. Stage 1 is not complete while the active route provider is still
+organized around finite `RVVI32M1*` route specs, slices, exact `i32_*` op
+families, route ids, or hard-coded `__riscv_*_i32m1` intrinsic spellings as the
+family architecture. If those structures remain, the next RVV owner is route
+surface correction: convert the legacy i32 slice into an ordinary instance of a
+typed RVV value/config/body route surface, or fail-close/delete it when it does
+not fit. Adding broadcast, compare/select, reduction, dtype, or LMUL coverage
+to the old table is compatibility debt, not Stage 2 progress.
 
 Stage 2 is complete only when the route-supported `tcrv_rvv` surface can cover
 the math and data-movement classes represented by structured kernels such as
@@ -104,79 +195,27 @@ Stage 2 must not be implemented as per-Linalg-op lowerers, high-level kernel
 ops, one-op-per-intrinsic wrappers, dtype/LMUL clone batches, a global
 autotuning database, a dashboard, or a readiness state machine.
 
-## Scenario: RVV i32 broadcast-load selected-body route
+## Deprecated Legacy RVV i32 Broadcast-Load Route Note
 
-### 1. Scope / Trigger
+The current repository contains `tcrv_rvv.i32_broadcast_load` and legacy
+route-table support for RHS broadcast under the bounded `!tcrv_rvv.i32m1`
+path. That is current implementation debt, not a Stage 2 owner template.
 
-Use this contract when Stage 2 selected-body coverage needs a bounded i32
-broadcast/vector-scalar source inside the existing RVV i32m1 arithmetic route.
-The route remains selected `tcrv.exec` RVV variant -> explicit typed
-`tcrv_rvv` body -> RVV plugin-owned route construction -> common EmitC/target
-artifact mechanics.
+Do not add new broadcast, dtype, LMUL, source-shape, intrinsic-wrapper, target
+artifact, or test-matrix work to the old `RVVI32M1*` route table. Valid work
+touching this area is limited to:
 
-### 2. Signatures
+- deleting the legacy broadcast branch;
+- fail-closing it when selected typed route authority is missing;
+- replacing it as an ordinary memory/broadcast form on the corrected
+  vector-level `tcrv_rvv` value/config/body surface;
+- updating tests so they stop protecting old route-table expansion.
 
-- Typed op: `tcrv_rvv.i32_broadcast_load`.
-- Operands: explicit RHS `!tcrv_rvv.runtime_abi_value` buffer and the enclosing
-  `!tcrv_rvv.vl` token.
-- Result: bounded `!tcrv_rvv.i32m1` or `!tcrv_rvv.i32m2`, matching enclosing
-  `tcrv_rvv.with_vl` SEW/LMUL/policy metadata.
-- Generated interface role: `TCRVEmitCLowerableOpInterface` with source role
-  `load`.
-- Current route use: `lhs i32_load -> rhs i32_broadcast_load -> i32_add/sub/mul
-  -> i32_store` under one selected `tcrv_rvv.with_vl`.
+This note intentionally does not provide a 7-part scenario template. Treating
+the old broadcast path as a reusable scenario was the misleading part: it made
+legacy compatibility look like forward RVV coverage.
 
-### 3. Contracts
-
-- Broadcast semantics must be represented by the typed
-  `tcrv_rvv.i32_broadcast_load` op before route construction.
-- The broadcast operand must bind runtime ABI role `rhs-input-buffer`; route
-  ids, artifact names, source-front-door names, ABI parameter names, descriptor
-  residue, and test fixture names must not imply broadcast behavior.
-- The op must be nested directly in the selected `tcrv_rvv.with_vl` body and
-  consume that same `with_vl` VL token.
-- RVV route construction may materialize the RHS broadcast as a plugin-owned
-  EmitC call step before vector arithmetic, but common EmitC/target export must
-  only consume the validated route payload and selected-candidate mirrors.
-- Existing callable ABI order remains `lhs,rhs,out,n` for this bounded slice;
-  the typed body, not the ABI name, determines whether RHS is vector-loaded or
-  broadcast-loaded.
-
-### 4. Validation & Error Matrix
-
-- `i32_broadcast_load` missing while metadata claims broadcast -> no broadcast
-  route step is allowed.
-- `i32_broadcast_load` RHS operand is not a `rhs-input-buffer`
-  `runtime_abi_value` -> verifier fails.
-- Broadcast op is outside `with_vl` or consumes a different VL token ->
-  verifier fails.
-- Selected route has two vector RHS sources plus broadcast source -> RVV route
-  construction fails before EmitC/export.
-- Target artifact candidate metadata disagrees with the rebuilt typed-body
-  route -> target validation fails before object/header/bundle bytes.
-
-### 5. Good/Base/Bad Cases
-
-- Good: selected RVV variant contains explicit `i32_broadcast_load` for RHS,
-  arithmetic consumes its result, route emits a broadcast/splat step and then
-  vector arithmetic.
-- Base: selected RVV variant uses two `i32_load` ops and keeps the existing
-  vector-vector arithmetic route.
-- Bad: artifact metadata, route id, source-front-door pattern, or ABI parameter
-  name says "broadcast" while the selected typed body only contains ordinary
-  vector loads.
-
-### 6. Tests Required
-
-- lit coverage for `i32_broadcast_load` syntax, verifier success, wrong role,
-  wrong VL, and forbidden dataflow attributes.
-- C++ plugin coverage proving selected-body legality, emission plan, route
-  builder payload, source-op provenance, and EmitC materialization.
-- Target artifact coverage proving a broadcast selected body reaches candidate
-  validation/export through the existing selected route and metadata-only
-  candidates still fail closed.
-
-### 7. Wrong vs Correct
+### Wrong vs Correct
 
 Wrong:
 
@@ -187,9 +226,13 @@ route id or ABI name says broadcast -> common export chooses broadcast code
 Correct:
 
 ```text
-typed tcrv_rvv.i32_broadcast_load in selected body
-  -> RVV route builder validates RHS ABI and role sequence
-  -> RVV route emits broadcast/splat step
+selected vector-level tcrv_rvv body expresses a memory/broadcast form with
+  dtype, config, policy, runtime ABI value use, and operation semantics carried
+  structurally by the body/config surface
+  -> RVV provider validates the RHS binding, memory form, and route legality
+  -> legacy `tcrv_rvv.i32_broadcast_load` is deleted/fail-closed, or retained
+     only after it has become an ordinary specialization of the corrected
+     vector-level RVV route surface
   -> common EmitC/target export consumes validated route payload only
 ```
 
@@ -228,13 +271,16 @@ typed policy attr value: #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
 optional vlenb attr name: tcrv_rvv.vlenb_bytes
 ```
 
-If the bounded explicit RVV i32m1 add/sub/mul executable slice is retained
-during migration, it is only a legacy narrow route and may export a relocatable
-object only through the selected emission-plan target artifact handoff:
+If the bounded explicit RVV i32m1 route table is retained during migration, it
+is only a legacy narrow route and may export a relocatable object only through
+the selected emission-plan target artifact handoff. Current code evidence still
+centers this route on `RVVI32M1ArithmeticRouteSpec`,
+`RVVI32M1ArithmeticSlice`, optional `i32_broadcast_load`, and a
+`cmp_select` case, so it remains Stage 1 route-authority debt:
 
 ```text
 selected RVV path
-  -> explicit typed tcrv_rvv i32m1 add/sub/mul body
+  -> finite `tcrv_rvv.i32_*` legacy route-table body
   -> validated tcrv_rvv.with_vl selected lowering boundary
   -> RVV-owned EmitC lowerable route
   -> MLIR EmitC C/C++ emitter
@@ -256,13 +302,14 @@ used as compatibility aliases.
 The bounded RVV i32m1 source materializer is a legacy source-front-door
 compatibility path, not RVV maturity work. If retained, it may only construct a
 selected `tcrv.exec` envelope with an explicit typed `tcrv_rvv` body from the
-exact source pattern owned by the RVV plugin. The produced `tcrv_rvv` body is
-the only downstream compiler authority. Stale `tcrv_rvv.lowering_seed`
-metadata, route ids, descriptors, artifact names, deleted finite-family
-records, and the source pattern itself must not authorize emission planning or
-target export after Stage 1. Unsupported source shapes and stale pre-existing
-`tcrv.exec`/`tcrv_rvv` residue must fail before emission planning or target
-artifact export.
+exact source pattern owned by the RVV plugin. It must not be widened into
+broadcast, compare/select, dtype, LMUL, or source-shape families. The produced
+`tcrv_rvv` body is the only downstream compiler authority. Stale
+`tcrv_rvv.lowering_seed` metadata, route ids, descriptors, artifact names,
+deleted finite-family records, and the source pattern itself must not authorize
+emission planning or target export after Stage 1. Unsupported source shapes and
+stale pre-existing `tcrv.exec`/`tcrv_rvv` residue must fail before emission
+planning or target artifact export.
 
 If this legacy source path is retained, the accepted runtime-count source
 pattern must make tail behavior explicit. For the bounded i32m1 arithmetic
@@ -406,9 +453,11 @@ scf.for %i = %c0 to %n step %c4 {
 
 ### 1. Scope / Trigger
 
-This scenario applies only while the RVV plugin retains the bounded i32
-add/sub/mul compatibility slice. It is a legacy narrow cross-layer contract,
-not the RVV maturity unit: target capability profile facts, variant
+This scenario applies only while the RVV plugin retains the bounded i32m1
+compatibility route table. The current table includes add/sub/mul plus
+route-table extensions such as broadcast-load and compare/select; that wider
+table is still a legacy narrow cross-layer contract, not the RVV maturity unit:
+target capability profile facts, variant
 `requires`, selected lowering-boundary validation, and emission-plan
 validation must agree on the same SEW/LMUL/tail/mask policy ids. Remote probe
 output does not create those compiler config facts.
@@ -464,8 +513,8 @@ output does not create those compiler config facts.
   before EmitC call payload construction.
 - Selected i32m1 arithmetic route whose `with_vl` does not consume the visible
   `setvl` VL SSA result -> fail before EmitC call payload construction.
-- Selected route id whose expected add/sub/mul op does not match the typed
-  arithmetic op in the selected body -> fail before target artifact export.
+- Selected route id whose expected legacy op does not match the typed operation
+  sequence in the selected body -> fail before target artifact export.
 - Capability/profile facts may still be validated for replay and typed-body
   checks, but they must not create proposal, boundary, emission-plan, runtime
   ABI, artifact, or metadata-only route authority by themselves.
@@ -668,10 +717,10 @@ Interpretation rules:
 - If clang, RVV headers, candidate flags, or remote execution are unavailable,
   the artifact must record failure with exact non-secret command diagnostics
   rather than synthesizing success.
-- Future RVV emission beyond the finite explicit i32 add/sub/mul microkernel
-  routes requires plugin-local lowering/runtime implementation and successful
-  named `ssh rvv` evidence; probe artifacts alone do not create broader
-  supported RVV emission.
+- Future RVV emission beyond the finite explicit legacy i32m1 route-table cases
+  requires plugin-local lowering/runtime implementation and successful named
+  `ssh rvv` evidence; probe artifacts alone do not create broader supported RVV
+  emission.
 
 ## Deleted Remote Evidence Replay Route
 
@@ -709,27 +758,28 @@ attribute
 `#tcrv_rvv.policy<tail = agnostic|undisturbed, mask =
 agnostic|undisturbed>`, the bounded `!tcrv_rvv.runtime_abi_value` token and
 `tcrv_rvv.runtime_abi_value` ABI binding op, the bounded runtime AVL-to-VL
-control-plane operation `tcrv_rvv.setvl`, the bounded VL scope region
-operation `tcrv_rvv.with_vl`, the finite `tcrv_rvv.i32_load`,
-`tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`, `tcrv_rvv.i32_mul`, and
-`tcrv_rvv.i32_store` ops nested under that scope for non-executable i32
-dataflow modeling. The previous plugin-local selected lowering-boundary
-operation is deleted as active compiler authority. The `runtime_abi_value` op
-binds one callable C ABI value by role, C name, C type, and ownership, and
-produces an SSA value consumed by the legacy bounded RVV IR. The setvl op consumes
-a runtime AVL SSA value, produces a `!tcrv_rvv.vl` token, and carries only
-bounded compatibility-slice compile-time config metadata: SEW 32, LMUL m1 or m2, and
-the finite policy attribute. The with_vl op consumes one `!tcrv_rvv.vl` value
-and owns one single-block region for bounded RVV control/body work. Optional
-duplicated SEW/LMUL/policy metadata is limited to the same bounded compatibility
-config and must agree with the visible defining setvl when present. The bounded
-i32 add/sub/mul dataflow body consumes explicit `lhs`, `rhs`, and `out`
-runtime ABI SSA values on the load/store operations; concrete C parameter
-names are plugin-owned route inputs from the defining runtime ABI value ops,
-not descriptor fields or target-side inference. It is not a generic vector
-memory model. These surfaces are not generic RVV arithmetic, generic memory
-operations, LLVM/RISC-V lowering, full runtime ABI glue, hardware execution,
-correctness evidence, or performance evidence. `tcrv_rvv`
+control-plane operation `tcrv_rvv.setvl`, the bounded VL scope region operation
+`tcrv_rvv.with_vl`, and finite legacy i32m1 dataflow ops such as
+`tcrv_rvv.i32_load`, `tcrv_rvv.i32_broadcast_load`, `tcrv_rvv.i32_add`,
+`tcrv_rvv.i32_sub`, `tcrv_rvv.i32_mul`, `tcrv_rvv.i32_cmp_eq`,
+`tcrv_rvv.i32_select`, and `tcrv_rvv.i32_store` nested under that scope. The
+previous plugin-local selected lowering-boundary operation is deleted as active
+compiler authority. The `runtime_abi_value` op binds one callable C ABI value by
+role, C name, C type, and ownership, and produces an SSA value consumed by the
+legacy bounded RVV IR. The setvl op consumes a runtime AVL SSA value, produces a
+`!tcrv_rvv.vl` token, and carries only bounded compatibility-slice compile-time
+config metadata: SEW 32, LMUL m1 or m2, and the finite policy attribute. The
+with_vl op consumes one `!tcrv_rvv.vl` value and owns one single-block region
+for bounded RVV control/body work. Optional duplicated SEW/LMUL/policy metadata
+is limited to the same bounded compatibility config and must agree with the
+visible defining setvl when present. The bounded legacy route-table body
+consumes explicit `lhs`, `rhs`, `out`, and predicate/dataflow SSA values from
+typed RVV ops; concrete C parameter names are plugin-owned route inputs from the
+defining runtime ABI value ops, not descriptor fields or target-side inference.
+It is not a generic vector memory or compute model. These surfaces are not
+generic RVV arithmetic, generic memory operations, LLVM/RISC-V lowering, full
+runtime ABI glue, hardware execution, correctness evidence, or performance
+evidence. `tcrv_rvv`
 is the concrete MLIR dialect namespace because MLIR dialect namespaces cannot
 contain `.` characters; the architectural extension family remains `tcrv.rvv`.
 
@@ -808,6 +858,12 @@ Legacy bounded compatibility type:
 !tcrv_rvv.i32m1
 !tcrv_rvv.i32m2
 ```
+
+These legacy bounded compatibility types are not the mature RVV route surface.
+They may remain only as migration scaffolding or ordinary specializations after
+the corrected typed value/config/body route architecture exists. They must not
+be the center of new Stage 2 coverage, dtype/LMUL expansion, performance
+realization, or frontend work.
 
 Legacy bounded compatibility policy attribute:
 
@@ -937,8 +993,8 @@ EmitC/runtime route.
 
 The canonical public `tcrv-opt` pass
 `--tcrv-materialize-selected-lowering-boundaries` still routes through the
-generic `ExtensionPluginRegistry` interface. For the bounded explicit i32m1
-add/sub/mul route, RVV recognizes the existing `tcrv_rvv.with_vl` operation in
+generic `ExtensionPluginRegistry` interface. For the bounded legacy i32m1
+route-table path, RVV recognizes the existing `tcrv_rvv.with_vl` operation in
 the selected variant body as the selected lowering boundary. There is no
 RVV-specific public wrapper pass for this route.
 
@@ -948,7 +1004,7 @@ Rules:
 - The generic pass routes selected direct variants and dispatch cases through
   the plugin interface; the RVV plugin may report the existing
   `tcrv_rvv.with_vl` op as the materialized boundary when the selected variant
-  is a legal i32m1 add/sub/mul body.
+  is a legal legacy i32m1 route-table body.
 - Dispatch fallback references continue through their generic fallback
   envelope and do not create an RVV boundary.
 - Kernels without a dispatch or direct selected-path diagnostic are diagnosed
@@ -976,6 +1032,13 @@ Its abstraction level is close to MLIR Vector and below Linalg/tensor/kernel
 semantics. It is not a high-level kernel IR and not a one-op-per-intrinsic
 wrapper dialect. It should express vector-level execution categories that the
 RVV plugin can legalize, realize, and route.
+
+This section is the Stage 2 target surface. The legacy `!tcrv_rvv.i32m1`
+route becomes valid Stage 2 work only after it is represented as an ordinary
+typed specialization of this surface. A provider still centered on
+`RVVI32M1ArithmeticRouteSpec`, `RVVI32M1ArithmeticSlice`,
+`collectRVVI32M1ArithmeticSlice`, finite `i32_*` route cases, or exact
+`__riscv_*_i32m1` route spellings has not exited Stage 1.
 
 Durable RVV execution dialect work may add richer types:
 
@@ -1076,6 +1139,20 @@ only after RVV realization consumes it into operative `tcrv_rvv` vector-level
 structure. Common passes, EmitC route builders, target artifacts, test names,
 and route ids must not invent performance configuration.
 
+Realization changes RVV execution structure, not computation semantics. It may
+materialize legal VL/setvl placement, SEW/LMUL/policy choices, low-level vector
+control, memory form selection, accumulator/reduction layout, and unroll or
+pipeline organization. It must not change the kernel computation, dtype
+semantics, parameter roles, variant origin, required capabilities,
+dispatch/fallback semantics, runtime `n`/AVL values, or the body into direct
+EmitC/C. The normal product is:
+
+```text
+selected pre-realized tcrv_rvv body
+  -> RVV plugin-local realization
+  -> realized tcrv_rvv body
+```
+
 ## Selection Preference
 
 The first RVV slice returns explicit plugin-owned selection preference metadata
@@ -1143,11 +1220,11 @@ separate `ssh rvv` artifacts.
 The historical metadata/direct-wrapper RVV selected-boundary path remains
 deleted and fail-closed for target emission. It must not materialize
 selected-boundary metadata, RVV microkernel bodies, direct source/header/object
-artifacts, self-check helpers, or intrinsic C/C++ output. The bounded i32m1
-add/sub/mul path may materialize an MLIR EmitC module from explicit RVV ops
-through the common lowerable route; a selected target artifact may package that
-module only after the selected emission-plan candidate and materialized EmitC
-handoff are verified.
+artifacts, self-check helpers, or intrinsic C/C++ output. The bounded legacy
+i32m1 route-table path may materialize an MLIR EmitC module from explicit RVV
+ops through the common lowerable route; a selected target artifact may package
+that module only after the selected emission-plan candidate and materialized
+EmitC handoff are verified.
 
 The intended rebuild route is:
 
@@ -1167,13 +1244,17 @@ separate spec and implementation evidence.
 
 #### 1. Scope / Trigger
 
-This scenario applies only while the bounded RVV i32m1 add/sub/mul
-materialization route remains as a legacy narrow path. The route consumes
-verified RVV family ops and lowers them through the shared EmitC lowerable
-route into an MLIR EmitC module. Printing C/C++, compiling, target artifact
-packaging, and `ssh rvv` runtime evidence are separate stages. A target
-artifact bridge may invoke them only after this provider-owned route has been
-built and verified. This scenario must not be used as the architecture for
+This scenario applies only while the bounded RVV i32m1 route-table
+materialization route remains as a legacy narrow path. Current code evidence
+includes `RVVI32M1ArithmeticOp::{Add,Sub,Mul,CmpSelect}`, optional
+`tcrv_rvv.i32_broadcast_load`, and exact `__riscv_*_i32m1` spellings; that is
+why this route is Stage 1 debt, not Stage 2 coverage. The route consumes
+verified RVV family ops and lowers them through the shared EmitC lowerable route
+into an MLIR EmitC module. Printing C/C++, compiling, target artifact
+packaging, and `ssh rvv` runtime evidence are separate stages. A target artifact
+bridge may invoke them only after this provider-owned route has been built and
+verified. This scenario exists to constrain validation/fail-closed behavior
+while replacing the old route table; it must not be used as the architecture for
 adding dtype/LMUL batches, intrinsic wrappers, or per-source recognizers.
 
 #### 2. Signatures
@@ -1182,8 +1263,10 @@ adding dtype/LMUL batches, intrinsic wrappers, or per-source recognizers.
   four explicit `tcrv_rvv.runtime_abi_value` bindings for `lhs`, `rhs`,
   `out`, and `n`, then
   `tcrv_rvv.setvl -> tcrv_rvv.with_vl -> tcrv_rvv.i32_load ->
-  tcrv_rvv.i32_load -> tcrv_rvv.i32_add|i32_sub|i32_mul ->
-  tcrv_rvv.i32_store` for SEW32 LMUL m1 with agnostic policy.
+  (tcrv_rvv.i32_load | tcrv_rvv.i32_broadcast_load) ->
+  (tcrv_rvv.i32_add | tcrv_rvv.i32_sub | tcrv_rvv.i32_mul |
+  tcrv_rvv.i32_cmp_eq -> tcrv_rvv.i32_select) -> tcrv_rvv.i32_store`
+  for the legacy SEW32 LMUL m1 agnostic-policy route table.
 - Selected lowering boundary: the existing `tcrv_rvv.with_vl` operation in the
   selected variant body, not a synthesized wrapper. The boundary op must carry
   `source_kernel`, `selected_variant`, `origin`, `selected_path_role`,
@@ -1197,14 +1280,19 @@ adding dtype/LMUL batches, intrinsic wrappers, or per-source recognizers.
 - Provider header: `TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h`.
 - Provider route builders:
   `plugin::rvv::buildRVVI32M1ArithmeticEmitCLowerableRoute`,
+  `plugin::rvv::buildRVVI32M1ArithmeticEmitCLowerableRouteForOperation`,
   `plugin::rvv::buildRVVI32M1AddEmitCLowerableRoute`,
   `plugin::rvv::buildRVVI32M1SubEmitCLowerableRoute`, and
-  `plugin::rvv::buildRVVI32M1MulEmitCLowerableRoute`; each accepts
+  `plugin::rvv::buildRVVI32M1MulEmitCLowerableRoute`. The generic
+  operation-indexed builder takes `RVVI32M1ArithmeticOp` plus
   `const plugin::VariantEmitCLowerableRequest &` and populates
-  `conversion::emitc::TCRVEmitCLowerableRoute &`.
+  `conversion::emitc::TCRVEmitCLowerableRoute &`; the add/sub/mul wrappers are
+  convenience entry points. The compare/select case is selected through the
+  generic operation-indexed builder, not a separate public
+  `buildRVVI32M1CompareSelect...` wrapper.
 - Provider metadata accessors own the bounded route id, emission kind,
   lowering-boundary op name, runtime ABI kind/name/glue role, and ordered
-  runtime ABI parameters for this RVV i32m1 arithmetic slice.
+  runtime ABI parameters for this legacy RVV i32m1 route-table slice.
 - Selected target artifact route id:
   `rvv-i32m1-arithmetic-emitc-route-family`.
 - Supported artifact kind: `riscv-elf-relocatable-object`.
@@ -1217,11 +1305,13 @@ adding dtype/LMUL batches, intrinsic wrappers, or per-source recognizers.
 
 - The computation op is the RVV family op in the verified body, not metadata
   tokens.
-- Explicit extension-family ops select the bounded operation, dtype, shape, and
-  intrinsic spelling. Metadata-only variants fail closed before source output.
+- Explicit extension-family ops carry the bounded operation sequence, dtype,
+  shape, predicate/dataflow, runtime ABI value use, and policy facts. The RVV
+  provider derives the intrinsic spelling from that verified body. Metadata-only
+  variants fail closed before source output.
 - `emitc.call_opaque` callees map from verified family ops:
-  setvl maps to the selected vsetvl intrinsic; load, arithmetic, and store map
-  to the selected RVV load, arithmetic, and store intrinsics.
+  setvl maps to the selected vsetvl intrinsic; load/broadcast, arithmetic,
+  compare/select, and store map to the selected RVV intrinsics.
 - Runtime `n` remains the IR-backed runtime-element-count ABI parameter.
 - Runtime `lhs`, `rhs`, `out`, and `n` must be explicit SSA values produced by
   `tcrv_rvv.runtime_abi_value` in the selected RVV body before this bounded
@@ -1240,9 +1330,9 @@ adding dtype/LMUL batches, intrinsic wrappers, or per-source recognizers.
   remain generic; they must not contain RVV intrinsic names, RVV header names,
   or typed RVV body-shape rules.
 - Target/RVV artifact support registers one family-level materialized EmitC
-  exporter for the selected RVV i32m1 arithmetic object route. It must not
-  register per-op target route tables, descriptor adapters, old object/header/
-  bundle route ids, or compatibility wrappers.
+  exporter for the selected legacy RVV i32m1 route-table object route. It must
+  not register per-op target route tables, descriptor adapters, old
+  object/header/bundle route ids, or compatibility wrappers.
 - Target/RVV artifact support may compile the MLIR-emitted C/C++ source to a
   RISC-V relocatable object with clang. It must not synthesize the C/C++ source
   from metadata, selected-path records, route ids, family registries, or
@@ -1283,14 +1373,14 @@ adding dtype/LMUL batches, intrinsic wrappers, or per-source recognizers.
 
 #### 5. Good/Base/Bad Cases
 
-- Good: rebuilt i32 add/sub/mul emits the matching
-  `tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`, or `tcrv_rvv.i32_mul`, the route
-  records the matching `emitc.call_opaque` arithmetic intrinsic, generated C
-  calls that intrinsic, and the target bridge packages the MLIR-emitted source
-  as a RISC-V relocatable object.
+- Good: while this legacy route is still retained, the selected body contains
+  the exact typed op sequence for the legacy route case, the route records the
+  matching `emitc.call_opaque` intrinsic sequence, generated C calls those
+  provider-selected intrinsics, and the target bridge packages the MLIR-emitted
+  source as a RISC-V relocatable object.
 - Base: a hand-authored bounded RVV explicit dataflow body with the same
-  verified `setvl` / `with_vl` / load-arithmetic-store sequence can use the
-  same route after selected-path and ABI preflight pass.
+  verified legacy route-table sequence can use the same route after
+  selected-path and ABI preflight pass.
 - Bad: stale descriptor mirror metadata says i32 add but the body contains
   `tcrv_rvv.i32_sub`; export must fail instead of printing vadd C from the
   metadata.
@@ -1304,10 +1394,11 @@ adding dtype/LMUL batches, intrinsic wrappers, or per-source recognizers.
   not auto-create an RVV family body from descriptor/family records.
 - Tests must show RVV selected emission planning does not build callable ABI
   parameters or supported source/header/object routes from selected metadata.
-- Tests must show explicit typed RVV source/extension-op paths produce a
-  supported family-level object artifact plan and that the generic target
-  artifact front door can emit a RISC-V relocatable object through the common
-  selected EmitC artifact bridge.
+- Tests must show explicit typed RVV source/extension-op paths for retained
+  legacy cases produce a supported family-level object artifact plan and that
+  the generic target artifact front door can emit a RISC-V relocatable object
+  through the common selected EmitC artifact bridge. New tests must not expand
+  the old route table except as part of deleting, fail-closing, or replacing it.
 - Negative coverage must keep stale body, stale descriptor, missing boundary,
   and malformed ABI cases fail-closed before source/header/object output.
 - Target artifact tests must prove RVV target artifact exporters use the

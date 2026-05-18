@@ -8,6 +8,19 @@ an independent backend.
 
 These interfaces are compiler interfaces. They must be implemented in C++ against MLIR/LLVM APIs and wired through CMake. Python may launch or audit plugin runs, but it must not implement plugin availability, dialect registration, variant generation, legality, cost, tuning, lowering, or emission.
 
+Plugin interfaces expose family-owned typed execution bodies and route
+providers; they must not freeze a legacy finite specialization as the public
+family protocol. For RVV, `RVVI32M1*` route specs/slices, finite `i32_*` route
+cases, exact `__riscv_*_i32m1` spellings, and source-pattern route identities
+are migration scaffolding only. They are not the extension-family interface for
+Stage 2 coverage or performance realization. The durable protocol is: selected
+typed extension-family body -> origin-plugin legality/selected-body
+realization -> origin-plugin route provider -> common EmitC/export mechanics.
+The route provider is not a new IR, dialect, state machine, dashboard, or
+decorator layer. It reads the selected family body, validates legality, and
+builds the family-owned route payload that common EmitC/export can faithfully
+materialize.
+
 ### CapabilityProvider
 
 ```cpp
@@ -535,6 +548,16 @@ generic fail-closed diagnostics. The origin plugin owns extension-family
 semantics. For RVV, that means SEW/LMUL/policy legality, `vsetvl` placement,
 vector register pressure, memory form, unroll/prefetch shape, and accumulator
 layout stay inside the RVV plugin, not in common orchestration.
+
+Selected-body realization consumes an already selected extension-family body; it
+does not create source semantics from the envelope. For RVV, dtype and operation
+semantics must be present in the vector-level `tcrv_rvv` body before this hook.
+The hook may legalize and rewrite RVV execution structure, but it must not
+change dtype semantics, parameter roles, variant origin, required capabilities,
+dispatch/fallback behavior, runtime SSA values, or synthesize direct EmitC/C.
+If those facts are missing, stale, or still encoded only in legacy `RVVI32M1*`
+route tables, the plugin must fail closed or report unsupported rather than
+promoting the route to Stage 2 coverage/performance work.
 
 ```cpp
 enum class VariantEmissionRole {
