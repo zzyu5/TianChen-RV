@@ -62,6 +62,16 @@ payloads, but it must not invent missing RVV computation, schedule, dtype,
 SEW/LMUL policy, or body shape from route strings, artifact metadata, test
 names, or old i32m1 helpers.
 
+RVV target artifact export is part of the same authority chain. Object,
+declaration-header, and bundle export may consume route ids, artifact names,
+runtime ABI parameter lists, arithmetic metadata, source-op provenance, and
+bundle component metadata only as mirrors of the selected typed body after the
+RVV-owned route builder has rebuilt and validated the `TCRVEmitCLowerableRoute`.
+If the selected variant has no explicit typed `tcrv_rvv` body, the selected
+boundary does not match the selected variant, the runtime ABI roles are missing
+or reordered, or the candidate metadata disagrees with the rebuilt body, target
+export must fail before emitting object/header/bundle bytes.
+
 Stage 2 is RVV completion work on this corrected vector-level surface. It
 includes both route-supported RVV coverage expansion and RVV plugin-local
 selected-body realization for performance-sensitive vector-level bodies.

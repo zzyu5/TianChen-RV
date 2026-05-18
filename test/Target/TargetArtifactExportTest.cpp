@@ -495,6 +495,24 @@ module {
   return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
 }
 
+mlir::OwningOpRef<mlir::ModuleOp>
+parseRVVMetadataOnlyCandidateModule(mlir::MLIRContext &context) {
+  return mlir::parseSourceString<mlir::ModuleOp>(R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_i32_add attributes {
+      origin = "rvv-plugin",
+      requires = [@rvv],
+      tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>
+    } {
+    }
+  }
+}
+)mlir",
+                                              &context);
+}
+
 tianchenrv::tcrv::exec::KernelOp
 findSingleRVVTestKernel(mlir::ModuleOp module) {
   tianchenrv::tcrv::exec::KernelOp kernel;
@@ -649,6 +667,32 @@ bool expectRVVTargetArtifactExporterShape(
                             "selected typed tcrv_rvv body"}))
     return false;
 
+  RVVTargetArtifactCandidateFixture metadataOnlyFixture;
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          metadataOnlyFixture,
+          "build RVV fixture context for metadata-only body candidate"))
+    return false;
+  mlir::OwningOpRef<mlir::ModuleOp> metadataOnlyModule =
+      parseRVVMetadataOnlyCandidateModule(metadataOnlyFixture.context);
+  if (!metadataOnlyModule) {
+    llvm::errs() << "failed to parse RVV metadata-only selected variant "
+                    "candidate module\n";
+    return false;
+  }
+  TargetArtifactCandidate metadataOnlySelectedBody = candidate;
+  metadataOnlySelectedBody.kernel = findSingleRVVTestKernel(*metadataOnlyModule);
+  if (!metadataOnlySelectedBody.kernel) {
+    llvm::errs() << "failed to find metadata-only RVV candidate kernel\n";
+    return false;
+  }
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               metadataOnlySelectedBody, *exporter),
+                           "RVV artifact rejects metadata and route ids when "
+                           "the selected variant has no typed body",
+                           {"selected typed RVV body could not build",
+                            "explicit typed RVV extension-family body"}))
+    return false;
+
   TargetArtifactCandidate missingRouteMetadata = candidate;
   missingRouteMetadata.artifactMetadata.clear();
   if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
@@ -720,6 +764,16 @@ bool expectRVVTargetArtifactExporterShape(
                            {"runtime ABI parameter order", "output-buffer"}))
     return false;
 
+  TargetArtifactCandidate missingRuntimeElementCount = candidate;
+  missingRuntimeElementCount.runtimeABIParameters.pop_back();
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               missingRuntimeElementCount, *exporter),
+                           "RVV artifact rejects missing runtime element-count "
+                           "ABI role",
+                           {"runtime ABI parameter role",
+                            "runtime-element-count"}))
+    return false;
+
   TargetArtifactCandidate missingConstructionProtocol = candidate;
   if (!eraseArtifactMetadataKey(
           missingConstructionProtocol,
@@ -765,6 +819,22 @@ bool expectRVVTargetArtifactExporterShape(
                                staleSourceOps, *exporter),
                            "RVV artifact rejects stale source-op provenance",
                            {"descriptor-driven computation"}))
+    return false;
+
+  TargetArtifactCandidate wrongSourceOpsMirror = candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongSourceOpsMirror,
+          tianchenrv::plugin::rvv::getRVVSourceOpsMetadataName(),
+          "tcrv_rvv.runtime_abi_value->tcrv_rvv.i32_store")) {
+    llvm::errs() << "test fixture did not contain RVV source-op metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               wrongSourceOpsMirror, *exporter),
+                           "RVV artifact rejects source-op provenance that "
+                           "does not mirror the selected typed body",
+                           {tianchenrv::plugin::rvv::getRVVSourceOpsMetadataName(),
+                            "tcrv_rvv.runtime_abi_value->tcrv_rvv.setvl"}))
     return false;
 
   TargetArtifactCandidate missingAVLVLMetadata = candidate;

@@ -803,3 +803,53 @@ Moved selected lowering-boundary validation into the common construction-templat
 ### Next Steps
 
 - None - task complete
+
+
+## Session 128: RVV Stage 1 typed-body route-authority closure
+
+**Date**: 2026-05-18
+**Task**: RVV Stage 1 typed-body route-authority closure
+**Branch**: `main`
+
+### Summary
+
+Closed the RVV Stage 1 target artifact/export authority evidence around selected typed tcrv_rvv body validation without adding new production routes.
+
+### Main Changes
+
+- Created Trellis task `05-18-rvv-stage1-typed-body-route-authority-closure` from the Hermes Direction Brief, wrote PRD/context, and archived it after completion.
+- Audited the production RVV selected typed-body -> RVV route builder -> materialized EmitC -> target object/header/bundle path.
+- Added C++ fail-closed coverage proving RVV artifact candidates reject metadata/route-id-only selected variants, missing runtime element-count ABI roles, and source-op provenance mirrors that do not match the selected typed body.
+- Updated the RVV plugin spec to state that object/header/bundle export may consume route ids, artifact names, ABI lists, arithmetic metadata, source-op provenance, and bundle metadata only as mirrors of the validated selected typed body.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused lit for RVV typed-body target artifacts, source-only default
+  fail-closed behavior, source bundle fail-closed behavior, explicit RVV
+  source materialization, and selected-boundary negatives passed 6/6.
+- [OK] Targeted residue scan of RVV plugin, RVV target support, generic target
+  export, `tcrv-translate`, and `scripts/rvv_generated_bundle_abi_e2e.py`
+  found only validation guards, route-mirror checks, and evidence-tool
+  forbidden-token checks; no production descriptor/direct-C/source-export RVV
+  artifact route was found.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-18-rvv-stage1-typed-body-route-authority-closure`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 127/127.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
