@@ -46,6 +46,74 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 130: RVV plugin-local selected-body realization hook
+
+**Date**: 2026-05-19
+**Task**: RVV plugin-local selected-body realization hook
+**Branch**: `main`
+
+### Summary
+
+Added the first bounded RVV plugin-local realization hook for a pre-realized
+i32m1 add selected body. The hook realizes
+`tcrv_rvv.i32_binary_pre_realized_body` into the existing
+`setvl/with_vl/load/add/store` body before the provider route and neutral
+EmitC/target artifact path consume it.
+
+### Main Changes
+
+- Created Trellis task `05-19-rvv-selected-body-realization-hook` from the
+  Hermes Direction Brief and wrote PRD/context before source edits.
+- Added RVV dialect op `tcrv_rvv.i32_binary_pre_realized_body` with verifier
+  checks for add/vector-rhs-load/SEW32/LMUL m1/agnostic policy, explicit
+  runtime ABI roles, and stale authority metadata rejection.
+- Rewired `RVVExtensionPlugin::materializeSelectedLoweringBoundary` to realize
+  the pre-realized add body into the provider-consumed selected body while
+  preserving the existing fully realized explicit-body path.
+- Added positive target fixture and split-input negative lowering-boundary
+  fixture for unsupported operation/config, wrong runtime role, missing runtime
+  n/AVL authority, and stale route metadata.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the durable
+  pre-realized selected-body realization contract.
+
+### Evidence
+
+- Local artifact bundle:
+  `artifacts/tmp/rvv_selected_body_realization_hook_add/`.
+- Bundle contents:
+  `artifact-0-riscv-elf-relocatable-object-rvv-i32m1-arithmetic-emitc-route-family.o`,
+  `artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h`,
+  and `tianchenrv-target-artifact-bundle.index`.
+- The bundle index records selected variant `@pre_realized_body_rvv_i32_add`,
+  runtime ABI `rvv-i32m1-add-callable-c-abi.v1`, and ordered `lhs,rhs,out,n`
+  parameters.
+- No `ssh rvv` run was collected and no runtime/correctness/performance claim
+  was made.
+
+### Checks
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused lit for pre-realized add positive/negative and existing
+  explicit selected-body add/sub/mul target fixtures passed 5/5.
+- [OK] Local bundle generation for
+  `test/Target/RVV/pre-realized-selected-body-artifact-add.mlir` completed.
+- [OK] Bounded residue scan: common EmitC materializer has no RVV semantic
+  branch matches; touched RVV matches are RVV-owned op/tests, existing
+  explicit-only source-front-door registration, and forbidden-pattern text.
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed; ready to archive and commit**
+
+### Next Steps
+
+- Archive task and create one coherent commit.
+
+
 ## Session 131: RVV selected-body executable artifact gate
 
 **Date**: 2026-05-19

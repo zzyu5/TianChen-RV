@@ -56,6 +56,8 @@ constexpr llvm::StringLiteral kCNameAttrName("c_name");
 constexpr llvm::StringLiteral kCTypeAttrName("c_type");
 constexpr llvm::StringLiteral kOwnershipAttrName("ownership");
 constexpr llvm::StringLiteral kPurposeAttrName("purpose");
+constexpr llvm::StringLiteral kOpKindAttrName("op_kind");
+constexpr llvm::StringLiteral kMemoryFormAttrName("memory_form");
 constexpr llvm::StringLiteral kVLenAttrName("vlen");
 constexpr llvm::StringLiteral kVLenBAttrName("vlenb");
 constexpr llvm::StringLiteral kRVVVariantRequiredMarchAttrName(
@@ -137,6 +139,12 @@ bool isAllowedI32BroadcastLoadAttr(llvm::StringRef) {
   return false;
 }
 
+bool isAllowedI32BinaryPreRealizedBodyAttr(llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kSEWAttrName || name == kLMULAttrName ||
+         name == kPolicyAttrName;
+}
+
 bool isAllowedI32AddAttr(llvm::StringRef name) {
   return false;
 }
@@ -192,6 +200,22 @@ bool isForbiddenWithVLParameterAttr(llvm::StringRef name) {
 bool isForbiddenDataflowParameterAttr(llvm::StringRef name) {
   return isForbiddenWithVLParameterAttr(name) || name == kSEWAttrName ||
          name == kLMULAttrName || name == kPolicyAttrName;
+}
+
+bool isForbiddenPreRealizedBodyAuthorityAttr(llvm::StringRef name) {
+  return name == kAVLAttrName || name == kVLAttrName ||
+         name == kElementCountAttrName || name == kRequiredMarchAttrName ||
+         name == kRVVVariantRequiredMarchAttrName ||
+         name == kRVVRequiredCapabilitiesAttrName ||
+         name == kRVVVLenAttrName || name == kRVVVLenBAttrName ||
+         name == kCapabilitySummaryAttrName || name == kArchitectureAttrName ||
+         name == kISAVectorHintsAttrName || name == kHartCountAttrName ||
+         name == kSelectedMarchAttrName || name == kCapabilityFactsAttrName ||
+         name == kSourceKernelAttrName || name == kSelectedVariantAttrName ||
+         name == kOriginAttrName || name == kSelectedPathRoleAttrName ||
+         name == kStatusAttrName || name == kRequiredCapabilitiesAttrName ||
+         name == kRVVConstructionProtocolAttrName ||
+         name == kRVVEmitCRouteMappingAttrName;
 }
 
 bool isSafeCIdentifier(llvm::StringRef value) {
@@ -289,6 +313,39 @@ mlir::LogicalResult verifyRuntimeABIValueOperandRole(
   return op->emitOpError()
          << "requires " << operandName << " operand to bind runtime ABI role "
          << expected;
+}
+
+mlir::LogicalResult verifyRuntimeElementCountOperand(mlir::Operation *op,
+                                                     mlir::Value value) {
+  if (!value.getType().isIndex())
+    return op->emitOpError()
+           << "requires runtime n/AVL operand to have index type";
+
+  auto binding = value.getDefiningOp<RuntimeABIValueOp>();
+  if (!binding)
+    return op->emitOpError()
+           << "requires runtime n/AVL operand to be defined by "
+              "tcrv_rvv.runtime_abi_value";
+
+  std::optional<tianchenrv::support::RuntimeABIParameterRole> parsedRole =
+      tianchenrv::support::symbolizeRuntimeABIParameterRole(
+          binding.getRole());
+  if (!parsedRole)
+    return op->emitOpError()
+           << "requires runtime n/AVL operand runtime ABI role to be "
+              "supported";
+
+  if (*parsedRole ==
+      tianchenrv::support::RuntimeABIParameterRole::RuntimeElementCount)
+    return mlir::success();
+
+  return op->emitOpError()
+         << "requires runtime n/AVL operand to bind runtime ABI role "
+         << "'"
+         << tianchenrv::support::stringifyRuntimeABIParameterRole(
+                tianchenrv::support::RuntimeABIParameterRole::
+                    RuntimeElementCount)
+         << "'";
 }
 
 bool isI32M1Vector(mlir::Type type) {
@@ -779,6 +836,69 @@ mlir::LogicalResult I32BroadcastLoadOp::verify() {
     return mlir::failure();
 
   return mlir::success();
+}
+
+mlir::LogicalResult I32BinaryPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected bodies carry only typed RVV "
+                "operation/config/memory/runtime SSA facts and must be "
+                "realized by the RVV plugin before route construction";
+
+    if (!isAllowedI32BinaryPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '" << kSEWAttrName
+             << "', '" << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires lhs, rhs, out, and runtime n/AVL operands and no "
+              "results";
+
+  if (getOpKind() != "add")
+    return emitOpError()
+           << "currently supports only op_kind \"add\" for the bounded "
+              "selected-body realization hook";
+  if (getMemoryForm() != "vector-rhs-load")
+    return emitOpError()
+           << "currently supports only memory_form \"vector-rhs-load\" for "
+              "the bounded selected-body realization hook";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVI32M1LMUL())
+    return emitOpError()
+           << "requires bounded pre-realized config to be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body realization hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getRhs(), "rhs",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
 }
 
 mlir::LogicalResult I32AddOp::verify() {

@@ -62,6 +62,17 @@ bool variantContainsExplicitTypedRVVBody(tcrv::exec::VariantOp variant) {
   return found;
 }
 
+bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
+  if (!variant || variant.getBody().empty())
+    return false;
+
+  bool found = false;
+  variant.getBody().walk([&](tcrv::rvv::I32BinaryPreRealizedBodyOp) {
+    found = true;
+  });
+  return found;
+}
+
 llvm::Error requireExplicitTypedRVVBody(tcrv::exec::VariantOp variant) {
   if (variantContainsExplicitTypedRVVBody(variant))
     return llvm::Error::success();
@@ -116,6 +127,253 @@ findSelectedRVVSelectedBodyBoundary(tcrv::exec::VariantOp variant) {
     return makeRVVPluginError(configDiagnostic.message);
 
   return withVLs.front();
+}
+
+mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
+                                  llvm::StringRef symbol) {
+  return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
+}
+
+llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
+requirePreRealizedRuntimeABIValue(
+    mlir::Value value, llvm::StringRef context,
+    support::RuntimeABIParameterRole expectedRole) {
+  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  if (!binding)
+    return makeRVVPluginError(llvm::Twine(context) +
+                              " must be defined by explicit "
+                              "tcrv_rvv.runtime_abi_value");
+
+  std::optional<support::RuntimeABIParameterRole> role =
+      support::symbolizeRuntimeABIParameterRole(binding.getRole());
+  if (!role)
+    return makeRVVPluginError(llvm::Twine(context) +
+                              " carries unsupported runtime ABI role '" +
+                              binding.getRole() + "'");
+  if (*role != expectedRole)
+    return makeRVVPluginError(
+        llvm::Twine(context) + " must bind runtime ABI role '" +
+        support::stringifyRuntimeABIParameterRole(expectedRole) +
+        "' before RVV selected-body realization");
+  return binding;
+}
+
+llvm::Expected<tcrv::rvv::I32BinaryPreRealizedBodyOp>
+findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
+  if (!variant)
+    return makeRVVPluginError(
+        "selected RVV realization requires a materialized tcrv.exec.variant");
+
+  llvm::SmallVector<tcrv::rvv::I32BinaryPreRealizedBodyOp, 2> bodies;
+  variant.getBody().walk([&](tcrv::rvv::I32BinaryPreRealizedBodyOp body) {
+    bodies.push_back(body);
+  });
+
+  if (bodies.size() != 1)
+    return makeRVVPluginError(
+        "selected RVV realization requires exactly one "
+        "tcrv_rvv.i32_binary_pre_realized_body op when no realized "
+        "setvl/with_vl body is present");
+  return bodies.front();
+}
+
+llvm::Error validatePreRealizedRVVSelectedBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::I32BinaryPreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVPluginError(
+        "selected RVV realization requires a pre-realized body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVPluginError(
+        "pre-realized RVV selected body must be a direct child of the "
+        "selected tcrv.exec.variant");
+
+  if (body.getOpKind() != "add")
+    return makeRVVPluginError(
+        "pre-realized RVV selected body currently supports only op_kind "
+        "'add'");
+  if (body.getMemoryForm() != "vector-rhs-load")
+    return makeRVVPluginError(
+        "pre-realized RVV selected body currently supports only memory_form "
+        "'vector-rhs-load'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVI32M1LMUL())
+    return makeRVVPluginError(
+        "pre-realized RVV selected body requires SEW32 LMUL m1");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected body requires tail agnostic, mask agnostic "
+        "policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getLhs(), "pre-realized RVV lhs operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!lhs)
+    return lhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getRhs(), "pre-realized RVV rhs operand",
+          support::RuntimeABIParameterRole::RHSInputBuffer);
+  if (!rhs)
+    return rhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+      requirePreRealizedRuntimeABIValue(
+          body.getOut(), "pre-realized RVV out operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!out)
+    return out.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(), "pre-realized RVV runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  unsigned realizedSetVLCount = 0;
+  unsigned realizedWithVLCount = 0;
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp ||
+        op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
+                  tcrv::rvv::I32BinaryPreRealizedBodyOp>(op))
+      return;
+    if (llvm::isa<tcrv::rvv::SetVLOp>(op)) {
+      ++realizedSetVLCount;
+      unexpectedRVVOp = op;
+      return;
+    }
+    if (llvm::isa<tcrv::rvv::WithVLOp>(op)) {
+      ++realizedWithVLCount;
+      unexpectedRVVOp = op;
+      return;
+    }
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected body must not be mixed with "
+                    "already realized RVV route body op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+  (void)realizedSetVLCount;
+  (void)realizedWithVLCount;
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVPluginError(
+        "pre-realized RVV selected-body realization requires non-empty "
+        "selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
+mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
+                                     mlir::Location loc, mlir::Value nValue) {
+  mlir::OperationState state(loc, "tcrv_rvv.setvl");
+  state.addOperands(nValue);
+  state.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
+  tcrv::rvv::populateRVVI32M1ArithmeticConfigAttrs(builder, state);
+  return builder.create(state);
+}
+
+tcrv::rvv::WithVLOp createRealizedWithVL(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value vlValue,
+    tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
+    VariantEmissionRole role, mlir::ArrayAttr requires) {
+  mlir::OperationState state(loc, "tcrv_rvv.with_vl");
+  state.addOperands(vlValue);
+  tcrv::rvv::populateRVVI32M1ArithmeticConfigAttrs(builder, state);
+  state.addAttribute(rvv::getRVVSourceKernelAttrName(),
+                     builder.getStringAttr(kernel.getSymName()));
+  state.addAttribute(rvv::getRVVSelectedVariantAttrName(),
+                     symbolRef(builder, variant.getSymName()));
+  state.addAttribute(rvv::getRVVOriginAttrName(),
+                     builder.getStringAttr(kRVVPluginName));
+  state.addAttribute(rvv::getRVVSelectedPathRoleAttrName(),
+                     builder.getStringAttr(stringifyVariantEmissionRole(role)));
+  state.addAttribute(rvv::getRVVStatusAttrName(),
+                     builder.getStringAttr(rvv::getRVVLoweringBoundaryStatus()));
+  state.addAttribute(rvv::getRVVRequiredCapabilitiesAttrName(), requires);
+  state.addAttribute(rvv::getRVVConstructionProtocolMetadataName(),
+                     builder.getStringAttr(
+                         rvv::getRVVConstructionProtocolVersion()));
+  state.addRegion();
+  auto withVL = llvm::cast<tcrv::rvv::WithVLOp>(builder.create(state));
+  withVL.getBody().emplaceBlock();
+  return withVL;
+}
+
+mlir::Operation *createRealizedI32Load(mlir::OpBuilder &builder,
+                                       mlir::Location loc, mlir::Value buffer,
+                                       mlir::Value vl) {
+  mlir::OperationState state(loc, "tcrv_rvv.i32_load");
+  state.addOperands({buffer, vl});
+  state.addTypes(tcrv::rvv::I32M1VectorType::get(builder.getContext()));
+  return builder.create(state);
+}
+
+mlir::Operation *createRealizedI32Add(mlir::OpBuilder &builder,
+                                      mlir::Location loc, mlir::Value lhs,
+                                      mlir::Value rhs, mlir::Value vl) {
+  mlir::OperationState state(loc, "tcrv_rvv.i32_add");
+  state.addOperands({lhs, rhs, vl});
+  state.addTypes(tcrv::rvv::I32M1VectorType::get(builder.getContext()));
+  return builder.create(state);
+}
+
+void createRealizedI32Store(mlir::OpBuilder &builder, mlir::Location loc,
+                            mlir::Value out, mlir::Value value,
+                            mlir::Value vl) {
+  mlir::OperationState state(loc, "tcrv_rvv.i32_store");
+  state.addOperands({out, value, vl});
+  (void)builder.create(state);
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVSelectedBody(
+    const VariantLoweringBoundaryRequest &request) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  if (!variant || !kernel)
+    return makeRVVPluginError(
+        "pre-realized RVV selected-body realization requires materialized "
+        "kernel and variant");
+
+  llvm::Expected<tcrv::rvv::I32BinaryPreRealizedBodyOp> body =
+      findUniquePreRealizedRVVSelectedBody(variant);
+  if (!body)
+    return body.takeError();
+  if (llvm::Error error = validatePreRealizedRVVSelectedBody(request, *body))
+    return std::move(error);
+
+  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  mlir::OpBuilder &builder = request.getBuilder();
+  mlir::OpBuilder::InsertionGuard guard(builder);
+  mlir::Location loc = body->getLoc();
+  builder.setInsertionPoint(body->getOperation());
+
+  auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+      createRealizedSetVL(builder, loc, body->getN()));
+  tcrv::rvv::WithVLOp withVL =
+      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                           request.getRole(), requires);
+
+  builder.setInsertionPointToStart(&withVL.getBody().front());
+  auto lhsLoad = llvm::cast<tcrv::rvv::I32LoadOp>(
+      createRealizedI32Load(builder, loc, body->getLhs(), setvl.getVl()));
+  auto rhsLoad = llvm::cast<tcrv::rvv::I32LoadOp>(
+      createRealizedI32Load(builder, loc, body->getRhs(), setvl.getVl()));
+  auto add = llvm::cast<tcrv::rvv::I32AddOp>(
+      createRealizedI32Add(builder, loc, lhsLoad.getLoaded(),
+                           rhsLoad.getLoaded(), setvl.getVl()));
+  createRealizedI32Store(builder, loc, body->getOut(), add.getSum(),
+                         setvl.getVl());
+  body->erase();
+  return withVL;
 }
 
 llvm::Error verifySelectedRVVLoweringBoundaryConformance(
@@ -461,8 +719,15 @@ llvm::Error RVVExtensionPlugin::materializeSelectedLoweringBoundary(
 
   llvm::Expected<tcrv::rvv::WithVLOp> boundary =
       findSelectedRVVSelectedBodyBoundary(request.getVariant());
-  if (!boundary)
-    return boundary.takeError();
+  if (!boundary) {
+    llvm::Error boundaryError = boundary.takeError();
+    if (!variantContainsPreRealizedRVVSelectedBody(request.getVariant()))
+      return boundaryError;
+    llvm::consumeError(std::move(boundaryError));
+    boundary = realizePreRealizedRVVSelectedBody(request);
+    if (!boundary)
+      return boundary.takeError();
+  }
 
   VariantLoweringBoundaryValidationRequest validationRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),

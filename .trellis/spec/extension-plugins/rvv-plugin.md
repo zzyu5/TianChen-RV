@@ -135,6 +135,116 @@ Correct:
   RVV plugin validates/realizes it and then derives the route/intrinsic names.
 ```
 
+### Scenario: Pre-Realized I32 Binary Selected-Body Realization
+
+#### 1. Scope / Trigger
+
+Use this contract when a selected `origin = "rvv-plugin"` variant contains a
+bounded pre-realized typed RVV body that is not yet in the realized
+`setvl -> with_vl -> load -> compute -> store` form consumed by the current
+provider route.
+
+#### 2. Signatures
+
+- Pre-realized op:
+  `tcrv_rvv.i32_binary_pre_realized_body`.
+- Required operands:
+  `lhs`, `rhs`, `out`, and `n`; each must be an explicit
+  `tcrv_rvv.runtime_abi_value` result, with `n` using index type.
+- Required attributes:
+  `op_kind`, `memory_form`, `sew`, `lmul`, and `policy`.
+- First supported specialization:
+  `op_kind = "add"`, `memory_form = "vector-rhs-load"`, `sew = 32`,
+  `lmul = "m1"`, and tail/mask agnostic policy.
+- Realization entry point:
+  selected lowering-boundary materialization routed through the selected
+  variant's origin plugin.
+- Realized output:
+  `tcrv_rvv.setvl`, `tcrv_rvv.with_vl`, two `tcrv_rvv.i32_load` ops,
+  `tcrv_rvv.i32_add`, and `tcrv_rvv.i32_store` in the same selected variant.
+
+#### 3. Contracts
+
+- The pre-realized op is RVV plugin-owned selected-body IR. It is not a route
+  id, descriptor, source-front-door marker, direct-C exporter, intrinsic
+  wrapper, artifact authority, runtime proof, correctness proof, or performance
+  proof.
+- Realization must happen before provider route construction. The provider and
+  common EmitC/export paths continue to consume only the realized selected body.
+- Realization must preserve computation semantics, dtype semantics, memory
+  roles, selected variant origin, required capabilities, dispatch/fallback
+  structure, and the exact runtime `n`/AVL SSA value.
+- Selected-boundary attributes such as source kernel, selected variant, origin,
+  role, status, required capabilities, and construction protocol are attached
+  to the realized `tcrv_rvv.with_vl` boundary by the RVV plugin. They must not
+  be accepted as authority metadata on the pre-realized op.
+- Unsupported operation kinds, memory forms, dtype/config combinations,
+  policies, missing runtime ABI roles, or mixed pre-realized plus already
+  realized bodies must fail closed before route or artifact construction.
+
+#### 4. Validation & Error Matrix
+
+- Missing selected `tcrv.exec.variant` or enclosing `tcrv.exec.kernel` ->
+  fail before realization.
+- Variant origin is not `rvv-plugin` -> fail before realization.
+- No realized body and not exactly one
+  `tcrv_rvv.i32_binary_pre_realized_body` -> fail before route construction.
+- `op_kind` is not supported by the realization hook -> fail before route
+  construction.
+- `memory_form` is unsupported -> fail before route construction.
+- `sew`/`lmul`/policy does not match the supported specialization -> fail
+  before route construction.
+- `lhs`/`rhs`/`out`/`n` is missing, has the wrong role, or `n` is not the
+  runtime element-count ABI value -> fail before route construction.
+- The pre-realized op carries stale source, route, artifact, selected-boundary,
+  descriptor, or capability-summary authority metadata -> verifier rejects it.
+- A pre-realized op is mixed with existing `setvl`, `with_vl`, or realized
+  dataflow ops -> fail before route construction.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: selected variant contains explicit runtime ABI values and one
+  `tcrv_rvv.i32_binary_pre_realized_body` for add; the RVV plugin realizes it
+  into the existing add body, then the provider derives the EmitC route from
+  that realized body.
+- Base: already realized explicit selected-body add/sub/mul fixtures remain
+  valid and do not require this rewrite.
+- Bad: common EmitC/export, route ids, artifact names, stale
+  `rvv_emitc_route_mapping`, source-front-door labels, or descriptors choose
+  the RVV operation or config.
+
+#### 6. Tests Required
+
+- Positive lit coverage for pre-realized add reaching selected-boundary
+  realization, supported emission-plan metadata, and target artifact/header or
+  object routing.
+- Negative lit coverage for unsupported operation, unsupported config/policy,
+  wrong runtime ABI role, missing runtime `n`/AVL authority, and stale route or
+  source metadata on the pre-realized op.
+- Existing fully realized explicit selected-body add/sub/mul target fixtures
+  must continue to pass.
+- Focused scans over touched RVV and common EmitC code must show no common-code
+  RVV semantic branching, descriptor/direct-C/source-export restoration, or
+  route-id/artifact-name authority.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+pre-realized metadata or route id -> provider/common export chooses add/i32m1
+```
+
+Correct:
+
+```text
+pre-realized typed RVV op with explicit ABI/config facts
+  -> RVV plugin selected-body realization
+  -> realized setvl/with_vl/load/add/store body
+  -> provider-built TCRVEmitCLowerableRoute
+  -> neutral common EmitC/target mechanics
+```
+
 ### Scenario: Selected-Body EmitC Route Description API
 
 #### 1. Scope / Trigger
