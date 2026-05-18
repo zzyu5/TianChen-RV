@@ -259,6 +259,12 @@ legacy bounded RVV-owned source shape
 
 ## Pipeline
 
+This is the long-term pipeline shape. Current RVV Stage 1/2 work may start
+from already materialized TianChen-RV execution surfaces rather than from a
+high-level MLIR op. High-level frontend lowering remains future work unless a
+task explicitly rebuilds that frontend path through typed extension-family
+bodies.
+
 ```text
 High-level MLIR op
     |
@@ -1155,6 +1161,24 @@ internal realization over the corrected vector-level `tcrv_rvv` surface, not a
 global multi-candidate autotuning system, tuning dashboard, database, or
 readiness marker. Hints and profile data may influence generated code only
 after the RVV plugin consumes them into operative selected-body structure.
+
+For RVV, this performance layer is part of Stage 2 RVV completion. Stage 2 is
+not only "more op coverage"; it also includes the selected-body realization
+needed to turn vector-level bodies into target-performance RVV structure. The
+realized body is still `tcrv_rvv` vector-level IR, close to MLIR Vector in
+abstraction level, and not EmitC, intrinsic C, a status object, or a separate
+autotuning state. Stage 3 may add cross-plugin tuning, global multi-candidate
+search, profile databases, or later frontend integration, but those must not
+be required before Stage 2 can complete RVV selected-variant internal
+realization.
+
+Stage 2 completion should be judged against the structured-kernel math and
+data-movement classes that future Linalg/Vector-like frontends must lower into
+TianChen-RV: elementwise/broadcast, reductions, contraction-like
+multiply-accumulate, mask/tail-safe memory movement, conversion/dtype policy,
+runtime AVL/VL control, and supported layout/movement forms. This is a
+coverage target for `tcrv_rvv`, not permission to add high-level Linalg
+frontend work or per-Linalg-op route authority.
 
 ## Cost Model Boundary
 

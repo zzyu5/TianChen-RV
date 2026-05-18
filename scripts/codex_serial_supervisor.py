@@ -1584,11 +1584,16 @@ tcrv_rvv bodies plus RVV-owned legality, selected-body realization, and route
 builder logic.
 ```
 
+In Stage 1, selected-body realization means only the fail-closed plugin
+boundary/hook or faithful selected-body consumption needed to replace old route
+authority. Performance-sensitive selected-body realization and tuning belong to
+Stage 2 RVV completion.
+
 Good Stage 1 owners are concrete module owners such as:
 
 ```text
 tcrv_rvv body/type/op surface correction
-RVV selected-body realization hook implementation or use
+RVV selected-body realization hook implementation or faithful consumption
 RVV route builder consuming the selected/realized body faithfully
 source-front-door demotion or fail-closed boundary
 common EmitC route boundary kept neutral while RVV mapping stays plugin-owned
@@ -1601,7 +1606,9 @@ Stage 2 begins only after Stage 1 evidence shows no active compiler path uses
 
 ```text
 expand route-supported RVV coverage on the corrected vector-level tcrv_rvv
-surface, using dependency order but not small completion batches.
+surface, including RVV plugin-local selected-body realization for
+performance-sensitive vector-level bodies, using dependency order but not small
+completion batches.
 ```
 
 Stage 2 expands the route-supported low-level RVV surface toward structured
@@ -1611,11 +1618,19 @@ reduction/accumulation, contraction-supporting multiply-add/movement, and
 runtime boundary. It must not become per-Linalg-op lowering, high-level kernel
 ops, one-op-per-intrinsic wrapping, or dtype/LMUL clone batches.
 
+Stage 2 completeness is judged by whether route-supported `tcrv_rvv` can cover
+the math and data-movement classes represented by structured kernels such as
+Linalg, while staying at a Vector-like RVV execution level. This does not make
+Linalg the current input contract and does not authorize per-Linalg-op route
+authority.
+
 Stage 3 and later are plugin generality, later plugin mainlines, future
-frontend lowering, and deeper performance/tuning work. These are valid project
-directions only after they do not bypass or distract from the RVV-first gate,
-or when the specific work directly repairs the shared interface needed by the
-current RVV owner.
+frontend lowering, cross-plugin tuning, global multi-candidate autotuning,
+tuning/profile databases, and other broader performance systems. These are
+valid project directions only after they do not bypass or distract from the
+RVV-first gate, or when the specific work directly repairs the shared interface
+needed by the current RVV owner. Do not move Stage 2 selected-body realization
+into Stage 3.
 
 ## Owner Selection Rules
 

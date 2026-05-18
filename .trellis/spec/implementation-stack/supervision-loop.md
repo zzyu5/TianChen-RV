@@ -260,24 +260,31 @@ production/default path rewiring, and deletion of obsolete
 descriptor-driven behavior over finite-family coverage, descriptor checks,
 helper-only tests, smoke tests, or standalone ssh-evidence rounds.
 
-## Wrong Logic Deletion Campaign
+## Wrong Logic Cleanup And RVV Stage Gates
 
-Hermes and Codex must support a Wrong Logic Deletion Campaign mode. This is a
-durable supervision policy, not manual steering and not a separate runner state
-machine.
+Hermes and Codex must still support deletion-only cleanup when a live task or
+human steering explicitly names a wrong-logic deletion owner. That mode is a
+bounded cleanup tool, not the standing state of the project and not a separate
+runner state machine.
 
-Hermes enters the campaign whenever live repository evidence shows old logic
-that conflicts with the final TianChen-RV architecture. While the campaign is
-active, Hermes must choose a deletion-only owner. It must not choose feature
-implementation, finite RVV family expansion, helper/wrapper work, compatibility
-preservation, descriptor tests, or "delete and rebuild" mixed work.
+The current RVV-first workflow is no longer the old deletion-only campaign.
+Current Stage 1 is RVV route-authority replacement: remove, rewrite, replace,
+or fail-close active paths that still treat bounded `i32m1` arithmetic,
+source-front-door patterns, route ids, artifact names, descriptor residue,
+intrinsic spellings, or common/export code as RVV authority. A Stage 1 owner
+may therefore build the corrected typed `tcrv_rvv` body authority, RVV-owned
+legality/realization hook, or route-builder consumption path while deleting or
+fail-closing the old authority. It must not preserve old logic through
+compatibility wrappers. This Stage 1 realization wording means boundary/hook
+authority and faithful selected-body consumption only; performance-sensitive
+selected-body realization and tuning belong to Stage 2 RVV completion.
 
-The campaign is deletion before rebuild: remove wrong logic before rebuilding
-correct logic. Hermes must not preserve old logic for compatibility, must not
-quarantine old logic, must not wrap old logic, and must not turn old logic into
-a legacy mode. If removal breaks build or tests, Codex records the breakage as
-a missing new-architecture gap and the next round continues deletion or
-refactor. Codex must not restore the wrong path to make checks pass.
+Deletion-only cleanup remains valid for residue that is not yet part of a
+replacement owner. In that mode, Hermes must not choose finite RVV feature
+expansion, helper/wrapper work, compatibility preservation, descriptor tests,
+or "delete and rebuild everything" mixed work. If removal breaks build or
+tests, Codex records the breakage as a missing new-architecture gap and does
+not restore the wrong path to make checks pass.
 
 Campaign deletion targets are:
 
@@ -308,12 +315,14 @@ Allowed campaign owners are:
 - Core Semantic Branch Erasure Owner;
 - Legacy Tests and Artifact Cleanup Owner.
 
-Deletion Campaign is not the correct-architecture implementation phase.
-Hermes must not ask Codex to implement new general RVV lowering, common
-lower-to-EmitC pass, executable plugin template, TensorExt/IME extension, new
-EmitC route, new capability model features, or new performance/evidence matrix
-while the campaign is active. Codex may record what must later be rebuilt, but
-must not rebuild it in the same campaign round.
+Deletion-only cleanup is not the correct-architecture implementation phase.
+When a task is explicitly deletion-only, Hermes must not ask Codex to implement
+new general RVV lowering, common lower-to-EmitC pass, executable plugin
+template, TensorExt/IME extension, new EmitC route, new capability model
+features, or a performance/evidence matrix in the same round. When the task is
+RVV Stage 1 route-authority replacement, however, this deletion-only restriction
+does not block the bounded replacement work needed to make typed `tcrv_rvv`
+body authority real.
 
 Hermes may exit the campaign only when live repository evidence shows:
 
@@ -325,9 +334,10 @@ Hermes may exit the campaign only when live repository evidence shows:
 - legacy tests no longer protect old paths;
 - remaining failures are missing new architecture, not old-path compatibility.
 
-Only after that exit may Hermes choose rebuild owners such as Common Extension
-Interface Foundation, Common Lower-To-EmitC Pass, Executable Plugin
-Construction Template, or General RVV Extension Family Rebuild.
+Only after deletion-only cleanup exits may Hermes choose unrelated rebuild
+owners. Only after RVV Stage 1 evidence shows no active compiler path uses
+`i32m1` or source/artifact/route metadata as RVV authority may Hermes enter
+Stage 2 coverage/performance work.
 
 ### Grill Consensus And Mature Path Steering
 
@@ -338,11 +348,12 @@ Durable rules from those notes must be promoted into `.trellis/spec/` or the
 canonical supervisor prompt before they steer future rounds.
 
 A maturity-path note such as "RVV is the first executable plugin path" does not
-exit the deletion campaign. While live evidence still shows old authority,
-Hermes must still choose a deletion-only owner. It must not interpret maturity
-discussion as permission to implement RVV emission, high-level frontend lowering,
-new artifact routes, or a new executable plugin template before the campaign
-exit criteria are met.
+authorize skipping Stage 1. While live evidence still shows old RVV authority,
+Hermes must choose a Stage 1 route-authority replacement owner or a narrowly
+named deletion-only owner for residue that blocks Stage 1. It must not
+interpret maturity discussion as permission to jump to high-level frontend
+lowering, later plugin mainlines, global autotuning systems, dashboards, or
+Stage 2 coverage before Stage 1 evidence is clean.
 
 After campaign exit, the intended mature route is:
 
@@ -362,6 +373,17 @@ and packages supported emitted artifacts; it must not synthesize compute
 semantics, scheduling, dtype/LMUL policy, or RVV body shape. One-shot steering
 may name the next bounded owner, but it must not create durable architecture
 outside the specs and committed prompt.
+
+Stage 2 is the RVV completion stage. It expands route-supported RVV coverage on
+the corrected vector-level `tcrv_rvv` surface and includes RVV plugin-local
+selected-body realization for performance-sensitive bodies. It should be judged
+against structured-kernel math and data-movement classes such as
+elementwise/broadcast, reduction/accumulation, contraction-like
+multiply-accumulate, mask/tail-safe memory movement, conversion/dtype policy,
+runtime AVL/VL control, and supported movement/layout forms. It must not be
+turned into per-Linalg-op frontend work, high-level kernel ops, one-intrinsic
+wrappers, dtype/LMUL clone batches, global autotuning databases, dashboards, or
+readiness state machines.
 
 Hermes should prefer owners that are large enough to remove a real compiler
 spine bottleneck in one round. A good owner may span several tightly related

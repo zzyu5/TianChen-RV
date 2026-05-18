@@ -50,6 +50,10 @@ artifact names, source-front-door patterns, descriptor residue, or intrinsic
 spellings as RVV route authority. The replacement authority is the selected
 vector-level `tcrv_rvv` body plus RVV-owned legality, realization, and route
 construction. Unsupported combinations must fail closed.
+During Stage 1, realization work is limited to the fail-closed plugin boundary,
+hook, or faithful selected-body consumption needed to remove old route
+authority. Performance-sensitive selected-body realization and tuning are
+Stage 2 RVV completion work.
 
 The route builder must faithfully emit from the selected and, when needed,
 realized `tcrv_rvv` body. It may map body structure to RVV vector types,
@@ -58,9 +62,37 @@ payloads, but it must not invent missing RVV computation, schedule, dtype,
 SEW/LMUL policy, or body shape from route strings, artifact metadata, test
 names, or old i32m1 helpers.
 
-Stage 2 expands route-supported RVV coverage on this corrected vector-level
-surface. Implementation order may follow dependencies, but early executable
-subsets are plumbing proofs only and must not be treated as RVV maturity.
+Stage 2 is RVV completion work on this corrected vector-level surface. It
+includes both route-supported RVV coverage expansion and RVV plugin-local
+selected-body realization for performance-sensitive vector-level bodies.
+Implementation order may follow dependencies, but early executable subsets are
+plumbing proofs only and must not be treated as RVV maturity.
+
+Stage 2 is complete only when the route-supported `tcrv_rvv` surface can cover
+the math and data-movement classes represented by structured kernels such as
+Linalg, without making Linalg the current input contract. The completeness
+target is not "all arbitrary high-level `linalg.generic` regions" and not a
+new high-level frontend. It is the low-level RVV execution coverage needed for
+future semantic-preserving frontend lowering:
+
+```text
+elementwise and broadcast/vector-scalar maps
+masked and tail-safe contiguous/strided/indexed memory movement when supported
+compare/select and FMA/update-style arithmetic
+reduction, accumulator, and contraction-like multiply-accumulate bodies
+movement/layout forms such as slide/gather/scatter/compress when supported
+conversion, widening/narrowing, dtype, SEW, LMUL, and policy legality
+dynamic AVL/VL, mask/tail behavior, runtime ABI value use, and boundary control
+RVV plugin-local realization of VL/setvl, legal vtype, unroll, software
+pipeline, prefetch, and accumulator layout when those structures are modeled
+or supported
+```
+
+The abstraction level is intentionally Vector-like: higher than a list of
+`riscv_vector.h` intrinsic calls and lower than Linalg/tensor/kernel semantics.
+Stage 2 must not be implemented as per-Linalg-op lowerers, high-level kernel
+ops, one-op-per-intrinsic wrappers, dtype/LMUL clone batches, a global
+autotuning database, a dashboard, or a readiness state machine.
 
 ## Legacy Narrow C++ Slice
 

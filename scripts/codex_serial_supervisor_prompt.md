@@ -121,10 +121,17 @@ preserving them through compatibility wrappers. If removal exposes a missing
 new architecture gap, report that gap and keep the task state truthful instead
 of restoring the old path.
 
+Stage 1 may establish a selected-body realization boundary/hook or faithful
+selected-body consumption only when needed to replace old route authority.
+Performance-sensitive selected-body realization and tuning are Stage 2 RVV
+completion work.
+
 Stage 2 begins only after Stage 1 evidence shows no active compiler path uses
 `i32m1` or source/artifact/route metadata as RVV authority. Stage 2 expands
 route-supported RVV coverage on the corrected vector-level `tcrv_rvv` surface
-using dependency order, not small completion batches.
+using dependency order, not small completion batches, and includes RVV
+plugin-local selected-body realization for performance-sensitive vector-level
+bodies.
 
 While Stage 1 is open, do not switch to Scalar, IME, Offload, TensorExt,
 high-level Linalg/Vector/StableHLO frontend generalization, Stage 2 coverage
@@ -138,6 +145,12 @@ compare/select, conversion/dtype/SEW/LMUL policy, reduction/accumulation,
 contraction-supporting multiply-add/movement, and runtime boundary. It must not
 become per-Linalg-op lowering, high-level kernel ops, or one-op-per-intrinsic
 wrapping.
+
+Stage 2 completeness is judged by whether route-supported `tcrv_rvv` can cover
+the math and data-movement classes represented by structured kernels such as
+Linalg, while staying at a Vector-like RVV execution level. It is not current
+high-level frontend work. Global/cross-plugin autotuning, tuning databases, and
+profile systems are later work; Stage 2 internal realization is not.
 
 ## One-Round Trellis Flow
 
