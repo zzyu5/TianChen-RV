@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door | FileCheck %s --check-prefix=BOUNDARY --implicit-check-not="func.func"
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door | FileCheck %s --check-prefix=BOUNDARY --implicit-check-not="func.func" --implicit-check-not="rvv_emitc_route_mapping"
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: not tcrv-opt %s --tcrv-source-artifact-front-door-pipeline 2>&1 | FileCheck %s --check-prefix=PIPE-FAIL --implicit-check-not="rvv-i32m1-add-emitc-route" --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
 // RUN: not tcrv-opt %s --tcrv-disable-builtin-plugins --tcrv-rvv-materialize-i32m1-vector-source-front-door 2>&1 | FileCheck %s --check-prefix=NO-BUILTIN
@@ -56,7 +56,6 @@ module {
 // BOUNDARY-SAME: origin = "rvv-plugin"
 // BOUNDARY-SAME: required_capabilities = [@rvv]
 // BOUNDARY-SAME: rvv_construction_protocol = "extension-family-construction-protocol.v1"
-// BOUNDARY-SAME: rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family"
 // BOUNDARY-SAME: selected_path_role = "dispatch case"
 // BOUNDARY-SAME: selected_variant = @vector_source_rvv_i32_add
 // BOUNDARY-SAME: sew = 32 : i64

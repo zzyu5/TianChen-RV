@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door | FileCheck %s --check-prefix=BOUNDARY --implicit-check-not="func.func" --implicit-check-not="tcrv_rvv.i32_add" --implicit-check-not="tcrv_rvv.i32_sub"
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door | FileCheck %s --check-prefix=BOUNDARY --implicit-check-not="func.func" --implicit-check-not="tcrv_rvv.i32_add" --implicit-check-not="tcrv_rvv.i32_sub" --implicit-check-not="rvv_emitc_route_mapping"
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 
 module {

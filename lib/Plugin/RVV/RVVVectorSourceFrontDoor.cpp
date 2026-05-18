@@ -519,9 +519,6 @@ mlir::Operation *createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
   state.addAttribute(getRVVRequiredCapabilitiesAttrName(), requires);
   state.addAttribute(getRVVConstructionProtocolMetadataName(),
                      builder.getStringAttr(getRVVConstructionProtocolVersion()));
-  state.addAttribute(getRVVEmitCRouteMappingMetadataName(),
-                     builder.getStringAttr(
-                         getRVVConstructionManifest().emitcRoute.routeID));
   state.addRegion();
   mlir::Operation *operation = builder.create(state);
   operation->getRegion(0).emplaceBlock();

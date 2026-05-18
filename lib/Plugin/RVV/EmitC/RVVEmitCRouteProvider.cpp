@@ -778,6 +778,10 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.lmul = config.lmul;
   analysis.description.typedComputeOpName = constructionRoute.typedComputeOpName;
   analysis.description.emitCRouteID = constructionRoute.emitCRouteID;
+  analysis.description.targetArtifactRouteID =
+      getRVVConstructionManifest().emitcRoute.routeID;
+  analysis.description.targetArtifactKind =
+      getRVVConstructionManifest().emitcRoute.artifactKind;
   analysis.description.runtimeABIName = constructionRoute.runtimeABIName;
   analysis.description.runtimeABIContractName =
       constructionRoute.runtimeABIContractName;

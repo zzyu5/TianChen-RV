@@ -133,9 +133,7 @@ llvm::Error verifySelectedRVVLoweringBoundaryConformance(
           {"lmul",
            tcrv::rvv::getRVVI32M1ArithmeticConfigVLContract().lmul},
           {rvv::getRVVConstructionProtocolMetadataName(),
-           rvv::getRVVConstructionProtocolVersion()},
-          {rvv::getRVVEmitCRouteMappingMetadataName(),
-           rvv::getRVVConstructionManifest().emitcRoute.routeID}};
+           rvv::getRVVConstructionProtocolVersion()}};
   construction::SelectedLoweringBoundaryConformanceSpec spec;
   spec.boundaryDescription = "selected RVV lowering-boundary validation";
   spec.selectedVariantSymbol = variant.getSymName();
@@ -367,9 +365,21 @@ llvm::Error RVVExtensionPlugin::checkVariantEmissionReadiness(
     return llvm::Error::success();
   }
 
+  VariantEmitCLowerableRequest routeRequest(
+      request.getVariant(), request.getKernel(), request.getCapabilities(),
+      request.getRole());
+  llvm::Expected<RVVSelectedBodyEmitCRouteDescription> routeDescription =
+      describeRVVSelectedBodyEmitCRoute(routeRequest);
+  if (!routeDescription) {
+    std::string diagnostic = llvm::toString(routeDescription.takeError());
+    out = VariantEmissionStatus::getUnsupported(
+        kRVVPluginName, request.getVariant().getSymName(), diagnostic);
+    return llvm::Error::success();
+  }
+
   out = VariantEmissionStatus::getSupported(
       kRVVPluginName, request.getVariant().getSymName(),
-      getRVVConstructionManifest().emitcRoute.routeID);
+      routeDescription->targetArtifactRouteID);
   return llvm::Error::success();
 }
 
@@ -408,13 +418,13 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
   if (!routeDescription)
     return routeDescription.takeError();
 
-  const RVVConstructionManifest &manifest = getRVVConstructionManifest();
   llvm::StringRef runtimeABIName = routeDescription->runtimeABIName;
   out = VariantEmissionPlan::getSupported(
       kRVVPluginName, request.getKernel().getSymName(),
       request.getVariant().getSymName(), request.getRole(),
-      getRVVSelectedBodyEmissionKind(), manifest.emitcRoute.routeID,
-      runtimeABIName, manifest.emitcRoute.artifactKind,
+      getRVVSelectedBodyEmissionKind(),
+      routeDescription->targetArtifactRouteID, runtimeABIName,
+      routeDescription->targetArtifactKind,
       "RVV selected i32m1 dataflow route materializes a verified EmitC "
       "module through the common TCRVEmitCLowerableRoute materializer, then "
       "uses the MLIR EmitC C/C++ emitter before RISC-V object packaging");

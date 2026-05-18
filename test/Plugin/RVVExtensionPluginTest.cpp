@@ -559,16 +559,31 @@ module {
             llvm::Twine("build construction-checked emission plan for @") +
                 variantName))
       return result;
+    llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
+        routeDescription =
+            tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant));
+    if (!routeDescription)
+      return fail(llvm::Twine("describe selected-body route for @") +
+                  variantName + ": " +
+                  llvm::toString(routeDescription.takeError()));
     if (int result = expect(plan.isSupported(),
                             llvm::Twine("RVV emission plan is supported for @") +
                                 variantName))
       return result;
     if (int result = expect(
             plan.getLoweringPipeline() ==
-                tianchenrv::plugin::rvv::getRVVConstructionManifest()
-                    .emitcRoute.routeID,
+                routeDescription->targetArtifactRouteID,
             llvm::Twine("RVV emission plan uses the materialized EmitC target "
-                        "artifact route for @") +
+                        "artifact route from selected-body description for @") +
+                variantName))
+      return result;
+    if (int result = expect(
+            plan.getRuntimeABIName() == routeDescription->runtimeABIName,
+            llvm::Twine("RVV emission plan uses selected-body runtime ABI "
+                        "description for @") +
                 variantName))
       return result;
     if (int result = expect(
@@ -595,10 +610,9 @@ module {
     if (int result = expect(
             readiness.isSupported() &&
                 readiness.getEmissionPath() ==
-                    tianchenrv::plugin::rvv::getRVVConstructionManifest()
-                        .emitcRoute.routeID,
-            llvm::Twine("RVV emission readiness names the materialized EmitC "
-                        "target artifact route for @") +
+                    routeDescription->targetArtifactRouteID,
+            llvm::Twine("RVV emission readiness names the selected-body "
+                        "description target artifact route for @") +
                 variantName))
       return result;
   }
@@ -662,6 +676,48 @@ module {
           boundaryResult),
       {"selected RVV i32m1 lowering boundary requires exactly one "
        "tcrv_rvv.with_vl op"});
+}
+
+int runStaleWithVLRouteMetadataDoesNotAuthorizeEmissionTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_stale_route_metadata_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_stale_route_metadata attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-add-emitc-route", selected_path_role = "direct variant", selected_variant = @rvv_stale_route_metadata, sew = 32 : i64, source_kernel = "rvv_stale_route_metadata_kernel", status = "selected-lowering-boundary"} {
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV stale route metadata module");
+  KernelOp kernel = findKernel(*module, "rvv_stale_route_metadata_kernel");
+  VariantOp variant = findVariant(kernel, "rvv_stale_route_metadata");
+  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result =
+          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+                        "register RVV plugin for stale route metadata test"))
+    return result;
+
+  VariantEmissionPlan plan;
+  return expectErrorContains(
+      registry.buildVariantEmissionPlan(
+          VariantEmissionRequest(variant, kernel, capabilities,
+                                 VariantEmissionRole::DirectVariant),
+          plan),
+      {"bounded RVV EmitC route requires either two tcrv_rvv.i32_load ops",
+       "tcrv_rvv.i32_broadcast_load"});
 }
 
 int runBroadcastSelectedBodyRouteTest(mlir::MLIRContext &context) {
@@ -929,6 +985,9 @@ int main() {
     return result;
   if (int result =
           runWithVLSelectedLoweringBoundaryDuplicateRejectionTest(context))
+    return result;
+  if (int result =
+          runStaleWithVLRouteMetadataDoesNotAuthorizeEmissionTest(context))
     return result;
   if (int result = runBroadcastSelectedBodyRouteTest(context))
     return result;

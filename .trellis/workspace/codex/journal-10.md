@@ -46,6 +46,65 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 130: RVV source-front-door route-authority demotion
+
+**Date**: 2026-05-19
+**Task**: RVV source-front-door route-authority demotion
+**Branch**: `main`
+
+### Summary
+
+Demoted the RVV vector source front door and selected-boundary route metadata
+so source materialization only builds an explicit typed `tcrv_rvv` body, while
+readiness, emission planning, and target candidate validation consume
+provider-derived selected-body route descriptions after body validation.
+
+### Main Changes
+
+- Created Trellis task
+  `05-19-rvv-source-front-door-route-authority-demotion` from the Hermes
+  Direction Brief.
+- Removed source-front-door stamping of `rvv_emitc_route_mapping` on
+  `tcrv_rvv.with_vl`.
+- Removed RVV selected-boundary conformance's requirement for route mapping
+  metadata on `with_vl`.
+- Extended `RVVSelectedBodyEmitCRouteDescription` with provider-derived target
+  artifact route id and artifact kind fields.
+- Rewired RVV emission readiness, emission planning, and RVV target candidate
+  validation to consult the selected-body route description before consuming
+  route/artifact fields.
+- Updated focused lit/C++ tests and the RVV plugin spec scenario for the
+  selected-body route description API.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt -j2`
+- [OK] Source-front-door add/sub/mul boundary and emission-plan FileCheck
+  commands.
+- [OK] `build/bin/tcrv-opt test/Transforms/RVV/rvv-i32m1-vector-source-front-door-negative.mlir --split-input-file --verify-diagnostics --tcrv-rvv-materialize-i32m1-vector-source-front-door`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tcrv-translate -j2`
+- [OK] RVV `emitc-to-cpp` handoff FileCheck commands.
+- [OK] Focused target artifact object and stale-route checks for
+  `test/Target/RVV/vector-materialized-target-artifact-exporters.mlir`.
+- [OK] Bounded residue scan over `RVVVectorSourceFrontDoor.cpp` and
+  `RVVExtensionPlugin.cpp` found no `getRVVConstructionManifest().emitcRoute.routeID`
+  or selected-boundary `rvv_emitc_route_mapping` authority use.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-19-rvv-source-front-door-route-authority-demotion`
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Archive the Trellis task and commit this bounded round.
+
+
 ## Session 130: RVV selected-body construction protocol boundary
 
 **Date**: 2026-05-19

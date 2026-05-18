@@ -39,6 +39,8 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef lmul;
   llvm::StringRef typedComputeOpName;
   llvm::StringRef emitCRouteID;
+  llvm::StringRef targetArtifactRouteID;
+  llvm::StringRef targetArtifactKind;
   llvm::StringRef runtimeABIName;
   llvm::StringRef runtimeABIContractName;
   llvm::StringRef intrinsic;

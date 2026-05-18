@@ -345,24 +345,16 @@ llvm::Error validateRVVSelectedBodyTargetArtifactCandidate(
   if (llvm::Error error = plugin::rvv::verifyRVVConstructionProtocolReady())
     return error;
 
-  const plugin::rvv::RVVConstructionManifest &manifest = getRVVManifest();
   if (candidate.role == "dispatch fallback")
     return makeRVVTargetRouteError(
         "selected RVV materialized EmitC candidate must not be fallback-only");
-  if (llvm::Error error =
-          requireCandidateField("route id", candidate.routeID,
-                                manifest.emitcRoute.routeID))
-    return error;
   if (llvm::Error error = requireCandidateField(
-          "origin", candidate.origin, manifest.family.pluginName))
+          "origin", candidate.origin,
+          plugin::rvv::getRVVConstructionManifest().family.pluginName))
     return error;
   if (llvm::Error error =
           requireCandidateField("emission kind", candidate.emissionKind,
                                 plugin::rvv::getRVVSelectedBodyEmissionKind()))
-    return error;
-  if (llvm::Error error =
-          requireCandidateField("artifact kind", candidate.artifactKind,
-                                manifest.emitcRoute.artifactKind))
     return error;
   if (llvm::Error error = requireCandidateField(
           "lowering boundary", candidate.loweringBoundary,
@@ -388,6 +380,15 @@ llvm::Error validateRVVSelectedBodyTargetArtifactCandidate(
       validateRVVSelectedVariantRouteAgreesWithCandidate(candidate);
   if (!selectedRoute)
     return selectedRoute.takeError();
+
+  if (llvm::Error error = requireCandidateField(
+          "route id", candidate.routeID,
+          selectedRoute->description.targetArtifactRouteID))
+    return error;
+  if (llvm::Error error = requireCandidateField(
+          "artifact kind", candidate.artifactKind,
+          selectedRoute->description.targetArtifactKind))
+    return error;
 
   llvm::StringRef selectedBodyRuntimeABIName =
       selectedRoute->description.runtimeABIName;
@@ -589,8 +590,6 @@ getRVVSelectedBodyArtifactAdapterConfig() {
            {}},
           {plugin::rvv::getRVVConstructionProtocolMetadataName(),
            plugin::rvv::getRVVConstructionProtocolVersion(), {}},
-          {plugin::rvv::getRVVEmitCRouteMappingMetadataName(),
-           getRVVManifest().emitcRoute.routeID, {}},
       };
   static const llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence,
                                  32>
