@@ -1,0 +1,86 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --rhs-broadcast-selected-body --artifact-root %t.artifacts --run-id rhs-broadcast --overwrite --op-kind add --op-kind sub --op-kind mul --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="legacy-rvv-source-seed" --implicit-check-not="pre-realized-selected-body" < %t.artifacts/rhs-broadcast/evidence.json
+# RUN: FileCheck %s --check-prefix=ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv_arithmetic_op" --implicit-check-not="tcrv-rvv-materialize-i32m1-vector-source-front-door" < %t.artifacts/rhs-broadcast/add/evidence.json
+# RUN: FileCheck %s --check-prefix=SUB --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv_arithmetic_op" --implicit-check-not="tcrv-rvv-materialize-i32m1-vector-source-front-door" < %t.artifacts/rhs-broadcast/sub/evidence.json
+# RUN: FileCheck %s --check-prefix=MUL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv_arithmetic_op" --implicit-check-not="tcrv-rvv-materialize-i32m1-vector-source-front-door" < %t.artifacts/rhs-broadcast/mul/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS-ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/rhs-broadcast/add/rvv_generated_bundle_abi_add_harness.c
+# RUN: FileCheck %s --check-prefix=HARNESS-SUB --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/rhs-broadcast/sub/rvv_generated_bundle_abi_sub_harness.c
+# RUN: FileCheck %s --check-prefix=HARNESS-MUL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/rhs-broadcast/mul/rvv_generated_bundle_abi_mul_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "rhs-broadcast-selected-body"
+# ROOT: "op_kinds": [
+# ROOT: "add"
+# ROOT: "sub"
+# ROOT: "mul"
+# ROOT: "rhs_broadcast_selected_body": true
+# ROOT: "source_seed": false
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# ADD-DAG: "input_mode": "rhs-broadcast-selected-body"
+# ADD-DAG: "source_seed": false
+# ADD-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-broadcast-add.mlir"
+# ADD-DAG: "prototype": "void tcrv_emitc_explicit_selected_body_broadcast_add_kernel_explicit_selected_body_rvv_i32_broadcast_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
+# ADD-DAG: "key": "rvv_selected_body_operation"
+# ADD-DAG: "value": "add"
+# ADD-DAG: "key": "rvv_selected_body_typed_compute_op"
+# ADD-DAG: "value": "tcrv_rvv.i32_add"
+# ADD-DAG: "key": "tcrv_rvv.memory_form"
+# ADD-DAG: "value": "rhs-broadcast-load"
+# ADD-DAG: "memory_form": "rhs-broadcast-load"
+# ADD-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_broadcast_add_kernel_explicit_selected_body_rvv_i32_broadcast_add"
+# ADD-DAG: "expected_runtime_abi_name": "rvv-i32m1-add-callable-c-abi.v1"
+# ADD-DAG: "expected_selected_variant": "explicit_selected_body_rvv_i32_broadcast_add"
+# ADD-DAG: "pass_marker": "tcrv_rvv_generated_bundle_abi_add_ok"
+# ADD-DAG: "front_door": "explicit-selected-tcrv-exec-rvv-body"
+# ADD-DAG: "materializer": "none-selected-body-already-explicit"
+# ADD-DAG: "target_export": "tcrv-export-target-artifact-bundle"
+# ADD-DAG: "status": "dry_run_success"
+
+# SUB-DAG: "input_mode": "rhs-broadcast-selected-body"
+# SUB-DAG: "source_seed": false
+# SUB-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-broadcast-sub.mlir"
+# SUB-DAG: "key": "rvv_selected_body_operation"
+# SUB-DAG: "value": "sub"
+# SUB-DAG: "key": "tcrv_rvv.memory_form"
+# SUB-DAG: "value": "rhs-broadcast-load"
+# SUB-DAG: "memory_form": "rhs-broadcast-load"
+# SUB-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_broadcast_sub_kernel_explicit_selected_body_rvv_i32_broadcast_sub"
+# SUB-DAG: "expected_runtime_abi_name": "rvv-i32m1-sub-callable-c-abi.v1"
+# SUB-DAG: "expected_selected_variant": "explicit_selected_body_rvv_i32_broadcast_sub"
+# SUB-DAG: "pass_marker": "tcrv_rvv_generated_bundle_abi_sub_ok"
+# SUB-DAG: "status": "dry_run_success"
+
+# MUL-DAG: "input_mode": "rhs-broadcast-selected-body"
+# MUL-DAG: "source_seed": false
+# MUL-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-broadcast-mul.mlir"
+# MUL-DAG: "key": "rvv_selected_body_operation"
+# MUL-DAG: "value": "mul"
+# MUL-DAG: "key": "tcrv_rvv.memory_form"
+# MUL-DAG: "value": "rhs-broadcast-load"
+# MUL-DAG: "memory_form": "rhs-broadcast-load"
+# MUL-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_broadcast_mul_kernel_explicit_selected_body_rvv_i32_broadcast_mul"
+# MUL-DAG: "expected_runtime_abi_name": "rvv-i32m1-mul-callable-c-abi.v1"
+# MUL-DAG: "expected_selected_variant": "explicit_selected_body_rvv_i32_broadcast_mul"
+# MUL-DAG: "pass_marker": "tcrv_rvv_generated_bundle_abi_mul_ok"
+# MUL-DAG: "status": "dry_run_success"
+
+# HARNESS-ADD: tcrv_emitc_explicit_selected_body_broadcast_add_kernel_explicit_selected_body_rvv_i32_broadcast_add(lhs, rhs, out, n);
+# HARNESS-ADD: int32_t expected = lhs[index] + rhs[0];
+# HARNESS-ADD: const size_t counts[] = {7, 16, 23};
+# HARNESS-ADD: PASS op=add counts=7,16,23
+
+# HARNESS-SUB: tcrv_emitc_explicit_selected_body_broadcast_sub_kernel_explicit_selected_body_rvv_i32_broadcast_sub(lhs, rhs, out, n);
+# HARNESS-SUB: int32_t expected = lhs[index] - rhs[0];
+# HARNESS-SUB: const size_t counts[] = {7, 16, 23};
+# HARNESS-SUB: PASS op=sub counts=7,16,23
+
+# HARNESS-MUL: tcrv_emitc_explicit_selected_body_broadcast_mul_kernel_explicit_selected_body_rvv_i32_broadcast_mul(lhs, rhs, out, n);
+# HARNESS-MUL: int32_t expected = lhs[index] * rhs[0];
+# HARNESS-MUL: const size_t counts[] = {7, 16, 23};
+# HARNESS-MUL: PASS op=mul counts=7,16,23

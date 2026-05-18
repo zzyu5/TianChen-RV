@@ -12,6 +12,8 @@
 
 #include <cctype>
 #include <cstddef>
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -201,6 +203,21 @@ parseSimpleBinaryExpression(llvm::StringRef expression) {
   return std::nullopt;
 }
 
+std::optional<std::pair<llvm::StringRef, std::uint64_t>>
+parseSimpleSubscriptExpression(llvm::StringRef expression) {
+  std::pair<llvm::StringRef, llvm::StringRef> lhs = expression.split('[');
+  if (lhs.second.empty() || !lhs.second.ends_with("]"))
+    return std::nullopt;
+  llvm::StringRef base = lhs.first.trim();
+  llvm::StringRef indexText = lhs.second.drop_back().trim();
+  if (!isSafeIdentifier(base) || indexText.empty())
+    return std::nullopt;
+  std::uint64_t index = 0;
+  if (indexText.getAsInteger(10, index))
+    return std::nullopt;
+  return std::pair<llvm::StringRef, std::uint64_t>(base, index);
+}
+
 class RouteMaterializer {
 public:
   RouteMaterializer(mlir::MLIRContext &context,
@@ -367,6 +384,40 @@ private:
           route.getRouteID(),
           llvm::Twine("operand expression references unknown value name '") +
               expression + "'");
+    }
+
+    if (std::optional<std::pair<llvm::StringRef, std::uint64_t>> subscript =
+            parseSimpleSubscriptExpression(expression)) {
+      llvm::StringRef baseName = subscript->first;
+      mlir::Value base = valueMap.lookup(baseName);
+      if (!base)
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("operand expression '") + expression +
+                "' references unknown subscript base '" + baseName + "'");
+      auto pointer =
+          llvm::dyn_cast<mlir::TypedValue<mlir::emitc::PointerType>>(base);
+      if (!pointer)
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("operand expression '") + expression +
+                "' requires a pointer-typed subscript base");
+      mlir::Value index =
+          builder
+              .create<mlir::emitc::LiteralOp>(
+                  builder.getUnknownLoc(), builder.getIndexType(),
+                  llvm::Twine(subscript->second).str())
+              .getResult();
+      mlir::emitc::SubscriptOp subscriptOp =
+          builder.create<mlir::emitc::SubscriptOp>(
+              builder.getUnknownLoc(), pointer, index);
+      auto lvalueType =
+          llvm::cast<mlir::emitc::LValueType>(subscriptOp.getResult().getType());
+      return builder
+          .create<mlir::emitc::LoadOp>(builder.getUnknownLoc(),
+                                       lvalueType.getValueType(),
+                                       subscriptOp.getResult())
+          .getResult();
     }
 
     if (std::optional<std::tuple<llvm::StringRef, char, llvm::StringRef>>

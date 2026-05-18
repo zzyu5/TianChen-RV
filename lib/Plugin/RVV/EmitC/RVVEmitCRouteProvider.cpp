@@ -1222,6 +1222,9 @@ getRVVSelectedBodyConfigArtifactMetadata(
   metadata.push_back({"tcrv_rvv.lmul", description.lmul});
   metadata.push_back({"tcrv_rvv.tail_policy", description.tailPolicy});
   metadata.push_back({"tcrv_rvv.mask_policy", description.maskPolicy});
+  metadata.push_back({"tcrv_rvv.memory_form",
+                      stringifyRVVSelectedBodyMemoryForm(
+                          description.memoryForm)});
   metadata.push_back(
       {"tcrv_rvv.runtime_vl_contract", description.runtimeVLContractID});
   metadata.push_back(

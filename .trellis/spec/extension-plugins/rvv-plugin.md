@@ -377,6 +377,126 @@ selected typed tcrv_rvv body/config/runtime ABI
   -> route id and artifact metadata consumed only as mirrors
 ```
 
+### Scenario: Bounded RHS Broadcast Memory-Form Selected-Body Route
+
+#### 1. Scope / Trigger
+
+Use this contract when a selected `origin = "rvv-plugin"` variant contains a
+bounded explicit i32m1 arithmetic body where the RHS value is produced by
+`tcrv_rvv.i32_broadcast_load` and consumed by `tcrv_rvv.i32_add`,
+`tcrv_rvv.i32_sub`, or `tcrv_rvv.i32_mul`.
+
+This is a selected-body memory form on the corrected RVV route surface. It is
+not a route-id shortcut, not a descriptor source-export path, not a high-level
+broadcast lowering, not broadcast compare/select support, and not a new
+dtype/LMUL family.
+
+#### 2. Signatures
+
+- Runtime ABI values:
+  `lhs`, `rhs`, `out`, and `n` in ordered callable ABI role order.
+- Required control/config:
+  one `tcrv_rvv.setvl` and one `tcrv_rvv.with_vl` with SEW 32, LMUL `m1`,
+  and tail/mask agnostic policy.
+- Required dataflow:
+  exactly one `tcrv_rvv.i32_load` for lhs;
+  exactly one `tcrv_rvv.i32_broadcast_load` for rhs;
+  one typed arithmetic op among `tcrv_rvv.i32_add`,
+  `tcrv_rvv.i32_sub`, or `tcrv_rvv.i32_mul`;
+  one `tcrv_rvv.i32_store`.
+- RHS broadcast source:
+  the `tcrv_rvv.i32_broadcast_load` buffer operand must be the explicit
+  `rhs-input-buffer` runtime ABI value.
+- Provider memory form:
+  `RVVSelectedBodyMemoryForm::RHSBroadcastLoad`, surfaced as a provider-derived
+  metadata mirror such as `tcrv_rvv.memory_form = "rhs-broadcast-load"`.
+- Current bounded intrinsic mapping:
+  RHS broadcast may lower to the selected RVV vector-scalar/broadcast intrinsic
+  only after typed body/config/runtime ABI validation succeeds.
+
+#### 3. Contracts
+
+- Broadcast semantics come from the typed `tcrv_rvv.i32_broadcast_load` result
+  and its typed arithmetic consumer. The provider must not infer broadcast from
+  route IDs, artifact names, ABI names, test names, descriptor residue,
+  intrinsic spellings, or common EmitC/export code.
+- The RHS broadcast load must feed the arithmetic RHS operand. The lhs operand
+  must be the explicit lhs vector load result. Store must consume the
+  arithmetic result.
+- The selected-body route description must record the RHS broadcast memory
+  form before construction metadata, emission-plan metadata, target artifact
+  export, or generated bundle evidence consumes it.
+- Common EmitC materialization may provide generic expression mechanics such
+  as safe pointer subscript materialization, but it must not branch on RVV,
+  `tcrv_rvv`, `i32_broadcast_load`, route IDs, intrinsic spellings, or
+  operation names to choose broadcast behavior.
+- Retained i32m1 route labels and exact `__riscv_*_i32m1` spellings are output
+  labels for this bounded specialization only. They must not become a new
+  broadcast route table or a template for dtype/LMUL/source-shape expansion.
+
+#### 4. Validation & Error Matrix
+
+- Missing lhs vector load, missing RHS broadcast load, multiple RHS broadcast
+  loads, or mixed two RHS vector loads plus an extra broadcast load -> fail
+  before route construction.
+- RHS broadcast buffer is not the explicit `rhs-input-buffer` runtime ABI
+  value -> verifier/provider failure before artifact construction.
+- Arithmetic lhs/rhs operands do not consume the explicit lhs load and RHS
+  broadcast results -> fail before route construction.
+- Store does not consume the arithmetic result -> fail before artifact output.
+- Compare/select mixed with RHS broadcast load -> fail in the current bounded
+  route.
+- Provider description lacks or misreports RHS broadcast memory form,
+  runtime ABI order, config, or intrinsic mapping -> fail before emission-plan
+  metadata or target artifact export is consumed.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: selected RVV variant contains
+  `runtime_abi_value(lhs/rhs/out/n) -> setvl -> with_vl -> i32_load(lhs) ->
+  i32_broadcast_load(rhs) -> i32_add|i32_sub|i32_mul -> i32_store`, and the
+  provider maps that body to a `TCRVEmitCLowerableRoute` whose artifact
+  metadata mirrors `rhs-broadcast-load`.
+- Base: vector-RHS add/sub/mul fixtures remain valid with
+  `memory_form = "vector-rhs-load"`; compare/select remains vector-RHS-only in
+  the current bounded slice.
+- Bad: target/export code sees an add ABI name or artifact route and chooses
+  `rhs[0]` broadcast behavior without the typed `tcrv_rvv.i32_broadcast_load`
+  body.
+
+#### 6. Tests Required
+
+- Positive lit coverage for explicit RHS broadcast add, sub, and mul selected
+  bodies reaching supported emission-plan metadata and target header export.
+- Generated bundle ABI evidence proving selected variants, typed compute ops,
+  `rhs-broadcast-load` metadata, ordered `lhs,rhs,out,n` ABI parameters,
+  runtime AVL metadata, and object/header coherence.
+- Real `ssh rvv` correctness evidence is required before making executable
+  correctness claims.
+- Negative lit/provider coverage proving compare/select broadcast and wrong or
+  missing RHS broadcast binding fail before artifact construction.
+- Focused scans must show no descriptor/direct-C/source-export restoration, no
+  source-front-door default authority, no old `RVVI32M1*` route-table
+  authority, and no common EmitC RVV semantic branch.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+route id / artifact name / ABI name -> infer RHS broadcast -> emit intrinsic
+```
+
+Correct:
+
+```text
+selected typed tcrv_rvv body with explicit i32_broadcast_load(rhs)
+  -> RVV provider validates RHS binding, memory form, config, and ABI roles
+  -> provider-built TCRVEmitCLowerableRoute
+  -> neutral common EmitC materialization and target export
+  -> generated bundle / ssh rvv evidence consumes metadata as mirrors
+```
+
 ### Scenario: Bounded I32 Compare/Select Selected-Body Route
 
 #### 1. Scope / Trigger

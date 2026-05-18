@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, stack, and descriptor/direct-C red lines for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body route authority, typed body/config/runtime ABI layering, RHS broadcast boundaries, and Stage 2 selected-body constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route neutrality and selected emission-plan to target artifact handoff rules."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI, selected-body realization boundary, and deleted source-authority constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit, generated bundle ABI, and real ssh rvv evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-05/05-19-rvv-compare-select-selected-body-executable-route/prd.md", "reason": "Previous explicit selected-body generated bundle ABI fixture and evidence pattern."}

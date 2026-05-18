@@ -65,6 +65,7 @@ class OpExpectation:
     function_name: str
     emitc_route: str
     typed_compute_op: str
+    memory_form: str
     lhs_initializer: str
     rhs_initializer: str
     expected_expression: str
@@ -84,6 +85,10 @@ class OpExpectation:
     def is_pre_realized(self) -> bool:
         return self.input_mode == "pre-realized-selected-body"
 
+    @property
+    def is_rhs_broadcast(self) -> bool:
+        return self.input_mode == "rhs-broadcast-selected-body"
+
 
 EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
     "add": OpExpectation(
@@ -96,6 +101,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         function_name="tcrv_emitc_explicit_selected_body_add_kernel_explicit_selected_body_rvv_i32_add",
         emitc_route="rvv-i32m1-add-emitc-route",
         typed_compute_op="tcrv_rvv.i32_add",
+        memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)(7 + (int32_t)(index * 3))",
         rhs_initializer="(int32_t)(1000 - (int32_t)(index * 5))",
         expected_expression="lhs[index] + rhs[index]",
@@ -110,6 +116,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         function_name="tcrv_emitc_explicit_selected_body_sub_kernel_explicit_selected_body_rvv_i32_sub",
         emitc_route="rvv-i32m1-sub-emitc-route",
         typed_compute_op="tcrv_rvv.i32_sub",
+        memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)(500 - (int32_t)(index * 2))",
         rhs_initializer="(int32_t)(13 + (int32_t)(index * 5))",
         expected_expression="lhs[index] - rhs[index]",
@@ -124,6 +131,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         function_name="tcrv_emitc_explicit_selected_body_mul_kernel_explicit_selected_body_rvv_i32_mul",
         emitc_route="rvv-i32m1-mul-emitc-route",
         typed_compute_op="tcrv_rvv.i32_mul",
+        memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)((int)(index % 13) - 6)",
         rhs_initializer="(int32_t)((int)(index % 17) - 8)",
         expected_expression="lhs[index] * rhs[index]",
@@ -138,9 +146,43 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         function_name="tcrv_emitc_explicit_selected_body_cmp_select_kernel_explicit_selected_body_rvv_i32_cmp_select",
         emitc_route="rvv-i32m1-cmp-select-emitc-route",
         typed_compute_op="tcrv_rvv.i32_select",
+        memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)(41 + (int32_t)(index * 9))",
         rhs_initializer="(int32_t)(-300 - (int32_t)(index * 7))",
         expected_expression="lhs[index]",
+    ),
+}
+
+RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS = {
+    "add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-broadcast-add.mlir"),
+        input_mode="rhs-broadcast-selected-body",
+        selected_variant="explicit_selected_body_rvv_i32_broadcast_add",
+        function_name="tcrv_emitc_explicit_selected_body_broadcast_add_kernel_explicit_selected_body_rvv_i32_broadcast_add",
+        memory_form="rhs-broadcast-load",
+        rhs_initializer="(int32_t)(17 - (int32_t)(index % 5))",
+        expected_expression="lhs[index] + rhs[0]",
+    ),
+    "sub": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["sub"],
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-broadcast-sub.mlir"),
+        input_mode="rhs-broadcast-selected-body",
+        selected_variant="explicit_selected_body_rvv_i32_broadcast_sub",
+        function_name="tcrv_emitc_explicit_selected_body_broadcast_sub_kernel_explicit_selected_body_rvv_i32_broadcast_sub",
+        memory_form="rhs-broadcast-load",
+        rhs_initializer="(int32_t)(-11 + (int32_t)(index % 7))",
+        expected_expression="lhs[index] - rhs[0]",
+    ),
+    "mul": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["mul"],
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-broadcast-mul.mlir"),
+        input_mode="rhs-broadcast-selected-body",
+        selected_variant="explicit_selected_body_rvv_i32_broadcast_mul",
+        function_name="tcrv_emitc_explicit_selected_body_broadcast_mul_kernel_explicit_selected_body_rvv_i32_broadcast_mul",
+        memory_form="rhs-broadcast-load",
+        rhs_initializer="(int32_t)(3 + (int32_t)(index % 3))",
+        expected_expression="lhs[index] * rhs[0]",
     ),
 }
 
@@ -583,6 +625,7 @@ def verify_record_metadata(
         "rvv_emitc_lowerable_route": expectation.emitc_route,
         "rvv_selected_body_operation": expectation.kind,
         "rvv_selected_body_typed_compute_op": expectation.typed_compute_op,
+        "tcrv_rvv.memory_form": expectation.memory_form,
     }
     for key, expected in {**per_op_metadata, **COMMON_EXPECTED_METADATA}.items():
         require_equal(metadata.get(key), expected, f"{context} metadata {key}")
@@ -749,6 +792,12 @@ def verify_materialized_selected_body(
         expectation.typed_compute_op,
         "materialized selected-body MLIR typed compute op",
     )
+    if expectation.is_rhs_broadcast:
+        require_contains(
+            text,
+            "tcrv_rvv.i32_broadcast_load",
+            "materialized selected-body MLIR RHS broadcast load",
+        )
     if expectation.is_pre_realized:
         require_not_contains(
             text,
@@ -761,6 +810,7 @@ def verify_materialized_selected_body(
         "sha256": sha256_file(materialized_path),
         "selected_variant": expectation.selected_variant,
         "typed_compute_op": expectation.typed_compute_op,
+        "memory_form": expectation.memory_form,
         "contains_with_vl": True,
         "pre_realized_body_consumed": expectation.is_pre_realized,
     }
@@ -1055,9 +1105,15 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
         raise EvidenceError(f"duplicate --op-kind values are not allowed: {op_kinds}")
     if args.input is not None and len(op_kinds) != 1:
         raise EvidenceError("--input may only be used with exactly one --op-kind")
-    if args.source_seed and args.pre_realized_selected_body:
+    selected_modes = [
+        args.source_seed,
+        args.pre_realized_selected_body,
+        args.rhs_broadcast_selected_body,
+    ]
+    if sum(1 for selected in selected_modes if selected) > 1:
         raise EvidenceError(
-            "--source-seed and --pre-realized-selected-body are mutually exclusive"
+            "--source-seed, --pre-realized-selected-body, and "
+            "--rhs-broadcast-selected-body are mutually exclusive"
         )
 
     if args.source_seed:
@@ -1066,6 +1122,9 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
     elif args.pre_realized_selected_body:
         expectation_table = PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS
         mode = "pre-realized-selected-body"
+    elif args.rhs_broadcast_selected_body:
+        expectation_table = RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS
+        mode = "rhs-broadcast-selected-body"
     else:
         expectation_table = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS
         mode = "explicit-selected-body"
@@ -1254,6 +1313,7 @@ def run_e2e(args: argparse.Namespace) -> int:
         "input_mode": "explicit-selected-body",
         "source_seed": bool(args.source_seed),
         "pre_realized_selected_body": bool(args.pre_realized_selected_body),
+        "rhs_broadcast_selected_body": bool(args.rhs_broadcast_selected_body),
         "artifact_dir": str(artifact_dir),
         "runtime_counts": runtime_counts,
         "op_results": {},
@@ -1262,6 +1322,8 @@ def run_e2e(args: argparse.Namespace) -> int:
         evidence["input_mode"] = "legacy-rvv-source-seed"
     elif args.pre_realized_selected_body:
         evidence["input_mode"] = "pre-realized-selected-body"
+    elif args.rhs_broadcast_selected_body:
+        evidence["input_mode"] = "rhs-broadcast-selected-body"
     try:
         validate_runtime_counts(runtime_counts)
         evidence["runtime_count_contract"] = runtime_count_contract_summary(
@@ -1348,6 +1410,7 @@ extern "C" {{
         "rvv_emitc_lowerable_route": expectation.emitc_route,
         "rvv_selected_body_operation": expectation.kind,
         "rvv_selected_body_typed_compute_op": expectation.typed_compute_op,
+        "tcrv_rvv.memory_form": expectation.memory_form,
         **COMMON_EXPECTED_METADATA,
     }
     metadata_lines = "\n".join(
@@ -1448,6 +1511,7 @@ def run_self_test() -> int:
 
         for expectation in (
             list(EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS.values())
+            + list(RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS.values())
             + list(PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS.values())
         ):
             bundle = make_fake_bundle(
@@ -1677,7 +1741,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=(
             "use the pre-realized selected-body add/sub/mul fixtures and run "
             "public selected lowering-boundary materialization before emission "
-            "planning; mutually exclusive with --source-seed"
+            "planning; mutually exclusive with --source-seed and "
+            "--rhs-broadcast-selected-body"
+        ),
+    )
+    parser.add_argument(
+        "--rhs-broadcast-selected-body",
+        action="store_true",
+        help=(
+            "use explicit selected-body add/sub/mul fixtures where rhs is "
+            "produced by tcrv_rvv.i32_broadcast_load; mutually exclusive with "
+            "--source-seed and --pre-realized-selected-body"
         ),
     )
     parser.add_argument("--artifact-root", type=Path, default=DEFAULT_ARTIFACT_ROOT)

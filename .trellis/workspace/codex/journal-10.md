@@ -1697,3 +1697,36 @@ Replaced the RVV EmitC provider public route-authority surface with a selected-b
 ### Next Steps
 
 - None - task complete
+
+
+## Session 130: RVV RHS broadcast selected-body executable route
+
+**Date**: 2026-05-19
+**Task**: RVV RHS broadcast selected-body executable route
+**Branch**: `main`
+
+### Summary
+
+Added explicit RHS broadcast add/sub/mul selected-body fixtures, provider memory-form metadata, neutral EmitC subscript materialization, generated bundle runner mode, real ssh rvv evidence, and archived Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

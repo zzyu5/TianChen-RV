@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-10.md`
-- **Total Sessions**: 129
+- **Total Sessions**: 130
 - **Last Active**: 2026-05-19
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-10.md` | ~1045 | Active |
+| `journal-10.md` | ~1732 | Active |
 | `journal-9.md` | ~1993 | Archived |
 | `journal-8.md` | ~1998 | Archived |
 | `journal-7.md` | ~1992 | Archived |
@@ -38,6 +38,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 130 | 2026-05-19 | RVV RHS broadcast selected-body executable route | pending | `main` |
 | 129 | 2026-05-19 | RVV typed selected-body route authority | this commit | `main` |
 | 128 | 2026-05-18 | RVV Stage 1 typed-body route-authority closure | this commit | `main` |
 | 127 | 2026-05-18 | TensorExtLite construction-template production handoff | this commit | `main` |
