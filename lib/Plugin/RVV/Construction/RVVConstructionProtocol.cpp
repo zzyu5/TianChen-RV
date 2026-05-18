@@ -801,6 +801,23 @@ llvm::Error verifyRVVI32M1ArithmeticConstructionArtifactMetadata(
       metadata, *expected, getRVVConstructionValidationSpec(), context);
 }
 
+llvm::Error verifyRVVI32M1ArithmeticConstructionArtifactMetadataForEmitCRoute(
+    llvm::ArrayRef<support::ArtifactMetadataEntry> metadata,
+    llvm::StringRef emitCRouteID, llvm::StringRef context) {
+  if (emitCRouteID.trim().empty())
+    return makeRVVConstructionError(
+        llvm::Twine(context) +
+        " requires a non-empty selected RVV EmitC route id");
+
+  llvm::Expected<llvm::SmallVector<support::ArtifactMetadataEntry, 16>>
+      expected = getRVVI32M1ArithmeticConstructionArtifactMetadata(
+          emitCRouteID);
+  if (!expected)
+    return expected.takeError();
+  return construction::verifyConstructionArtifactMetadata(
+      metadata, *expected, getRVVConstructionValidationSpec(), context);
+}
+
 llvm::Error verifyRVVI32M1ArithmeticSelectedRoleSequence(
     llvm::ArrayRef<mlir::Operation *> orderedRoleOperations,
     llvm::ArrayRef<unsigned> orderedRoleOperationOrders,

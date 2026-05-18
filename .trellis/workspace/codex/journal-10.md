@@ -46,6 +46,78 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 130: RVV selected-body authority for target artifacts
+
+**Date**: 2026-05-18
+**Task**: RVV selected-body authority for target artifacts
+**Branch**: `main`
+
+### Summary
+
+Created Trellis task
+`05-18-rvv-selected-body-target-artifacts`, wrote the PRD/context files, and
+replaced the RVV materialized EmitC target artifact candidate authority path.
+Target validation now resolves the selected `tcrv.exec.variant`, builds the
+RVV EmitC lowerable route from the explicit typed `tcrv_rvv` body through the
+RVV-owned route builder, and only then checks `rvv_emitc_lowerable_route` and
+`rvv_arithmetic_op` as provenance mirrors.
+
+### Main Changes
+
+- Added
+  `verifyRVVI32M1ArithmeticConstructionArtifactMetadataForEmitCRoute` so RVV
+  construction metadata can be checked against the body-derived lowerable route
+  id instead of selecting the route from candidate metadata.
+- Rewired `RVVTargetSupportBundle.cpp` to remove target-side arithmetic
+  selection from `rvv_emitc_lowerable_route` / `rvv_arithmetic_op`.
+- Required RVV target artifact validation to have an enclosing
+  `tcrv.exec.kernel` and selected typed `tcrv_rvv` body before metadata is
+  accepted.
+- Updated target artifact C++ tests to use a parsed RVV selected-body fixture,
+  reject metadata-only candidates, and reject route/arithmetic metadata that
+  disagrees with the selected body.
+- Updated RVV materialized target artifact lit coverage for body/metadata route
+  mismatch.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-18-rvv-selected-body-target-artifacts`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Focused lit:
+  `Target/RVV/vector-materialized-target-artifact-exporters.mlir`
+- [OK] Adjacent RVV lit filter covering source target artifact, selected
+  boundary negatives, and RVV source artifact bundle passed 5/5.
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-rvv-selected-lowering-boundary-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Targeted residue scan found no remaining target-side
+  `getCandidateArithmeticOp` or metadata-selected RVV route-builder path; the
+  remaining route id symbolization is body-built route interpretation inside
+  RVV-owned plugin/route-provider surfaces or provenance checks.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 127/127 lit
+  tests.
+
+### Runtime Evidence
+
+Real `ssh rvv` was not rerun: this round changes target/export preflight
+authority and metadata consistency checks, not the emitted RVV object semantics
+or runtime ABI. The existing object/header/bundle path was revalidated by
+focused artifact lit and full `check-tianchenrv`.
+
+### Status
+
+[OK] **Completed; ready to archive and commit**
+
+### Next Steps
+
+- Archive the task with `--no-commit` and create one coherent commit including
+  code, tests, task, and journal.
+
+
 ## Session 128: RVV selected-boundary conformance without exporter synthesis
 
 **Date**: 2026-05-18

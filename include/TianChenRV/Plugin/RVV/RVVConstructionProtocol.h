@@ -117,6 +117,9 @@ llvm::Error verifyRVVI32M1ArithmeticTargetArtifactBundleMapping(
 llvm::Error verifyRVVI32M1ArithmeticConstructionArtifactMetadata(
     llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
     llvm::StringRef context);
+llvm::Error verifyRVVI32M1ArithmeticConstructionArtifactMetadataForEmitCRoute(
+    llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
+    llvm::StringRef emitCRouteID, llvm::StringRef context);
 llvm::Error verifyRVVI32M1ArithmeticSelectedRoleSequence(
     llvm::ArrayRef<mlir::Operation *> orderedRoleOperations,
     llvm::ArrayRef<unsigned> orderedRoleOperationOrders,

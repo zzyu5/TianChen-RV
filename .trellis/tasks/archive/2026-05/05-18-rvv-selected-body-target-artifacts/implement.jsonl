@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global compiler stack and architecture invariants for this task"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage 1 selected-body route-authority replacement contract"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export and selected-body realization boundaries"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected variant, selected-body realization, and emission-plan ordering"}
