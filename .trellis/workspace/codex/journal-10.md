@@ -46,6 +46,73 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 130: RVV compare/select selected-body executable route
+
+**Date**: 2026-05-19
+**Task**: RVV compare/select selected-body executable route
+**Branch**: `main`
+
+### Summary
+
+Created the compare/select selected-body executable route task from the Hermes
+Direction Brief, added a public explicit selected-body cmp/select target
+fixture, extended the generated bundle ABI evidence runner for explicit
+`cmp_select`, and collected real `ssh rvv` correctness evidence.
+
+### Main Changes
+
+- Added `test/Target/RVV/explicit-selected-body-artifact-cmp-select.mlir`.
+- Repaired the RVV EmitC route provider so compare/select route operands are
+  mapped from the selected typed body SSA operands rather than from a fixed
+  route-case operand template.
+- Extended `scripts/rvv_generated_bundle_abi_e2e.py` with explicit
+  `cmp_select` support while keeping add/sub/mul as the default op set.
+- Added focused cmp/select dry-run lit coverage under `test/Scripts/`.
+- Added the bounded i32 compare/select selected-body route contract to
+  `.trellis/spec/extension-plugins/rvv-plugin.md`.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] local dry-run bundle evidence for `cmp_select` counts `7,16,23`
+- [OK] real `ssh rvv` bundle ABI evidence for `cmp_select` counts `7,16,23`
+- [OK] focused lit: cmp/select target fixture plus existing add/sub/mul target fixtures passed 4/4
+- [OK] focused lit: runner self-test, cmp/select dry-run, selected-body dry-run passed 3/3
+- [OK] focused lit: `test/Dialect/RVV/dataflow.mlir` passed 1/1
+- [OK] residue scans found no descriptor/direct-C/source-export artifact residue in the cmp/select evidence and no old RVVI32M1 route-table names in touched production files
+- [OK] common EmitC materializer scan found no RVV semantic branch text
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-19-rvv-compare-select-selected-body-executable-route`
+- [OK] `git diff --check`
+
+### Evidence
+
+- Dry-run artifact:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260519T-rvv-cmp-select-selected-body-executable-route-dry`
+- Real `ssh rvv` artifact:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260519T-rvv-cmp-select-selected-body-executable-route`
+- Remote output:
+
+```text
+cmp_select case n=7 ok
+cmp_select case n=16 ok
+cmp_select case n=23 ok
+tcrv_rvv_generated_bundle_abi_cmp_select_ok counts=7,16,23
+PASS op=cmp_select counts=7,16,23
+```
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 132: RVV pre-realized arithmetic executable ABI gate
 
 **Date**: 2026-05-19

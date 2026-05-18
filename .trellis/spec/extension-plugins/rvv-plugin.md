@@ -377,6 +377,117 @@ selected typed tcrv_rvv body/config/runtime ABI
   -> route id and artifact metadata consumed only as mirrors
 ```
 
+### Scenario: Bounded I32 Compare/Select Selected-Body Route
+
+#### 1. Scope / Trigger
+
+Use this contract when a selected `origin = "rvv-plugin"` variant contains a
+bounded explicit `tcrv_rvv.i32_cmp_eq` plus `tcrv_rvv.i32_select` body that is
+route-supported by the current i32m1 selected-body EmitC provider.
+
+This is a typed selected-body route, not a high-level predicate lowering, not a
+broadcast compare route, and not a new dtype/LMUL family.
+
+#### 2. Signatures
+
+- Runtime ABI values:
+  `lhs`, `rhs`, `out`, and `n` in ordered callable ABI role order.
+- Required control/config:
+  one `tcrv_rvv.setvl` and one `tcrv_rvv.with_vl` with SEW 32, LMUL `m1`,
+  and tail/mask agnostic policy.
+- Required dataflow:
+  exactly two `tcrv_rvv.i32_load` ops for explicit lhs/rhs vector values;
+  one `tcrv_rvv.i32_cmp_eq`;
+  one `tcrv_rvv.i32_select`;
+  one `tcrv_rvv.i32_store`.
+- Compare operands:
+  each operand must be one of the explicit lhs/rhs vector load results.
+- Select operands:
+  mask must be the result of the same-body `tcrv_rvv.i32_cmp_eq`; true and
+  false data operands must each be one of the explicit lhs/rhs vector load
+  results; store must consume the select result.
+- Current route labels:
+  operation mnemonic `cmp_select`, typed compute op `tcrv_rvv.i32_select`,
+  EmitC route `rvv-i32m1-cmp-select-emitc-route`, runtime ABI
+  `rvv-i32m1-cmp-select-callable-c-abi.v1`.
+
+#### 3. Contracts
+
+- The RVV provider must map compare operands and select true/false operands
+  from the selected typed body SSA values. It must not hard-code a canonical
+  `compare(lhs, rhs)` plus `select(lhs, rhs)` body when the explicit typed
+  body chose another supported lhs/rhs-loaded operand combination.
+- Route IDs, ABI names, artifact names, intrinsic spellings, test names, and
+  common EmitC/export code are output labels only. They must not select
+  compare/select behavior.
+- The current bounded route may lower the selected body to RVV compare and
+  merge intrinsics only after the body has already proved mask/dataflow shape,
+  config, memory form, and runtime ABI role order.
+- Common EmitC materialization consumes the provider-built route payload only;
+  it must not branch on `cmp_select`, `tcrv_rvv.i32_select`, mask type names,
+  or RVV intrinsic names to recover semantics.
+
+#### 4. Validation & Error Matrix
+
+- Missing `tcrv_rvv.i32_cmp_eq` or missing `tcrv_rvv.i32_select` -> fail
+  before route construction.
+- Compare/select mixed with RHS broadcast load -> fail in the current bounded
+  route.
+- Compare operands are not explicit lhs/rhs vector load results -> fail before
+  route construction.
+- Select mask is not produced by the same-body `tcrv_rvv.i32_cmp_eq` -> fail
+  before route construction.
+- Select true/false operands are not explicit lhs/rhs vector load results ->
+  fail before route construction.
+- Store does not consume the select result -> fail before artifact output.
+- Stale route ID, runtime ABI name, target artifact route, or intrinsic
+  spelling that disagrees with the provider-derived description -> fail before
+  emission-plan metadata or target artifact export is consumed.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: compare/select body compares two explicit lhs/rhs-loaded vector values,
+  selects between explicit lhs/rhs-loaded vector values with that typed mask,
+  stores the select result, and the provider maps the actual SSA operands into
+  the compare and merge call operands.
+- Base: an all-true mask fixture such as compare `lhs` with `lhs` may be used
+  to make the selected true branch observable in external ABI evidence, while
+  still deriving route semantics from typed RVV body operands.
+- Bad: provider/common code assumes the route label `cmp_select` means
+  compare `lhs,rhs` and select `lhs,rhs` without reading the typed
+  `tcrv_rvv.i32_cmp_eq` / `tcrv_rvv.i32_select` operands.
+
+#### 6. Tests Required
+
+- Positive target fixture coverage for explicit selected-body compare/select
+  reaching supported emission-plan metadata and declaration header export.
+- Generated bundle ABI evidence proving selected variant, ordered
+  `lhs,rhs,out,n` ABI parameters, runtime AVL metadata, typed compute metadata
+  `tcrv_rvv.i32_select`, and route metadata `cmp_select`.
+- Real `ssh rvv` compile/link/run evidence for runtime correctness when an
+  executable compare/select claim is made.
+- Negative dialect/provider coverage proving malformed mask/dataflow fails
+  before target artifact construction.
+- Focused residue scans showing no descriptor/direct-C/source-export
+  restoration and no common EmitC RVV semantic branch.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+route label cmp_select -> provider hard-codes compare(lhs,rhs), select(lhs,rhs)
+```
+
+Correct:
+
+```text
+selected typed i32_cmp_eq / i32_select SSA operands
+  -> RVV provider validates bounded lhs/rhs-loaded mask/dataflow shape
+  -> provider maps actual compare/select operands to RVV compare/merge payload
+  -> common EmitC materializes the validated route neutrally
+```
+
 Route support has three distinct levels:
 
 ```text

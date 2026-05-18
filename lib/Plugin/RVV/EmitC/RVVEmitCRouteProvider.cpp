@@ -681,21 +681,27 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
                              ? slice.rhsBroadcastLoad.getBroadcast()
                              : slice.rhsLoad.getLoaded();
   if (slice.arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect) {
-    if (slice.compareLhs != slice.lhsLoad.getLoaded() ||
-        slice.compareRhs != slice.rhsLoad.getLoaded())
+    auto isLoadedDataValue = [&](mlir::Value value) {
+      return value == slice.lhsLoad.getLoaded() ||
+             value == slice.rhsLoad.getLoaded();
+    };
+    if (!isLoadedDataValue(slice.compareLhs) ||
+        !isLoadedDataValue(slice.compareRhs))
       return makeRVVEmitCRouteProviderError(
           "bounded RVV compare/select EmitC route requires "
-          "tcrv_rvv.i32_cmp_eq to consume lhs and rhs vector load results");
+          "tcrv_rvv.i32_cmp_eq operands to be explicit lhs/rhs vector load "
+          "results from the selected typed body");
     if (slice.selectMask != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded RVV compare/select EmitC route requires "
           "tcrv_rvv.i32_select to consume the typed mask produced by "
           "tcrv_rvv.i32_cmp_eq");
-    if (slice.selectTrueValue != slice.lhsLoad.getLoaded() ||
-        slice.selectFalseValue != slice.rhsLoad.getLoaded())
+    if (!isLoadedDataValue(slice.selectTrueValue) ||
+        !isLoadedDataValue(slice.selectFalseValue))
       return makeRVVEmitCRouteProviderError(
           "bounded RVV compare/select EmitC route requires "
-          "tcrv_rvv.i32_select to consume explicit lhs/rhs vector values");
+          "tcrv_rvv.i32_select true/false operands to be explicit lhs/rhs "
+          "vector load results from the selected typed body");
     if (slice.store.getValue() != slice.selectResult)
       return makeRVVEmitCRouteProviderError(
           "bounded RVV compare/select EmitC route requires tcrv_rvv.i32_store "
@@ -1350,24 +1356,51 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       return error;
   }
   if (slice->arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect) {
-    if (llvm::Error error =
-            addLoopStep(slice->compareOp.getOperation(), "compute",
-                        description.compareIntrinsic,
-                        {TCRVEmitCCallOpaqueOperand{
-                             "lhs_vec", description.vectorCType.str()},
-                         TCRVEmitCCallOpaqueOperand{
-                             "rhs_vec", description.vectorCType.str()},
-                         TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                                    description.vlCType.str()}},
-                        TCRVEmitCCallOpaqueResult{description.maskName.str(),
-                                                  description.maskCType.str()}))
+    auto loadedVectorOperand =
+        [&](mlir::Value value,
+            llvm::StringRef context) -> llvm::Expected<TCRVEmitCCallOpaqueOperand> {
+      if (value == slice->lhsLoad.getLoaded())
+        return TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                          description.vectorCType.str()};
+      if (value == slice->rhsLoad.getLoaded())
+        return TCRVEmitCCallOpaqueOperand{"rhs_vec",
+                                          description.vectorCType.str()};
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine("bounded RVV compare/select EmitC route cannot map ") +
+          context +
+          " because it is not one of the explicit lhs/rhs vector load "
+          "results validated from the selected typed body");
+    };
+
+    llvm::Expected<TCRVEmitCCallOpaqueOperand> compareLhs =
+        loadedVectorOperand(slice->compareLhs, "compare lhs operand");
+    if (!compareLhs)
+      return compareLhs.takeError();
+    llvm::Expected<TCRVEmitCCallOpaqueOperand> compareRhs =
+        loadedVectorOperand(slice->compareRhs, "compare rhs operand");
+    if (!compareRhs)
+      return compareRhs.takeError();
+    llvm::Expected<TCRVEmitCCallOpaqueOperand> selectTrue =
+        loadedVectorOperand(slice->selectTrueValue, "select true operand");
+    if (!selectTrue)
+      return selectTrue.takeError();
+    llvm::Expected<TCRVEmitCCallOpaqueOperand> selectFalse =
+        loadedVectorOperand(slice->selectFalseValue, "select false operand");
+    if (!selectFalse)
+      return selectFalse.takeError();
+
+    if (llvm::Error error = addLoopStep(
+            slice->compareOp.getOperation(), "compute",
+            description.compareIntrinsic,
+            {*compareLhs, *compareRhs,
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.maskName.str(),
+                                      description.maskCType.str()}))
       return error;
     if (llvm::Error error = addLoopStep(
             slice->arithmeticOp, "compute", description.intrinsic,
-            {TCRVEmitCCallOpaqueOperand{"rhs_vec",
-                                        description.vectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{"lhs_vec",
-                                        description.vectorCType.str()},
+            {*selectFalse, *selectTrue,
              TCRVEmitCCallOpaqueOperand{description.maskName.str(),
                                         description.maskCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),

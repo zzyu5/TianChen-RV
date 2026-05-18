@@ -41,6 +41,7 @@ DEFAULT_RUNTIME_COUNTS = (1, 7, 16, 17, 257)
 MIN_RUNTIME_COUNT_CASES = 2
 MIN_NON_ONE_VECTOR_SENTINEL_COUNT = 17
 DEFAULT_OP_KINDS = ("add", "sub", "mul")
+OP_KIND_CHOICES = DEFAULT_OP_KINDS + ("cmp_select",)
 
 INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
 EXPECTED_SELECTED_ROLE = "dispatch case"
@@ -126,6 +127,20 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         lhs_initializer="(int32_t)((int)(index % 13) - 6)",
         rhs_initializer="(int32_t)((int)(index % 17) - 8)",
         expected_expression="lhs[index] * rhs[index]",
+    ),
+    "cmp_select": OpExpectation(
+        kind="cmp_select",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-cmp-select.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_i32_cmp_select",
+        external_abi_name="rvv-i32m1-cmp-select-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_cmp_select_kernel_explicit_selected_body_rvv_i32_cmp_select",
+        emitc_route="rvv-i32m1-cmp-select-emitc-route",
+        typed_compute_op="tcrv_rvv.i32_select",
+        lhs_initializer="(int32_t)(41 + (int32_t)(index * 9))",
+        rhs_initializer="(int32_t)(-300 - (int32_t)(index * 7))",
+        expected_expression="lhs[index]",
     ),
 }
 
@@ -1047,10 +1062,18 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
 
     if args.source_seed:
         expectation_table = SOURCE_SEED_OP_EXPECTATIONS
+        mode = "legacy-rvv-source-seed"
     elif args.pre_realized_selected_body:
         expectation_table = PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS
+        mode = "pre-realized-selected-body"
     else:
         expectation_table = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS
+        mode = "explicit-selected-body"
+    unsupported = [kind for kind in op_kinds if kind not in expectation_table]
+    if unsupported:
+        raise EvidenceError(
+            f"--op-kind values {unsupported} are not supported in {mode} mode"
+        )
     expectations = [expectation_table[kind] for kind in op_kinds]
     if args.input is not None:
         expectations = [replace(expectations[0], input_path=args.input)]
@@ -1662,7 +1685,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument(
         "--op-kind",
-        choices=DEFAULT_OP_KINDS,
+        choices=OP_KIND_CHOICES,
         action="append",
         default=[],
         help="op kind to prove; may be repeated; defaults to add, sub, and mul",
