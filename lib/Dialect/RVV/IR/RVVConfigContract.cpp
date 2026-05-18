@@ -18,17 +18,17 @@ constexpr llvm::StringLiteral kRVVI32M1ConfigContract(
     "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1");
 constexpr llvm::StringLiteral kRVVI32M1RuntimeVLContract(
     "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1");
-constexpr llvm::StringLiteral kRVVI32M1BoundedSlice(
-    "multi-vl-i32m1-arithmetic");
+constexpr llvm::StringLiteral
+    kRVVI32M1BoundedSlice("multi-vl-i32m1-arithmetic");
 constexpr llvm::StringLiteral kRVVI32M1MultiVLSupport("supported");
 constexpr llvm::StringLiteral kRVVI32M1RuntimeAVLABIParameter("n");
 constexpr llvm::StringLiteral kRVVI32M1RuntimeAVLASource("runtime_abi:n");
 constexpr llvm::StringLiteral kRVVI32M1RuntimeABIOrder("lhs,rhs,out,n");
 constexpr llvm::StringLiteral kRVVI32M1VLDefOpName("tcrv_rvv.setvl");
 constexpr llvm::StringLiteral kRVVI32M1VLScopeOpName("tcrv_rvv.with_vl");
-constexpr llvm::StringLiteral kRVVI32M1VLUses(
-    "emitc_for,with_vl,i32_load,(i32_load|i32_broadcast_load),"
-    "(i32_arithmetic|i32_cmp_eq->i32_select),i32_store");
+constexpr llvm::StringLiteral
+    kRVVI32M1VLUses("emitc_for,with_vl,i32_load,(i32_load|i32_broadcast_load),"
+                    "(i32_arithmetic|i32_cmp_eq->i32_select),i32_store");
 constexpr llvm::StringLiteral kRVVI32M1EmitCLoopKind("emitc.for");
 constexpr llvm::StringLiteral kRVVI32M1EmitCLoopInduction("offset");
 constexpr llvm::StringLiteral kRVVI32M1EmitCFullChunkVL("full_chunk_vl");
@@ -95,9 +95,7 @@ RVVConfigContractDiagnostic::failure(llvm::StringRef message) {
   return diagnostic;
 }
 
-std::int64_t getRVVFirstSliceSEWBits() {
-  return kRVVFirstSliceSEWBits;
-}
+std::int64_t getRVVFirstSliceSEWBits() { return kRVVFirstSliceSEWBits; }
 
 llvm::StringRef getRVVI32M1LMUL() { return kRVVI32M1LMUL; }
 
@@ -163,21 +161,51 @@ getRVVWithVLCompileTimeConfig(WithVLOp withVL) {
 
 bool areRVVCompileTimeConfigsEqual(const RVVCompileTimeConfig &lhs,
                                    const RVVCompileTimeConfig &rhs) {
-  return lhs.sew == rhs.sew && lhs.lmul == rhs.lmul &&
-         lhs.policy == rhs.policy;
+  return lhs.sew == rhs.sew && lhs.lmul == rhs.lmul && lhs.policy == rhs.policy;
+}
+
+RVVConfigContractDiagnostic
+validateRVVSelectedBodyConfigVLStructure(SetVLOp setvl, WithVLOp withVL) {
+  if (!setvl)
+    return fail("selected RVV body config/VL structure requires exactly one "
+                "tcrv_rvv.setvl op");
+  if (!withVL)
+    return fail("selected RVV body config/VL structure requires exactly one "
+                "tcrv_rvv.with_vl op");
+
+  RVVCompileTimeConfig setvlConfig = getRVVSetVLCompileTimeConfig(setvl);
+
+  std::optional<RVVCompileTimeConfig> withVLConfig =
+      getRVVWithVLCompileTimeConfig(withVL);
+  if (!withVLConfig)
+    return fail("selected RVV body config/VL structure requires "
+                "tcrv_rvv.with_vl to carry explicit SEW, LMUL, and policy "
+                "metadata");
+
+  if (!areRVVCompileTimeConfigsEqual(setvlConfig, *withVLConfig))
+    return fail("selected RVV body config/VL structure requires "
+                "tcrv_rvv.setvl and tcrv_rvv.with_vl metadata to match");
+
+  if (withVL.getVl() != setvl.getVl())
+    return fail("selected RVV body config/VL structure requires "
+                "tcrv_rvv.with_vl to consume the visible tcrv_rvv.setvl "
+                "result");
+
+  return RVVConfigContractDiagnostic::success();
+}
+
+const RVVI32M1ArithmeticConfigVLContract &getRVVSelectedBodyConfigVLContract() {
+  return getRVVI32M1ArithmeticConfigVLContract();
 }
 
 RVVConfigContractDiagnostic
 validateRVVI32M1ArithmeticConfigVLContract(SetVLOp setvl, WithVLOp withVL) {
-  if (!setvl)
-    return fail("bounded RVV i32m1 arithmetic contract requires exactly one "
-                "tcrv_rvv.setvl op");
-  if (!withVL)
-    return fail("bounded RVV i32m1 arithmetic contract requires exactly one "
-                "tcrv_rvv.with_vl op");
+  RVVConfigContractDiagnostic structure =
+      validateRVVSelectedBodyConfigVLStructure(setvl, withVL);
+  if (!structure.ok)
+    return structure;
 
-  RVVCompileTimeConfig setvlConfig =
-      getRVVSetVLCompileTimeConfig(setvl);
+  RVVCompileTimeConfig setvlConfig = getRVVSetVLCompileTimeConfig(setvl);
   if (!isRVVI32M1ArithmeticConfig(setvlConfig.sew, setvlConfig.lmul))
     return fail("bounded RVV i32m1 arithmetic compile-time config requires "
                 "tcrv_rvv.setvl SEW32 LMUL m1");
@@ -198,23 +226,13 @@ validateRVVI32M1ArithmeticConfigVLContract(SetVLOp setvl, WithVLOp withVL) {
     return fail("bounded RVV i32m1 arithmetic compile-time config requires "
                 "tcrv_rvv.with_vl tail agnostic, mask agnostic policy");
 
-  if (!areRVVCompileTimeConfigsEqual(setvlConfig, *withVLConfig))
-    return fail("bounded RVV i32m1 arithmetic compile-time config requires "
-                "tcrv_rvv.setvl and tcrv_rvv.with_vl metadata to match");
-
-  if (withVL.getVl() != setvl.getVl())
-    return fail("bounded RVV i32m1 arithmetic runtime VL contract requires "
-                "tcrv_rvv.with_vl to consume the visible tcrv_rvv.setvl "
-                "result");
-
   return RVVConfigContractDiagnostic::success();
 }
 
 llvm::ArrayRef<support::ArtifactMetadataEntry>
 getRVVI32M1ArithmeticArtifactMetadata() {
   static const support::ArtifactMetadataEntry kMetadata[] = {
-      {"tcrv_rvv.config_contract",
-       kRVVI32M1ConfigVLContract.configContractID},
+      {"tcrv_rvv.config_contract", kRVVI32M1ConfigVLContract.configContractID},
       {"tcrv_rvv.sew", "32"},
       {"tcrv_rvv.lmul", kRVVI32M1ConfigVLContract.lmul},
       {"tcrv_rvv.tail_policy", "agnostic"},
@@ -226,15 +244,13 @@ getRVVI32M1ArithmeticArtifactMetadata() {
       {"tcrv_rvv.vl_def", kRVVI32M1ConfigVLContract.vlDefOpName},
       {"tcrv_rvv.vl_scope", kRVVI32M1ConfigVLContract.vlScopeOpName},
       {"tcrv_rvv.vl_uses", kRVVI32M1ConfigVLContract.vlUses},
-      {"tcrv_rvv.runtime_abi_order",
-       kRVVI32M1ConfigVLContract.runtimeABIOrder},
+      {"tcrv_rvv.runtime_abi_order", kRVVI32M1ConfigVLContract.runtimeABIOrder},
       {"tcrv_rvv.runtime_avl_abi_parameter",
        kRVVI32M1ConfigVLContract.runtimeAVLABIParameterName},
       {"tcrv_rvv.emitc_loop", kRVVI32M1ConfigVLContract.emitCLoopKind},
       {"tcrv_rvv.loop_induction",
        kRVVI32M1ConfigVLContract.emitCLoopInductionName},
-      {"tcrv_rvv.loop_step",
-       kRVVI32M1ConfigVLContract.emitCFullChunkVLName},
+      {"tcrv_rvv.loop_step", kRVVI32M1ConfigVLContract.emitCFullChunkVLName},
       {"tcrv_rvv.remaining_avl",
        kRVVI32M1ConfigVLContract.remainingAVLMetadata},
       {"tcrv_rvv.pointer_advance",
@@ -264,13 +280,12 @@ llvm::Error verifyRVVI32M1ArithmeticArtifactMetadata(
     const support::ArtifactMetadataEntry &want = std::get<1>(pair);
     if (actual.key != want.key)
       return makeArtifactMetadataError(
-          llvm::Twine(context) + " artifact_metadata[" +
-          llvm::Twine(index) + "] key must be '" + want.key + "'");
+          llvm::Twine(context) + " artifact_metadata[" + llvm::Twine(index) +
+          "] key must be '" + want.key + "'");
     if (actual.value != want.value)
       return makeArtifactMetadataError(
-          llvm::Twine(context) + " artifact_metadata[" +
-          llvm::Twine(index) + "] value for key '" + want.key +
-          "' must be '" + want.value + "'");
+          llvm::Twine(context) + " artifact_metadata[" + llvm::Twine(index) +
+          "] value for key '" + want.key + "' must be '" + want.value + "'");
   }
 
   return makeArtifactMetadataError(
@@ -296,6 +311,11 @@ getRVVI32M1ArithmeticRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVSelectedBodyRuntimeABIParameters() {
+  return getRVVI32M1ArithmeticRuntimeABIParameters();
+}
+
 llvm::Error verifyRVVI32M1ArithmeticRuntimeABIParameters(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
     llvm::StringRef context) {
@@ -310,25 +330,65 @@ llvm::Error verifyRVVI32M1ArithmeticRuntimeABIParameters(
       "stable C types, roles, and target-export ownership");
 }
 
+llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters,
+    llvm::StringRef context) {
+  return verifyRVVI32M1ArithmeticRuntimeABIParameters(parameters, context);
+}
+
+llvm::StringRef getRVVSelectedBodyRuntimeAVLParameterName() {
+  return getRVVI32M1ArithmeticRuntimeAVLParameterName();
+}
+
 llvm::StringRef getRVVI32M1ArithmeticRuntimeAVLParameterName() {
   return kRVVI32M1ConfigVLContract.runtimeAVLABIParameterName;
+}
+
+llvm::StringRef getRVVSelectedBodyEmitCLoopInductionName() {
+  return getRVVI32M1ArithmeticEmitCLoopInductionName();
 }
 
 llvm::StringRef getRVVI32M1ArithmeticEmitCLoopInductionName() {
   return kRVVI32M1ConfigVLContract.emitCLoopInductionName;
 }
 
+llvm::StringRef getRVVSelectedBodyEmitCFullChunkVLName() {
+  return getRVVI32M1ArithmeticEmitCFullChunkVLName();
+}
+
 llvm::StringRef getRVVI32M1ArithmeticEmitCFullChunkVLName() {
   return kRVVI32M1ConfigVLContract.emitCFullChunkVLName;
+}
+
+llvm::StringRef getRVVSelectedBodyEmitCLoopVLName() {
+  return getRVVI32M1ArithmeticEmitCLoopVLName();
 }
 
 llvm::StringRef getRVVI32M1ArithmeticEmitCLoopVLName() {
   return kRVVI32M1EmitCLoopVL;
 }
 
+std::string
+getRVVSelectedBodyEmitCRemainingAVLExpression(llvm::StringRef runtimeCountName,
+                                              llvm::StringRef inductionName) {
+  return getRVVI32M1ArithmeticEmitCRemainingAVLExpression(runtimeCountName,
+                                                          inductionName);
+}
+
 std::string getRVVI32M1ArithmeticEmitCRemainingAVLExpression(
     llvm::StringRef runtimeCountName, llvm::StringRef inductionName) {
   return (runtimeCountName + " - " + inductionName).str();
+}
+
+llvm::ArrayRef<support::ArtifactMetadataEntry>
+getRVVSelectedBodyConfigArtifactMetadata() {
+  return getRVVI32M1ArithmeticArtifactMetadata();
+}
+
+llvm::Error verifyRVVSelectedBodyConfigArtifactMetadata(
+    llvm::ArrayRef<support::ArtifactMetadataEntry> metadata,
+    llvm::StringRef context) {
+  return verifyRVVI32M1ArithmeticArtifactMetadata(metadata, context);
 }
 
 } // namespace tianchenrv::tcrv::rvv

@@ -1,11 +1,11 @@
-#include "TianChenRV/InitTianChenRVDialects.h"
+#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
-#include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
 
@@ -79,8 +79,8 @@ int expectErrorContains(llvm::Error error,
   return 0;
 }
 
-mlir::OwningOpRef<mlir::ModuleOp>
-parseModule(mlir::MLIRContext &context, llvm::StringRef source) {
+mlir::OwningOpRef<mlir::ModuleOp> parseModule(mlir::MLIRContext &context,
+                                              llvm::StringRef source) {
   return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
 }
 
@@ -140,17 +140,17 @@ RVVProbeCapabilityFacts makeSuccessfulProbeFacts() {
 
 int runRegistrationAndCapabilityMetadataTest() {
   ExtensionPluginRegistry registry;
-  if (int result =
-          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
-                        "register RVV plugin"))
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin"))
     return result;
   if (int result = expect(registry.size() == 1,
                           "RVV plugin registration adds one plugin"))
     return result;
-  if (int result = expect(registry.lookupPlugin(
-                              tianchenrv::plugin::rvv::
-                                  getRVVExtensionPluginName()) != nullptr,
-                          "registered RVV plugin is lookup-visible"))
+  if (int result = expect(
+          registry.lookupPlugin(
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName()) != nullptr,
+          "registered RVV plugin is lookup-visible"))
     return result;
 
   llvm::SmallVector<PluginCapability, 16> capabilities;
@@ -171,10 +171,10 @@ int runRegistrationAndCapabilityMetadataTest() {
           expect(sourceFrontDoorPasses.size() == 1,
                  "RVV plugin exposes one source front-door pass registration"))
     return result;
-  if (int result = expect(sourceFrontDoorPasses.front().getOwnerPlugin() ==
-                              tianchenrv::plugin::rvv::
-                                  getRVVExtensionPluginName(),
-                          "RVV source front-door pass is owned by RVV plugin"))
+  if (int result =
+          expect(sourceFrontDoorPasses.front().getOwnerPlugin() ==
+                     tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
+                 "RVV source front-door pass is owned by RVV plugin"))
     return result;
   if (int result =
           expect(sourceFrontDoorPasses.front().getArgument() ==
@@ -209,10 +209,10 @@ int runCapabilityProfileTest() {
                           "RVV probe profile does not manufacture vector "
                           "config capabilities"))
     return result;
-  return expect(capabilities.isCapabilityAvailableByID(
-                    tianchenrv::plugin::rvv::
-                        getRVVProbeCompileRunCapabilityID()),
-                "RVV profile exposes compile/run capability");
+  return expect(
+      capabilities.isCapabilityAvailableByID(
+          tianchenrv::plugin::rvv::getRVVProbeCompileRunCapabilityID()),
+      "RVV profile exposes compile/run capability");
 }
 
 int runMissingAndDeclineProposalTest(mlir::MLIRContext &context) {
@@ -253,9 +253,9 @@ module {
   mlir::func::FuncOp highLevel = findHighLevelPlaceholder(*module);
 
   ExtensionPluginRegistry registry;
-  if (int result =
-          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
-                        "register RVV plugin for decline test"))
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for decline test"))
     return result;
 
   KernelOp missingRVV = findKernel(*module, "missing_rvv");
@@ -269,21 +269,21 @@ module {
               proposals),
           "collect missing RVV proposals"))
     return result;
-  if (int result = expect(proposals.empty(),
-                          "RVV plugin proposes nothing without rvv"))
+  if (int result =
+          expect(proposals.empty(), "RVV plugin proposes nothing without rvv"))
     return result;
 
   KernelOp availableRVVNoBody = findKernel(*module, "missing_hart_count");
   TargetCapabilitySet availableRVVCapabilities =
       TargetCapabilitySet::buildFromKernel(availableRVVNoBody);
   llvm::SmallVector<VariantProposalDecline, 1> declines;
-  if (int result = expectSuccess(
-          registry.collectVariantProposals(
-              VariantProposalRequest(highLevel.getOperation(),
-                                     availableRVVNoBody,
-                                     availableRVVCapabilities),
-              proposals, &declines),
-          "collect RVV no-body proposal decline"))
+  if (int result =
+          expectSuccess(registry.collectVariantProposals(
+                            VariantProposalRequest(highLevel.getOperation(),
+                                                   availableRVVNoBody,
+                                                   availableRVVCapabilities),
+                            proposals, &declines),
+                        "collect RVV no-body proposal decline"))
     return result;
   if (int result = expect(proposals.empty() && !declines.empty(),
                           "available RVV no-body input is a recoverable RVV "
@@ -356,51 +356,50 @@ module {
     return fail("failed to parse RVV capability-only module");
   KernelOp kernel = findKernel(*module, "rvv_no_body_capability_only");
   mlir::func::FuncOp highLevel = findHighLevelPlaceholder(*module);
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
 
   ExtensionPluginRegistry registry;
-  if (int result =
-          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
-                        "register RVV plugin for typed-body requirement test"))
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for typed-body requirement test"))
     return result;
 
-  VariantProposalRequest request(highLevel.getOperation(), kernel, capabilities);
+  VariantProposalRequest request(highLevel.getOperation(), kernel,
+                                 capabilities);
   llvm::SmallVector<VariantProposal, 1> proposals;
   llvm::SmallVector<VariantProposalDecline, 1> declines;
   if (int result = expectSuccess(
           registry.collectVariantProposals(request, proposals, &declines),
           "collect RVV capability-only proposal surface"))
     return result;
-  if (int result =
-          expect(proposals.empty(), "RVV no-body capability produces no proposal"))
+  if (int result = expect(proposals.empty(),
+                          "RVV no-body capability produces no proposal"))
     return result;
-  if (int result =
-          expect(!declines.empty() &&
-                     llvm::StringRef(declines.front().getReason())
-                         .contains("explicit typed tcrv_rvv "
-                                   "extension-family IR"),
-                 "RVV decline explains explicit typed IR requirement"))
+  if (int result = expect(!declines.empty() &&
+                              llvm::StringRef(declines.front().getReason())
+                                  .contains("explicit typed tcrv_rvv "
+                                            "extension-family IR"),
+                          "RVV decline explains explicit typed IR requirement"))
     return result;
 
   mlir::OpBuilder builder(module->getContext());
   llvm::SmallVector<VariantOp, 1> materialized;
-  if (int result =
-          expectErrorContains(
-              tianchenrv::transforms::collectAndMaterializeVariantProposals(
-                  builder, registry, request, &materialized),
-              {"no viable plugin proposals",
-               "explicit typed tcrv_rvv extension-family IR"}))
+  if (int result = expectErrorContains(
+          tianchenrv::transforms::collectAndMaterializeVariantProposals(
+              builder, registry, request, &materialized),
+          {"no viable plugin proposals",
+           "explicit typed tcrv_rvv extension-family IR"}))
     return result;
 
   KernelOp staleKernel = findKernel(*module, "rvv_missing_typed_body_variant");
   TargetCapabilitySet staleCapabilities =
       TargetCapabilitySet::buildFromKernel(staleKernel);
   VariantOp staleVariant = findVariant(staleKernel, "rvv_missing_typed_body");
-  if (int result =
-          expectErrorContains(
-              registry.verifyVariantLegality(VariantLegalityRequest(
-                  staleVariant, staleKernel, staleCapabilities)),
-              {"explicit typed RVV extension-family body"}))
+  if (int result = expectErrorContains(
+          registry.verifyVariantLegality(VariantLegalityRequest(
+              staleVariant, staleKernel, staleCapabilities)),
+          {"explicit typed RVV extension-family body"}))
     return result;
   VariantEmissionPlan stalePlan;
   if (int result = expectErrorContains(
@@ -441,7 +440,8 @@ module {
     return fail("failed to parse RVV metadata rejection module");
   KernelOp kernel = findKernel(*module, "metadata_without_typed_body_variant");
   VariantOp variant = findVariant(kernel, "rvv_metadata_without_typed_body");
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
   tianchenrv::plugin::rvv::RVVExtensionPlugin plugin;
   return expectErrorContains(
       plugin.verifyVariantLegality(
@@ -461,7 +461,7 @@ module {
       %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_add, sew = 32 : i64, source_kernel = "rvv_i32m1_boundary_kernel", status = "selected-lowering-boundary"} {
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i32_add, sew = 32 : i64, source_kernel = "rvv_i32m1_boundary_kernel", status = "selected-lowering-boundary"} {
         %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
@@ -475,7 +475,7 @@ module {
       %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_sub, sew = 32 : i64, source_kernel = "rvv_i32m1_boundary_kernel", status = "selected-lowering-boundary"} {
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i32_sub, sew = 32 : i64, source_kernel = "rvv_i32m1_boundary_kernel", status = "selected-lowering-boundary"} {
         %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %diff = tcrv_rvv.i32_sub %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
@@ -489,7 +489,7 @@ module {
       %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_mul, sew = 32 : i64, source_kernel = "rvv_i32m1_boundary_kernel", status = "selected-lowering-boundary"} {
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i32_mul, sew = 32 : i64, source_kernel = "rvv_i32m1_boundary_kernel", status = "selected-lowering-boundary"} {
         %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %product = tcrv_rvv.i32_mul %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
@@ -504,17 +504,18 @@ module {
   if (!module)
     return fail("failed to parse RVV with_vl boundary module");
   KernelOp kernel = findKernel(*module, "rvv_i32m1_boundary_kernel");
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
 
   ExtensionPluginRegistry registry;
-  if (int result =
-          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
-                        "register RVV plugin for with_vl boundary test"))
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for with_vl boundary test"))
     return result;
 
   mlir::OpBuilder builder(module->getContext());
-  for (llvm::StringRef variantName : {"rvv_i32_add", "rvv_i32_sub",
-                                      "rvv_i32_mul"}) {
+  for (llvm::StringRef variantName :
+       {"rvv_i32_add", "rvv_i32_sub", "rvv_i32_mul"}) {
     VariantOp variant = findVariant(kernel, variantName);
     mlir::Operation *withVL = findFirstNestedOp(variant, "tcrv_rvv.with_vl");
     if (int result = expect(withVL != nullptr,
@@ -536,10 +537,10 @@ module {
                    llvm::Twine("RVV selected boundary is materialized for @") +
                        variantName))
       return result;
-    if (int result =
-            expect(boundaryResult.getMaterializedOperation() == withVL,
-                   llvm::Twine("materialized boundary is existing with_vl for @") +
-                       variantName))
+    if (int result = expect(
+            boundaryResult.getMaterializedOperation() == withVL,
+            llvm::Twine("materialized boundary is existing with_vl for @") +
+                variantName))
       return result;
     if (int result = expectSuccess(
             registry.validateSelectedLoweringBoundary(
@@ -559,7 +560,8 @@ module {
             llvm::Twine("build construction-checked emission plan for @") +
                 variantName))
       return result;
-    llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
+    llvm::Expected<
+        tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
         routeDescription =
             tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
                 VariantEmitCLowerableRequest(
@@ -569,9 +571,9 @@ module {
       return fail(llvm::Twine("describe selected-body route for @") +
                   variantName + ": " +
                   llvm::toString(routeDescription.takeError()));
-    if (int result = expect(plan.isSupported(),
-                            llvm::Twine("RVV emission plan is supported for @") +
-                                variantName))
+    if (int result = expect(
+            plan.isSupported(),
+            llvm::Twine("RVV emission plan is supported for @") + variantName))
       return result;
     if (int result = expect(
             plan.getLoweringPipeline() ==
@@ -597,6 +599,21 @@ module {
                         "for @") +
                 variantName))
       return result;
+    if (int result = expect(
+            routeDescription->sew == 32 && routeDescription->lmul == "m1" &&
+                routeDescription->tailPolicy == "agnostic" &&
+                routeDescription->maskPolicy == "agnostic" &&
+                routeDescription->boundaryOpName == "tcrv_rvv.with_vl" &&
+                routeDescription->vectorTypeName == "!tcrv_rvv.i32m1" &&
+                routeDescription->vectorCType == "vint32m1_t" &&
+                routeDescription->setVLIntrinsic == "__riscv_vsetvl_e32m1" &&
+                routeDescription->vectorLoadIntrinsic ==
+                    "__riscv_vle32_v_i32m1" &&
+                routeDescription->storeIntrinsic == "__riscv_vse32_v_i32m1",
+            llvm::Twine("RVV selected-body route descriptor carries "
+                        "typed config and intrinsic mapping for @") +
+                variantName))
+      return result;
 
     VariantEmissionStatus readiness;
     if (int result = expectSuccess(
@@ -604,16 +621,15 @@ module {
                 VariantEmissionRequest(variant, kernel, capabilities,
                                        VariantEmissionRole::DirectVariant),
                 readiness),
-            llvm::Twine("RVV emission readiness succeeds for @") +
-                variantName))
+            llvm::Twine("RVV emission readiness succeeds for @") + variantName))
       return result;
-    if (int result = expect(
-            readiness.isSupported() &&
-                readiness.getEmissionPath() ==
-                    routeDescription->targetArtifactRouteID,
-            llvm::Twine("RVV emission readiness names the selected-body "
-                        "description target artifact route for @") +
-                variantName))
+    if (int result =
+            expect(readiness.isSupported() &&
+                       readiness.getEmissionPath() ==
+                           routeDescription->targetArtifactRouteID,
+                   llvm::Twine("RVV emission readiness names the selected-body "
+                               "description target artifact route for @") +
+                       variantName))
       return result;
   }
 
@@ -624,7 +640,7 @@ module {
           VariantLoweringBoundaryValidationRequest(
               addVariant, kernel, capabilities,
               VariantEmissionRole::DirectVariant, setvl)),
-      {"selected RVV i32m1 lowering boundary must be the existing "
+      {"selected RVV typed lowering boundary must be the existing "
        "tcrv_rvv.with_vl operation"});
 }
 
@@ -640,13 +656,13 @@ module {
       %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_add_duplicate_with_vl, sew = 32 : i64, source_kernel = "rvv_i32m1_duplicate_boundary_kernel", status = "selected-lowering-boundary"} {
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i32_add_duplicate_with_vl, sew = 32 : i64, source_kernel = "rvv_i32m1_duplicate_boundary_kernel", status = "selected-lowering-boundary"} {
         %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         tcrv_rvv.i32_store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_add_duplicate_with_vl, sew = 32 : i64, source_kernel = "rvv_i32m1_duplicate_boundary_kernel", status = "selected-lowering-boundary"} {
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i32_add_duplicate_with_vl, sew = 32 : i64, source_kernel = "rvv_i32m1_duplicate_boundary_kernel", status = "selected-lowering-boundary"} {
       } : !tcrv_rvv.vl
     }
   }
@@ -658,23 +674,24 @@ module {
     return fail("failed to parse RVV duplicate with_vl boundary module");
   KernelOp kernel = findKernel(*module, "rvv_i32m1_duplicate_boundary_kernel");
   VariantOp variant = findVariant(kernel, "rvv_i32_add_duplicate_with_vl");
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
 
   ExtensionPluginRegistry registry;
-  if (int result =
-          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
-                        "register RVV plugin for duplicate boundary test"))
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for duplicate boundary test"))
     return result;
 
   mlir::OpBuilder builder(module->getContext());
   VariantLoweringBoundaryResult boundaryResult;
   return expectErrorContains(
       registry.materializeSelectedLoweringBoundary(
-          VariantLoweringBoundaryRequest(
-              variant, kernel, capabilities,
-              VariantEmissionRole::DirectVariant, builder),
+          VariantLoweringBoundaryRequest(variant, kernel, capabilities,
+                                         VariantEmissionRole::DirectVariant,
+                                         builder),
           boundaryResult),
-      {"selected RVV i32m1 lowering boundary requires exactly one "
+      {"selected RVV typed lowering boundary requires exactly one "
        "tcrv_rvv.with_vl op"});
 }
 
@@ -702,12 +719,13 @@ module {
     return fail("failed to parse RVV stale route metadata module");
   KernelOp kernel = findKernel(*module, "rvv_stale_route_metadata_kernel");
   VariantOp variant = findVariant(kernel, "rvv_stale_route_metadata");
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
 
   ExtensionPluginRegistry registry;
-  if (int result =
-          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
-                        "register RVV plugin for stale route metadata test"))
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for stale route metadata test"))
     return result;
 
   VariantEmissionPlan plan;
@@ -718,6 +736,52 @@ module {
           plan),
       {"bounded RVV EmitC route requires either two tcrv_rvv.i32_load ops",
        "tcrv_rvv.i32_broadcast_load"});
+}
+
+int runUnsupportedSelectedBodyDescriptorConfigRejectionTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_unsupported_lmul_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_i32_m2_add attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i32_m2_add, sew = 32 : i64, source_kernel = "rvv_unsupported_lmul_kernel", status = "selected-lowering-boundary"} {
+        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
+        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
+        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m2, !tcrv_rvv.i32m2, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
+        tcrv_rvv.i32_store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m2, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV unsupported LMUL selected-body module");
+  KernelOp kernel = findKernel(*module, "rvv_unsupported_lmul_kernel");
+  VariantOp variant = findVariant(kernel, "rvv_i32_m2_add");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for unsupported descriptor test"))
+    return result;
+
+  VariantEmissionPlan plan;
+  return expectErrorContains(
+      registry.buildVariantEmissionPlan(
+          VariantEmissionRequest(variant, kernel, capabilities,
+                                 VariantEmissionRole::DirectVariant),
+          plan),
+      {"unsupported RVV selected-body route descriptor", "LMUL=m2"});
 }
 
 int runBroadcastSelectedBodyRouteTest(mlir::MLIRContext &context) {
@@ -731,7 +795,7 @@ module {
       %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_add_broadcast, sew = 32 : i64, source_kernel = "rvv_i32m1_broadcast_kernel", status = "selected-lowering-boundary"} {
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i32_add_broadcast, sew = 32 : i64, source_kernel = "rvv_i32m1_broadcast_kernel", status = "selected-lowering-boundary"} {
         %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %rhs = tcrv_rvv.i32_broadcast_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
@@ -747,12 +811,13 @@ module {
     return fail("failed to parse RVV broadcast selected-body module");
   KernelOp kernel = findKernel(*module, "rvv_i32m1_broadcast_kernel");
   VariantOp variant = findVariant(kernel, "rvv_i32_add_broadcast");
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
 
   ExtensionPluginRegistry registry;
-  if (int result =
-          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
-                        "register RVV plugin for broadcast route test"))
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for broadcast route test"))
     return result;
 
   VariantEmissionPlan plan;
@@ -763,15 +828,14 @@ module {
               plan),
           "build RVV broadcast selected-body emission plan"))
     return result;
-  if (int result =
-          expect(plan.isSupported() &&
-                     plan.getRuntimeABI() ==
-                         tianchenrv::plugin::rvv::
-                             getRVVSelectedBodyRuntimeABIName(
-                                 tianchenrv::plugin::rvv::
-                                     RVVSelectedBodyOperationKind::Add),
-                 "RVV broadcast body reuses the bounded add callable ABI "
-                 "while selected typed body owns broadcast semantics"))
+  if (int result = expect(
+          plan.isSupported() &&
+              plan.getRuntimeABI() ==
+                  tianchenrv::plugin::rvv::getRVVSelectedBodyRuntimeABIName(
+                      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
+                          Add),
+          "RVV broadcast body reuses the bounded add callable ABI "
+          "while selected typed body owns broadcast semantics"))
     return result;
 
   bool sawBroadcastSourceMetadata = false;
@@ -825,7 +889,7 @@ module {
       %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_cmp_select, sew = 32 : i64, source_kernel = "rvv_i32m1_compare_select_kernel", status = "selected-lowering-boundary"} {
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i32_cmp_select, sew = 32 : i64, source_kernel = "rvv_i32m1_compare_select_kernel", status = "selected-lowering-boundary"} {
         %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %mask = tcrv_rvv.i32_cmp_eq %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1_mask
@@ -842,12 +906,13 @@ module {
     return fail("failed to parse RVV compare/select selected-body module");
   KernelOp kernel = findKernel(*module, "rvv_i32m1_compare_select_kernel");
   VariantOp variant = findVariant(kernel, "rvv_i32_cmp_select");
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
 
   ExtensionPluginRegistry registry;
-  if (int result =
-          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
-                        "register RVV plugin for compare/select route test"))
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for compare/select route test"))
     return result;
 
   VariantEmissionPlan plan;
@@ -858,14 +923,13 @@ module {
               plan),
           "build RVV compare/select selected-body emission plan"))
     return result;
-  if (int result =
-          expect(plan.isSupported() &&
-                     plan.getRuntimeABI() ==
-                         tianchenrv::plugin::rvv::
-                             getRVVSelectedBodyRuntimeABIName(
-                                 tianchenrv::plugin::rvv::
-                                     RVVSelectedBodyOperationKind::CmpSelect),
-                 "RVV compare/select body owns a bounded callable ABI"))
+  if (int result = expect(
+          plan.isSupported() &&
+              plan.getRuntimeABI() ==
+                  tianchenrv::plugin::rvv::getRVVSelectedBodyRuntimeABIName(
+                      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
+                          CmpSelect),
+          "RVV compare/select body owns a bounded callable ABI"))
     return result;
 
   bool sawCompareSelectSourceMetadata = false;
@@ -876,7 +940,8 @@ module {
         llvm::StringRef(entry.value).contains("tcrv_rvv.i32_cmp_eq") &&
         llvm::StringRef(entry.value).contains("tcrv_rvv.i32_select"))
       sawCompareSelectSourceMetadata = true;
-    if (entry.key == tianchenrv::plugin::rvv::getRVVSelectedBodyOperationMetadataName() &&
+    if (entry.key == tianchenrv::plugin::rvv::
+                         getRVVSelectedBodyOperationMetadataName() &&
         entry.value == "cmp_select")
       sawCompareSelectOpMetadata = true;
   }
@@ -915,8 +980,7 @@ module {
       "RVV compare/select EmitC lowerable route materializes to EmitC");
 }
 
-int runOutOfOrderSelectedRoleSequenceRejectionTest(
-    mlir::MLIRContext &context) {
+int runOutOfOrderSelectedRoleSequenceRejectionTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
   tcrv.exec.kernel @rvv_i32m1_out_of_order_role_kernel {
@@ -927,7 +991,7 @@ module {
       %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_add_out_of_order_roles, sew = 32 : i64, source_kernel = "rvv_i32m1_out_of_order_role_kernel", status = "selected-lowering-boundary"} {
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i32_add_out_of_order_roles, sew = 32 : i64, source_kernel = "rvv_i32m1_out_of_order_role_kernel", status = "selected-lowering-boundary"} {
         %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
@@ -943,12 +1007,13 @@ module {
     return fail("failed to parse RVV out-of-order role module");
   KernelOp kernel = findKernel(*module, "rvv_i32m1_out_of_order_role_kernel");
   VariantOp variant = findVariant(kernel, "rvv_i32_add_out_of_order_roles");
-  TargetCapabilitySet capabilities = TargetCapabilitySet::buildFromKernel(kernel);
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
 
   ExtensionPluginRegistry registry;
-  if (int result =
-          expectSuccess(tianchenrv::plugin::registerRVVExtensionPlugin(registry),
-                        "register RVV plugin for out-of-order role test"))
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for out-of-order role test"))
     return result;
 
   VariantEmissionPlan plan;
@@ -957,8 +1022,7 @@ module {
           VariantEmissionRequest(variant, kernel, capabilities,
                                  VariantEmissionRole::DirectVariant),
           plan),
-      {"selected RVV EmitC route", "construction order 3",
-       "expected 0"});
+      {"selected RVV EmitC route", "construction order 3", "expected 0"});
 }
 
 } // namespace
@@ -988,6 +1052,9 @@ int main() {
     return result;
   if (int result =
           runStaleWithVLRouteMetadataDoesNotAuthorizeEmissionTest(context))
+    return result;
+  if (int result =
+          runUnsupportedSelectedBodyDescriptorConfigRejectionTest(context))
     return result;
   if (int result = runBroadcastSelectedBodyRouteTest(context))
     return result;

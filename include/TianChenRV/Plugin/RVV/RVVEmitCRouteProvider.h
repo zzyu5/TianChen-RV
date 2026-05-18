@@ -1,6 +1,7 @@
 #ifndef TIANCHENRV_PLUGIN_RVV_RVVEMITCROUTEPROVIDER_H
 #define TIANCHENRV_PLUGIN_RVV_RVVEMITCROUTEPROVIDER_H
 
+#include "TianChenRV/Support/ArtifactMetadata.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -37,12 +38,39 @@ struct RVVSelectedBodyEmitCRouteDescription {
   RVVSelectedBodyMemoryForm memoryForm;
   std::int64_t sew = 0;
   llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef configContractID;
+  llvm::StringRef runtimeVLContractID;
+  llvm::StringRef runtimeAVLASource;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef vlDefOpName;
+  llvm::StringRef vlScopeOpName;
+  llvm::StringRef vlUses;
+  llvm::StringRef emitCLoopKind;
+  llvm::StringRef emitCLoopInductionName;
+  llvm::StringRef emitCFullChunkVLName;
+  llvm::StringRef emitCLoopVLName;
+  llvm::StringRef remainingAVLMetadata;
+  llvm::StringRef pointerAdvanceMetadata;
+  llvm::StringRef boundedSlice;
+  llvm::StringRef multiVL;
   llvm::StringRef typedComputeOpName;
+  llvm::StringRef boundaryOpName;
   llvm::StringRef emitCRouteID;
   llvm::StringRef targetArtifactRouteID;
   llvm::StringRef targetArtifactKind;
   llvm::StringRef runtimeABIName;
   llvm::StringRef runtimeABIContractName;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef maskTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef maskCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef rhsBroadcastIntrinsic;
+  llvm::StringRef storeIntrinsic;
   llvm::StringRef intrinsic;
   llvm::StringRef compareIntrinsic;
   llvm::StringRef resultName;
@@ -51,13 +79,13 @@ struct RVVSelectedBodyEmitCRouteDescription {
       runtimeABIParameters;
 };
 
-llvm::ArrayRef<RVVSelectedBodyOperationKind>
-getRVVSelectedBodyOperationKinds();
+llvm::ArrayRef<RVVSelectedBodyOperationKind> getRVVSelectedBodyOperationKinds();
 
 llvm::StringRef
 stringifyRVVSelectedBodyOperationKind(RVVSelectedBodyOperationKind op);
 llvm::StringRef
-getRVVSelectedBodyEmitCRouteID(RVVSelectedBodyOperationKind op);
+stringifyRVVSelectedBodyMemoryForm(RVVSelectedBodyMemoryForm form);
+llvm::StringRef getRVVSelectedBodyEmitCRouteID(RVVSelectedBodyOperationKind op);
 llvm::StringRef getRVVSelectedBodyEmissionKind();
 llvm::StringRef getRVVSelectedBodyLoweringBoundaryOpName();
 llvm::StringRef getRVVSelectedBodyRuntimeABIKind();
@@ -67,6 +95,10 @@ llvm::StringRef getRVVSelectedBodyRuntimeGlueRole();
 
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyRuntimeABIParameters();
+
+llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 16>
+getRVVSelectedBodyConfigArtifactMetadata(
+    const RVVSelectedBodyEmitCRouteDescription &description);
 
 llvm::Expected<RVVSelectedBodyEmitCRouteDescription>
 describeRVVSelectedBodyEmitCRoute(

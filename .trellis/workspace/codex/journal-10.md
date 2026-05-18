@@ -46,6 +46,56 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 130: RVV selected-body config and intrinsic route surface
+
+**Date**: 2026-05-19
+**Task**: `05-19-rvv-selected-body-config-intrinsic-route-surface`
+**Branch**: `main`
+
+### Summary
+
+Turned the current RVV provider path into a descriptor-selected specialization:
+typed selected-body config, memory form, runtime ABI roles, C types, and
+intrinsic spellings are now assembled into the provider route description
+before route construction and emission planning consume them.
+
+### Main Changes
+
+- Created the Trellis task and PRD from the Hermes Direction Brief.
+- Added selected-body config/VL structure helpers so unsupported LMUL/policy
+  reaches provider descriptor rejection instead of being treated as an
+  extension boundary gate.
+- Expanded `RVVSelectedBodyEmitCRouteDescription` with config, boundary,
+  runtime ABI, C type, and intrinsic mapping fields.
+- Replaced operation-only intrinsic lookup with descriptor-keyed mapping for
+  the retained SEW32/LMUL m1/agnostic i32m1 specialization.
+- Renamed RVV extension selected-boundary helpers/diagnostics away from
+  `findSelectedRVVI32M1...` / `validateSelectedRVVI32M1...` route-gate naming.
+- Rebuilt emission-plan runtime ABI and `tcrv_rvv.*` config metadata from the
+  provider-derived selected-body description.
+- Updated focused plugin tests to assert descriptor fields and added an
+  unsupported LMUL m2 selected-body rejection case.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tcrv-opt -j2`
+- [OK] `build/bin/tcrv-opt test/Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir --tcrv-rvv-materialize-i32m1-vector-source-front-door --tcrv-materialize-emission-plans | /usr/lib/llvm-20/bin/FileCheck test/Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir --check-prefix=PLAN`
+- [OK] bounded provider/extension ref-scan for old i32m1 route-gate names.
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 130: RVV source-front-door route-authority demotion
 
 **Date**: 2026-05-19

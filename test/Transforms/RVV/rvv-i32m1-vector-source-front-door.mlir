@@ -111,7 +111,7 @@ module {
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: lowering_boundary = "tcrv_rvv.with_vl"
 // PLAN-SAME: lowering_pipeline = "rvv-i32m1-arithmetic-emitc-route-family"
-// PLAN-SAME: message = "RVV selected i32m1 dataflow route materializes
+// PLAN-SAME: message = "RVV selected typed body route materializes
 // PLAN-SAME: origin = "rvv-plugin"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: required_capabilities = [@rvv]

@@ -28,55 +28,200 @@ namespace tianchenrv::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
-constexpr llvm::StringLiteral kRVVSelectedBodyEmissionKind(
-    "materialized-emitc-cpp-rvv-intrinsic-object");
-constexpr llvm::StringLiteral kRVVSelectedBodyLoweringBoundaryOpName(
-    "tcrv_rvv.with_vl");
-constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeABIKind(
-    "plugin-owned-runtime-abi");
-constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeGlueRole(
-    "emitc-cpp-rvv-intrinsic-runtime-glue");
-constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
-    "TCRVEmitCLowerableOpInterface");
+constexpr llvm::StringLiteral
+    kRVVSelectedBodyEmissionKind("materialized-emitc-cpp-rvv-intrinsic-object");
+constexpr llvm::StringLiteral
+    kRVVSelectedBodyLoweringBoundaryOpName("tcrv_rvv.with_vl");
+constexpr llvm::StringLiteral
+    kRVVSelectedBodyRuntimeABIKind("plugin-owned-runtime-abi");
+constexpr llvm::StringLiteral
+    kRVVSelectedBodyRuntimeGlueRole("emitc-cpp-rvv-intrinsic-runtime-glue");
+constexpr llvm::StringLiteral
+    kEmitCLowerableOpInterfaceName("TCRVEmitCLowerableOpInterface");
 
-struct RVVSelectedBodyIntrinsicMapping {
+llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);
+
+struct RVVSelectedBodyDescriptorMapping {
   RVVSelectedBodyOperationKind operation;
+  std::int64_t sew;
+  llvm::StringLiteral lmul;
+  llvm::StringLiteral tailPolicy;
+  llvm::StringLiteral maskPolicy;
+  bool supportsRHSBroadcastLoad;
   llvm::StringLiteral operationMnemonic;
-  llvm::StringLiteral intrinsic;
-  llvm::StringLiteral resultName;
+  llvm::StringLiteral vlCType;
+  llvm::StringLiteral vectorTypeName;
+  llvm::StringLiteral maskTypeName;
+  llvm::StringLiteral vectorCType;
+  llvm::StringLiteral maskCType;
+  llvm::StringLiteral setVLIntrinsic;
+  llvm::StringLiteral vectorLoadIntrinsic;
+  llvm::StringLiteral rhsBroadcastIntrinsic;
+  llvm::StringLiteral storeIntrinsic;
+  llvm::StringLiteral computeIntrinsic;
   llvm::StringLiteral compareIntrinsic;
+  llvm::StringLiteral resultName;
   llvm::StringLiteral maskName;
 };
 
-constexpr RVVSelectedBodyIntrinsicMapping kRVVSelectedBodyIntrinsicMappings[] = {
-    {RVVSelectedBodyOperationKind::Add, "add", "__riscv_vadd_vv_i32m1",
-     "sum_vec", "", ""},
-    {RVVSelectedBodyOperationKind::Sub, "sub", "__riscv_vsub_vv_i32m1",
-     "difference_vec", "", ""},
-    {RVVSelectedBodyOperationKind::Mul, "mul", "__riscv_vmul_vv_i32m1",
-     "product_vec", "", ""},
-    {RVVSelectedBodyOperationKind::CmpSelect, "cmp_select",
-     "__riscv_vmerge_vvm_i32m1", "selected_vec",
-     "__riscv_vmseq_vv_i32m1_b32", "cmp_mask"},
+constexpr RVVSelectedBodyDescriptorMapping
+    kRVVSelectedBodyDescriptorMappings[] = {
+        {RVVSelectedBodyOperationKind::Add,
+         32,
+         "m1",
+         "agnostic",
+         "agnostic",
+         true,
+         "add",
+         "size_t",
+         "!tcrv_rvv.i32m1",
+         "!tcrv_rvv.i32m1_mask",
+         "vint32m1_t",
+         "vbool32_t",
+         "__riscv_vsetvl_e32m1",
+         "__riscv_vle32_v_i32m1",
+         "__riscv_vmv_v_x_i32m1",
+         "__riscv_vse32_v_i32m1",
+         "__riscv_vadd_vv_i32m1",
+         "",
+         "sum_vec",
+         ""},
+        {RVVSelectedBodyOperationKind::Sub,
+         32,
+         "m1",
+         "agnostic",
+         "agnostic",
+         true,
+         "sub",
+         "size_t",
+         "!tcrv_rvv.i32m1",
+         "!tcrv_rvv.i32m1_mask",
+         "vint32m1_t",
+         "vbool32_t",
+         "__riscv_vsetvl_e32m1",
+         "__riscv_vle32_v_i32m1",
+         "__riscv_vmv_v_x_i32m1",
+         "__riscv_vse32_v_i32m1",
+         "__riscv_vsub_vv_i32m1",
+         "",
+         "difference_vec",
+         ""},
+        {RVVSelectedBodyOperationKind::Mul,
+         32,
+         "m1",
+         "agnostic",
+         "agnostic",
+         true,
+         "mul",
+         "size_t",
+         "!tcrv_rvv.i32m1",
+         "!tcrv_rvv.i32m1_mask",
+         "vint32m1_t",
+         "vbool32_t",
+         "__riscv_vsetvl_e32m1",
+         "__riscv_vle32_v_i32m1",
+         "__riscv_vmv_v_x_i32m1",
+         "__riscv_vse32_v_i32m1",
+         "__riscv_vmul_vv_i32m1",
+         "",
+         "product_vec",
+         ""},
+        {RVVSelectedBodyOperationKind::CmpSelect,
+         32,
+         "m1",
+         "agnostic",
+         "agnostic",
+         false,
+         "cmp_select",
+         "size_t",
+         "!tcrv_rvv.i32m1",
+         "!tcrv_rvv.i32m1_mask",
+         "vint32m1_t",
+         "vbool32_t",
+         "__riscv_vsetvl_e32m1",
+         "__riscv_vle32_v_i32m1",
+         "",
+         "__riscv_vse32_v_i32m1",
+         "__riscv_vmerge_vvm_i32m1",
+         "__riscv_vmseq_vv_i32m1_b32",
+         "selected_vec",
+         "cmp_mask"},
 };
 
 constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::Add, RVVSelectedBodyOperationKind::Sub,
     RVVSelectedBodyOperationKind::Mul, RVVSelectedBodyOperationKind::CmpSelect};
 
-const RVVSelectedBodyIntrinsicMapping &
-getRVVSelectedBodyIntrinsicMapping(RVVSelectedBodyOperationKind op) {
-  for (const RVVSelectedBodyIntrinsicMapping &spec :
-       kRVVSelectedBodyIntrinsicMappings)
+const RVVSelectedBodyDescriptorMapping &
+getRVVSelectedBodyDescriptorMappingByOperation(
+    RVVSelectedBodyOperationKind op) {
+  for (const RVVSelectedBodyDescriptorMapping &spec :
+       kRVVSelectedBodyDescriptorMappings)
     if (spec.operation == op)
       return spec;
   llvm_unreachable("unknown RVV selected-body operation");
 }
 
+bool supportsRVVSelectedBodyMemoryForm(
+    const RVVSelectedBodyDescriptorMapping &mapping,
+    RVVSelectedBodyMemoryForm memoryForm) {
+  switch (memoryForm) {
+  case RVVSelectedBodyMemoryForm::VectorRHSLoad:
+    return true;
+  case RVVSelectedBodyMemoryForm::RHSBroadcastLoad:
+    return mapping.supportsRHSBroadcastLoad;
+  }
+  llvm_unreachable("unknown RVV selected-body memory form");
+}
+
+llvm::Expected<const RVVSelectedBodyDescriptorMapping *>
+lookupRVVSelectedBodyDescriptorMapping(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  for (const RVVSelectedBodyDescriptorMapping &mapping :
+       kRVVSelectedBodyDescriptorMappings) {
+    if (mapping.operation == description.operation &&
+        mapping.sew == description.sew && mapping.lmul == description.lmul &&
+        mapping.tailPolicy == description.tailPolicy &&
+        mapping.maskPolicy == description.maskPolicy &&
+        supportsRVVSelectedBodyMemoryForm(mapping, description.memoryForm))
+      return &mapping;
+  }
+
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(
+          "unsupported RVV selected-body route descriptor: operation=") +
+      stringifyRVVSelectedBodyOperationKind(description.operation) +
+      ", memory_form=" +
+      stringifyRVVSelectedBodyMemoryForm(description.memoryForm) +
+      ", SEW=" + llvm::Twine(description.sew) + ", LMUL=" + description.lmul +
+      ", tail_policy=" + description.tailPolicy +
+      ", mask_policy=" + description.maskPolicy);
+}
+
+llvm::StringRef stringifyRVVTailPolicy(tcrv::rvv::TailPolicy policy) {
+  switch (policy) {
+  case tcrv::rvv::TailPolicy::Agnostic:
+    return "agnostic";
+  case tcrv::rvv::TailPolicy::Undisturbed:
+    return "undisturbed";
+  }
+  llvm_unreachable("unknown RVV tail policy");
+}
+
+llvm::StringRef stringifyRVVMaskPolicy(tcrv::rvv::MaskPolicy policy) {
+  switch (policy) {
+  case tcrv::rvv::MaskPolicy::Agnostic:
+    return "agnostic";
+  case tcrv::rvv::MaskPolicy::Undisturbed:
+    return "undisturbed";
+  }
+  llvm_unreachable("unknown RVV mask policy");
+}
+
 const RVVSelectedBodyConstructionRoute &
 getRVVSelectedBodyConstructionRouteOrDie(RVVSelectedBodyOperationKind op) {
-  const RVVSelectedBodyIntrinsicMapping &spec =
-      getRVVSelectedBodyIntrinsicMapping(op);
+  const RVVSelectedBodyDescriptorMapping &spec =
+      getRVVSelectedBodyDescriptorMappingByOperation(op);
   llvm::Expected<const RVVSelectedBodyConstructionRoute *> route =
       lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
           spec.operationMnemonic);
@@ -89,7 +234,8 @@ getRVVSelectedBodyConstructionRouteOrDie(RVVSelectedBodyOperationKind op) {
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
-      llvm::Twine("TianChen-RV RVV plugin-owned EmitC route provider failed: ") +
+      llvm::Twine(
+          "TianChen-RV RVV plugin-owned EmitC route provider failed: ") +
           message,
       llvm::errc::invalid_argument);
 }
@@ -155,7 +301,7 @@ struct RVVSelectedBodyRouteSlice {
 
 struct RVVSelectedBodyRouteAnalysis {
   RVVSelectedBodyRouteSlice slice;
-  const RVVSelectedBodyIntrinsicMapping *intrinsicMapping = nullptr;
+  const RVVSelectedBodyDescriptorMapping *descriptorMapping = nullptr;
   const RVVSelectedBodyConstructionRoute *constructionRoute = nullptr;
   RVVSelectedBodyEmitCRouteDescription description;
 };
@@ -167,8 +313,7 @@ std::string formatRuntimeABIExpectedRoles(
   llvm::interleave(
       expectedRoles,
       [&](support::RuntimeABIParameterRole role) {
-        stream << "'"
-               << support::stringifyRuntimeABIParameterRole(role) << "'";
+        stream << "'" << support::stringifyRuntimeABIParameterRole(role) << "'";
       },
       [&] { stream << " or "; });
   stream.flush();
@@ -200,8 +345,7 @@ getRuntimeABIParameterBindingFromValue(
         formatRuntimeABIExpectedRoles(expectedRoles);
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) + " must bind runtime ABI role " +
-        expectedRolesText + "; got '" +
-        binding.getRole() + "'");
+        expectedRolesText + "; got '" + binding.getRole() + "'");
   }
 
   std::optional<support::RuntimeABIParameterOwnership> ownership =
@@ -215,9 +359,10 @@ getRuntimeABIParameterBindingFromValue(
                                       *role, *ownership);
 }
 
-llvm::Error assignRVVLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::I32LoadOp load,
-    const support::RuntimeABIParameter &parameter) {
+llvm::Error
+assignRVVLoadBinding(RVVSelectedBodyRouteSlice &slice,
+                     tcrv::rvv::I32LoadOp load,
+                     const support::RuntimeABIParameter &parameter) {
   if (parameter.role == support::RuntimeABIParameterRole::LHSInputBuffer) {
     if (slice.lhsLoad)
       return makeRVVEmitCRouteProviderError(
@@ -241,9 +386,10 @@ llvm::Error assignRVVLoadBinding(
       "' for bounded EmitC route");
 }
 
-llvm::Error assignRVVBroadcastLoadBinding(
-    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::I32BroadcastLoadOp load,
-    const support::RuntimeABIParameter &parameter) {
+llvm::Error
+assignRVVBroadcastLoadBinding(RVVSelectedBodyRouteSlice &slice,
+                              tcrv::rvv::I32BroadcastLoadOp load,
+                              const support::RuntimeABIParameter &parameter) {
   if (parameter.role != support::RuntimeABIParameterRole::RHSInputBuffer)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported RVV i32 broadcast load runtime ABI role '") +
@@ -282,18 +428,18 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
   if (!bindings)
     return bindings.takeError();
 
-  if (llvm::Error error =
-          tcrv::rvv::verifyRVVI32M1ArithmeticRuntimeABIParameters(
-              ordered, "bounded RVV EmitC route explicit runtime ABI values"))
+  if (llvm::Error error = tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+          ordered, "selected RVV EmitC route explicit runtime ABI values"))
     return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
 
   return llvm::Error::success();
 }
 
-llvm::Error recordRVVSelectedBodyOperation(
-    RVVSelectedBodyRouteSlice &slice, mlir::Operation *op,
-    RVVSelectedBodyOperationKind kind, mlir::Value lhs, mlir::Value rhs,
-    mlir::Value result) {
+llvm::Error recordRVVSelectedBodyOperation(RVVSelectedBodyRouteSlice &slice,
+                                           mlir::Operation *op,
+                                           RVVSelectedBodyOperationKind kind,
+                                           mlir::Value lhs, mlir::Value rhs,
+                                           mlir::Value result) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one supported "
@@ -308,7 +454,7 @@ llvm::Error recordRVVSelectedBodyOperation(
 }
 
 llvm::Error recordRVVSelectedBodyCompareOp(RVVSelectedBodyRouteSlice &slice,
-                                    tcrv::rvv::I32CmpEqOp compare) {
+                                           tcrv::rvv::I32CmpEqOp compare) {
   if (slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV compare/select EmitC route requires exactly one "
@@ -321,7 +467,7 @@ llvm::Error recordRVVSelectedBodyCompareOp(RVVSelectedBodyRouteSlice &slice,
 }
 
 llvm::Error recordRVVSelectedBodySelectOp(RVVSelectedBodyRouteSlice &slice,
-                                   tcrv::rvv::I32SelectOp select) {
+                                          tcrv::rvv::I32SelectOp select) {
   if (llvm::Error error = recordRVVSelectedBodyOperation(
           slice, select.getOperation(), RVVSelectedBodyOperationKind::CmpSelect,
           select.getTrueValue(), select.getFalseValue(), select.getSelected()))
@@ -361,8 +507,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   slice.withVL = withVLs.front();
 
   tcrv::rvv::RVVConfigContractDiagnostic configDiagnostic =
-      tcrv::rvv::validateRVVI32M1ArithmeticConfigVLContract(slice.setvl,
-                                                            slice.withVL);
+      tcrv::rvv::validateRVVSelectedBodyConfigVLStructure(slice.setvl,
+                                                          slice.withVL);
   if (!configDiagnostic.ok)
     return makeRVVEmitCRouteProviderError(configDiagnostic.message);
 
@@ -387,26 +533,23 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       continue;
     }
     if (auto add = llvm::dyn_cast<tcrv::rvv::I32AddOp>(op)) {
-      if (llvm::Error error =
-              recordRVVSelectedBodyOperation(
-                  slice, add.getOperation(), RVVSelectedBodyOperationKind::Add,
-                  add.getLhs(), add.getRhs(), add.getSum()))
+      if (llvm::Error error = recordRVVSelectedBodyOperation(
+              slice, add.getOperation(), RVVSelectedBodyOperationKind::Add,
+              add.getLhs(), add.getRhs(), add.getSum()))
         return std::move(error);
       continue;
     }
     if (auto sub = llvm::dyn_cast<tcrv::rvv::I32SubOp>(op)) {
-      if (llvm::Error error =
-              recordRVVSelectedBodyOperation(
-                  slice, sub.getOperation(), RVVSelectedBodyOperationKind::Sub,
-                  sub.getLhs(), sub.getRhs(), sub.getDifference()))
+      if (llvm::Error error = recordRVVSelectedBodyOperation(
+              slice, sub.getOperation(), RVVSelectedBodyOperationKind::Sub,
+              sub.getLhs(), sub.getRhs(), sub.getDifference()))
         return std::move(error);
       continue;
     }
     if (auto mul = llvm::dyn_cast<tcrv::rvv::I32MulOp>(op)) {
-      if (llvm::Error error =
-              recordRVVSelectedBodyOperation(
-                  slice, mul.getOperation(), RVVSelectedBodyOperationKind::Mul,
-                  mul.getLhs(), mul.getRhs(), mul.getProduct()))
+      if (llvm::Error error = recordRVVSelectedBodyOperation(
+              slice, mul.getOperation(), RVVSelectedBodyOperationKind::Mul,
+              mul.getLhs(), mul.getRhs(), mul.getProduct()))
         return std::move(error);
       continue;
     }
@@ -508,13 +651,10 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           {support::RuntimeABIParameterRole::OutputBuffer});
   if (!outABI)
     return outABI.takeError();
-  const RVVSelectedBodyIntrinsicMapping &spec =
-      getRVVSelectedBodyIntrinsicMapping(slice.arithmeticKind);
-  const RVVSelectedBodyConstructionRoute &constructionRoute =
-      getRVVSelectedBodyConstructionRouteOrDie(slice.arithmeticKind);
-  if (llvm::Error error = validateRVVSelectedBodyRuntimeABIParameters(
-          slice, constructionRoute, *runtimeElementCountABI, *outABI))
-    return error;
+  llvm::StringRef operationMnemonic =
+      stringifyRVVSelectedBodyOperationKind(slice.arithmeticKind);
+  slice.runtimeElementCountABI = *runtimeElementCountABI;
+  slice.outABI = *outABI;
   mlir::Value rhsValue = slice.rhsBroadcastLoad
                              ? slice.rhsBroadcastLoad.getBroadcast()
                              : slice.rhsLoad.getLoaded();
@@ -543,8 +683,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         slice.arithmeticRhs != rhsValue)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine("bounded RVV EmitC route requires tcrv_rvv.i32_") +
-          spec.operationMnemonic + " to consume lhs load and explicit rhs vector or "
-                          "broadcast results");
+          operationMnemonic +
+          " to consume lhs load and explicit rhs vector or broadcast results");
     if (slice.store.getValue() != slice.arithmeticResult)
       return makeRVVEmitCRouteProviderError(
           "bounded RVV EmitC route requires tcrv_rvv.i32_store to consume the "
@@ -567,8 +707,7 @@ getEmitCSourceProvenance(mlir::Operation *op, llvm::StringRef expectedRole) {
         "' must implement " + kEmitCLowerableOpInterfaceName +
         " before RVV EmitC route construction");
 
-  llvm::StringRef sourceRole =
-      lowerable.getTCRVEmitCLowerableSourceRole();
+  llvm::StringRef sourceRole = lowerable.getTCRVEmitCLowerableSourceRole();
   if (sourceRole != expectedRole)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("operation '") + op->getName().getStringRef() +
@@ -584,8 +723,7 @@ getEmitCSourceProvenance(mlir::Operation *op, llvm::StringRef expectedRole) {
 
 llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep>
 makeCallStepFromSource(
-    mlir::Operation *op,
-    llvm::StringRef expectedRole, llvm::StringRef callee,
+    mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef callee,
     llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
     std::optional<conversion::emitc::TCRVEmitCCallOpaqueResult> result =
         std::nullopt) {
@@ -624,14 +762,14 @@ struct RVVOrderedRoleOperations {
 
 unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
                                   mlir::Operation *op) {
-  auto lhsABI = slice.lhsLoad.getBuffer()
-                    .getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto lhsABI =
+      slice.lhsLoad.getBuffer().getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
   mlir::Value rhsBuffer = slice.rhsBroadcastLoad
                               ? slice.rhsBroadcastLoad.getBuffer()
                               : slice.rhsLoad.getBuffer();
   auto rhsABI = rhsBuffer.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
-  auto outABI = slice.store.getBuffer()
-                    .getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto outABI =
+      slice.store.getBuffer().getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
   auto nABI =
       slice.setvl.getAvl().getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
   if (lhsABI && op == lhsABI.getOperation())
@@ -660,7 +798,8 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
   if (op == slice.arithmeticOp)
     return 8;
   if (op == slice.store.getOperation())
-    return slice.arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect ? 10 : 9;
+    return slice.arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect ? 10
+                                                                           : 9;
   return 10;
 }
 
@@ -688,16 +827,17 @@ collectRVVRoleOperationsInBodyOrder(tcrv::exec::VariantOp variant,
 }
 
 llvm::Error verifySelectedRVVRoleSequence(
-    RVVSelectedBodyRouteSlice &slice, const VariantEmitCLowerableRequest &request,
+    RVVSelectedBodyRouteSlice &slice,
+    const VariantEmitCLowerableRequest &request,
     const RVVSelectedBodyConstructionRoute &constructionRoute) {
-  auto lhsABI = slice.lhsLoad.getBuffer()
-                    .getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto lhsABI =
+      slice.lhsLoad.getBuffer().getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
   mlir::Value rhsBuffer = slice.rhsBroadcastLoad
                               ? slice.rhsBroadcastLoad.getBuffer()
                               : slice.rhsLoad.getBuffer();
   auto rhsABI = rhsBuffer.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
-  auto outABI = slice.store.getBuffer()
-                    .getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto outABI =
+      slice.store.getBuffer().getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
   auto nABI =
       slice.setvl.getAvl().getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
   if (!lhsABI || !rhsABI || !outABI || !nABI)
@@ -705,8 +845,9 @@ llvm::Error verifySelectedRVVRoleSequence(
         "selected RVV construction role sequence requires runtime ABI values "
         "to be explicit tcrv_rvv.runtime_abi_value ops");
 
-  mlir::ArrayAttr requires =
-      request.getVariant()->getAttrOfType<mlir::ArrayAttr>("requires");
+  mlir::ArrayAttr
+    requires
+  = request.getVariant()->getAttrOfType<mlir::ArrayAttr>("requires");
   if (!requires || requires.empty())
     return makeRVVEmitCRouteProviderError(
         "selected RVV construction role sequence requires non-empty selected "
@@ -714,9 +855,9 @@ llvm::Error verifySelectedRVVRoleSequence(
 
   RVVOrderedRoleOperations ordered =
       collectRVVRoleOperationsInBodyOrder(request.getVariant(), slice);
-  llvm::StringRef rhsSourceOperationName =
-      slice.rhsBroadcastLoad ? "tcrv_rvv.i32_broadcast_load"
-                             : "tcrv_rvv.i32_load";
+  llvm::StringRef rhsSourceOperationName = slice.rhsBroadcastLoad
+                                               ? "tcrv_rvv.i32_broadcast_load"
+                                               : "tcrv_rvv.i32_load";
   return verifyRVVSelectedBodySelectedRoleSequence(
       ordered.operations, ordered.constructionOrders,
       request.getVariant().getSymName(),
@@ -744,31 +885,12 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   if (!slice)
     return slice.takeError();
 
-  const RVVSelectedBodyIntrinsicMapping &intrinsicMapping =
-      getRVVSelectedBodyIntrinsicMapping(slice->arithmeticKind);
-  const RVVSelectedBodyConstructionRoute &constructionRoute =
-      getRVVSelectedBodyConstructionRouteOrDie(slice->arithmeticKind);
-
-  if (slice->arithmeticOp->getName().getStringRef() !=
-      constructionRoute.typedComputeOpName)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("selected typed RVV body route expected compute op '") +
-        constructionRoute.typedComputeOpName + "' from the construction mapping");
-  if (llvm::Error error = verifyRVVSelectedBodyConstructionRouteMapping(
-          intrinsicMapping.operationMnemonic, constructionRoute.typedComputeOpName,
-          constructionRoute.emitCRouteID, constructionRoute.runtimeABIName))
-    return std::move(error);
-  if (llvm::Error error =
-          verifySelectedRVVRoleSequence(*slice, request, constructionRoute))
-    return std::move(error);
-
   tcrv::rvv::RVVCompileTimeConfig config =
       tcrv::rvv::getRVVSetVLCompileTimeConfig(slice->setvl);
+  const auto &configContract = tcrv::rvv::getRVVSelectedBodyConfigVLContract();
 
   RVVSelectedBodyRouteAnalysis analysis;
   analysis.slice = std::move(*slice);
-  analysis.intrinsicMapping = &intrinsicMapping;
-  analysis.constructionRoute = &constructionRoute;
   analysis.description.operation = analysis.slice.arithmeticKind;
   analysis.description.memoryForm =
       analysis.slice.rhsBroadcastLoad
@@ -776,36 +898,124 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
           : RVVSelectedBodyMemoryForm::VectorRHSLoad;
   analysis.description.sew = config.sew;
   analysis.description.lmul = config.lmul;
-  analysis.description.typedComputeOpName = constructionRoute.typedComputeOpName;
-  analysis.description.emitCRouteID = constructionRoute.emitCRouteID;
+  analysis.description.tailPolicy =
+      stringifyRVVTailPolicy(config.policy.getTail());
+  analysis.description.maskPolicy =
+      stringifyRVVMaskPolicy(config.policy.getMask());
+  analysis.description.configContractID = configContract.configContractID;
+  analysis.description.runtimeVLContractID = configContract.runtimeVLContractID;
+  analysis.description.runtimeAVLASource = configContract.runtimeAVLASource;
+  analysis.description.runtimeABIOrder = configContract.runtimeABIOrder;
+  analysis.description.vlDefOpName = configContract.vlDefOpName;
+  analysis.description.vlScopeOpName = configContract.vlScopeOpName;
+  analysis.description.vlUses = configContract.vlUses;
+  analysis.description.emitCLoopKind = configContract.emitCLoopKind;
+  analysis.description.emitCLoopInductionName =
+      configContract.emitCLoopInductionName;
+  analysis.description.emitCFullChunkVLName =
+      configContract.emitCFullChunkVLName;
+  analysis.description.emitCLoopVLName =
+      tcrv::rvv::getRVVSelectedBodyEmitCLoopVLName();
+  analysis.description.remainingAVLMetadata =
+      configContract.remainingAVLMetadata;
+  analysis.description.pointerAdvanceMetadata =
+      configContract.pointerAdvanceMetadata;
+  analysis.description.boundedSlice = configContract.boundedSlice;
+  analysis.description.multiVL = configContract.multiVL;
+  analysis.description.boundaryOpName = kRVVSelectedBodyLoweringBoundaryOpName;
   analysis.description.targetArtifactRouteID =
       getRVVConstructionManifest().emitcRoute.routeID;
   analysis.description.targetArtifactKind =
       getRVVConstructionManifest().emitcRoute.artifactKind;
-  analysis.description.runtimeABIName = constructionRoute.runtimeABIName;
-  analysis.description.runtimeABIContractName =
-      constructionRoute.runtimeABIContractName;
-  analysis.description.intrinsic = intrinsicMapping.intrinsic;
-  analysis.description.compareIntrinsic = intrinsicMapping.compareIntrinsic;
-  analysis.description.resultName = intrinsicMapping.resultName;
-  analysis.description.maskName = intrinsicMapping.maskName;
   analysis.description.runtimeABIParameters.push_back(analysis.slice.lhsABI);
   analysis.description.runtimeABIParameters.push_back(analysis.slice.rhsABI);
   analysis.description.runtimeABIParameters.push_back(analysis.slice.outABI);
   analysis.description.runtimeABIParameters.push_back(
       analysis.slice.runtimeElementCountABI);
+
+  llvm::Expected<const RVVSelectedBodyDescriptorMapping *> descriptorMapping =
+      lookupRVVSelectedBodyDescriptorMapping(analysis.description);
+  if (!descriptorMapping)
+    return descriptorMapping.takeError();
+  analysis.descriptorMapping = *descriptorMapping;
+
+  llvm::Expected<const RVVSelectedBodyConstructionRoute *> constructionRoute =
+      lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
+          analysis.descriptorMapping->operationMnemonic);
+  if (!constructionRoute)
+    return constructionRoute.takeError();
+  analysis.constructionRoute = *constructionRoute;
+
+  analysis.description.typedComputeOpName =
+      analysis.constructionRoute->typedComputeOpName;
+  analysis.description.emitCRouteID = analysis.constructionRoute->emitCRouteID;
+  analysis.description.runtimeABIName =
+      analysis.constructionRoute->runtimeABIName;
+  analysis.description.runtimeABIContractName =
+      analysis.constructionRoute->runtimeABIContractName;
+  analysis.description.vlCType = analysis.descriptorMapping->vlCType;
+  analysis.description.vectorTypeName =
+      analysis.descriptorMapping->vectorTypeName;
+  analysis.description.maskTypeName = analysis.descriptorMapping->maskTypeName;
+  analysis.description.vectorCType = analysis.descriptorMapping->vectorCType;
+  analysis.description.maskCType = analysis.descriptorMapping->maskCType;
+  analysis.description.setVLIntrinsic =
+      analysis.descriptorMapping->setVLIntrinsic;
+  analysis.description.vectorLoadIntrinsic =
+      analysis.descriptorMapping->vectorLoadIntrinsic;
+  analysis.description.rhsBroadcastIntrinsic =
+      analysis.descriptorMapping->rhsBroadcastIntrinsic;
+  analysis.description.storeIntrinsic =
+      analysis.descriptorMapping->storeIntrinsic;
+  analysis.description.intrinsic = analysis.descriptorMapping->computeIntrinsic;
+  analysis.description.compareIntrinsic =
+      analysis.descriptorMapping->compareIntrinsic;
+  analysis.description.resultName = analysis.descriptorMapping->resultName;
+  analysis.description.maskName = analysis.descriptorMapping->maskName;
+
+  if (llvm::Error error = validateRVVSelectedBodyRuntimeABIParameters(
+          analysis.slice, *analysis.constructionRoute,
+          analysis.slice.runtimeElementCountABI, analysis.slice.outABI))
+    return error;
+  if (analysis.slice.arithmeticOp->getName().getStringRef() !=
+      analysis.constructionRoute->typedComputeOpName)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("selected typed RVV body route expected compute op '") +
+        analysis.constructionRoute->typedComputeOpName +
+        "' from the descriptor-derived construction mapping");
+  if (llvm::Error error = verifyRVVSelectedBodyConstructionRouteMapping(
+          analysis.descriptorMapping->operationMnemonic,
+          analysis.constructionRoute->typedComputeOpName,
+          analysis.constructionRoute->emitCRouteID,
+          analysis.constructionRoute->runtimeABIName))
+    return std::move(error);
+  if (llvm::Error error = verifySelectedRVVRoleSequence(
+          analysis.slice, request, *analysis.constructionRoute))
+    return std::move(error);
   return analysis;
 }
 
 } // namespace
 
-llvm::ArrayRef<RVVSelectedBodyOperationKind> getRVVSelectedBodyOperationKinds() {
+llvm::ArrayRef<RVVSelectedBodyOperationKind>
+getRVVSelectedBodyOperationKinds() {
   return kRVVSelectedBodyOperationKinds;
 }
 
 llvm::StringRef
 stringifyRVVSelectedBodyOperationKind(RVVSelectedBodyOperationKind op) {
-  return getRVVSelectedBodyIntrinsicMapping(op).operationMnemonic;
+  return getRVVSelectedBodyDescriptorMappingByOperation(op).operationMnemonic;
+}
+
+llvm::StringRef
+stringifyRVVSelectedBodyMemoryForm(RVVSelectedBodyMemoryForm form) {
+  switch (form) {
+  case RVVSelectedBodyMemoryForm::VectorRHSLoad:
+    return "vector-rhs-load";
+  case RVVSelectedBodyMemoryForm::RHSBroadcastLoad:
+    return "rhs-broadcast-load";
+  }
+  llvm_unreachable("unknown RVV selected-body memory form");
 }
 
 llvm::StringRef
@@ -836,15 +1046,49 @@ llvm::StringRef getRVVSelectedBodyRuntimeGlueRole() {
 
 llvm::SmallVector<support::RuntimeABIParameter, 4>
 getRVVSelectedBodyRuntimeABIParameters() {
-  return tcrv::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
+  return tcrv::rvv::getRVVSelectedBodyRuntimeABIParameters();
+}
+
+llvm::SmallVector<support::ArtifactMetadataEntry, 16>
+getRVVSelectedBodyConfigArtifactMetadata(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  llvm::SmallVector<support::ArtifactMetadataEntry, 16> metadata;
+  metadata.push_back(
+      {"tcrv_rvv.config_contract", description.configContractID});
+  metadata.push_back({"tcrv_rvv.sew", llvm::Twine(description.sew).str()});
+  metadata.push_back({"tcrv_rvv.lmul", description.lmul});
+  metadata.push_back({"tcrv_rvv.tail_policy", description.tailPolicy});
+  metadata.push_back({"tcrv_rvv.mask_policy", description.maskPolicy});
+  metadata.push_back(
+      {"tcrv_rvv.runtime_vl_contract", description.runtimeVLContractID});
+  metadata.push_back(
+      {"tcrv_rvv.runtime_avl_source", description.runtimeAVLASource});
+  metadata.push_back({"tcrv_rvv.vl_def", description.vlDefOpName});
+  metadata.push_back({"tcrv_rvv.vl_scope", description.vlScopeOpName});
+  metadata.push_back({"tcrv_rvv.vl_uses", description.vlUses});
+  metadata.push_back(
+      {"tcrv_rvv.runtime_abi_order", description.runtimeABIOrder});
+  metadata.push_back({"tcrv_rvv.runtime_avl_abi_parameter",
+                      tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName()});
+  metadata.push_back({"tcrv_rvv.emitc_loop", description.emitCLoopKind});
+  metadata.push_back(
+      {"tcrv_rvv.loop_induction", description.emitCLoopInductionName});
+  metadata.push_back({"tcrv_rvv.loop_step", description.emitCFullChunkVLName});
+  metadata.push_back(
+      {"tcrv_rvv.remaining_avl", description.remainingAVLMetadata});
+  metadata.push_back(
+      {"tcrv_rvv.pointer_advance", description.pointerAdvanceMetadata});
+  metadata.push_back({"tcrv_rvv.bounded_slice", description.boundedSlice});
+  metadata.push_back({"tcrv_rvv.multi_vl", description.multiVL});
+  return metadata;
 }
 
 static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     RVVSelectedBodyRouteAnalysis &analysis,
     conversion::emitc::TCRVEmitCLowerableRoute &out) {
   RVVSelectedBodyRouteSlice *slice = &analysis.slice;
-  const RVVSelectedBodyIntrinsicMapping &expectedSpec =
-      *analysis.intrinsicMapping;
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
 
   conversion::emitc::TCRVEmitCLowerableRoute route(
       analysis.description.emitCRouteID,
@@ -852,18 +1096,17 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   route.addHeader("stddef.h");
   route.addHeader("stdint.h");
   route.addHeader("riscv_vector.h");
-  route.addTypeMapping("!tcrv_rvv.vl", "size_t");
-  route.addTypeMapping("!tcrv_rvv.i32m1", "vint32m1_t");
-  route.addTypeMapping("!tcrv_rvv.i32m1_mask", "vbool32_t");
+  route.addTypeMapping("!tcrv_rvv.vl", description.vlCType);
+  route.addTypeMapping(description.vectorTypeName, description.vectorCType);
+  route.addTypeMapping(description.maskTypeName, description.maskCType);
   const support::RuntimeABIParameter runtimeABIParameters[] = {
       slice->lhsABI, slice->rhsABI, slice->outABI,
       slice->runtimeElementCountABI};
   for (const support::RuntimeABIParameter &parameter : runtimeABIParameters)
     route.addABIValueMapping(parameter, parameter.cName);
 
-  llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance>
-      withVLSource =
-          getEmitCSourceProvenance(slice->withVL.getOperation(), "scope");
+  llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance> withVLSource =
+      getEmitCSourceProvenance(slice->withVL.getOperation(), "scope");
   if (!withVLSource)
     return withVLSource.takeError();
   route.addSourceOpProvenance(std::move(*withVLSource));
@@ -872,25 +1115,23 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   using conversion::emitc::TCRVEmitCCallOpaqueResult;
   if (llvm::Error error = addCallStepFromSource(
           route, slice->setvl.getOperation(), "configure",
-          "__riscv_vsetvl_e32m1",
-          {TCRVEmitCCallOpaqueOperand{
-              slice->runtimeElementCountABI.cName,
-              slice->runtimeElementCountABI.cType}},
-          TCRVEmitCCallOpaqueResult{"full_chunk_vl", "size_t"}))
+          description.setVLIntrinsic,
+          {TCRVEmitCCallOpaqueOperand{slice->runtimeElementCountABI.cName,
+                                      slice->runtimeElementCountABI.cType}},
+          TCRVEmitCCallOpaqueResult{description.emitCFullChunkVLName.str(),
+                                    description.vlCType.str()}))
     return error;
 
   conversion::emitc::TCRVEmitCForLoop loop;
-  llvm::StringRef inductionName =
-      tcrv::rvv::getRVVI32M1ArithmeticEmitCLoopInductionName();
-  llvm::StringRef fullChunkVLName =
-      tcrv::rvv::getRVVI32M1ArithmeticEmitCFullChunkVLName();
-  llvm::StringRef loopVLName =
-      tcrv::rvv::getRVVI32M1ArithmeticEmitCLoopVLName();
+  llvm::StringRef inductionName = description.emitCLoopInductionName;
+  llvm::StringRef fullChunkVLName = description.emitCFullChunkVLName;
+  llvm::StringRef loopVLName = description.emitCLoopVLName;
   loop.inductionVarName = inductionName.str();
-  loop.lowerBound = TCRVEmitCCallOpaqueOperand{"0", "size_t"};
+  loop.lowerBound = TCRVEmitCCallOpaqueOperand{"0", description.vlCType.str()};
   loop.upperBound = TCRVEmitCCallOpaqueOperand{
       slice->runtimeElementCountABI.cName, slice->runtimeElementCountABI.cType};
-  loop.step = TCRVEmitCCallOpaqueOperand{fullChunkVLName.str(), "size_t"};
+  loop.step = TCRVEmitCCallOpaqueOperand{fullChunkVLName.str(),
+                                         description.vlCType.str()};
 
   auto addLoopStep = [&](mlir::Operation *op, llvm::StringRef role,
                          llvm::StringRef callee,
@@ -906,83 +1147,100 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   };
 
   if (llvm::Error error = addLoopStep(
-          slice->setvl.getOperation(), "configure", "__riscv_vsetvl_e32m1",
+          slice->setvl.getOperation(), "configure", description.setVLIntrinsic,
           {TCRVEmitCCallOpaqueOperand{
-              tcrv::rvv::getRVVI32M1ArithmeticEmitCRemainingAVLExpression(
+              tcrv::rvv::getRVVSelectedBodyEmitCRemainingAVLExpression(
                   slice->runtimeElementCountABI.cName, inductionName),
-              "size_t"}},
-          TCRVEmitCCallOpaqueResult{loopVLName.str(), "size_t"}))
+              description.vlCType.str()}},
+          TCRVEmitCCallOpaqueResult{loopVLName.str(),
+                                    description.vlCType.str()}))
     return error;
   if (llvm::Error error = addLoopStep(
-          slice->lhsLoad.getOperation(), "load", "__riscv_vle32_v_i32m1",
+          slice->lhsLoad.getOperation(), "load",
+          description.vectorLoadIntrinsic,
           {TCRVEmitCCallOpaqueOperand{
                (llvm::StringRef(slice->lhsABI.cName) + " + " + inductionName)
                    .str(),
                slice->lhsABI.cType},
-           TCRVEmitCCallOpaqueOperand{loopVLName.str(), "size_t"}},
-          TCRVEmitCCallOpaqueResult{"lhs_vec", "vint32m1_t"}))
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                      description.vlCType.str()}},
+          TCRVEmitCCallOpaqueResult{"lhs_vec", description.vectorCType.str()}))
     return error;
   if (slice->rhsBroadcastLoad) {
     if (llvm::Error error = addLoopStep(
             slice->rhsBroadcastLoad.getOperation(), "load",
-            "__riscv_vmv_v_x_i32m1",
+            description.rhsBroadcastIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
                  (llvm::StringRef(slice->rhsABI.cName) + "[0]").str(),
                  "int32_t"},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(), "size_t"}},
-            TCRVEmitCCallOpaqueResult{"rhs_vec", "vint32m1_t"}))
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"rhs_vec",
+                                      description.vectorCType.str()}))
       return error;
   } else {
     if (llvm::Error error = addLoopStep(
-            slice->rhsLoad.getOperation(), "load", "__riscv_vle32_v_i32m1",
+            slice->rhsLoad.getOperation(), "load",
+            description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->rhsABI.cName) + " + " +
-                  inductionName)
+                 (llvm::StringRef(slice->rhsABI.cName) + " + " + inductionName)
                      .str(),
                  slice->rhsABI.cType},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(), "size_t"}},
-            TCRVEmitCCallOpaqueResult{"rhs_vec", "vint32m1_t"}))
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"rhs_vec",
+                                      description.vectorCType.str()}))
       return error;
   }
   if (slice->arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect) {
-    if (llvm::Error error = addLoopStep(
-            slice->compareOp.getOperation(), "compute",
-            expectedSpec.compareIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{"lhs_vec", "vint32m1_t"},
-             TCRVEmitCCallOpaqueOperand{"rhs_vec", "vint32m1_t"},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(), "size_t"}},
-            TCRVEmitCCallOpaqueResult{expectedSpec.maskName.str(),
-                                      "vbool32_t"}))
+    if (llvm::Error error =
+            addLoopStep(slice->compareOp.getOperation(), "compute",
+                        description.compareIntrinsic,
+                        {TCRVEmitCCallOpaqueOperand{
+                             "lhs_vec", description.vectorCType.str()},
+                         TCRVEmitCCallOpaqueOperand{
+                             "rhs_vec", description.vectorCType.str()},
+                         TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                                    description.vlCType.str()}},
+                        TCRVEmitCCallOpaqueResult{description.maskName.str(),
+                                                  description.maskCType.str()}))
       return error;
     if (llvm::Error error = addLoopStep(
-            slice->arithmeticOp, "compute", expectedSpec.intrinsic,
-            {TCRVEmitCCallOpaqueOperand{"rhs_vec", "vint32m1_t"},
-             TCRVEmitCCallOpaqueOperand{"lhs_vec", "vint32m1_t"},
-             TCRVEmitCCallOpaqueOperand{expectedSpec.maskName.str(),
-                                        "vbool32_t"},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(), "size_t"}},
-            TCRVEmitCCallOpaqueResult{expectedSpec.resultName.str(),
-                                      "vint32m1_t"}))
+            slice->arithmeticOp, "compute", description.intrinsic,
+            {TCRVEmitCCallOpaqueOperand{"rhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        description.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                      description.vectorCType.str()}))
       return error;
   } else {
     if (llvm::Error error = addLoopStep(
-            slice->arithmeticOp, "compute", expectedSpec.intrinsic,
-            {TCRVEmitCCallOpaqueOperand{"lhs_vec", "vint32m1_t"},
-             TCRVEmitCCallOpaqueOperand{"rhs_vec", "vint32m1_t"},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(), "size_t"}},
-            TCRVEmitCCallOpaqueResult{expectedSpec.resultName.str(),
-                                      "vint32m1_t"}))
+            slice->arithmeticOp, "compute", description.intrinsic,
+            {TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"rhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                      description.vectorCType.str()}))
       return error;
   }
   if (llvm::Error error = addLoopStep(
-          slice->store.getOperation(), "store", "__riscv_vse32_v_i32m1",
+          slice->store.getOperation(), "store", description.storeIntrinsic,
           {TCRVEmitCCallOpaqueOperand{
                (llvm::StringRef(slice->outABI.cName) + " + " + inductionName)
                    .str(),
                slice->outABI.cType},
-           TCRVEmitCCallOpaqueOperand{expectedSpec.resultName.str(),
-                                      "vint32m1_t"},
-           TCRVEmitCCallOpaqueOperand{loopVLName.str(), "size_t"}}))
+           TCRVEmitCCallOpaqueOperand{description.resultName.str(),
+                                      description.vectorCType.str()},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                      description.vlCType.str()}}))
     return error;
 
   route.addForLoop(std::move(loop));
@@ -1001,9 +1259,8 @@ describeRVVSelectedBodyEmitCRoute(
     return analysis.takeError();
 
   if (verifiedRoute)
-    if (llvm::Error error =
-            buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
-                *analysis, *verifiedRoute))
+    if (llvm::Error error = buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
+            *analysis, *verifiedRoute))
       return std::move(error);
 
   return analysis->description;

@@ -73,7 +73,30 @@ bool areRVVCompileTimeConfigsEqual(const RVVCompileTimeConfig &lhs,
                                    const RVVCompileTimeConfig &rhs);
 
 RVVConfigContractDiagnostic
+validateRVVSelectedBodyConfigVLStructure(SetVLOp setvl, WithVLOp withVL);
+const RVVI32M1ArithmeticConfigVLContract &getRVVSelectedBodyConfigVLContract();
+RVVConfigContractDiagnostic
 validateRVVI32M1ArithmeticConfigVLContract(SetVLOp setvl, WithVLOp withVL);
+
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+getRVVSelectedBodyRuntimeABIParameters();
+llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
+    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter> parameters,
+    llvm::StringRef context);
+llvm::StringRef getRVVSelectedBodyRuntimeAVLParameterName();
+llvm::StringRef getRVVSelectedBodyEmitCLoopInductionName();
+llvm::StringRef getRVVSelectedBodyEmitCFullChunkVLName();
+llvm::StringRef getRVVSelectedBodyEmitCLoopVLName();
+std::string
+getRVVSelectedBodyEmitCRemainingAVLExpression(llvm::StringRef runtimeCountName,
+                                              llvm::StringRef inductionName);
+
+llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry>
+getRVVSelectedBodyConfigArtifactMetadata();
+
+llvm::Error verifyRVVSelectedBodyConfigArtifactMetadata(
+    llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
+    llvm::StringRef context);
 
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVI32M1ArithmeticRuntimeABIParameters();
