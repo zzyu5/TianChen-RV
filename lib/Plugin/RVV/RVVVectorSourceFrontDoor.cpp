@@ -5,6 +5,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
+#include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -495,10 +496,29 @@ mlir::Operation *createSetVL(mlir::OpBuilder &builder, mlir::Location loc,
 }
 
 mlir::Operation *createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
-                              mlir::Value vlValue) {
+                              mlir::Value vlValue,
+                              llvm::StringRef kernelName,
+                              llvm::StringRef variantName,
+                              mlir::ArrayAttr requires) {
   mlir::OperationState state(loc, "tcrv_rvv.with_vl");
   state.addOperands(vlValue);
   tcrv::rvv::populateRVVI32M1ArithmeticConfigAttrs(builder, state);
+  state.addAttribute(getRVVSourceKernelAttrName(),
+                     builder.getStringAttr(kernelName));
+  state.addAttribute(getRVVSelectedVariantAttrName(),
+                     symbolRef(builder, variantName));
+  state.addAttribute(getRVVOriginAttrName(),
+                     builder.getStringAttr(getRVVExtensionPluginName()));
+  state.addAttribute(getRVVSelectedPathRoleAttrName(),
+                     builder.getStringAttr("dispatch case"));
+  state.addAttribute(getRVVStatusAttrName(),
+                     builder.getStringAttr(getRVVLoweringBoundaryStatus()));
+  state.addAttribute(getRVVRequiredCapabilitiesAttrName(), requires);
+  state.addAttribute(getRVVConstructionProtocolMetadataName(),
+                     builder.getStringAttr(getRVVConstructionProtocolVersion()));
+  state.addAttribute(getRVVEmitCRouteMappingMetadataName(),
+                     builder.getStringAttr(
+                         getRVVConstructionManifest().emitcRoute.routeID));
   state.addRegion();
   mlir::Operation *operation = builder.create(state);
   operation->getRegion(0).emplaceBlock();
@@ -632,8 +652,8 @@ void materializeSourceKernel(mlir::OpBuilder &builder,
     mlir::Operation *n = createRuntimeABIValue(
         builder, loc, source.runtimeABIValues[3], builder.getIndexType());
     mlir::Operation *setvl = createSetVL(builder, loc, n->getResult(0));
-    mlir::Operation *withVL =
-        createWithVL(builder, loc, setvl->getResult(0));
+    mlir::Operation *withVL = createWithVL(
+        builder, loc, setvl->getResult(0), kernelName, variantName, requires);
 
     builder.setInsertionPointToStart(&withVL->getRegion(0).front());
     mlir::Operation *lhsLoad =

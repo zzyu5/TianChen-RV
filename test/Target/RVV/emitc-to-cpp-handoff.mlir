@@ -29,8 +29,16 @@ module {
       } : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {
         lmul = "m1",
+        origin = "rvv-plugin",
         policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-        sew = 32 : i64
+        required_capabilities = [@rvv],
+        rvv_construction_protocol = "extension-family-construction-protocol.v1",
+        rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family",
+        selected_path_role = "dispatch case",
+        selected_variant = @rvv_i32_add,
+        sew = 32 : i64,
+        source_kernel = "rvv_i32_add_kernel",
+        status = "selected-lowering-boundary"
       } {
         %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
         %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1

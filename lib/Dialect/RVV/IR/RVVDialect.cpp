@@ -33,6 +33,15 @@ namespace {
 
 constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
     "required_capabilities");
+constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
+constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
+constexpr llvm::StringLiteral kOriginAttrName("origin");
+constexpr llvm::StringLiteral kSelectedPathRoleAttrName("selected_path_role");
+constexpr llvm::StringLiteral kStatusAttrName("status");
+constexpr llvm::StringLiteral kRVVConstructionProtocolAttrName(
+    "rvv_construction_protocol");
+constexpr llvm::StringLiteral kRVVEmitCRouteMappingAttrName(
+    "rvv_emitc_route_mapping");
 constexpr llvm::StringLiteral kCapabilitySummaryAttrName(
     "capability_summary");
 constexpr llvm::StringLiteral kAVLAttrName("avl");
@@ -112,7 +121,12 @@ bool isAllowedSetVLAttr(llvm::StringRef name) {
 
 bool isAllowedWithVLAttr(llvm::StringRef name) {
   return name == kSEWAttrName || name == kLMULAttrName ||
-         name == kPolicyAttrName;
+         name == kPolicyAttrName || name == kSourceKernelAttrName ||
+         name == kSelectedVariantAttrName || name == kOriginAttrName ||
+         name == kSelectedPathRoleAttrName || name == kStatusAttrName ||
+         name == kRequiredCapabilitiesAttrName ||
+         name == kRVVConstructionProtocolAttrName ||
+         name == kRVVEmitCRouteMappingAttrName;
 }
 
 bool isAllowedI32LoadAttr(llvm::StringRef) {
@@ -152,11 +166,15 @@ bool isForbiddenSetVLParameterAttr(llvm::StringRef name) {
 }
 
 bool isForbiddenWithVLParameterAttr(llvm::StringRef name) {
-  return isForbiddenSetVLParameterAttr(name) || name == kVLAttrName ||
-         name == kCapabilitySummaryAttrName ||
-         name == kArchitectureAttrName || name == kISAVectorHintsAttrName ||
-         name == kHartCountAttrName || name == kSelectedMarchAttrName ||
-         name == kCapabilityFactsAttrName;
+  return name == kAVLAttrName || name == kVLAttrName ||
+         name == kVLenAttrName || name == kVLenBAttrName ||
+         name == kElementCountAttrName || name == kRequiredMarchAttrName ||
+         name == kRVVVariantRequiredMarchAttrName ||
+         name == kRVVRequiredCapabilitiesAttrName ||
+         name == kRVVVLenAttrName || name == kRVVVLenBAttrName ||
+         name == kCapabilitySummaryAttrName || name == kArchitectureAttrName ||
+         name == kISAVectorHintsAttrName || name == kHartCountAttrName ||
+         name == kSelectedMarchAttrName || name == kCapabilityFactsAttrName;
 }
 
 bool isForbiddenDataflowParameterAttr(llvm::StringRef name) {
@@ -608,6 +626,15 @@ mlir::LogicalResult WithVLOp::verify() {
       return emitOpError()
              << "requires optional 'policy' metadata to match defining "
                 "tcrv_rvv.setvl";
+  }
+
+  for (llvm::StringRef attrName :
+       {kSourceKernelAttrName, kOriginAttrName, kSelectedPathRoleAttrName,
+        kStatusAttrName, kRVVConstructionProtocolAttrName,
+        kRVVEmitCRouteMappingAttrName}) {
+    if (auto attr = op->getAttrOfType<mlir::StringAttr>(attrName))
+      if (mlir::failed(verifyBoundedMetadata(op, attrName, attr.getValue())))
+        return mlir::failure();
   }
 
   return mlir::success();

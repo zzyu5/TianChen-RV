@@ -28,6 +28,46 @@ module {
 // -----
 
 module {
+  // CHECK-LABEL: tcrv.exec.kernel @rvv_with_vl_selected_boundary_attrs
+  tcrv.exec.kernel @rvv_with_vl_selected_boundary_attrs {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_selected attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %avl = "builtin.unrealized_conversion_cast"() : () -> index
+      %vl = tcrv_rvv.setvl %avl {
+        lmul = "m1",
+        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+        sew = 32 : i64
+      } : index -> !tcrv_rvv.vl
+      // CHECK: tcrv_rvv.with_vl
+      // CHECK-SAME: origin = "rvv-plugin"
+      // CHECK-SAME: required_capabilities = [@rvv]
+      // CHECK-SAME: rvv_construction_protocol = "extension-family-construction-protocol.v1"
+      // CHECK-SAME: rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family"
+      // CHECK-SAME: selected_path_role = "direct variant"
+      // CHECK-SAME: selected_variant = @rvv_selected
+      // CHECK-SAME: source_kernel = "rvv_with_vl_selected_boundary_attrs"
+      // CHECK-SAME: status = "selected-lowering-boundary"
+      tcrv_rvv.with_vl %vl attributes {
+        lmul = "m1",
+        origin = "rvv-plugin",
+        policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+        required_capabilities = [@rvv],
+        rvv_construction_protocol = "extension-family-construction-protocol.v1",
+        rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family",
+        selected_path_role = "direct variant",
+        selected_variant = @rvv_selected,
+        sew = 32 : i64,
+        source_kernel = "rvv_with_vl_selected_boundary_attrs",
+        status = "selected-lowering-boundary"
+      } {
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+
+// -----
+
+module {
   tcrv.exec.kernel @rvv_with_vl_reject_operand_type {
     %bad = "builtin.unrealized_conversion_cast"() : () -> index
     // expected-error@+1 {{requires runtime VL operand to have !tcrv_rvv.vl type}}

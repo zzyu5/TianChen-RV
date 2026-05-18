@@ -271,6 +271,13 @@ Rules:
   `role` must match the selected path, `origin` must match the selected
   variant origin, `required_capabilities` must be a safe subset of the selected
   variant `requires`, and stale or duplicate competing boundaries are fatal;
+- for RVV's current bounded i32m1 materialized EmitC route, the selected
+  boundary is the existing `tcrv_rvv.with_vl` op and the same conformance facts
+  must already be present on that op before plugin planning or target artifact
+  export. Plugin and target/export code may validate those facts but must not
+  synthesize missing source kernel, selected variant, origin, selected-path
+  role, status, required capabilities, construction protocol, route mapping, or
+  RVV config boundary attrs;
 - recognize selected lowering-boundary candidates only when they are actual
   plugin-local `*.lowering_boundary` operations or explicit lowering-boundary
   diagnostic metadata. A plugin-local executable attachment may also carry

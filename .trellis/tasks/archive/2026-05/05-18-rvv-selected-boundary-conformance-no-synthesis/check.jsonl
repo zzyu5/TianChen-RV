@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global implementation-stack, capability-first, and no-Python-compiler-core invariants"}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Check selected-boundary validation remains generic and plugin-supplied"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV artifact route remains materialized-EmitC-backed and RVV-owned"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target export remains fail-closed and does not reintroduce direct C/source-export authority"}
+{"file": ".trellis/tasks/archive/2026-05/05-18-rvv-selected-boundary-conformance-no-synthesis/prd.md", "reason": "Check implementation against this round's goal, boundaries, and acceptance criteria"}

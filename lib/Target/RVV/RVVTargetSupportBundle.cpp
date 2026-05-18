@@ -562,6 +562,10 @@ getRVVI32M1ArithmeticArtifactAdapterConfig() {
       kBoundaryAttributeExpectations[] = {
           {"lmul", tcrv::rvv::getRVVI32M1ArithmeticConfigVLContract().lmul,
            {}},
+          {plugin::rvv::getRVVConstructionProtocolMetadataName(),
+           plugin::rvv::getRVVConstructionProtocolVersion(), {}},
+          {plugin::rvv::getRVVEmitCRouteMappingMetadataName(),
+           getRVVManifest().emitcRoute.routeID, {}},
       };
   static const llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence,
                                  32>
@@ -619,7 +623,6 @@ getRVVI32M1ArithmeticArtifactAdapterConfig() {
   config.selectedLoweringBoundary.extraStringAttributes =
       kBoundaryAttributeExpectations;
   config.selectedLoweringBoundary.searchSelectedVariantBody = true;
-  config.selectedLoweringBoundary.synthesizeMissingConformanceAttributes = true;
   config.objectPackagerFn = compileRVVGeneratedSourceToObject;
   return config;
 }

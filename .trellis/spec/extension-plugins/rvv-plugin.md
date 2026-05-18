@@ -646,7 +646,15 @@ Current first-slice VL scope control-plane op:
 tcrv_rvv.with_vl %vl attributes {
   lmul = "m1",  // or "m2" for the finite i32m2 slice
   policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
-  sew = 32 : i64
+  sew = 32 : i64,
+  source_kernel = "example_kernel",
+  selected_variant = @example_rvv_variant,
+  origin = "rvv-plugin",
+  selected_path_role = "direct variant",
+  status = "selected-lowering-boundary",
+  required_capabilities = [@rvv],
+  rvv_construction_protocol = "extension-family-construction-protocol.v1",
+  rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family"
 } {
 } : !tcrv_rvv.vl
 ```
@@ -660,13 +668,20 @@ runtime VL control-plane surface: AVL is a runtime SSA operand, vl is a
 this first slice, and VLEN/vlenb, `element_count`, `required_march`, and
 `required_capabilities` are explicitly not accepted on the op. The with_vl op
 is the bounded structural companion to setvl: it consumes one runtime VL SSA
-token, owns one single-block region with no region arguments, may repeat only
-the same bounded SEW/LMUL/policy config, and rejects VLEN/vlenb,
-`element_count`, `required_march`, `required_capabilities`, and raw capability
-facts. The former selected-boundary op and typed RVV microkernel wrappers are
-deleted as structural authority; future executable emission must be rebuilt
-through explicit extension-family IR plus a materialized MLIR EmitC module
-route.
+token, owns one single-block region with no region arguments, and may repeat
+the same bounded SEW/LMUL/policy config. When the bounded i32m1 materialized
+EmitC artifact path selects this op as the construction-template boundary, the
+same op must also carry selected-boundary conformance facts:
+`source_kernel`, `selected_variant`, `origin`, `selected_path_role`, `status`,
+`required_capabilities`, `rvv_construction_protocol`, and
+`rvv_emitc_route_mapping`. These selected-boundary attrs are validation facts
+only; they are not descriptors, source printers, runtime ABI synthesis,
+hardware facts, or compute semantics. The with_vl op continues to reject
+VLEN/vlenb, `element_count`, `required_march`,
+`tcrv_rvv.required_capabilities`, and raw capability facts. The former
+selected-boundary op and typed RVV microkernel wrappers are deleted as
+structural authority; future executable emission must be rebuilt through
+explicit extension-family IR plus a materialized MLIR EmitC module route.
 These surfaces are not vector registers, masks, memory operations, RVV
 intrinsics, LLVM/RISC-V lowering, runtime ABI, executable emission, correctness
 evidence, or performance evidence.
@@ -723,6 +738,10 @@ IR-modeled unless the real IR has the corresponding attribute, type, SSA value,
 region argument, or generated ABI parameter. The current `tcrv_rvv.setvl` and
 `tcrv_rvv.with_vl` ops model only runtime AVL/VL control-plane IR; they do not
 make VLEN/vlenb or deleted local RVV element-count residue runtime values.
+Selected-boundary attrs on `tcrv_rvv.with_vl` are artifact-handoff
+conformance facts for the selected materialized EmitC route; they do not make
+capability facts, route ids, ABI records, or compute bodies executable by
+themselves.
 RVV emission plans must not use selected-shape metadata descriptors as
 lowering, runtime ABI, or artifact authority. Bounded diagnostics may mention
 validated raw hardware/profile facts such as `tcrv_rvv.vlenb_bytes`, but
@@ -753,6 +772,12 @@ Rules:
 - `tcrv_rvv.with_vl` boundary validation must use the RVV-owned config/VL
   contract and fail closed for missing, duplicate, mismatched, or unsupported
   selected boundary shapes.
+- The selected `tcrv_rvv.with_vl` boundary must carry IR-owned conformance
+  facts before emission planning or artifact export: source kernel, selected
+  variant, origin plugin, selected-path role, status, required capabilities,
+  construction protocol id, route mapping id, and bounded RVV config attrs.
+  RVV plugin and target/export code must validate these attrs; they must not
+  synthesize missing selected-boundary truth at planning or export time.
 - RVV target exporters must not consume selected-boundary route identity fields
   as artifact authority by themselves. Executable emission requires the
   extension-family op -> MLIR EmitC module route.
@@ -949,7 +974,10 @@ after this provider-owned route has been built and verified.
   tcrv_rvv.i32_load -> tcrv_rvv.i32_add|i32_sub|i32_mul ->
   tcrv_rvv.i32_store` for SEW32 LMUL m1 with agnostic policy.
 - Selected lowering boundary: the existing `tcrv_rvv.with_vl` operation in the
-  selected variant body, not a synthesized wrapper.
+  selected variant body, not a synthesized wrapper. The boundary op must carry
+  `source_kernel`, `selected_variant`, `origin`, `selected_path_role`,
+  `status`, `required_capabilities`, `rvv_construction_protocol`, and
+  `rvv_emitc_route_mapping` before the route is planned or exported.
 - Route plan: an explicit EmitC intrinsic route object with standard headers,
   source op names, `emitc.call_opaque` callee names, and one setvl callee.
 - Materialized EmitC provenance comments must include typed source op names,
@@ -1008,6 +1036,11 @@ after this provider-owned route has been built and verified.
   RISC-V relocatable object with clang. It must not synthesize the C/C++ source
   from metadata, selected-path records, route ids, family registries, or
   descriptors.
+- Target/RVV artifact support must also not synthesize missing selected
+  `with_vl` boundary conformance attrs. It may validate the IR-owned
+  `with_vl` attrs against the selected variant, required capabilities,
+  selected path role, construction protocol, route mapping, and bounded RVV
+  config, then fail closed when any fact is absent or stale.
 
 #### 4. Validation & Error Matrix
 
@@ -1018,6 +1051,12 @@ after this provider-owned route has been built and verified.
   source output.
 - Missing, duplicate, mismatched, or unsupported selected `tcrv_rvv.with_vl`
   boundary shape -> fail before route payload construction or source output.
+- Missing or stale selected `tcrv_rvv.with_vl` conformance attr
+  (`source_kernel`, `selected_variant`, `origin`, `selected_path_role`,
+  `status`, `required_capabilities`, `rvv_construction_protocol`,
+  `rvv_emitc_route_mapping`, or bounded config attrs required by the route) ->
+  fail before route payload construction, generated C++ source, object,
+  header, or bundle output.
 - Missing, duplicate, malformed, or unsupported explicit runtime ABI value
   binding for `lhs`, `rhs`, `out`, or `n` -> fail before source output.
 - Missing route callee for any body step -> fail before source or object

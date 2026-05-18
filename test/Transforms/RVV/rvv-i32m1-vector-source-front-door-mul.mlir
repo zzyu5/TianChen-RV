@@ -36,6 +36,12 @@ module {
 // BOUNDARY-SAME: role = "runtime-element-count"
 // BOUNDARY: tcrv_rvv.setvl
 // BOUNDARY: tcrv_rvv.with_vl
+// BOUNDARY-SAME: origin = "rvv-plugin"
+// BOUNDARY-SAME: required_capabilities = [@rvv]
+// BOUNDARY-SAME: selected_path_role = "dispatch case"
+// BOUNDARY-SAME: selected_variant = @vector_source_mul_rvv_i32_mul
+// BOUNDARY-SAME: source_kernel = "vector_source_mul_kernel"
+// BOUNDARY-SAME: status = "selected-lowering-boundary"
 // BOUNDARY: tcrv_rvv.i32_load
 // BOUNDARY: tcrv_rvv.i32_load
 // BOUNDARY: tcrv_rvv.i32_mul

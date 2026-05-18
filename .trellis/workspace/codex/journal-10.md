@@ -46,6 +46,64 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 128: RVV selected-boundary conformance without exporter synthesis
+
+**Date**: 2026-05-18
+**Task**: RVV selected-boundary conformance without exporter synthesis
+**Branch**: `main`
+
+### Summary
+
+Made the RVV i32m1 selected construction-template boundary carry artifact
+export conformance facts in IR before export, then removed the remaining common
+adapter path that synthesized missing boundary facts at export time.
+
+### Main Changes
+
+- Extended `tcrv_rvv.with_vl` to accept and verify bounded selected-boundary
+  conformance attrs: source kernel, selected variant, origin plugin, selected
+  path role, status, required capabilities, RVV construction protocol, and RVV
+  EmitC route mapping.
+- Updated the RVV source-front-door to write those attrs from the same
+  kernel/variant/capability/path-role state used by selected dispatch and the
+  materialized EmitC route.
+- Updated RVV materialized/object/header/bundle and EmitC-to-C++ fixtures so
+  the boundary op is the source of truth.
+- Deleted the common `synthesizeMissingConformanceAttributes` adapter option
+  and helper; RVV artifact exports now validate missing/stale facts and fail
+  closed.
+- Added focused C++ and lit negatives for missing and stale selected-boundary
+  attributes.
+
+### Checks
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-18-rvv-selected-boundary-conformance-no-synthesis`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-05/05-18-rvv-selected-boundary-conformance-no-synthesis`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused lit/FileCheck coverage for RVV dialect, source-front-door,
+  EmitC-to-C++, source/materialized target artifact exporters, and
+  selected-boundary lowering fixtures.
+- [OK] Targeted residue scan found no remaining selected-boundary synthesis
+  option/helper; descriptor/direct-C/source-export hits are retained deletion
+  specs, fail-closed guards, or negative assertions.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 127/127 lit
+  tests after repairing the older bare `with_vl` lowering-boundary fixture.
+
+### Runtime Evidence
+
+No fresh `ssh rvv` run was required in this round: generated C++ body, object
+ABI, and package runtime semantics were not changed. The current runtime proof
+for the unchanged object path remains
+`artifacts/tmp/rvv_generated_bundle_abi_e2e/20260518T-rvv-source-bundle-ssh-runtime-abi-proof-add`.
+
+### Status
+
+[OK] **Completed; ready to archive and commit**
+
+
 ## Session 130: RVV construction-template selected-boundary handoff
 
 **Date**: 2026-05-18

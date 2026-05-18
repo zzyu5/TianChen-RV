@@ -164,51 +164,6 @@ llvm::Expected<mlir::Operation *> findSelectedLoweringBoundary(
   return selectedBoundary;
 }
 
-void setMissingBoundaryAttr(mlir::Operation *boundary,
-                            llvm::StringRef attrName, mlir::Attribute value,
-                            llvm::SmallVectorImpl<llvm::StringRef> &added) {
-  if (boundary->getAttr(attrName))
-    return;
-  boundary->setAttr(attrName, value);
-  added.push_back(attrName);
-}
-
-llvm::Error verifySelectedLoweringBoundaryConformanceWithConfig(
-    mlir::Operation *boundary,
-    const construction::SelectedLoweringBoundaryConformanceSpec &spec,
-    bool synthesizeMissingConformanceAttributes) {
-  if (!synthesizeMissingConformanceAttributes)
-    return construction::verifySelectedLoweringBoundaryConformance(boundary,
-                                                                   spec);
-
-  llvm::SmallVector<llvm::StringRef, 8> addedAttrs;
-  mlir::MLIRContext *context = boundary->getContext();
-  setMissingBoundaryAttr(
-      boundary, spec.sourceKernelAttrName,
-      mlir::StringAttr::get(context, spec.sourceKernelSymbol), addedAttrs);
-  setMissingBoundaryAttr(
-      boundary, spec.selectedVariantAttrName,
-      mlir::FlatSymbolRefAttr::get(context, spec.selectedVariantSymbol),
-      addedAttrs);
-  setMissingBoundaryAttr(boundary, spec.originAttrName,
-                         mlir::StringAttr::get(context, spec.originPlugin),
-                         addedAttrs);
-  setMissingBoundaryAttr(boundary, spec.roleAttrName,
-                         mlir::StringAttr::get(context, spec.pathRole),
-                         addedAttrs);
-  setMissingBoundaryAttr(boundary, spec.statusAttrName,
-                         mlir::StringAttr::get(context, spec.status),
-                         addedAttrs);
-  setMissingBoundaryAttr(boundary, spec.requiredCapabilitiesAttrName,
-                         spec.requiredCapabilities, addedAttrs);
-
-  llvm::Error error =
-      construction::verifySelectedLoweringBoundaryConformance(boundary, spec);
-  for (llvm::StringRef attrName : addedAttrs)
-    boundary->removeAttr(attrName);
-  return error;
-}
-
 llvm::Expected<
     llvm::SmallVector<construction::SelectedBoundaryStringAttrExpectation, 4>>
 resolveSelectedLoweringBoundaryExtraAttributes(
@@ -287,8 +242,8 @@ llvm::Error validateSelectedLoweringBoundary(
   spec.statusAttrName = boundaryConfig.statusAttrName;
   spec.requiredCapabilitiesAttrName =
       boundaryConfig.requiredCapabilitiesAttrName;
-  return verifySelectedLoweringBoundaryConformanceWithConfig(
-      *boundary, spec, boundaryConfig.synthesizeMissingConformanceAttributes);
+  return construction::verifySelectedLoweringBoundaryConformance(*boundary,
+                                                                 spec);
 }
 
 SelectedEmitCArtifactRouteConfig

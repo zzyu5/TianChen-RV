@@ -214,19 +214,35 @@ def WithVLOp : TCRVRVV_Op<"with_vl",
     by setvl and are verified for compatibility when the consumed VL is visibly
     defined by a tcrv_rvv.setvl op.
 
-    This op is a structural prerequisite for future RVV control/body lowering
-    work only. It does not model VLEN/vlenb hardware facts, deleted local
-    element-count metadata, required march metadata, required capability
-    metadata, raw capability facts, pointer or memory operands, RVV arithmetic,
-    vector registers, masks, lowering, runtime ABI glue, generated artifacts,
-    hardware execution, correctness, or performance.
+    On the selected bounded i32m1 materialized EmitC artifact path, this op is
+    also the selected construction-template boundary. In that role it may carry
+    generic selected-boundary conformance facts such as source kernel, selected
+    variant, origin, selected path role, status, required capabilities, and
+    RVV-owned route/config handoff attributes. Those facts are validation
+    inputs for the artifact adapter; they are not descriptor fields or compute
+    semantics.
+
+    This op is a structural prerequisite for RVV control/body lowering work
+    only. It does not model VLEN/vlenb hardware facts, deleted local
+    element-count metadata, required march metadata, raw capability facts,
+    pointer or memory operands, RVV arithmetic, vector registers, masks,
+    lowering, runtime ABI glue, generated artifacts, hardware execution,
+    correctness, or performance.
   }];
 
   let arguments = (ins
     AnyType:$vl,
     OptionalAttr<I64Attr>:$sew,
     OptionalAttr<StrAttr>:$lmul,
-    OptionalAttr<TCRVRVV_PolicyAttr>:$policy
+    OptionalAttr<TCRVRVV_PolicyAttr>:$policy,
+    OptionalAttr<StrAttr>:$source_kernel,
+    OptionalAttr<FlatSymbolRefAttr>:$selected_variant,
+    OptionalAttr<StrAttr>:$origin,
+    OptionalAttr<StrAttr>:$selected_path_role,
+    OptionalAttr<StrAttr>:$status,
+    OptionalAttr<ArrayAttr>:$required_capabilities,
+    OptionalAttr<StrAttr>:$rvv_construction_protocol,
+    OptionalAttr<StrAttr>:$rvv_emitc_route_mapping
   );
   let regions = (region SizedRegion<1>:$body);
 

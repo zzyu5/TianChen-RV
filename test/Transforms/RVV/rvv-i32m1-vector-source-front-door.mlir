@@ -53,7 +53,15 @@ module {
 // BOUNDARY-SAME: sew = 32 : i64
 // BOUNDARY: tcrv_rvv.with_vl
 // BOUNDARY-SAME: lmul = "m1"
+// BOUNDARY-SAME: origin = "rvv-plugin"
+// BOUNDARY-SAME: required_capabilities = [@rvv]
+// BOUNDARY-SAME: rvv_construction_protocol = "extension-family-construction-protocol.v1"
+// BOUNDARY-SAME: rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family"
+// BOUNDARY-SAME: selected_path_role = "dispatch case"
+// BOUNDARY-SAME: selected_variant = @vector_source_rvv_i32_add
 // BOUNDARY-SAME: sew = 32 : i64
+// BOUNDARY-SAME: source_kernel = "vector_source_kernel"
+// BOUNDARY-SAME: status = "selected-lowering-boundary"
 // BOUNDARY: tcrv_rvv.i32_load
 // BOUNDARY: tcrv_rvv.i32_load
 // BOUNDARY: tcrv_rvv.i32_add

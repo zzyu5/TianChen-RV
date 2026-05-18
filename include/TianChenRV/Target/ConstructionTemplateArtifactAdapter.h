@@ -32,7 +32,6 @@ struct ConstructionTemplateSelectedLoweringBoundaryConfig {
   llvm::ArrayRef<ConstructionTemplateSelectedBoundaryAttributeExpectation>
       extraStringAttributes;
   bool searchSelectedVariantBody = false;
-  bool synthesizeMissingConformanceAttributes = false;
 };
 
 struct ConstructionTemplateArtifactAdapterConfig {

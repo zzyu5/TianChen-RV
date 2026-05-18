@@ -118,7 +118,7 @@ findSelectedRVVI32M1WithVLBoundary(tcrv::exec::VariantOp variant) {
   return withVLs.front();
 }
 
-llvm::Error annotateAndVerifySelectedRVVLoweringBoundary(
+llvm::Error verifySelectedRVVLoweringBoundaryConformance(
     tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
     VariantEmissionRole role, tcrv::rvv::WithVLOp boundary) {
   auto variantRequires =
@@ -128,35 +128,14 @@ llvm::Error annotateAndVerifySelectedRVVLoweringBoundary(
         "selected RVV lowering-boundary validation requires non-empty "
         "selected variant requires metadata");
 
-  struct SavedBoundaryAttr {
-    std::string name;
-    mlir::Attribute value;
-  };
-  llvm::SmallVector<SavedBoundaryAttr, 8> savedAttrs;
-  mlir::MLIRContext *context = boundary->getContext();
-  auto setTemporaryAttr = [&](llvm::StringRef name, mlir::Attribute value) {
-    savedAttrs.push_back({name.str(), boundary->getAttr(name)});
-    boundary->setAttr(name, value);
-  };
-  setTemporaryAttr(rvv::getRVVSourceKernelAttrName(),
-                   mlir::StringAttr::get(context, kernel.getSymName()));
-  setTemporaryAttr(rvv::getRVVSelectedVariantAttrName(),
-                   mlir::FlatSymbolRefAttr::get(context,
-                                                variant.getSymName()));
-  setTemporaryAttr(rvv::getRVVOriginAttrName(),
-                   mlir::StringAttr::get(context, kRVVPluginName));
-  setTemporaryAttr(
-      rvv::getRVVSelectedPathRoleAttrName(),
-      mlir::StringAttr::get(context, stringifyVariantEmissionRole(role)));
-  setTemporaryAttr(rvv::getRVVStatusAttrName(),
-                   mlir::StringAttr::get(context,
-                                        rvv::getRVVLoweringBoundaryStatus()));
-  setTemporaryAttr(rvv::getRVVRequiredCapabilitiesAttrName(), variantRequires);
-
   const construction::SelectedBoundaryStringAttrExpectation
       extraAttributes[] = {
           {"lmul",
-           tcrv::rvv::getRVVI32M1ArithmeticConfigVLContract().lmul}};
+           tcrv::rvv::getRVVI32M1ArithmeticConfigVLContract().lmul},
+          {rvv::getRVVConstructionProtocolMetadataName(),
+           rvv::getRVVConstructionProtocolVersion()},
+          {rvv::getRVVEmitCRouteMappingMetadataName(),
+           rvv::getRVVConstructionManifest().emitcRoute.routeID}};
   construction::SelectedLoweringBoundaryConformanceSpec spec;
   spec.boundaryDescription = "selected RVV lowering-boundary validation";
   spec.selectedVariantSymbol = variant.getSymName();
@@ -173,15 +152,8 @@ llvm::Error annotateAndVerifySelectedRVVLoweringBoundary(
   spec.statusAttrName = rvv::getRVVStatusAttrName();
   spec.requiredCapabilitiesAttrName =
       rvv::getRVVRequiredCapabilitiesAttrName();
-  llvm::Error error = construction::verifySelectedLoweringBoundaryConformance(
+  return construction::verifySelectedLoweringBoundaryConformance(
       boundary.getOperation(), spec);
-  for (const SavedBoundaryAttr &attr : savedAttrs) {
-    if (attr.value)
-      boundary->setAttr(attr.name, attr.value);
-    else
-      boundary->removeAttr(attr.name);
-  }
-  return error;
 }
 
 llvm::Error validateSelectedRVVI32M1WithVLBoundary(
@@ -214,7 +186,7 @@ llvm::Error validateSelectedRVVI32M1WithVLBoundary(
     return makeRVVPluginError(
         "selected RVV i32m1 lowering boundary must be the unique "
         "tcrv_rvv.with_vl operation in the selected variant body");
-  if (llvm::Error error = annotateAndVerifySelectedRVVLoweringBoundary(
+  if (llvm::Error error = verifySelectedRVVLoweringBoundaryConformance(
           request.getKernel(), variant, request.getRole(), boundary))
     return error;
 

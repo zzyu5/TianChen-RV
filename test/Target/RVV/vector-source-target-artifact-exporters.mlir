@@ -54,6 +54,14 @@ module {
 // PLAN-SAME: c_name = "n"
 // PLAN-SAME: role = "runtime-element-count"
 // PLAN: tcrv_rvv.with_vl
+// PLAN-SAME: origin = "rvv-plugin"
+// PLAN-SAME: required_capabilities = [@rvv]
+// PLAN-SAME: rvv_construction_protocol = "extension-family-construction-protocol.v1"
+// PLAN-SAME: rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family"
+// PLAN-SAME: selected_path_role = "dispatch case"
+// PLAN-SAME: selected_variant = @vector_source_rvv_i32_add
+// PLAN-SAME: source_kernel = "vector_source_kernel"
+// PLAN-SAME: status = "selected-lowering-boundary"
 // PLAN: tcrv_rvv.i32_add
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
