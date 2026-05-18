@@ -80,77 +80,64 @@ production path in the same round. For current TianChen-RV migration work,
 prefer extension family ops -> common EmitC route -> generated
 intrinsic/runtime C/C++ over descriptor -> direct C exporter.
 
-## Wrong Logic Deletion Campaign
+## Current Architecture Steering
 
-If the Hermes Direction Brief marks the round as part of the Wrong Logic
-Deletion Campaign, write or repair the Trellis PRD as deletion/refactor-only.
-Deletion before rebuild is the campaign rule. Do not add new features, new
-compatibility layers, helper wrappers, descriptor tests, new extension work, or
-replacement architecture in the same round.
+Hermes' Direction Brief is the task source. Do not replace it with your own
+task selection unless repository evidence shows it is unsafe, stale, or
+contradicts the specs. Turn the brief into a truthful Trellis PRD, then execute
+that bounded module owner.
 
-Delete or rewrite obsolete code, tests, fixtures, docs, comments, and artifact
-expectations that protect descriptor-driven computation, direct C semantic
-exporters, independent-backend wording, extension-specific core semantic
-branches, or Python compiler-core logic. If deleting wrong logic breaks build
-or tests, record the failure as a missing new-architecture gap; do not restore
-the wrong path to make checks pass.
+Human grill notes under `artifacts/` are interpretation notes only. Durable
+rules must live in `.trellis/spec/` or this prompt. If the brief and specs
+disagree, prefer specs and explain the conflict.
 
-In the final report for a campaign round, state which old logic was removed,
-what descriptor / direct-exporter / independent-backend / core-branch residue
-still remains, whether any compatibility layer was added and why it does not
-violate the campaign, whether build/tests fail, whether failures are expected
-deletion gaps, and whether the next round should continue deletion or move to
-rebuild.
+TianChen-RV's current real mainline is RVV-first:
 
-## Grill Consensus And Mature Path Steering
+```text
+TianChen-RV MLIR / tcrv.exec envelope
+  -> selected RVV variant
+  -> explicit vector-level tcrv_rvv body
+  -> RVV plugin-owned legality / selected-body realization / route builder
+  -> faithful TCRVEmitCLowerableRoute
+  -> common EmitC / target export mechanics
+```
 
-Human grill/consensus notes under `artifacts/` are control-plane interpretation
-notes. They may help understand human intent, but they are not source of truth,
-acceptance evidence, Trellis task state, or replacement specification. Durable
-rules from those notes must be promoted into `.trellis/spec/` or this canonical
-prompt before they steer future rounds.
+`tcrv.exec` binds ABI/runtime roles and selected variants. It does not own
+compute semantics. `tcrv_rvv` owns the low-level RVV body. The RVV plugin owns
+RVV legality, realization, intrinsic mapping, route construction, and
+fail-closed diagnostics. Common EmitC/export owns neutral mechanics only.
 
-During the Wrong Logic Deletion Campaign, maturity discussion does not authorize
-rebuild work. "RVV is the first executable plugin path" means the first rebuild
-proof after deletion should be RVV; it does not permit new RVV emission,
-high-level frontend lowering, new artifact routes, or executable plugin
-templates while old descriptor/direct-C/core-branch authority remains.
+RVV Stage 1 is route-authority replacement:
 
-After campaign exit, the immediate RVV work is Stage 1: route-authority
-replacement. Replace or fail-close active compiler paths that treat bounded
-`i32m1` arithmetic, source-front-door patterns, route ids, artifact names,
-descriptor residue, or intrinsic spellings as RVV architecture authority.
+```text
+replace or fail-close bounded i32m1-as-route-authority.
+```
 
-Stage 1 authority is the selected `tcrv.exec` RVV variant with an explicit
-vector-level `tcrv_rvv` body, RVV-owned legality/realization/route provider
-logic, fail-closed unsupported combinations, and common EmitC/export as neutral
-mechanics. The route builder must faithfully emit from the selected and, when
-needed, realized `tcrv_rvv` body; it must not invent RVV semantics, schedule,
-dtype, policy, or body shape from old i32 helpers, metadata, tests, route
-strings, artifacts, or common target-export code.
+Stage 1 remains open while a production/default path treats bounded `i32m1`
+arithmetic, source-front-door patterns, route ids, artifact names, descriptor
+residue, intrinsic spellings, or common/export code as RVV route authority.
+During Stage 1, delete, rewrite, or fail-close obsolete paths instead of
+preserving them through compatibility wrappers. If removal exposes a missing
+new architecture gap, report that gap and keep the task state truthful instead
+of restoring the old path.
 
-Do not switch early to Scalar, IME, Offload, TensorExt, high-level Linalg/
-Vector/StableHLO frontend work, or second-family generalization while Stage 1
-is open, except for removing residue that directly blocks RVV route-authority
-replacement. Do not spend a round mainly on tests, reports, dashboard/status
-indexes, artifact catalogs, loop-health paperwork, or task bookkeeping and call
-that main progress.
+Stage 2 begins only after Stage 1 evidence shows no active compiler path uses
+`i32m1` or source/artifact/route metadata as RVV authority. Stage 2 expands
+route-supported RVV coverage on the corrected vector-level `tcrv_rvv` surface
+using dependency order, not small completion batches.
 
-Do not build high-level kernel ops, `tcrv_rvv.matmul`/`softmax`-style compute
-ops, one-intrinsic wrapper dialects, global autotune dashboards/databases,
-state-machine readiness markers, compatibility wrappers that preserve the old
-i32 route, or dtype/LMUL/source clone batches. Stage 2 begins only after no
-active compiler path treats i32m1 arithmetic as RVV route authority; Stage 2
-then expands route-supported RVV coverage on the corrected vector-level
-`tcrv_rvv` surface, including plugin-local selected-body realization where
-needed.
+While Stage 1 is open, do not switch to Scalar, IME, Offload, TensorExt,
+high-level Linalg/Vector/StableHLO frontend generalization, Stage 2 coverage
+expansion, dashboards, global autotuning DBs, readiness state machines,
+one-intrinsic wrappers, high-level kernel ops, compatibility wrappers
+preserving old i32 authority, or dtype/LMUL/source clone batches.
 
-The mature route is explicit extension-family ops -> selected-body realization
-when needed -> materialized common EmitC module -> MLIR C/C++ emitter ->
-intrinsic/vendor runtime ABI -> target export validation/packaging -> ssh rvv
-evidence for RVV runtime/correctness claims. This is a route order, not a new
-state machine, bundle index, artifact ledger, dashboard, readiness marker, or
-checkpoint protocol.
+Stage 2 coverage should be expressed as low-level RVV capability classes:
+VL/control, mask/tail policy, memory movement, elementwise/broadcast,
+compare/select, conversion/dtype/SEW/LMUL policy, reduction/accumulation,
+contraction-supporting multiply-add/movement, and runtime boundary. It must not
+become per-Linalg-op lowering, high-level kernel ops, or one-op-per-intrinsic
+wrapping.
 
 ## One-Round Trellis Flow
 

@@ -1532,193 +1532,124 @@ changes, wrapper-only work, status/report work, and standalone evidence
 packaging are not valid default owners. Use them only when they are the single
 named blocker for the chosen module.
 
-## Wrong Logic Deletion Campaign Gate
+## TianChen-RV Context For Task Selection
 
-This is the highest-priority owner-selection rule. While the live repository
-still contains old logic that conflicts with the final TianChen-RV architecture,
-choose a deletion-only owner. Do not choose a new feature owner, do not extend
-the finite RVV family, do not add helpers, wrappers, compatibility paths,
-descriptor tests, or new architecture implementation, and do not mix deletion
-with rebuild work in the same round.
+Hermes is the task selector. Codex is the worker that turns one Hermes
+Direction Brief into a truthful Trellis PRD, implements it, checks it, finishes
+or leaves an exact continuation point, and commits when complete. Do not ask
+Codex to choose from multiple candidate tasks.
 
-During the campaign, your `next_prompt` may only ask Codex to delete, remove
-references, delete or rewrite tests that protect old behavior, remove obsolete
-docs/comments, remove old routes/exporters, and remove old descriptor
-dependencies. If removal exposes build or test failures, Codex should report
-the breakage as a missing new-architecture gap and continue deletion/refactor
-in the next round. Codex must not restore the wrong path to make checks pass.
-
-Do not preserve old logic for compatibility. Do not quarantine old logic. Do
-not add wrappers around old logic. Do not turn old logic into legacy mode. If
-it is architecturally wrong, remove it. If removal breaks build/tests, report
-the breakage and continue deletion/refactor in the next round. Do not restore
-the wrong path.
-
-Deletion Campaign objects:
+The project shape that matters for review is:
 
 ```text
-descriptor-driven computation:
-  lowering_descriptor; descriptor decides microkernel, intrinsic route,
-  artifact route, C generation, route authority, plugin/template/RAG basis,
-  finite descriptor family production paths, i32-vadd-microkernel.v1-style
-  descriptor semantics, RVVBinaryDescriptor, RVVBinaryFamilyRegistry,
-  descriptor-based dispatch, descriptor-to-C exporter.
-
-direct C semantic exporter:
-  any path that bypasses extension family ops / EmitC ops and directly uses
-  metadata, descriptors, selected routes, or family registries to synthesize
-  C compute semantics. Real EmitC module -> C/C++ emitter paths, generated C
-  compile harnesses, artifact readers, and non-semantic helper output may stay.
-
-independent backend/dialect wording:
-  specs, prompts, docs, comments, or tests that describe RVV, IME, TensorExt,
-  Offload, scalar fallback, or future vendor targets as independent backends
-  rather than TCRV extension families.
-
-core extension-specific semantic branch:
-  core orchestration that knows RVV intrinsic names, RVV microkernel semantics,
-  scalar loop semantics, offload runtime call semantics, TensorExt/IME fragment
-  semantics, descriptor family semantics, or if-RVV/if-IME/if-TensorExt compute
-  branches instead of common interfaces, registry, and route abstraction.
-
-Python compiler core:
-  Python implementations of IR semantics, lowering, plugin registry, codegen,
-  route selection, capability model, or compiler-core behavior.
+TianChen-RV MLIR / tcrv.exec envelope
+  -> selected extension-family variant
+  -> typed extension-family body
+  -> plugin-owned legality / selected-body realization / route construction
+  -> common EmitC materialization and target artifact mechanics
 ```
 
-Allowed campaign owners:
+For the current real hardware mainline, the selected family is RVV:
 
 ```text
-Descriptor Erasure Owner:
-  remove descriptor-driven compute authority, descriptor microkernel selection,
-  descriptor artifact authority, descriptor plugin/template/RAG basis, and
-  descriptor-protecting tests.
-
-Direct C Semantic Exporter Erasure Owner:
-  remove direct C compute-body generation as a semantic path; remaining
-  rendering may only render existing EmitC modules or non-semantic packaging.
-
-Independent Backend/Dialect Cleanup Owner:
-  remove wording and durable prompt/spec/doc/comment/test residue that treats
-  extension families as independent backends or dialect systems.
-
-Core Semantic Branch Erasure Owner:
-  remove extension-specific compute branches from core orchestration; core may
-  organize capability, variants, dispatch/fallback, ABI envelope, registry, and
-  common-interface dispatch only.
-
-Legacy Tests and Artifact Cleanup Owner:
-  remove tests, fixtures, artifacts, and negative tests that protect descriptor
-  routes, direct C semantic exporters, or descriptor-as-legal-input behavior.
+selected tcrv.exec RVV variant
+  -> explicit vector-level tcrv_rvv body
+  -> RVV plugin-owned legality / selected-body realization / route builder
+  -> faithful TCRVEmitCLowerableRoute
+  -> common EmitC / target export mechanics
+  -> ssh rvv evidence only when runtime/correctness/performance is claimed
 ```
 
-Deletion before rebuild is the campaign rule (`deletion before rebuild`).
-Deletion Campaign is not the rebuild phase. Do not ask Codex to implement new
-general RVV lowering, common lower-to-EmitC pass, executable plugin template,
-TensorExt/IME extension, new EmitC route, new capability model features, or new
-performance/evidence matrix until the old wrong logic is deleted.
+`tcrv.exec` is the execution envelope and ABI/runtime binding surface. It does
+not invent compute semantics from parameter names, route ids, artifact names,
+test names, descriptors, or C strings. `tcrv_rvv` is the low-level typed RVV
+body. The RVV plugin owns RVV legality, realization, intrinsic mapping, route
+construction, and fail-closed diagnostics. Common lowering/export owns neutral
+mechanics only.
 
-Exit Deletion Campaign only when live repo evidence shows all conditions below
-are true:
+## Stage Decision Rules
+
+Use live repo evidence plus any human steering to decide the stage. Keep the
+review bounded, but do not throw away the stage context.
+
+Stage 1 is active while any production/default path still treats bounded
+`i32m1` arithmetic, source-front-door patterns, route ids, artifact names,
+descriptor residue, intrinsic spellings, or common/export code as RVV route
+authority. Stage 1 owner:
 
 ```text
-descriptor is no longer compute semantics;
-direct C exporter is no longer a semantic route;
-core pass code has no extension-specific compute branch;
-specs/prompts/docs do not describe extension families as independent backends;
-legacy tests no longer protect old paths;
-remaining failures are clearly missing new architecture, not old-path compatibility.
+RVV route-authority replacement:
+replace or fail-close i32m1-as-architecture-authority with typed low-level
+tcrv_rvv bodies plus RVV-owned legality, selected-body realization, and route
+builder logic.
 ```
 
-After exit, choose a rebuild owner such as Common Extension Interface
-Foundation, Common Lower-To-EmitC Pass, Executable Plugin Construction
-Template, or General RVV Extension Family Rebuild.
-
-## Grill Consensus And Mature Path Steering
-
-Human grill/consensus notes under `artifacts/` are control-plane interpretation
-notes. They may help understand human intent, but they are not source of truth,
-acceptance evidence, Trellis task state, or replacement specification. Durable
-rules from those notes must be promoted into `.trellis/spec/` or the canonical
-supervisor prompt before they steer future rounds.
-
-During the Wrong Logic Deletion Campaign, maturity discussion does not authorize
-rebuild work. "RVV is the first executable plugin path" means the first rebuild
-proof after deletion should be RVV; it does not permit new RVV emission,
-high-level frontend lowering, new artifact routes, or executable plugin
-templates while old descriptor/direct-C/core-branch authority remains.
-
-After campaign exit, the mature route is explicit extension-family ops ->
-materialized common EmitC module -> MLIR C/C++ emitter -> intrinsic/vendor
-runtime ABI -> target export validation/packaging -> ssh rvv evidence for RVV.
-This is a route order, not a new state machine, bundle index, artifact ledger,
-or checkpoint protocol.
-
-## Structural Migration Review
-
-For migration or refactor tasks, check whether the production/default path
-actually changed. Adding helper infrastructure, metadata, evidence, or tests is
-not enough if the old path remains the source of compute semantics. If a
-previous round built a replacement path, the next owner should usually switch
-the default path to it, delete or bypass obsolete code, or make the new route
-the production route instead of adding coverage for the old route.
-
-For architecture cleanup, Codex may delete, replace, or rewrite obsolete code
-and tests. Do not reward preserving descriptor-driven tests when the active
-task is to remove descriptor authority from the default path.
-
-For RVV migration work, prefer extension family ops as the source of truth,
-common EmitC route usage, production/default path rewiring, and deletion of
-obsolete descriptor-driven behavior. Reject rounds that only add
-finite-family coverage, route metadata checks, helper-only tests, smoke tests,
-or ssh evidence as a standalone owner when the missing piece is structural
-migration. Descriptor-driven computation is invalid as long-term architecture.
-
-## Anti-Stall Rule
-
-Before writing the next brief, ask:
+Good Stage 1 owners are concrete module owners such as:
 
 ```text
-Did the last round move an end-to-end compiler path closer to completion?
-Did it make a module behavior available, or only add helper/test/smoke/report work?
-Is the current Trellis task too small, stale, or missing a clear PRD?
-Would another micro-round repeat the same stall pattern?
+tcrv_rvv body/type/op surface correction
+RVV selected-body realization hook implementation or use
+RVV route builder consuming the selected/realized body faithfully
+source-front-door demotion or fail-closed boundary
+common EmitC route boundary kept neutral while RVV mapping stays plugin-owned
+target artifact/export rejection when selected typed RVV authority is missing
+focused checks for the just-changed production path
 ```
 
-If several recent rounds did not move an end-to-end path closer, stop refining
-the same small surface. Create, repair, or expand a module-level Trellis PRD and
-make Codex execute that module instead.
-
-For extension/plugin work, do not treat a checklist, metadata-only manifest, or
-documentation-only template as sufficient progress when the missing piece is an
-executable extension-family construction template. Prefer owners that make a
-family declaration, interface realization, EmitC route mapping, or evidence
-profile consumable by code or tests.
-
-## Architecture Audit Surface
-
-Keep the audit concise, but block or redirect if the worker:
+Stage 2 begins only after Stage 1 evidence shows no active compiler path uses
+`i32m1` or source/artifact/route metadata as RVV authority. Stage 2 owner:
 
 ```text
-implements compiler internals in Python;
-bypasses the C++ / MLIR / LLVM / TableGen / CMake / lit / FileCheck stack;
-adds compute semantics to tcrv.exec or treats tcrv.exec.kernel as a mathematical kernel/hardware IR body;
-treats RVV, IME, TensorExt, Offload, scalar fallback, or future vendor targets as independent backend dialects instead of TCRV extension families;
-puts extension-specific semantic branches in core passes instead of TCRV common interfaces and plugin hooks;
-adds computation semantics through descriptors or descriptor-driven C/source exporters;
-routes new executable lowering around extension family ops -> EmitC -> intrinsic/vendor builtin/runtime C/C++;
-implements a new plugin without the Extension-Family Plugin Construction Protocol;
-omits extension archetype, semantic role graph, common interface realization, EmitC route mapping, or evidence profile for extension/plugin work;
-treats the Extension Manifest as metadata-only documentation rather than the machine-readable construction entry point;
-modifies core orchestration passes to give one extension a semantic special case;
-claims GCC or vendor compilers are the default route instead of clang/LLVM default with compatibility paths;
-confuses hardware facts, compile-time variant config, runtime SSA/control values, or descriptor-local parameters;
-claims RVV runtime/correctness/performance without ssh rvv evidence;
-treats prompt/report/smoke/helper work as the main result.
+expand route-supported RVV coverage on the corrected vector-level tcrv_rvv
+surface, using dependency order but not small completion batches.
 ```
 
-Detailed architecture rules live in `.trellis/spec/`; point Codex to the
-relevant specs instead of restating all rules in the Direction Brief.
+Stage 2 expands the route-supported low-level RVV surface toward structured
+kernel capability classes: VL/control, mask/tail policy, memory movement,
+elementwise/broadcast, compare/select, conversion/dtype/SEW/LMUL policy,
+reduction/accumulation, contraction-supporting multiply-add/movement, and
+runtime boundary. It must not become per-Linalg-op lowering, high-level kernel
+ops, one-op-per-intrinsic wrapping, or dtype/LMUL clone batches.
+
+Stage 3 and later are plugin generality, later plugin mainlines, future
+frontend lowering, and deeper performance/tuning work. These are valid project
+directions only after they do not bypass or distract from the RVV-first gate,
+or when the specific work directly repairs the shared interface needed by the
+current RVV owner.
+
+## Owner Selection Rules
+
+Choose exactly one next owner:
+
+- continue the current owner if it is still the real bottleneck;
+- expand it if the previous round was too small for the module boundary;
+- switch only when the module converged or Stage 1 evidence says the workflow
+  should enter Stage 2;
+- redirect when the worker drifted from specs, human steering, or the current
+  stage gate.
+
+Do not choose reports, dashboards, broad test matrices, artifact indexes,
+loop-health bookkeeping, helper-only changes, prompt-only churn, or repeated
+test-only rounds as the default owner. A test/evidence owner is valid only when
+it is the single focused blocker for a production path changed in this or the
+immediately previous round.
+
+While Stage 1 is open, do not send Codex to Scalar, IME, Offload, TensorExt,
+high-level Linalg/Vector/StableHLO frontend generalization, Stage 2 coverage
+expansion, global autotuning databases, readiness state machines, one-intrinsic
+wrapper dialects, high-level kernel ops, compatibility wrappers preserving old
+i32 authority, or dtype/LMUL/source clone batches.
+
+Hard redirections:
+
+- if a round preserved old i32 route authority through compatibility glue,
+  redirect to remove or fail-close that authority;
+- if common/core code chose RVV semantics directly, redirect to plugin-owned
+  interfaces or route construction;
+- if export/materialization invented missing compute, schedule, dtype, policy,
+  or body shape, redirect to typed tcrv_rvv body plus RVV-owned realization;
+- if the task is mainly tests/reports/artifact bookkeeping without production
+  path movement, redirect to the production owner it should have supported.
 
 ## Required next_prompt Shape
 
