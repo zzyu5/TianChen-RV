@@ -526,3 +526,36 @@ PASS op=add counts=7,16,23
 
 - Archive the task with `--no-commit` and create one coherent commit for the
   task/journal evidence record.
+
+
+## Session 127: TensorExtLite construction-template production handoff
+
+**Date**: 2026-05-18
+**Task**: TensorExtLite construction-template production handoff
+**Branch**: `main`
+
+### Summary
+
+Moved selected lowering-boundary validation into the common construction-template artifact adapter; TensorExtLite now consumes it for materialized EmitC object/header/bundle export and publishes its selected lowering-boundary frontdoor through target-support ExtensionBundle.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

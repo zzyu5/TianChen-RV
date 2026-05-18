@@ -12,6 +12,27 @@ namespace tianchenrv::target {
 using ConstructionTemplateObjectPackagerFn =
     llvm::Error (*)(llvm::StringRef generatedCpp, llvm::raw_ostream &os);
 
+struct ConstructionTemplateSelectedBoundaryAttributeExpectation {
+  llvm::StringRef boundaryAttrName;
+  llvm::StringRef expectedValue;
+  llvm::StringRef variantAttrName;
+};
+
+struct ConstructionTemplateSelectedLoweringBoundaryConfig {
+  bool required = false;
+  llvm::StringRef boundaryDescription =
+      "selected construction-template artifact boundary";
+  llvm::StringRef status;
+  llvm::StringRef sourceKernelAttrName = "source_kernel";
+  llvm::StringRef selectedVariantAttrName = "selected_variant";
+  llvm::StringRef originAttrName = "origin";
+  llvm::StringRef roleAttrName = "role";
+  llvm::StringRef statusAttrName = "status";
+  llvm::StringRef requiredCapabilitiesAttrName = "required_capabilities";
+  llvm::ArrayRef<ConstructionTemplateSelectedBoundaryAttributeExpectation>
+      extraStringAttributes;
+};
+
 struct ConstructionTemplateArtifactAdapterConfig {
   SelectedEmitCArtifactRouteConfig selectedRoute;
   llvm::StringRef headerRouteID;
@@ -35,6 +56,7 @@ struct ConstructionTemplateArtifactAdapterConfig {
   llvm::StringRef externalABIName;
   llvm::StringRef handoffKind;
   llvm::StringRef selectedObjectDescription;
+  ConstructionTemplateSelectedLoweringBoundaryConfig selectedLoweringBoundary;
   ConstructionTemplateObjectPackagerFn objectPackagerFn = nullptr;
 };
 

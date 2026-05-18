@@ -647,6 +647,13 @@ llvm::Error compileGeneratedSourceToObject(llvm::StringRef source,
 tianchenrv::target::ConstructionTemplateArtifactAdapterConfig
 getAdapterConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stdint.h"};
+  static const tianchenrv::target::
+      ConstructionTemplateSelectedBoundaryAttributeExpectation
+          kBoundaryAttributeExpectations[] = {
+              {"typed_role", kTypedRoleID, {}},
+              {"source_role", "compute", {}},
+              {"role_specific_interface", kRoleSpecificInterface, {}},
+          };
   static const tianchenrv::target::MaterializedEmitCHeaderArtifactMetadataEvidence
       kMetadataEvidence[] = {
           {"emitc_lowerable_route", kRouteMetadataName, kRouteID},
@@ -682,6 +689,12 @@ getAdapterConfig() {
   config.handoffKind = kObjectHandoffKind;
   config.selectedObjectDescription =
       "TemplateConsumer materialized EmitC object candidate";
+  config.selectedLoweringBoundary.required = true;
+  config.selectedLoweringBoundary.boundaryDescription =
+      "TemplateConsumer selected compute boundary";
+  config.selectedLoweringBoundary.status = kRoleOpBoundaryStatus;
+  config.selectedLoweringBoundary.extraStringAttributes =
+      kBoundaryAttributeExpectations;
   config.objectPackagerFn = compileGeneratedSourceToObject;
   return config;
 }
@@ -1226,6 +1239,34 @@ int runArtifactBridgeFailClosedTest() {
   if (!module)
     return fail(llvm::Twine("parse TemplateConsumer fail-closed fixture: ") +
                 llvm::toString(module.takeError()));
+
+  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> staleBoundaryModule =
+      parseArtifactFixtureModule(context);
+  if (!staleBoundaryModule)
+    return fail(llvm::Twine("parse TemplateConsumer stale-boundary fixture: ") +
+                llvm::toString(staleBoundaryModule.takeError()));
+  bool rewroteBoundary = false;
+  (*staleBoundaryModule)->walk([&](mlir::Operation *op) {
+    if (rewroteBoundary || op->getName().getStringRef() != kComputeOperationName)
+      return;
+    op->setAttr("typed_role",
+                mlir::StringAttr::get(&context,
+                                      "stale-template-consumer-role"));
+    rewroteBoundary = true;
+  });
+  if (!rewroteBoundary)
+    return fail("TemplateConsumer stale-boundary fixture did not contain the "
+                "selected compute boundary");
+  std::string staleBoundaryHeader;
+  llvm::raw_string_ostream staleBoundaryHeaderOS(staleBoundaryHeader);
+  if (int result = expectErrorContains(
+          tianchenrv::target::exportTargetHeaderArtifact(
+              **staleBoundaryModule, registry, staleBoundaryHeaderOS),
+          {"TemplateConsumer selected compute boundary", "typed_role",
+           kTypedRoleID},
+          "TemplateConsumer common construction-template adapter rejects "
+          "stale selected-boundary attributes"))
+    return result;
 
   tianchenrv::target::SelectedEmitCArtifactRouteConfig missingProvenance =
       getSelectedArtifactConfig(/*validateCandidate=*/true);

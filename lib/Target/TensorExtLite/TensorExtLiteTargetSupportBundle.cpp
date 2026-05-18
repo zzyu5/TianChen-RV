@@ -1,6 +1,5 @@
 #include "TianChenRV/Target/TensorExtLite/TensorExtLiteTargetSupportBundle.h"
 
-#include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
 #include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteEmitCRouteProvider.h"
@@ -8,7 +7,6 @@
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
 
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
@@ -24,18 +22,7 @@
 namespace tianchenrv::target::tensorext_lite {
 namespace {
 
-namespace construction = tianchenrv::plugin::construction;
-
 constexpr llvm::StringLiteral kDirectVariantRole("direct variant");
-constexpr llvm::StringLiteral kSelectedVariantAttrName("selected_variant");
-constexpr llvm::StringLiteral kOriginAttrName("origin");
-constexpr llvm::StringLiteral kRoleAttrName("role");
-constexpr llvm::StringLiteral kStatusAttrName("status");
-constexpr llvm::StringLiteral kSourceKernelAttrName("source_kernel");
-constexpr llvm::StringLiteral kRequiredCapabilitiesAttrName(
-    "required_capabilities");
-constexpr llvm::StringLiteral kFragmentABIAttrName("fragment_abi");
-constexpr llvm::StringLiteral kHandoffKindAttrName("handoff_kind");
 constexpr llvm::StringLiteral kVariantFragmentABIAttrName(
     "tcrv_tensorext_lite.fragment_abi");
 constexpr llvm::StringLiteral kVariantHandoffKindAttrName(
@@ -73,8 +60,6 @@ llvm::Error makeTensorExtLiteEmitCToCppRouteError(llvm::Twine message) {
       llvm::errc::invalid_argument);
 }
 
-llvm::Error validateTensorExtLiteTargetArtifactCandidate(
-    const TargetArtifactCandidate &candidate);
 llvm::Error validateTensorExtLiteSelectedObjectCandidate(
     const TargetArtifactCandidate &candidate);
 
@@ -85,85 +70,6 @@ llvm::Error requireTensorExtLiteSourceFrontDoorConsumed(mlir::ModuleOp module) {
         "stale TensorExtLite source-front-door metadata is not accepted as "
         "C/C++ emitter authority; run the source-artifact front-door pipeline "
         "before target translation");
-  return llvm::Error::success();
-}
-
-llvm::Error requireTensorExtLiteMaterializedLoweringBoundary(
-    const SelectedEmitCArtifactTarget &target) {
-  tcrv::exec::KernelOp kernel = target.kernel;
-  tcrv::exec::VariantOp variant = target.variant;
-  std::string kernelName = kernel.getSymName().str();
-  std::string variantName = variant.getSymName().str();
-  tcrv::tensorext_lite::LoweringBoundaryOp selectedBoundary;
-  unsigned matchingBoundaries = 0;
-  kernel.walk([&](tcrv::tensorext_lite::LoweringBoundaryOp boundary) {
-    auto selectedVariant =
-        boundary->getAttrOfType<mlir::FlatSymbolRefAttr>(
-            kSelectedVariantAttrName);
-    auto role = boundary->getAttrOfType<mlir::StringAttr>(kRoleAttrName);
-    if (!selectedVariant || selectedVariant.getValue() != variantName ||
-        !role || role.getValue() != target.candidate.role)
-      return;
-    selectedBoundary = boundary;
-    ++matchingBoundaries;
-  });
-
-  if (matchingBoundaries == 0)
-    return makeTensorExtLiteEmitCToCppRouteError(
-        "requires one selected materialized "
-        "tcrv_tensorext_lite.lowering_boundary before C/C++ emission");
-  if (matchingBoundaries != 1)
-    return makeTensorExtLiteEmitCToCppRouteError(
-        "requires exactly one selected materialized "
-        "tcrv_tensorext_lite.lowering_boundary before C/C++ emission");
-
-  const auto &manifest = getTensorExtLiteManifest();
-  const auto &route = getTensorExtLiteRoute();
-  auto variantFragmentABI =
-      variant->getAttrOfType<mlir::StringAttr>(kVariantFragmentABIAttrName);
-  if (!variantFragmentABI || variantFragmentABI.getValue().trim().empty())
-    return makeTensorExtLiteEmitCToCppRouteError(
-        "selected TensorExtLite variant must carry fragment ABI metadata "
-        "before C/C++ emission");
-  auto variantHandoffKind =
-      variant->getAttrOfType<mlir::StringAttr>(kVariantHandoffKindAttrName);
-  if (!variantHandoffKind || variantHandoffKind.getValue().trim().empty())
-    return makeTensorExtLiteEmitCToCppRouteError(
-        "selected TensorExtLite variant must carry handoff kind metadata "
-        "before C/C++ emission");
-
-  auto variantRequires =
-      variant->getAttrOfType<mlir::ArrayAttr>("requires");
-  const construction::SelectedBoundaryStringAttrExpectation
-      extraAttributes[] = {
-          {kFragmentABIAttrName, variantFragmentABI.getValue()},
-          {kHandoffKindAttrName, variantHandoffKind.getValue()},
-      };
-  construction::SelectedLoweringBoundaryConformanceSpec spec;
-  spec.boundaryDescription = "selected TensorExtLite C++ emitter boundary";
-  spec.selectedVariantSymbol = variantName;
-  spec.sourceKernelSymbol = kernelName;
-  spec.originPlugin = manifest.family.pluginName;
-  spec.pathRole = kDirectVariantRole;
-  spec.status = "no-active-route";
-  spec.requiredCapabilities = variantRequires;
-  spec.extraStringAttributes = extraAttributes;
-  spec.sourceKernelAttrName = kSourceKernelAttrName;
-  spec.selectedVariantAttrName = kSelectedVariantAttrName;
-  spec.originAttrName = kOriginAttrName;
-  spec.roleAttrName = kRoleAttrName;
-  spec.statusAttrName = kStatusAttrName;
-  spec.requiredCapabilitiesAttrName = kRequiredCapabilitiesAttrName;
-  if (llvm::Error error =
-          construction::verifySelectedLoweringBoundaryConformance(
-              selectedBoundary.getOperation(), spec))
-    return error;
-  if (llvm::StringRef(target.candidate.loweringBoundary) !=
-      route.loweringBoundaryOpName)
-    return makeTensorExtLiteEmitCToCppRouteError(
-        "selected TensorExtLite C++ emitter candidate lowering boundary "
-        "does not match the TensorExtLite construction route");
-
   return llvm::Error::success();
 }
 
@@ -281,6 +187,11 @@ getTensorExtLiteSelectedEmitCArtifactConfig(bool validateCandidate) {
 ConstructionTemplateArtifactAdapterConfig
 getTensorExtLiteArtifactAdapterConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stdint.h"};
+  static const ConstructionTemplateSelectedBoundaryAttributeExpectation
+      kBoundaryAttributeExpectations[] = {
+          {"fragment_abi", {}, kVariantFragmentABIAttrName},
+          {"handoff_kind", {}, kVariantHandoffKindAttrName},
+      };
   static const MaterializedEmitCHeaderArtifactMetadataEvidence
       kMetadataEvidence[] = {
           {"emitc_lowerable_route",
@@ -363,6 +274,12 @@ getTensorExtLiteArtifactAdapterConfig() {
   config.handoffKind = route.objectHandoffKind;
   config.selectedObjectDescription =
       "TensorExtLite materialized EmitC object candidate";
+  config.selectedLoweringBoundary.required = true;
+  config.selectedLoweringBoundary.boundaryDescription =
+      "selected TensorExtLite construction-template artifact boundary";
+  config.selectedLoweringBoundary.status = "no-active-route";
+  config.selectedLoweringBoundary.extraStringAttributes =
+      kBoundaryAttributeExpectations;
   config.objectPackagerFn = compileTensorExtLiteGeneratedSourceToObject;
   return config;
 }
@@ -380,28 +297,13 @@ llvm::Error validateTensorExtLiteSelectedObjectCandidate(
   return llvm::Error::success();
 }
 
-llvm::Error validateTensorExtLiteTargetArtifactCandidate(
-    const TargetArtifactCandidate &candidate) {
-  return validateConstructionTemplateTargetArtifactCandidate(
-      candidate, getTensorExtLiteArtifactAdapterConfig());
-}
-
 llvm::Error requireTensorExtLiteArtifactPreconditions(mlir::ModuleOp module,
                                                       bool requireSourceConsumed) {
   if (requireSourceConsumed)
     if (llvm::Error error = requireTensorExtLiteSourceFrontDoorConsumed(module))
       return error;
 
-  ConstructionTemplateArtifactAdapterConfig config =
-      getTensorExtLiteArtifactAdapterConfig();
-  llvm::Expected<SelectedEmitCArtifactTarget> target =
-      selectSelectedEmitCArtifactTarget(module, config.selectedRoute);
-  if (!target)
-    return target.takeError();
-  if (llvm::Error error =
-          validateTensorExtLiteTargetArtifactCandidate(target->candidate))
-    return error;
-  return requireTensorExtLiteMaterializedLoweringBoundary(*target);
+  return plugin::tensorext_lite::verifyTensorExtLiteConstructionProtocolReady();
 }
 
 llvm::Error exportTensorExtLiteHeaderArtifact(mlir::ModuleOp module,
@@ -475,6 +377,7 @@ llvm::Error registerTensorExtLiteTargetSupportPluginTargetExporterBundles(
 llvm::Error
 configureTensorExtLiteTargetSupportExtensionBundle(
     plugin::ExtensionBundle &bundle) {
+  bundle.addLoweringBoundaryOp(getTensorExtLiteRoute().loweringBoundaryOpName);
   bundle.setTargetArtifactExporterBundleRegistrationFn(
       registerTensorExtLiteTargetSupportPluginTargetExporterBundles);
   return llvm::Error::success();

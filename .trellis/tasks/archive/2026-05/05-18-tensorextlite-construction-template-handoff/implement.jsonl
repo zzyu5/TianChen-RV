@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries and descriptor/direct-C red lines for implementation."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Extension-family construction protocol shape and TensorExtLite reusable handoff obligations."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Source-front-door registry and TensorExtLite construction-template source-front-door contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Materialized EmitC target artifact handoff, object/header/bundle coherence, and fail-closed rules."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission runtime red lines against descriptor-driven and direct-C source authority."}

@@ -2,6 +2,7 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
 #include "TianChenRV/Dialect/TensorExtLite/IR/TensorExtLiteDialect.h"
+#include "TianChenRV/Plugin/ExtensionBundle.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteConstructionProtocol.h"
 #include "TianChenRV/Plugin/TensorExtLite/TensorExtLiteExtensionPlugin.h"
 #include "TianChenRV/Support/CapabilityModel.h"
@@ -269,6 +270,32 @@ int runRegistrationAndCapabilityMetadataTest() {
                           "present"))
     return result;
 
+  tianchenrv::plugin::ExtensionBundle bundle(
+      "tensorext-lite-extension-bundle",
+      tianchenrv::plugin::tensorext_lite::
+          getTensorExtLiteExtensionPluginName(),
+      tianchenrv::plugin::registerTensorExtLiteExtensionPlugin);
+  if (int result = expectSuccess(
+          plugin->configureTargetSupportExtensionBundle(bundle),
+          "TensorExtLite target-support extension bundle configures"))
+    return result;
+  const auto &route = tianchenrv::plugin::tensorext_lite::
+      getTensorExtLiteFragmentMmaEmitCConstructionRoute();
+  if (int result =
+          expect(bundle.getRequiredDialectNames().size() == 1 &&
+                     bundle.getRequiredDialectNames().front() ==
+                         "tcrv_tensorext_lite" &&
+                     bundle.getLoweringBoundaryOps().size() == 1 &&
+                     bundle.getLoweringBoundaryOps().front() ==
+                         route.loweringBoundaryOpName &&
+                     static_cast<bool>(
+                         bundle
+                             .getTargetArtifactExporterBundleRegistrationFn()),
+                 "TensorExtLite extension bundle publishes required dialect, "
+                 "selected lowering-boundary op, and target artifact "
+                 "exporter registration"))
+    return result;
+
   const auto &manifest =
       tianchenrv::plugin::tensorext_lite::getTensorExtLiteConstructionManifest();
   const auto &realization =
@@ -302,8 +329,6 @@ int runRegistrationAndCapabilityMetadataTest() {
                  "TensorExtLite typed role graph preserves ordered role sequence"))
     return result;
 
-  const auto &route = tianchenrv::plugin::tensorext_lite::
-      getTensorExtLiteFragmentMmaEmitCConstructionRoute();
   llvm::ArrayRef<tianchenrv::plugin::tensorext_lite::
                      TensorExtLiteFragmentMmaRoleStep>
       roleSteps = tianchenrv::plugin::tensorext_lite::

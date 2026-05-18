@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-10.md`
-- **Total Sessions**: 126
+- **Total Sessions**: 127
 - **Last Active**: 2026-05-18
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-10.md` | ~335 | Active |
+| `journal-10.md` | ~561 | Active |
 | `journal-9.md` | ~1993 | Archived |
 | `journal-8.md` | ~1998 | Archived |
 | `journal-7.md` | ~1992 | Archived |
@@ -38,6 +38,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 127 | 2026-05-18 | TensorExtLite construction-template production handoff | this commit | `main` |
 | 126 | 2026-05-18 | RVV runtime AVL/VL selected-boundary contract | this commit | `main` |
 | 124 | 2026-05-18 | Toy construction-template adapter production migration | - | `main` |
 | 123 | 2026-05-18 | TensorExtLite production construction-template artifact adapter consumption | - | `main` |

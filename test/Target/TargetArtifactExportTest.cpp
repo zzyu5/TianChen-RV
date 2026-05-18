@@ -2602,7 +2602,10 @@ bool expectBuiltinExtensionBundleFrontDoorRegistration() {
       !containsString(tensorExtLiteBundle->getRequiredDialectNames(),
                       "tcrv_tensorext_lite") ||
       !tensorExtLiteBundle->getPluginRegistrationFn() ||
-      !tensorExtLiteBundle->getLoweringBoundaryOps().empty() ||
+      !containsString(tensorExtLiteBundle->getLoweringBoundaryOps(),
+                      tianchenrv::plugin::tensorext_lite::
+                          getTensorExtLiteFragmentMmaEmitCConstructionRoute()
+                              .loweringBoundaryOpName) ||
       !tensorExtLiteBundle->getTargetArtifactExporterBundleRegistrationFn()) {
     llvm::errs()
         << "TensorExtLite extension bundle frontdoor is malformed\n";
@@ -3414,7 +3417,10 @@ bool expectTensorExtLitePluginManifestTargetSupportActivation() {
     return false;
   if (!containsString(bundle.getRequiredDialectNames(),
                       "tcrv_tensorext_lite") ||
-      !bundle.getLoweringBoundaryOps().empty() ||
+      !containsString(bundle.getLoweringBoundaryOps(),
+                      tianchenrv::plugin::tensorext_lite::
+                          getTensorExtLiteFragmentMmaEmitCConstructionRoute()
+                              .loweringBoundaryOpName) ||
       !bundle.getTargetArtifactExporterBundleRegistrationFn()) {
     llvm::errs() << "TensorExtLite plugin manifest hook did not configure the "
                     "target-support extension bundle\n";

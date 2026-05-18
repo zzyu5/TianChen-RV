@@ -98,5 +98,5 @@ module {
 // HEADER: void tcrv_emitc_tensorext_lite_header_export_tensorext_lite_tile_mma_first_slice(void);
 // HEADER: #endif
 
-// MISSING-BOUNDARY: TensorExtLite materialized EmitC C/C++ emitter bridge failed
-// MISSING-BOUNDARY-SAME: requires one selected materialized tcrv_tensorext_lite.lowering_boundary before C/C++ emission
+// MISSING-BOUNDARY: construction-template artifact adapter failed
+// MISSING-BOUNDARY-SAME: requires one selected materialized tcrv_tensorext_lite.lowering_boundary before artifact export
