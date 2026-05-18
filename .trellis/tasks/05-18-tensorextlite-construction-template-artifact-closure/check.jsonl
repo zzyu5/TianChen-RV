@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify plugin-owned selected boundary and construction-template locality"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify materialized EmitC object/header artifact and stale route fail-closed behavior"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify selected-plan driven target artifact handoff and TensorExtLite metadata evidence"}
+{"file": ".trellis/spec/index.md", "reason": "Verify no Python compiler-core, descriptor-driven compute, direct-C semantic exporter, or independent backend drift"}
