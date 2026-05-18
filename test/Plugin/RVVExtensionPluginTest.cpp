@@ -820,7 +820,7 @@ module {
         llvm::StringRef(entry.value).contains("tcrv_rvv.i32_cmp_eq") &&
         llvm::StringRef(entry.value).contains("tcrv_rvv.i32_select"))
       sawCompareSelectSourceMetadata = true;
-    if (entry.key == tianchenrv::plugin::rvv::getRVVArithmeticOpMetadataName() &&
+    if (entry.key == tianchenrv::plugin::rvv::getRVVSelectedBodyOperationMetadataName() &&
         entry.value == "cmp_select")
       sawCompareSelectOpMetadata = true;
   }

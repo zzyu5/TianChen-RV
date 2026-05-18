@@ -41,7 +41,7 @@ constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
 
 struct RVVSelectedBodyIntrinsicMapping {
   RVVSelectedBodyOperationKind operation;
-  llvm::StringLiteral mnemonic;
+  llvm::StringLiteral operationMnemonic;
   llvm::StringLiteral intrinsic;
   llvm::StringLiteral resultName;
   llvm::StringLiteral compareIntrinsic;
@@ -73,13 +73,13 @@ getRVVSelectedBodyIntrinsicMapping(RVVSelectedBodyOperationKind op) {
   llvm_unreachable("unknown RVV selected-body operation");
 }
 
-const RVVI32M1ArithmeticConstructionRoute &
+const RVVSelectedBodyConstructionRoute &
 getRVVSelectedBodyConstructionRouteOrDie(RVVSelectedBodyOperationKind op) {
   const RVVSelectedBodyIntrinsicMapping &spec =
       getRVVSelectedBodyIntrinsicMapping(op);
-  llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *> route =
-      lookupRVVI32M1ArithmeticConstructionRouteByMnemonic(
-          spec.mnemonic);
+  llvm::Expected<const RVVSelectedBodyConstructionRoute *> route =
+      lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
+          spec.operationMnemonic);
   if (!route) {
     std::string message = llvm::toString(route.takeError());
     llvm::report_fatal_error(llvm::StringRef(message));
@@ -156,7 +156,7 @@ struct RVVSelectedBodyRouteSlice {
 struct RVVSelectedBodyRouteAnalysis {
   RVVSelectedBodyRouteSlice slice;
   const RVVSelectedBodyIntrinsicMapping *intrinsicMapping = nullptr;
-  const RVVI32M1ArithmeticConstructionRoute *constructionRoute = nullptr;
+  const RVVSelectedBodyConstructionRoute *constructionRoute = nullptr;
   RVVSelectedBodyEmitCRouteDescription description;
 };
 
@@ -259,7 +259,7 @@ llvm::Error assignRVVBroadcastLoadBinding(
 
 llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     RVVSelectedBodyRouteSlice &slice,
-    const RVVI32M1ArithmeticConstructionRoute &constructionRoute,
+    const RVVSelectedBodyConstructionRoute &constructionRoute,
     const support::RuntimeABIParameter &runtimeElementCountABI,
     const support::RuntimeABIParameter &outABI) {
   slice.runtimeElementCountABI = runtimeElementCountABI;
@@ -510,7 +510,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return outABI.takeError();
   const RVVSelectedBodyIntrinsicMapping &spec =
       getRVVSelectedBodyIntrinsicMapping(slice.arithmeticKind);
-  const RVVI32M1ArithmeticConstructionRoute &constructionRoute =
+  const RVVSelectedBodyConstructionRoute &constructionRoute =
       getRVVSelectedBodyConstructionRouteOrDie(slice.arithmeticKind);
   if (llvm::Error error = validateRVVSelectedBodyRuntimeABIParameters(
           slice, constructionRoute, *runtimeElementCountABI, *outABI))
@@ -543,7 +543,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         slice.arithmeticRhs != rhsValue)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine("bounded RVV EmitC route requires tcrv_rvv.i32_") +
-          spec.mnemonic + " to consume lhs load and explicit rhs vector or "
+          spec.operationMnemonic + " to consume lhs load and explicit rhs vector or "
                           "broadcast results");
     if (slice.store.getValue() != slice.arithmeticResult)
       return makeRVVEmitCRouteProviderError(
@@ -689,7 +689,7 @@ collectRVVRoleOperationsInBodyOrder(tcrv::exec::VariantOp variant,
 
 llvm::Error verifySelectedRVVRoleSequence(
     RVVSelectedBodyRouteSlice &slice, const VariantEmitCLowerableRequest &request,
-    const RVVI32M1ArithmeticConstructionRoute &constructionRoute) {
+    const RVVSelectedBodyConstructionRoute &constructionRoute) {
   auto lhsABI = slice.lhsLoad.getBuffer()
                     .getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
   mlir::Value rhsBuffer = slice.rhsBroadcastLoad
@@ -717,11 +717,11 @@ llvm::Error verifySelectedRVVRoleSequence(
   llvm::StringRef rhsSourceOperationName =
       slice.rhsBroadcastLoad ? "tcrv_rvv.i32_broadcast_load"
                              : "tcrv_rvv.i32_load";
-  return verifyRVVI32M1ArithmeticSelectedRoleSequence(
+  return verifyRVVSelectedBodySelectedRoleSequence(
       ordered.operations, ordered.constructionOrders,
       request.getVariant().getSymName(),
       stringifyVariantEmissionRole(request.getRole()),
-      constructionRoute.operationName, rhsSourceOperationName,
+      constructionRoute.typedComputeOpName, rhsSourceOperationName,
       "selected RVV EmitC route");
 }
 
@@ -746,16 +746,16 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
 
   const RVVSelectedBodyIntrinsicMapping &intrinsicMapping =
       getRVVSelectedBodyIntrinsicMapping(slice->arithmeticKind);
-  const RVVI32M1ArithmeticConstructionRoute &constructionRoute =
+  const RVVSelectedBodyConstructionRoute &constructionRoute =
       getRVVSelectedBodyConstructionRouteOrDie(slice->arithmeticKind);
 
   if (slice->arithmeticOp->getName().getStringRef() !=
-      constructionRoute.operationName)
+      constructionRoute.typedComputeOpName)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("selected typed RVV body route expected compute op '") +
-        constructionRoute.operationName + "' from the construction mapping");
-  if (llvm::Error error = verifyRVVI32M1ArithmeticConstructionRouteMapping(
-          intrinsicMapping.mnemonic, constructionRoute.operationName,
+        constructionRoute.typedComputeOpName + "' from the construction mapping");
+  if (llvm::Error error = verifyRVVSelectedBodyConstructionRouteMapping(
+          intrinsicMapping.operationMnemonic, constructionRoute.typedComputeOpName,
           constructionRoute.emitCRouteID, constructionRoute.runtimeABIName))
     return std::move(error);
   if (llvm::Error error =
@@ -776,7 +776,7 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
           : RVVSelectedBodyMemoryForm::VectorRHSLoad;
   analysis.description.sew = config.sew;
   analysis.description.lmul = config.lmul;
-  analysis.description.typedComputeOpName = constructionRoute.operationName;
+  analysis.description.typedComputeOpName = constructionRoute.typedComputeOpName;
   analysis.description.emitCRouteID = constructionRoute.emitCRouteID;
   analysis.description.runtimeABIName = constructionRoute.runtimeABIName;
   analysis.description.runtimeABIContractName =
@@ -801,7 +801,7 @@ llvm::ArrayRef<RVVSelectedBodyOperationKind> getRVVSelectedBodyOperationKinds() 
 
 llvm::StringRef
 stringifyRVVSelectedBodyOperationKind(RVVSelectedBodyOperationKind op) {
-  return getRVVSelectedBodyIntrinsicMapping(op).mnemonic;
+  return getRVVSelectedBodyIntrinsicMapping(op).operationMnemonic;
 }
 
 llvm::StringRef

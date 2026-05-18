@@ -83,7 +83,8 @@ constexpr llvm::StringLiteral kSourceRoles(
 
 constexpr llvm::StringLiteral kEmitCLowerableRouteMetadataName(
     "rvv_emitc_lowerable_route");
-constexpr llvm::StringLiteral kArithmeticOpMetadataName("rvv_arithmetic_op");
+constexpr llvm::StringLiteral kSelectedBodyOperationMetadataName(
+    "rvv_selected_body_operation");
 constexpr llvm::StringLiteral kSourceOpsMetadataName("rvv_source_ops");
 constexpr llvm::StringLiteral kSourceRolesMetadataName("rvv_source_roles");
 constexpr llvm::StringLiteral kSourceOpInterfaceMetadataName(
@@ -129,19 +130,19 @@ constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
 constexpr llvm::StringLiteral kRVVCapabilityKind("isa-vector");
 constexpr llvm::StringLiteral kRVVFirstSliceVariantName(
     "rvv_i32m1_arithmetic_first_slice");
-constexpr llvm::StringLiteral kRVVArithmeticRouteFamilyID(
+constexpr llvm::StringLiteral kRVVSelectedBodyRouteFamilyID(
     "rvv-i32m1-arithmetic-emitc-route-family");
-constexpr llvm::StringLiteral kRVVI32M1ArithmeticEmissionKind(
+constexpr llvm::StringLiteral kRVVSelectedBodyEmissionKind(
     "materialized-emitc-cpp-rvv-intrinsic-object");
-constexpr llvm::StringLiteral kRVVI32M1ArithmeticArtifactKind(
+constexpr llvm::StringLiteral kRVVSelectedBodyArtifactKind(
     "riscv-elf-relocatable-object");
-constexpr llvm::StringLiteral kRVVI32M1ArithmeticLoweringBoundaryOpName(
+constexpr llvm::StringLiteral kRVVSelectedBodyLoweringBoundaryOpName(
     "tcrv_rvv.with_vl");
-constexpr llvm::StringLiteral kRVVI32M1ArithmeticRuntimeABIFamily(
+constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeABIFamily(
     "rvv-i32m1-arithmetic-callable-c-abi-family.v1");
-constexpr llvm::StringLiteral kRVVI32M1ArithmeticRuntimeABIKind(
+constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeABIKind(
     "plugin-owned-runtime-abi");
-constexpr llvm::StringLiteral kRVVI32M1ArithmeticRuntimeGlueRole(
+constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeGlueRole(
     "emitc-cpp-rvv-intrinsic-runtime-glue");
 constexpr llvm::StringLiteral kRVVMaterializedEmitCHeaderRouteID(
     "rvv-i32m1-arithmetic-emitc-route-family.header");
@@ -149,7 +150,7 @@ constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
     "runtime-callable-c-header");
 constexpr llvm::StringLiteral kRVVMaterializedEmitCBundleComponentGroup(
     "rvv-i32m1-arithmetic-materialized-emitc-bundle.v1");
-constexpr llvm::StringLiteral kRVVI32M1ArithmeticObjectHandoffKind(
+constexpr llvm::StringLiteral kRVVSelectedBodyObjectHandoffKind(
     "materialized-emitc-cpp-rvv-intrinsic-object");
 constexpr llvm::StringLiteral kRVVEmitCToCppRouteID(
     "tcrv-rvv-emitc-to-cpp");
@@ -197,13 +198,13 @@ const RVVConstructionManifest kManifest = {
      kRVVCapabilityKind,
      kRVVFirstSliceVariantName},
     kSemanticRoles,
-    {kRVVArithmeticRouteFamilyID,
-     kRVVI32M1ArithmeticEmissionKind,
-     kRVVI32M1ArithmeticArtifactKind,
-     kRVVI32M1ArithmeticRuntimeABIFamily,
-     kRVVI32M1ArithmeticRuntimeABIKind,
-     kRVVI32M1ArithmeticRuntimeABIFamily,
-     kRVVI32M1ArithmeticRuntimeGlueRole},
+    {kRVVSelectedBodyRouteFamilyID,
+     kRVVSelectedBodyEmissionKind,
+     kRVVSelectedBodyArtifactKind,
+     kRVVSelectedBodyRuntimeABIFamily,
+     kRVVSelectedBodyRuntimeABIKind,
+     kRVVSelectedBodyRuntimeABIFamily,
+     kRVVSelectedBodyRuntimeGlueRole},
     kEvidenceProfile,
 };
 
@@ -269,7 +270,7 @@ const RVVTypedRoleGraphRealization kTypedRoleGraphRealization = {
     kEvidenceProfile,
 };
 
-const RVVI32M1ArithmeticConstructionRoute kArithmeticRoutes[] = {
+const RVVSelectedBodyConstructionRoute kSelectedBodyRoutes[] = {
     {"add",
      "tcrv_rvv.i32_add",
      "rvv.role.compute.i32_arithmetic",
@@ -296,11 +297,11 @@ const RVVI32M1ArithmeticConstructionRoute kArithmeticRoutes[] = {
      "rvv-i32m1-cmp-select-callable-c-abi"},
 };
 
-const RVVI32M1ArithmeticTargetArtifactMapping kTargetArtifactMapping = {
+const RVVSelectedBodyTargetArtifactMapping kTargetArtifactMapping = {
     kRVVMaterializedEmitCHeaderRouteID,
     kRuntimeCallableCHeaderArtifactKind,
     kRVVMaterializedEmitCBundleComponentGroup,
-    kRVVI32M1ArithmeticObjectHandoffKind,
+    kRVVSelectedBodyObjectHandoffKind,
     kRVVEmitCToCppRouteID};
 
 const construction::RoleExpectation kRoleExpectations[] = {
@@ -368,14 +369,16 @@ llvm::Error requireRouteText(llvm::StringRef field, llvm::StringRef value) {
   return llvm::Error::success();
 }
 
-llvm::Error verifyArithmeticRoutes() {
-  llvm::StringSet<> seenMnemonics;
-  llvm::StringSet<> seenOps;
+llvm::Error verifySelectedBodyRoutes() {
+  llvm::StringSet<> seenOperations;
+  llvm::StringSet<> seenTypedComputeOps;
   llvm::StringSet<> seenEmitCRoutes;
-  for (const RVVI32M1ArithmeticConstructionRoute &route : kArithmeticRoutes) {
-    if (llvm::Error error = requireRouteText("mnemonic", route.mnemonic))
+  for (const RVVSelectedBodyConstructionRoute &route : kSelectedBodyRoutes) {
+    if (llvm::Error error =
+            requireRouteText("operation_mnemonic", route.operationMnemonic))
       return error;
-    if (llvm::Error error = requireRouteText("operation", route.operationName))
+    if (llvm::Error error =
+            requireRouteText("typed_compute_op", route.typedComputeOpName))
       return error;
     if (llvm::Error error =
             requireRouteText("typed_role", route.typedRoleID))
@@ -386,37 +389,41 @@ llvm::Error verifyArithmeticRoutes() {
     if (llvm::Error error =
             requireRouteText("runtime_abi", route.runtimeABIName))
       return error;
-    if (!seenMnemonics.insert(route.mnemonic).second)
-      return makeRVVConstructionError(llvm::Twine("duplicate arithmetic "
-                                                  "mnemonic '") +
-                                      route.mnemonic + "'");
-    if (!seenOps.insert(route.operationName).second)
-      return makeRVVConstructionError(llvm::Twine("duplicate arithmetic op '") +
-                                      route.operationName + "'");
+    if (!seenOperations.insert(route.operationMnemonic).second)
+      return makeRVVConstructionError(llvm::Twine("duplicate selected-body "
+                                                  "operation '") +
+                                      route.operationMnemonic + "'");
+    if (!seenTypedComputeOps.insert(route.typedComputeOpName).second)
+      return makeRVVConstructionError(llvm::Twine("duplicate typed compute "
+                                                  "op '") +
+                                      route.typedComputeOpName + "'");
     if (!seenEmitCRoutes.insert(route.emitCRouteID).second)
       return makeRVVConstructionError(
           llvm::Twine("duplicate EmitC route '") + route.emitCRouteID + "'");
     const RVVTypedRoleInterfaceRealization *compute = findTypedRole("compute");
     if (!compute || route.typedRoleID != compute->typedRoleID ||
-        !operationNameMatchesTypedRole(route.operationName,
+        !operationNameMatchesTypedRole(route.typedComputeOpName,
                                        compute->operationName))
       return makeRVVConstructionError(
-          llvm::Twine("arithmetic route '") + route.mnemonic +
+          llvm::Twine("selected-body construction route '") +
+          route.operationMnemonic +
           "' must match the RVV compute typed role realization");
   }
-  if (llvm::ArrayRef<RVVI32M1ArithmeticConstructionRoute>(kArithmeticRoutes)
+  if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(kSelectedBodyRoutes)
           .size() != 4)
     return makeRVVConstructionError(
-        "i32m1 construction mapping requires add, sub, mul, and cmp_select");
+        "selected-body construction mapping requires add, sub, mul, and "
+        "cmp_select");
   return llvm::Error::success();
 }
 
 llvm::SmallVector<support::ArtifactMetadataEntry, 16>
 buildExpectedConstructionArtifactMetadata(
-    const RVVI32M1ArithmeticConstructionRoute &route) {
+    const RVVSelectedBodyConstructionRoute &route) {
   llvm::SmallVector<support::ArtifactMetadataEntry, 16> metadata;
   metadata.push_back({kEmitCLowerableRouteMetadataName, route.emitCRouteID});
-  metadata.push_back({kArithmeticOpMetadataName, route.mnemonic});
+  metadata.push_back(
+      {kSelectedBodyOperationMetadataName, route.operationMnemonic});
   metadata.push_back({kSourceOpsMetadataName, kSourceOps});
   metadata.push_back({kSourceRolesMetadataName, kSourceRoles});
   metadata.push_back(
@@ -444,57 +451,58 @@ buildExpectedRuntimeABIParameters() {
   return tcrv::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
 }
 
-llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>
+llvm::Expected<const RVVSelectedBodyConstructionRoute *>
 lookupRouteBy(llvm::StringRef value, llvm::StringRef label,
-              bool (*matches)(const RVVI32M1ArithmeticConstructionRoute &,
+              bool (*matches)(const RVVSelectedBodyConstructionRoute &,
                               llvm::StringRef)) {
   if (llvm::Error error = verifyRVVConstructionProtocolReady())
     return std::move(error);
-  for (const RVVI32M1ArithmeticConstructionRoute &route : kArithmeticRoutes)
+  for (const RVVSelectedBodyConstructionRoute &route : kSelectedBodyRoutes)
     if (matches(route, value))
       return &route;
-  return makeRVVConstructionError(llvm::Twine("unknown RVV i32m1 arithmetic ") +
+  return makeRVVConstructionError(llvm::Twine("unknown RVV selected-body ") +
                                   label + " '" + value + "'");
 }
 
-const RVVI32M1ArithmeticConstructionRoute *
+const RVVSelectedBodyConstructionRoute *
 findRouteByEmitCRouteIDRaw(llvm::StringRef emitCRouteID) {
-  for (const RVVI32M1ArithmeticConstructionRoute &route : kArithmeticRoutes)
+  for (const RVVSelectedBodyConstructionRoute &route : kSelectedBodyRoutes)
     if (route.emitCRouteID == emitCRouteID)
       return &route;
   return nullptr;
 }
 
-const RVVI32M1ArithmeticConstructionRoute *
-findRouteByOperationNameRaw(llvm::StringRef operationName) {
-  for (const RVVI32M1ArithmeticConstructionRoute &route : kArithmeticRoutes)
-    if (route.operationName == operationName)
+const RVVSelectedBodyConstructionRoute *
+findRouteByTypedComputeOpNameRaw(llvm::StringRef typedComputeOpName) {
+  for (const RVVSelectedBodyConstructionRoute &route : kSelectedBodyRoutes)
+    if (route.typedComputeOpName == typedComputeOpName)
       return &route;
   return nullptr;
 }
 
-llvm::Expected<llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10>>
-buildRVVI32M1ArithmeticExecutableRoleSteps(
-    llvm::StringRef operationName, llvm::StringRef rhsSourceOperationName) {
-  const RVVI32M1ArithmeticConstructionRoute *route =
-      findRouteByOperationNameRaw(operationName);
+llvm::Expected<llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10>>
+buildRVVSelectedBodyExecutableRoleSteps(
+    llvm::StringRef typedComputeOpName,
+    llvm::StringRef rhsSourceOperationName) {
+  const RVVSelectedBodyConstructionRoute *route =
+      findRouteByTypedComputeOpNameRaw(typedComputeOpName);
   if (!route)
     return makeRVVConstructionError(
-        llvm::Twine("unknown RVV i32m1 arithmetic operation '") +
-        operationName + "'");
+        llvm::Twine("unknown RVV selected-body typed compute op '") +
+        typedComputeOpName + "'");
   if (rhsSourceOperationName != "tcrv_rvv.i32_load" &&
       rhsSourceOperationName != "tcrv_rvv.i32_broadcast_load")
     return makeRVVConstructionError(
         llvm::Twine("unknown RVV i32m1 RHS source operation '") +
         rhsSourceOperationName + "'");
-  const bool isCompareSelect = route->operationName == "tcrv_rvv.i32_select";
+  const bool isCompareSelect = route->typedComputeOpName == "tcrv_rvv.i32_select";
   if (isCompareSelect &&
       rhsSourceOperationName != "tcrv_rvv.i32_load")
     return makeRVVConstructionError(
         "RVV i32m1 compare/select construction requires an explicit RHS "
         "vector load; broadcast compare/select is not in this bounded slice");
 
-  llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10> steps;
+  llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10> steps;
   steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
                    "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
@@ -531,20 +539,20 @@ buildRVVI32M1ArithmeticExecutableRoleSteps(
                      "rvv.role.compute.i32_arithmetic",
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
                      "cmp_eq", 8});
-    steps.push_back({"compute", route->operationName,
+    steps.push_back({"compute", route->typedComputeOpName,
                      "rvv.role.compute.i32_arithmetic",
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
-                     route->mnemonic, 9});
+                     route->operationMnemonic, 9});
     steps.push_back({"store", "tcrv_rvv.i32_store",
                      "rvv.role.store.i32_store", "TCRVMemoryOpInterface",
                      "TCRVEmitCLowerableInterface", "store", 10});
     return steps;
   }
 
-  steps.push_back({"compute", route->operationName,
+  steps.push_back({"compute", route->typedComputeOpName,
                    "rvv.role.compute.i32_arithmetic",
                    "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
-                   route->mnemonic, 8});
+                   route->operationMnemonic, 8});
   steps.push_back({"store", "tcrv_rvv.i32_store", "rvv.role.store.i32_store",
                    "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
                    "store", 9});
@@ -583,9 +591,9 @@ llvm::StringRef getRVVConstructionEvidenceProfile() {
   return kEvidenceProfile;
 }
 
-llvm::StringRef getRVVI32M1ArithmeticSourceOps() { return kSourceOps; }
+llvm::StringRef getRVVSelectedBodySourceOps() { return kSourceOps; }
 
-llvm::StringRef getRVVI32M1ArithmeticSourceRoles() { return kSourceRoles; }
+llvm::StringRef getRVVSelectedBodySourceRoles() { return kSourceRoles; }
 
 llvm::StringRef getRVVEmitCLowerableOpInterfaceName() {
   return kEmitCLowerableOpInterfaceName;
@@ -595,8 +603,8 @@ llvm::StringRef getRVVEmitCLowerableRouteMetadataName() {
   return kEmitCLowerableRouteMetadataName;
 }
 
-llvm::StringRef getRVVArithmeticOpMetadataName() {
-  return kArithmeticOpMetadataName;
+llvm::StringRef getRVVSelectedBodyOperationMetadataName() {
+  return kSelectedBodyOperationMetadataName;
 }
 
 llvm::StringRef getRVVSourceOpsMetadataName() {
@@ -695,44 +703,45 @@ const RVVTypedRoleGraphRealization &getRVVTypedRoleGraphRealization() {
   return kTypedRoleGraphRealization;
 }
 
-llvm::ArrayRef<RVVI32M1ArithmeticConstructionRoute>
-getRVVI32M1ArithmeticConstructionRoutes() {
-  return kArithmeticRoutes;
+llvm::ArrayRef<RVVSelectedBodyConstructionRoute>
+getRVVSelectedBodyConstructionRoutes() {
+  return kSelectedBodyRoutes;
 }
 
-const RVVI32M1ArithmeticTargetArtifactMapping &
-getRVVI32M1ArithmeticTargetArtifactMapping() {
+const RVVSelectedBodyTargetArtifactMapping &
+getRVVSelectedBodyTargetArtifactMapping() {
   return kTargetArtifactMapping;
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 4>
-getRVVI32M1ArithmeticConstructionRuntimeABIParameters() {
+getRVVSelectedBodyConstructionRuntimeABIParameters() {
   return buildExpectedRuntimeABIParameters();
 }
 
 llvm::Expected<llvm::SmallVector<support::ArtifactMetadataEntry, 16>>
-getRVVI32M1ArithmeticConstructionArtifactMetadata(
+getRVVSelectedBodyConstructionArtifactMetadata(
     llvm::StringRef emitCRouteID) {
-  const RVVI32M1ArithmeticConstructionRoute *route =
+  const RVVSelectedBodyConstructionRoute *route =
       findRouteByEmitCRouteIDRaw(emitCRouteID);
   if (!route)
     return makeRVVConstructionError(
-        llvm::Twine("unknown RVV i32m1 arithmetic EmitC route '") +
+        llvm::Twine("unknown RVV selected-body EmitC route '") +
         emitCRouteID + "'");
   return buildExpectedConstructionArtifactMetadata(*route);
 }
 
-llvm::Expected<llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10>>
-getRVVI32M1ArithmeticExecutableRoleSteps(llvm::StringRef operationName) {
-  return buildRVVI32M1ArithmeticExecutableRoleSteps(operationName,
-                                                   "tcrv_rvv.i32_load");
+llvm::Expected<llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10>>
+getRVVSelectedBodyExecutableRoleSteps(llvm::StringRef typedComputeOpName) {
+  return buildRVVSelectedBodyExecutableRoleSteps(typedComputeOpName,
+                                                "tcrv_rvv.i32_load");
 }
 
-llvm::Expected<llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10>>
-getRVVI32M1ArithmeticExecutableRoleSteps(
-    llvm::StringRef operationName, llvm::StringRef rhsSourceOperationName) {
-  return buildRVVI32M1ArithmeticExecutableRoleSteps(operationName,
-                                                   rhsSourceOperationName);
+llvm::Expected<llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10>>
+getRVVSelectedBodyExecutableRoleSteps(
+    llvm::StringRef typedComputeOpName,
+    llvm::StringRef rhsSourceOperationName) {
+  return buildRVVSelectedBodyExecutableRoleSteps(typedComputeOpName,
+                                                rhsSourceOperationName);
 }
 
 llvm::Error
@@ -740,7 +749,7 @@ verifyRVVConstructionManifest(const RVVConstructionManifest &manifest) {
   if (llvm::Error error = construction::verifyConstructionManifest(
           manifest, getRVVConstructionValidationSpec()))
     return error;
-  return verifyArithmeticRoutes();
+  return verifySelectedBodyRoutes();
 }
 
 llvm::Error verifyRVVTypedRoleGraphRealization(
@@ -749,11 +758,11 @@ llvm::Error verifyRVVTypedRoleGraphRealization(
   if (llvm::Error error = construction::verifyTypedRoleGraphRealization(
           manifest, realization, getRVVConstructionValidationSpec()))
     return error;
-  return verifyArithmeticRoutes();
+  return verifySelectedBodyRoutes();
 }
 
 llvm::Error verifyRVVConstructionProtocolReady() {
-  if (llvm::Error error = verifyArithmeticRoutes())
+  if (llvm::Error error = verifySelectedBodyRoutes())
     return error;
 
   llvm::SmallVector<llvm::SmallVector<support::ArtifactMetadataEntry, 16>, 3>
@@ -762,13 +771,13 @@ llvm::Error verifyRVVConstructionProtocolReady() {
                     3>
       artifactChecks;
   metadataStorage.reserve(
-      llvm::ArrayRef<RVVI32M1ArithmeticConstructionRoute>(kArithmeticRoutes)
+      llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(kSelectedBodyRoutes)
           .size());
   if (llvm::Error error =
-          verifyRVVI32M1ArithmeticConstructionRuntimeABIParameters(
+          verifyRVVSelectedBodyConstructionRuntimeABIParameters(
               buildExpectedRuntimeABIParameters()))
     return error;
-  for (const RVVI32M1ArithmeticConstructionRoute &route : kArithmeticRoutes) {
+  for (const RVVSelectedBodyConstructionRoute &route : kSelectedBodyRoutes) {
     metadataStorage.push_back(buildExpectedConstructionArtifactMetadata(route));
     llvm::ArrayRef<support::ArtifactMetadataEntry> metadata =
         metadataStorage.back();
@@ -788,7 +797,7 @@ llvm::Error verifyRVVConstructionProtocolReady() {
     return error;
 
   if (llvm::Error error =
-          verifyRVVI32M1ArithmeticTargetArtifactBundleMapping(
+          verifyRVVSelectedBodyTargetArtifactBundleMapping(
               kTargetArtifactMapping.headerRouteID,
               kTargetArtifactMapping.headerArtifactKind,
               kTargetArtifactMapping.bundleComponentGroup,
@@ -799,7 +808,7 @@ llvm::Error verifyRVVConstructionProtocolReady() {
   return llvm::Error::success();
 }
 
-llvm::Error verifyRVVI32M1ArithmeticConstructionRuntimeABIParameters(
+llvm::Error verifyRVVSelectedBodyConstructionRuntimeABIParameters(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
   if (llvm::Error error =
           tcrv::rvv::verifyRVVI32M1ArithmeticRuntimeABIParameters(
@@ -808,7 +817,7 @@ llvm::Error verifyRVVI32M1ArithmeticConstructionRuntimeABIParameters(
   return llvm::Error::success();
 }
 
-llvm::Error verifyRVVI32M1ArithmeticTargetArtifactBundleMapping(
+llvm::Error verifyRVVSelectedBodyTargetArtifactBundleMapping(
     llvm::StringRef headerRouteID, llvm::StringRef headerArtifactKind,
     llvm::StringRef bundleComponentGroup, llvm::StringRef objectHandoffKind,
     llvm::StringRef emitCToCppTranslateRouteID) {
@@ -835,7 +844,7 @@ llvm::Error verifyRVVI32M1ArithmeticTargetArtifactBundleMapping(
   return llvm::Error::success();
 }
 
-llvm::Error verifyRVVI32M1ArithmeticConstructionArtifactMetadata(
+llvm::Error verifyRVVSelectedBodyConstructionArtifactMetadata(
     llvm::ArrayRef<support::ArtifactMetadataEntry> metadata,
     llvm::StringRef context) {
   llvm::StringRef routeID;
@@ -849,14 +858,14 @@ llvm::Error verifyRVVI32M1ArithmeticConstructionArtifactMetadata(
         kEmitCLowerableRouteMetadataName + "'");
 
   llvm::Expected<llvm::SmallVector<support::ArtifactMetadataEntry, 16>>
-      expected = getRVVI32M1ArithmeticConstructionArtifactMetadata(routeID);
+      expected = getRVVSelectedBodyConstructionArtifactMetadata(routeID);
   if (!expected)
     return expected.takeError();
   return construction::verifyConstructionArtifactMetadata(
       metadata, *expected, getRVVConstructionValidationSpec(), context);
 }
 
-llvm::Error verifyRVVI32M1ArithmeticConstructionArtifactMetadataForEmitCRoute(
+llvm::Error verifyRVVSelectedBodyConstructionArtifactMetadataForEmitCRoute(
     llvm::ArrayRef<support::ArtifactMetadataEntry> metadata,
     llvm::StringRef emitCRouteID, llvm::StringRef context) {
   if (emitCRouteID.trim().empty())
@@ -865,7 +874,7 @@ llvm::Error verifyRVVI32M1ArithmeticConstructionArtifactMetadataForEmitCRoute(
         " requires a non-empty selected RVV EmitC route id");
 
   llvm::Expected<llvm::SmallVector<support::ArtifactMetadataEntry, 16>>
-      expected = getRVVI32M1ArithmeticConstructionArtifactMetadata(
+      expected = getRVVSelectedBodyConstructionArtifactMetadata(
           emitCRouteID);
   if (!expected)
     return expected.takeError();
@@ -873,15 +882,15 @@ llvm::Error verifyRVVI32M1ArithmeticConstructionArtifactMetadataForEmitCRoute(
       metadata, *expected, getRVVConstructionValidationSpec(), context);
 }
 
-llvm::Error verifyRVVI32M1ArithmeticSelectedRoleSequence(
+llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
     llvm::ArrayRef<mlir::Operation *> orderedRoleOperations,
     llvm::ArrayRef<unsigned> orderedRoleOperationOrders,
     llvm::StringRef selectedVariantSymbol, llvm::StringRef pathRole,
-    llvm::StringRef operationName, llvm::StringRef rhsSourceOperationName,
-    llvm::StringRef context) {
-  llvm::Expected<llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10>>
-      steps = buildRVVI32M1ArithmeticExecutableRoleSteps(
-          operationName, rhsSourceOperationName);
+    llvm::StringRef typedComputeOpName,
+    llvm::StringRef rhsSourceOperationName, llvm::StringRef context) {
+  llvm::Expected<llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10>>
+      steps = buildRVVSelectedBodyExecutableRoleSteps(
+          typedComputeOpName, rhsSourceOperationName);
   if (!steps)
     return steps.takeError();
 
@@ -892,7 +901,7 @@ llvm::Error verifyRVVI32M1ArithmeticSelectedRoleSequence(
   spec.selectedVariantSymbol = selectedVariantSymbol;
   spec.pathRole = pathRole;
   spec.semanticRoleGraph =
-      operationName == "tcrv_rvv.i32_select"
+      typedComputeOpName == "tcrv_rvv.i32_select"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "configure->scope->load->load->compute->compute->store"
           : "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
@@ -917,29 +926,30 @@ llvm::Error verifyRVVI32M1ArithmeticSelectedRoleSequence(
       spec, *inspection);
 }
 
-llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>
-lookupRVVI32M1ArithmeticConstructionRouteByMnemonic(llvm::StringRef mnemonic) {
+llvm::Expected<const RVVSelectedBodyConstructionRoute *>
+lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
+    llvm::StringRef operationMnemonic) {
   return lookupRouteBy(
-      mnemonic, "mnemonic",
-      [](const RVVI32M1ArithmeticConstructionRoute &route,
-         llvm::StringRef value) { return route.mnemonic == value; });
+      operationMnemonic, "operation mnemonic",
+      [](const RVVSelectedBodyConstructionRoute &route,
+         llvm::StringRef value) { return route.operationMnemonic == value; });
 }
 
-llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>
-lookupRVVI32M1ArithmeticConstructionRouteByOperationName(
-    llvm::StringRef operationName) {
+llvm::Expected<const RVVSelectedBodyConstructionRoute *>
+lookupRVVSelectedBodyConstructionRouteByTypedComputeOpName(
+    llvm::StringRef typedComputeOpName) {
   return lookupRouteBy(
-      operationName, "operation",
-      [](const RVVI32M1ArithmeticConstructionRoute &route,
-         llvm::StringRef value) { return route.operationName == value; });
+      typedComputeOpName, "typed compute op",
+      [](const RVVSelectedBodyConstructionRoute &route,
+         llvm::StringRef value) { return route.typedComputeOpName == value; });
 }
 
-llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>
-lookupRVVI32M1ArithmeticConstructionRouteByEmitCRouteID(
+llvm::Expected<const RVVSelectedBodyConstructionRoute *>
+lookupRVVSelectedBodyConstructionRouteByEmitCRouteID(
     llvm::StringRef emitCRouteID) {
   return lookupRouteBy(
       emitCRouteID, "EmitC route",
-      [](const RVVI32M1ArithmeticConstructionRoute &route,
+      [](const RVVSelectedBodyConstructionRoute &route,
          llvm::StringRef value) { return route.emitCRouteID == value; });
 }
 
@@ -997,7 +1007,7 @@ llvm::Error verifyRVVLoadRoleOpInterface(mlir::Operation *roleOp) {
   return verifyRVVRoleOperationInterface(roleOp, "load");
 }
 
-llvm::Error verifyRVVArithmeticRoleOpInterface(mlir::Operation *roleOp) {
+llvm::Error verifyRVVComputeRoleOpInterface(mlir::Operation *roleOp) {
   return verifyRVVRoleOperationInterface(roleOp, "compute");
 }
 
@@ -1005,59 +1015,60 @@ llvm::Error verifyRVVStoreRoleOpInterface(mlir::Operation *roleOp) {
   return verifyRVVRoleOperationInterface(roleOp, "store");
 }
 
-llvm::Error verifyRVVI32M1ArithmeticConstructionRouteMapping(
-    llvm::StringRef mnemonic, llvm::StringRef operationName,
+llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
+    llvm::StringRef operationMnemonic, llvm::StringRef typedComputeOpName,
     llvm::StringRef emitCRouteID, llvm::StringRef runtimeABIName) {
-  llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *> route =
-      lookupRVVI32M1ArithmeticConstructionRouteByMnemonic(mnemonic);
+  llvm::Expected<const RVVSelectedBodyConstructionRoute *> route =
+      lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
+          operationMnemonic);
   if (!route)
     return route.takeError();
-  const RVVI32M1ArithmeticConstructionRoute &expected = **route;
-  if (expected.operationName != operationName)
+  const RVVSelectedBodyConstructionRoute &expected = **route;
+  if (expected.typedComputeOpName != typedComputeOpName)
     return makeRVVConstructionError(
-        llvm::Twine("arithmetic operation for route '") + mnemonic +
-        "' must be '" + expected.operationName + "'");
+        llvm::Twine("selected-body typed compute op for operation '") +
+        operationMnemonic + "' must be '" + expected.typedComputeOpName + "'");
   if (expected.emitCRouteID != emitCRouteID)
     return makeRVVConstructionError(
-        llvm::Twine("EmitC route id for '") + mnemonic + "' must be '" +
-        expected.emitCRouteID + "'");
+        llvm::Twine("EmitC route id for selected-body operation '") +
+        operationMnemonic + "' must be '" + expected.emitCRouteID + "'");
   if (expected.runtimeABIName != runtimeABIName)
     return makeRVVConstructionError(
-        llvm::Twine("runtime ABI name for '") + mnemonic + "' must be '" +
-        expected.runtimeABIName + "'");
+        llvm::Twine("runtime ABI name for selected-body operation '") +
+        operationMnemonic + "' must be '" + expected.runtimeABIName + "'");
   return llvm::Error::success();
 }
 
-llvm::Error verifyRVVI32M1ArithmeticConstructionPlanMapping(
+llvm::Error verifyRVVSelectedBodyConstructionPlanMapping(
     llvm::StringRef emitCRouteID, llvm::StringRef runtimeABIName,
     llvm::StringRef emissionKind,
     llvm::StringRef loweringBoundaryOpName, llvm::StringRef runtimeABIKind,
     llvm::StringRef runtimeGlueRole) {
-  llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *> route =
-      lookupRVVI32M1ArithmeticConstructionRouteByEmitCRouteID(emitCRouteID);
+  llvm::Expected<const RVVSelectedBodyConstructionRoute *> route =
+      lookupRVVSelectedBodyConstructionRouteByEmitCRouteID(emitCRouteID);
   if (!route)
     return route.takeError();
-  const RVVI32M1ArithmeticConstructionRoute &expected = **route;
+  const RVVSelectedBodyConstructionRoute &expected = **route;
   if (expected.runtimeABIName != runtimeABIName)
     return makeRVVConstructionError(
         llvm::Twine("emission plan runtime ABI for EmitC route '") +
         emitCRouteID + "' must be '" + expected.runtimeABIName + "'");
-  if (emissionKind != kRVVI32M1ArithmeticEmissionKind)
+  if (emissionKind != kRVVSelectedBodyEmissionKind)
     return makeRVVConstructionError(
         llvm::Twine("emission kind must be '") +
-        kRVVI32M1ArithmeticEmissionKind + "'");
-  if (loweringBoundaryOpName != kRVVI32M1ArithmeticLoweringBoundaryOpName)
+        kRVVSelectedBodyEmissionKind + "'");
+  if (loweringBoundaryOpName != kRVVSelectedBodyLoweringBoundaryOpName)
     return makeRVVConstructionError(
         llvm::Twine("lowering boundary must be '") +
-        kRVVI32M1ArithmeticLoweringBoundaryOpName + "'");
-  if (runtimeABIKind != kRVVI32M1ArithmeticRuntimeABIKind)
+        kRVVSelectedBodyLoweringBoundaryOpName + "'");
+  if (runtimeABIKind != kRVVSelectedBodyRuntimeABIKind)
     return makeRVVConstructionError(
         llvm::Twine("runtime ABI kind must be '") +
-        kRVVI32M1ArithmeticRuntimeABIKind + "'");
-  if (runtimeGlueRole != kRVVI32M1ArithmeticRuntimeGlueRole)
+        kRVVSelectedBodyRuntimeABIKind + "'");
+  if (runtimeGlueRole != kRVVSelectedBodyRuntimeGlueRole)
     return makeRVVConstructionError(
         llvm::Twine("runtime glue role must be '") +
-        kRVVI32M1ArithmeticRuntimeGlueRole + "'");
+        kRVVSelectedBodyRuntimeGlueRole + "'");
   return llvm::Error::success();
 }
 

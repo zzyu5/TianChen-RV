@@ -46,6 +46,57 @@ Migrated TensorExtLite target-support object/header/bundle artifact plumbing ont
 - None - task complete
 
 
+## Session 130: RVV selected-body construction protocol boundary
+
+**Date**: 2026-05-19
+**Task**: RVV selected-body construction protocol boundary
+**Branch**: `main`
+
+### Summary
+
+Moved the RVV construction protocol and RVV target artifact bridge public
+boundary from `RVVI32M1Arithmetic*` route-authority names to selected-body
+construction terms. The retained i32m1 strings now remain bounded labels for
+the current selected-body specialization, while artifact metadata mirrors the
+provider-selected body description via `rvv_selected_body_operation`.
+
+### Main Changes
+
+- Created Trellis task `05-19-rvv-selected-body-construction-protocol-boundary`
+  from the Hermes Direction Brief and wrote a bounded PRD/context JSONL.
+- Renamed RVV construction protocol public structs/functions to
+  `RVVSelectedBody*` terms, including selected-body construction routes,
+  executable role steps, runtime ABI metadata, target artifact mapping, route
+  mapping checks, and selected role sequence checks.
+- Replaced the public artifact metadata key `rvv_arithmetic_op` with
+  `rvv_selected_body_operation`.
+- Rewired RVV provider and RVV target bridge callers/tests to use the
+  selected-body construction API and selected-body operation metadata.
+- Renamed target bridge internal construction/export helpers away from old
+  `RVVI32M1Arithmetic*` ownership names; remaining `i32m1` mentions in the
+  touched construction/target files are bounded route/config labels or RVV
+  config-contract helpers.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-construction-protocol-common-test tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test tcrv-opt -j 8`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `/usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv --filter='rvv-i32m1-vector-source-front-door(-sub|-mul)?\\.mlir' /home/kingdom/phdworks/TianchenRV/build/test`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-19-rvv-selected-body-construction-protocol-boundary`
+- [OK] targeted ref-scan found no old public RVV construction/target authority APIs or old `rvv_arithmetic_op` key under `include`, `lib`, `test`, or `tools`.
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 129: RVV Stage 2 compare/select mask selected-body route
 
 **Date**: 2026-05-18

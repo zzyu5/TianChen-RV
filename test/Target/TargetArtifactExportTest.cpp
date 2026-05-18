@@ -576,7 +576,7 @@ TargetArtifactCandidate makeValidRVVTargetArtifactCandidate(
   llvm::Expected<llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 16>>
       constructionMetadata =
           tianchenrv::plugin::rvv::
-              getRVVI32M1ArithmeticConstructionArtifactMetadata(
+              getRVVSelectedBodyConstructionArtifactMetadata(
                   tianchenrv::plugin::rvv::
                       getRVVSelectedBodyEmitCRouteID(op));
   if (!constructionMetadata) {
@@ -777,19 +777,21 @@ bool expectRVVTargetArtifactExporterShape(
                             "rvv-i32m1-sub-emitc-route"}))
     return false;
 
-  TargetArtifactCandidate staleArithmeticMetadata = candidate;
+  TargetArtifactCandidate staleSelectedBodyOperationMetadata = candidate;
   if (!rewriteArtifactMetadataValue(
-          staleArithmeticMetadata,
-          tianchenrv::plugin::rvv::getRVVArithmeticOpMetadataName(), "sub")) {
-    llvm::errs() << "test fixture did not contain arithmetic metadata\n";
+          staleSelectedBodyOperationMetadata,
+          tianchenrv::plugin::rvv::getRVVSelectedBodyOperationMetadataName(),
+          "sub")) {
+    llvm::errs() << "test fixture did not contain selected-body operation "
+                    "metadata\n";
     return false;
   }
   if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
-                               staleArithmeticMetadata, *exporter),
-                           "RVV artifact rejects arithmetic metadata/body "
-                           "mismatch",
-                           {"rvv_arithmetic_op provenance must mirror "
-                            "selected typed RVV body arithmetic",
+                               staleSelectedBodyOperationMetadata, *exporter),
+                           "RVV artifact rejects selected-body operation "
+                           "metadata/body mismatch",
+                           {"rvv_selected_body_operation provenance must mirror "
+                            "selected typed RVV body operation",
                             "add", "sub"}))
     return false;
 

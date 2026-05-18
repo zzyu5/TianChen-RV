@@ -27,19 +27,19 @@ using RVVTypedRoleInterfaceRealization =
     tianchenrv::plugin::construction::TypedRoleInterfaceRealization;
 using RVVTypedRoleGraphRealization =
     tianchenrv::plugin::construction::TypedRoleGraphRealization;
-using RVVI32M1ArithmeticExecutableRoleStep =
+using RVVSelectedBodyExecutableRoleStep =
     tianchenrv::plugin::construction::ExecutableRoleStep;
 
-struct RVVI32M1ArithmeticConstructionRoute {
-  llvm::StringRef mnemonic;
-  llvm::StringRef operationName;
+struct RVVSelectedBodyConstructionRoute {
+  llvm::StringRef operationMnemonic;
+  llvm::StringRef typedComputeOpName;
   llvm::StringRef typedRoleID;
   llvm::StringRef emitCRouteID;
   llvm::StringRef runtimeABIName;
   llvm::StringRef runtimeABIContractName;
 };
 
-struct RVVI32M1ArithmeticTargetArtifactMapping {
+struct RVVSelectedBodyTargetArtifactMapping {
   llvm::StringRef headerRouteID;
   llvm::StringRef headerArtifactKind;
   llvm::StringRef bundleComponentGroup;
@@ -55,12 +55,12 @@ llvm::StringRef getRVVTypedRoleRealizationSummary();
 llvm::StringRef getRVVConstructionArtifactInterfaceRealization();
 llvm::StringRef getRVVArtifactTypedRoleRealizationSummary();
 llvm::StringRef getRVVConstructionEvidenceProfile();
-llvm::StringRef getRVVI32M1ArithmeticSourceOps();
-llvm::StringRef getRVVI32M1ArithmeticSourceRoles();
+llvm::StringRef getRVVSelectedBodySourceOps();
+llvm::StringRef getRVVSelectedBodySourceRoles();
 llvm::StringRef getRVVEmitCLowerableOpInterfaceName();
 
 llvm::StringRef getRVVEmitCLowerableRouteMetadataName();
-llvm::StringRef getRVVArithmeticOpMetadataName();
+llvm::StringRef getRVVSelectedBodyOperationMetadataName();
 llvm::StringRef getRVVSourceOpsMetadataName();
 llvm::StringRef getRVVSourceRolesMetadataName();
 llvm::StringRef getRVVSourceOpInterfaceMetadataName();
@@ -89,21 +89,21 @@ llvm::StringRef getRVVLoweringBoundaryStatus();
 
 const RVVConstructionManifest &getRVVConstructionManifest();
 const RVVTypedRoleGraphRealization &getRVVTypedRoleGraphRealization();
-llvm::ArrayRef<RVVI32M1ArithmeticConstructionRoute>
-getRVVI32M1ArithmeticConstructionRoutes();
-const RVVI32M1ArithmeticTargetArtifactMapping &
-getRVVI32M1ArithmeticTargetArtifactMapping();
+llvm::ArrayRef<RVVSelectedBodyConstructionRoute>
+getRVVSelectedBodyConstructionRoutes();
+const RVVSelectedBodyTargetArtifactMapping &
+getRVVSelectedBodyTargetArtifactMapping();
 
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
-getRVVI32M1ArithmeticConstructionRuntimeABIParameters();
+getRVVSelectedBodyConstructionRuntimeABIParameters();
 llvm::Expected<llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 16>>
-getRVVI32M1ArithmeticConstructionArtifactMetadata(
+getRVVSelectedBodyConstructionArtifactMetadata(
     llvm::StringRef emitCRouteID);
-llvm::Expected<llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10>>
-getRVVI32M1ArithmeticExecutableRoleSteps(llvm::StringRef operationName);
-llvm::Expected<llvm::SmallVector<RVVI32M1ArithmeticExecutableRoleStep, 10>>
-getRVVI32M1ArithmeticExecutableRoleSteps(llvm::StringRef operationName,
-                                         llvm::StringRef rhsSourceOperationName);
+llvm::Expected<llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10>>
+getRVVSelectedBodyExecutableRoleSteps(llvm::StringRef typedComputeOpName);
+llvm::Expected<llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10>>
+getRVVSelectedBodyExecutableRoleSteps(llvm::StringRef typedComputeOpName,
+                                      llvm::StringRef rhsSourceOperationName);
 
 llvm::Error verifyRVVConstructionManifest(
     const RVVConstructionManifest &manifest);
@@ -111,32 +111,34 @@ llvm::Error verifyRVVTypedRoleGraphRealization(
     const RVVConstructionManifest &manifest,
     const RVVTypedRoleGraphRealization &realization);
 llvm::Error verifyRVVConstructionProtocolReady();
-llvm::Error verifyRVVI32M1ArithmeticConstructionRuntimeABIParameters(
+llvm::Error verifyRVVSelectedBodyConstructionRuntimeABIParameters(
     llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter> parameters);
-llvm::Error verifyRVVI32M1ArithmeticTargetArtifactBundleMapping(
+llvm::Error verifyRVVSelectedBodyTargetArtifactBundleMapping(
     llvm::StringRef headerRouteID, llvm::StringRef headerArtifactKind,
     llvm::StringRef bundleComponentGroup, llvm::StringRef objectHandoffKind,
     llvm::StringRef emitCToCppTranslateRouteID);
-llvm::Error verifyRVVI32M1ArithmeticConstructionArtifactMetadata(
+llvm::Error verifyRVVSelectedBodyConstructionArtifactMetadata(
     llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
     llvm::StringRef context);
-llvm::Error verifyRVVI32M1ArithmeticConstructionArtifactMetadataForEmitCRoute(
+llvm::Error verifyRVVSelectedBodyConstructionArtifactMetadataForEmitCRoute(
     llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
     llvm::StringRef emitCRouteID, llvm::StringRef context);
-llvm::Error verifyRVVI32M1ArithmeticSelectedRoleSequence(
+llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
     llvm::ArrayRef<mlir::Operation *> orderedRoleOperations,
     llvm::ArrayRef<unsigned> orderedRoleOperationOrders,
     llvm::StringRef selectedVariantSymbol, llvm::StringRef pathRole,
-    llvm::StringRef operationName, llvm::StringRef rhsSourceOperationName,
+    llvm::StringRef typedComputeOpName,
+    llvm::StringRef rhsSourceOperationName,
     llvm::StringRef context);
 
-llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>
-lookupRVVI32M1ArithmeticConstructionRouteByMnemonic(llvm::StringRef mnemonic);
-llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>
-lookupRVVI32M1ArithmeticConstructionRouteByOperationName(
-    llvm::StringRef operationName);
-llvm::Expected<const RVVI32M1ArithmeticConstructionRoute *>
-lookupRVVI32M1ArithmeticConstructionRouteByEmitCRouteID(
+llvm::Expected<const RVVSelectedBodyConstructionRoute *>
+lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
+    llvm::StringRef operationMnemonic);
+llvm::Expected<const RVVSelectedBodyConstructionRoute *>
+lookupRVVSelectedBodyConstructionRouteByTypedComputeOpName(
+    llvm::StringRef typedComputeOpName);
+llvm::Expected<const RVVSelectedBodyConstructionRoute *>
+lookupRVVSelectedBodyConstructionRouteByEmitCRouteID(
     llvm::StringRef emitCRouteID);
 
 llvm::Error verifyRVVRoleOperationInterface(mlir::Operation *roleOp,
@@ -145,13 +147,13 @@ llvm::Error verifyRVVRuntimeABIValueRoleOpInterface(mlir::Operation *roleOp);
 llvm::Error verifyRVVSetVLRoleOpInterface(mlir::Operation *roleOp);
 llvm::Error verifyRVVWithVLRoleOpInterface(mlir::Operation *roleOp);
 llvm::Error verifyRVVLoadRoleOpInterface(mlir::Operation *roleOp);
-llvm::Error verifyRVVArithmeticRoleOpInterface(mlir::Operation *roleOp);
+llvm::Error verifyRVVComputeRoleOpInterface(mlir::Operation *roleOp);
 llvm::Error verifyRVVStoreRoleOpInterface(mlir::Operation *roleOp);
 
-llvm::Error verifyRVVI32M1ArithmeticConstructionRouteMapping(
-    llvm::StringRef mnemonic, llvm::StringRef operationName,
+llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
+    llvm::StringRef operationMnemonic, llvm::StringRef typedComputeOpName,
     llvm::StringRef emitCRouteID, llvm::StringRef runtimeABIName);
-llvm::Error verifyRVVI32M1ArithmeticConstructionPlanMapping(
+llvm::Error verifyRVVSelectedBodyConstructionPlanMapping(
     llvm::StringRef emitCRouteID, llvm::StringRef runtimeABIName,
     llvm::StringRef emissionKind,
     llvm::StringRef loweringBoundaryOpName, llvm::StringRef runtimeABIKind,

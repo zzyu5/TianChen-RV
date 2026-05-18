@@ -51,7 +51,7 @@ module {
 
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_metadata = [{key = "rvv_emitc_lowerable_route", value = "rvv-i32m1-sub-emitc-route"}
-// PLAN-SAME: {key = "rvv_arithmetic_op", value = "sub"}
+// PLAN-SAME: {key = "rvv_selected_body_operation", value = "sub"}
 // PLAN-SAME: {key = "rvv_construction_protocol", value = "extension-family-construction-protocol.v1"}
 // PLAN-SAME: {key = "rvv_extension_archetype", value = "rvv-finite-binary"}
 // PLAN-SAME: {key = "rvv_semantic_role_graph", value = "runtime_abi->configure->scope->load->compute->store"}

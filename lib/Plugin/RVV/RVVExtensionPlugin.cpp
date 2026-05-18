@@ -425,7 +425,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
   out.addRuntimeABIParameters(getRVVSelectedBodyRuntimeABIParameters());
   llvm::Expected<llvm::SmallVector<support::ArtifactMetadataEntry, 16>>
       constructionMetadata =
-          getRVVI32M1ArithmeticConstructionArtifactMetadata(
+          getRVVSelectedBodyConstructionArtifactMetadata(
               routeDescription->emitCRouteID);
   if (!constructionMetadata)
     return constructionMetadata.takeError();

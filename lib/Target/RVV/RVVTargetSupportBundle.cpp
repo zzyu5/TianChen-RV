@@ -53,9 +53,9 @@ const plugin::rvv::RVVConstructionManifest &getRVVManifest() {
   return plugin::rvv::getRVVConstructionManifest();
 }
 
-const plugin::rvv::RVVI32M1ArithmeticTargetArtifactMapping &
+const plugin::rvv::RVVSelectedBodyTargetArtifactMapping &
 getRVVTargetMapping() {
-  return plugin::rvv::getRVVI32M1ArithmeticTargetArtifactMapping();
+  return plugin::rvv::getRVVSelectedBodyTargetArtifactMapping();
 }
 
 llvm::Error requireCandidateField(llvm::StringRef fieldName,
@@ -88,8 +88,8 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   llvm::StringRef routeID = lookupCandidateMetadataValue(
       candidate, plugin::rvv::getRVVEmitCLowerableRouteMetadataName());
-  llvm::StringRef arithmeticOp = lookupCandidateMetadataValue(
-      candidate, plugin::rvv::getRVVArithmeticOpMetadataName());
+  llvm::StringRef selectedBodyOperation = lookupCandidateMetadataValue(
+      candidate, plugin::rvv::getRVVSelectedBodyOperationMetadataName());
   if (routeID.empty())
     return makeRVVTargetRouteError(
         llvm::Twine("candidate metadata must carry ") +
@@ -102,17 +102,20 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
         " provenance must mirror selected typed RVV body route '" +
         route.getRouteID() + "' but was '" + routeID + "'");
 
-  if (arithmeticOp.empty())
+  if (selectedBodyOperation.empty())
     return makeRVVTargetRouteError(
-        "candidate metadata must carry rvv_arithmetic_op provenance");
-  llvm::StringRef expectedArithmetic =
+        llvm::Twine("candidate metadata must carry ") +
+        plugin::rvv::getRVVSelectedBodyOperationMetadataName() +
+        " provenance");
+  llvm::StringRef expectedOperation =
       plugin::rvv::stringifyRVVSelectedBodyOperationKind(
           description.operation);
-  if (arithmeticOp != expectedArithmetic)
+  if (selectedBodyOperation != expectedOperation)
     return makeRVVTargetRouteError(
-        llvm::Twine("candidate rvv_arithmetic_op provenance must mirror "
-                    "selected typed RVV body arithmetic '") +
-        expectedArithmetic + "' but was '" + arithmeticOp + "'");
+        llvm::Twine("candidate ") +
+        plugin::rvv::getRVVSelectedBodyOperationMetadataName() +
+        " provenance must mirror selected typed RVV body operation '" +
+        expectedOperation + "' but was '" + selectedBodyOperation + "'");
   return llvm::Error::success();
 }
 
@@ -312,7 +315,7 @@ llvm::Error validateRVVConstructionArtifactMetadata(
       rvvMetadata.push_back(entry);
   }
   return plugin::rvv::
-      verifyRVVI32M1ArithmeticConstructionArtifactMetadataForEmitCRoute(
+      verifyRVVSelectedBodyConstructionArtifactMetadataForEmitCRoute(
           rvvMetadata, selectedBodyEmitCRouteID,
           "selected RVV materialized EmitC candidate");
 }
@@ -337,7 +340,7 @@ llvm::Error validateRVVRuntimeAVLVLArtifactMetadata(
       rvvMetadata, "selected RVV materialized EmitC candidate");
 }
 
-llvm::Error validateRVVI32M1ArithmeticTargetArtifactCandidate(
+llvm::Error validateRVVSelectedBodyTargetArtifactCandidate(
     const TargetArtifactCandidate &candidate) {
   if (llvm::Error error = plugin::rvv::verifyRVVConstructionProtocolReady())
     return error;
@@ -416,14 +419,14 @@ void appendRVVConfigVLMetadataEvidence(
 }
 
 llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence, 32>
-buildRVVI32M1ArithmeticHeaderMetadataEvidence() {
+buildRVVSelectedBodyHeaderMetadataEvidence() {
   llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence, 32>
       evidence;
   evidence.append({
       {"source_ops", plugin::rvv::getRVVSourceOpsMetadataName(),
-       plugin::rvv::getRVVI32M1ArithmeticSourceOps()},
+       plugin::rvv::getRVVSelectedBodySourceOps()},
       {"source_roles", plugin::rvv::getRVVSourceRolesMetadataName(),
-       plugin::rvv::getRVVI32M1ArithmeticSourceRoles()},
+       plugin::rvv::getRVVSelectedBodySourceRoles()},
       {"source_op_interface",
        plugin::rvv::getRVVSourceOpInterfaceMetadataName(),
        plugin::rvv::getRVVEmitCLowerableOpInterfaceName()},
@@ -451,10 +454,10 @@ buildRVVI32M1ArithmeticHeaderMetadataEvidence() {
        plugin::rvv::getRVVConstructionManifest().emitcRoute.runtimeABI},
       {"bundle_component_group",
        plugin::rvv::getRVVBundleComponentGroupMetadataName(),
-       plugin::rvv::getRVVI32M1ArithmeticTargetArtifactMapping()
+       plugin::rvv::getRVVSelectedBodyTargetArtifactMapping()
            .bundleComponentGroup},
       {"object_handoff", plugin::rvv::getRVVObjectHandoffMetadataName(),
-       plugin::rvv::getRVVI32M1ArithmeticTargetArtifactMapping()
+       plugin::rvv::getRVVSelectedBodyTargetArtifactMapping()
            .objectHandoffKind},
   });
   appendRVVConfigVLMetadataEvidence(evidence);
@@ -462,12 +465,12 @@ buildRVVI32M1ArithmeticHeaderMetadataEvidence() {
 }
 
 ConstructionTemplateArtifactAdapterConfig
-getRVVI32M1ArithmeticArtifactAdapterConfig();
+getRVVSelectedBodyArtifactAdapterConfig();
 
 llvm::Error exportMaterializedRVVEmitCToCpp(mlir::ModuleOp module,
                                             llvm::raw_ostream &os) {
   return exportConstructionTemplateEmitCToCpp(
-      module, os, getRVVI32M1ArithmeticArtifactAdapterConfig());
+      module, os, getRVVSelectedBodyArtifactAdapterConfig());
 }
 
 llvm::Error compileRVVGeneratedSourceToObject(llvm::StringRef source,
@@ -561,24 +564,24 @@ llvm::Error compileRVVGeneratedSourceToObject(llvm::StringRef source,
   return llvm::Error::success();
 }
 
-SelectedEmitCArtifactRouteConfig getRVVI32M1ArithmeticArtifactConfig() {
+SelectedEmitCArtifactRouteConfig getRVVSelectedBodyArtifactConfig() {
   const plugin::rvv::RVVConstructionManifest &manifest = getRVVManifest();
 
   SelectedEmitCArtifactRouteConfig config;
   config.routeID = manifest.emitcRoute.routeID;
   config.artifactKind = manifest.emitcRoute.artifactKind;
   config.originPlugin = manifest.family.pluginName;
-  config.routeDescription = "RVV i32m1 materialized EmitC target artifact "
-                            "bridge";
+  config.routeDescription = "RVV selected-body materialized EmitC target "
+                            "artifact bridge for the bounded i32m1 slice";
   config.candidateValidationFn =
-      validateRVVI32M1ArithmeticTargetArtifactCandidate;
+      validateRVVSelectedBodyTargetArtifactCandidate;
   config.routeBuilderFn =
       plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute;
   return config;
 }
 
 ConstructionTemplateArtifactAdapterConfig
-getRVVI32M1ArithmeticArtifactAdapterConfig() {
+getRVVSelectedBodyArtifactAdapterConfig() {
   static const llvm::StringRef kHeaderIncludes[] = {"stddef.h", "stdint.h"};
   static const ConstructionTemplateSelectedBoundaryAttributeExpectation
       kBoundaryAttributeExpectations[] = {
@@ -591,19 +594,20 @@ getRVVI32M1ArithmeticArtifactAdapterConfig() {
       };
   static const llvm::SmallVector<MaterializedEmitCHeaderArtifactMetadataEvidence,
                                  32>
-      kMetadataEvidence = buildRVVI32M1ArithmeticHeaderMetadataEvidence();
+      kMetadataEvidence = buildRVVSelectedBodyHeaderMetadataEvidence();
   static const llvm::SmallVector<support::RuntimeABIParameter, 4>
       kRuntimeABIParameters =
-          tcrv::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
+          plugin::rvv::getRVVSelectedBodyConstructionRuntimeABIParameters();
 
   const plugin::rvv::RVVConstructionManifest &manifest = getRVVManifest();
-  const plugin::rvv::RVVI32M1ArithmeticTargetArtifactMapping &mapping =
+  const plugin::rvv::RVVSelectedBodyTargetArtifactMapping &mapping =
       getRVVTargetMapping();
 
   ConstructionTemplateArtifactAdapterConfig config;
-  config.selectedRoute = getRVVI32M1ArithmeticArtifactConfig();
+  config.selectedRoute = getRVVSelectedBodyArtifactConfig();
   config.selectedRoute.routeDescription =
-      "RVV i32m1 construction-template materialized EmitC artifact adapter";
+      "RVV selected-body construction-template materialized EmitC artifact "
+      "adapter for the bounded i32m1 slice";
   config.headerRouteID = mapping.headerRouteID;
   config.headerArtifactKind = mapping.headerArtifactKind;
   config.ownerPlugin = manifest.family.pluginName;
@@ -649,27 +653,27 @@ getRVVI32M1ArithmeticArtifactAdapterConfig() {
   return config;
 }
 
-llvm::Error exportRVVI32M1ArithmeticTargetArtifact(mlir::ModuleOp module,
+llvm::Error exportRVVSelectedBodyTargetArtifact(mlir::ModuleOp module,
                                                    llvm::raw_ostream &os) {
   return exportConstructionTemplateObjectArtifact(
-      module, os, getRVVI32M1ArithmeticArtifactAdapterConfig());
+      module, os, getRVVSelectedBodyArtifactAdapterConfig());
 }
 
-llvm::Error exportRVVI32M1ArithmeticHeaderArtifact(mlir::ModuleOp module,
+llvm::Error exportRVVSelectedBodyHeaderArtifact(mlir::ModuleOp module,
                                                    llvm::raw_ostream &os) {
   return exportConstructionTemplateHeaderArtifact(
-      module, os, getRVVI32M1ArithmeticArtifactAdapterConfig());
+      module, os, getRVVSelectedBodyArtifactAdapterConfig());
 }
 
-llvm::Error registerRVVI32M1ArithmeticTargetArtifactExporter(
+llvm::Error registerRVVSelectedBodyTargetArtifactExporter(
     TargetArtifactExporterRegistry &registry) {
   if (llvm::Error error = plugin::rvv::verifyRVVConstructionProtocolReady())
     return error;
 
   return registerConstructionTemplateArtifactAdapterExporters(
-      registry, getRVVI32M1ArithmeticArtifactAdapterConfig(),
-      exportRVVI32M1ArithmeticTargetArtifact,
-      exportRVVI32M1ArithmeticHeaderArtifact);
+      registry, getRVVSelectedBodyArtifactAdapterConfig(),
+      exportRVVSelectedBodyTargetArtifact,
+      exportRVVSelectedBodyHeaderArtifact);
 }
 
 } // namespace
@@ -690,12 +694,12 @@ llvm::Error registerRVVTargetSupportPluginTargetExporterBundles(
     for (const PluginTargetArtifactExporterBundle &bundle :
          registry.lookupAll(pluginName))
       if (bundle.getRegistrationFn() ==
-          registerRVVI32M1ArithmeticTargetArtifactExporter)
+          registerRVVSelectedBodyTargetArtifactExporter)
         return llvm::Error::success();
     (void)existing;
   }
   return registry.registerBundle(PluginTargetArtifactExporterBundle(
-      pluginName, registerRVVI32M1ArithmeticTargetArtifactExporter));
+      pluginName, registerRVVSelectedBodyTargetArtifactExporter));
 }
 
 llvm::Error
