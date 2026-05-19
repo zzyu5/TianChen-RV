@@ -4,6 +4,7 @@ add_subdirectory(EmitC)
 add_mlir_library(TianChenRVRVVPlugin
   RVVCapabilityProfile.cpp
   RVVExtensionPlugin.cpp
+  RVVSelectedBodyRealization.cpp
   RVVVectorSourceFrontDoor.cpp
 
   DEPENDS

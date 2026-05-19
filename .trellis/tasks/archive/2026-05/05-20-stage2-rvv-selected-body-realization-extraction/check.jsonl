@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that the extraction preserves the RVV-first authority chain and Stage2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check that selected-body realization remains RVV plugin-local and typed-body-owned."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that common EmitC/export remains neutral and provider-route-driven."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin interface boundaries for realization, validation, and route provider dispatch."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused test coverage and legacy fail-closed evidence."}

@@ -86,6 +86,74 @@ correctness claim only for bounded pre-realized `reduce_add` counts
 |------|---------|
 | `this commit` | (see git log) |
 
+## Session 141: Stage2 RVV selected-body realization module extraction
+
+**Date**: 2026-05-20
+**Task**: `stage2-rvv-selected-body-realization-extraction`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and extracted the
+active RVV selected-body realization owner out of the monolithic
+`RVVExtensionPlugin.cpp` implementation. The RVV plugin still owns the selected
+pre-realized body -> realized typed `tcrv_rvv` body boundary, but the body
+discovery, fact validation, fail-closed diagnostics, and realized-body
+construction now live in `RVVSelectedBodyRealization`.
+
+### Main Changes
+
+- Added a focused Trellis PRD and curated implement/check context for the
+  selected-body realization extraction.
+- Added `include/TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h` and
+  `lib/Plugin/RVV/RVVSelectedBodyRealization.cpp`.
+- Moved realization decisions for generic unit-stride, strided, masked, macc,
+  and reduce pre-realized selected bodies into the new RVV plugin-local module.
+- Kept `RVVExtensionPlugin::materializeSelectedLoweringBoundary` as the
+  orchestration consumer: legality, realized-boundary lookup, extracted
+  realization call, validation, and materialized-boundary result.
+- Left provider route authority and common EmitC/export behavior unchanged.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] Focused build for `tcrv-opt`, `tcrv-translate`, RVV dialect/plugin,
+  construction protocol, and target artifact export tests.
+- [OK] Direct C++ checks:
+  `tianchenrv-rvv-dialect-test`,
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-construction-protocol-common-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] Focused lit: 12/12 passed for pre-realized add/strided/masked/macc/reduce
+  positive fixtures, selected-body negatives, and representative
+  provider/materializer fixtures.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Focused generated-bundle lit dry-runs: 5/5 passed for pre-realized
+  unit-stride, strided, masked, macc, and reduce paths.
+- [OK] `git diff --check`
+- [OK] Diff-added active-authority scan found no newly added positive
+  `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`,
+  `!tcrv_rvv.i32m*`, source-front-door/source-seed,
+  descriptor/direct-C/source-export, or common/export RVV semantic authority.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 176/176 passed.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round makes no new runtime,
+correctness, or performance claim, so no fresh `ssh rvv` run was required.
+
+### Next Steps
+
+- Future continuation, if requested: keep Stage2 expansion on the corrected
+  typed RVV body surface. Do not grow selected-body realization by putting new
+  body-specific dispatcher logic back into `RVVExtensionPlugin.cpp`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 ## Session 141: Stage1 legacy finite RVV i32 parse-only residue cleanup
 
 **Date**: 2026-05-20
