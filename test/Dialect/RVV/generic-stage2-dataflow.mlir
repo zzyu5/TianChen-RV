@@ -49,6 +49,25 @@ module {
       %strided_sum = tcrv_rvv.binary %strided_lhs, %strided_rhs, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       // CHECK: tcrv_rvv.strided_store
       tcrv_rvv.strided_store %out_ptr, %strided_sum, %out_stride, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, index, !tcrv_rvv.vl
+      // CHECK: tcrv_rvv.move
+      %strided_move = tcrv_rvv.move %strided_lhs, %vl {kind = "copy"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      // CHECK: tcrv_rvv.store
+      tcrv_rvv.store %out_ptr, %strided_move, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+    } : !tcrv_rvv.vl
+  }
+}
+
+// -----
+
+module {
+  tcrv.exec.kernel @rvv_generic_move_reject_kind {
+    %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+    %vl = tcrv_rvv.setvl %avl {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+    tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+      %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      // expected-error@+1 {{currently supports only kind "copy" for the bounded Stage 2 strided memory movement route}}
+      %bad = tcrv_rvv.move %lhs, %vl {kind = "shuffle"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
     } : !tcrv_rvv.vl
   }
 }

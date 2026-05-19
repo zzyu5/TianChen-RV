@@ -107,6 +107,8 @@ llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 3>
 getRVVSelectedBodyWideningConversionRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>
 getRVVSelectedBodyStridedRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters();
 llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
     llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter> parameters,
     llvm::StringRef context);

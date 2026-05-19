@@ -39,6 +39,10 @@ bool isRVVSelectedBodyWideningConversionRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::WidenI32ToI64;
 }
 
+bool isRVVSelectedBodyMemoryMovementRoute(RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+}
+
 llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance>
 getEmitCSourceProvenance(mlir::Operation *op, llvm::StringRef expectedRole) {
   if (llvm::Error error = verifyRVVRoleOperationInterface(op, expectedRole))
@@ -174,7 +178,13 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           TCRVEmitCCallOpaqueResult{loopVLName.str(),
                                     description.vlCType.str()}))
     return error;
-  if (description.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore) {
+  llvm::StringRef lhsResultName =
+      isRVVSelectedBodyMemoryMovementRoute(description.operation)
+          ? description.resultName
+          : "lhs_vec";
+  if (description.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore ||
+      description.memoryForm ==
+          RVVSelectedBodyMemoryForm::StridedLoadUnitStore) {
     if (llvm::Error error = addLoopStep(
             slice->lhsLoadOperation, "load",
             description.stridedLoadIntrinsic,
@@ -188,7 +198,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                  "ptrdiff_t"},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
-            TCRVEmitCCallOpaqueResult{"lhs_vec",
+            TCRVEmitCCallOpaqueResult{lhsResultName.str(),
                                       description.vectorCType.str()}))
       return error;
   } else if (isRVVSelectedBodyWideningConversionRoute(description.operation)) {
@@ -218,7 +228,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   }
-  if (isRVVSelectedBodyWideningConversionRoute(description.operation)) {
+  if (isRVVSelectedBodyWideningConversionRoute(description.operation) ||
+      isRVVSelectedBodyMemoryMovementRoute(description.operation)) {
     // The bounded widening conversion has no RHS dataflow.
   } else if (description.memoryForm ==
       RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
@@ -377,6 +388,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{description.resultName.str(),
                                       description.vectorCType.str()}))
       return error;
+  } else if (isRVVSelectedBodyMemoryMovementRoute(description.operation)) {
+    // The bounded memory movement route forwards the strided-load vector into
+    // the unit-stride store. tcrv_rvv.move is structural body authority and
+    // does not require an extra RVV intrinsic leaf.
   } else {
     if (llvm::Error error = addLoopStep(
             slice->arithmeticOp, "compute", description.intrinsic,

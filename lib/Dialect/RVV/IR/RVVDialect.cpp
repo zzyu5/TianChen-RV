@@ -74,6 +74,7 @@ constexpr llvm::StringLiteral kDestSEWAttrName("dest_sew");
 constexpr llvm::StringLiteral kDestLMULAttrName("dest_lmul");
 constexpr llvm::StringLiteral kConversionRelationAttrName(
     "conversion_relation");
+constexpr llvm::StringLiteral kStrideUnitAttrName("stride_unit");
 constexpr llvm::StringLiteral kVLenAttrName("vlen");
 constexpr llvm::StringLiteral kVLenBAttrName("vlenb");
 constexpr llvm::StringLiteral kRVVVariantRequiredMarchAttrName(
@@ -199,6 +200,12 @@ bool isAllowedTypedWideningConversionPreRealizedBodyAttr(
          name == kConversionRelationAttrName || name == kPolicyAttrName;
 }
 
+bool isAllowedTypedStridedMemoryPreRealizedBodyAttr(llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kStrideUnitAttrName || name == kSEWAttrName ||
+         name == kLMULAttrName || name == kPolicyAttrName;
+}
+
 bool isAllowedLoadAttr(llvm::StringRef) { return false; }
 
 bool isAllowedBroadcastLoadAttr(llvm::StringRef) { return false; }
@@ -230,6 +237,8 @@ bool isAllowedMAccAttr(llvm::StringRef name) {
 bool isAllowedWideningConvertAttr(llvm::StringRef name) {
   return name == "kind";
 }
+
+bool isAllowedMoveAttr(llvm::StringRef name) { return name == "kind"; }
 
 bool isAllowedStoreAttr(llvm::StringRef) { return false; }
 
@@ -358,6 +367,21 @@ bool isSupportedTypedWideningConversionRelation(llvm::StringRef relation) {
   return relation == "signed-i32m1-to-i64m2";
 }
 
+bool isSupportedTypedStridedMemoryPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "strided_load_unit_store";
+}
+
+bool isSupportedTypedStridedMemoryPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "strided-load-unit-store";
+}
+
+bool isSupportedTypedStridedMemoryPreRealizedStrideUnit(
+    llvm::StringRef strideUnit) {
+  return strideUnit == "element";
+}
+
 bool isSupportedGenericBinaryKind(llvm::StringRef kind) {
   return kind == "add" || kind == "sub" || kind == "mul";
 }
@@ -396,6 +420,10 @@ bool isSupportedGenericMAccResultLayout(llvm::StringRef layout) {
 
 bool isSupportedGenericWideningConvertKind(llvm::StringRef kind) {
   return kind == "widen_i32_to_i64";
+}
+
+bool isSupportedGenericMoveKind(llvm::StringRef kind) {
+  return kind == "copy";
 }
 
 bool isAllowedI32AddAttr(llvm::StringRef name) {
@@ -1965,6 +1993,77 @@ mlir::LogicalResult TypedWideningConversionPreRealizedBodyOp::verify() {
   return verifyRuntimeElementCountOperand(op, getN());
 }
 
+mlir::LogicalResult TypedStridedMemoryPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected strided memory bodies carry only "
+                "typed RVV memory-form, stride-unit, config, policy, and "
+                "runtime SSA facts and must be realized by the RVV plugin "
+                "before route construction";
+
+    if (!isAllowedTypedStridedMemoryPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '"
+             << kStrideUnitAttrName << "', '" << kSEWAttrName << "', '"
+             << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires source input, out, runtime n/AVL, source stride "
+              "operands and no results";
+
+  if (!isSupportedTypedStridedMemoryPreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"strided_load_unit_store\" for the bounded selected-body "
+              "strided memory movement hook";
+  if (!isSupportedTypedStridedMemoryPreRealizedMemoryForm(getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"strided-load-unit-store\" for the bounded selected-body "
+              "strided memory movement hook";
+  if (!isSupportedTypedStridedMemoryPreRealizedStrideUnit(getStrideUnit()))
+    return emitOpError()
+           << "currently supports only stride_unit \"element\" for the "
+              "bounded selected-body strided memory movement hook";
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized strided memory config to be "
+              "SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body strided memory movement hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSource(), "source",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeElementCountOperand(op, getN())))
+    return mlir::failure();
+  return verifyRuntimeABIIndexOperandRole(
+      op, getSourceStride(), "source stride",
+      {tianchenrv::support::RuntimeABIParameterRole::LHSInputStride});
+}
+
 mlir::LogicalResult LoadOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -2513,6 +2612,52 @@ mlir::LogicalResult WideningConvertOp::verify() {
               "metadata for widening conversion";
 
   return mlir::success();
+}
+
+mlir::LogicalResult MoveOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.move keeps SEW/LMUL/policy on typed vector "
+                "values and setvl/with_vl, runtime n/AVL/VL in the "
+                "surrounding control-plane IR, and rejects deleted local "
+                "element_count metadata";
+
+    if (!isAllowedMoveAttr(attrName))
+      return emitOpError()
+             << "only accepts generic movement attribute 'kind'; unexpected "
+                "attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!isSupportedGenericMoveKind(getKind()))
+    return emitOpError()
+           << "currently supports only kind \"copy\" for the bounded Stage 2 "
+              "strided memory movement route";
+
+  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one source generic RVV vector operand, one "
+              "!tcrv_rvv.vl operand, and one generic RVV vector result";
+  if (getSource().getType() != getResult().getType())
+    return emitOpError()
+           << "requires source and result to have the same generic RVV "
+              "vector type";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getSource(),
+                                                    "source")))
+    return mlir::failure();
+  return verifyGenericVectorTypeForWithVL(op, getResult(), "result");
 }
 
 mlir::LogicalResult StoreOp::verify() {

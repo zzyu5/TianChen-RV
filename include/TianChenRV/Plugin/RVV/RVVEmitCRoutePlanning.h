@@ -29,6 +29,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::MaskedBinaryOp maskedBinaryOp;
   tcrv::rvv::MAccOp maccOp;
   tcrv::rvv::WideningConvertOp wideningConvertOp;
+  tcrv::rvv::MoveOp moveOp;
   mlir::Operation *arithmeticOp = nullptr;
   mlir::Value arithmeticLhs;
   mlir::Value arithmeticRhs;

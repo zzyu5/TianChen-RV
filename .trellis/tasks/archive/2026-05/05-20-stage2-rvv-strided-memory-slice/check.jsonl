@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Re-check global authority and stack boundaries before finish."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Confirm RVV memory-form support remains plugin-owned and typed-body-derived."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Confirm common EmitC/export remains neutral and consumes provider-built route output only."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Confirm selected-body realization consumes memory-form and stride facts into typed structure."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Confirm focused checks and ssh rvv evidence satisfy testing policy."}
+{"file": ".trellis/tasks/05-20-stage2-rvv-strided-memory-slice/prd.md", "reason": "Check implementation and validation against current task acceptance criteria."}

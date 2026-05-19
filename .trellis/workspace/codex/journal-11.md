@@ -151,6 +151,91 @@ correctness claim only for bounded pre-realized `reduce_add` counts
 |------|---------|
 | `this commit` | (see git log) |
 
+## Session 145: Stage2 RVV strided memory movement executable slice
+
+**Date**: 2026-05-20
+**Task**: `stage2-rvv-strided-memory-slice`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and implemented one
+bounded Stage2 RVV i32 / SEW32 / LMUL m1 strided memory-movement executable
+slice. The production route now carries `src`, `out`, `n`, and `src_stride`
+through the selected `tcrv.exec` RVV boundary, typed/pre-realized `tcrv_rvv`
+body, RVV selected-body realization, route planning/provider metadata,
+generated bundle emission, and real `ssh rvv` correctness evidence.
+
+### Main Changes
+
+- Added `tcrv_rvv.typed_strided_memory_pre_realized_body` and `tcrv_rvv.move`
+  for the bounded `strided_load_unit_store` slice.
+- Added verifier coverage for source/output/runtime-count/runtime-stride roles,
+  memory form, stride unit, SEW32, LMUL m1, policy, selected-variant nesting,
+  and generic vector type consistency.
+- Extended RVV selected-body realization to materialize the pre-realized body
+  into `setvl`, `with_vl`, `strided_load`, `move`, and unit-stride `store`.
+- Extended RVV route planning/provider/construction facts to derive ABI order
+  `src,out,n,src_stride`, memory-form metadata, vector C types, and strided-load
+  materialization from typed facts.
+- Extended the generated-bundle script and added explicit/pre-realized artifact
+  tests and negative fail-closed MLIR tests.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] focused build for `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-rvv-dialect-test`, `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-construction-protocol-common-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] focused C++ RVV dialect/plugin/construction/export tests.
+- [OK] focused lit for generic dataflow, pre-realized strided memory negative,
+  EmitC strided memory negative, selected-body materialization regressions, and
+  explicit/pre-realized strided target artifacts: 12/12 passed.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] generated-bundle dry-run for explicit and pre-realized
+  `strided_load_unit_store` counts `7,16,23`.
+- [OK] real `ssh rvv` generated-bundle correctness for explicit and
+  pre-realized `strided_load_unit_store`: `PASS op=strided_load_unit_store
+  counts=7,16,23`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`
+- [OK] `git diff --check`
+- [OK] active-authority scan found no positive RVVI32M1, rvv-i32m1,
+  `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`, source-front-door/source-seed,
+  descriptor/direct-C/source-export, or exact i32m1 intrinsic authority in
+  added diff hunks. The only broad-scan matches are guardrail text saying those
+  surfaces are not route authority.
+
+### Self-Repair
+
+- Fixed construction protocol role realization after the new structural
+  `tcrv_rvv.move` op initially made the protocol invalid.
+- Fixed route typed-config validation so the memory-movement route does not
+  read a nonexistent RHS vector.
+- Fixed generated-bundle selected-body checks to distinguish real op
+  invocations from construction metadata that lists unsupported capability
+  names.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round claims route-supported,
+generated-bundle dry-run, and executable correctness evidence for this bounded
+memory-movement slice only. No performance claim is made.
+
+### Next Steps
+
+- Future continuation, if requested: open a separate Trellis task for the next
+  Stage2 memory class. Do not generalize this slice into gather/scatter,
+  segmented memory, high-level transfer lowering, or dtype/LMUL clone batches
+  without a new PRD.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 ## Session 145: Stage2 RVV macc executable slice
 
 **Date**: 2026-05-20

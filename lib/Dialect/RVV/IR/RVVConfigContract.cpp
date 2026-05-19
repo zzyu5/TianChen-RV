@@ -514,6 +514,23 @@ getRVVSelectedBodyStridedRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src_stride", "size_t",
+      support::RuntimeABIParameterRole::LHSInputStride));
+  return parameters;
+}
+
 llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
     llvm::StringRef context) {
@@ -532,6 +549,11 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, stridedExpected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 4> stridedLoadUnitStore =
+      getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, stridedLoadUnitStore))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 4> scalarBroadcastExpected =
       getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, scalarBroadcastExpected))
@@ -548,8 +570,10 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "int32_t or int64_t buffers; lhs, rhs_scalar, out, n for the bounded "
       "int32_t scalar-broadcast route; lhs, out, n for the bounded i32-to-i64 "
       "widening conversion route; or lhs, rhs, out, n, lhs_stride, "
-      "rhs_stride, out_stride for the bounded int32_t strided route with "
-      "stable C types, roles, and target-export ownership");
+      "rhs_stride, out_stride for the bounded int32_t strided add route; or "
+      "src, out, n, src_stride for the bounded int32_t strided-load to "
+      "unit-stride-store route with stable C types, roles, and target-export "
+      "ownership");
 }
 
 llvm::StringRef getRVVSelectedBodyRuntimeAVLParameterName() {

@@ -31,6 +31,7 @@ enum class RVVSelectedBodyOperationKind {
   MaskedAdd,
   MAccAdd,
   StridedAdd,
+  StridedLoadUnitStore,
   ScalarBroadcastAdd,
   WidenI32ToI64,
 };
@@ -40,6 +41,7 @@ enum class RVVSelectedBodyMemoryForm {
   RHSBroadcastLoad,
   RHSScalarBroadcast,
   StridedLoadStore,
+  StridedLoadUnitStore,
   UnitStrideConversion,
 };
 
@@ -109,6 +111,9 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef lhsStrideSource;
   llvm::StringRef rhsStrideSource;
   llvm::StringRef outStrideSource;
+  llvm::StringRef sourceStrideSource;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>
       runtimeABIParameters;
 };

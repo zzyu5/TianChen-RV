@@ -531,6 +531,43 @@ def TypedWideningConversionPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedStridedMemoryPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_strided_memory_pre_realized_body"> {
+  let summary = "generic typed pre-realized RVV strided memory movement body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body for
+    strided source memory movement into a unit-stride destination. The op is
+    nested directly in a selected tcrv.exec.variant and binds explicit runtime
+    ABI values for source input, output, runtime n/AVL, and source element
+    stride together with selected memory movement operation kind, memory form,
+    stride unit, compile-time RVV config, and policy.
+
+    This op is not a layout framework, gather/scatter route, descriptor,
+    source-front-door marker, direct-C exporter, route id, intrinsic wrapper,
+    runtime artifact, correctness evidence, or performance evidence. The RVV
+    plugin must realize it into explicit setvl/with_vl/strided_load/move/store
+    tcrv_rvv body structure before the provider may construct a
+    TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$source,
+    AnyType:$out,
+    AnyType:$n,
+    Index:$source_stride,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    StrAttr:$stride_unit,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$source `,` $out `,` $n `,` $source_stride attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def LoadOp : TCRVRVV_Op<"load",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",
@@ -846,6 +883,35 @@ def WideningConvertOp : TCRVRVV_Op<"widening_convert",
     names, ABI strings, artifact names, status fields, exact intrinsic
     spellings, and common EmitC/export code must not infer or choose
     conversion semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$source,
+    AnyType:$vl,
+    StrAttr:$kind
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$source `,` $vl attr-dict `:` type($source) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def MoveOp : TCRVRVV_Op<"move",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary = "generic typed RVV movement dataflow op";
+  let description = [{
+    Records one bounded generic plugin-local RVV vector movement step. The op
+    is nested directly under tcrv_rvv.with_vl, consumes one typed
+    !tcrv_rvv.vector value and the active !tcrv_rvv.vl token, carries an
+    explicit movement kind, and produces one same-typed !tcrv_rvv.vector
+    result.
+
+    For the current bounded Stage 2 strided memory movement slice, kind is
+    limited to copy. The route provider consumes this op as structural typed
+    body authority that the strided loaded vector is the unit-stride store
+    value; common EmitC/export must not infer that from route ids, ABI names,
+    artifact metadata, or C strings.
   }];
 
   let arguments = (ins
