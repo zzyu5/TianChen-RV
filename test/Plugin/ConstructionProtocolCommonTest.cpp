@@ -1622,8 +1622,10 @@ int runRVVCommonValidationTest() {
             "RVV selected-body construction route validates"))
       return result;
     llvm::StringRef executableComputeOp =
-        route.operationMnemonic == "cmp_select" ? "tcrv_rvv.select"
-                                                : "tcrv_rvv.binary";
+        route.operationMnemonic == "cmp_select"
+            ? "tcrv_rvv.select"
+            : (route.operationMnemonic == "reduce_add" ? "tcrv_rvv.reduce"
+                                                       : "tcrv_rvv.binary");
     llvm::Expected<llvm::SmallVector<
         rvv::RVVSelectedBodyExecutableRoleStep, 10>>
         steps = rvv::getRVVSelectedBodyExecutableRoleSteps(

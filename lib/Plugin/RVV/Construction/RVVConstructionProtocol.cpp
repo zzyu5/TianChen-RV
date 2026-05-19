@@ -52,8 +52,8 @@ constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "load:rvv.role.load.i32_load:tcrv_rvv.load|"
     "tcrv_rvv.broadcast_load:"
     "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;"
-    "compute:rvv.role.compute.i32_arithmetic:tcrv_rvv.binary|"
-    "tcrv_rvv.compare|tcrv_rvv.select:"
+    "compute:rvv.role.compute.generic_vector:tcrv_rvv.binary|"
+    "tcrv_rvv.compare|tcrv_rvv.select|tcrv_rvv.reduce:"
     "TCRVComputeOpInterface:TCRVEmitCLowerableInterface;"
     "store:rvv.role.store.i32_store:tcrv_rvv.store:"
     "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface");
@@ -65,7 +65,8 @@ constexpr llvm::StringLiteral kTypedRoleArtifactSummary(
     "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;"
     "scope:tcrv_rvv.with_vl;load:tcrv_rvv.load;"
     "broadcast_load:tcrv_rvv.broadcast_load;"
-    "compute:tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.select;"
+    "compute:tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.select|"
+    "tcrv_rvv.reduce;"
     "store:tcrv_rvv.store");
 
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
@@ -73,7 +74,8 @@ constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
 constexpr llvm::StringLiteral kSourceOps(
     "tcrv_rvv.runtime_abi_value->tcrv_rvv.setvl->tcrv_rvv.with_vl->"
     "tcrv_rvv.load->(tcrv_rvv.load|tcrv_rvv.broadcast_load)->"
-    "(tcrv_rvv.binary|tcrv_rvv.compare->tcrv_rvv.select)->"
+    "(tcrv_rvv.binary|tcrv_rvv.compare->tcrv_rvv.select|"
+    "tcrv_rvv.reduce)->"
     "tcrv_rvv.store");
 constexpr llvm::StringLiteral kSourceRoles(
     "runtime_abi->configure->scope->load->load->compute->"
@@ -181,11 +183,11 @@ const RVVConstructionSemanticRole kSemanticRoles[] = {
      "load explicit ABI buffers into typed RVV vector dataflow values or "
      "broadcast the explicit RHS ABI buffer into a typed RVV dataflow value"},
     {"compute", 4,
-     "tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.select",
+     "tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.select|tcrv_rvv.reduce",
      "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "perform the bounded generic RVV arithmetic or compare/select compute "
-     "operation"},
+     "perform the bounded generic RVV arithmetic, compare/select, or "
+     "reduction/accumulation compute operation"},
     {"store", 5, "tcrv_rvv.store",
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
@@ -247,10 +249,10 @@ const RVVTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVMemoryOpInterface",
      "TCRVEmitCLowerableInterface"},
-    {"rvv.role.compute.i32_arithmetic",
+    {"rvv.role.compute.generic_vector",
      "compute",
      4,
-     "tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.select",
+     "tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.select|tcrv_rvv.reduce",
      "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVComputeOpInterface",
@@ -280,28 +282,34 @@ const RVVTypedRoleGraphRealization kTypedRoleGraphRealization = {
 const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = {
     {"add",
      "tcrv_rvv.i32_add",
-     "rvv.role.compute.i32_arithmetic",
+     "rvv.role.compute.generic_vector",
      "rvv-i32m1-add-emitc-route",
      "rvv-i32m1-add-callable-c-abi.v1",
      "rvv-i32m1-add-callable-c-abi"},
     {"sub",
      "tcrv_rvv.i32_sub",
-     "rvv.role.compute.i32_arithmetic",
+     "rvv.role.compute.generic_vector",
      "rvv-i32m1-sub-emitc-route",
      "rvv-i32m1-sub-callable-c-abi.v1",
      "rvv-i32m1-sub-callable-c-abi"},
     {"mul",
      "tcrv_rvv.i32_mul",
-     "rvv.role.compute.i32_arithmetic",
+     "rvv.role.compute.generic_vector",
      "rvv-i32m1-mul-emitc-route",
      "rvv-i32m1-mul-callable-c-abi.v1",
      "rvv-i32m1-mul-callable-c-abi"},
     {"cmp_select",
      "tcrv_rvv.select",
-     "rvv.role.compute.i32_arithmetic",
+     "rvv.role.compute.generic_vector",
      "rvv-i32m1-cmp-select-emitc-route",
      "rvv-i32m1-cmp-select-callable-c-abi.v1",
      "rvv-i32m1-cmp-select-callable-c-abi"},
+    {"reduce_add",
+     "tcrv_rvv.reduce",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-reduce-add-emitc-route",
+     "rvv-generic-reduce-add-callable-c-abi.v1",
+     "rvv-generic-reduce-add-callable-c-abi"},
 };
 
 const RVVSelectedBodyTargetArtifactMapping kTargetArtifactMapping = {
@@ -431,10 +439,10 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 4)
+          .size() != 5)
     return makeRVVConstructionError(
-        "selected-body construction mapping requires add, sub, mul, and "
-        "cmp_select");
+        "selected-body construction mapping requires add, sub, mul, "
+        "cmp_select, and reduce_add");
   return llvm::Error::success();
 }
 
@@ -541,10 +549,14 @@ buildRVVSelectedBodyExecutableRoleSteps(
         operationMnemonic + "'");
   const bool usesGenericBinary = typedComputeOpName == "tcrv_rvv.binary";
   const bool isCompareSelect = route->operationMnemonic == "cmp_select";
+  const bool isReduction = route->operationMnemonic == "reduce_add";
   if (isCompareSelect && typedComputeOpName != "tcrv_rvv.select")
     return makeRVVConstructionError(
         "RVV compare/select construction requires generic tcrv_rvv.select");
-  if (!isCompareSelect && !usesGenericBinary)
+  if (isReduction && typedComputeOpName != "tcrv_rvv.reduce")
+    return makeRVVConstructionError(
+        "RVV reduction construction requires generic tcrv_rvv.reduce");
+  if (!isCompareSelect && !isReduction && !usesGenericBinary)
     return makeRVVConstructionError(
         llvm::Twine("RVV arithmetic construction requires generic "
                     "tcrv_rvv.binary, not legacy typed compute op '") +
@@ -561,6 +573,11 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "RVV generic compare/select construction requires an explicit RHS "
         "generic vector load; broadcast compare/select is not in this "
         "bounded slice");
+  if (isReduction && rhsSourceOperationName != "tcrv_rvv.load")
+    return makeRVVConstructionError(
+        "RVV generic reduction construction requires explicit vector input "
+        "and accumulator loads; broadcast reduction is not in this bounded "
+        "slice");
 
   llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10> steps;
   steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
@@ -596,11 +613,11 @@ buildRVVSelectedBodyExecutableRoleSteps(
                    7});
   if (isCompareSelect) {
     steps.push_back({"compute", "tcrv_rvv.compare",
-                     "rvv.role.compute.i32_arithmetic",
+                     route->typedRoleID,
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
                      "compare_eq", 8});
     steps.push_back({"compute", route->typedComputeOpName,
-                     "rvv.role.compute.i32_arithmetic",
+                     route->typedRoleID,
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
                      route->operationMnemonic, 9});
     steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.i32_store",
@@ -610,7 +627,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
   }
 
   steps.push_back({"compute", typedComputeOpName,
-                   "rvv.role.compute.i32_arithmetic",
+                   route->typedRoleID,
                    "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
                    route->operationMnemonic, 8});
   steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.i32_store",
@@ -997,13 +1014,20 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " compare/select cannot use generic tcrv_rvv.binary");
+  if (usesGenericBinary && route->operationMnemonic == "reduce_add")
+    return makeRVVConstructionError(
+        llvm::Twine(context) +
+        " reduction cannot use generic tcrv_rvv.binary");
   if (!usesGenericBinary && facts.typedComputeOpName != route->typedComputeOpName)
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " selected-body typed compute op for operation '" +
         facts.operationMnemonic + "' must be '" + route->typedComputeOpName +
-        "' or generic 'tcrv_rvv.binary' but was '" +
-        facts.typedComputeOpName + "'");
+        (route->operationMnemonic == "cmp_select" ||
+                 route->operationMnemonic == "reduce_add"
+             ? "'"
+             : "' or generic 'tcrv_rvv.binary'") +
+        " but was '" + facts.typedComputeOpName + "'");
   if (facts.emitCRouteID != route->emitCRouteID)
     return makeRVVConstructionError(
         llvm::Twine(context) +
@@ -1205,11 +1229,17 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
   if (usesGenericBinary && expected.operationMnemonic == "cmp_select")
     return makeRVVConstructionError(
         "selected-body compare/select cannot use generic tcrv_rvv.binary");
+  if (usesGenericBinary && expected.operationMnemonic == "reduce_add")
+    return makeRVVConstructionError(
+        "selected-body reduction cannot use generic tcrv_rvv.binary");
   if (!usesGenericBinary && expected.typedComputeOpName != typedComputeOpName)
     return makeRVVConstructionError(
         llvm::Twine("selected-body typed compute op for operation '") +
         operationMnemonic + "' must be '" + expected.typedComputeOpName +
-        "' or generic 'tcrv_rvv.binary'");
+        (expected.operationMnemonic == "cmp_select" ||
+                 expected.operationMnemonic == "reduce_add"
+             ? "'"
+             : "' or generic 'tcrv_rvv.binary'"));
   if (expected.emitCRouteID != emitCRouteID)
     return makeRVVConstructionError(
         llvm::Twine("EmitC route id for selected-body operation '") +

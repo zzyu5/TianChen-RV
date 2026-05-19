@@ -27,6 +27,7 @@ enum class RVVSelectedBodyOperationKind {
   Sub,
   Mul,
   CmpSelect,
+  ReduceAdd,
 };
 
 enum class RVVSelectedBodyMemoryForm {

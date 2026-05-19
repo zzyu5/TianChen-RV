@@ -476,6 +476,36 @@ def SelectOp : TCRVRVV_Op<"select",
   let hasVerifier = 1;
 }
 
+def ReduceOp : TCRVRVV_Op<"reduce",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary = "generic typed RVV reduction/accumulation dataflow op";
+  let description = [{
+    Records one generic plugin-local RVV reduction/accumulation dataflow step.
+    The op is nested directly under tcrv_rvv.with_vl, consumes one typed
+    !tcrv_rvv.vector input, one typed !tcrv_rvv.vector accumulator seed, and
+    the active !tcrv_rvv.vl token. It carries an explicit reduction kind and
+    produces one typed !tcrv_rvv.vector accumulator/result token.
+
+    For the current bounded Stage 2 skeleton, kind is limited to add. The
+    vector input, accumulator, result, VL, SEW, LMUL, and policy facts are
+    structural in the selected RVV body. Route ids, helper names, ABI strings,
+    artifact names, status fields, and common EmitC/export code must not infer
+    or choose reduction semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$accumulator,
+    AnyType:$vl,
+    StrAttr:$kind
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$input `,` $accumulator `,` $vl attr-dict `:` type($input) `,` type($accumulator) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def StoreOp : TCRVRVV_Op<"store",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",

@@ -157,6 +157,8 @@ bool isAllowedCompareAttr(llvm::StringRef name) { return name == "kind"; }
 
 bool isAllowedSelectAttr(llvm::StringRef) { return false; }
 
+bool isAllowedReduceAttr(llvm::StringRef name) { return name == "kind"; }
+
 bool isAllowedStoreAttr(llvm::StringRef) { return false; }
 
 bool isSupportedI32BinaryPreRealizedBodyOpKind(llvm::StringRef opKind) {
@@ -169,6 +171,10 @@ bool isSupportedGenericBinaryKind(llvm::StringRef kind) {
 
 bool isSupportedGenericCompareKind(llvm::StringRef kind) {
   return kind == "eq";
+}
+
+bool isSupportedGenericReduceKind(llvm::StringRef kind) {
+  return kind == "add";
 }
 
 bool isAllowedI32AddAttr(llvm::StringRef name) {
@@ -1304,6 +1310,54 @@ mlir::LogicalResult SelectOp::verify() {
     return mlir::failure();
   return verifyGenericMaskMatchesVector(op, getMask(), getSelected(), "mask",
                                         "result");
+}
+
+mlir::LogicalResult ReduceOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.reduce keeps SEW/LMUL/policy on setvl/with_vl, "
+                "runtime n/AVL/VL in the surrounding control-plane IR, and "
+                "rejects deleted local element_count metadata";
+
+    if (!isAllowedReduceAttr(attrName))
+      return emitOpError()
+             << "only accepts generic reduction attribute 'kind"
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!isSupportedGenericReduceKind(getKind()))
+    return emitOpError()
+           << "currently supports only kind \"add\" for the bounded Stage 2 "
+              "reduction/accumulation route";
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one input generic RVV vector operand, one "
+              "accumulator generic RVV vector operand, one !tcrv_rvv.vl "
+              "operand, and one generic RVV vector result";
+  if (getInput().getType() != getAccumulator().getType() ||
+      getInput().getType() != getResult().getType())
+    return emitOpError()
+           << "requires input, accumulator, and result to have the same "
+              "generic RVV vector type";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getInput(), "input")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getAccumulator(),
+                                                    "accumulator")))
+    return mlir::failure();
+  return verifyGenericVectorTypeForWithVL(op, getResult(), "result");
 }
 
 mlir::LogicalResult StoreOp::verify() {

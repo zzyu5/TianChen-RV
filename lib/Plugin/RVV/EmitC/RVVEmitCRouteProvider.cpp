@@ -47,6 +47,7 @@ struct RVVSelectedBodyOperationProfile {
   llvm::StringRef resultName;
   llvm::StringRef maskName;
   bool isCompareSelect;
+  bool isReduction;
 };
 
 struct RVVSelectedBodyConfigProfile {
@@ -81,22 +82,26 @@ struct RVVSelectedBodyRouteProfile {
 constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::Add, RVVSelectedBodyOperationKind::Sub,
     RVVSelectedBodyOperationKind::Mul,
-    RVVSelectedBodyOperationKind::CmpSelect};
+    RVVSelectedBodyOperationKind::CmpSelect,
+    RVVSelectedBodyOperationKind::ReduceAdd};
 
 const RVVSelectedBodyOperationProfile &
 getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
   static const RVVSelectedBodyOperationProfile kAdd = {
       RVVSelectedBodyOperationKind::Add, "add", "sum_vec", "",
-      /*isCompareSelect=*/false};
+      /*isCompareSelect=*/false, /*isReduction=*/false};
   static const RVVSelectedBodyOperationProfile kSub = {
       RVVSelectedBodyOperationKind::Sub, "sub", "difference_vec", "",
-      /*isCompareSelect=*/false};
+      /*isCompareSelect=*/false, /*isReduction=*/false};
   static const RVVSelectedBodyOperationProfile kMul = {
       RVVSelectedBodyOperationKind::Mul, "mul", "product_vec", "",
-      /*isCompareSelect=*/false};
+      /*isCompareSelect=*/false, /*isReduction=*/false};
   static const RVVSelectedBodyOperationProfile kCmpSelect = {
       RVVSelectedBodyOperationKind::CmpSelect, "cmp_select", "selected_vec",
-      "cmp_mask", /*isCompareSelect=*/true};
+      "cmp_mask", /*isCompareSelect=*/true, /*isReduction=*/false};
+  static const RVVSelectedBodyOperationProfile kReduceAdd = {
+      RVVSelectedBodyOperationKind::ReduceAdd, "reduce_add", "reduced_vec",
+      "", /*isCompareSelect=*/false, /*isReduction=*/true};
 
   switch (op) {
   case RVVSelectedBodyOperationKind::Add:
@@ -107,6 +112,8 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
     return kMul;
   case RVVSelectedBodyOperationKind::CmpSelect:
     return kCmpSelect;
+  case RVVSelectedBodyOperationKind::ReduceAdd:
+    return kReduceAdd;
   }
   llvm_unreachable("unknown RVV selected-body operation");
 }
@@ -182,8 +189,17 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
                                                 : "__riscv_vmul_vv_i32m1";
   case RVVSelectedBodyOperationKind::CmpSelect:
     llvm_unreachable("compare/select uses dedicated compare and merge leaves");
+  case RVVSelectedBodyOperationKind::ReduceAdd:
+    llvm_unreachable("reduction uses dedicated reduction intrinsic leaf");
   }
   llvm_unreachable("unknown RVV selected-body operation");
+}
+
+llvm::StringRef
+getRVVSelectedBodyReductionIntrinsic(llvm::StringRef lmul) {
+  if (lmul == tcrv::rvv::getRVVI32M1LMUL())
+    return "__riscv_vredsum_vs_i32m1_i32m1";
+  return {};
 }
 
 llvm::StringRef
@@ -211,6 +227,16 @@ deriveRVVSelectedBodyTargetLeafProfile(
     return RVVSelectedBodyTargetLeafProfile{
         getRVVSelectedBodySelectIntrinsic(configProfile.lmul),
         getRVVSelectedBodyCompareIntrinsic(configProfile.lmul), ""};
+  }
+
+  if (operationProfile.isReduction) {
+    if (description.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad)
+      return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+    llvm::StringRef reductionIntrinsic =
+        getRVVSelectedBodyReductionIntrinsic(configProfile.lmul);
+    if (reductionIntrinsic.empty())
+      return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+    return RVVSelectedBodyTargetLeafProfile{reductionIntrinsic, "", ""};
   }
 
   if (description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad)
@@ -353,6 +379,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::BroadcastLoadOp rhsBroadcastLoad;
   tcrv::rvv::CompareOp compareOp;
   tcrv::rvv::SelectOp selectOp;
+  tcrv::rvv::ReduceOp reduceOp;
   mlir::Operation *arithmeticOp = nullptr;
   mlir::Value arithmeticLhs;
   mlir::Value arithmeticRhs;
@@ -513,7 +540,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
           "int32_t *"});
   llvm::Expected<support::FiniteBinaryCallableRuntimeABIParameterBindings>
       bindings = support::bindFiniteBinaryCallableRuntimeABIParametersByRole(
-          ordered, "RVV selected-body arithmetic explicit runtime ABI values",
+          ordered, "RVV selected-body explicit runtime ABI values",
           contract);
   if (!bindings)
     return bindings.takeError();
@@ -570,6 +597,24 @@ llvm::Error recordRVVSelectedBodySelect(RVVSelectedBodyRouteSlice &slice,
   slice.arithmeticLhs = select.getTrueValue();
   slice.arithmeticRhs = select.getFalseValue();
   slice.arithmeticResult = select.getSelected();
+  return llvm::Error::success();
+}
+
+llvm::Error recordRVVSelectedBodyReduction(RVVSelectedBodyRouteSlice &slice,
+                                           tcrv::rvv::ReduceOp reduce) {
+  if (slice.arithmeticOp)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route requires exactly one selected compute op");
+  if (reduce.getKind() != "add")
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.reduce kind '") +
+        reduce.getKind() + "' for bounded RVV reduction route");
+  slice.reduceOp = reduce;
+  slice.arithmeticOp = reduce.getOperation();
+  slice.arithmeticKind = RVVSelectedBodyOperationKind::ReduceAdd;
+  slice.arithmeticLhs = reduce.getInput();
+  slice.arithmeticRhs = reduce.getAccumulator();
+  slice.arithmeticResult = reduce.getResult();
   return llvm::Error::success();
 }
 
@@ -658,6 +703,11 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         return std::move(error);
       continue;
     }
+    if (auto reduce = llvm::dyn_cast<tcrv::rvv::ReduceOp>(op)) {
+      if (llvm::Error error = recordRVVSelectedBodyReduction(slice, reduce))
+        return std::move(error);
+      continue;
+    }
     if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(op)) {
       slice.genericStore = store;
       ++storeCount;
@@ -669,13 +719,13 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           op.getName().getStringRef() +
           "' is fail-closed during RVV Stage1; Stage2 routes must use generic "
           "tcrv_rvv.load, tcrv_rvv.broadcast_load, tcrv_rvv.binary, "
-          "tcrv_rvv.compare, tcrv_rvv.select, and tcrv_rvv.store body "
-          "structure");
+          "tcrv_rvv.compare, tcrv_rvv.select, tcrv_rvv.reduce, and "
+          "tcrv_rvv.store body structure");
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("bounded RVV EmitC route does not support op '") +
         op.getName().getStringRef() +
         "' inside tcrv_rvv.with_vl; expected generic load, broadcast_load, "
-        "binary, compare, select, and store only");
+        "binary, compare, select, reduce, and store only");
   }
 
   if (genericBroadcastLoads.size() > 1)
@@ -697,32 +747,39 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   if (!slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route requires exactly one supported "
-        "tcrv_rvv.binary or tcrv_rvv.select op");
+        "tcrv_rvv.binary, tcrv_rvv.select, or tcrv_rvv.reduce op");
   if (storeCount != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route requires exactly one tcrv_rvv.store "
         "op");
   const bool isCompareSelect =
       slice.arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect;
+  const bool isReduction =
+      slice.arithmeticKind == RVVSelectedBodyOperationKind::ReduceAdd;
   if (isCompareSelect && !slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV compare/select route requires one "
         "tcrv_rvv.compare op before tcrv_rvv.select");
   if (!isCompareSelect && slice.compareOp)
     return makeRVVEmitCRouteProviderError(
-        "bounded generic RVV arithmetic route does not support a standalone "
+        "bounded generic RVV non-compare route does not support a standalone "
         "tcrv_rvv.compare op");
   if (isCompareSelect && !genericBroadcastLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV compare/select route requires an explicit RHS "
         "vector load; broadcast compare/select is not in this bounded slice");
+  if (isReduction && !genericBroadcastLoads.empty())
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV reduction route requires explicit vector input "
+        "and accumulator loads; broadcast reduction is not in this bounded "
+        "slice");
   const unsigned expectedRVVOps = isCompareSelect ? 11 : 10;
   if (rvvOpCount != expectedRVVOps)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route supports only runtime_abi_value/"
         "runtime_abi_value/runtime_abi_value/runtime_abi_value/setvl/"
-        "with_vl plus generic load/broadcast_load/binary/compare/select/store "
-        "body structure");
+        "with_vl plus generic load/broadcast_load/binary/compare/select/"
+        "reduce/store body structure");
 
   for (tcrv::rvv::LoadOp load : genericLoads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
@@ -1188,6 +1245,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " compare/select cannot use generic tcrv_rvv.binary");
+  if (usesGenericBinary && operationProfile.isReduction)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " reduction cannot use generic tcrv_rvv.binary");
   if (!usesGenericBinary)
     if (llvm::Error error = requireRouteDescriptionField(
             context, "typed compute op", description.typedComputeOpName,
