@@ -151,6 +151,93 @@ correctness claim only for bounded pre-realized `reduce_add` counts
 |------|---------|
 | `this commit` | (see git log) |
 
+## Session 145: Stage2 RVV tail/mask policy executable slice
+
+**Date**: 2026-05-20
+**Task**: `stage2-rvv-tail-mask-policy-executable-slice`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and completed one
+bounded Stage2 policy-authority slice for `masked_add`: i32 / SEW32 / LMUL m1 /
+unit-stride, with explicit mask role, mask source, tail/mask policy,
+passthrough inactive-lane contract, typed body/config facts, runtime `n`/AVL,
+provider route planning, generated artifact metadata, and real `ssh rvv`
+correctness evidence.
+
+### Main Changes
+
+- Added provider-derived `maskRole` and `inactiveLaneContract` to
+  `RVVSelectedBodyEmitCRouteDescription`.
+- Made `RVVEmitCRoutePlanning` derive and verify the bounded masked-add policy
+  facts:
+  `predicate-mask-produced-by-compare`,
+  `compare-produced-mask-same-vl-scope`,
+  `masked-off-lanes-preserve-passthrough-vector`, and
+  `passthrough-vector-preserves-inactive-lanes`.
+- Mirrored the new policy facts into target artifact metadata as explicit RVV
+  mirrors, without moving semantic authority into common EmitC/export.
+- Strengthened generated-bundle `masked_add` evidence so the external C ABI
+  harness requires true and false mask lanes, checks masked-off lanes preserve
+  the passthrough vector, and records the inactive-lane and coverage contract.
+- Added provider-level C++ coverage for the masked-add route description, the
+  compare/add/merge lowerable route steps, and stale `maskRole` /
+  `inactiveLaneContract` fail-closed verification.
+- Updated masked-add artifact and generated-bundle dry-run lit checks for the
+  new policy metadata and harness coverage fields.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] focused build for `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-rvv-dialect-test`, `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-construction-protocol-common-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] focused C++ RVV dialect/plugin/construction/export tests.
+- [OK] focused lit for masked-add generated-bundle dry-runs, selected-body
+  artifact metadata, and pre-realized negative coverage.
+- [OK] generated-bundle dry-run for `masked_add` counts `7,16,23`.
+- [OK] real `ssh rvv` generated-bundle correctness:
+  `PASS op=masked_add counts=7,16,23`.
+- [OK] remote lane coverage:
+  `n=7 true=2 false=5 passthrough=5`,
+  `n=16 true=4 false=12 passthrough=12`,
+  `n=23 true=6 false=17 passthrough=17`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`
+  passed `189/189`.
+- [OK] `git diff --check`
+- [OK] diff-added active-authority scan found no positive reintroduction of
+  `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`,
+  `!tcrv_rvv.i32m*`, source-front-door/source-seed, descriptor/direct-C/
+  source-export, or common/export RVV semantic authority.
+
+### Self-Repair
+
+No self-repair was needed after the final implementation pass. `clang-format`
+was unavailable in this environment, so compile checks and `git diff --check`
+were used for local formatting/whitespace validation.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round claims executable
+correctness only for the bounded `masked_add` counts `7,16,23`; no performance
+claim is made and no policy matrix expansion was attempted.
+
+### Next Steps
+
+- Future continuation, if requested: add another bounded Stage2 tail/mask policy
+  slice or widen policy support under a separate PRD, preserving RVV
+  plugin-local typed body authority and fail-closed unsupported combinations.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 ## Session 143: Stage2 RVV i64 SEW64 executable route slice
 
 **Date**: 2026-05-20

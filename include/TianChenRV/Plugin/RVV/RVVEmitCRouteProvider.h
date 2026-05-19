@@ -86,7 +86,9 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef maskedMergeIntrinsic;
   llvm::StringRef resultName;
   llvm::StringRef maskName;
+  llvm::StringRef maskRole;
   llvm::StringRef maskSource;
+  llvm::StringRef inactiveLaneContract;
   llvm::StringRef maskedPassthroughLayout;
   llvm::StringRef reductionAccumulatorLayout;
   llvm::StringRef reductionResultLayout;

@@ -45,6 +45,10 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral kRVVReductionStoreVL("1");
 constexpr llvm::StringLiteral
     kRVVMaskedCompareMaskSource("compare-produced-mask-same-vl-scope");
+constexpr llvm::StringLiteral
+    kRVVMaskedPredicateMaskRole("predicate-mask-produced-by-compare");
+constexpr llvm::StringLiteral kRVVMaskedInactiveLaneContract(
+    "masked-off-lanes-preserve-passthrough-vector");
 constexpr llvm::StringLiteral kRVVMaskedPassthroughLayout(
     "passthrough-vector-preserves-inactive-lanes");
 constexpr llvm::StringLiteral
@@ -1699,7 +1703,10 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.resultName = routeProfile->operation.resultName;
   analysis.description.maskName = routeProfile->operation.maskName;
   if (routeProfile->operation.isMaskedArithmetic) {
+    analysis.description.maskRole = kRVVMaskedPredicateMaskRole;
     analysis.description.maskSource = kRVVMaskedCompareMaskSource;
+    analysis.description.inactiveLaneContract =
+        kRVVMaskedInactiveLaneContract;
     analysis.description.maskedPassthroughLayout =
         kRVVMaskedPassthroughLayout;
   }
@@ -2065,8 +2072,17 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   }
   if (operationProfile.isMaskedArithmetic) {
     if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask role", description.maskRole,
+            kRVVMaskedPredicateMaskRole))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
             context, "mask source", description.maskSource,
             kRVVMaskedCompareMaskSource))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "inactive lane contract",
+            description.inactiveLaneContract,
+            kRVVMaskedInactiveLaneContract))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "masked passthrough layout",
@@ -2075,7 +2091,14 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask role", description.maskRole, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
             context, "mask source", description.maskSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "inactive lane contract",
+            description.inactiveLaneContract, ""))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "masked passthrough layout",
@@ -2214,7 +2237,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
   metadata.push_back({"tcrv_rvv.bounded_slice", description.boundedSlice});
   metadata.push_back({"tcrv_rvv.multi_vl", description.multiVL});
   if (description.operation == RVVSelectedBodyOperationKind::MaskedAdd) {
+    metadata.push_back({"tcrv_rvv.mask_role", description.maskRole});
     metadata.push_back({"tcrv_rvv.mask_source", description.maskSource});
+    metadata.push_back({"tcrv_rvv.inactive_lane_contract",
+                        description.inactiveLaneContract});
     metadata.push_back({"tcrv_rvv.masked_passthrough_layout",
                         description.maskedPassthroughLayout});
   }

@@ -1043,6 +1043,135 @@ module {
       "verify RVV generic broadcast selected-body route description");
 }
 
+int runMaskedAddSelectedBodyPolicyRouteTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_i32m1_masked_add_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_i32_masked_add attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i32_masked_add, sew = 32 : i64, source_kernel = "rvv_i32m1_masked_add_kernel", status = "selected-lowering-boundary"} {
+        %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs = tcrv_rvv.load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %mask = tcrv_rvv.compare %lhs, %rhs, %vl {kind = "eq"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %sum = tcrv_rvv.masked_binary %mask, %lhs, %lhs, %rhs, %vl {kind = "add"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV masked add selected-body module");
+  KernelOp kernel = findKernel(*module, "rvv_i32m1_masked_add_kernel");
+  VariantOp variant = findVariant(kernel, "rvv_i32_masked_add");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for masked add policy route test"))
+    return result;
+
+  VariantEmissionPlan plan;
+  if (int result = expectSuccess(
+          registry.buildVariantEmissionPlan(
+              VariantEmissionRequest(variant, kernel, capabilities,
+                                     VariantEmissionRole::DirectVariant),
+              plan),
+          "build RVV masked add selected-body emission plan"))
+    return result;
+
+  llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
+      routeDescription =
+          tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+              VariantEmitCLowerableRequest(
+                  variant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant));
+  if (!routeDescription)
+    return fail("describe RVV generic masked add selected-body route: " +
+                llvm::toString(routeDescription.takeError()));
+  if (int result =
+          expect(plan.isSupported() &&
+                     routeDescription->operation ==
+                         tianchenrv::plugin::rvv::
+                             RVVSelectedBodyOperationKind::MaskedAdd &&
+                     routeDescription->typedComputeOpName ==
+                         "tcrv_rvv.masked_binary" &&
+                     routeDescription->maskRole ==
+                         "predicate-mask-produced-by-compare" &&
+                     routeDescription->maskSource ==
+                         "compare-produced-mask-same-vl-scope" &&
+                     routeDescription->inactiveLaneContract ==
+                         "masked-off-lanes-preserve-passthrough-vector" &&
+                     routeDescription->maskedPassthroughLayout ==
+                         "passthrough-vector-preserves-inactive-lanes" &&
+                     routeDescription->compareIntrinsic ==
+                         "__riscv_vmseq_vv_i32m1_b32" &&
+                     routeDescription->intrinsic == "__riscv_vadd_vv_i32m1" &&
+                     routeDescription->maskedMergeIntrinsic ==
+                         "__riscv_vmerge_vvm_i32m1",
+                 "RVV masked add route derives mask role, inactive-lane "
+                 "contract, and policy leaves from typed body facts"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::
+              verifyRVVSelectedBodyEmitCRouteDescription(
+                  *routeDescription,
+                  "RVV generic masked add selected-body route description"),
+          "verify RVV generic masked add selected-body route description"))
+    return result;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+  if (int result = expectSuccess(
+          registry.buildVariantEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(variant, kernel, capabilities,
+                                           VariantEmissionRole::DirectVariant),
+              route),
+          "build RVV masked add selected-body EmitC route"))
+    return result;
+  if (int result =
+          expect(route.getForLoops().size() == 1 &&
+                     route.getForLoops().front().bodySteps.size() == 7 &&
+                     route.getForLoops().front().bodySteps[3].callee ==
+                         "__riscv_vmseq_vv_i32m1_b32" &&
+                     route.getForLoops().front().bodySteps[4].callee ==
+                         "__riscv_vadd_vv_i32m1" &&
+                     route.getForLoops().front().bodySteps[5].callee ==
+                         "__riscv_vmerge_vvm_i32m1",
+                 "RVV masked add EmitC route carries explicit compare, "
+                 "active add, and passthrough-preserving merge steps"))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription staleMaskRole =
+      *routeDescription;
+  staleMaskRole.maskRole = "";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVSelectedBodyEmitCRouteDescription(
+                  staleMaskRole,
+                  "RVV masked add missing mask role route description"),
+          {"mask role", "predicate-mask-produced-by-compare"}))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription
+      staleInactiveLaneContract = *routeDescription;
+  staleInactiveLaneContract.inactiveLaneContract = "";
+  return expectErrorContains(
+      tianchenrv::plugin::rvv::verifyRVVSelectedBodyEmitCRouteDescription(
+          staleInactiveLaneContract,
+          "RVV masked add missing inactive-lane route description"),
+      {"inactive lane contract",
+       "masked-off-lanes-preserve-passthrough-vector"});
+}
+
 int runCompareSelectSelectedBodyRouteTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -1171,6 +1300,8 @@ int main() {
   if (int result = runLMULM2SelectedBodyRouteTest(context))
     return result;
   if (int result = runBroadcastSelectedBodyRouteTest(context))
+    return result;
+  if (int result = runMaskedAddSelectedBodyPolicyRouteTest(context))
     return result;
   if (int result = runCompareSelectSelectedBodyRouteTest(context))
     return result;

@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Global stack, RVV-first authority chain, Stage1/Stage2 boundaries, and descriptor/source-front-door guardrails."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership for typed body authority, policy facts, selected-body realization, route provider, fail-closed legacy inventory, and ssh rvv evidence rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute boundary for RVV mask/tail policy lowering."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-local selected-body realization and route provider contract; registry must not infer route or policy semantics."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected-body realization and Stage2 typed RVV coverage rules for code-affecting policy/config hints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/C++/script/runtime evidence, ssh rvv rule, and legacy i32/source-front-door negative policy."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability/config facts constrain RVV legality without becoming dtype or route authority."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensure mask/tail policy derivation remains RVV plugin-local and common code does not choose RVV semantics."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure new policy/body surface remains low-level RVV execution structure rather than high-level compute IR."}
+{"file": ".trellis/tasks/archive/2026-05/05-19-05-19-stage2-rvv-selected-body-masked-add-policy/prd.md", "reason": "Prior bounded masked-add selected-body realization and ssh rvv evidence; this task extends policy authority rather than repeating coverage."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-cmp-select-executable-abi/prd.md", "reason": "Runtime harness precedent for non-vacuous predicate/mask-lane evidence on ssh rvv."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-vector-scalar-broadcast-executable-path/prd.md", "reason": "Recent selected-body runtime ABI and generated-bundle closure pattern for bounded Stage2 path."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-non-i32-dtype-sew-route-policy/prd.md", "reason": "Route-planning pattern for deriving concrete leaves from typed body/config facts instead of labels."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-lmul-route-policy-executable-slice/prd.md", "reason": "Latest route-policy executable slice precedent at current HEAD."}

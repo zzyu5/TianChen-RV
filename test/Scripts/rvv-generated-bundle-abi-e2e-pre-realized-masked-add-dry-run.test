@@ -32,12 +32,21 @@
 # MASKED-DAG: "value": "tcrv_rvv.masked_binary"
 # MASKED-DAG: "key": "tcrv_rvv.mask_source"
 # MASKED-DAG: "value": "compare-produced-mask-same-vl-scope"
+# MASKED-DAG: "key": "tcrv_rvv.mask_role"
+# MASKED-DAG: "value": "predicate-mask-produced-by-compare"
+# MASKED-DAG: "key": "tcrv_rvv.inactive_lane_contract"
+# MASKED-DAG: "value": "masked-off-lanes-preserve-passthrough-vector"
 # MASKED-DAG: "key": "tcrv_rvv.masked_passthrough_layout"
 # MASKED-DAG: "value": "passthrough-vector-preserves-inactive-lanes"
 # MASKED-DAG: "typed_compute_op": "tcrv_rvv.masked_binary"
 # MASKED-DAG: "memory_form": "vector-rhs-load"
+# MASKED-DAG: "inactive_lane_contract": "masked-off lanes must preserve the explicit passthrough vector"
+# MASKED-DAG: "mask_coverage_contract": "multi-lane masked_add cases require true and false mask lanes"
 # MASKED-DAG: "status": "dry_run_success"
 
 # HARNESS: tcrv_emitc_pre_realized_body_masked_add_kernel_pre_realized_body_rvv_masked_add(lhs, rhs, out, n);
 # HARNESS: (lhs[index] == rhs[index] ? (int32_t)(lhs[index] + rhs[index]) : lhs[index])
+# HARNESS: mask_true_lanes
+# HARNESS: mask_false_lanes
+# HARNESS: passthrough_preserved_lanes
 # HARNESS: const size_t counts[] = {7, 16, 23};

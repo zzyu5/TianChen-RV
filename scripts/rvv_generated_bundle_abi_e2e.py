@@ -55,6 +55,8 @@ REDUCE_ADD_ACCUMULATOR_LAYOUT = "rhs-vector-seed-lane0-per-vl-chunk"
 REDUCE_ADD_RESULT_LAYOUT = "store-reduction-lane0-to-output-chunk-base"
 REDUCE_ADD_STORE_VL = "1"
 MASKED_ADD_MASK_SOURCE = "compare-produced-mask-same-vl-scope"
+MASKED_ADD_MASK_ROLE = "predicate-mask-produced-by-compare"
+MASKED_ADD_INACTIVE_LANE_CONTRACT = "masked-off-lanes-preserve-passthrough-vector"
 MASKED_ADD_PASSTHROUGH_LAYOUT = "passthrough-vector-preserves-inactive-lanes"
 MACC_ADD_ACCUMULATOR_LAYOUT = "output-buffer-vector-accumulator-input"
 MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
@@ -944,7 +946,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_masked_add:
         per_op_metadata.update(
             {
+                "tcrv_rvv.mask_role": MASKED_ADD_MASK_ROLE,
                 "tcrv_rvv.mask_source": MASKED_ADD_MASK_SOURCE,
+                "tcrv_rvv.inactive_lane_contract": MASKED_ADD_INACTIVE_LANE_CONTRACT,
                 "tcrv_rvv.masked_passthrough_layout": MASKED_ADD_PASSTHROUGH_LAYOUT,
             }
         )
@@ -1559,6 +1563,112 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
+    if expectation.is_masked_add:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n == 0 ? 1 : n;
+  {expectation.element_c_type} *lhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *rhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *out = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  if (!lhs || !rhs || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(lhs);
+    free(rhs);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < n; ++index) {{
+    lhs[index] = {expectation.lhs_initializer};
+    rhs[index] = {expectation.rhs_initializer};
+    out[index] = {expectation.out_initializer};
+  }}
+
+  {expectation.function_name}(lhs, rhs, out, n);
+
+  size_t mask_true_lanes = 0;
+  size_t mask_false_lanes = 0;
+  size_t passthrough_preserved_lanes = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    int mask = lhs[index] == rhs[index];
+    if (mask)
+      ++mask_true_lanes;
+    else
+      ++mask_false_lanes;
+
+    int32_t expected = {expectation.expected_expression};
+    if (out[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d lhs=%d rhs=%d mask=%d\\n",
+              n, index, out[index], expected, lhs[index], rhs[index], mask);
+      free(lhs);
+      free(rhs);
+      free(out);
+      return 12;
+    }}
+
+    if (!mask) {{
+      if (out[index] != lhs[index]) {{
+        fprintf(stderr,
+                "{expectation.kind} inactive lane did not preserve passthrough n=%zu index=%zu got=%d passthrough=%d rhs=%d\\n",
+                n, index, out[index], lhs[index], rhs[index]);
+        free(lhs);
+        free(rhs);
+        free(out);
+        return 13;
+      }}
+      ++passthrough_preserved_lanes;
+    }}
+  }}
+
+  if (n > 1 && (mask_true_lanes == 0 || mask_false_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} mask coverage missing n=%zu true_lanes=%zu false_lanes=%zu\\n",
+            n, mask_true_lanes, mask_false_lanes);
+    free(lhs);
+    free(rhs);
+    free(out);
+    return 14;
+  }}
+  if (mask_false_lanes != passthrough_preserved_lanes) {{
+    fprintf(stderr,
+            "{expectation.kind} inactive lane passthrough coverage mismatch n=%zu false_lanes=%zu preserved_lanes=%zu\\n",
+            n, mask_false_lanes, passthrough_preserved_lanes);
+    free(lhs);
+    free(rhs);
+    free(out);
+    return 15;
+  }}
+
+  free(lhs);
+  free(rhs);
+  free(out);
+  printf("{expectation.kind} case n=%zu ok mask_true_lanes=%zu mask_false_lanes=%zu passthrough_preserved_lanes=%zu\\n",
+         n, mask_true_lanes, mask_false_lanes, passthrough_preserved_lanes);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
     return f"""
 #include <stddef.h>
 #include <stdint.h>
@@ -2005,6 +2115,13 @@ def run_one_op_e2e(
             evidence["harness"][
                 "predicate_coverage_contract"
             ] = "multi-lane cmp_select cases require predicate true and false lanes"
+        if expectation.is_masked_add:
+            evidence["harness"]["mask_coverage_contract"] = (
+                "multi-lane masked_add cases require true and false mask lanes"
+            )
+            evidence["harness"]["inactive_lane_contract"] = (
+                "masked-off lanes must preserve the explicit passthrough vector"
+            )
 
         if args.dry_run:
             evidence["status"] = "dry_run_success"
