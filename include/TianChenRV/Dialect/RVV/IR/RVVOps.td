@@ -149,6 +149,28 @@ def TCRVRVV_I32M2VectorType : TCRVRVV_Type<"I32M2Vector", "i32m2"> {
   }];
 }
 
+def TCRVRVV_VectorType : TCRVRVV_Type<"Vector", "vector"> {
+  let summary = "generic typed RVV vector dataflow token type";
+  let description = [{
+    A generic plugin-local RVV vector dataflow token for selected low-level
+    RVV bodies. The type carries the element dtype and LMUL. The enclosing
+    tcrv_rvv.setvl / tcrv_rvv.with_vl control surface carries SEW and policy,
+    and RVV plugin legality validates that the type/config/body agree before
+    route construction.
+
+    This type is the corrected Stage 1 selected-body surface for retained
+    arithmetic routes. It is not a route id, descriptor, artifact name, source
+    front door marker, intrinsic spelling, runtime evidence, or performance
+    claim.
+  }];
+
+  let parameters = (ins
+    "mlir::Type":$elementType,
+    StringRefParameter<"LMUL string">:$lmul
+  );
+  let assemblyFormat = "`<` $elementType `,` $lmul `>`";
+}
+
 def RuntimeABIValueOp : TCRVRVV_Op<"runtime_abi_value",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",
@@ -295,6 +317,84 @@ def I32BinaryPreRealizedBodyOp
 
   let assemblyFormat =
     "$lhs `,` $rhs `,` $out `,` $n attr-dict `:` type($lhs) `,` type($rhs) `,` type($out) `,` type($n)";
+  let hasVerifier = 1;
+}
+
+def LoadOp : TCRVRVV_Op<"load",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV vector load dataflow op";
+  let description = [{
+    Records one generic plugin-local RVV vector load dataflow step. The op is
+    nested directly under tcrv_rvv.with_vl, consumes one explicit runtime ABI
+    buffer SSA value plus the active !tcrv_rvv.vl token, and produces one
+    !tcrv_rvv.vector element/LMUL token matching the enclosing config.
+
+    Buffer ABI provenance comes from the explicit runtime ABI operand. Element
+    dtype and LMUL come from the result type and are validated with the
+    surrounding setvl/with_vl config by the RVV dialect/provider.
+  }];
+
+  let arguments = (ins
+    AnyType:$buffer,
+    AnyType:$vl
+  );
+  let results = (outs AnyType:$loaded);
+
+  let assemblyFormat =
+    "$buffer `,` $vl attr-dict `:` type($buffer) `,` type($vl) `->` type($loaded)";
+  let hasVerifier = 1;
+}
+
+def BinaryOp : TCRVRVV_Op<"binary",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary = "generic typed RVV binary arithmetic dataflow op";
+  let description = [{
+    Records one generic plugin-local RVV vector binary arithmetic dataflow
+    step. The op is nested directly under tcrv_rvv.with_vl, consumes two
+    same-typed !tcrv_rvv.vector operands and the active !tcrv_rvv.vl token,
+    carries an explicit operation kind, and produces one same-typed
+    !tcrv_rvv.vector result.
+
+    For the current Stage 1 retained arithmetic slice, kind is limited to
+    add, sub, or mul. Dtype/config/operation authority comes from the typed
+    body and config, not from old i32 helper names or route metadata.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$vl,
+    StrAttr:$kind
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def StoreOp : TCRVRVV_Op<"store",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV vector store dataflow op";
+  let description = [{
+    Records one generic plugin-local RVV vector store dataflow step. The op is
+    nested directly under tcrv_rvv.with_vl, consumes one explicit output
+    runtime ABI buffer SSA value, one !tcrv_rvv.vector dataflow value matching
+    the enclosing config, and the active !tcrv_rvv.vl token.
+  }];
+
+  let arguments = (ins
+    AnyType:$buffer,
+    AnyType:$value,
+    AnyType:$vl
+  );
+
+  let assemblyFormat =
+    "$buffer `,` $value `,` $vl attr-dict `:` type($buffer) `,` type($value) `,` type($vl)";
   let hasVerifier = 1;
 }
 

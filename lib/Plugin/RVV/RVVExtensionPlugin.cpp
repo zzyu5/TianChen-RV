@@ -311,41 +311,43 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
   return withVL;
 }
 
-mlir::Operation *createRealizedI32Load(mlir::OpBuilder &builder,
-                                       mlir::Location loc, mlir::Value buffer,
-                                       mlir::Value vl) {
-  mlir::OperationState state(loc, "tcrv_rvv.i32_load");
+mlir::Type getStage1GenericVectorType(mlir::OpBuilder &builder) {
+  return tcrv::rvv::VectorType::get(
+      builder.getContext(), builder.getI32Type(),
+      tcrv::rvv::getRVVI32M1LMUL());
+}
+
+mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
+                                           mlir::Location loc,
+                                           mlir::Value buffer,
+                                           mlir::Value vl) {
+  mlir::OperationState state(loc, "tcrv_rvv.load");
   state.addOperands({buffer, vl});
-  state.addTypes(tcrv::rvv::I32M1VectorType::get(builder.getContext()));
+  state.addTypes(getStage1GenericVectorType(builder));
   return builder.create(state);
 }
 
 llvm::Expected<mlir::Operation *>
-createRealizedI32BinaryCompute(mlir::OpBuilder &builder, mlir::Location loc,
-                               llvm::StringRef opKind, mlir::Value lhs,
-                               mlir::Value rhs, mlir::Value vl) {
-  llvm::StringRef opName;
-  if (opKind == "add")
-    opName = "tcrv_rvv.i32_add";
-  else if (opKind == "sub")
-    opName = "tcrv_rvv.i32_sub";
-  else if (opKind == "mul")
-    opName = "tcrv_rvv.i32_mul";
-  else
+createRealizedGenericBinaryCompute(mlir::OpBuilder &builder,
+                                   mlir::Location loc,
+                                   llvm::StringRef opKind, mlir::Value lhs,
+                                   mlir::Value rhs, mlir::Value vl) {
+  if (!isSupportedPreRealizedArithmeticOpKind(opKind))
     return makeRVVPluginError(
         "pre-realized RVV selected-body realization supports only op_kind "
         "'add', 'sub', or 'mul'");
 
-  mlir::OperationState state(loc, opName);
+  mlir::OperationState state(loc, "tcrv_rvv.binary");
   state.addOperands({lhs, rhs, vl});
-  state.addTypes(tcrv::rvv::I32M1VectorType::get(builder.getContext()));
+  state.addAttribute("kind", builder.getStringAttr(opKind));
+  state.addTypes(lhs.getType());
   return builder.create(state);
 }
 
-void createRealizedI32Store(mlir::OpBuilder &builder, mlir::Location loc,
-                            mlir::Value out, mlir::Value value,
-                            mlir::Value vl) {
-  mlir::OperationState state(loc, "tcrv_rvv.i32_store");
+void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
+                                mlir::Value out, mlir::Value value,
+                                mlir::Value vl) {
+  mlir::OperationState state(loc, "tcrv_rvv.store");
   state.addOperands({out, value, vl});
   (void)builder.create(state);
 }
@@ -380,17 +382,17 @@ realizePreRealizedRVVSelectedBody(
                            request.getRole(), requires);
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
-  auto lhsLoad = llvm::cast<tcrv::rvv::I32LoadOp>(
-      createRealizedI32Load(builder, loc, body->getLhs(), setvl.getVl()));
-  auto rhsLoad = llvm::cast<tcrv::rvv::I32LoadOp>(
-      createRealizedI32Load(builder, loc, body->getRhs(), setvl.getVl()));
-  llvm::Expected<mlir::Operation *> compute = createRealizedI32BinaryCompute(
+  auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(
+      createRealizedGenericLoad(builder, loc, body->getLhs(), setvl.getVl()));
+  auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(
+      createRealizedGenericLoad(builder, loc, body->getRhs(), setvl.getVl()));
+  llvm::Expected<mlir::Operation *> compute = createRealizedGenericBinaryCompute(
       builder, loc, body->getOpKind(), lhsLoad.getLoaded(),
       rhsLoad.getLoaded(), setvl.getVl());
   if (!compute)
     return compute.takeError();
-  createRealizedI32Store(builder, loc, body->getOut(),
-                         (*compute)->getResult(0), setvl.getVl());
+  createRealizedGenericStore(builder, loc, body->getOut(),
+                             (*compute)->getResult(0), setvl.getVl());
   body->erase();
   return withVL;
 }

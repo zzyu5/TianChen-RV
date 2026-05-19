@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Stage1 route authority and typed body surface contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built route and common EmitC neutrality"}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/runtime role boundary"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-owned legality realization and route provider contract"}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Added minimal generic !tcrv_rvv.vector plus load/binary/store surface for retained Stage1 arithmetic"}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Added verifier checks tying generic vector elem type, LMUL, VL, SEW, policy, ABI roles, and binary kind to with_vl"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Taught RVV provider to derive route support from generic load/binary/store selected-body facts"}
+{"file": "lib/Plugin/RVV/RVVExtensionPlugin.cpp", "reason": "Changed pre-realized add/sub/mul realization to produce generic load/binary/store instead of legacy i32 helper ops"}
+{"file": "lib/Plugin/RVV/Construction/RVVConstructionProtocol.cpp", "reason": "Allowed construction role conformance for generic binary arithmetic while preserving compare/select legacy inventory"}
+{"file": "test/Conversion/EmitC/rvv-generic-binary-materialization.mlir", "reason": "Positive focused generic add/sub/mul EmitC materialization coverage"}
+{"file": "test/Dialect/RVV/generic-dataflow-negative.mlir", "reason": "Negative verifier coverage for unsupported generic binary kind"}
+{"file": "test/Target/RVV/generic-selected-body-artifact-arithmetic.mlir", "reason": "Positive target header artifact coverage from generic selected-body add"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-add.mlir", "reason": "Pre-realized add now realizes to generic load/binary/store"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-sub.mlir", "reason": "Pre-realized sub now realizes to generic load/binary/store"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-mul.mlir", "reason": "Pre-realized mul now realizes to generic load/binary/store"}

@@ -3,7 +3,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 
 // Pre-realized selected-body input. The RVV plugin must realize this bounded
-// typed sub body before the existing provider route/common EmitC/target path can
+// typed sub body before the provider route/common EmitC/target path can
 // consume it.
 
 module {
@@ -32,16 +32,17 @@ module {
 // REALIZED-SAME: origin = "rvv-plugin"
 // REALIZED-SAME: selected_path_role = "dispatch case"
 // REALIZED-SAME: selected_variant = @pre_realized_body_rvv_i32_sub
-// REALIZED: tcrv_rvv.i32_load
-// REALIZED: tcrv_rvv.i32_load
-// REALIZED: tcrv_rvv.i32_sub
-// REALIZED: tcrv_rvv.i32_store
+// REALIZED: tcrv_rvv.load
+// REALIZED: tcrv_rvv.load
+// REALIZED: tcrv_rvv.binary
+// REALIZED-SAME: kind = "sub"
+// REALIZED: tcrv_rvv.store
 // REALIZED-NOT: tcrv_rvv.i32_binary_pre_realized_body
 
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "sub"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.i32_sub"}
+// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.binary"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: lowering_boundary = "tcrv_rvv.with_vl"
 // PLAN-SAME: origin = "rvv-plugin"

@@ -145,8 +145,20 @@ bool isAllowedI32BinaryPreRealizedBodyAttr(llvm::StringRef name) {
          name == kPolicyAttrName;
 }
 
+bool isAllowedLoadAttr(llvm::StringRef) { return false; }
+
+bool isAllowedBinaryAttr(llvm::StringRef name) {
+  return name == "kind";
+}
+
+bool isAllowedStoreAttr(llvm::StringRef) { return false; }
+
 bool isSupportedI32BinaryPreRealizedBodyOpKind(llvm::StringRef opKind) {
   return opKind == "add" || opKind == "sub" || opKind == "mul";
+}
+
+bool isSupportedGenericBinaryKind(llvm::StringRef kind) {
+  return kind == "add" || kind == "sub" || kind == "mul";
 }
 
 bool isAllowedI32AddAttr(llvm::StringRef name) {
@@ -376,6 +388,75 @@ bool isI32M1Mask(mlir::Type type) {
   return llvm::isa<I32M1MaskType>(type);
 }
 
+llvm::StringRef getGenericRVVVectorLMUL(mlir::Type type) {
+  auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
+  if (!vector)
+    return {};
+  if (!vector.getElementType().isInteger(32))
+    return {};
+  if (vector.getLmul() == "m1" || vector.getLmul() == "m2")
+    return vector.getLmul();
+  return {};
+}
+
+mlir::LogicalResult verifyGenericVectorTypeForWithVL(mlir::Operation *op,
+                                                     mlir::Value value,
+                                                     llvm::StringRef role) {
+  auto vector =
+      llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(value.getType());
+  if (!vector)
+    return op->emitOpError()
+           << "requires " << role
+           << " type to be generic !tcrv_rvv.vector";
+  if (!vector.getElementType().isInteger(32))
+    return op->emitOpError()
+           << "currently requires " << role
+           << " element type to be i32 for the retained Stage 1 arithmetic "
+              "route";
+
+  llvm::StringRef valueLMUL = getGenericRVVVectorLMUL(value.getType());
+  if (valueLMUL.empty())
+    return op->emitOpError()
+           << "requires " << role
+           << " LMUL to be \"m1\" or \"m2\" for the retained Stage 1 "
+              "arithmetic route";
+
+  auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
+  if (!withVL)
+    return mlir::success();
+
+  auto expectedSEW =
+      withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  if (!expectedSEW)
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
+              "metadata for generic RVV vector dataflow";
+  if (expectedSEW.getInt() != getRVVFirstSliceSEWBits())
+    return op->emitOpError()
+           << "requires " << role
+           << " element type i32 to agree with enclosing tcrv_rvv.with_vl "
+              "SEW32 metadata";
+
+  auto expectedLMUL =
+      withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  if (!expectedLMUL)
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit LMUL "
+              "metadata for generic RVV vector dataflow";
+  if (expectedLMUL.getValue() != valueLMUL)
+    return op->emitOpError()
+           << "requires " << role << " type " << value.getType()
+           << " to agree with enclosing tcrv_rvv.with_vl LMUL metadata '"
+           << expectedLMUL.getValue() << "'";
+
+  if (!withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for generic RVV vector dataflow";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
                                                  mlir::Value value,
                                                  llvm::StringRef role) {
@@ -517,6 +598,22 @@ llvm::StringRef I32BroadcastLoadOp::getTCRVEmitCLowerableSourceOpName() {
 
 llvm::StringRef I32BroadcastLoadOp::getTCRVEmitCLowerableSourceRole() {
   return "load";
+}
+
+llvm::StringRef LoadOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef LoadOp::getTCRVEmitCLowerableSourceRole() {
+  return "load";
+}
+
+llvm::StringRef StoreOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef StoreOp::getTCRVEmitCLowerableSourceRole() {
+  return "store";
 }
 
 llvm::StringRef I32StoreOp::getTCRVEmitCLowerableSourceOpName() {
@@ -903,6 +1000,104 @@ mlir::LogicalResult I32BinaryPreRealizedBodyOp::verify() {
           {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult LoadOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.load",
+                                         isAllowedLoadAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires exactly one explicit input buffer ABI operand, one "
+              "!tcrv_rvv.vl operand, and one generic RVV vector result";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getBuffer(), "input buffer",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
+}
+
+mlir::LogicalResult BinaryOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.binary keeps SEW/LMUL/policy on setvl/with_vl, "
+                "runtime n/AVL/VL in the surrounding control-plane IR, and "
+                "rejects deleted local element_count metadata";
+
+    if (!isAllowedBinaryAttr(attrName))
+      return emitOpError()
+             << "only accepts generic binary attribute 'kind"
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!isSupportedGenericBinaryKind(getKind()))
+    return emitOpError()
+           << "currently supports only kind \"add\", \"sub\", or \"mul\" "
+              "for the retained Stage 1 arithmetic route";
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires lhs/rhs generic RVV vector operands, one "
+              "!tcrv_rvv.vl operand, and one generic RVV vector result";
+  if (getLhs().getType() != getRhs().getType() ||
+      getLhs().getType() != getResult().getType())
+    return emitOpError()
+           << "requires lhs, rhs, and result to have the same generic RVV "
+              "vector type";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getLhs(), "lhs")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getRhs(), "rhs")))
+    return mlir::failure();
+  return verifyGenericVectorTypeForWithVL(op, getResult(), "result");
+}
+
+mlir::LogicalResult StoreOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.store",
+                                         isAllowedStoreAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires one explicit output buffer ABI operand, one generic "
+              "RVV vector value operand, one !tcrv_rvv.vl operand, and no "
+              "results";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getBuffer(), "output buffer",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  return verifyGenericVectorTypeForWithVL(op, getValue(), "stored value");
 }
 
 mlir::LogicalResult I32AddOp::verify() {

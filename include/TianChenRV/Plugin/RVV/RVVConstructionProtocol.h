@@ -122,6 +122,10 @@ getRVVSelectedBodyExecutableRoleSteps(llvm::StringRef typedComputeOpName);
 llvm::Expected<llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10>>
 getRVVSelectedBodyExecutableRoleSteps(llvm::StringRef typedComputeOpName,
                                       llvm::StringRef rhsSourceOperationName);
+llvm::Expected<llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10>>
+getRVVSelectedBodyExecutableRoleSteps(llvm::StringRef operationMnemonic,
+                                      llvm::StringRef typedComputeOpName,
+                                      llvm::StringRef rhsSourceOperationName);
 
 llvm::Error verifyRVVConstructionManifest(
     const RVVConstructionManifest &manifest);
@@ -146,7 +150,7 @@ llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
     llvm::ArrayRef<mlir::Operation *> orderedRoleOperations,
     llvm::ArrayRef<unsigned> orderedRoleOperationOrders,
     llvm::StringRef selectedVariantSymbol, llvm::StringRef pathRole,
-    llvm::StringRef typedComputeOpName,
+    llvm::StringRef operationMnemonic, llvm::StringRef typedComputeOpName,
     llvm::StringRef rhsSourceOperationName,
     llvm::StringRef context);
 

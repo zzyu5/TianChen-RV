@@ -338,6 +338,8 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::I32LoadOp lhsLoad;
   tcrv::rvv::I32LoadOp rhsLoad;
   tcrv::rvv::I32BroadcastLoadOp rhsBroadcastLoad;
+  tcrv::rvv::LoadOp lhsGenericLoad;
+  tcrv::rvv::LoadOp rhsGenericLoad;
   mlir::Operation *arithmeticOp = nullptr;
   mlir::Value arithmeticLhs;
   mlir::Value arithmeticRhs;
@@ -353,6 +355,16 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value selectFalseValue;
   mlir::Value selectResult;
   tcrv::rvv::I32StoreOp store;
+  tcrv::rvv::StoreOp genericStore;
+  mlir::Operation *lhsLoadOperation = nullptr;
+  mlir::Operation *rhsLoadOperation = nullptr;
+  mlir::Operation *storeOperation = nullptr;
+  mlir::Value lhsBuffer;
+  mlir::Value rhsBuffer;
+  mlir::Value outBuffer;
+  mlir::Value lhsValue;
+  mlir::Value rhsValue;
+  mlir::Value storeValue;
   support::RuntimeABIParameter lhsABI;
   support::RuntimeABIParameter rhsABI;
   support::RuntimeABIParameter outABI;
@@ -424,24 +436,63 @@ assignRVVLoadBinding(RVVSelectedBodyRouteSlice &slice,
                      tcrv::rvv::I32LoadOp load,
                      const support::RuntimeABIParameter &parameter) {
   if (parameter.role == support::RuntimeABIParameterRole::LHSInputBuffer) {
-    if (slice.lhsLoad)
+    if (slice.lhsLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded RVV EmitC route requires a unique lhs-input-buffer load");
     slice.lhsLoad = load;
+    slice.lhsLoadOperation = load.getOperation();
+    slice.lhsBuffer = load.getBuffer();
+    slice.lhsValue = load.getLoaded();
     slice.lhsABI = parameter;
     return llvm::Error::success();
   }
   if (parameter.role == support::RuntimeABIParameterRole::RHSInputBuffer) {
-    if (slice.rhsLoad)
+    if (slice.rhsLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded RVV EmitC route requires a unique rhs-input-buffer load");
     slice.rhsLoad = load;
+    slice.rhsLoadOperation = load.getOperation();
+    slice.rhsBuffer = load.getBuffer();
+    slice.rhsValue = load.getLoaded();
     slice.rhsABI = parameter;
     return llvm::Error::success();
   }
 
   return makeRVVEmitCRouteProviderError(
       llvm::Twine("unsupported RVV i32 load runtime ABI role '") +
+      support::stringifyRuntimeABIParameterRole(parameter.role) +
+      "' for bounded EmitC route");
+}
+
+llvm::Error
+assignRVVGenericLoadBinding(RVVSelectedBodyRouteSlice &slice,
+                            tcrv::rvv::LoadOp load,
+                            const support::RuntimeABIParameter &parameter) {
+  if (parameter.role == support::RuntimeABIParameterRole::LHSInputBuffer) {
+    if (slice.lhsLoadOperation)
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV EmitC route requires a unique lhs-input-buffer load");
+    slice.lhsGenericLoad = load;
+    slice.lhsLoadOperation = load.getOperation();
+    slice.lhsBuffer = load.getBuffer();
+    slice.lhsValue = load.getLoaded();
+    slice.lhsABI = parameter;
+    return llvm::Error::success();
+  }
+  if (parameter.role == support::RuntimeABIParameterRole::RHSInputBuffer) {
+    if (slice.rhsLoadOperation)
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV EmitC route requires a unique rhs-input-buffer load");
+    slice.rhsGenericLoad = load;
+    slice.rhsLoadOperation = load.getOperation();
+    slice.rhsBuffer = load.getBuffer();
+    slice.rhsValue = load.getLoaded();
+    slice.rhsABI = parameter;
+    return llvm::Error::success();
+  }
+
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("unsupported RVV generic load runtime ABI role '") +
       support::stringifyRuntimeABIParameterRole(parameter.role) +
       "' for bounded EmitC route");
 }
@@ -459,6 +510,9 @@ assignRVVBroadcastLoadBinding(RVVSelectedBodyRouteSlice &slice,
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires a unique rhs broadcast load");
   slice.rhsBroadcastLoad = load;
+  slice.rhsLoadOperation = load.getOperation();
+  slice.rhsBuffer = load.getBuffer();
+  slice.rhsValue = load.getBroadcast();
   slice.rhsABI = parameter;
   return llvm::Error::success();
 }
@@ -511,6 +565,19 @@ llvm::Error recordRVVSelectedBodyOperation(RVVSelectedBodyRouteSlice &slice,
   slice.arithmeticRhs = rhs;
   slice.arithmeticResult = result;
   return llvm::Error::success();
+}
+
+llvm::Expected<RVVSelectedBodyOperationKind>
+parseRVVSelectedBodyBinaryKind(llvm::StringRef kind) {
+  if (kind == "add")
+    return RVVSelectedBodyOperationKind::Add;
+  if (kind == "sub")
+    return RVVSelectedBodyOperationKind::Sub;
+  if (kind == "mul")
+    return RVVSelectedBodyOperationKind::Mul;
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("unsupported generic tcrv_rvv.binary kind '") + kind +
+      "' for bounded RVV EmitC route");
 }
 
 llvm::Error recordRVVSelectedBodyCompareOp(RVVSelectedBodyRouteSlice &slice,
@@ -580,9 +647,14 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return runtimeElementCountABI.takeError();
 
   llvm::SmallVector<tcrv::rvv::I32LoadOp, 2> loads;
+  llvm::SmallVector<tcrv::rvv::LoadOp, 2> genericLoads;
   llvm::SmallVector<tcrv::rvv::I32BroadcastLoadOp, 1> broadcastLoads;
   unsigned storeCount = 0;
   for (mlir::Operation &op : slice.withVL.getBody().front()) {
+    if (auto load = llvm::dyn_cast<tcrv::rvv::LoadOp>(op)) {
+      genericLoads.push_back(load);
+      continue;
+    }
     if (auto load = llvm::dyn_cast<tcrv::rvv::I32LoadOp>(op)) {
       loads.push_back(load);
       continue;
@@ -613,6 +685,17 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         return std::move(error);
       continue;
     }
+    if (auto binary = llvm::dyn_cast<tcrv::rvv::BinaryOp>(op)) {
+      llvm::Expected<RVVSelectedBodyOperationKind> kind =
+          parseRVVSelectedBodyBinaryKind(binary.getKind());
+      if (!kind)
+        return kind.takeError();
+      if (llvm::Error error = recordRVVSelectedBodyOperation(
+              slice, binary.getOperation(), *kind, binary.getLhs(),
+              binary.getRhs(), binary.getResult()))
+        return std::move(error);
+      continue;
+    }
     if (auto compare = llvm::dyn_cast<tcrv::rvv::I32CmpEqOp>(op)) {
       if (llvm::Error error = recordRVVSelectedBodyCompareOp(slice, compare))
         return std::move(error);
@@ -628,14 +711,34 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       ++storeCount;
       continue;
     }
+    if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(op)) {
+      slice.genericStore = store;
+      ++storeCount;
+      continue;
+    }
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("bounded RVV EmitC route does not support op '") +
         op.getName().getStringRef() +
-        "' inside tcrv_rvv.with_vl; expected load or broadcast-load, "
+        "' inside tcrv_rvv.with_vl; expected generic load/binary/store or "
+        "legacy load or broadcast-load, "
         "arithmetic or compare/select compute, and store only");
   }
 
   const bool isCompareSelect = slice.compareOp || slice.selectOp;
+  const bool hasGenericDataflow =
+      !genericLoads.empty() ||
+      (slice.arithmeticOp &&
+       slice.arithmeticOp->getName().getStringRef() == "tcrv_rvv.binary") ||
+      slice.genericStore;
+  const bool hasLegacyDataflow =
+      !loads.empty() || !broadcastLoads.empty() || slice.compareOp ||
+      slice.selectOp || slice.store ||
+      (slice.arithmeticOp &&
+       slice.arithmeticOp->getName().getStringRef() != "tcrv_rvv.binary");
+  if (hasGenericDataflow && hasLegacyDataflow)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route must not mix generic tcrv_rvv.load/binary/"
+        "store with legacy tcrv_rvv.i32_* dataflow in one selected body");
   if (isCompareSelect) {
     if (!slice.compareOp || !slice.selectOp)
       return makeRVVEmitCRouteProviderError(
@@ -646,6 +749,15 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "bounded RVV compare/select EmitC route requires exactly two "
           "tcrv_rvv.i32_load ops and does not support broadcast predicates in "
           "this slice");
+  } else if (hasGenericDataflow) {
+    if (genericLoads.size() != 2)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV EmitC route requires exactly two "
+          "tcrv_rvv.load ops");
+    if (!slice.genericStore)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV EmitC route requires exactly one "
+          "tcrv_rvv.store op");
   } else if (loads.size() != 2) {
     if (!(loads.size() == 1 && broadcastLoads.size() == 1))
       return makeRVVEmitCRouteProviderError(
@@ -657,14 +769,15 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route must not mix two vector loads with an "
         "additional tcrv_rvv.i32_broadcast_load op");
-  if (loads.empty() || broadcastLoads.size() > 1)
+  if (!hasGenericDataflow && (loads.empty() || broadcastLoads.size() > 1))
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires a unique lhs load and at most one "
         "rhs broadcast load");
   if (!slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one supported "
-        "tcrv_rvv.i32_add, tcrv_rvv.i32_sub, tcrv_rvv.i32_mul, or "
+        "tcrv_rvv.binary, tcrv_rvv.i32_add, tcrv_rvv.i32_sub, "
+        "tcrv_rvv.i32_mul, or "
         "tcrv_rvv.i32_select op");
   if (storeCount != 1)
     return makeRVVEmitCRouteProviderError(
@@ -688,6 +801,17 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     if (llvm::Error error = assignRVVLoadBinding(slice, load, *parameter))
       return error;
   }
+  for (tcrv::rvv::LoadOp load : genericLoads) {
+    llvm::Expected<support::RuntimeABIParameter> parameter =
+        getRuntimeABIParameterBindingFromValue(
+            load.getBuffer(), "tcrv_rvv.load buffer operand",
+            {support::RuntimeABIParameterRole::LHSInputBuffer,
+             support::RuntimeABIParameterRole::RHSInputBuffer});
+    if (!parameter)
+      return parameter.takeError();
+    if (llvm::Error error = assignRVVGenericLoadBinding(slice, load, *parameter))
+      return error;
+  }
   for (tcrv::rvv::I32BroadcastLoadOp broadcastLoad : broadcastLoads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
@@ -701,27 +825,35 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return error;
   }
 
-  if (!slice.lhsLoad || (!slice.rhsLoad && !slice.rhsBroadcastLoad))
+  if (!slice.lhsLoadOperation || !slice.rhsLoadOperation)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires a lhs-input-buffer load and either "
         "a rhs-input-buffer load or rhs broadcast load");
   llvm::Expected<support::RuntimeABIParameter> outABI =
       getRuntimeABIParameterBindingFromValue(
-          slice.store.getBuffer(), "tcrv_rvv.i32_store buffer operand",
+          hasGenericDataflow ? slice.genericStore.getBuffer()
+                             : slice.store.getBuffer(),
+          hasGenericDataflow ? "tcrv_rvv.store buffer operand"
+                             : "tcrv_rvv.i32_store buffer operand",
           {support::RuntimeABIParameterRole::OutputBuffer});
   if (!outABI)
     return outABI.takeError();
+  if (hasGenericDataflow) {
+    slice.storeOperation = slice.genericStore.getOperation();
+    slice.outBuffer = slice.genericStore.getBuffer();
+    slice.storeValue = slice.genericStore.getValue();
+  } else {
+    slice.storeOperation = slice.store.getOperation();
+    slice.outBuffer = slice.store.getBuffer();
+    slice.storeValue = slice.store.getValue();
+  }
   llvm::StringRef operationMnemonic =
       stringifyRVVSelectedBodyOperationKind(slice.arithmeticKind);
   slice.runtimeElementCountABI = *runtimeElementCountABI;
   slice.outABI = *outABI;
-  mlir::Value rhsValue = slice.rhsBroadcastLoad
-                             ? slice.rhsBroadcastLoad.getBroadcast()
-                             : slice.rhsLoad.getLoaded();
   if (slice.arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect) {
     auto isLoadedDataValue = [&](mlir::Value value) {
-      return value == slice.lhsLoad.getLoaded() ||
-             value == slice.rhsLoad.getLoaded();
+      return value == slice.lhsValue || value == slice.rhsValue;
     };
     if (!isLoadedDataValue(slice.compareLhs) ||
         !isLoadedDataValue(slice.compareRhs))
@@ -740,20 +872,20 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "bounded RVV compare/select EmitC route requires "
           "tcrv_rvv.i32_select true/false operands to be explicit lhs/rhs "
           "vector load results from the selected typed body");
-    if (slice.store.getValue() != slice.selectResult)
+    if (slice.storeValue != slice.selectResult)
       return makeRVVEmitCRouteProviderError(
           "bounded RVV compare/select EmitC route requires tcrv_rvv.i32_store "
           "to consume the select result");
   } else {
-    if (slice.arithmeticLhs != slice.lhsLoad.getLoaded() ||
-        slice.arithmeticRhs != rhsValue)
+    if (slice.arithmeticLhs != slice.lhsValue ||
+        slice.arithmeticRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
-          llvm::Twine("bounded RVV EmitC route requires tcrv_rvv.i32_") +
+          llvm::Twine("bounded RVV EmitC route requires selected-body ") +
           operationMnemonic +
           " to consume lhs load and explicit rhs vector or broadcast results");
-    if (slice.store.getValue() != slice.arithmeticResult)
+    if (slice.storeValue != slice.arithmeticResult)
       return makeRVVEmitCRouteProviderError(
-          "bounded RVV EmitC route requires tcrv_rvv.i32_store to consume the "
+          "bounded RVV EmitC route requires selected-body store to consume the "
           "arithmetic result");
   }
 
@@ -829,13 +961,11 @@ struct RVVOrderedRoleOperations {
 unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
                                   mlir::Operation *op) {
   auto lhsABI =
-      slice.lhsLoad.getBuffer().getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
-  mlir::Value rhsBuffer = slice.rhsBroadcastLoad
-                              ? slice.rhsBroadcastLoad.getBuffer()
-                              : slice.rhsLoad.getBuffer();
-  auto rhsABI = rhsBuffer.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+      slice.lhsBuffer.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto rhsABI =
+      slice.rhsBuffer.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
   auto outABI =
-      slice.store.getBuffer().getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+      slice.outBuffer.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
   auto nABI =
       slice.setvl.getAvl().getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
   if (lhsABI && op == lhsABI.getOperation())
@@ -850,11 +980,9 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
     return 4;
   if (op == slice.withVL.getOperation())
     return 5;
-  if (op == slice.lhsLoad.getOperation())
+  if (op == slice.lhsLoadOperation)
     return 6;
-  if (slice.rhsLoad && op == slice.rhsLoad.getOperation())
-    return 7;
-  if (slice.rhsBroadcastLoad && op == slice.rhsBroadcastLoad.getOperation())
+  if (op == slice.rhsLoadOperation)
     return 7;
   if (slice.compareOp && op == slice.compareOp.getOperation())
     return 8;
@@ -863,7 +991,7 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
     return 9;
   if (op == slice.arithmeticOp)
     return 8;
-  if (op == slice.store.getOperation())
+  if (op == slice.storeOperation)
     return slice.arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect ? 10
                                                                            : 9;
   return 10;
@@ -897,13 +1025,11 @@ llvm::Error verifySelectedRVVRoleSequence(
     const VariantEmitCLowerableRequest &request,
     const RVVSelectedBodyConstructionRoute &constructionRoute) {
   auto lhsABI =
-      slice.lhsLoad.getBuffer().getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
-  mlir::Value rhsBuffer = slice.rhsBroadcastLoad
-                              ? slice.rhsBroadcastLoad.getBuffer()
-                              : slice.rhsLoad.getBuffer();
-  auto rhsABI = rhsBuffer.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+      slice.lhsBuffer.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  auto rhsABI =
+      slice.rhsBuffer.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
   auto outABI =
-      slice.store.getBuffer().getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+      slice.outBuffer.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
   auto nABI =
       slice.setvl.getAvl().getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
   if (!lhsABI || !rhsABI || !outABI || !nABI)
@@ -923,12 +1049,15 @@ llvm::Error verifySelectedRVVRoleSequence(
       collectRVVRoleOperationsInBodyOrder(request.getVariant(), slice);
   llvm::StringRef rhsSourceOperationName = slice.rhsBroadcastLoad
                                                ? "tcrv_rvv.i32_broadcast_load"
+                                           : slice.rhsGenericLoad
+                                               ? "tcrv_rvv.load"
                                                : "tcrv_rvv.i32_load";
   return verifyRVVSelectedBodySelectedRoleSequence(
       ordered.operations, ordered.constructionOrders,
       request.getVariant().getSymName(),
       stringifyVariantEmissionRole(request.getRole()),
-      constructionRoute.typedComputeOpName, rhsSourceOperationName,
+      constructionRoute.operationMnemonic,
+      slice.arithmeticOp->getName().getStringRef(), rhsSourceOperationName,
       "selected RVV EmitC route");
 }
 
@@ -1014,7 +1143,7 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.constructionRoute = *constructionRoute;
 
   analysis.description.typedComputeOpName =
-      analysis.constructionRoute->typedComputeOpName;
+      analysis.slice.arithmeticOp->getName().getStringRef();
   analysis.description.emitCRouteID = analysis.constructionRoute->emitCRouteID;
   analysis.description.runtimeABIName =
       analysis.constructionRoute->runtimeABIName;
@@ -1050,15 +1179,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
           analysis.slice, *analysis.constructionRoute,
           analysis.slice.runtimeElementCountABI, analysis.slice.outABI))
     return error;
-  if (analysis.slice.arithmeticOp->getName().getStringRef() !=
-      analysis.constructionRoute->typedComputeOpName)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("selected typed RVV body route expected compute op '") +
-        analysis.constructionRoute->typedComputeOpName +
-        "' from the selected-body route profile");
   if (llvm::Error error = verifyRVVSelectedBodyConstructionRouteMapping(
           analysis.routeProfile.operation.operationMnemonic,
-          analysis.constructionRoute->typedComputeOpName,
+          analysis.description.typedComputeOpName,
           analysis.constructionRoute->emitCRouteID,
           analysis.constructionRoute->runtimeABIName))
     return std::move(error);
@@ -1168,10 +1291,17 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     return route.takeError();
   const RVVSelectedBodyConstructionRoute &constructionRoute = **route;
 
-  if (llvm::Error error = requireRouteDescriptionField(
-          context, "typed compute op", description.typedComputeOpName,
-          constructionRoute.typedComputeOpName))
-    return error;
+  const bool usesGenericBinary =
+      description.typedComputeOpName == "tcrv_rvv.binary";
+  if (usesGenericBinary && operationProfile.isCompareSelect)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " compare/select cannot use generic tcrv_rvv.binary");
+  if (!usesGenericBinary)
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "typed compute op", description.typedComputeOpName,
+            constructionRoute.typedComputeOpName))
+      return error;
   if (llvm::Error error = requireRouteDescriptionField(
           context, "EmitC route id", description.emitCRouteID,
           constructionRoute.emitCRouteID))
@@ -1456,7 +1586,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                     description.vlCType.str()}))
     return error;
   if (llvm::Error error = addLoopStep(
-          slice->lhsLoad.getOperation(), "load",
+          slice->lhsLoadOperation, "load",
           description.vectorLoadIntrinsic,
           {TCRVEmitCCallOpaqueOperand{
                (llvm::StringRef(slice->lhsABI.cName) + " + " + inductionName)
@@ -1480,7 +1610,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       return error;
   } else {
     if (llvm::Error error = addLoopStep(
-            slice->rhsLoad.getOperation(), "load",
+            slice->rhsLoadOperation, "load",
             description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
                  (llvm::StringRef(slice->rhsABI.cName) + " + " + inductionName)
@@ -1559,7 +1689,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       return error;
   }
   if (llvm::Error error = addLoopStep(
-          slice->store.getOperation(), "store", description.storeIntrinsic,
+          slice->storeOperation, "store", description.storeIntrinsic,
           {TCRVEmitCCallOpaqueOperand{
                (llvm::StringRef(slice->outABI.cName) + " + " + inductionName)
                    .str(),
