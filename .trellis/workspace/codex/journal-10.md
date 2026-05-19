@@ -1928,3 +1928,41 @@ Added bounded Stage2 generic typed RVV broadcast/scalar-load and compare/select 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 133: Stage2 RVV executable artifact closure for generic typed elementwise routes
+
+**Date**: 2026-05-19
+**Task**: Stage2 RVV executable artifact closure for generic typed elementwise routes
+**Branch**: `main`
+
+### Summary
+
+Created Trellis task `05-19-stage2-rvv-executable-artifact-closure` from the Direction Brief and closed the executable evidence gap for existing generic typed RVV arithmetic, RHS broadcast add, and compare/select selected-body routes. No compiler/source change was required; current runtime/artifact boundary already carried the generated object/header bundles to real `ssh rvv` correctness runs.
+
+### Main Changes
+
+- Added bounded task PRD and context files for executable artifact closure.
+- Ran generated bundle evidence for arithmetic add/sub/mul, RHS broadcast add, and compare/select using `build/bin/tcrv-opt`, `build/bin/tcrv-translate`, and `/usr/lib/llvm-20/bin/llvm-readobj`.
+- Recorded artifact roots under `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260519T-stage2-exec-closure-*`.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] local dry-run selected-body add/sub/mul, RHS broadcast add, and compare/select
+- [OK] `ssh rvv` selected-body add/sub/mul: PASS op=add/sub/mul counts=7,16,23
+- [OK] `ssh rvv` RHS broadcast add: PASS op=add counts=7,16,23
+- [OK] `ssh rvv` compare/select: PASS op=cmp_select counts=7,16,23
+- [OK] focused lit tests: 4/4 passed
+- [OK] `git diff --check`
+- [OK] active-authority diff over `include lib test scripts .trellis/spec` was empty
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None for this bounded executable artifact closure.
