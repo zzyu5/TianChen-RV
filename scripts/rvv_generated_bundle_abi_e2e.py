@@ -209,7 +209,11 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         typed_compute_op="tcrv_rvv.select",
         memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)(41 + (int32_t)(index * 9))",
-        rhs_initializer="(int32_t)(-300 - (int32_t)(index * 7))",
+        rhs_initializer=(
+            "(int32_t)(((index % 4) == 0) "
+            "? (int32_t)(41 + (int32_t)(index * 9)) "
+            ": (int32_t)(-300 - (int32_t)(index * 7)))"
+        ),
         expected_expression="(lhs[index] == rhs[index] ? lhs[index] : rhs[index])",
     ),
     "reduce_add": OpExpectation(
@@ -1271,6 +1275,88 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
+    if expectation.is_cmp_select:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  size_t alloc_n = n == 0 ? 1 : n;
+  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  if (!lhs || !rhs || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(lhs);
+    free(rhs);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < n; ++index) {{
+    lhs[index] = {expectation.lhs_initializer};
+    rhs[index] = {expectation.rhs_initializer};
+    out[index] = {expectation.out_initializer};
+  }}
+
+  {expectation.function_name}(lhs, rhs, out, n);
+
+  size_t predicate_true_lanes = 0;
+  size_t predicate_false_lanes = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    int predicate = lhs[index] == rhs[index];
+    if (predicate)
+      ++predicate_true_lanes;
+    else
+      ++predicate_false_lanes;
+
+    int32_t expected = {expectation.expected_expression};
+    if (out[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d lhs=%d rhs=%d predicate=%d\\n",
+              n, index, out[index], expected, lhs[index], rhs[index], predicate);
+      free(lhs);
+      free(rhs);
+      free(out);
+      return 12;
+    }}
+  }}
+
+  if (n > 1 && (predicate_true_lanes == 0 || predicate_false_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} predicate coverage missing n=%zu true_lanes=%zu false_lanes=%zu\\n",
+            n, predicate_true_lanes, predicate_false_lanes);
+    free(lhs);
+    free(rhs);
+    free(out);
+    return 13;
+  }}
+
+  free(lhs);
+  free(rhs);
+  free(out);
+  printf("{expectation.kind} case n=%zu ok predicate_true_lanes=%zu predicate_false_lanes=%zu\\n",
+         n, predicate_true_lanes, predicate_false_lanes);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
     return f"""
 #include <stddef.h>
 #include <stdint.h>
@@ -1712,6 +1798,10 @@ def run_one_op_e2e(
             "pass_marker": expectation.pass_marker,
             "boundary": "external C ABI consumer of generated header and object only",
         }
+        if expectation.is_cmp_select:
+            evidence["harness"][
+                "predicate_coverage_contract"
+            ] = "multi-lane cmp_select cases require predicate true and false lanes"
 
         if args.dry_run:
             evidence["status"] = "dry_run_success"

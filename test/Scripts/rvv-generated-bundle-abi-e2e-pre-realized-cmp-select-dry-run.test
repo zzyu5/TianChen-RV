@@ -32,8 +32,12 @@
 # CMP-DAG: "value": "tcrv_rvv.select"
 # CMP-DAG: "typed_compute_op": "tcrv_rvv.select"
 # CMP-DAG: "memory_form": "vector-rhs-load"
+# CMP-DAG: "predicate_coverage_contract": "multi-lane cmp_select cases require predicate true and false lanes"
 # CMP-DAG: "status": "dry_run_success"
 
 # HARNESS: tcrv_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select(lhs, rhs, out, n);
+# HARNESS: predicate_true_lanes
+# HARNESS: predicate_false_lanes
 # HARNESS: (lhs[index] == rhs[index] ? lhs[index] : rhs[index])
+# HARNESS: cmp_select predicate coverage missing
 # HARNESS: const size_t counts[] = {7, 16, 23};

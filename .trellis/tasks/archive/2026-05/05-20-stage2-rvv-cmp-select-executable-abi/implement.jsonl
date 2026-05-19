@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage1/Stage2 ordering, and stack boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body, compare/select selected-body realization, provider ownership, and ssh evidence rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route ownership and provider-built lowerable-route contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Executable target artifact, runtime ABI, and ssh evidence boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/script/runtime evidence policy for RVV generated bundle changes."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-compare-select-route/prd.md", "reason": "Previous route-supported compare/select task boundaries and validation results."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-cmp-select-executable-abi/prd.md", "reason": "Current bounded executable ABI closure requirements and acceptance criteria."}

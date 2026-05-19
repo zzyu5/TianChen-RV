@@ -151,6 +151,68 @@ correctness claim only for bounded pre-realized `reduce_add` counts
 |------|---------|
 | `this commit` | (see git log) |
 
+## Session 141: Stage2 RVV compare/select executable ABI closure
+
+**Date**: 2026-05-20
+**Task**: `stage2-rvv-cmp-select-executable-abi`
+**Branch**: `main`
+
+### Summary
+
+Closed executable ABI evidence for the already route-supported pre-realized
+RVV `cmp_select` selected-body path. The existing generated bundle compiled
+and ran on `ssh rvv`; the required code change was limited to the evidence
+harness so compare/select input now covers both predicate-true and
+predicate-false lanes for multi-lane runtime counts.
+
+### Main Changes
+
+- Created and archived the bounded Trellis task from the Hermes Direction
+  Brief.
+- Updated `scripts/rvv_generated_bundle_abi_e2e.py` so `cmp_select` generated
+  inputs include equality lanes and non-equality lanes.
+- Added `cmp_select` harness checks for `predicate_true_lanes` and
+  `predicate_false_lanes`, requiring both for multi-lane cases while keeping
+  expected output tied to the explicit `eq` predicate and
+  `select-lhs-when-mask-else-rhs` semantics.
+- Added dry-run lit assertions for the predicate coverage contract and
+  generated harness checks.
+- No C++/MLIR dialect, selected-body realization, route provider, common
+  EmitC/export, or target artifact exporter code changed.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] pre-realized `cmp_select` dry-run counts `7,16,23`.
+- [OK] focused dry-run lit: 1/1 passed.
+- [OK] real `ssh rvv` evidence counts `7,16,23`:
+  `PASS op=cmp_select counts=7,16,23`.
+- [OK] remote predicate coverage:
+  `n=7 true=2 false=5`, `n=16 true=4 false=12`,
+  `n=23 true=6 false=17`.
+- [OK] `git diff --check`
+- [OK] diff-only active-authority scan found no added legacy/source/descriptor
+  or common/export RVV semantic authority.
+
+### Status
+
+[OK] **Completed and archived**. This round makes a real RVV correctness claim
+only for bounded pre-realized `cmp_select` counts `7,16,23`.
+
+### Next Steps
+
+- No continuation is required for compare/select executable ABI closure. Future
+  Stage2 work should pick a separate low-level RVV capability class or
+  coverage slice under a new bounded task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 ## Session 142: Stage2 RVV compare/select selected-body route path
 
 **Date**: 2026-05-20
