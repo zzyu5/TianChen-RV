@@ -1,0 +1,60 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widen-i32-to-i64 --overwrite --op-kind widen_i32_to_i64 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-widen-i32-to-i64/evidence.json
+# RUN: FileCheck %s --check-prefix=WIDEN --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-widen-i32-to-i64/widen_i32_to_i64/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-widen-i32-to-i64/widen_i32_to_i64/rvv_generated_bundle_abi_widen_i32_to_i64_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "pre-realized-selected-body"
+# ROOT: "widen_i32_to_i64"
+# ROOT: "pre_realized_selected_body": true
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# WIDEN-DAG: "input_mode": "pre-realized-selected-body"
+# WIDEN-DAG: "op_kind": "widen_i32_to_i64"
+# WIDEN-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-widen-i32-to-i64.mlir"
+# WIDEN-DAG: "prototype": "void tcrv_emitc_pre_realized_body_widen_i32_to_i64_kernel_pre_realized_body_rvv_widen_i32_to_i64(const int32_t *lhs, int64_t *out, size_t n);"
+# WIDEN-DAG: "expected_function": "tcrv_emitc_pre_realized_body_widen_i32_to_i64_kernel_pre_realized_body_rvv_widen_i32_to_i64"
+# WIDEN-DAG: "expected_runtime_abi_name": "rvv-generic-widen-i32-to-i64-callable-c-abi.v1"
+# WIDEN-DAG: "expected_selected_variant": "pre_realized_body_rvv_widen_i32_to_i64"
+# WIDEN-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# WIDEN-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# WIDEN-DAG: --tcrv-materialize-selected-lowering-boundaries
+# WIDEN-DAG: "pre_realized_body_consumed": true
+# WIDEN-DAG: "key": "rvv_emitc_lowerable_route"
+# WIDEN-DAG: "value": "rvv-generic-widen-i32-to-i64-emitc-route"
+# WIDEN-DAG: "key": "rvv_selected_body_operation"
+# WIDEN-DAG: "value": "widen_i32_to_i64"
+# WIDEN-DAG: "key": "rvv_selected_body_typed_compute_op"
+# WIDEN-DAG: "value": "tcrv_rvv.widening_convert"
+# WIDEN-DAG: "key": "tcrv_rvv.config_contract"
+# WIDEN-DAG: "value": "rvv-selected-body-sew64-lmul-m2-tail-agnostic-mask-agnostic.v1"
+# WIDEN-DAG: "key": "tcrv_rvv.memory_form"
+# WIDEN-DAG: "value": "unit-stride-conversion"
+# WIDEN-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# WIDEN-DAG: "value": "lhs,out,n"
+# WIDEN-DAG: "key": "tcrv_rvv.source_sew"
+# WIDEN-DAG: "value": "32"
+# WIDEN-DAG: "key": "tcrv_rvv.source_lmul"
+# WIDEN-DAG: "value": "m1"
+# WIDEN-DAG: "key": "tcrv_rvv.dest_sew"
+# WIDEN-DAG: "value": "64"
+# WIDEN-DAG: "key": "tcrv_rvv.dest_lmul"
+# WIDEN-DAG: "value": "m2"
+# WIDEN-DAG: "key": "tcrv_rvv.conversion_relation"
+# WIDEN-DAG: "value": "signed-i32m1-to-i64m2"
+# WIDEN-DAG: "typed_compute_op": "tcrv_rvv.widening_convert"
+# WIDEN-DAG: "memory_form": "unit-stride-conversion"
+# WIDEN-DAG: "lmul": "m2"
+# WIDEN-DAG: "status": "dry_run_success"
+
+# HARNESS: int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+# HARNESS: int64_t *out = (int64_t *)malloc(sizeof(int64_t) * alloc_n);
+# HARNESS: tcrv_emitc_pre_realized_body_widen_i32_to_i64_kernel_pre_realized_body_rvv_widen_i32_to_i64(lhs, out, n);
+# HARNESS: int64_t expected = (int64_t)lhs[index];
+# HARNESS: tcrv_rvv_generated_bundle_abi_widen_i32_to_i64_ok counts=7,16,23
+# HARNESS: PASS op=widen_i32_to_i64 counts=7,16,23

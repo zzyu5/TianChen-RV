@@ -1630,9 +1630,13 @@ int runRVVCommonValidationTest() {
                       ? "tcrv_rvv.masked_binary"
                   : (route.operationMnemonic == "macc_add"
                          ? "tcrv_rvv.macc"
-                         : "tcrv_rvv.binary")));
+                    : (route.operationMnemonic == "widen_i32_to_i64"
+                           ? "tcrv_rvv.widening_convert"
+                         : "tcrv_rvv.binary"))));
     llvm::StringRef rhsSourceOp =
-        route.operationMnemonic == "strided_add"
+        route.operationMnemonic == "widen_i32_to_i64"
+            ? ""
+        : route.operationMnemonic == "strided_add"
             ? "tcrv_rvv.strided_load"
             : (route.operationMnemonic == "scalar_broadcast_add"
                    ? "tcrv_rvv.splat"
@@ -1649,8 +1653,11 @@ int runRVVCommonValidationTest() {
                                  route.operationMnemonic == "masked_add";
     const bool hasAccumulatorLoad = route.operationMnemonic == "macc_add";
     const bool hasStridedMemory = route.operationMnemonic == "strided_add";
+    const bool hasConversion = route.operationMnemonic == "widen_i32_to_i64";
     unsigned expectedStepCount =
-        hasStridedMemory ? 13u : ((hasMaskProducer || hasAccumulatorLoad) ? 11u : 10u);
+        hasConversion ? 8u :
+        (hasStridedMemory ? 13u :
+         ((hasMaskProducer || hasAccumulatorLoad) ? 11u : 10u));
     if (steps->size() != expectedStepCount)
       return fail("RVV executable role sequence must include explicit ABI, "
                   "config, scope, load, compute, optional mask-producing "
@@ -1680,6 +1687,10 @@ int runRVVCommonValidationTest() {
       facts.runtimeABIParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
+    else if (route.operationMnemonic == "widen_i32_to_i64")
+      facts.runtimeABIParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyWideningConversionRuntimeABIParameters();
     else
       facts.runtimeABIParameters = parameters;
 

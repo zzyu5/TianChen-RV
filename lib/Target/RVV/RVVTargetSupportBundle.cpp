@@ -504,6 +504,20 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
            .objectHandoffKind},
   });
   appendRVVConfigVLMetadataEvidence(evidence);
+  evidence.append({
+      {"memory_form", "tcrv_rvv.memory_form", "",
+       /*allowDynamicValue=*/true},
+      {"source_sew", "tcrv_rvv.source_sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"source_lmul", "tcrv_rvv.source_lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"dest_sew", "tcrv_rvv.dest_sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"dest_lmul", "tcrv_rvv.dest_lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"conversion_relation", "tcrv_rvv.conversion_relation", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+  });
   return evidence;
 }
 

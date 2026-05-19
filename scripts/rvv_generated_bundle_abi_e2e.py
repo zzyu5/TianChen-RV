@@ -50,6 +50,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "scalar_broadcast_add",
     "i64_add",
     "lmul_m2_add",
+    "widen_i32_to_i64",
 )
 REDUCE_ADD_ACCUMULATOR_LAYOUT = "rhs-vector-seed-lane0-per-vl-chunk"
 REDUCE_ADD_RESULT_LAYOUT = "store-reduction-lane0-to-output-chunk-base"
@@ -62,11 +63,14 @@ MACC_ADD_ACCUMULATOR_LAYOUT = "output-buffer-vector-accumulator-input"
 MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
 STRIDED_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride"
 SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,out,n"
+WIDENING_CONVERSION_RUNTIME_ABI_ORDER = "lhs,out,n"
+WIDENING_CONVERSION_RELATION = "signed-i32m1-to-i64m2"
 STRIDED_ADD_MEMORY_LAYOUT = "element-strided-lhs-rhs-output-runtime-abi"
 STRIDED_ADD_LHS_STRIDE_SOURCE = "runtime_abi:lhs_stride"
 STRIDED_ADD_RHS_STRIDE_SOURCE = "runtime_abi:rhs_stride"
 STRIDED_ADD_OUT_STRIDE_SOURCE = "runtime_abi:out_stride"
 OUT_SENTINEL = "(int32_t)0x5a5a5a5a"
+I64_OUT_SENTINEL = "(int64_t)0x5a5a5a5a5a5a5a5aLL"
 
 INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
 EXPECTED_SELECTED_ROLE = "dispatch case"
@@ -114,6 +118,11 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *lhs, "
                 "int32_t rhs_scalar, int32_t *out, size_t n);"
             )
+        if self.is_widen_i32_to_i64:
+            return (
+                f"void {self.function_name}(const int32_t *lhs, "
+                "int64_t *out, size_t n);"
+            )
         return (
             f"void {self.function_name}(const {self.element_c_type} *lhs, "
             f"const {self.element_c_type} *rhs, "
@@ -126,6 +135,8 @@ class OpExpectation:
             return EXPECTED_STRIDED_RUNTIME_PARAMETERS
         if self.is_scalar_broadcast_add:
             return EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS
+        if self.is_widen_i32_to_i64:
+            return EXPECTED_WIDENING_CONVERSION_RUNTIME_PARAMETERS
         if self.is_i64_add:
             return EXPECTED_I64_RUNTIME_PARAMETERS
         return EXPECTED_RUNTIME_PARAMETERS
@@ -142,6 +153,8 @@ class OpExpectation:
             return STRIDED_ADD_RUNTIME_ABI_ORDER
         if self.is_scalar_broadcast_add:
             return SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER
+        if self.is_widen_i32_to_i64:
+            return WIDENING_CONVERSION_RUNTIME_ABI_ORDER
         return "lhs,rhs,out,n"
 
     @property
@@ -187,6 +200,10 @@ class OpExpectation:
     @property
     def is_lmul_m2_add(self) -> bool:
         return self.kind == "lmul_m2_add"
+
+    @property
+    def is_widen_i32_to_i64(self) -> bool:
+        return self.kind == "widen_i32_to_i64"
 
 
 EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
@@ -481,6 +498,27 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
     ),
+    "widen_i32_to_i64": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
+        kind="widen_i32_to_i64",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-widen-i32-to-i64.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_widen_i32_to_i64",
+        external_abi_name="rvv-generic-widen-i32-to-i64-callable-c-abi.v1",
+        function_name="tcrv_emitc_pre_realized_body_widen_i32_to_i64_kernel_pre_realized_body_rvv_widen_i32_to_i64",
+        emitc_route="rvv-generic-widen-i32-to-i64-emitc-route",
+        typed_compute_op="tcrv_rvv.widening_convert",
+        memory_form="unit-stride-conversion",
+        lhs_initializer="(int32_t)((int)(index % 29) - 14)",
+        rhs_initializer="unused",
+        expected_expression="(int64_t)lhs[index]",
+        out_initializer=I64_OUT_SENTINEL,
+        lmul="m2",
+        sew="64",
+        element_c_type="int64_t",
+        config_contract="rvv-selected-body-sew64-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew64-lmul-m2",
+    ),
 }
 
 EXPECTED_RUNTIME_PARAMETERS = (
@@ -564,6 +602,16 @@ EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS = (
         "ownership": "target-export-abi-owned",
     },
     EXPECTED_RUNTIME_PARAMETERS[2],
+    EXPECTED_RUNTIME_PARAMETERS[3],
+)
+EXPECTED_WIDENING_CONVERSION_RUNTIME_PARAMETERS = (
+    EXPECTED_RUNTIME_PARAMETERS[0],
+    {
+        "c_name": "out",
+        "c_type": "int64_t *",
+        "role": "output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
     EXPECTED_RUNTIME_PARAMETERS[3],
 )
 COMMON_EXPECTED_METADATA = {
@@ -968,6 +1016,16 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.out_stride_source": STRIDED_ADD_OUT_STRIDE_SOURCE,
             }
         )
+    if expectation.is_widen_i32_to_i64:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.source_sew": "32",
+                "tcrv_rvv.source_lmul": "m1",
+                "tcrv_rvv.dest_sew": "64",
+                "tcrv_rvv.dest_lmul": "m2",
+                "tcrv_rvv.conversion_relation": WIDENING_CONVERSION_RELATION,
+            }
+        )
     return {**per_op_metadata, **common_metadata}
 
 
@@ -1162,6 +1220,22 @@ def verify_materialized_selected_body(
             '!tcrv_rvv.vector<i32, "m2">',
             "materialized selected-body MLIR i32 LMUL m2 vector type",
         )
+    if expectation.is_widen_i32_to_i64:
+        require_contains(
+            text,
+            '!tcrv_rvv.vector<i32, "m1">',
+            "materialized selected-body MLIR widening conversion source vector type",
+        )
+        require_contains(
+            text,
+            '!tcrv_rvv.vector<i64, "m2">',
+            "materialized selected-body MLIR widening conversion result vector type",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.widening_convert",
+            "materialized selected-body MLIR widening conversion compute op",
+        )
     if expectation.is_rhs_broadcast:
         require_contains(
             text,
@@ -1220,6 +1294,11 @@ def verify_materialized_selected_body(
         require_not_contains(
             text,
             "tcrv_rvv.typed_macc_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_widening_conversion_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
     require_no_forbidden_public_residue(text, "materialized selected-body MLIR")
@@ -1463,6 +1542,65 @@ static int run_case(size_t n) {{
 
   free(lhs);
   free(rhs);
+  free(out);
+  printf("{expectation.kind} case n=%zu ok\\n", n);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
+    if expectation.is_widen_i32_to_i64:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n == 0 ? 1 : n;
+  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int64_t *out = (int64_t *)malloc(sizeof(int64_t) * alloc_n);
+  if (!lhs || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(lhs);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < n; ++index) {{
+    lhs[index] = {expectation.lhs_initializer};
+    out[index] = {expectation.out_initializer};
+  }}
+
+  {expectation.function_name}(lhs, out, n);
+
+  for (size_t index = 0; index < n; ++index) {{
+    int64_t expected = {expectation.expected_expression};
+    if (out[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got=%lld expected=%lld lhs=%d\\n",
+              n, index, (long long)out[index], (long long)expected, lhs[index]);
+      free(lhs);
+      free(out);
+      return 12;
+    }}
+  }}
+
+  free(lhs);
   free(out);
   printf("{expectation.kind} case n=%zu ok\\n", n);
   return 0;
@@ -2592,7 +2730,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help=(
             "use the pre-realized selected-body add/sub/mul/masked_add/"
-            "reduce_add/macc_add/strided_add/lmul_m2_add "
+            "reduce_add/macc_add/strided_add/lmul_m2_add/"
+            "widen_i32_to_i64 "
             "fixtures and run public selected lowering-boundary "
             "materialization before emission planning; mutually exclusive "
             "with --rhs-broadcast-selected-body and --lmul-m2-selected-body"

@@ -151,6 +151,85 @@ correctness claim only for bounded pre-realized `reduce_add` counts
 |------|---------|
 | `this commit` | (see git log) |
 
+## Session 145: Stage2 RVV widening conversion executable slice
+
+**Date**: 2026-05-20
+**Task**: `stage2-rvv-widening-conversion`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and implemented one
+bounded Stage2 signed widening conversion executable slice. The new path
+imports `lhs: const int32_t *`, `out: int64_t *`, and runtime `n`, realizes a
+typed source i32/m1 to destination i64/m2 `tcrv_rvv.widening_convert` body, and
+routes it through RVV plugin-owned route planning/provider code into the common
+EmitC materializer.
+
+### Main Changes
+
+- Added a bounded `typed_widening_conversion_pre_realized_body` hook and
+  `tcrv_rvv.widening_convert` generic typed op with source/destination config,
+  policy, memory form, conversion relation, and runtime role verification.
+- Extended selected-body realization to materialize i32/m1 load,
+  i64/m2 setvl/with_vl, widening conversion, and i64/m2 store only for the
+  signed i32-to-i64 unit-stride tuple.
+- Extended RVVEmitCRoutePlanning/provider to derive source/destination ABI
+  types, vector C types, load/store leaves, conversion intrinsic leaf,
+  metadata, runtime ABI order `lhs,out,n`, and artifact/header evidence from
+  typed config facts.
+- Kept non-conversion SEW64/m2 binary routes fail-closed after validation
+  exposed an accidental i64m2 add materialization path.
+- Added generated-bundle dry-run and real RVV harness support for
+  `widen_i32_to_i64`.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] focused `tcrv-opt`/`FileCheck` checks for the new widening dataflow,
+  pre-realized realization, emission plan, header artifact, fail-closed
+  diagnostics, and script dry-run evidence.
+- [OK] generated-bundle dry-run for `widen_i32_to_i64` counts `7,16,23`.
+- [OK] real `ssh rvv` generated-bundle correctness:
+  `PASS op=widen_i32_to_i64 counts=7,16,23`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` (`193/193`).
+- [OK] `git diff --check`
+- [OK] active-authority scan found no positive RVVI32M1/rvv-i32m1/tcrv_rvv.i32_
+  route authority added; new legacy hits are a negative rejection fixture or
+  provider-derived i32/m1 source-load leaves for the typed conversion source.
+
+### Self-Repair
+
+- Fixed a conversion route-planning crash caused by assuming an RHS ABI value
+  exists in role ordering.
+- Added `route_id` to forbidden pre-realized authority metadata so stale route
+  authority fails with a targeted diagnostic.
+- Extended header artifact metadata handling with optional conversion-specific
+  provenance instead of forcing all non-conversion routes to carry conversion
+  facts.
+- Restored fail-closed behavior for non-conversion SEW64/m2 binary routes after
+  check-tianchenrv exposed an accidental i64m2 add materialization.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round claims executable
+correctness only for the bounded signed `widen_i32_to_i64` counts `7,16,23`;
+no performance claim is made.
+
+### Next Steps
+
+- Future continuation, if requested: add the next bounded Stage2 conversion
+  class under a separate PRD, without turning this slice into a dtype/LMUL
+  matrix or one-intrinsic wrapper surface.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 ## Session 145: Stage2 RVV tail/mask policy executable slice
 
 **Date**: 2026-05-20

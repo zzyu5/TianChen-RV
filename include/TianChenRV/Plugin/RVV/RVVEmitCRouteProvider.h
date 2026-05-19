@@ -32,6 +32,7 @@ enum class RVVSelectedBodyOperationKind {
   MAccAdd,
   StridedAdd,
   ScalarBroadcastAdd,
+  WidenI32ToI64,
 };
 
 enum class RVVSelectedBodyMemoryForm {
@@ -39,6 +40,7 @@ enum class RVVSelectedBodyMemoryForm {
   RHSBroadcastLoad,
   RHSScalarBroadcast,
   StridedLoadStore,
+  UnitStrideConversion,
 };
 
 struct RVVSelectedBodyEmitCRouteDescription {
@@ -63,6 +65,14 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef pointerAdvanceMetadata;
   llvm::StringRef boundedSlice;
   llvm::StringRef multiVL;
+  std::int64_t sourceSEW = 0;
+  llvm::StringRef sourceLMUL;
+  llvm::StringRef sourceVectorTypeName;
+  llvm::StringRef sourceVectorCType;
+  llvm::StringRef sourceVectorLoadIntrinsic;
+  llvm::StringRef destSEW;
+  llvm::StringRef destLMUL;
+  llvm::StringRef conversionRelation;
   llvm::StringRef typedComputeOpName;
   llvm::StringRef boundaryOpName;
   llvm::StringRef emitCRouteID;

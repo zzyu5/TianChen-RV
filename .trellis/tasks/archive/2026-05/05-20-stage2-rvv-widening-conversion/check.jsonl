@@ -1,0 +1,5 @@
+{"file":".trellis/spec/index.md","reason":"Verify final implementation preserves global stack and RVV Stage2 boundaries."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Check typed RVV conversion authority remains plugin-local and legacy/source authority remains fail-closed."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Check RVV route provider owns conversion mapping and common EmitC remains neutral."}
+{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Check selected-body realization and route-supported/executable evidence claims are correctly separated."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Check focused lit/C++/ssh-rvv evidence and active-authority scan coverage."}

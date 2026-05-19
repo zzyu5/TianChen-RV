@@ -28,6 +28,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::ReduceOp reduceOp;
   tcrv::rvv::MaskedBinaryOp maskedBinaryOp;
   tcrv::rvv::MAccOp maccOp;
+  tcrv::rvv::WideningConvertOp wideningConvertOp;
   mlir::Operation *arithmeticOp = nullptr;
   mlir::Value arithmeticLhs;
   mlir::Value arithmeticRhs;
@@ -37,6 +38,7 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value compareRhs;
   mlir::Value compareMask;
   mlir::Value maskedPassthrough;
+  mlir::Value conversionSource;
   RVVSelectedBodyOperationKind arithmeticKind;
   RVVSelectedBodyMemoryForm memoryForm =
       RVVSelectedBodyMemoryForm::VectorRHSLoad;

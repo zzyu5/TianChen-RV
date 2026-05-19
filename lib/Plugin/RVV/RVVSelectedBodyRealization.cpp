@@ -114,6 +114,18 @@ bool isPreRealizedMAccResultLayout(llvm::StringRef layout) {
   return layout == "store-multiply-accumulate-result-to-output-buffer";
 }
 
+bool isPreRealizedWideningConversionOpKind(llvm::StringRef opKind) {
+  return opKind == "widen_i32_to_i64";
+}
+
+bool isPreRealizedWideningConversionMemoryForm(llvm::StringRef memoryForm) {
+  return memoryForm == "unit-stride-conversion";
+}
+
+bool isPreRealizedWideningConversionRelation(llvm::StringRef relation) {
+  return relation == "signed-i32m1-to-i64m2";
+}
+
 mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
                                   llvm::StringRef symbol) {
   return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
@@ -155,7 +167,8 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp,
                   tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedReducePreRealizedBodyOp,
-                  tcrv::rvv::TypedMAccPreRealizedBodyOp>(op))
+                  tcrv::rvv::TypedMAccPreRealizedBodyOp,
+                  tcrv::rvv::TypedWideningConversionPreRealizedBodyOp>(op))
       bodies.push_back(op);
   });
 
@@ -166,8 +179,9 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.typed_masked_binary_pre_realized_body or "
         "tcrv_rvv.typed_compare_select_pre_realized_body or "
         "tcrv_rvv.typed_reduce_pre_realized_body or "
-        "tcrv_rvv.typed_macc_pre_realized_body op when no realized "
-        "setvl/with_vl body is present");
+        "tcrv_rvv.typed_macc_pre_realized_body or "
+        "tcrv_rvv.typed_widening_conversion_pre_realized_body op when no "
+        "realized setvl/with_vl body is present");
   return bodies.front();
 }
 
@@ -685,6 +699,92 @@ llvm::Error validatePreRealizedRVVSelectedMAccBody(
   return llvm::Error::success();
 }
 
+llvm::Error validatePreRealizedRVVSelectedWideningConversionBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedWideningConversionPreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVPluginError(
+        "selected RVV widening conversion realization requires a "
+        "pre-realized widening conversion body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening conversion body must be a direct "
+        "child of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedWideningConversionOpKind(body.getOpKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening conversion body currently "
+        "supports only op_kind 'widen_i32_to_i64'");
+  if (!isPreRealizedWideningConversionMemoryForm(body.getMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening conversion body currently "
+        "supports only memory_form 'unit-stride-conversion'");
+  if (static_cast<std::int64_t>(body.getSourceSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getSourceLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening conversion source config must be "
+        "SEW32 LMUL m1");
+  if (static_cast<std::int64_t>(body.getDestSew()) !=
+          tcrv::rvv::getRVVSEW64Bits() ||
+      body.getDestLmul() != tcrv::rvv::getRVVLMULM2())
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening conversion destination config "
+        "must be SEW64 LMUL m2");
+  if (!isPreRealizedWideningConversionRelation(body.getConversionRelation()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening conversion currently supports "
+        "only conversion_relation 'signed-i32m1-to-i64m2'");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening conversion body requires tail "
+        "agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getLhs(), "pre-realized RVV widening conversion lhs operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!lhs)
+    return lhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+      requirePreRealizedRuntimeABIValue(
+          body.getOut(), "pre-realized RVV widening conversion out operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!out)
+    return out.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(),
+          "pre-realized RVV widening conversion runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
+                  tcrv::rvv::TypedWideningConversionPreRealizedBodyOp>(op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected widening conversion body must "
+                    "not be mixed with already realized RVV route body op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening conversion realization requires "
+        "non-empty selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
                                      mlir::Location loc, mlir::Value nValue,
                                      std::int64_t sew, llvm::StringRef lmul,
@@ -863,6 +963,22 @@ llvm::Expected<mlir::Operation *> createRealizedGenericMAccCompute(
   return builder.create(state);
 }
 
+llvm::Expected<mlir::Operation *> createRealizedGenericWideningConvert(
+    mlir::OpBuilder &builder, mlir::Location loc, llvm::StringRef opKind,
+    mlir::Value source, mlir::Value vl) {
+  if (!isPreRealizedWideningConversionOpKind(opKind))
+    return makeRVVPluginError(
+        "pre-realized RVV selected-body widening conversion realization "
+        "supports only op_kind 'widen_i32_to_i64'");
+
+  mlir::OperationState state(loc, "tcrv_rvv.widening_convert");
+  state.addOperands({source, vl});
+  state.addAttribute("kind", builder.getStringAttr(opKind));
+  state.addTypes(getGenericVectorType(builder, tcrv::rvv::getRVVSEW64Bits(),
+                                      tcrv::rvv::getRVVLMULM2()));
+  return builder.create(state);
+}
+
 void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
                                 mlir::Value out, mlir::Value value,
                                 mlir::Value vl) {
@@ -892,7 +1008,8 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp,
                   tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedReducePreRealizedBodyOp,
-                  tcrv::rvv::TypedMAccPreRealizedBodyOp>(op))
+                  tcrv::rvv::TypedMAccPreRealizedBodyOp,
+                  tcrv::rvv::TypedWideningConversionPreRealizedBodyOp>(op))
       found = true;
   });
   return found;
@@ -1104,6 +1221,45 @@ realizePreRealizedRVVSelectedBody(
     createRealizedGenericStore(builder, loc, maccBody.getOut(),
                                (*compute)->getResult(0), setvl.getVl());
     maccBody->erase();
+    return withVL;
+  }
+
+  if (auto conversionBody =
+          llvm::dyn_cast<tcrv::rvv::TypedWideningConversionPreRealizedBodyOp>(
+              *bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedWideningConversionBody(
+                request, conversionBody))
+      return std::move(error);
+
+    mlir::Location loc = conversionBody->getLoc();
+    builder.setInsertionPoint(conversionBody.getOperation());
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc, conversionBody.getN(),
+                            tcrv::rvv::getRVVSEW64Bits(),
+                            tcrv::rvv::getRVVLMULM2(),
+                            conversionBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             tcrv::rvv::getRVVSEW64Bits(),
+                             tcrv::rvv::getRVVLMULM2(),
+                             conversionBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, conversionBody.getLhs(), setvl.getVl(),
+        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+    llvm::Expected<mlir::Operation *> convert =
+        createRealizedGenericWideningConvert(
+            builder, loc, conversionBody.getOpKind(), lhsLoad.getLoaded(),
+            setvl.getVl());
+    if (!convert)
+      return convert.takeError();
+    createRealizedGenericStore(builder, loc, conversionBody.getOut(),
+                               (*convert)->getResult(0), setvl.getVl());
+    conversionBody->erase();
     return withVL;
   }
 

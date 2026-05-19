@@ -36,4 +36,4 @@ module {
 }
 
 // CHECK: legacy selected-body op 'tcrv_rvv.i32_load' is fail-closed
-// CHECK-SAME: generic tcrv_rvv.load, tcrv_rvv.broadcast_load, tcrv_rvv.splat, tcrv_rvv.strided_load, tcrv_rvv.binary, tcrv_rvv.compare, tcrv_rvv.masked_binary, tcrv_rvv.select, tcrv_rvv.reduce, tcrv_rvv.macc, tcrv_rvv.store, and tcrv_rvv.strided_store
+// CHECK-SAME: generic tcrv_rvv.load, tcrv_rvv.broadcast_load, tcrv_rvv.splat, tcrv_rvv.strided_load, tcrv_rvv.binary, tcrv_rvv.compare, tcrv_rvv.masked_binary, tcrv_rvv.select, tcrv_rvv.reduce, tcrv_rvv.macc, tcrv_rvv.widening_convert, tcrv_rvv.store, and tcrv_rvv.strided_store

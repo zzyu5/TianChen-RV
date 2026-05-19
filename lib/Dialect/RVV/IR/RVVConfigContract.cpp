@@ -21,6 +21,8 @@ constexpr llvm::StringLiteral kRVVSelectedBodyM2ConfigContract(
     "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1");
 constexpr llvm::StringLiteral kRVVSelectedBodyI64M1ConfigContract(
     "rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1");
+constexpr llvm::StringLiteral kRVVSelectedBodyI64M2ConfigContract(
+    "rvv-selected-body-sew64-lmul-m2-tail-agnostic-mask-agnostic.v1");
 constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeVLContract(
     "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1");
 constexpr llvm::StringLiteral
@@ -29,6 +31,8 @@ constexpr llvm::StringLiteral
     kRVVSelectedBodyM2BoundedSlice("multi-vl-selected-body-sew32-lmul-m2");
 constexpr llvm::StringLiteral
     kRVVSelectedBodyI64M1BoundedSlice("multi-vl-selected-body-sew64-lmul-m1");
+constexpr llvm::StringLiteral kRVVSelectedBodyI64M2BoundedSlice(
+    "multi-vl-selected-body-sew64-lmul-m2");
 constexpr llvm::StringLiteral kRVVSelectedBodyMultiVLSupport("supported");
 constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeAVLABIParameter("n");
 constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeAVLASource(
@@ -39,7 +43,8 @@ constexpr llvm::StringLiteral kRVVSelectedBodyVLScopeOpName(
     "tcrv_rvv.with_vl");
 constexpr llvm::StringLiteral
     kRVVSelectedBodyVLUses("emitc_for,with_vl,load,(load|broadcast_load),"
-                           "(binary|compare->select|reduce),store");
+                           "(binary|compare->select|reduce|macc|"
+                           "widening_convert),store");
 constexpr llvm::StringLiteral kRVVSelectedBodyEmitCLoopKind("emitc.for");
 constexpr llvm::StringLiteral kRVVSelectedBodyEmitCLoopInduction("offset");
 constexpr llvm::StringLiteral kRVVSelectedBodyEmitCFullChunkVL(
@@ -111,6 +116,27 @@ const RVVSelectedBodyConfigVLContract kRVVSelectedBodyI64M1ConfigVLContract = {
     kRVVSelectedBodyI64M1BoundedSlice,
     kRVVSelectedBodyMultiVLSupport};
 
+const RVVSelectedBodyConfigVLContract kRVVSelectedBodyI64M2ConfigVLContract = {
+    kRVVSEW64Bits,
+    kRVVLMULM2,
+    TailPolicy::Agnostic,
+    MaskPolicy::Agnostic,
+    kRVVSelectedBodyI64M2ConfigContract,
+    kRVVSelectedBodyRuntimeVLContract,
+    kRVVSelectedBodyRuntimeAVLABIParameter,
+    kRVVSelectedBodyRuntimeAVLASource,
+    kRVVSelectedBodyRuntimeABIOrder,
+    kRVVSelectedBodyVLDefOpName,
+    kRVVSelectedBodyVLScopeOpName,
+    kRVVSelectedBodyVLUses,
+    kRVVSelectedBodyEmitCLoopKind,
+    kRVVSelectedBodyEmitCLoopInduction,
+    kRVVSelectedBodyEmitCFullChunkVL,
+    kRVVSelectedBodyRemainingAVLMetadata,
+    kRVVSelectedBodyPointerAdvanceMetadata,
+    kRVVSelectedBodyI64M2BoundedSlice,
+    kRVVSelectedBodyMultiVLSupport};
+
 std::string toString(llvm::Twine message) {
   std::string storage;
   llvm::raw_string_ostream stream(storage);
@@ -173,6 +199,11 @@ getRVVSelectedBodyI64M1ConfigVLContract() {
   return kRVVSelectedBodyI64M1ConfigVLContract;
 }
 
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyI64M2ConfigVLContract() {
+  return kRVVSelectedBodyI64M2ConfigVLContract;
+}
+
 PolicyAttr getRVVSelectedBodyDefaultPolicy(mlir::MLIRContext *context) {
   const RVVSelectedBodyConfigVLContract &contract =
       getRVVSelectedBodyM1ConfigVLContract();
@@ -202,7 +233,7 @@ void populateRVVSelectedBodyConfigAttrs(mlir::Builder &builder,
 bool isRVVFirstSliceDataflowConfig(std::int64_t sew, llvm::StringRef lmul) {
   if (sew == kRVVFirstSliceSEWBits)
     return lmul == kRVVLMULM1 || lmul == kRVVLMULM2;
-  return sew == kRVVSEW64Bits && lmul == kRVVLMULM1;
+  return sew == kRVVSEW64Bits && (lmul == kRVVLMULM1 || lmul == kRVVLMULM2);
 }
 
 bool isRVVSelectedBodyM1Config(std::int64_t sew, llvm::StringRef lmul) {
@@ -211,6 +242,10 @@ bool isRVVSelectedBodyM1Config(std::int64_t sew, llvm::StringRef lmul) {
 
 bool isRVVSelectedBodyI64M1Config(std::int64_t sew, llvm::StringRef lmul) {
   return sew == kRVVSEW64Bits && lmul == kRVVLMULM1;
+}
+
+bool isRVVSelectedBodyI64M2Config(std::int64_t sew, llvm::StringRef lmul) {
+  return sew == kRVVSEW64Bits && lmul == kRVVLMULM2;
 }
 
 bool isRVVAgnosticPolicy(PolicyAttr policy) {
@@ -289,6 +324,8 @@ getRVVSelectedBodyConfigVLContract(llvm::StringRef lmul) {
 
 const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyConfigVLContract(std::int64_t sew, llvm::StringRef lmul) {
+  if (isRVVSelectedBodyI64M2Config(sew, lmul))
+    return getRVVSelectedBodyI64M2ConfigVLContract();
   if (isRVVSelectedBodyI64M1Config(sew, lmul))
     return getRVVSelectedBodyI64M1ConfigVLContract();
   return getRVVSelectedBodyConfigVLContract(lmul);
@@ -445,6 +482,20 @@ getRVVSelectedBodyScalarBroadcastRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 3>
+getRVVSelectedBodyWideningConversionRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 3> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int64_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyI64M2ConfigVLContract.runtimeAVLABIParameterName,
+      "size_t", support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 7>
 getRVVSelectedBodyStridedRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 7> parameters;
@@ -486,11 +537,17 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, scalarBroadcastExpected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 3> conversionExpected =
+      getRVVSelectedBodyWideningConversionRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, conversionExpected))
+    return llvm::Error::success();
+
   return makeRuntimeABIError(
       llvm::Twine(context) +
       " must use ordered runtime ABI parameters lhs, rhs, out, n for "
       "int32_t or int64_t buffers; lhs, rhs_scalar, out, n for the bounded "
-      "int32_t scalar-broadcast route; or lhs, rhs, out, n, lhs_stride, "
+      "int32_t scalar-broadcast route; lhs, out, n for the bounded i32-to-i64 "
+      "widening conversion route; or lhs, rhs, out, n, lhs_stride, "
       "rhs_stride, out_stride for the bounded int32_t strided route with "
       "stable C types, roles, and target-export ownership");
 }

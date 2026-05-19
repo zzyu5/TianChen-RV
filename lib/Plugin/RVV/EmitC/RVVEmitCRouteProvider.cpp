@@ -35,6 +35,10 @@ bool isRVVSelectedBodyReductionRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::ReduceAdd;
 }
 
+bool isRVVSelectedBodyWideningConversionRoute(RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::WidenI32ToI64;
+}
+
 llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance>
 getEmitCSourceProvenance(mlir::Operation *op, llvm::StringRef expectedRole) {
   if (llvm::Error error = verifyRVVRoleOperationInterface(op, expectedRole))
@@ -111,6 +115,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   route.addHeader("riscv_vector.h");
   route.addTypeMapping("!tcrv_rvv.vl", description.vlCType);
   route.addTypeMapping(description.vectorTypeName, description.vectorCType);
+  if (!description.sourceVectorTypeName.empty())
+    route.addTypeMapping(description.sourceVectorTypeName,
+                         description.sourceVectorCType);
   if (!description.maskTypeName.empty())
     route.addTypeMapping(description.maskTypeName, description.maskCType);
   for (const support::RuntimeABIParameter &parameter :
@@ -184,6 +191,19 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{"lhs_vec",
                                       description.vectorCType.str()}))
       return error;
+  } else if (isRVVSelectedBodyWideningConversionRoute(description.operation)) {
+    if (llvm::Error error = addLoopStep(
+            slice->lhsLoadOperation, "load",
+            description.sourceVectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->lhsABI.cName) + " + " + inductionName)
+                     .str(),
+                 slice->lhsABI.cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"lhs_vec",
+                                      description.sourceVectorCType.str()}))
+      return error;
   } else {
     if (llvm::Error error = addLoopStep(
             slice->lhsLoadOperation, "load",
@@ -198,7 +218,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   }
-  if (description.memoryForm ==
+  if (isRVVSelectedBodyWideningConversionRoute(description.operation)) {
+    // The bounded widening conversion has no RHS dataflow.
+  } else if (description.memoryForm ==
       RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
     if (llvm::Error error = addLoopStep(
             slice->rhsLoadOperation, "load",
@@ -340,6 +362,16 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{"rhs_vec",
                                         description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                      description.vectorCType.str()}))
+      return error;
+  } else if (isRVVSelectedBodyWideningConversionRoute(description.operation)) {
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", description.intrinsic,
+            {TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                        description.sourceVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{description.resultName.str(),

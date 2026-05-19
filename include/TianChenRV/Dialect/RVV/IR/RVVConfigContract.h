@@ -62,6 +62,8 @@ const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyM2ConfigVLContract();
 const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyI64M1ConfigVLContract();
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyI64M2ConfigVLContract();
 PolicyAttr getRVVSelectedBodyDefaultPolicy(mlir::MLIRContext *context);
 void populateRVVSelectedBodyDefaultConfigAttrs(mlir::Builder &builder,
                                                mlir::OperationState &state);
@@ -74,6 +76,7 @@ void populateRVVSelectedBodyConfigAttrs(mlir::Builder &builder,
 bool isRVVFirstSliceDataflowConfig(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyM1Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyI64M1Config(std::int64_t sew, llvm::StringRef lmul);
+bool isRVVSelectedBodyI64M2Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVAgnosticPolicy(PolicyAttr policy);
 
 RVVCompileTimeConfig getRVVSetVLCompileTimeConfig(SetVLOp setvl);
@@ -100,6 +103,8 @@ llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyI64RuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 3>
+getRVVSelectedBodyWideningConversionRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>
 getRVVSelectedBodyStridedRuntimeABIParameters();
 llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(

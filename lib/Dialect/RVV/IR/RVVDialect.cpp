@@ -42,6 +42,7 @@ constexpr llvm::StringLiteral kRVVConstructionProtocolAttrName(
     "rvv_construction_protocol");
 constexpr llvm::StringLiteral kRVVEmitCRouteMappingAttrName(
     "rvv_emitc_route_mapping");
+constexpr llvm::StringLiteral kRouteIDAttrName("route_id");
 constexpr llvm::StringLiteral kCapabilitySummaryAttrName(
     "capability_summary");
 constexpr llvm::StringLiteral kAVLAttrName("avl");
@@ -67,6 +68,12 @@ constexpr llvm::StringLiteral kAccumulatorRoleAttrName("accumulator_role");
 constexpr llvm::StringLiteral kAccumulatorLayoutAttrName(
     "accumulator_layout");
 constexpr llvm::StringLiteral kResultLayoutAttrName("result_layout");
+constexpr llvm::StringLiteral kSourceSEWAttrName("source_sew");
+constexpr llvm::StringLiteral kSourceLMULAttrName("source_lmul");
+constexpr llvm::StringLiteral kDestSEWAttrName("dest_sew");
+constexpr llvm::StringLiteral kDestLMULAttrName("dest_lmul");
+constexpr llvm::StringLiteral kConversionRelationAttrName(
+    "conversion_relation");
 constexpr llvm::StringLiteral kVLenAttrName("vlen");
 constexpr llvm::StringLiteral kVLenBAttrName("vlenb");
 constexpr llvm::StringLiteral kRVVVariantRequiredMarchAttrName(
@@ -184,6 +191,14 @@ bool isAllowedTypedMAccPreRealizedBodyAttr(llvm::StringRef name) {
          name == kPolicyAttrName;
 }
 
+bool isAllowedTypedWideningConversionPreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kSourceSEWAttrName || name == kSourceLMULAttrName ||
+         name == kDestSEWAttrName || name == kDestLMULAttrName ||
+         name == kConversionRelationAttrName || name == kPolicyAttrName;
+}
+
 bool isAllowedLoadAttr(llvm::StringRef) { return false; }
 
 bool isAllowedBroadcastLoadAttr(llvm::StringRef) { return false; }
@@ -205,6 +220,10 @@ bool isAllowedSelectAttr(llvm::StringRef) { return false; }
 bool isAllowedReduceAttr(llvm::StringRef name) { return name == "kind"; }
 
 bool isAllowedMAccAttr(llvm::StringRef name) { return name == "kind"; }
+
+bool isAllowedWideningConvertAttr(llvm::StringRef name) {
+  return name == "kind";
+}
 
 bool isAllowedStoreAttr(llvm::StringRef) { return false; }
 
@@ -319,6 +338,20 @@ bool isSupportedTypedMAccPreRealizedResultLayout(llvm::StringRef layout) {
   return layout == "store-multiply-accumulate-result-to-output-buffer";
 }
 
+bool isSupportedTypedWideningConversionPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "widen_i32_to_i64";
+}
+
+bool isSupportedTypedWideningConversionPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-stride-conversion";
+}
+
+bool isSupportedTypedWideningConversionRelation(llvm::StringRef relation) {
+  return relation == "signed-i32m1-to-i64m2";
+}
+
 bool isSupportedGenericBinaryKind(llvm::StringRef kind) {
   return kind == "add" || kind == "sub" || kind == "mul";
 }
@@ -337,6 +370,10 @@ bool isSupportedGenericReduceKind(llvm::StringRef kind) {
 
 bool isSupportedGenericMAccKind(llvm::StringRef kind) {
   return kind == "add";
+}
+
+bool isSupportedGenericWideningConvertKind(llvm::StringRef kind) {
+  return kind == "widen_i32_to_i64";
 }
 
 bool isAllowedI32AddAttr(llvm::StringRef name) {
@@ -409,7 +446,7 @@ bool isForbiddenPreRealizedBodyAuthorityAttr(llvm::StringRef name) {
          name == kOriginAttrName || name == kSelectedPathRoleAttrName ||
          name == kStatusAttrName || name == kRequiredCapabilitiesAttrName ||
          name == kRVVConstructionProtocolAttrName ||
-         name == kRVVEmitCRouteMappingAttrName;
+         name == kRVVEmitCRouteMappingAttrName || name == kRouteIDAttrName;
 }
 
 bool isSafeCIdentifier(llvm::StringRef value) {
@@ -701,6 +738,25 @@ llvm::StringRef getGenericRVVVectorLMUL(mlir::Type type) {
   return {};
 }
 
+bool isGenericRVVVectorType(mlir::Type type, std::int64_t sew,
+                            llvm::StringRef lmul) {
+  auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
+  if (!vector)
+    return false;
+  auto elementType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
+  return elementType && elementType.getWidth() == sew &&
+         vector.getLmul() == lmul;
+}
+
+bool isGenericRVVVectorI32M1(mlir::Type type) {
+  return isGenericRVVVectorType(type, getRVVFirstSliceSEWBits(),
+                                getRVVLMULM1());
+}
+
+bool isGenericRVVVectorI64M2(mlir::Type type) {
+  return isGenericRVVVectorType(type, getRVVSEW64Bits(), getRVVLMULM2());
+}
+
 llvm::StringRef getGenericRVVMaskLMUL(mlir::Type type) {
   auto mask = llvm::dyn_cast<tianchenrv::tcrv::rvv::MaskType>(type);
   if (!mask)
@@ -733,7 +789,7 @@ mlir::LogicalResult verifyGenericVectorTypeForWithVL(mlir::Operation *op,
     return op->emitOpError()
            << "requires " << role
            << " config to be SEW32 LMUL \"m1\" or \"m2\", or SEW64 LMUL "
-              "\"m1\", for the bounded generic RVV route";
+              "\"m1\" or \"m2\", for the bounded generic RVV route";
 
   auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
   if (!withVL)
@@ -847,6 +903,32 @@ mlir::LogicalResult verifyGenericMaskMatchesVector(mlir::Operation *op,
            << " to agree with " << vectorRole << " type "
            << vectorValue.getType();
   return mlir::success();
+}
+
+bool isBoundedWideningConversionSourceLoad(LoadOp load, WithVLOp withVL) {
+  if (!load || !withVL)
+    return false;
+  auto sew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto lmul = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!sew || !lmul || !policy ||
+      !isRVVSelectedBodyI64M2Config(sew.getInt(), lmul.getValue()) ||
+      !isRVVAgnosticPolicy(policy))
+    return false;
+  if (!isGenericRVVVectorI32M1(load.getLoaded().getType()))
+    return false;
+
+  bool hasWideningUse = false;
+  for (mlir::Operation *user : load.getLoaded().getUsers()) {
+    auto conversion = llvm::dyn_cast<WideningConvertOp>(user);
+    if (!conversion || conversion->getParentOp() != withVL.getOperation() ||
+        conversion.getSource() != load.getLoaded() ||
+        conversion.getVl() != load.getVl() ||
+        conversion.getKind() != "widen_i32_to_i64")
+      return false;
+    hasWideningUse = true;
+  }
+  return hasWideningUse;
 }
 
 mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
@@ -1165,7 +1247,7 @@ mlir::LogicalResult SetVLOp::verify() {
     return emitOpError()
            << "requires bounded RVV first-slice compile-time config to be "
               "SEW32 with LMUL \"m1\" or \"m2\", or SEW64 with LMUL "
-              "\"m1\"";
+              "\"m1\" or \"m2\"";
 
   if (!getPolicy())
     return emitOpError()
@@ -1220,7 +1302,7 @@ mlir::LogicalResult WithVLOp::verify() {
     return emitOpError()
            << "requires bounded RVV first-slice compile-time config to be "
               "SEW32 with LMUL \"m1\" or \"m2\", or SEW64 with LMUL "
-              "\"m1\"";
+              "\"m1\" or \"m2\"";
   if (sew && !lmul)
     return emitOpError()
            << "requires optional 'lmul' metadata when optional 'sew' "
@@ -1787,6 +1869,80 @@ mlir::LogicalResult TypedMAccPreRealizedBodyOp::verify() {
   return verifyRuntimeElementCountOperand(op, getN());
 }
 
+mlir::LogicalResult TypedWideningConversionPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected widening conversion bodies carry "
+                "only typed RVV source/destination config, operation, memory, "
+                "policy, and runtime SSA facts and must be realized by the "
+                "RVV plugin before route construction";
+
+    if (!isAllowedTypedWideningConversionPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '" << kSourceSEWAttrName
+             << "', '" << kSourceLMULAttrName << "', '" << kDestSEWAttrName
+             << "', '" << kDestLMULAttrName << "', '"
+             << kConversionRelationAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires lhs input, out, runtime n/AVL operands and no results";
+
+  if (!isSupportedTypedWideningConversionPreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind \"widen_i32_to_i64\" for the "
+              "bounded selected-body widening conversion hook";
+  if (!isSupportedTypedWideningConversionPreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"unit-stride-conversion\" for the bounded selected-body "
+              "widening conversion hook";
+  if (static_cast<std::int64_t>(getSourceSew()) !=
+          getRVVFirstSliceSEWBits() ||
+      getSourceLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires source config to be SEW32 LMUL m1 for the bounded "
+              "i32-to-i64 widening conversion hook";
+  if (static_cast<std::int64_t>(getDestSew()) != getRVVSEW64Bits() ||
+      getDestLmul() != getRVVLMULM2())
+    return emitOpError()
+           << "requires destination config to be SEW64 LMUL m2 for the "
+              "bounded i32-to-i64 widening conversion hook";
+  if (!isSupportedTypedWideningConversionRelation(getConversionRelation()))
+    return emitOpError()
+           << "currently supports only conversion_relation "
+              "\"signed-i32m1-to-i64m2\" for the bounded selected-body "
+              "widening conversion hook";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body widening conversion hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
 mlir::LogicalResult LoadOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -1811,6 +1967,9 @@ mlir::LogicalResult LoadOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
+  if (auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp()))
+    if (isBoundedWideningConversionSourceLoad(*this, withVL))
+      return mlir::success();
   return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
 }
 
@@ -2213,6 +2372,77 @@ mlir::LogicalResult MAccOp::verify() {
                                                     "accumulator")))
     return mlir::failure();
   return verifyGenericVectorTypeForWithVL(op, getResult(), "result");
+}
+
+mlir::LogicalResult WideningConvertOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.widening_convert keeps source/destination "
+                "SEW/LMUL/policy on typed vector values and setvl/with_vl, "
+                "runtime n/AVL/VL in the surrounding control-plane IR, and "
+                "rejects deleted local element_count metadata";
+
+    if (!isAllowedWideningConvertAttr(attrName))
+      return emitOpError()
+             << "only accepts generic widening conversion attribute 'kind"
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!isSupportedGenericWideningConvertKind(getKind()))
+    return emitOpError()
+           << "currently supports only kind \"widen_i32_to_i64\" for the "
+              "bounded Stage 2 widening conversion route";
+
+  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one source generic RVV vector operand, one "
+              "!tcrv_rvv.vl operand, and one destination generic RVV vector "
+              "result";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError()
+           << "requires runtime VL operand to have !tcrv_rvv.vl type";
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  if (!isGenericRVVVectorI32M1(getSource().getType()))
+    return emitOpError()
+           << "requires source vector type to be "
+              "!tcrv_rvv.vector<i32, \"m1\"> for the bounded signed "
+              "i32-to-i64 widening conversion route";
+  if (!isGenericRVVVectorI64M2(getResult().getType()))
+    return emitOpError()
+           << "requires result vector type to be "
+              "!tcrv_rvv.vector<i64, \"m2\"> for the bounded signed "
+              "i32-to-i64 widening conversion route";
+
+  auto expectedSEW =
+      (*withVL)->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto expectedLMUL =
+      (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  if (!expectedSEW || !expectedLMUL)
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit "
+              "destination SEW/LMUL metadata for widening conversion";
+  if (!isRVVSelectedBodyI64M2Config(expectedSEW.getInt(),
+                                    expectedLMUL.getValue()))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl destination config to be "
+              "SEW64 LMUL m2 for the bounded signed i32-to-i64 widening "
+              "conversion route";
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for widening conversion";
+
+  return mlir::success();
 }
 
 mlir::LogicalResult StoreOp::verify() {

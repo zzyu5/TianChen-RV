@@ -1576,10 +1576,12 @@ void printMaterializedEmitCHeaderDeclaration(
         os, config.evidencePrefix, parameter, index);
   for (const MaterializedEmitCHeaderArtifactMetadataEvidence &evidence :
        config.metadataEvidence) {
+    llvm::StringRef value = lookupArtifactMetadataValue(
+        candidate.artifactMetadata, evidence.metadataKey);
+    if (value.empty() && evidence.optional)
+      continue;
     printMaterializedEmitCHeaderEvidenceComment(
-        os, config.evidencePrefix, evidence.commentName,
-        lookupArtifactMetadataValue(candidate.artifactMetadata,
-                                    evidence.metadataKey));
+        os, config.evidencePrefix, evidence.commentName, value);
   }
 
   os << "\n";
@@ -1709,6 +1711,8 @@ llvm::Error validateMaterializedEmitCHeaderArtifactCandidate(
        config.metadataEvidence) {
     llvm::StringRef value = lookupArtifactMetadataValue(
         candidate.artifactMetadata, evidence.metadataKey);
+    if (value.empty() && evidence.optional)
+      continue;
     if (value.empty())
       return makeSelectedEmitCArtifactError(
           getHeaderRouteDescription(config),
