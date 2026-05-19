@@ -366,6 +366,13 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="pre_realized_body_rvv_masked_add",
         function_name="tcrv_emitc_pre_realized_body_masked_add_kernel_pre_realized_body_rvv_masked_add",
     ),
+    "macc_add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["macc_add"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-macc-add.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_macc_add",
+        function_name="tcrv_emitc_pre_realized_body_macc_add_kernel_pre_realized_body_rvv_macc_add",
+    ),
     "strided_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["strided_add"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-strided-add.mlir"),
@@ -1024,6 +1031,11 @@ def verify_materialized_selected_body(
         require_not_contains(
             text,
             "tcrv_rvv.typed_masked_binary_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_macc_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
     require_no_forbidden_public_residue(text, "materialized selected-body MLIR")
@@ -2136,7 +2148,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help=(
             "use the pre-realized selected-body add/sub/mul/masked_add/"
-            "strided_add "
+            "macc_add/strided_add "
             "fixtures and run public selected lowering-boundary "
             "materialization before emission planning; mutually exclusive "
             "with --rhs-broadcast-selected-body and --lmul-m2-selected-body"

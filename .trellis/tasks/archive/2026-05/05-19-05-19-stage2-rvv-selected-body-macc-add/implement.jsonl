@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain and RVV stage order for the bounded macc selected-body realization task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned selected-body realization, typed body authority, and fail-closed route support rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute boundary for RVV routes."}
+{"file": ".trellis/tasks/archive/2026-05/05-19-stage2-rvv-multiply-add-route-skeleton/prd.md", "reason": "Existing explicit macc_add route skeleton and executable evidence that this task must reuse rather than duplicate."}
+{"file": ".trellis/tasks/archive/2026-05/05-19-stage2-rvv-selected-body-generic-add/prd.md", "reason": "Pre-realized selected-body realization pattern for generic unit-stride typed bodies."}
+{"file": ".trellis/tasks/archive/2026-05/05-19-stage2-rvv-selected-body-strided-add/prd.md", "reason": "Pre-realized selected-body realization pattern for runtime memory-role facts and existing route handoff."}
+{"file": ".trellis/tasks/archive/2026-05/05-19-05-19-stage2-rvv-selected-body-masked-add-policy/prd.md", "reason": "Most recent pre-realized selected-body realization pattern carrying extra policy/layout facts."}

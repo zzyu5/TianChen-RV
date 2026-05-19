@@ -61,6 +61,10 @@ constexpr llvm::StringLiteral kMemoryFormAttrName("memory_form");
 constexpr llvm::StringLiteral kMaskSourceAttrName("mask_source");
 constexpr llvm::StringLiteral kMaskedPassthroughAttrName(
     "masked_passthrough");
+constexpr llvm::StringLiteral kAccumulatorRoleAttrName("accumulator_role");
+constexpr llvm::StringLiteral kAccumulatorLayoutAttrName(
+    "accumulator_layout");
+constexpr llvm::StringLiteral kResultLayoutAttrName("result_layout");
 constexpr llvm::StringLiteral kVLenAttrName("vlen");
 constexpr llvm::StringLiteral kVLenBAttrName("vlenb");
 constexpr llvm::StringLiteral kRVVVariantRequiredMarchAttrName(
@@ -155,6 +159,14 @@ bool isAllowedTypedMaskedBinaryPreRealizedBodyAttr(llvm::StringRef name) {
          name == kPolicyAttrName;
 }
 
+bool isAllowedTypedMAccPreRealizedBodyAttr(llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kAccumulatorRoleAttrName ||
+         name == kAccumulatorLayoutAttrName || name == kResultLayoutAttrName ||
+         name == kSEWAttrName || name == kLMULAttrName ||
+         name == kPolicyAttrName;
+}
+
 bool isAllowedLoadAttr(llvm::StringRef) { return false; }
 
 bool isAllowedBroadcastLoadAttr(llvm::StringRef) { return false; }
@@ -208,6 +220,27 @@ bool isSupportedTypedMaskedBinaryPreRealizedMaskSource(
 bool isSupportedTypedMaskedBinaryPreRealizedPassthrough(
     llvm::StringRef passthrough) {
   return passthrough == "passthrough-vector-preserves-inactive-lanes";
+}
+
+bool isSupportedTypedMAccPreRealizedBodyOpKind(llvm::StringRef opKind) {
+  return opKind == "macc_add";
+}
+
+bool isSupportedTypedMAccPreRealizedMemoryForm(llvm::StringRef memoryForm) {
+  return memoryForm == "vector-rhs-load";
+}
+
+bool isSupportedTypedMAccPreRealizedAccumulatorRole(llvm::StringRef role) {
+  return role == "output-buffer";
+}
+
+bool isSupportedTypedMAccPreRealizedAccumulatorLayout(
+    llvm::StringRef layout) {
+  return layout == "output-buffer-vector-accumulator-input";
+}
+
+bool isSupportedTypedMAccPreRealizedResultLayout(llvm::StringRef layout) {
+  return layout == "store-multiply-accumulate-result-to-output-buffer";
 }
 
 bool isSupportedGenericBinaryKind(llvm::StringRef kind) {
@@ -1336,6 +1369,88 @@ mlir::LogicalResult TypedMaskedBinaryPreRealizedBodyOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult TypedMAccPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected macc bodies carry only typed RVV "
+                "operation/config/memory/accumulator/runtime SSA facts and "
+                "must be realized by the RVV plugin before route construction";
+
+    if (!isAllowedTypedMAccPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '"
+             << kAccumulatorRoleAttrName << "', '"
+             << kAccumulatorLayoutAttrName << "', '" << kResultLayoutAttrName
+             << "', '" << kSEWAttrName << "', '" << kLMULAttrName
+             << "', and '" << kPolicyAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires lhs, rhs, out/accumulator, runtime n/AVL operands "
+              "and no results";
+
+  if (!isSupportedTypedMAccPreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind \"macc_add\" for the "
+              "bounded selected-body macc realization hook";
+  if (!isSupportedTypedMAccPreRealizedMemoryForm(getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form \"vector-rhs-load\" for "
+              "the bounded selected-body macc realization hook";
+  if (!isSupportedTypedMAccPreRealizedAccumulatorRole(getAccumulatorRole()))
+    return emitOpError()
+           << "currently supports only accumulator_role \"output-buffer\" "
+              "for the bounded selected-body macc realization hook";
+  if (!isSupportedTypedMAccPreRealizedAccumulatorLayout(
+          getAccumulatorLayout()))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"output-buffer-vector-accumulator-input\" for the bounded "
+              "selected-body macc realization hook";
+  if (!isSupportedTypedMAccPreRealizedResultLayout(getResultLayout()))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-multiply-accumulate-result-to-output-buffer\" for "
+              "the bounded selected-body macc realization hook";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized macc config to be SEW32 LMUL "
+              "m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body macc realization hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getRhs(), "rhs",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out/accumulator",
           {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   return verifyRuntimeElementCountOperand(op, getN());

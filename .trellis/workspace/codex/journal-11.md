@@ -52,6 +52,83 @@ Added a bounded generic typed RVV reduce(add) selected-body route skeleton with 
 |------|---------|
 | `this commit` | (see git log) |
 
+
+## Session 141: Stage2 RVV selected-body realization for macc add
+
+**Date**: 2026-05-19
+**Task**: `05-19-stage2-rvv-selected-body-macc-add`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and implemented one
+bounded pre-realized selected-body realization path for `macc_add`. The RVV
+plugin now consumes explicit accumulator role/layout, lhs/rhs/out ABI values,
+runtime `n`/AVL, dtype/config, memory form, and policy facts into realized
+typed `tcrv_rvv` structure before the existing macc provider route constructs
+the lowerable EmitC route.
+
+### Main Changes
+
+- Added `tcrv_rvv.typed_macc_pre_realized_body` with verifier checks for
+  bounded `macc_add`, output-buffer accumulator role, accumulator/result
+  layout, SEW32/LMUL m1, agnostic policy, runtime ABI roles, and stale
+  authority metadata.
+- Extended RVV plugin selected-body realization to materialize the pre-realized
+  macc body into `setvl/with_vl/load/load/load/macc/store`, then reuse the
+  existing provider/materializer/target artifact path.
+- Extended generated-bundle evidence tooling with
+  `--pre-realized-selected-body --op-kind macc_add`.
+- Added positive pre-realized macc target/script fixtures and macc-specific
+  fail-closed negative coverage.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] Focused build for `tcrv-opt`, `tcrv-translate`, RVV dialect/plugin,
+  construction protocol, and target artifact export tests.
+- [OK] `build/bin/tianchenrv-rvv-dialect-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Focused lit set covering new pre-realized macc positive/negative/script
+  evidence, explicit macc, existing pre-realized add/sub/mul/strided/masked
+  fixtures, existing pre-realized negatives, and macc provider negatives:
+  16/16 passed.
+- [OK] Local pre-realized macc generated-bundle dry-run at
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/local-pre-realized-macc-add-dry-run`.
+- [OK] Real `ssh rvv` macc correctness evidence at
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/ssh-pre-realized-macc-add-evidence`:
+  `PASS op=macc_add counts=7,16,23`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 173/173 passed.
+- [OK] `git diff --check`
+- [OK] diff-only active-authority scan introduced no positive legacy RVV route
+  authority; new matches were anti-authority text and negative guardrails.
+
+### Self-Repair
+
+- Re-ran lit from `build/test` after an initial run from `build/` failed to
+  resolve the relative lit config path.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round makes a real RVV
+correctness claim only for bounded pre-realized `macc_add` counts `7,16,23`.
+
+### Next Steps
+
+- Future continuation, if requested: broaden contraction-supporting Stage2
+  coverage beyond this single selected-boundary macc_add handoff under a
+  separate bounded task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 ## Session 141: Stage2 RVV selected-body realization for masked add policy
 
 **Date**: 2026-05-19

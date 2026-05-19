@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global no-legacy-authority and RVV-first evidence boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin locality, selected-body realization, and macc accumulator authority placement."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remain neutral consumers of provider-built route payloads."}
+{"file": ".trellis/tasks/archive/2026-05/05-19-stage2-rvv-multiply-add-route-skeleton/prd.md", "reason": "Regression baseline for explicit macc route/materialization/header/script/ssh behavior."}
+{"file": ".trellis/tasks/archive/2026-05/05-19-05-19-stage2-rvv-selected-body-masked-add-policy/prd.md", "reason": "Regression baseline for latest pre-realized selected-body positive/negative/script evidence shape."}
