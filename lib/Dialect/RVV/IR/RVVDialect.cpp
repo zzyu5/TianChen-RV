@@ -159,6 +159,14 @@ bool isAllowedTypedMaskedBinaryPreRealizedBodyAttr(llvm::StringRef name) {
          name == kPolicyAttrName;
 }
 
+bool isAllowedTypedReducePreRealizedBodyAttr(llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kAccumulatorRoleAttrName ||
+         name == kAccumulatorLayoutAttrName || name == kResultLayoutAttrName ||
+         name == kSEWAttrName || name == kLMULAttrName ||
+         name == kPolicyAttrName;
+}
+
 bool isAllowedTypedMAccPreRealizedBodyAttr(llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
          name == kAccumulatorRoleAttrName ||
@@ -220,6 +228,27 @@ bool isSupportedTypedMaskedBinaryPreRealizedMaskSource(
 bool isSupportedTypedMaskedBinaryPreRealizedPassthrough(
     llvm::StringRef passthrough) {
   return passthrough == "passthrough-vector-preserves-inactive-lanes";
+}
+
+bool isSupportedTypedReducePreRealizedBodyOpKind(llvm::StringRef opKind) {
+  return opKind == "reduce_add";
+}
+
+bool isSupportedTypedReducePreRealizedMemoryForm(llvm::StringRef memoryForm) {
+  return memoryForm == "vector-rhs-load";
+}
+
+bool isSupportedTypedReducePreRealizedAccumulatorRole(llvm::StringRef role) {
+  return role == "rhs-input-buffer";
+}
+
+bool isSupportedTypedReducePreRealizedAccumulatorLayout(
+    llvm::StringRef layout) {
+  return layout == "rhs-vector-seed-lane0-per-vl-chunk";
+}
+
+bool isSupportedTypedReducePreRealizedResultLayout(llvm::StringRef layout) {
+  return layout == "store-reduction-lane0-to-output-chunk-base";
 }
 
 bool isSupportedTypedMAccPreRealizedBodyOpKind(llvm::StringRef opKind) {
@@ -1369,6 +1398,88 @@ mlir::LogicalResult TypedMaskedBinaryPreRealizedBodyOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult TypedReducePreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected reduce bodies carry only typed RVV "
+                "operation/config/memory/accumulator/runtime SSA facts and "
+                "must be realized by the RVV plugin before route construction";
+
+    if (!isAllowedTypedReducePreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '"
+             << kAccumulatorRoleAttrName << "', '"
+             << kAccumulatorLayoutAttrName << "', '" << kResultLayoutAttrName
+             << "', '" << kSEWAttrName << "', '" << kLMULAttrName
+             << "', and '" << kPolicyAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires input, accumulator seed, out, runtime n/AVL operands "
+              "and no results";
+
+  if (!isSupportedTypedReducePreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind \"reduce_add\" for the bounded "
+              "selected-body reduce realization hook";
+  if (!isSupportedTypedReducePreRealizedMemoryForm(getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form \"vector-rhs-load\" for "
+              "the bounded selected-body reduce realization hook";
+  if (!isSupportedTypedReducePreRealizedAccumulatorRole(getAccumulatorRole()))
+    return emitOpError()
+           << "currently supports only accumulator_role \"rhs-input-buffer\" "
+              "for the bounded selected-body reduce realization hook";
+  if (!isSupportedTypedReducePreRealizedAccumulatorLayout(
+          getAccumulatorLayout()))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"rhs-vector-seed-lane0-per-vl-chunk\" for the bounded "
+              "selected-body reduce realization hook";
+  if (!isSupportedTypedReducePreRealizedResultLayout(getResultLayout()))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-reduction-lane0-to-output-chunk-base\" for the bounded "
+              "selected-body reduce realization hook";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized reduce config to be SEW32 LMUL "
+              "m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body reduce realization hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "input",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getRhs(), "accumulator seed",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "result output",
           {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   return verifyRuntimeElementCountOperand(op, getN());

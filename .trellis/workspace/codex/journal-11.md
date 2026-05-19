@@ -6,6 +6,86 @@
 ---
 
 
+## Session 142: Stage2 RVV selected-body realization for reduce_add
+
+**Date**: 2026-05-19
+**Task**: `stage2-rvv-selected-reduce-add-realization`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and implemented one
+bounded pre-realized selected-body realization path for `reduce_add`. The RVV
+plugin now consumes explicit reduction operation, accumulator seed role/layout,
+result layout, lhs/rhs/out ABI values, runtime `n`/AVL, dtype/config, memory
+form, and policy facts into realized typed `tcrv_rvv` structure before the
+existing reduce-add provider route constructs the lowerable EmitC route.
+
+### Main Changes
+
+- Added `tcrv_rvv.typed_reduce_pre_realized_body` with verifier checks for
+  bounded `reduce_add`, RHS input-buffer accumulator role, reduction
+  accumulator/result layout, SEW32/LMUL m1, agnostic policy, runtime ABI roles,
+  and stale authority metadata.
+- Extended RVV plugin selected-body realization to materialize the
+  pre-realized reduce body into `setvl/with_vl/load/load/reduce/store`, then
+  reuse the existing provider/materializer/target artifact path.
+- Extended generated-bundle evidence tooling with
+  `--pre-realized-selected-body --op-kind reduce_add`.
+- Added positive pre-realized reduce target/script fixtures and reduce-specific
+  fail-closed negative coverage.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] Focused build for `tcrv-opt`, `tcrv-translate`, RVV dialect/plugin,
+  construction protocol, and target artifact export tests.
+- [OK] `build/bin/tianchenrv-rvv-dialect-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Focused lit set covering new pre-realized reduce-add
+  positive/negative/script evidence, explicit reduce-add, existing
+  pre-realized add/sub/mul/strided/masked/macc fixtures, and existing
+  pre-realized negatives: 11/11 passed.
+- [OK] Local pre-realized reduce-add generated-bundle dry-run at
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/local-pre-realized-reduce-add-dry-run`.
+- [OK] Real `ssh rvv` reduce-add correctness evidence at
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/ssh-pre-realized-reduce-add-evidence`:
+  `PASS op=reduce_add counts=7,16,23`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 176/176 passed.
+- [OK] `git diff --check`
+- [OK] diff active-authority scan introduced no positive legacy RVV route
+  authority; new matches were anti-authority text and negative FileCheck
+  guardrails.
+
+### Self-Repair
+
+- Re-ran lit from `build/test` after an initial root invocation failed to
+  resolve the generated lit site config relative path.
+- Repaired the new script dry-run FileCheck expectation to match the generated
+  reduce-add harness loop.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round makes a real RVV
+correctness claim only for bounded pre-realized `reduce_add` counts
+`7,16,23`.
+
+### Next Steps
+
+- Future continuation, if requested: broaden reduction Stage2 coverage beyond
+  this single selected-boundary reduce_add handoff under a separate bounded
+  task.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 
 ## Session 133: Stage2 generic RVV reduction accumulation route
 

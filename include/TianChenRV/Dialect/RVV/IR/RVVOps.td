@@ -377,6 +377,44 @@ def TypedMaskedBinaryPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedReducePreRealizedBodyOp
+    : TCRVRVV_Op<"typed_reduce_pre_realized_body"> {
+  let summary = "generic typed pre-realized RVV reduce selected body";
+  let description = [{
+    Carries the RVV plugin-local pre-realized selected body for the bounded
+    reduce-add route. The op is nested directly in a selected tcrv.exec.variant
+    and binds explicit runtime ABI values for input, accumulator seed, output,
+    and runtime n/AVL together with selected operation kind, memory form,
+    accumulator role/layout, result layout, and compile-time RVV config facts.
+
+    This op is not a broad reduction framework, descriptor, source-front-door
+    marker, direct-C exporter, route id, intrinsic wrapper, runtime artifact,
+    correctness evidence, or performance evidence. The RVV plugin must first
+    realize it into explicit setvl/with_vl/load/load/reduce/store tcrv_rvv body
+    structure before the existing provider may construct a
+    TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    StrAttr:$accumulator_role,
+    StrAttr:$accumulator_layout,
+    StrAttr:$result_layout,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedMAccPreRealizedBodyOp
     : TCRVRVV_Op<"typed_macc_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV macc selected body";
