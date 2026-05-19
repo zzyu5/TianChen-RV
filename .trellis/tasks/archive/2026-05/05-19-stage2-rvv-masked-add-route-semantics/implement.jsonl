@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first stage order, and source-of-truth constraints for implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body authority, Stage 2 coverage, mask/tail, provider ownership, and fail-closed legacy rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck and RVV runtime evidence requirements."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected variant/body/realization and emission-plan mirror boundaries."}

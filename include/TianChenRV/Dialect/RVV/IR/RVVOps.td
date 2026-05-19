@@ -421,6 +421,39 @@ def BinaryOp : TCRVRVV_Op<"binary",
   let hasVerifier = 1;
 }
 
+def MaskedBinaryOp : TCRVRVV_Op<"masked_binary",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary = "generic typed RVV masked binary arithmetic dataflow op";
+  let description = [{
+    Records one bounded generic plugin-local RVV masked binary arithmetic
+    step. The op is nested directly under tcrv_rvv.with_vl, consumes one
+    !tcrv_rvv.mask predicate, one passthrough/maskedoff !tcrv_rvv.vector
+    value, two same-typed !tcrv_rvv.vector arithmetic operands, and the active
+    !tcrv_rvv.vl token. It carries an explicit operation kind and produces one
+    same-typed !tcrv_rvv.vector result.
+
+    For the current bounded Stage 2 mask/tail-policy slice, kind is limited to
+    add and the mask must come from generic tcrv_rvv.compare in the same
+    selected VL scope. The passthrough vector is structural body authority for
+    inactive-lane behavior; common EmitC/export must not infer it from route
+    ids, ABI names, or artifact metadata.
+  }];
+
+  let arguments = (ins
+    AnyType:$mask,
+    AnyType:$passthrough,
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$vl,
+    StrAttr:$kind
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$mask `,` $passthrough `,` $lhs `,` $rhs `,` $vl attr-dict `:` type($mask) `,` type($passthrough) `,` type($lhs) `,` type($rhs) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def CompareOp : TCRVRVV_Op<"compare",
     [TCRVEmitCLowerableOpInterface]> {
   let summary = "generic typed RVV predicate-producing compare dataflow op";

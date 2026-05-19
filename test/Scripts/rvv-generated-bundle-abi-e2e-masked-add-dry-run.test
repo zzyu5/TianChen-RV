@@ -1,0 +1,33 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id masked-add --overwrite --op-kind masked_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/masked-add/evidence.json
+# RUN: FileCheck %s --check-prefix=MASKED --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/masked-add/masked_add/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/masked-add/masked_add/rvv_generated_bundle_abi_masked_add_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+
+# ROOT: "input_mode": "explicit-selected-body"
+# ROOT: "op_kinds": [
+# ROOT: "masked_add"
+# ROOT: "status": "dry_run_success"
+
+# MASKED-DAG: "input_mode": "explicit-selected-body"
+# MASKED-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-masked-add.mlir"
+# MASKED-DAG: "expected_selected_variant": "explicit_selected_body_rvv_i32_masked_add"
+# MASKED-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_masked_add_kernel_explicit_selected_body_rvv_i32_masked_add"
+# MASKED-DAG: "expected_runtime_abi_name": "rvv-generic-masked-add-callable-c-abi.v1"
+# MASKED-DAG: "key": "rvv_selected_body_operation"
+# MASKED-DAG: "value": "masked_add"
+# MASKED-DAG: "key": "rvv_selected_body_typed_compute_op"
+# MASKED-DAG: "value": "tcrv_rvv.masked_binary"
+# MASKED-DAG: "key": "tcrv_rvv.mask_source"
+# MASKED-DAG: "value": "compare-produced-mask-same-vl-scope"
+# MASKED-DAG: "key": "tcrv_rvv.masked_passthrough_layout"
+# MASKED-DAG: "value": "passthrough-vector-preserves-inactive-lanes"
+# MASKED-DAG: "typed_compute_op": "tcrv_rvv.masked_binary"
+# MASKED-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_explicit_selected_body_masked_add_kernel_explicit_selected_body_rvv_i32_masked_add(lhs, rhs, out, n);
+# HARNESS: (lhs[index] == rhs[index] ? (int32_t)(lhs[index] + rhs[index]) : lhs[index])
+# HARNESS: const size_t counts[] = {7, 16, 23};

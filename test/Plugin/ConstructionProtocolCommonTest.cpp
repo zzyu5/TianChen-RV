@@ -1625,7 +1625,9 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "cmp_select"
             ? "tcrv_rvv.select"
             : (route.operationMnemonic == "reduce_add" ? "tcrv_rvv.reduce"
-                                                       : "tcrv_rvv.binary");
+               : (route.operationMnemonic == "masked_add"
+                      ? "tcrv_rvv.masked_binary"
+                      : "tcrv_rvv.binary"));
     llvm::Expected<llvm::SmallVector<
         rvv::RVVSelectedBodyExecutableRoleStep, 10>>
         steps = rvv::getRVVSelectedBodyExecutableRoleSteps(
@@ -1634,10 +1636,11 @@ int runRVVCommonValidationTest() {
       return fail(llvm::Twine("RVV executable role steps are built from "
                               "route operation: ") +
                   llvm::toString(steps.takeError()));
-    const bool isCompareSelect = route.operationMnemonic == "cmp_select";
-    if (steps->size() != (isCompareSelect ? 11u : 10u))
+    const bool hasMaskProducer = route.operationMnemonic == "cmp_select" ||
+                                 route.operationMnemonic == "masked_add";
+    if (steps->size() != (hasMaskProducer ? 11u : 10u))
       return fail("RVV executable role sequence must include explicit ABI, "
-                  "config, scope, load, compute, optional compare/select "
+                  "config, scope, load, compute, optional mask-producing "
                   "compute, and store steps");
   }
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =

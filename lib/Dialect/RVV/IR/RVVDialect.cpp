@@ -153,6 +153,10 @@ bool isAllowedBinaryAttr(llvm::StringRef name) {
   return name == "kind";
 }
 
+bool isAllowedMaskedBinaryAttr(llvm::StringRef name) {
+  return name == "kind";
+}
+
 bool isAllowedCompareAttr(llvm::StringRef name) { return name == "kind"; }
 
 bool isAllowedSelectAttr(llvm::StringRef) { return false; }
@@ -167,6 +171,10 @@ bool isSupportedTypedBinaryPreRealizedBodyOpKind(llvm::StringRef opKind) {
 
 bool isSupportedGenericBinaryKind(llvm::StringRef kind) {
   return kind == "add" || kind == "sub" || kind == "mul";
+}
+
+bool isSupportedGenericMaskedBinaryKind(llvm::StringRef kind) {
+  return kind == "add";
 }
 
 bool isSupportedGenericCompareKind(llvm::StringRef kind) {
@@ -1209,6 +1217,79 @@ mlir::LogicalResult BinaryOp::verify() {
   if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getRhs(), "rhs")))
     return mlir::failure();
   return verifyGenericVectorTypeForWithVL(op, getResult(), "result");
+}
+
+mlir::LogicalResult MaskedBinaryOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.masked_binary keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+
+    if (!isAllowedMaskedBinaryAttr(attrName))
+      return emitOpError()
+             << "only accepts generic masked binary attribute 'kind"
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!isSupportedGenericMaskedBinaryKind(getKind()))
+    return emitOpError()
+           << "currently supports only kind \"add\" for the bounded Stage 2 "
+              "masked arithmetic route";
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one generic RVV mask predicate, one passthrough "
+              "generic RVV vector, lhs/rhs generic RVV vector operands, one "
+              "!tcrv_rvv.vl operand, and one generic RVV vector result";
+  if (getPassthrough().getType() != getLhs().getType() ||
+      getLhs().getType() != getRhs().getType() ||
+      getLhs().getType() != getResult().getType())
+    return emitOpError()
+           << "requires passthrough, lhs, rhs, and result to have the same "
+              "generic RVV vector type";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto compare = getMask().getDefiningOp<CompareOp>();
+  if (!compare)
+    return emitOpError()
+           << "requires mask operand to be produced by tcrv_rvv.compare "
+              "inside the selected RVV typed body";
+  if (compare.getVl() != getVl())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.compare to consume the same "
+              "!tcrv_rvv.vl token as tcrv_rvv.masked_binary";
+  if (compare->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.compare to be in the same "
+              "tcrv_rvv.with_vl body as tcrv_rvv.masked_binary";
+
+  if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getPassthrough(),
+                                                    "passthrough")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getLhs(), "lhs")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getRhs(), "rhs")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getResult(),
+                                                    "result")))
+    return mlir::failure();
+  return verifyGenericMaskMatchesVector(op, getMask(), getResult(), "mask",
+                                        "result");
 }
 
 mlir::LogicalResult CompareOp::verify() {

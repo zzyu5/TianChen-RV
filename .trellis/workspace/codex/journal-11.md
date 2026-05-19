@@ -146,3 +146,71 @@ correctness claim only for the bounded reduce-add chunk layout described above.
 
 - Future continuation, if requested: broaden reduction/accumulation semantics
   beyond this bounded per-VL chunk layout under a separate Stage2 coverage task.
+
+
+## Session 136: Stage2 generic RVV masked add route semantics
+
+**Date**: 2026-05-19
+**Task**: `stage2-rvv-masked-add-route-semantics`
+**Branch**: `main`
+
+### Summary
+
+Added one bounded generic `tcrv_rvv.masked_binary {kind = "add"}` selected-body
+route. The route carries compare-produced mask flow, passthrough/result vector
+role, VL, typed vector/mask shape, and policy facts through RVV dialect
+verification into RVV provider route construction and target artifact evidence.
+
+### Main Changes
+
+- Added `tcrv_rvv.masked_binary` and verifier checks for compare mask source,
+  same `with_vl` scope, VL token consistency, vector/mask compatibility,
+  passthrough/lhs/rhs/result agreement, and bounded `kind = "add"`.
+- Added RVV construction protocol support for the `masked_add` selected-body
+  route, typed op identity, role sequence, ABI mapping, and artifact metadata.
+- Added provider-side masked-add route validation and materialization:
+  compare mask, active add, passthrough merge, and store. Common EmitC/export
+  remains neutral.
+- Extended target artifact export tests and `rvv_generated_bundle_abi_e2e.py`
+  with `--op-kind masked_add` dry-run and executable harness support.
+- Added positive/negative dialect, materialization, artifact, and script tests;
+  updated stale generic-op diagnostic fixtures to include `tcrv_rvv.masked_binary`.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] Focused build for `tcrv-opt`, `tcrv-translate`, RVV plugin,
+  construction protocol, and target artifact export tests.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused masked-add dialect/materialization/negative/target artifact
+  FileCheck commands.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] masked-add generated-bundle dry-run.
+- [OK] real `ssh rvv` masked-add correctness evidence for counts
+  `1,7,16,17,257`:
+  `tcrv_rvv_generated_bundle_abi_masked_add_ok counts=1,7,16,17,257`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 157/157 passed.
+- [OK] `git diff --check`
+- [OK] diff active-authority scan introduced no legacy RVV route authority;
+  remaining exact i32m1 intrinsic matches are provider-derived leaf checks.
+
+### Self-Repair
+
+- Replaced an initially attempted five-argument masked add intrinsic shape after
+  current RVV clang rejected it during generated object packaging. The final
+  bounded route uses active add plus provider-derived merge with passthrough.
+- Repaired stale broad lit diagnostics that omitted the newly allowed
+  `tcrv_rvv.masked_binary` op from generic selected-body op lists.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round makes a real RVV
+correctness claim only for bounded masked add counts `1,7,16,17,257`.
+
+### Next Steps
+
+- Future continuation, if requested: expand Stage2 masked execution classes
+  beyond this single masked add submodule under a separate bounded task.

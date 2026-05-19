@@ -28,6 +28,7 @@ enum class RVVSelectedBodyOperationKind {
   Mul,
   CmpSelect,
   ReduceAdd,
+  MaskedAdd,
 };
 
 enum class RVVSelectedBodyMemoryForm {
@@ -75,8 +76,11 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef storeIntrinsic;
   llvm::StringRef intrinsic;
   llvm::StringRef compareIntrinsic;
+  llvm::StringRef maskedMergeIntrinsic;
   llvm::StringRef resultName;
   llvm::StringRef maskName;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskedPassthroughLayout;
   llvm::StringRef reductionAccumulatorLayout;
   llvm::StringRef reductionResultLayout;
   llvm::StringRef reductionStoreVL;

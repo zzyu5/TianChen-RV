@@ -464,6 +464,8 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     return "tcrv_rvv.i32_select";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ReduceAdd:
     return "tcrv_rvv.reduce";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedAdd:
+    return "tcrv_rvv.masked_binary";
   }
   llvm_unreachable("unknown RVV test arithmetic op");
 }
@@ -481,6 +483,8 @@ llvm::StringRef getRVVTestBinaryKind(
     return "cmp_select";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ReduceAdd:
     return "reduce_add";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedAdd:
+    return "masked_add";
   }
   llvm_unreachable("unknown RVV test binary kind");
 }
@@ -565,6 +569,18 @@ module {
              tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ReduceAdd) {
     os << R"mlir(
         %result = tcrv_rvv.reduce %lhs_vec, %rhs_vec, %vl {kind = "add"} : )mlir"
+       << vectorType << R"mlir(, )mlir" << vectorType
+       << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType << R"mlir(
+)mlir";
+  } else if (op ==
+             tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedAdd) {
+    os << R"mlir(
+        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "eq"} : )mlir"
+       << vectorType << R"mlir(, )mlir" << vectorType
+       << R"mlir(, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, ")mlir"
+       << lmul << R"mlir(">
+        %result = tcrv_rvv.masked_binary %mask, %lhs_vec, %lhs_vec, %rhs_vec, %vl {kind = "add"} : !tcrv_rvv.mask<i32, ")mlir"
+       << lmul << R"mlir(">, )mlir" << vectorType << R"mlir(, )mlir"
        << vectorType << R"mlir(, )mlir" << vectorType
        << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType << R"mlir(
 )mlir";

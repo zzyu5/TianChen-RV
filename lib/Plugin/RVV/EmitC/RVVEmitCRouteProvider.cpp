@@ -42,6 +42,10 @@ constexpr llvm::StringLiteral
     kRVVReductionResultLayout("store-reduction-lane0-to-output-chunk-base");
 constexpr llvm::StringLiteral kRVVReductionStoreVL("1");
 constexpr llvm::StringLiteral
+    kRVVMaskedCompareMaskSource("compare-produced-mask-same-vl-scope");
+constexpr llvm::StringLiteral kRVVMaskedPassthroughLayout(
+    "passthrough-vector-preserves-inactive-lanes");
+constexpr llvm::StringLiteral
     kEmitCLowerableOpInterfaceName("TCRVEmitCLowerableOpInterface");
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);
@@ -53,6 +57,7 @@ struct RVVSelectedBodyOperationProfile {
   llvm::StringRef maskName;
   bool isCompareSelect;
   bool isReduction;
+  bool isMaskedArithmetic;
 };
 
 struct RVVSelectedBodyConfigProfile {
@@ -75,6 +80,7 @@ struct RVVSelectedBodyConfigProfile {
 struct RVVSelectedBodyTargetLeafProfile {
   llvm::StringRef intrinsic;
   llvm::StringRef compareIntrinsic;
+  llvm::StringRef maskedMergeIntrinsic;
   llvm::StringRef rhsBroadcastIntrinsic;
 };
 
@@ -88,25 +94,35 @@ constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::Add, RVVSelectedBodyOperationKind::Sub,
     RVVSelectedBodyOperationKind::Mul,
     RVVSelectedBodyOperationKind::CmpSelect,
-    RVVSelectedBodyOperationKind::ReduceAdd};
+    RVVSelectedBodyOperationKind::ReduceAdd,
+    RVVSelectedBodyOperationKind::MaskedAdd};
 
 const RVVSelectedBodyOperationProfile &
 getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
   static const RVVSelectedBodyOperationProfile kAdd = {
       RVVSelectedBodyOperationKind::Add, "add", "sum_vec", "",
-      /*isCompareSelect=*/false, /*isReduction=*/false};
+      /*isCompareSelect=*/false, /*isReduction=*/false,
+      /*isMaskedArithmetic=*/false};
   static const RVVSelectedBodyOperationProfile kSub = {
       RVVSelectedBodyOperationKind::Sub, "sub", "difference_vec", "",
-      /*isCompareSelect=*/false, /*isReduction=*/false};
+      /*isCompareSelect=*/false, /*isReduction=*/false,
+      /*isMaskedArithmetic=*/false};
   static const RVVSelectedBodyOperationProfile kMul = {
       RVVSelectedBodyOperationKind::Mul, "mul", "product_vec", "",
-      /*isCompareSelect=*/false, /*isReduction=*/false};
+      /*isCompareSelect=*/false, /*isReduction=*/false,
+      /*isMaskedArithmetic=*/false};
   static const RVVSelectedBodyOperationProfile kCmpSelect = {
       RVVSelectedBodyOperationKind::CmpSelect, "cmp_select", "selected_vec",
-      "cmp_mask", /*isCompareSelect=*/true, /*isReduction=*/false};
+      "cmp_mask", /*isCompareSelect=*/true, /*isReduction=*/false,
+      /*isMaskedArithmetic=*/false};
   static const RVVSelectedBodyOperationProfile kReduceAdd = {
       RVVSelectedBodyOperationKind::ReduceAdd, "reduce_add", "reduced_vec",
-      "", /*isCompareSelect=*/false, /*isReduction=*/true};
+      "", /*isCompareSelect=*/false, /*isReduction=*/true,
+      /*isMaskedArithmetic=*/false};
+  static const RVVSelectedBodyOperationProfile kMaskedAdd = {
+      RVVSelectedBodyOperationKind::MaskedAdd, "masked_add",
+      "masked_sum_vec", "add_mask", /*isCompareSelect=*/false,
+      /*isReduction=*/false, /*isMaskedArithmetic=*/true};
 
   switch (op) {
   case RVVSelectedBodyOperationKind::Add:
@@ -119,6 +135,8 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
     return kCmpSelect;
   case RVVSelectedBodyOperationKind::ReduceAdd:
     return kReduceAdd;
+  case RVVSelectedBodyOperationKind::MaskedAdd:
+    return kMaskedAdd;
   }
   llvm_unreachable("unknown RVV selected-body operation");
 }
@@ -196,6 +214,8 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
     llvm_unreachable("compare/select uses dedicated compare and merge leaves");
   case RVVSelectedBodyOperationKind::ReduceAdd:
     llvm_unreachable("reduction uses dedicated reduction intrinsic leaf");
+  case RVVSelectedBodyOperationKind::MaskedAdd:
+    llvm_unreachable("masked arithmetic uses dedicated masked intrinsic leaf");
   }
   llvm_unreachable("unknown RVV selected-body operation");
 }
@@ -231,7 +251,7 @@ deriveRVVSelectedBodyTargetLeafProfile(
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     return RVVSelectedBodyTargetLeafProfile{
         getRVVSelectedBodySelectIntrinsic(configProfile.lmul),
-        getRVVSelectedBodyCompareIntrinsic(configProfile.lmul), ""};
+        getRVVSelectedBodyCompareIntrinsic(configProfile.lmul), "", ""};
   }
 
   if (operationProfile.isReduction) {
@@ -241,14 +261,24 @@ deriveRVVSelectedBodyTargetLeafProfile(
         getRVVSelectedBodyReductionIntrinsic(configProfile.lmul);
     if (reductionIntrinsic.empty())
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
-    return RVVSelectedBodyTargetLeafProfile{reductionIntrinsic, "", ""};
+    return RVVSelectedBodyTargetLeafProfile{reductionIntrinsic, "", "", ""};
+  }
+
+  if (operationProfile.isMaskedArithmetic) {
+    if (description.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad)
+      return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+    return RVVSelectedBodyTargetLeafProfile{
+        getRVVSelectedBodyArithmeticIntrinsic(RVVSelectedBodyOperationKind::Add,
+                                             configProfile.lmul),
+        getRVVSelectedBodyCompareIntrinsic(configProfile.lmul),
+        getRVVSelectedBodySelectIntrinsic(configProfile.lmul), ""};
   }
 
   if (description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad)
     return RVVSelectedBodyTargetLeafProfile{
         getRVVSelectedBodyArithmeticIntrinsic(description.operation,
                                              configProfile.lmul),
-        "", configProfile.rhsBroadcastIntrinsic};
+        "", "", configProfile.rhsBroadcastIntrinsic};
 
   if (description.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad)
     return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
@@ -256,7 +286,7 @@ deriveRVVSelectedBodyTargetLeafProfile(
   return RVVSelectedBodyTargetLeafProfile{
       getRVVSelectedBodyArithmeticIntrinsic(description.operation,
                                            configProfile.lmul),
-      "", ""};
+      "", "", ""};
 }
 
 llvm::Expected<RVVSelectedBodyRouteProfile>
@@ -385,6 +415,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::CompareOp compareOp;
   tcrv::rvv::SelectOp selectOp;
   tcrv::rvv::ReduceOp reduceOp;
+  tcrv::rvv::MaskedBinaryOp maskedBinaryOp;
   mlir::Operation *arithmeticOp = nullptr;
   mlir::Value arithmeticLhs;
   mlir::Value arithmeticRhs;
@@ -392,6 +423,7 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value compareLhs;
   mlir::Value compareRhs;
   mlir::Value compareMask;
+  mlir::Value maskedPassthrough;
   RVVSelectedBodyOperationKind arithmeticKind;
   RVVSelectedBodyMemoryForm memoryForm =
       RVVSelectedBodyMemoryForm::VectorRHSLoad;
@@ -579,7 +611,7 @@ llvm::Error recordRVVSelectedBodyCompare(RVVSelectedBodyRouteSlice &slice,
   if (slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one generic "
-        "tcrv_rvv.compare op for compare/select routes");
+        "tcrv_rvv.compare op for mask-producing routes");
   if (compare.getKind() != "eq")
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic tcrv_rvv.compare kind '") +
@@ -588,6 +620,27 @@ llvm::Error recordRVVSelectedBodyCompare(RVVSelectedBodyRouteSlice &slice,
   slice.compareLhs = compare.getLhs();
   slice.compareRhs = compare.getRhs();
   slice.compareMask = compare.getMask();
+  return llvm::Error::success();
+}
+
+llvm::Error
+recordRVVSelectedBodyMaskedBinary(RVVSelectedBodyRouteSlice &slice,
+                                  tcrv::rvv::MaskedBinaryOp maskedBinary) {
+  if (slice.arithmeticOp)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route requires exactly one selected compute op");
+  if (maskedBinary.getKind() != "add")
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.masked_binary kind '") +
+        maskedBinary.getKind() + "' for bounded RVV masked route");
+  slice.maskedBinaryOp = maskedBinary;
+  slice.arithmeticOp = maskedBinary.getOperation();
+  slice.arithmeticKind = RVVSelectedBodyOperationKind::MaskedAdd;
+  slice.compareMask = maskedBinary.getMask();
+  slice.maskedPassthrough = maskedBinary.getPassthrough();
+  slice.arithmeticLhs = maskedBinary.getLhs();
+  slice.arithmeticRhs = maskedBinary.getRhs();
+  slice.arithmeticResult = maskedBinary.getResult();
   return llvm::Error::success();
 }
 
@@ -703,6 +756,12 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         return std::move(error);
       continue;
     }
+    if (auto maskedBinary = llvm::dyn_cast<tcrv::rvv::MaskedBinaryOp>(op)) {
+      if (llvm::Error error =
+              recordRVVSelectedBodyMaskedBinary(slice, maskedBinary))
+        return std::move(error);
+      continue;
+    }
     if (auto select = llvm::dyn_cast<tcrv::rvv::SelectOp>(op)) {
       if (llvm::Error error = recordRVVSelectedBodySelect(slice, select))
         return std::move(error);
@@ -724,13 +783,13 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           op.getName().getStringRef() +
           "' is fail-closed during RVV Stage1; Stage2 routes must use generic "
           "tcrv_rvv.load, tcrv_rvv.broadcast_load, tcrv_rvv.binary, "
-          "tcrv_rvv.compare, tcrv_rvv.select, tcrv_rvv.reduce, and "
-          "tcrv_rvv.store body structure");
+          "tcrv_rvv.compare, tcrv_rvv.masked_binary, tcrv_rvv.select, "
+          "tcrv_rvv.reduce, and tcrv_rvv.store body structure");
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("bounded RVV EmitC route does not support op '") +
         op.getName().getStringRef() +
         "' inside tcrv_rvv.with_vl; expected generic load, broadcast_load, "
-        "binary, compare, select, reduce, and store only");
+        "binary, compare, masked_binary, select, reduce, and store only");
   }
 
   if (genericBroadcastLoads.size() > 1)
@@ -761,30 +820,37 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       slice.arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect;
   const bool isReduction =
       slice.arithmeticKind == RVVSelectedBodyOperationKind::ReduceAdd;
-  if (isCompareSelect && !slice.compareOp)
+  const bool isMaskedAdd =
+      slice.arithmeticKind == RVVSelectedBodyOperationKind::MaskedAdd;
+  if ((isCompareSelect || isMaskedAdd) && !slice.compareOp)
     return makeRVVEmitCRouteProviderError(
-        "bounded generic RVV compare/select route requires one "
-        "tcrv_rvv.compare op before tcrv_rvv.select");
-  if (!isCompareSelect && slice.compareOp)
+        "bounded generic RVV mask-consuming route requires one "
+        "tcrv_rvv.compare op before the mask-consuming compute op");
+  if (!isCompareSelect && !isMaskedAdd && slice.compareOp)
     return makeRVVEmitCRouteProviderError(
-        "bounded generic RVV non-compare route does not support a standalone "
+        "bounded generic RVV non-mask route does not support a standalone "
         "tcrv_rvv.compare op");
   if (isCompareSelect && !genericBroadcastLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV compare/select route requires an explicit RHS "
         "vector load; broadcast compare/select is not in this bounded slice");
+  if (isMaskedAdd && !genericBroadcastLoads.empty())
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV masked add route requires an explicit RHS vector "
+        "load; broadcast masked add is not in this bounded slice");
   if (isReduction && !genericBroadcastLoads.empty())
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV reduction route requires explicit vector input "
         "and accumulator loads; broadcast reduction is not in this bounded "
         "slice");
-  const unsigned expectedRVVOps = isCompareSelect ? 11 : 10;
+  const unsigned expectedRVVOps =
+      (isCompareSelect || isMaskedAdd) ? 11 : 10;
   if (rvvOpCount != expectedRVVOps)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route supports only runtime_abi_value/"
         "runtime_abi_value/runtime_abi_value/runtime_abi_value/setvl/"
         "with_vl plus generic load/broadcast_load/binary/compare/select/"
-        "reduce/store body structure");
+        "masked_binary/reduce/store body structure");
 
   for (tcrv::rvv::LoadOp load : genericLoads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
@@ -841,6 +907,26 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV compare/select route requires tcrv_rvv.select "
           "to consume lhs as true value and rhs as false value");
+  } else if (isMaskedAdd) {
+    if (slice.compareLhs != slice.lhsValue ||
+        slice.compareRhs != slice.rhsValue)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV masked add route requires tcrv_rvv.compare to "
+          "consume lhs/rhs generic load results");
+    if (slice.maskedBinaryOp.getMask() != slice.compareMask)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV masked add route requires "
+          "tcrv_rvv.masked_binary to consume the mask produced by "
+          "tcrv_rvv.compare");
+    if (slice.maskedPassthrough != slice.lhsValue)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV masked add route requires "
+          "tcrv_rvv.masked_binary passthrough to consume the lhs load result");
+    if (slice.arithmeticLhs != slice.lhsValue ||
+        slice.arithmeticRhs != slice.rhsValue)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV masked add route requires "
+          "tcrv_rvv.masked_binary to consume lhs/rhs generic load results");
   } else if (slice.arithmeticLhs != slice.lhsValue ||
              slice.arithmeticRhs != slice.rhsValue) {
     return makeRVVEmitCRouteProviderError(
@@ -1106,12 +1192,14 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.vectorTypeName =
       analysis.routeProfile.config.vectorTypeName;
   analysis.description.maskTypeName =
-      analysis.routeProfile.operation.isCompareSelect
+      (analysis.routeProfile.operation.isCompareSelect ||
+       analysis.routeProfile.operation.isMaskedArithmetic)
           ? analysis.routeProfile.config.maskTypeName
           : "";
   analysis.description.vectorCType = analysis.routeProfile.config.vectorCType;
   analysis.description.maskCType =
-      analysis.routeProfile.operation.isCompareSelect
+      (analysis.routeProfile.operation.isCompareSelect ||
+       analysis.routeProfile.operation.isMaskedArithmetic)
           ? analysis.routeProfile.config.maskCType
           : "";
   analysis.description.setVLIntrinsic =
@@ -1125,8 +1213,15 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.intrinsic = analysis.routeProfile.targetLeaves.intrinsic;
   analysis.description.compareIntrinsic =
       analysis.routeProfile.targetLeaves.compareIntrinsic;
+  analysis.description.maskedMergeIntrinsic =
+      analysis.routeProfile.targetLeaves.maskedMergeIntrinsic;
   analysis.description.resultName = analysis.routeProfile.operation.resultName;
   analysis.description.maskName = analysis.routeProfile.operation.maskName;
+  if (analysis.routeProfile.operation.isMaskedArithmetic) {
+    analysis.description.maskSource = kRVVMaskedCompareMaskSource;
+    analysis.description.maskedPassthroughLayout =
+        kRVVMaskedPassthroughLayout;
+  }
   if (analysis.routeProfile.operation.isReduction) {
     analysis.description.reductionAccumulatorLayout =
         kRVVReductionAccumulatorLayout;
@@ -1260,6 +1355,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " reduction cannot use generic tcrv_rvv.binary");
+  if (usesGenericBinary && operationProfile.isMaskedArithmetic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " masked arithmetic cannot use generic tcrv_rvv.binary");
   if (!usesGenericBinary)
     if (llvm::Error error = requireRouteDescriptionField(
             context, "typed compute op", description.typedComputeOpName,
@@ -1361,7 +1460,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           context, "vector C type", description.vectorCType,
           configProfile.vectorCType))
     return error;
-  if (operationProfile.isCompareSelect) {
+  if (operationProfile.isCompareSelect || operationProfile.isMaskedArithmetic) {
     if (llvm::Error error =
             requireRouteDescriptionField(context, "mask type",
                                          description.maskTypeName,
@@ -1401,16 +1500,33 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "compare intrinsic", description.compareIntrinsic,
             targetLeaves.compareIntrinsic))
       return error;
+  } else if (operationProfile.isMaskedArithmetic) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "compare intrinsic", description.compareIntrinsic,
+            targetLeaves.compareIntrinsic))
+      return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "compare intrinsic", description.compareIntrinsic, ""))
+      return error;
+  }
+  if (operationProfile.isMaskedArithmetic) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "masked merge intrinsic",
+            description.maskedMergeIntrinsic,
+            targetLeaves.maskedMergeIntrinsic))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "masked merge intrinsic",
+            description.maskedMergeIntrinsic, ""))
       return error;
   }
   if (llvm::Error error = requireRouteDescriptionField(
           context, "result value name", description.resultName,
           operationProfile.resultName))
     return error;
-  if (operationProfile.isCompareSelect) {
+  if (operationProfile.isCompareSelect || operationProfile.isMaskedArithmetic) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "mask value name", description.maskName,
             operationProfile.maskName))
@@ -1418,6 +1534,25 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "mask value name", description.maskName, ""))
+      return error;
+  }
+  if (operationProfile.isMaskedArithmetic) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask source", description.maskSource,
+            kRVVMaskedCompareMaskSource))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "masked passthrough layout",
+            description.maskedPassthroughLayout,
+            kRVVMaskedPassthroughLayout))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask source", description.maskSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "masked passthrough layout",
+            description.maskedPassthroughLayout, ""))
       return error;
   }
   if (operationProfile.isReduction) {
@@ -1499,6 +1634,11 @@ getRVVSelectedBodyConfigArtifactMetadata(
       {"tcrv_rvv.pointer_advance", description.pointerAdvanceMetadata});
   metadata.push_back({"tcrv_rvv.bounded_slice", description.boundedSlice});
   metadata.push_back({"tcrv_rvv.multi_vl", description.multiVL});
+  if (description.operation == RVVSelectedBodyOperationKind::MaskedAdd) {
+    metadata.push_back({"tcrv_rvv.mask_source", description.maskSource});
+    metadata.push_back({"tcrv_rvv.masked_passthrough_layout",
+                        description.maskedPassthroughLayout});
+  }
   if (description.operation == RVVSelectedBodyOperationKind::ReduceAdd) {
     metadata.push_back({"tcrv_rvv.reduction_accumulator_layout",
                         description.reductionAccumulatorLayout});
@@ -1637,6 +1777,43 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             {TCRVEmitCCallOpaqueOperand{"rhs_vec",
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        description.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                      description.vectorCType.str()}))
+      return error;
+  } else if (analysis.routeProfile.operation.isMaskedArithmetic) {
+    if (llvm::Error error = addLoopStep(
+            slice->compareOp.getOperation(), "compute",
+            description.compareIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"rhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.maskName.str(),
+                                      description.maskCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", description.intrinsic,
+            {TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"rhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"active_sum_vec",
+                                      description.vectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", description.maskedMergeIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"active_sum_vec",
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{description.maskName.str(),
                                         description.maskCType.str()},

@@ -41,10 +41,12 @@ DEFAULT_RUNTIME_COUNTS = (1, 7, 16, 17, 257)
 MIN_RUNTIME_COUNT_CASES = 2
 MIN_NON_ONE_VECTOR_SENTINEL_COUNT = 17
 DEFAULT_OP_KINDS = ("add", "sub", "mul")
-OP_KIND_CHOICES = DEFAULT_OP_KINDS + ("cmp_select", "reduce_add")
+OP_KIND_CHOICES = DEFAULT_OP_KINDS + ("cmp_select", "reduce_add", "masked_add")
 REDUCE_ADD_ACCUMULATOR_LAYOUT = "rhs-vector-seed-lane0-per-vl-chunk"
 REDUCE_ADD_RESULT_LAYOUT = "store-reduction-lane0-to-output-chunk-base"
 REDUCE_ADD_STORE_VL = "1"
+MASKED_ADD_MASK_SOURCE = "compare-produced-mask-same-vl-scope"
+MASKED_ADD_PASSTHROUGH_LAYOUT = "passthrough-vector-preserves-inactive-lanes"
 OUT_SENTINEL = "(int32_t)0x5a5a5a5a"
 
 INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
@@ -99,6 +101,10 @@ class OpExpectation:
     @property
     def is_reduce_add(self) -> bool:
         return self.kind == "reduce_add"
+
+    @property
+    def is_masked_add(self) -> bool:
+        return self.kind == "masked_add"
 
 
 EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
@@ -176,6 +182,21 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         lhs_initializer="(int32_t)(1 + (int32_t)(index % 11))",
         rhs_initializer="(int32_t)(1000 + (int32_t)(index * 3))",
         expected_expression="rhs[chunk_start] + sum(lhs[chunk_start:chunk_start+vl])",
+    ),
+    "masked_add": OpExpectation(
+        kind="masked_add",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-masked-add.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_i32_masked_add",
+        external_abi_name="rvv-generic-masked-add-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_masked_add_kernel_explicit_selected_body_rvv_i32_masked_add",
+        emitc_route="rvv-generic-masked-add-emitc-route",
+        typed_compute_op="tcrv_rvv.masked_binary",
+        memory_form="vector-rhs-load",
+        lhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(20 + (int32_t)index) : (int32_t)(3 + (int32_t)index))",
+        rhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(20 + (int32_t)index) : (int32_t)(100 + (int32_t)index))",
+        expected_expression="(lhs[index] == rhs[index] ? (int32_t)(lhs[index] + rhs[index]) : lhs[index])",
     ),
 }
 
@@ -696,6 +717,13 @@ def verify_record_metadata(
                 "tcrv_rvv.reduction_accumulator_layout": REDUCE_ADD_ACCUMULATOR_LAYOUT,
                 "tcrv_rvv.reduction_result_layout": REDUCE_ADD_RESULT_LAYOUT,
                 "tcrv_rvv.reduction_store_vl": REDUCE_ADD_STORE_VL,
+            }
+        )
+    if expectation.is_masked_add:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.mask_source": MASKED_ADD_MASK_SOURCE,
+                "tcrv_rvv.masked_passthrough_layout": MASKED_ADD_PASSTHROUGH_LAYOUT,
             }
         )
     for key, expected in {**per_op_metadata, **COMMON_EXPECTED_METADATA}.items():
@@ -1603,6 +1631,13 @@ extern "C" {{
                 "tcrv_rvv.reduction_accumulator_layout": REDUCE_ADD_ACCUMULATOR_LAYOUT,
                 "tcrv_rvv.reduction_result_layout": REDUCE_ADD_RESULT_LAYOUT,
                 "tcrv_rvv.reduction_store_vl": REDUCE_ADD_STORE_VL,
+            }
+        )
+    if expectation.is_masked_add:
+        expected_metadata.update(
+            {
+                "tcrv_rvv.mask_source": MASKED_ADD_MASK_SOURCE,
+                "tcrv_rvv.masked_passthrough_layout": MASKED_ADD_PASSTHROUGH_LAYOUT,
             }
         )
     metadata_lines = "\n".join(
