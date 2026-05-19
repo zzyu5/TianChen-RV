@@ -377,6 +377,44 @@ def TypedMaskedBinaryPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedCompareSelectPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_compare_select_pre_realized_body"> {
+  let summary = "generic typed pre-realized RVV compare/select selected body";
+  let description = [{
+    Carries the RVV plugin-local pre-realized selected body for one bounded
+    generic compare/select family. The op is nested directly in a selected
+    tcrv.exec.variant and binds explicit runtime ABI values for lhs, rhs, out,
+    and runtime n/AVL together with selected operation kind, predicate kind,
+    memory form, mask source, select layout, and compile-time RVV config facts.
+
+    This op is not a predicate framework, descriptor, source-front-door marker,
+    direct-C exporter, route id, intrinsic wrapper, runtime artifact,
+    correctness evidence, or performance evidence. The RVV plugin must first
+    realize it into explicit setvl/with_vl/load/compare/select/store tcrv_rvv
+    body structure before the existing provider may construct a
+    TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$predicate_kind,
+    StrAttr:$memory_form,
+    StrAttr:$mask_source,
+    StrAttr:$select_layout,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedReducePreRealizedBodyOp
     : TCRVRVV_Op<"typed_reduce_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV reduce selected body";

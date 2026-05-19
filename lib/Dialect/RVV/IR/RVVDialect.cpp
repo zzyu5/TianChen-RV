@@ -57,10 +57,12 @@ constexpr llvm::StringLiteral kCTypeAttrName("c_type");
 constexpr llvm::StringLiteral kOwnershipAttrName("ownership");
 constexpr llvm::StringLiteral kPurposeAttrName("purpose");
 constexpr llvm::StringLiteral kOpKindAttrName("op_kind");
+constexpr llvm::StringLiteral kPredicateKindAttrName("predicate_kind");
 constexpr llvm::StringLiteral kMemoryFormAttrName("memory_form");
 constexpr llvm::StringLiteral kMaskSourceAttrName("mask_source");
 constexpr llvm::StringLiteral kMaskedPassthroughAttrName(
     "masked_passthrough");
+constexpr llvm::StringLiteral kSelectLayoutAttrName("select_layout");
 constexpr llvm::StringLiteral kAccumulatorRoleAttrName("accumulator_role");
 constexpr llvm::StringLiteral kAccumulatorLayoutAttrName(
     "accumulator_layout");
@@ -159,6 +161,13 @@ bool isAllowedTypedMaskedBinaryPreRealizedBodyAttr(llvm::StringRef name) {
          name == kPolicyAttrName;
 }
 
+bool isAllowedTypedCompareSelectPreRealizedBodyAttr(llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kPredicateKindAttrName ||
+         name == kMemoryFormAttrName || name == kMaskSourceAttrName ||
+         name == kSelectLayoutAttrName || name == kSEWAttrName ||
+         name == kLMULAttrName || name == kPolicyAttrName;
+}
+
 bool isAllowedTypedReducePreRealizedBodyAttr(llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
          name == kAccumulatorRoleAttrName ||
@@ -228,6 +237,31 @@ bool isSupportedTypedMaskedBinaryPreRealizedMaskSource(
 bool isSupportedTypedMaskedBinaryPreRealizedPassthrough(
     llvm::StringRef passthrough) {
   return passthrough == "passthrough-vector-preserves-inactive-lanes";
+}
+
+bool isSupportedTypedCompareSelectPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "cmp_select";
+}
+
+bool isSupportedTypedCompareSelectPreRealizedPredicateKind(
+    llvm::StringRef predicateKind) {
+  return predicateKind == "eq";
+}
+
+bool isSupportedTypedCompareSelectPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "vector-rhs-load";
+}
+
+bool isSupportedTypedCompareSelectPreRealizedMaskSource(
+    llvm::StringRef maskSource) {
+  return maskSource == "compare-produced-mask-same-vl-scope";
+}
+
+bool isSupportedTypedCompareSelectPreRealizedSelectLayout(
+    llvm::StringRef layout) {
+  return layout == "select-lhs-when-mask-else-rhs";
 }
 
 bool isSupportedTypedReducePreRealizedBodyOpKind(llvm::StringRef opKind) {
@@ -1363,6 +1397,86 @@ mlir::LogicalResult TypedMaskedBinaryPreRealizedBodyOp::verify() {
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "
               "selected-body masked realization hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getRhs(), "rhs",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult TypedCompareSelectPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected compare/select bodies carry only "
+                "typed RVV operation/config/memory/mask/runtime SSA facts and "
+                "must be realized by the RVV plugin before route construction";
+
+    if (!isAllowedTypedCompareSelectPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kPredicateKindAttrName << "', '"
+             << kMemoryFormAttrName << "', '" << kMaskSourceAttrName << "', '"
+             << kSelectLayoutAttrName << "', '" << kSEWAttrName << "', '"
+             << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires lhs, rhs, out, runtime n/AVL operands and no results";
+
+  if (!isSupportedTypedCompareSelectPreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind \"cmp_select\" for the bounded "
+              "selected-body compare/select realization hook";
+  if (!isSupportedTypedCompareSelectPreRealizedPredicateKind(
+          getPredicateKind()))
+    return emitOpError()
+           << "currently supports only predicate_kind \"eq\" for the bounded "
+              "selected-body compare/select realization hook";
+  if (!isSupportedTypedCompareSelectPreRealizedMemoryForm(getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form \"vector-rhs-load\" for the "
+              "bounded selected-body compare/select realization hook";
+  if (!isSupportedTypedCompareSelectPreRealizedMaskSource(getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"compare-produced-mask-same-vl-scope\" for the bounded "
+              "selected-body compare/select realization hook";
+  if (!isSupportedTypedCompareSelectPreRealizedSelectLayout(getSelectLayout()))
+    return emitOpError()
+           << "currently supports only select_layout "
+              "\"select-lhs-when-mask-else-rhs\" for the bounded selected-body "
+              "compare/select realization hook";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized compare/select config to be SEW32 "
+              "LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body compare/select realization hook";
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getLhs(), "lhs",

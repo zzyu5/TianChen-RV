@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Confirm final changes preserve global RVV-first and Stage1/Stage2 invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-local compare/select realization and no legacy i32 authority regression."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider/common EmitC boundary remains neutral."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/script/build evidence is attached to production-path changes."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-compare-select-route/prd.md", "reason": "Verify acceptance criteria and non-goals against final diff."}

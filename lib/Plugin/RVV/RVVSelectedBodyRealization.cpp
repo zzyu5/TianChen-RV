@@ -50,6 +50,26 @@ bool isPreRealizedMaskedPassthrough(llvm::StringRef passthrough) {
   return passthrough == "passthrough-vector-preserves-inactive-lanes";
 }
 
+bool isPreRealizedCompareSelectOpKind(llvm::StringRef opKind) {
+  return opKind == "cmp_select";
+}
+
+bool isPreRealizedCompareSelectPredicateKind(llvm::StringRef predicateKind) {
+  return predicateKind == "eq";
+}
+
+bool isPreRealizedCompareSelectMemoryForm(llvm::StringRef memoryForm) {
+  return memoryForm == "vector-rhs-load";
+}
+
+bool isPreRealizedCompareSelectMaskSource(llvm::StringRef maskSource) {
+  return maskSource == "compare-produced-mask-same-vl-scope";
+}
+
+bool isPreRealizedCompareSelectLayout(llvm::StringRef layout) {
+  return layout == "select-lhs-when-mask-else-rhs";
+}
+
 bool isPreRealizedReduceOpKind(llvm::StringRef opKind) {
   return opKind == "reduce_add";
 }
@@ -129,6 +149,7 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
   variant.getBody().walk([&](mlir::Operation *op) {
     if (llvm::isa<tcrv::rvv::TypedBinaryPreRealizedBodyOp,
                   tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp,
+                  tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedReducePreRealizedBodyOp,
                   tcrv::rvv::TypedMAccPreRealizedBodyOp>(op))
       bodies.push_back(op);
@@ -139,6 +160,7 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
         "selected RVV realization requires exactly one "
         "tcrv_rvv.typed_binary_pre_realized_body or "
         "tcrv_rvv.typed_masked_binary_pre_realized_body or "
+        "tcrv_rvv.typed_compare_select_pre_realized_body or "
         "tcrv_rvv.typed_reduce_pre_realized_body or "
         "tcrv_rvv.typed_macc_pre_realized_body op when no realized "
         "setvl/with_vl body is present");
@@ -360,6 +382,98 @@ llvm::Error validatePreRealizedRVVSelectedMaskedBody(
     return makeRVVPluginError(
         "pre-realized RVV selected masked-body realization requires non-empty "
         "selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
+llvm::Error validatePreRealizedRVVSelectedCompareSelectBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedCompareSelectPreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVPluginError(
+        "selected RVV compare/select realization requires a pre-realized "
+        "compare/select body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVPluginError(
+        "pre-realized RVV selected compare/select body must be a direct child "
+        "of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedCompareSelectOpKind(body.getOpKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected compare/select body currently supports only "
+        "op_kind 'cmp_select'");
+  if (!isPreRealizedCompareSelectPredicateKind(body.getPredicateKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected compare/select body currently supports only "
+        "predicate_kind 'eq'");
+  if (!isPreRealizedCompareSelectMemoryForm(body.getMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected compare/select body currently supports only "
+        "memory_form 'vector-rhs-load'");
+  if (!isPreRealizedCompareSelectMaskSource(body.getMaskSource()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected compare/select body currently supports only "
+        "mask_source 'compare-produced-mask-same-vl-scope'");
+  if (!isPreRealizedCompareSelectLayout(body.getSelectLayout()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected compare/select body currently supports only "
+        "select_layout 'select-lhs-when-mask-else-rhs'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVPluginError(
+        "pre-realized RVV selected compare/select body requires SEW32 LMUL m1");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected compare/select body requires tail agnostic, "
+        "mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getLhs(), "pre-realized RVV compare/select lhs operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!lhs)
+    return lhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getRhs(), "pre-realized RVV compare/select rhs operand",
+          support::RuntimeABIParameterRole::RHSInputBuffer);
+  if (!rhs)
+    return rhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+      requirePreRealizedRuntimeABIValue(
+          body.getOut(), "pre-realized RVV compare/select out operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!out)
+    return out.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(), "pre-realized RVV compare/select runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
+                  tcrv::rvv::TypedCompareSelectPreRealizedBodyOp>(op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected compare/select body must not "
+                    "be mixed with already realized RVV route body op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVPluginError(
+        "pre-realized RVV selected compare/select-body realization requires "
+        "non-empty selected variant requires metadata");
 
   return llvm::Error::success();
 }
@@ -626,6 +740,18 @@ mlir::Operation *createRealizedGenericCompare(mlir::OpBuilder &builder,
   return builder.create(state);
 }
 
+mlir::Operation *createRealizedGenericSelect(mlir::OpBuilder &builder,
+                                             mlir::Location loc,
+                                             mlir::Value mask,
+                                             mlir::Value trueValue,
+                                             mlir::Value falseValue,
+                                             mlir::Value vl) {
+  mlir::OperationState state(loc, "tcrv_rvv.select");
+  state.addOperands({mask, trueValue, falseValue, vl});
+  state.addTypes(trueValue.getType());
+  return builder.create(state);
+}
+
 llvm::Expected<mlir::Operation *>
 createRealizedGenericBinaryCompute(mlir::OpBuilder &builder,
                                    mlir::Location loc,
@@ -717,6 +843,7 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
   variant.getBody().walk([&](mlir::Operation *op) {
     if (llvm::isa<tcrv::rvv::TypedBinaryPreRealizedBodyOp,
                   tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp,
+                  tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedReducePreRealizedBodyOp,
                   tcrv::rvv::TypedMAccPreRealizedBodyOp>(op))
       found = true;
@@ -793,6 +920,41 @@ realizePreRealizedRVVSelectedBody(
                                  (*compute)->getResult(0), setvl.getVl());
     }
     body->erase();
+    return withVL;
+  }
+
+  if (auto compareSelectBody =
+          llvm::dyn_cast<tcrv::rvv::TypedCompareSelectPreRealizedBodyOp>(
+              *bodyOp)) {
+    if (llvm::Error error = validatePreRealizedRVVSelectedCompareSelectBody(
+            request, compareSelectBody))
+      return std::move(error);
+
+    mlir::Location loc = compareSelectBody->getLoc();
+    builder.setInsertionPoint(compareSelectBody.getOperation());
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc, compareSelectBody.getN()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires);
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, compareSelectBody.getLhs(), setvl.getVl()));
+    auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, compareSelectBody.getRhs(), setvl.getVl()));
+    mlir::Value lhsValue = lhsLoad.getLoaded();
+    mlir::Value rhsValue = rhsLoad.getLoaded();
+    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(builder, loc, lhsValue, rhsValue,
+                                     setvl.getVl()));
+    auto select = llvm::cast<tcrv::rvv::SelectOp>(
+        createRealizedGenericSelect(builder, loc, compare.getMask(), lhsValue,
+                                    rhsValue, setvl.getVl()));
+    createRealizedGenericStore(builder, loc, compareSelectBody.getOut(),
+                               select.getSelected(), setvl.getVl());
+    compareSelectBody->erase();
     return withVL;
   }
 

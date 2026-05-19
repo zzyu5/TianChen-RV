@@ -135,6 +135,10 @@ class OpExpectation:
         return self.kind == "reduce_add"
 
     @property
+    def is_cmp_select(self) -> bool:
+        return self.kind == "cmp_select"
+
+    @property
     def is_masked_add(self) -> bool:
         return self.kind == "masked_add"
 
@@ -358,6 +362,13 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_i32_mul",
         function_name="tcrv_emitc_pre_realized_body_mul_kernel_pre_realized_body_rvv_i32_mul",
+    ),
+    "cmp_select": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["cmp_select"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-cmp-select.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_cmp_select",
+        function_name="tcrv_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select",
     ),
     "masked_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_add"],
@@ -1029,6 +1040,12 @@ def verify_materialized_selected_body(
             "tcrv_rvv.strided_store",
             "materialized selected-body MLIR strided store",
         )
+    if expectation.is_cmp_select:
+        require_contains(
+            text,
+            "tcrv_rvv.compare",
+            "materialized selected-body MLIR compare mask producer",
+        )
     if expectation.is_pre_realized:
         require_not_contains(
             text,
@@ -1038,6 +1055,11 @@ def verify_materialized_selected_body(
         require_not_contains(
             text,
             "tcrv_rvv.typed_masked_binary_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_compare_select_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(

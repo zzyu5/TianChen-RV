@@ -151,6 +151,71 @@ correctness claim only for bounded pre-realized `reduce_add` counts
 |------|---------|
 | `this commit` | (see git log) |
 
+## Session 142: Stage2 RVV compare/select selected-body route path
+
+**Date**: 2026-05-20
+**Task**: `stage2-rvv-compare-select-route`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and implemented one
+bounded Stage2 compare/select selected-body realization path on the corrected
+generic typed RVV surface. The new pre-realized body carries explicit
+`cmp_select` / `eq` / mask-source / select-layout / runtime ABI facts, then
+the RVV plugin realizes it into generic `setvl`, `with_vl`, `load`, `compare`,
+`select`, and `store` structure before provider route construction.
+
+### Main Changes
+
+- Added `tcrv_rvv.typed_compare_select_pre_realized_body` with verifier
+  checks for op kind, predicate kind, memory form, mask source, select layout,
+  SEW/LMUL/policy, and lhs/rhs/out/n runtime ABI roles.
+- Extended `RVVSelectedBodyRealization` to consume that pre-realized body and
+  feed the existing generic compare/select route-planning/provider path.
+- Added positive target artifact lit coverage and negative fail-closed
+  coverage for predicate/layout/mask/memory/config/policy/runtime-role/mixed
+  body failures.
+- Extended `rvv_generated_bundle_abi_e2e.py` plus a dry-run lit fixture for
+  `--pre-realized-selected-body --op-kind cmp_select`.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] Focused build for `tcrv-opt`, `tcrv-translate`, RVV dialect/plugin,
+  construction-protocol, and target artifact test targets.
+- [OK] RVV dialect/plugin/construction-protocol/target-artifact C++ tests.
+- [OK] Focused lit for new compare/select positive, negative, and script
+  dry-run tests: 3/3 passed.
+- [OK] Focused lit regression for explicit compare/select, existing
+  pre-realized add/sub/mul/strided/masked/reduce/macc, and provider negatives:
+  14/14 passed.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] local generated-bundle dry-run in
+  `/tmp/tianchenrv-pre-realized-cmp-select/dryrun`.
+- [OK] `git diff --check`
+- [OK] active-authority scan found no new positive legacy/source/descriptor or
+  common/export RVV authority.
+- [OK] `check-tianchenrv`: 179/179 passed.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round makes no new runtime,
+correctness, or performance claim, so no fresh `ssh rvv` evidence was required.
+
+### Next Steps
+
+- Future continuation, if requested: broader predicate classes or compare
+  kinds should be a separate Stage2 PRD and must remain on the generic typed
+  RVV body surface.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 ## Session 141: Stage2 RVV selected-body realization module extraction
 
 **Date**: 2026-05-20

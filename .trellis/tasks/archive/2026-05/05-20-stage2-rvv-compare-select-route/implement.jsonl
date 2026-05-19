@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage1/Stage2 ordering, and stack boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body, selected-body realization, route provider, and fail-closed legacy authority rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route ownership and provider-built lowerable-route contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target export and runtime evidence boundary for RVV route-supported versus executable claims."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-local selected-body realization and route-provider ownership rules."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected variant, typed body, realization, route, and mirror boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required focused lit/C++/script/runtime evidence policy for RVV changes."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-compare-select-route/prd.md", "reason": "Current task goal, boundaries, acceptance criteria, and validation plan."}
