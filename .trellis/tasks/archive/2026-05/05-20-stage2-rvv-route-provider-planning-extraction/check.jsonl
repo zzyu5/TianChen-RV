@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global invariants and no Python/compiler-stack bypass"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV route authority remains typed-body/provider-owned and legacy i32/source-front-door authority stays fail-closed"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remains neutral and provider-built route is the only route input"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check plugin interface boundaries and route-provider ownership"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused evidence, negative tests, and artifact claim discipline"}

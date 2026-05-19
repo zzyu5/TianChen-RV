@@ -5,6 +5,71 @@
 
 ---
 
+## Session 143: Stage2 RVV route-provider planning extraction
+
+**Date**: 2026-05-20
+**Task**: `stage2-rvv-route-provider-planning-extraction`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and extracted the
+active realized typed `tcrv_rvv` body -> route-plan boundary out of the
+monolithic RVV EmitC route provider. The RVV provider still owns public route
+authority and `TCRVEmitCLowerableRoute` construction, but route slice
+collection, typed fact validation, fail-closed planning diagnostics, route
+description/header/type/intrinsic planning, config artifact metadata, and route
+description verification now live in `RVVEmitCRoutePlanning`.
+
+### Main Changes
+
+- Added `include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h` and
+  `lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp`.
+- Moved the current supported realized-route planning for generic add/sub/mul,
+  compare/select, RHS broadcast arithmetic, strided add, masked add, macc add,
+  and reduce add out of `RVVEmitCRouteProvider.cpp`.
+- Kept `RVVEmitCRouteProvider.cpp` as the plan consumer that materializes
+  provider-owned route payloads into `TCRVEmitCLowerableRoute`.
+- Left common EmitC/export unchanged and did not add operation coverage,
+  dtype/LMUL expansion, source-front-door positive routing, descriptor/direct-C
+  behavior, runtime behavior, correctness claims, or performance claims.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] Focused build for `tcrv-opt`, `tcrv-translate`, RVV dialect/provider,
+  construction protocol, and target artifact export tests.
+- [OK] Direct C++ checks:
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-construction-protocol-common-test`,
+  `tianchenrv-target-artifact-export-test`, and
+  `tianchenrv-rvv-dialect-test`.
+- [OK] Focused provider/materialization/selected-body lit: 21/21 passed for
+  unit-stride binary, strided, masked, macc, reduce, pre-realized
+  selected-body positive fixtures, and negative fail-closed fixtures.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Focused generated-bundle dry-run lit: 6/6 passed for explicit
+  selected-body and pre-realized unit-stride/strided/masked/macc/reduce paths.
+- [OK] `git diff --check`
+- [OK] Active-authority scan: only provider-derived intrinsic leaves, an
+  existing fail-closed `tcrv_rvv.i32_` rejection branch, and PRD guardrail text
+  matched; no positive legacy/source-front-door/descriptor/common-export route
+  authority was introduced.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 176/176 lit tests
+  passed.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round makes no new runtime,
+correctness, or performance claim, so no fresh `ssh rvv` run was required.
+
+### Next Steps
+
+- Future continuation, if requested: keep any new route-family expansion inside
+  the extracted planning owner plus provider materialization consumer, and do
+  not put body-specific route-planning tables back into
+  `RVVEmitCRouteProvider.cpp`.
+
 
 ## Session 142: Stage2 RVV selected-body realization for reduce_add
 

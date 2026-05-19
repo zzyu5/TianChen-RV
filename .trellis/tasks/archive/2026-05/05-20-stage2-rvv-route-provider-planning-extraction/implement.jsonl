@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global stack, RVV-first authority chain, and Stage1/Stage2 ordering constraints for route-provider planning work"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed body authority, Stage1 fail-closed inventory, and Stage2 route-provider boundaries"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute contract and common EmitC neutrality requirements"}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Route provider interface, selected-body realization handoff, and registry/common non-authority rules"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/artifact evidence requirements for MLIR/plugin changes"}
