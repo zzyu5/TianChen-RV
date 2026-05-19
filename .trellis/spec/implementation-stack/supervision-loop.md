@@ -283,10 +283,12 @@ compatibility wrappers. This Stage 1 realization wording means boundary/hook
 authority and faithful selected-body consumption only; performance-sensitive
 selected-body realization and tuning belong to Stage 2 RVV completion.
 Adding another `tcrv_rvv.i32_*` helper, route-table case, intrinsic wrapper, or
-source-pattern recognizer is not route-authority replacement unless it is part
-of converting the old case into an ordinary specialization of the corrected
-vector-level body/config route surface or part of fail-closing/deleting that
-old case.
+source-pattern recognizer is not route-authority replacement. Stage 1 must
+delete or fail-close that legacy authority instead of converting it into a
+retained executable compatibility route. If a proposed owner would add names
+such as `tcrv_rvv.i32_reduction_*`, `tcrv_rvv.i32_accumulator_*`,
+`tcrv_rvv.i32_macc`, or analogous i32/LMUL clones, Hermes must treat it as
+drift and redirect to deleting/fail-closing the legacy i32 route surface first.
 
 Deletion-only cleanup remains valid for residue that is not yet part of a
 replacement owner. In that mode, Hermes must not choose finite RVV feature
@@ -349,8 +351,10 @@ owners. Only after RVV Stage 1 evidence shows no active compiler path uses
 route provider is still organized around `RVVI32M1*` specs/slices, finite
 `i32_*` route cases, route ids, or exact `__riscv_*_i32m1` spellings as the
 family architecture, may Hermes enter Stage 2 coverage/performance work.
-Retained i32 behavior must be an ordinary instance of the corrected typed
-vector-level route surface, not the route table that defines the family.
+There should be no retained executable i32 compatibility route in Stage 1. Any
+future i32 behavior must be reintroduced only after the corrected typed
+vector-level route surface exists, and not by keeping the old route table or
+dtype-prefixed op namespace alive.
 
 ### Grill Consensus And Mature Path Steering
 
@@ -397,6 +401,10 @@ runtime AVL/VL control, and supported movement/layout forms. It must not be
 turned into per-Linalg-op frontend work, high-level kernel ops, one-intrinsic
 wrappers, dtype/LMUL clone batches, global autotuning databases, dashboards, or
 readiness state machines.
+It also must not introduce new dtype-prefixed `tcrv_rvv.i32_*` operation
+families for reductions, accumulators, multiply-accumulate, conversion, or
+memory forms. Those concepts must be modeled on the corrected vector-level
+value/config/body surface.
 
 If the just-finished run added broadcast, compare/select, reduction,
 conversion, dtype, LMUL, source-shape, or intrinsic cases by extending a legacy

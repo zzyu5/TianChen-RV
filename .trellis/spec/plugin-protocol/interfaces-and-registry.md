@@ -21,6 +21,15 @@ decorator layer. It reads the selected family body, validates legality, and
 builds the family-owned route payload that common EmitC/export can faithfully
 materialize.
 
+For RVV, "typed body" does not mean adding more dtype-prefixed operation names.
+New `tcrv_rvv.i32_*` helper families for reductions, accumulators,
+multiply-accumulate, conversion, memory forms, or LMUL variants are not plugin
+protocol evolution. During Stage 1 they are deletion/fail-closed migration
+work only; do not retain them as supported executable compatibility routes.
+Future ordinary i32 instances may exist only after a corrected vector-level
+value/config/body surface already carries dtype/config structurally, and must
+not be implemented by preserving the old finite i32 route table.
+
 ### CapabilityProvider
 
 ```cpp
@@ -558,6 +567,10 @@ dispatch/fallback behavior, runtime SSA values, or synthesize direct EmitC/C.
 If those facts are missing, stale, or still encoded only in legacy `RVVI32M1*`
 route tables, the plugin must fail closed or report unsupported rather than
 promoting the route to Stage 2 coverage/performance work.
+If those facts are encoded only by adding new dtype-prefixed op names such as
+`tcrv_rvv.i32_reduction_*`, `tcrv_rvv.i32_accumulator_*`, or
+`tcrv_rvv.i32_macc`, the hook must treat that as the same class of stale
+authority, not as typed selected-body maturity.
 
 ```cpp
 enum class VariantEmissionRole {
@@ -650,8 +663,11 @@ the request origin/kernel/variant/role and return a direct child operation in
 the request kernel. A no-boundary result is valid only for an origin plugin
 whose durable selected-path contract explicitly says no plugin-local boundary
 operation is needed; the current scalar fallback route is such a generic
-fallback envelope, and RVV currently uses fail-closed no-boundary behavior
-until a materialized EmitC route exists.
+fallback envelope. RVV may also report no additional boundary op when the
+selected variant already contains the explicit typed `tcrv_rvv` body consumed by
+the downstream RVV route/materialization path. That no-boundary result does not
+mean RVV lacks a materialized EmitC route; it means no extra plugin-local
+pre-lowering op is required for the already-typed selected-body path.
 
 The generic pass `--tcrv-materialize-selected-lowering-boundaries` traverses
 selected dispatch cases followed by fallback, or a direct selected-path marker
@@ -659,8 +675,8 @@ when no dispatch exists, and delegates each reference to the registry. The pass
 must not branch on RVV, scalar, IME, offload, vendor, runtime, dtype, shape, or
 microarchitecture semantics. Plugin-local implementations decide whether to
 create extension-dialect metadata when an active boundary surface exists; RVV
-and scalar fallback currently report no plugin-local boundary for their deleted
-or generic no-boundary routes.
+and scalar fallback may report no plugin-local boundary when the selected path
+already has its typed body or is a generic no-boundary fallback envelope.
 
 ### EmissionProvider
 

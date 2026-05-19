@@ -124,6 +124,15 @@ from typed body/config/capability/runtime facts. They must not come from
 `i32m1` helper names, route ids, ABI strings, artifact names, test names,
 descriptor residue, or common EmitC/export code.
 
+A typed `tcrv_rvv` body must not encode dtype by inventing new dtype-prefixed
+operation namespaces. Existing `tcrv_rvv.i32_*` ops and `!tcrv_rvv.i32m*`
+types are Stage 1 deletion/fail-closed debt, not a compatibility surface to
+preserve and not the target Stage 2 surface. Do not ask Codex to retain them as
+positive executable routes, and do not ask Codex to add new
+`tcrv_rvv.i32_reduction_*`, `tcrv_rvv.i32_accumulator_*`,
+`tcrv_rvv.i32_macc`, or similar dtype-prefixed helper ops. That is still Stage
+1 drift, not dtype propagation and not Stage 2 RVV coverage.
+
 Keep support levels separate: parseable/verifier-legal `tcrv_rvv` is not a
 route promise; route-supported means the RVV plugin declares legality and a
 lowering route with fail-closed unsupported cases; executable means the
@@ -155,9 +164,11 @@ completion work.
 
 Stage 2 begins only after Stage 1 evidence shows no active compiler path uses
 `i32m1` or source/artifact/route metadata as RVV authority and the old i32m1
-route architecture has been replaced, deleted, or fail-closed. A retained
-i32m1 case is acceptable only as an ordinary specialization of the corrected
-typed vector-level `tcrv_rvv` value/config/body route surface. Stage 2 expands
+route architecture has been deleted or fail-closed from production/default
+paths. Do not preserve it as a compatibility route during Stage 1. Any future
+i32 ordinary instance belongs only after the corrected typed vector-level
+`tcrv_rvv` value/config/body route surface already exists and must not be
+implemented by keeping the old finite `i32_*` namespace alive. Stage 2 expands
 route-supported RVV coverage on that corrected surface using dependency order,
 not small completion batches, and includes RVV plugin-local selected-body
 realization for performance-sensitive vector-level bodies.
@@ -169,9 +180,11 @@ route architecture, do not add broadcast, compare/select, reduction,
 conversion, dtype, LMUL, source-shape, or intrinsic cases to that table. The
 next owner is route-surface replacement: dtype, SEW, LMUL, policy, memory
 form, operation kind, runtime ABI use, and intrinsic mapping must be validated
-or derived from typed `tcrv_rvv` body/config structure by the RVV plugin. A
-new `tcrv_rvv.i32_*` helper or wrapper is not enough unless it is merely a
-retained ordinary specialization of the corrected vector-level surface.
+or derived from typed `tcrv_rvv` body/config structure by the RVV plugin. A new
+`tcrv_rvv.i32_*` helper, wrapper, route label, reduction op, accumulator load,
+or multiply-accumulate op is categorically not Stage 2 progress. Stage 1 owners
+must delete or fail-close the legacy i32 route authority instead of migrating it
+forward as a retained executable route.
 
 While Stage 1 is open, do not switch to Scalar, IME, Offload, TensorExt,
 high-level Linalg/Vector/StableHLO frontend generalization, Stage 2 coverage
@@ -183,8 +196,8 @@ Stage 2 coverage should be expressed as low-level RVV capability classes:
 VL/control, mask/tail policy, memory movement, elementwise/broadcast,
 compare/select, conversion/dtype/SEW/LMUL policy, reduction/accumulation,
 contraction-supporting multiply-add/movement, and runtime boundary. It must not
-become per-Linalg-op lowering, high-level kernel ops, or one-op-per-intrinsic
-wrapping.
+become per-Linalg-op lowering, high-level kernel ops, one-op-per-intrinsic
+wrapping, or dtype-prefixed op-family growth.
 
 Stage 2 selected-body realization is a one-time RVV plugin-local transformation:
 

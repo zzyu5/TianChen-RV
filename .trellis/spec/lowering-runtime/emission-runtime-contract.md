@@ -1447,7 +1447,7 @@ llvm::Error exportRVVSmokeProbeC(mlir::ModuleOp module,
 ### 6. Tests Required
 
 - lit/FileCheck coverage for generic source frontdoor fail-closed behavior when
-  no materialized EmitC route exists.
+  the selected path has no explicit typed-body-backed materialized EmitC route.
 - C++ registry coverage proving built-in target artifact exporters only expose
   the current allowed route set.
 - Plugin legality/emission coverage proving historical standalone smoke-probe

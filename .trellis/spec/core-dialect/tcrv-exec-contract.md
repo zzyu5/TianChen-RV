@@ -566,15 +566,18 @@ tests and bounded slices may start from hand-written TianChen-RV MLIR,
 materialized `tcrv.exec.variant`, selected-boundary IR, `mem_window`,
 `runtime_param`, typed extension-family bodies, or selected-path metadata. When
 frontend lowering becomes the selected owner, it may start from hand-written or
-test `linalg` inputs and lower them into `tcrv.exec` capability, variant, and
-selected-boundary surfaces.
+test `linalg` inputs and lower them into complete TianChen-RV execution
+surfaces: `tcrv.exec` envelope plus plugin-owned typed bodies or selected
+boundaries. It must not stop at a bare `tcrv.exec` shell and infer extension
+compute later from route ids, ABI names, artifact metadata, or test fixtures.
 
 Correct:
 
 ```text
 linalg.matmul
-  -> plugins propose variants
-  -> tcrv.exec.kernel with rvv/ime/offload/fallback variants
+  -> semantic-preserving construction of tcrv.exec envelope
+     + plugin-owned typed extension-family bodies
+  -> plugins legalize / select rvv/ime/offload/fallback variants
 ```
 
 Wrong:

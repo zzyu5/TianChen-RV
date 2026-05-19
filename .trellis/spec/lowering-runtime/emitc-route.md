@@ -144,16 +144,17 @@ the C++ route payload.
 - Route provenance text is empty, unbounded, multiline, or unsafe -> route
   verification fails before source emission.
 
-### 5. Good/Base/Bad Cases
+### 5. Correct/Base/Bad Cases
 
-- Good: `tcrv_rvv.i32_add`, `tcrv_rvv.i32_sub`, and `tcrv_rvv.i32_mul`
-  implement `TCRVEmitCLowerableOpInterface`; RVV target code queries the
-  interface, then builds `TCRVEmitCLowerableRoute` with
-  `opInterface = "TCRVEmitCLowerableOpInterface"`.
+- Correct Stage 1: bounded i32 arithmetic ops such as `tcrv_rvv.i32_add`,
+  `tcrv_rvv.i32_sub`, and `tcrv_rvv.i32_mul` are not kept as positive
+  compatibility routes. Their route-interface use is deleted or fail-closed
+  until a corrected vector-level route surface exists.
 - Base: a target-specific bounded route still owns intrinsic names, vector
   suffixes, C type spellings, and ABI details locally.
-- Bad: descriptor strings alone choose the arithmetic intrinsic, or common code
-  adds an `if RVV` branch to recover family semantics.
+- Bad: descriptor strings alone choose the arithmetic intrinsic, common code
+  adds an `if RVV` branch to recover family semantics, or a new dtype-prefixed
+  `tcrv_rvv.i32_*` op family is added and treated as dtype propagation.
 
 ### 6. Tests Required
 
@@ -421,10 +422,9 @@ family-specific target exporter.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: RVV vector-source i32 add/sub/mul source enters the common translate
-  front door, materializes the RVV-owned selected boundary, receives selected
-  emission-plan diagnostics, and exports a coherent RISC-V object plus
-  runtime-callable C header bundle.
+- Good: the bounded RVV vector-source front door is deleted or fails closed
+  before i32 add/sub/mul source can materialize a selected RVV boundary or
+  export a RISC-V object/header bundle.
 - Good: Toy or TensorExtLite source-front-door input reaches the same common
   translate command through plugin registrations, proving the command is not an
   RVV-specific source bridge.
@@ -761,10 +761,10 @@ metadata claims a callable C ABI, including names such as
 
 ### 5. Good/Base/Bad Cases
 
-- Good: RVV vector-source front-door selected add exports a header with
-  `extern "C"` guards, a RISC-V object whose symbol table contains
-  `tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add`, and a C harness
-  compiled with `clang` on `ssh rvv` links and prints a bounded `PASS`.
+- Good: RVV vector-source front-door selected add no longer exports a positive
+  header/object/harness artifact through the legacy i32 route. Tests assert
+  unsupported/no route until the corrected vector-level route surface supplies a
+  new non-legacy artifact authority.
 - Base: C++ callers may include the same generated header; the guard preserves
   the same C ABI symbol rather than choosing a C++ ABI.
 - Bad: the generated object exposes only a symbol such as

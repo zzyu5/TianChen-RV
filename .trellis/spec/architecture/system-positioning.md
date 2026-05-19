@@ -43,12 +43,19 @@ capability = string metadata attached after lowering
 
 ### Execution variant IR, not generic compute IR
 
-High-level op 进入 TianChen-RV 后，由 plugins 直接提出 execution variants。核心 `tcrv.exec` 只承载 variant container 和 execution organization。
+High-level op 进入 TianChen-RV 后，必须先做 semantic-preserving
+construction，把 source semantics 落成 TianChen-RV execution surfaces：
+`tcrv.exec` envelope 加上 plugin-owned typed extension-family bodies。核心
+`tcrv.exec` 只承载 variant container 和 execution organization，本身不承载
+compute semantics。
 
 Correct:
 
 ```text
-linalg.matmul -> plugins propose @rvv / @ime / @offload / @fallback variants
+linalg.matmul
+  -> semantic-preserving construction of tcrv.exec envelope
+     + typed extension-family bodies
+  -> plugins route / legalize / select @rvv / @ime / @offload / @fallback
 ```
 
 Wrong:

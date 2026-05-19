@@ -19,6 +19,11 @@ longer the active RVV family route surface. A provider still centered on
 `__riscv_*_i32m1` spellings must be treated as Stage 1 route-surface debt.
 Adding more cases to that provider is not capability expansion; the expansion
 unit is the corrected typed vector-level `tcrv_rvv` value/config/body surface.
+That corrected surface must not be a larger dtype-prefixed op namespace. New
+`tcrv_rvv.i32_reduction_*`, `tcrv_rvv.i32_accumulator_*`, `tcrv_rvv.i32_macc`,
+or analogous i32/LMUL helper families are Stage 1 drift unless the task is
+explicitly deleting/fail-closing legacy compatibility. Stage 1 must not migrate
+the old finite i32 route table forward as a retained executable route.
 
 Correct future high-level shape:
 
@@ -143,12 +148,11 @@ plugin/interface-owned frontend construction
 
 ### 1. Scope / Trigger
 
-This scenario applies only while the bounded RVV-owned source materializer
-remains as a legacy narrow source front door. It accepts one structurally
-recognized MLIR vector/arithmetic i32 add source shape and materializes the
-legacy RVV i32m1 selected-boundary route. It is a plugin-owned compatibility
-entry point, not a restoration of the deleted core linalg/vector RVV source
-frontend family and not RVV maturity work.
+This scenario is historical inventory for the bounded RVV-owned source
+materializer. That materializer accepts one structurally recognized MLIR
+vector/arithmetic i32 add source shape and materializes the legacy RVV i32m1
+selected-boundary route. In current Stage 1 it should be deleted or fail-closed,
+not retained as a plugin-owned compatibility entry point.
 
 ### 2. Signatures
 
@@ -170,7 +174,8 @@ frontend family and not RVV maturity work.
 
 ### 3. Contracts
 
-- The pass may materialize exactly the bounded RVV add selected-boundary form:
+- Historical current behavior materializes the bounded RVV add selected-boundary
+  form:
   `tcrv.exec.kernel` -> `origin = "rvv-plugin"` variant -> explicit
   `tcrv_rvv.runtime_abi_value` operands for `lhs`, `rhs`, `out`, and `n` ->
   `tcrv_rvv.setvl` -> selected `tcrv_rvv.with_vl` -> RVV
@@ -187,18 +192,15 @@ frontend family and not RVV maturity work.
 - The produced variant must require `@rvv` and must keep computation semantics
   in `tcrv_rvv` extension-family ops. `tcrv.exec` remains the execution
   envelope and selection surface only.
-- If retained, the route must be consumed by the RVV construction/EmitC/target
-  path through the explicit typed `tcrv_rvv` body; it must not introduce
-  descriptor-driven computation, direct C semantic export, Python
-  compiler-core logic, or a common/core RVV semantic branch.
+- Do not retain this route as a supported Stage 1 compatibility path. Delete or
+  fail-close it before it reaches RVV construction/EmitC/target artifact export.
 - The pass is source-only. Pre-existing `tcrv.exec` or `tcrv_rvv` operations in
   the input are stale selected-boundary or variant residue for this pass and
   must fail closed instead of being merged with source lowering.
-- The bounded source body may authorize only construction of the legacy typed
-  `tcrv_rvv` body for this compatibility slice. Route ids, descriptors,
-  artifact names, stale seed metadata, deleted family records, common/core
-  source scans, and i32m1 route identity must not authorize downstream RVV
-  materialization.
+- The bounded source body must not authorize downstream RVV materialization in
+  current Stage 1. Route ids, descriptors, artifact names, stale seed metadata,
+  deleted family records, common/core source scans, and i32m1 route identity
+  must all fail closed or be deleted as route authority.
 
 ### 4. Validation & Error Matrix
 
@@ -215,12 +217,10 @@ frontend family and not RVV maturity work.
   that cannot create a selected route. It must not silently fall back to a
   generic RVV lowering path.
 
-### 5. Good/Base/Bad Cases
+### 5. Correct/Base/Bad Cases
 
-- Good while retained: an unmarked `func.func` with the exact i32 add vector
-  source shape materializes a selected RVV variant containing explicit
-  `tcrv_rvv` body IR, and downstream routing consumes that body rather than
-  the source pattern or route name.
+- Correct Stage 1: the legacy source materializer is deleted or fails closed
+  before it can materialize a selected RVV variant from an i32 source shape.
 - Base: hand-written TianChen-RV MLIR with explicit RVV variant bodies remains
   a valid backend-first input and does not require this source materializer.
 - Bad: a common transform scans arbitrary linalg/vector/add/sub/mul source
@@ -229,22 +229,19 @@ frontend family and not RVV maturity work.
 
 ### 6. Tests Required
 
-- Positive lit/FileCheck coverage for unseeded source pattern -> selected
-  `tcrv.exec.variant` containing explicit runtime ABI bindings,
-  source-argument provenance purpose strings, `tcrv_rvv.with_vl`, and
-  `tcrv_rvv.i32_add`.
-- Positive route-consumption coverage, if this legacy source path is retained,
-  must prove the materializer output reaches RVV emission-plan and EmitC
-  materialization through the explicit `tcrv_rvv` body.
+- Fail-closed lit/FileCheck coverage for unseeded source pattern -> no selected
+  RVV variant and no materialized legacy i32 route.
+- Route-consumption coverage for this legacy source path should be removed or
+  rewritten to assert unsupported/no route.
 - Negative lit/FileCheck coverage for missing ABI operands, unsupported
   dtype/rank/shape, malformed source body, stale seed metadata, and stale
   pre-existing `tcrv.exec`/`tcrv_rvv` residue.
 - Negative source-shape coverage must include wrong arithmetic op, wrong
   buffer role/use, missing or extra runtime `n`, unsupported loop bounds/step,
   loop-carried values, missing store, extra loop ops, and unrelated body.
-- Stage 1 may instead fail-close or delete this path when replacing
-  i32m1-as-route-authority. In that case tests must assert the fail-closed
-  boundary rather than preserving this source path as compatibility glue.
+- Stage 1 must fail-close or delete this path when replacing
+  i32m1-as-route-authority. Tests must assert the fail-closed boundary rather
+  than preserving this source path as compatibility glue.
 
 ### 7. Wrong vs Correct
 
@@ -425,7 +422,8 @@ table. Before performance-sensitive realization can count as Stage 2 progress,
 the selected body consumed by the RVV plugin must expose typed value/config/body
 structure rich enough for dtype, SEW, LMUL, policy, memory form, operation
 kind, runtime ABI values, and intrinsic mapping to be validated or derived
-plugin-locally.
+plugin-locally. It must expose those facts structurally, not by adding a new
+set of dtype-prefixed helper op names.
 
 Emission-plan materialization runs after selected-body realization. It must
 validate the selected plugin-owned boundary/body surface before producing
