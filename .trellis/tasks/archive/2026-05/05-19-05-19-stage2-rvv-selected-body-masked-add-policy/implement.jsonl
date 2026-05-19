@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global architecture, Stage 1/2 order, typed RVV authority, and Python/C++ stack boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned selected-body realization, mask/tail facts, route-provider authority, and fail-closed legacy guardrails."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC/export neutrality and provider-built TCRVEmitCLowerableRoute ownership."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Selected-body realization hook and plugin locality requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/runtime evidence requirements and Stage1 residue restrictions."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected-body realization must consume policy/config hints into body structure before route construction."}
+{"file": ".trellis/tasks/archive/2026-05/05-19-stage2-rvv-masked-add-route-semantics/prd.md", "reason": "Existing explicit masked add route/provider/materializer/script evidence and bounded mask semantics."}
+{"file": ".trellis/tasks/archive/2026-05/05-19-stage2-rvv-selected-body-generic-add/prd.md", "reason": "Existing pre-realized selected-body generic add realization pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-19-stage2-rvv-selected-body-strided-add/prd.md", "reason": "Existing pre-realized selected-body strided add production realization and validation pattern."}

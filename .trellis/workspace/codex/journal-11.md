@@ -52,6 +52,66 @@ Added a bounded generic typed RVV reduce(add) selected-body route skeleton with 
 |------|---------|
 | `this commit` | (see git log) |
 
+## Session 141: Stage2 RVV selected-body realization for masked add policy
+
+**Date**: 2026-05-19
+**Task**: `05-19-stage2-rvv-selected-body-masked-add-policy`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and implemented the
+bounded pre-realized selected-body masked add handoff. The new
+`tcrv_rvv.typed_masked_binary_pre_realized_body` carries explicit masked-add
+operation/config/mask-source/passthrough/runtime ABI facts, and the RVV plugin
+realizes it into `setvl/with_vl/load/compare/masked_binary/store` before the
+existing masked-add provider route runs.
+
+### Main Changes
+
+- Added the generic pre-realized masked selected-body op and verifier checks.
+- Extended RVV plugin selected-body realization for one masked add path.
+- Reused the existing masked-add provider/common EmitC/target artifact route.
+- Added positive target/script fixtures and fail-closed negative coverage.
+- Extended generated-bundle evidence tooling for
+  `--pre-realized-selected-body --op-kind masked_add`.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] Focused build for `tcrv-opt`, `tcrv-translate`, RVV dialect/plugin,
+  construction protocol, and target artifact export tests.
+- [OK] Direct realization/emission/header FileCheck for pre-realized masked add.
+- [OK] Direct negative verifier run for pre-realized selected-body failures.
+- [OK] Focused lit filter: 11/11 passed.
+- [OK] RVV dialect/plugin/construction/target C++ smoke tests.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Local generated-bundle dry-run:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/local-pre-realized-masked-add-dry-run`.
+- [OK] Real `ssh rvv` correctness evidence:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/ssh-pre-realized-masked-add-evidence`,
+  `PASS op=masked_add counts=7,16,23`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 170/170 passed.
+- [OK] `git diff --check`
+- [OK] Diff active-authority scan introduced no positive legacy RVV/source-front-door/descriptor authority.
+
+### Status
+
+[OK] **Completed and archived**. This round makes a real RVV
+correctness claim only for bounded pre-realized `masked_add` counts `7,16,23`.
+
+### Next Steps
+
+- Future continuation, if requested: broaden selected-body realization beyond
+  this single masked add policy path under a separate bounded PRD.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 ## Session 141: Stage2 RVV selected-body realization for typed strided add
 
 **Date**: 2026-05-19

@@ -340,6 +340,43 @@ def TypedBinaryPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedMaskedBinaryPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_masked_binary_pre_realized_body"> {
+  let summary = "generic typed pre-realized RVV masked binary selected body";
+  let description = [{
+    Carries the RVV plugin-local pre-realized selected body for the bounded
+    generic masked binary family. The op is nested directly in a selected
+    tcrv.exec.variant and binds explicit runtime ABI values for lhs, rhs, out,
+    and runtime n/AVL together with selected operation kind, memory form, mask
+    source, passthrough layout, and compile-time RVV config facts.
+
+    This op is not a mask framework, descriptor, source-front-door marker,
+    direct-C exporter, route id, intrinsic wrapper, runtime artifact,
+    correctness evidence, or performance evidence. The RVV plugin must first
+    realize it into explicit setvl/with_vl/load/compare/masked_binary/store
+    tcrv_rvv body structure before the existing provider may construct a
+    TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    StrAttr:$mask_source,
+    StrAttr:$masked_passthrough,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def LoadOp : TCRVRVV_Op<"load",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",

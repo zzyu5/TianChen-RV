@@ -58,6 +58,9 @@ constexpr llvm::StringLiteral kOwnershipAttrName("ownership");
 constexpr llvm::StringLiteral kPurposeAttrName("purpose");
 constexpr llvm::StringLiteral kOpKindAttrName("op_kind");
 constexpr llvm::StringLiteral kMemoryFormAttrName("memory_form");
+constexpr llvm::StringLiteral kMaskSourceAttrName("mask_source");
+constexpr llvm::StringLiteral kMaskedPassthroughAttrName(
+    "masked_passthrough");
 constexpr llvm::StringLiteral kVLenAttrName("vlen");
 constexpr llvm::StringLiteral kVLenBAttrName("vlenb");
 constexpr llvm::StringLiteral kRVVVariantRequiredMarchAttrName(
@@ -145,6 +148,13 @@ bool isAllowedTypedBinaryPreRealizedBodyAttr(llvm::StringRef name) {
          name == kPolicyAttrName;
 }
 
+bool isAllowedTypedMaskedBinaryPreRealizedBodyAttr(llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kMaskSourceAttrName || name == kMaskedPassthroughAttrName ||
+         name == kSEWAttrName || name == kLMULAttrName ||
+         name == kPolicyAttrName;
+}
+
 bool isAllowedLoadAttr(llvm::StringRef) { return false; }
 
 bool isAllowedBroadcastLoadAttr(llvm::StringRef) { return false; }
@@ -178,6 +188,26 @@ bool isSupportedTypedBinaryPreRealizedBodyOpKind(llvm::StringRef opKind) {
 bool isSupportedTypedBinaryPreRealizedMemoryForm(llvm::StringRef memoryForm) {
   return memoryForm == "vector-rhs-load" ||
          memoryForm == "strided-load-store";
+}
+
+bool isSupportedTypedMaskedBinaryPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "masked_add";
+}
+
+bool isSupportedTypedMaskedBinaryPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "masked-vector-rhs-load";
+}
+
+bool isSupportedTypedMaskedBinaryPreRealizedMaskSource(
+    llvm::StringRef maskSource) {
+  return maskSource == "compare-produced-mask-same-vl-scope";
+}
+
+bool isSupportedTypedMaskedBinaryPreRealizedPassthrough(
+    llvm::StringRef passthrough) {
+  return passthrough == "passthrough-vector-preserves-inactive-lanes";
 }
 
 bool isSupportedGenericBinaryKind(llvm::StringRef kind) {
@@ -1233,6 +1263,82 @@ mlir::LogicalResult TypedBinaryPreRealizedBodyOp::verify() {
   return verifyRuntimeABIIndexOperandRole(
       op, strides[2], "out stride",
       {tianchenrv::support::RuntimeABIParameterRole::OutputStride});
+}
+
+mlir::LogicalResult TypedMaskedBinaryPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected masked bodies carry only typed RVV "
+                "operation/config/memory/mask/runtime SSA facts and must be "
+                "realized by the RVV plugin before route construction";
+
+    if (!isAllowedTypedMaskedBinaryPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '" << kMaskSourceAttrName
+             << "', '" << kMaskedPassthroughAttrName << "', '" << kSEWAttrName
+             << "', '" << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires lhs, rhs, out, runtime n/AVL operands and no results";
+
+  if (!isSupportedTypedMaskedBinaryPreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind \"masked_add\" for the "
+              "bounded selected-body masked realization hook";
+  if (!isSupportedTypedMaskedBinaryPreRealizedMemoryForm(getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"masked-vector-rhs-load\" for the bounded selected-body "
+              "masked realization hook";
+  if (!isSupportedTypedMaskedBinaryPreRealizedMaskSource(getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"compare-produced-mask-same-vl-scope\" for the bounded "
+              "selected-body masked realization hook";
+  if (!isSupportedTypedMaskedBinaryPreRealizedPassthrough(
+          getMaskedPassthrough()))
+    return emitOpError()
+           << "currently supports only masked_passthrough "
+              "\"passthrough-vector-preserves-inactive-lanes\" for the "
+              "bounded selected-body masked realization hook";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized masked config to be SEW32 LMUL "
+              "m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body masked realization hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getRhs(), "rhs",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
 }
 
 mlir::LogicalResult LoadOp::verify() {

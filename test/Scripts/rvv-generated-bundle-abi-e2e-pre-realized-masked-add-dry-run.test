@@ -1,0 +1,43 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-masked-add --overwrite --op-kind masked_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-masked-add/evidence.json
+# RUN: FileCheck %s --check-prefix=MASKED --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-masked-add/masked_add/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-masked-add/masked_add/rvv_generated_bundle_abi_masked_add_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "pre-realized-selected-body"
+# ROOT: "masked_add"
+# ROOT: "pre_realized_selected_body": true
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# MASKED-DAG: "input_mode": "pre-realized-selected-body"
+# MASKED-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-masked-add.mlir"
+# MASKED-DAG: "prototype": "void tcrv_emitc_pre_realized_body_masked_add_kernel_pre_realized_body_rvv_masked_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);"
+# MASKED-DAG: "expected_function": "tcrv_emitc_pre_realized_body_masked_add_kernel_pre_realized_body_rvv_masked_add"
+# MASKED-DAG: "expected_runtime_abi_name": "rvv-generic-masked-add-callable-c-abi.v1"
+# MASKED-DAG: "expected_selected_variant": "pre_realized_body_rvv_masked_add"
+# MASKED-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# MASKED-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# MASKED-DAG: --tcrv-materialize-selected-lowering-boundaries
+# MASKED-DAG: "pre_realized_body_consumed": true
+# MASKED-DAG: "key": "rvv_emitc_lowerable_route"
+# MASKED-DAG: "value": "rvv-generic-masked-add-emitc-route"
+# MASKED-DAG: "key": "rvv_selected_body_operation"
+# MASKED-DAG: "value": "masked_add"
+# MASKED-DAG: "key": "rvv_selected_body_typed_compute_op"
+# MASKED-DAG: "value": "tcrv_rvv.masked_binary"
+# MASKED-DAG: "key": "tcrv_rvv.mask_source"
+# MASKED-DAG: "value": "compare-produced-mask-same-vl-scope"
+# MASKED-DAG: "key": "tcrv_rvv.masked_passthrough_layout"
+# MASKED-DAG: "value": "passthrough-vector-preserves-inactive-lanes"
+# MASKED-DAG: "typed_compute_op": "tcrv_rvv.masked_binary"
+# MASKED-DAG: "memory_form": "vector-rhs-load"
+# MASKED-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_pre_realized_body_masked_add_kernel_pre_realized_body_rvv_masked_add(lhs, rhs, out, n);
+# HARNESS: (lhs[index] == rhs[index] ? (int32_t)(lhs[index] + rhs[index]) : lhs[index])
+# HARNESS: const size_t counts[] = {7, 16, 23};
