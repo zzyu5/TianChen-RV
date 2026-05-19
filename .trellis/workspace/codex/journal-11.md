@@ -151,6 +151,84 @@ correctness claim only for bounded pre-realized `reduce_add` counts
 |------|---------|
 | `this commit` | (see git log) |
 
+## Session 146: Stage2 RVV reduce-add executable slice closure
+
+**Date**: 2026-05-20
+**Task**: `05-20-stage2-rvv-reduce-add-executable-slice`
+**Branch**: `main`
+
+### Summary
+
+Created a Trellis task from the Hermes Direction Brief and checked it against
+current HEAD. The brief was stale with respect to current code: the bounded
+Stage2 pre-realized `reduce_add` executable path already exists in the active
+RVV plugin route. This round did not change compiler source; it wrote the PRD,
+curated context, validated the existing production path, collected fresh
+`ssh rvv` correctness evidence for counts `7,16,23`, and recorded the closure.
+
+### Main Findings
+
+- Current HEAD already has `tcrv_rvv.typed_reduce_pre_realized_body`,
+  `tcrv_rvv.reduce`, RVV selected-body realization, RVVEmitCRoutePlanning,
+  target artifact metadata, generated-bundle dry-run coverage, and
+  `scripts/rvv_generated_bundle_abi_e2e.py --op-kind reduce_add`.
+- The pre-realized selected body carries explicit input, accumulator seed,
+  result/output, SEW32, LMUL m1, agnostic policy, unit-stride memory form,
+  runtime `n`/AVL, accumulator role/layout, result layout, and ABI roles.
+- RVV selected-body realization consumes the pre-realized boundary into
+  `setvl`, `with_vl`, input load, accumulator load,
+  `tcrv_rvv.reduce {kind = "add"}`, and store before provider planning.
+- RVVEmitCRoutePlanning/provider derive the bounded reduction layout mirrors:
+  `rhs-vector-seed-lane0-per-vl-chunk`,
+  `store-reduction-lane0-to-output-chunk-base`, and store VL `1`.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] focused build for `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-rvv-dialect-test`, `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-construction-protocol-common-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] focused C++ RVV dialect/plugin/construction/export tests.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] generated-bundle dry-run for pre-realized `reduce_add` counts
+  `7,16,23`.
+- [OK] focused lit from `build/test`: 7/7 passed for reduce-add realization,
+  explicit/pre-realized target artifacts, reduction negatives, materialization,
+  generic dataflow, and generated-bundle dry-run.
+- [OK] real `ssh rvv` generated-bundle correctness:
+  `PASS op=reduce_add counts=7,16,23`.
+- [OK] `git diff --check`
+- [OK] active-authority scan found no source/code reintroduction in this task;
+  broader matches remain pre-existing deprecated parse-only inventory,
+  negative fail-closed tests, source-front-door rejection code, harness
+  guardrails, or provider-derived intrinsic leaves.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 193/193 passed.
+
+### Self-Repair
+
+- None needed. Focused and full validation passed without source edits.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round makes a fresh executable
+correctness claim only for bounded pre-realized `reduce_add` counts `7,16,23`;
+it makes no performance claim.
+
+### Next Steps
+
+- No continuation is needed for this bounded reduce-add executable slice.
+- Future reduction work, if requested, should be a separate bounded Stage2
+  coverage task such as another reduction kind/layout, not a replay of this
+  reduce_add closure.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 ## Session 145: Stage2 RVV widening conversion executable slice
 
 **Date**: 2026-05-20
