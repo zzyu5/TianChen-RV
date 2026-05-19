@@ -359,6 +359,13 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="pre_realized_body_rvv_i32_mul",
         function_name="tcrv_emitc_pre_realized_body_mul_kernel_pre_realized_body_rvv_i32_mul",
     ),
+    "strided_add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["strided_add"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-strided-add.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_strided_add",
+        function_name="tcrv_emitc_pre_realized_body_strided_add_kernel_pre_realized_body_rvv_strided_add",
+    ),
 }
 
 EXPECTED_RUNTIME_PARAMETERS = (
@@ -2116,10 +2123,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--pre-realized-selected-body",
         action="store_true",
         help=(
-            "use the pre-realized selected-body add/sub/mul fixtures and run "
-            "public selected lowering-boundary materialization before emission "
-            "planning; mutually exclusive with --rhs-broadcast-selected-body "
-            "and --lmul-m2-selected-body"
+            "use the pre-realized selected-body add/sub/mul/strided_add "
+            "fixtures and run public selected lowering-boundary "
+            "materialization before emission planning; mutually exclusive "
+            "with --rhs-broadcast-selected-body and --lmul-m2-selected-body"
         ),
     )
     parser.add_argument(

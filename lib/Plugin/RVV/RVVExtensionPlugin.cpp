@@ -77,6 +77,14 @@ bool isSupportedPreRealizedArithmeticOpKind(llvm::StringRef opKind) {
   return opKind == "add" || opKind == "sub" || opKind == "mul";
 }
 
+bool isPreRealizedUnitStrideMemoryForm(llvm::StringRef memoryForm) {
+  return memoryForm == "vector-rhs-load";
+}
+
+bool isPreRealizedStridedMemoryForm(llvm::StringRef memoryForm) {
+  return memoryForm == "strided-load-store";
+}
+
 llvm::Error requireExplicitTypedRVVBody(tcrv::exec::VariantOp variant) {
   if (variantContainsExplicitTypedRVVBody(variant))
     return llvm::Error::success();
@@ -197,10 +205,16 @@ llvm::Error validatePreRealizedRVVSelectedBody(
     return makeRVVPluginError(
         "pre-realized RVV selected body currently supports only op_kind "
         "'add', 'sub', or 'mul'");
-  if (body.getMemoryForm() != "vector-rhs-load")
+  if (!isPreRealizedUnitStrideMemoryForm(body.getMemoryForm()) &&
+      !isPreRealizedStridedMemoryForm(body.getMemoryForm()))
     return makeRVVPluginError(
         "pre-realized RVV selected body currently supports only memory_form "
-        "'vector-rhs-load'");
+        "'vector-rhs-load' or 'strided-load-store'");
+  if (isPreRealizedStridedMemoryForm(body.getMemoryForm()) &&
+      body.getOpKind() != "add")
+    return makeRVVPluginError(
+        "pre-realized RVV selected strided body currently supports only "
+        "op_kind 'add'");
   if (static_cast<std::int64_t>(body.getSew()) !=
           tcrv::rvv::getRVVFirstSliceSEWBits() ||
       body.getLmul() != tcrv::rvv::getRVVLMULM1())
@@ -235,6 +249,38 @@ llvm::Error validatePreRealizedRVVSelectedBody(
           support::RuntimeABIParameterRole::RuntimeElementCount);
   if (!n)
     return n.takeError();
+
+  mlir::OperandRange strides = body.getStrides();
+  if (isPreRealizedUnitStrideMemoryForm(body.getMemoryForm())) {
+    if (!strides.empty())
+      return makeRVVPluginError(
+          "pre-realized RVV unit-stride selected body must not carry stride "
+          "operands");
+  }
+  if (isPreRealizedStridedMemoryForm(body.getMemoryForm())) {
+    if (strides.size() != 3)
+      return makeRVVPluginError(
+          "pre-realized RVV strided selected body requires lhs, rhs, and out "
+          "stride runtime ABI operands");
+    llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhsStride =
+        requirePreRealizedRuntimeABIValue(
+            strides[0], "pre-realized RVV lhs stride operand",
+            support::RuntimeABIParameterRole::LHSInputStride);
+    if (!lhsStride)
+      return lhsStride.takeError();
+    llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsStride =
+        requirePreRealizedRuntimeABIValue(
+            strides[1], "pre-realized RVV rhs stride operand",
+            support::RuntimeABIParameterRole::RHSInputStride);
+    if (!rhsStride)
+      return rhsStride.takeError();
+    llvm::Expected<tcrv::rvv::RuntimeABIValueOp> outStride =
+        requirePreRealizedRuntimeABIValue(
+            strides[2], "pre-realized RVV out stride operand",
+            support::RuntimeABIParameterRole::OutputStride);
+    if (!outStride)
+      return outStride.takeError();
+  }
 
   unsigned realizedSetVLCount = 0;
   unsigned realizedWithVLCount = 0;
@@ -327,6 +373,17 @@ mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
   return builder.create(state);
 }
 
+mlir::Operation *createRealizedGenericStridedLoad(mlir::OpBuilder &builder,
+                                                  mlir::Location loc,
+                                                  mlir::Value buffer,
+                                                  mlir::Value stride,
+                                                  mlir::Value vl) {
+  mlir::OperationState state(loc, "tcrv_rvv.strided_load");
+  state.addOperands({buffer, stride, vl});
+  state.addTypes(getStage1GenericVectorType(builder));
+  return builder.create(state);
+}
+
 llvm::Expected<mlir::Operation *>
 createRealizedGenericBinaryCompute(mlir::OpBuilder &builder,
                                    mlir::Location loc,
@@ -349,6 +406,15 @@ void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
                                 mlir::Value vl) {
   mlir::OperationState state(loc, "tcrv_rvv.store");
   state.addOperands({out, value, vl});
+  (void)builder.create(state);
+}
+
+void createRealizedGenericStridedStore(mlir::OpBuilder &builder,
+                                       mlir::Location loc, mlir::Value out,
+                                       mlir::Value value, mlir::Value stride,
+                                       mlir::Value vl) {
+  mlir::OperationState state(loc, "tcrv_rvv.strided_store");
+  state.addOperands({out, value, stride, vl});
   (void)builder.create(state);
 }
 
@@ -382,17 +448,39 @@ realizePreRealizedRVVSelectedBody(
                            request.getRole(), requires);
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
-  auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(
-      createRealizedGenericLoad(builder, loc, body->getLhs(), setvl.getVl()));
-  auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(
-      createRealizedGenericLoad(builder, loc, body->getRhs(), setvl.getVl()));
+  mlir::Value lhsValue;
+  mlir::Value rhsValue;
+  if (isPreRealizedStridedMemoryForm(body->getMemoryForm())) {
+    mlir::OperandRange strides = body->getStrides();
+    auto lhsLoad = llvm::cast<tcrv::rvv::StridedLoadOp>(
+        createRealizedGenericStridedLoad(builder, loc, body->getLhs(),
+                                         strides[0], setvl.getVl()));
+    auto rhsLoad = llvm::cast<tcrv::rvv::StridedLoadOp>(
+        createRealizedGenericStridedLoad(builder, loc, body->getRhs(),
+                                         strides[1], setvl.getVl()));
+    lhsValue = lhsLoad.getLoaded();
+    rhsValue = rhsLoad.getLoaded();
+  } else {
+    auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(
+        createRealizedGenericLoad(builder, loc, body->getLhs(), setvl.getVl()));
+    auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(
+        createRealizedGenericLoad(builder, loc, body->getRhs(), setvl.getVl()));
+    lhsValue = lhsLoad.getLoaded();
+    rhsValue = rhsLoad.getLoaded();
+  }
   llvm::Expected<mlir::Operation *> compute = createRealizedGenericBinaryCompute(
-      builder, loc, body->getOpKind(), lhsLoad.getLoaded(),
-      rhsLoad.getLoaded(), setvl.getVl());
+      builder, loc, body->getOpKind(), lhsValue, rhsValue, setvl.getVl());
   if (!compute)
     return compute.takeError();
-  createRealizedGenericStore(builder, loc, body->getOut(),
-                             (*compute)->getResult(0), setvl.getVl());
+  if (isPreRealizedStridedMemoryForm(body->getMemoryForm())) {
+    mlir::OperandRange strides = body->getStrides();
+    createRealizedGenericStridedStore(builder, loc, body->getOut(),
+                                      (*compute)->getResult(0), strides[2],
+                                      setvl.getVl());
+  } else {
+    createRealizedGenericStore(builder, loc, body->getOut(),
+                               (*compute)->getResult(0), setvl.getVl());
+  }
   body->erase();
   return withVL;
 }

@@ -175,6 +175,11 @@ bool isSupportedTypedBinaryPreRealizedBodyOpKind(llvm::StringRef opKind) {
   return opKind == "add" || opKind == "sub" || opKind == "mul";
 }
 
+bool isSupportedTypedBinaryPreRealizedMemoryForm(llvm::StringRef memoryForm) {
+  return memoryForm == "vector-rhs-load" ||
+         memoryForm == "strided-load-store";
+}
+
 bool isSupportedGenericBinaryKind(llvm::StringRef kind) {
   return kind == "add" || kind == "sub" || kind == "mul";
 }
@@ -1160,19 +1165,21 @@ mlir::LogicalResult TypedBinaryPreRealizedBodyOp::verify() {
     return emitOpError()
            << "must be nested directly in a selected tcrv.exec.variant";
 
-  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+  if ((op->getNumOperands() != 4 && op->getNumOperands() != 7) ||
+      op->getNumResults() != 0)
     return emitOpError()
-           << "requires lhs, rhs, out, and runtime n/AVL operands and no "
-              "results";
+           << "requires lhs, rhs, out, runtime n/AVL, and optional "
+              "lhs/rhs/out stride operands and no results";
 
   if (!isSupportedTypedBinaryPreRealizedBodyOpKind(getOpKind()))
     return emitOpError()
            << "currently supports only op_kind \"add\", \"sub\", or "
               "\"mul\" for the bounded selected-body realization hook";
-  if (getMemoryForm() != "vector-rhs-load")
+  if (!isSupportedTypedBinaryPreRealizedMemoryForm(getMemoryForm()))
     return emitOpError()
-           << "currently supports only memory_form \"vector-rhs-load\" for "
-              "the bounded selected-body realization hook";
+           << "currently supports only memory_form \"vector-rhs-load\" or "
+              "\"strided-load-store\" for the bounded selected-body "
+              "realization hook";
 
   if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
       getLmul() != getRVVLMULM1())
@@ -1195,7 +1202,37 @@ mlir::LogicalResult TypedBinaryPreRealizedBodyOp::verify() {
           op, getOut(), "out",
           {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
-  return verifyRuntimeElementCountOperand(op, getN());
+  if (mlir::failed(verifyRuntimeElementCountOperand(op, getN())))
+    return mlir::failure();
+
+  mlir::OperandRange strides = getStrides();
+  if (getMemoryForm() == "vector-rhs-load") {
+    if (!strides.empty())
+      return emitOpError()
+             << "requires no stride operands for memory_form "
+                "\"vector-rhs-load\"";
+    return mlir::success();
+  }
+
+  if (getOpKind() != "add")
+    return emitOpError()
+           << "requires op_kind \"add\" for memory_form "
+              "\"strided-load-store\"";
+  if (strides.size() != 3)
+    return emitOpError()
+           << "requires lhs, rhs, and out stride operands for memory_form "
+              "\"strided-load-store\"";
+  if (mlir::failed(verifyRuntimeABIIndexOperandRole(
+          op, strides[0], "lhs stride",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputStride})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIIndexOperandRole(
+          op, strides[1], "rhs stride",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputStride})))
+    return mlir::failure();
+  return verifyRuntimeABIIndexOperandRole(
+      op, strides[2], "out stride",
+      {tianchenrv::support::RuntimeABIParameterRole::OutputStride});
 }
 
 mlir::LogicalResult LoadOp::verify() {

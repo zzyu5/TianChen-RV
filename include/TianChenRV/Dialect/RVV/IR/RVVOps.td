@@ -309,10 +309,11 @@ def TypedBinaryPreRealizedBodyOp
     : TCRVRVV_Op<"typed_binary_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV binary selected body";
   let description = [{
-    Carries the RVV plugin-local pre-realized selected body for the generic typed RVV binary family. The op is nested directly in a selected
+    Carries the RVV plugin-local pre-realized selected body for the generic
+    typed RVV binary family. The op is nested directly in a selected
     tcrv.exec.variant and binds explicit runtime ABI values for lhs, rhs, out,
-    and runtime n/AVL together with the selected operation kind, memory form,
-    and compile-time RVV config.
+    runtime n/AVL, and optional runtime stride values together with the
+    selected operation kind, memory form, and compile-time RVV config.
 
     This op is not a common route, descriptor, source-front-door marker,
     direct-C exporter, intrinsic wrapper, runtime artifact, correctness
@@ -326,6 +327,7 @@ def TypedBinaryPreRealizedBodyOp
     AnyType:$rhs,
     AnyType:$out,
     AnyType:$n,
+    Variadic<Index>:$strides,
     StrAttr:$op_kind,
     StrAttr:$memory_form,
     I64Attr:$sew,
@@ -334,7 +336,7 @@ def TypedBinaryPreRealizedBodyOp
   );
 
   let assemblyFormat =
-    "$lhs `,` $rhs `,` $out `,` $n attr-dict `:` type($lhs) `,` type($rhs) `,` type($out) `,` type($n)";
+    "$lhs `,` $rhs `,` $out `,` $n (`,` $strides^)? attr-dict `:` functional-type(operands, results)";
   let hasVerifier = 1;
 }
 

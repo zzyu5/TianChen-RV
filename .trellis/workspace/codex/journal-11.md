@@ -52,6 +52,86 @@ Added a bounded generic typed RVV reduce(add) selected-body route skeleton with 
 |------|---------|
 | `this commit` | (see git log) |
 
+## Session 141: Stage2 RVV selected-body realization for typed strided add
+
+**Date**: 2026-05-19
+**Task**: `stage2-rvv-selected-body-strided-add`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and implemented the
+bounded pre-realized selected-body realization path for typed strided add. The
+RVV plugin now consumes explicit lhs/rhs/out stride ABI operands from
+`tcrv_rvv.typed_binary_pre_realized_body` and realizes them into
+`setvl/with_vl/strided_load/binary/strided_store` structure before the existing
+`strided_add` provider route is constructed.
+
+### Main Changes
+
+- Extended `tcrv_rvv.typed_binary_pre_realized_body` with optional stride
+  operands while preserving unit-stride add/sub/mul pre-realized bodies.
+- Hardened verifier checks for strided selected-body realization: exact
+  lhs/rhs/out stride count, index type, runtime ABI source, stride roles,
+  `op_kind = "add"`, SEW32, LMUL m1, agnostic policy, and correct base roles.
+- Extended RVV plugin-local realization to produce typed strided memory ops
+  and reuse the existing strided_add provider/materializer/target path.
+- Added pre-realized strided add target artifact and generated-bundle dry-run
+  fixtures plus negative fail-closed cases for missing/wrong stride facts.
+- Extended `scripts/rvv_generated_bundle_abi_e2e.py` with
+  `--pre-realized-selected-body --op-kind strided_add`.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] Focused build for `tcrv-opt`, `tcrv-translate`, RVV dialect/plugin,
+  construction protocol, and target artifact export tests.
+- [OK] Focused lit: 11/11 passed for pre-realized strided add, existing
+  pre-realized add/sub/mul, pre-realized negatives, explicit strided add, and
+  generated-bundle dry-run coverage.
+- [OK] `build/bin/tianchenrv-rvv-dialect-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] local dry-run at
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/local-pre-realized-strided-add-dry-run`.
+- [OK] real `ssh rvv` correctness evidence at
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/ssh-pre-realized-strided-add-evidence`:
+  `PASS op=strided_add counts=7,16,23`.
+- [OK] `git diff --check`
+- [OK] diff-only active-authority scan: no newly added positive legacy RVV
+  route authority, source-front-door/source-seed authority, descriptor/direct-C
+  source-export authority, or common/export RVV semantic authority.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 168/168 lit tests
+  passed.
+
+### Spec Update
+
+No `.trellis/spec/` update was needed. This round implemented the existing
+selected-body realization and plugin-local route-authority contract for one
+bounded strided add case; it did not add a new long-term architecture rule.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round makes a real RVV
+correctness claim only for the pre-realized selected-body `strided_add` path at
+counts `7,16,23`.
+
+### Next Steps
+
+- Future continuation, if requested: broaden selected-body realization to
+  another bounded Stage2 memory/control class under a separate PRD; do not
+  infer semantics from route ids, artifact names, ABI names, or source-front
+  door metadata.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 ## Session 139: Stage2 RVV typed strided memory-form route semantics
 
 **Date**: 2026-05-19
