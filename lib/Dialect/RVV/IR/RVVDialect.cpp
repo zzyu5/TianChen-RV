@@ -149,6 +149,8 @@ bool isAllowedLoadAttr(llvm::StringRef) { return false; }
 
 bool isAllowedBroadcastLoadAttr(llvm::StringRef) { return false; }
 
+bool isAllowedStridedLoadAttr(llvm::StringRef) { return false; }
+
 bool isAllowedBinaryAttr(llvm::StringRef name) {
   return name == "kind";
 }
@@ -166,6 +168,8 @@ bool isAllowedReduceAttr(llvm::StringRef name) { return name == "kind"; }
 bool isAllowedMAccAttr(llvm::StringRef name) { return name == "kind"; }
 
 bool isAllowedStoreAttr(llvm::StringRef) { return false; }
+
+bool isAllowedStridedStoreAttr(llvm::StringRef) { return false; }
 
 bool isSupportedTypedBinaryPreRealizedBodyOpKind(llvm::StringRef opKind) {
   return opKind == "add" || opKind == "sub" || opKind == "mul";
@@ -290,6 +294,9 @@ llvm::StringRef getBoundedRuntimeABIValueCType(
   case Role::OutputBuffer:
     return "int32_t *";
   case Role::RuntimeElementCount:
+  case Role::LHSInputStride:
+  case Role::RHSInputStride:
+  case Role::OutputStride:
     return "size_t";
   case Role::DispatchAvailabilityGuard:
     return {};
@@ -306,6 +313,13 @@ bool isBoundedInputBufferRole(
 bool isBoundedBufferRole(tianchenrv::support::RuntimeABIParameterRole role) {
   using Role = tianchenrv::support::RuntimeABIParameterRole;
   return isBoundedInputBufferRole(role) || role == Role::OutputBuffer;
+}
+
+bool isBoundedRuntimeIndexRole(
+    tianchenrv::support::RuntimeABIParameterRole role) {
+  using Role = tianchenrv::support::RuntimeABIParameterRole;
+  return role == Role::RuntimeElementCount || role == Role::LHSInputStride ||
+         role == Role::RHSInputStride || role == Role::OutputStride;
 }
 
 mlir::FailureOr<RuntimeABIValueOp>
@@ -337,6 +351,47 @@ mlir::LogicalResult verifyRuntimeABIValueOperandRole(
   std::optional<tianchenrv::support::RuntimeABIParameterRole> parsedRole =
       tianchenrv::support::symbolizeRuntimeABIParameterRole(
           (*binding).getRole());
+  if (!parsedRole)
+    return op->emitOpError()
+           << "requires " << operandName
+           << " operand runtime ABI role to be supported";
+
+  if (llvm::is_contained(expectedRoles, *parsedRole))
+    return mlir::success();
+
+  std::string expected;
+  llvm::raw_string_ostream stream(expected);
+  llvm::interleave(
+      expectedRoles,
+      [&](tianchenrv::support::RuntimeABIParameterRole role) {
+        stream << "'"
+               << tianchenrv::support::stringifyRuntimeABIParameterRole(role)
+               << "'";
+      },
+      [&] { stream << " or "; });
+  stream.flush();
+  return op->emitOpError()
+         << "requires " << operandName << " operand to bind runtime ABI role "
+         << expected;
+}
+
+mlir::LogicalResult verifyRuntimeABIIndexOperandRole(
+    mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
+    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
+        expectedRoles) {
+  if (!value.getType().isIndex())
+    return op->emitOpError()
+           << "requires " << operandName << " operand to have index type";
+
+  auto binding = value.getDefiningOp<RuntimeABIValueOp>();
+  if (!binding)
+    return op->emitOpError()
+           << "requires " << operandName
+           << " operand to be defined by tcrv_rvv.runtime_abi_value";
+
+  std::optional<tianchenrv::support::RuntimeABIParameterRole> parsedRole =
+      tianchenrv::support::symbolizeRuntimeABIParameterRole(
+          binding.getRole());
   if (!parsedRole)
     return op->emitOpError()
            << "requires " << operandName
@@ -734,11 +789,27 @@ llvm::StringRef BroadcastLoadOp::getTCRVEmitCLowerableSourceRole() {
   return "load";
 }
 
+llvm::StringRef StridedLoadOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef StridedLoadOp::getTCRVEmitCLowerableSourceRole() {
+  return "load";
+}
+
 llvm::StringRef StoreOp::getTCRVEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
 
 llvm::StringRef StoreOp::getTCRVEmitCLowerableSourceRole() {
+  return "store";
+}
+
+llvm::StringRef StridedStoreOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef StridedStoreOp::getTCRVEmitCLowerableSourceRole() {
   return "store";
 }
 
@@ -821,11 +892,10 @@ mlir::LogicalResult RuntimeABIValueOp::verify() {
            << "requires runtime ABI role '" << getRole()
            << "' to use C type '" << expectedCType << "'";
 
-  if (*parsedRole ==
-      tianchenrv::support::RuntimeABIParameterRole::RuntimeElementCount) {
+  if (isBoundedRuntimeIndexRole(*parsedRole)) {
     if (!getValue().getType().isIndex())
-      return emitOpError()
-             << "requires runtime-element-count result to have index type";
+      return emitOpError() << "requires runtime ABI role '" << getRole()
+                           << "' result to have index type";
     return mlir::success();
   }
 
@@ -1180,6 +1250,38 @@ mlir::LogicalResult BroadcastLoadOp::verify() {
   return verifyGenericVectorTypeForWithVL(op, getBroadcast(), "result");
 }
 
+mlir::LogicalResult StridedLoadOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.strided_load",
+                                         isAllowedStridedLoadAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one explicit input buffer ABI operand, one runtime "
+              "stride operand, one !tcrv_rvv.vl operand, and one generic RVV "
+              "vector result";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getBuffer(), "strided load buffer",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIIndexOperandRole(
+          op, getStride(), "strided load stride",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputStride,
+           tianchenrv::support::RuntimeABIParameterRole::RHSInputStride})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
+}
+
 mlir::LogicalResult BinaryOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -1514,6 +1616,36 @@ mlir::LogicalResult StoreOp::verify() {
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getBuffer(), "output buffer",
           {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  return verifyGenericVectorTypeForWithVL(op, getValue(), "stored value");
+}
+
+mlir::LogicalResult StridedStoreOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.strided_store",
+                                         isAllowedStridedStoreAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires one explicit output buffer ABI operand, one generic "
+              "RVV vector value operand, one runtime output stride operand, "
+              "one !tcrv_rvv.vl operand, and no results";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getBuffer(), "strided store output buffer",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIIndexOperandRole(
+          op, getStride(), "strided store stride",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputStride})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "

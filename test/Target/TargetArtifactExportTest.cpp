@@ -468,6 +468,8 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     return "tcrv_rvv.masked_binary";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
     return "tcrv_rvv.macc";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::StridedAdd:
+    return "tcrv_rvv.binary";
   }
   llvm_unreachable("unknown RVV test arithmetic op");
 }
@@ -489,6 +491,8 @@ llvm::StringRef getRVVTestBinaryKind(
     return "masked_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
     return "macc_add";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::StridedAdd:
+    return "strided_add";
   }
   llvm_unreachable("unknown RVV test binary kind");
 }
@@ -868,10 +872,7 @@ bool expectRVVTargetArtifactExporterShape(
       exporter->getComponentGroup() !=
           "rvv-generic-typed-body-materialized-emitc-bundle.v1" ||
       !exporter->getExternalABIName().empty() ||
-      !tianchenrv::support::runtimeABIParametersEqual(
-          exporter->getRequiredRuntimeABIParameters(),
-          tianchenrv::plugin::rvv::
-              getRVVSelectedBodyRuntimeABIParameters()) ||
+      !exporter->getRequiredRuntimeABIParameters().empty() ||
       !exporter->getExportFn() || !exporter->getCandidateValidationFn()) {
     llvm::errs() << context << ": malformed RVV target artifact exporter "
                  << "metadata\n";
@@ -1067,7 +1068,8 @@ bool expectRVVTargetArtifactExporterShape(
                                mismatchedParameters, *exporter),
                            "RVV artifact rejects mismatched runtime ABI "
                            "parameters",
-                           {"runtime ABI parameter order", "output-buffer"}))
+                           {"materialized EmitC route ABI mappings",
+                            "candidate runtime ABI parameters"}))
     return false;
 
   TargetArtifactCandidate missingRuntimeElementCount = candidate;
@@ -1076,8 +1078,8 @@ bool expectRVVTargetArtifactExporterShape(
                                missingRuntimeElementCount, *exporter),
                            "RVV artifact rejects missing runtime element-count "
                            "ABI role",
-                           {"runtime ABI parameter role",
-                            "runtime-element-count"}))
+                           {"materialized EmitC route ABI mappings",
+                            "candidate runtime ABI parameters"}))
     return false;
 
   TargetArtifactCandidate missingConstructionProtocol = candidate;

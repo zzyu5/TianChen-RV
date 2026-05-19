@@ -1,5 +1,6 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
+#include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Plugin/ConstructionProtocol.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
@@ -1630,10 +1631,13 @@ int runRVVCommonValidationTest() {
                   : (route.operationMnemonic == "macc_add"
                          ? "tcrv_rvv.macc"
                          : "tcrv_rvv.binary")));
+    llvm::StringRef rhsSourceOp = route.operationMnemonic == "strided_add"
+                                      ? "tcrv_rvv.strided_load"
+                                      : "tcrv_rvv.load";
     llvm::Expected<llvm::SmallVector<
         rvv::RVVSelectedBodyExecutableRoleStep, 10>>
         steps = rvv::getRVVSelectedBodyExecutableRoleSteps(
-            route.operationMnemonic, executableComputeOp, "tcrv_rvv.load");
+            route.operationMnemonic, executableComputeOp, rhsSourceOp);
     if (!steps)
       return fail(llvm::Twine("RVV executable role steps are built from "
                               "route operation: ") +
@@ -1641,7 +1645,10 @@ int runRVVCommonValidationTest() {
     const bool hasMaskProducer = route.operationMnemonic == "cmp_select" ||
                                  route.operationMnemonic == "masked_add";
     const bool hasAccumulatorLoad = route.operationMnemonic == "macc_add";
-    if (steps->size() != ((hasMaskProducer || hasAccumulatorLoad) ? 11u : 10u))
+    const bool hasStridedMemory = route.operationMnemonic == "strided_add";
+    unsigned expectedStepCount =
+        hasStridedMemory ? 13u : ((hasMaskProducer || hasAccumulatorLoad) ? 11u : 10u);
+    if (steps->size() != expectedStepCount)
       return fail("RVV executable role sequence must include explicit ABI, "
                   "config, scope, load, compute, optional mask-producing "
                   "compute, and store steps");
@@ -1663,7 +1670,11 @@ int runRVVCommonValidationTest() {
     facts.targetArtifactKind = manifest.emitcRoute.artifactKind;
     facts.runtimeABIName = route.runtimeABIName;
     facts.runtimeABIContractName = route.runtimeABIContractName;
-    facts.runtimeABIParameters = parameters;
+    if (route.operationMnemonic == "strided_add")
+      facts.runtimeABIParameters =
+          tianchenrv::tcrv::rvv::getRVVSelectedBodyStridedRuntimeABIParameters();
+    else
+      facts.runtimeABIParameters = parameters;
 
     llvm::Expected<llvm::SmallVector<
         tianchenrv::support::ArtifactMetadataEntry, 16>>

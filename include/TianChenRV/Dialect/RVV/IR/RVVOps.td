@@ -396,6 +396,35 @@ def BroadcastLoadOp : TCRVRVV_Op<"broadcast_load",
   let hasVerifier = 1;
 }
 
+def StridedLoadOp : TCRVRVV_Op<"strided_load",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV strided vector load dataflow op";
+  let description = [{
+    Records one bounded generic plugin-local RVV strided vector load dataflow
+    step. The op is nested directly under tcrv_rvv.with_vl, consumes one
+    explicit input buffer runtime ABI value, one explicit runtime stride SSA
+    value, and the active !tcrv_rvv.vl token. It produces one
+    !tcrv_rvv.vector element/LMUL token matching the enclosing config.
+
+    The stride is an element-stride runtime value. The RVV plugin owns the
+    conversion to target byte-stride intrinsic operands after typed
+    body/config/runtime validation.
+  }];
+
+  let arguments = (ins
+    AnyType:$buffer,
+    Index:$stride,
+    AnyType:$vl
+  );
+  let results = (outs AnyType:$loaded);
+
+  let assemblyFormat =
+    "$buffer `,` $stride `,` $vl attr-dict `:` type($buffer) `,` type($stride) `,` type($vl) `->` type($loaded)";
+  let hasVerifier = 1;
+}
+
 def BinaryOp : TCRVRVV_Op<"binary",
     [TCRVEmitCLowerableOpInterface]> {
   let summary = "generic typed RVV binary arithmetic dataflow op";
@@ -593,6 +622,31 @@ def StoreOp : TCRVRVV_Op<"store",
 
   let assemblyFormat =
     "$buffer `,` $value `,` $vl attr-dict `:` type($buffer) `,` type($value) `,` type($vl)";
+  let hasVerifier = 1;
+}
+
+def StridedStoreOp : TCRVRVV_Op<"strided_store",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV strided vector store dataflow op";
+  let description = [{
+    Records one bounded generic plugin-local RVV strided vector store dataflow
+    step. The op is nested directly under tcrv_rvv.with_vl, consumes one
+    explicit output buffer runtime ABI value, one generic !tcrv_rvv.vector
+    value matching the enclosing config, one explicit runtime output stride
+    SSA value, and the active !tcrv_rvv.vl token.
+  }];
+
+  let arguments = (ins
+    AnyType:$buffer,
+    AnyType:$value,
+    Index:$stride,
+    AnyType:$vl
+  );
+
+  let assemblyFormat =
+    "$buffer `,` $value `,` $stride `,` $vl attr-dict `:` type($buffer) `,` type($value) `,` type($stride) `,` type($vl)";
   let hasVerifier = 1;
 }
 

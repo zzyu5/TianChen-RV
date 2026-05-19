@@ -1691,12 +1691,19 @@ llvm::Error validateMaterializedEmitCHeaderArtifactCandidate(
           config.runtimeGlueRole))
     return error;
 
-  if (!support::runtimeABIParametersEqual(candidate.runtimeABIParameters,
-                                          config.runtimeABIParameters))
+  if (config.allowDynamicRuntimeABIIdentity) {
+    if (candidate.runtimeABIParameters.empty())
+      return makeSelectedEmitCArtifactError(
+          getHeaderRouteDescription(config),
+          "dynamic runtime ABI candidates must carry ordered runtime ABI "
+          "parameters");
+  } else if (!support::runtimeABIParametersEqual(candidate.runtimeABIParameters,
+                                                 config.runtimeABIParameters)) {
     return makeSelectedEmitCArtifactError(
         getHeaderRouteDescription(config),
         "candidate ordered runtime ABI parameter signature must exactly match "
         "the materialized EmitC header artifact configuration");
+  }
 
   for (const MaterializedEmitCHeaderArtifactMetadataEvidence &evidence :
        config.metadataEvidence) {
@@ -1831,6 +1838,20 @@ getMaterializedEmitCObjectBundleRuntimeABIParameters(
     return std::move(error);
 
   llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
+  if (config.header.allowDynamicRuntimeABIIdentity) {
+    llvm::Expected<const TargetArtifactCandidate *> selected =
+        selectMaterializedEmitCObjectBundleCandidate(candidates, config);
+    if (!selected)
+      return selected.takeError();
+    if (!*selected)
+      return makeSelectedEmitCArtifactError(
+          getHeaderRouteDescription(config.header),
+          "dynamic runtime ABI bundle parameters require a selected "
+          "materialized EmitC candidate");
+    parameters.append((*selected)->runtimeABIParameters.begin(),
+                      (*selected)->runtimeABIParameters.end());
+    return parameters;
+  }
   parameters.append(config.header.runtimeABIParameters.begin(),
                     config.header.runtimeABIParameters.end());
   return parameters;
@@ -1882,11 +1903,15 @@ llvm::Error registerMaterializedEmitCObjectBundleArtifactExporters(
       };
 
   if (!registry.lookup(config.header.selectedRoute.routeID)) {
+    llvm::ArrayRef<support::RuntimeABIParameter> requiredRuntimeABIParameters =
+        config.header.allowDynamicRuntimeABIIdentity
+            ? llvm::ArrayRef<support::RuntimeABIParameter>()
+            : config.header.runtimeABIParameters;
     if (llvm::Error error = registry.registerExporter(TargetArtifactExporter(
             config.header.selectedRoute.routeID,
             config.header.selectedRoute.artifactKind,
             config.header.selectedRoute.originPlugin, config.header.emissionKind,
-            config.objectExportFn, config.header.runtimeABIParameters,
+            config.objectExportFn, requiredRuntimeABIParameters,
             config.handoffKind, objectValidation, config.componentGroup,
             config.externalABIName)))
       return error;

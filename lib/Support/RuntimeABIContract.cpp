@@ -27,6 +27,9 @@ bool isFiniteBinaryCallableRole(RuntimeABIParameterRole role) {
   case RuntimeABIParameterRole::OutputBuffer:
   case RuntimeABIParameterRole::RuntimeElementCount:
     return true;
+  case RuntimeABIParameterRole::LHSInputStride:
+  case RuntimeABIParameterRole::RHSInputStride:
+  case RuntimeABIParameterRole::OutputStride:
   case RuntimeABIParameterRole::DispatchAvailabilityGuard:
     return false;
   }

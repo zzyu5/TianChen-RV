@@ -207,7 +207,7 @@ llvm::Error validateRVVRouteABIMappings(
                                           candidate.runtimeABIParameters))
     return makeRVVTargetRouteError(
         "materialized EmitC route ABI mappings must match the selected "
-        "candidate runtime ABI parameters lhs, rhs, out, n");
+        "candidate runtime ABI parameters");
 
   return llvm::Error::success();
 }
@@ -407,17 +407,17 @@ llvm::Error validateRVVSelectedBodyTargetArtifactCandidate(
           plugin::rvv::getRVVSelectedBodyRuntimeGlueRole()))
     return error;
 
-  if (!support::runtimeABIParametersEqual(
-          candidate.runtimeABIParameters,
-          plugin::rvv::getRVVSelectedBodyRuntimeABIParameters()))
-    return makeRVVTargetRouteError(
-        "candidate runtime ABI parameters must be lhs, rhs, out, n with "
-        "stable C types, roles, and target-export ownership");
-
   llvm::Expected<RVVSelectedVariantRouteValidation> selectedRoute =
       validateRVVSelectedVariantRouteAgreesWithCandidate(candidate);
   if (!selectedRoute)
     return selectedRoute.takeError();
+
+  if (!support::runtimeABIParametersEqual(
+          candidate.runtimeABIParameters,
+          selectedRoute->description.runtimeABIParameters))
+    return makeRVVTargetRouteError(
+        "candidate runtime ABI parameters must mirror the provider-derived "
+        "selected-body runtime ABI signature");
 
   if (llvm::Error error = requireCandidateField(
           "route id", candidate.routeID,

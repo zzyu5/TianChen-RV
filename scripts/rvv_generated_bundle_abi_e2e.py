@@ -41,7 +41,13 @@ DEFAULT_RUNTIME_COUNTS = (1, 7, 16, 17, 257)
 MIN_RUNTIME_COUNT_CASES = 2
 MIN_NON_ONE_VECTOR_SENTINEL_COUNT = 17
 DEFAULT_OP_KINDS = ("add", "sub", "mul")
-OP_KIND_CHOICES = DEFAULT_OP_KINDS + ("cmp_select", "reduce_add", "masked_add", "macc_add")
+OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
+    "cmp_select",
+    "reduce_add",
+    "masked_add",
+    "macc_add",
+    "strided_add",
+)
 REDUCE_ADD_ACCUMULATOR_LAYOUT = "rhs-vector-seed-lane0-per-vl-chunk"
 REDUCE_ADD_RESULT_LAYOUT = "store-reduction-lane0-to-output-chunk-base"
 REDUCE_ADD_STORE_VL = "1"
@@ -49,6 +55,11 @@ MASKED_ADD_MASK_SOURCE = "compare-produced-mask-same-vl-scope"
 MASKED_ADD_PASSTHROUGH_LAYOUT = "passthrough-vector-preserves-inactive-lanes"
 MACC_ADD_ACCUMULATOR_LAYOUT = "output-buffer-vector-accumulator-input"
 MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
+STRIDED_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride"
+STRIDED_ADD_MEMORY_LAYOUT = "element-strided-lhs-rhs-output-runtime-abi"
+STRIDED_ADD_LHS_STRIDE_SOURCE = "runtime_abi:lhs_stride"
+STRIDED_ADD_RHS_STRIDE_SOURCE = "runtime_abi:rhs_stride"
+STRIDED_ADD_OUT_STRIDE_SOURCE = "runtime_abi:out_stride"
 OUT_SENTINEL = "(int32_t)0x5a5a5a5a"
 
 INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
@@ -84,10 +95,28 @@ class OpExpectation:
 
     @property
     def prototype(self) -> str:
+        if self.is_strided_add:
+            return (
+                f"void {self.function_name}(const int32_t *lhs, "
+                "const int32_t *rhs, int32_t *out, size_t n, "
+                "size_t lhs_stride, size_t rhs_stride, size_t out_stride);"
+            )
         return (
             f"void {self.function_name}(const int32_t *lhs, "
             "const int32_t *rhs, int32_t *out, size_t n);"
         )
+
+    @property
+    def runtime_parameters(self) -> tuple[dict[str, str], ...]:
+        if self.is_strided_add:
+            return EXPECTED_STRIDED_RUNTIME_PARAMETERS
+        return EXPECTED_RUNTIME_PARAMETERS
+
+    @property
+    def runtime_abi_order(self) -> str:
+        if self.is_strided_add:
+            return STRIDED_ADD_RUNTIME_ABI_ORDER
+        return "lhs,rhs,out,n"
 
     @property
     def pass_marker(self) -> str:
@@ -112,6 +141,10 @@ class OpExpectation:
     @property
     def is_macc_add(self) -> bool:
         return self.kind == "macc_add"
+
+    @property
+    def is_strided_add(self) -> bool:
+        return self.kind == "strided_add"
 
 
 EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
@@ -220,6 +253,21 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         rhs_initializer="(int32_t)((int)(index % 17) - 8)",
         out_initializer="(int32_t)(17 - (int32_t)(index % 9))",
         expected_expression="(int32_t)((int32_t)(17 - (int32_t)(index % 9)) + (int32_t)(lhs[index] * rhs[index]))",
+    ),
+    "strided_add": OpExpectation(
+        kind="strided_add",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-strided-add.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_strided_add",
+        external_abi_name="rvv-generic-strided-add-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_strided_add_kernel_explicit_selected_body_rvv_strided_add",
+        emitc_route="rvv-generic-strided-add-emitc-route",
+        typed_compute_op="tcrv_rvv.binary",
+        memory_form="strided-load-store",
+        lhs_initializer="(int32_t)(11 + (int32_t)(index * 2))",
+        rhs_initializer="(int32_t)(700 - (int32_t)(index * 3))",
+        expected_expression="lhs[index * lhs_stride] + rhs[index * rhs_stride]",
     ),
 }
 
@@ -336,6 +384,26 @@ EXPECTED_RUNTIME_PARAMETERS = (
         "c_name": "n",
         "c_type": "size_t",
         "role": "runtime-element-count",
+        "ownership": "target-export-abi-owned",
+    },
+)
+EXPECTED_STRIDED_RUNTIME_PARAMETERS = EXPECTED_RUNTIME_PARAMETERS + (
+    {
+        "c_name": "lhs_stride",
+        "c_type": "size_t",
+        "role": "lhs-input-stride",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "rhs_stride",
+        "c_type": "size_t",
+        "role": "rhs-input-stride",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "out_stride",
+        "c_type": "size_t",
+        "role": "output-stride",
         "ownership": "target-export-abi-owned",
     },
 )
@@ -652,15 +720,17 @@ def find_record(records: list[dict[str, Any]], component_role: str) -> dict[str,
     return matches[0]
 
 
-def verify_runtime_parameters(record: dict[str, Any], context: str) -> None:
+def verify_runtime_parameters(
+    record: dict[str, Any], context: str, expectation: OpExpectation
+) -> None:
     require_equal(
         record.get("runtime_abi_parameter_count"),
-        str(len(EXPECTED_RUNTIME_PARAMETERS)),
+        str(len(expectation.runtime_parameters)),
         f"{context} runtime ABI parameter count",
     )
     require_equal(
         record.get("runtime_abi_parameters"),
-        list(EXPECTED_RUNTIME_PARAMETERS),
+        list(expectation.runtime_parameters),
         f"{context} ordered runtime ABI parameters",
     )
 
@@ -676,7 +746,7 @@ def verify_common_record_fields(
     require_equal(record.get("runtime_abi"), expectation.external_abi_name, f"{context} runtime ABI")
     require_equal(record.get("runtime_abi_kind"), EXPECTED_RUNTIME_ABI_KIND, f"{context} runtime ABI kind")
     require_equal(record.get("runtime_abi_name"), expectation.external_abi_name, f"{context} runtime ABI name")
-    verify_runtime_parameters(record, context)
+    verify_runtime_parameters(record, context, expectation)
     components = record.get("components", [])
     require_equal(len(components), 1, f"{context} selected component count")
     require_equal(
@@ -691,10 +761,9 @@ def verify_common_record_fields(
     )
 
 
-def verify_record_metadata(
-    record: dict[str, Any], context: str, expectation: OpExpectation
-) -> None:
-    metadata = metadata_map(record)
+def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
+    common_metadata = dict(COMMON_EXPECTED_METADATA)
+    common_metadata["tcrv_rvv.runtime_abi_order"] = expectation.runtime_abi_order
     per_op_metadata = {
         "rvv_emitc_lowerable_route": expectation.emitc_route,
         "rvv_selected_body_operation": expectation.kind,
@@ -729,7 +798,23 @@ def verify_record_metadata(
                 "tcrv_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
             }
         )
-    for key, expected in {**per_op_metadata, **COMMON_EXPECTED_METADATA}.items():
+    if expectation.is_strided_add:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.strided_memory_layout": STRIDED_ADD_MEMORY_LAYOUT,
+                "tcrv_rvv.lhs_stride_source": STRIDED_ADD_LHS_STRIDE_SOURCE,
+                "tcrv_rvv.rhs_stride_source": STRIDED_ADD_RHS_STRIDE_SOURCE,
+                "tcrv_rvv.out_stride_source": STRIDED_ADD_OUT_STRIDE_SOURCE,
+            }
+        )
+    return {**per_op_metadata, **common_metadata}
+
+
+def verify_record_metadata(
+    record: dict[str, Any], context: str, expectation: OpExpectation
+) -> None:
+    metadata = metadata_map(record)
+    for key, expected in expected_metadata_for(expectation).items():
         require_equal(metadata.get(key), expected, f"{context} metadata {key}")
     for key, value in metadata.items():
         require_no_forbidden_public_residue(
@@ -905,6 +990,17 @@ def verify_materialized_selected_body(
             "tcrv_rvv.broadcast_load",
             "materialized selected-body MLIR RHS broadcast load",
         )
+    if expectation.is_strided_add:
+        require_contains(
+            text,
+            "tcrv_rvv.strided_load",
+            "materialized selected-body MLIR strided load",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.strided_store",
+            "materialized selected-body MLIR strided store",
+        )
     if expectation.is_pre_realized:
         require_not_contains(
             text,
@@ -928,6 +1024,95 @@ def harness_source(
     header_file_name: str, runtime_counts: list[int], expectation: OpExpectation
 ) -> str:
     counts = ", ".join(str(count) for count in runtime_counts)
+    if expectation.is_strided_add:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  const size_t lhs_stride = 2;
+  const size_t rhs_stride = 3;
+  const size_t out_stride = 2;
+  const size_t max_stride = rhs_stride;
+  size_t alloc_n = (n == 0 ? 1 : n) * max_stride + 8;
+  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  if (!lhs || !rhs || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(lhs);
+    free(rhs);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    lhs[index] = (int32_t)-1234567;
+    rhs[index] = (int32_t)1234567;
+    out[index] = {OUT_SENTINEL};
+  }}
+
+  for (size_t index = 0; index < n; ++index) {{
+    lhs[index * lhs_stride] = {expectation.lhs_initializer};
+    rhs[index * rhs_stride] = {expectation.rhs_initializer};
+  }}
+
+  {expectation.function_name}(lhs, rhs, out, n, lhs_stride, rhs_stride, out_stride);
+
+  for (size_t index = 0; index < n; ++index) {{
+    int32_t expected = {expectation.expected_expression};
+    size_t out_index = index * out_stride;
+    if (out[out_index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu logical_index=%zu out_index=%zu got=%d expected=%d lhs=%d rhs=%d\\n",
+              n, index, out_index, out[out_index], expected,
+              lhs[index * lhs_stride], rhs[index * rhs_stride]);
+      free(lhs);
+      free(rhs);
+      free(out);
+      return 12;
+    }}
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    if ((index % out_stride) == 0 && (index / out_stride) < n)
+      continue;
+    if (out[index] != {OUT_SENTINEL}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched non-strided output lane n=%zu raw_index=%zu got=%d sentinel=%d\\n",
+              n, index, out[index], {OUT_SENTINEL});
+      free(lhs);
+      free(rhs);
+      free(out);
+      return 13;
+    }}
+  }}
+
+  free(lhs);
+  free(rhs);
+  free(out);
+  printf("{expectation.kind} case n=%zu ok\\n", n);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_reduce_add:
         return f"""
 #include <stddef.h>
@@ -1602,41 +1787,7 @@ extern "C" {{
 """.lstrip(),
         encoding="utf-8",
     )
-    expected_metadata = {
-        "rvv_emitc_lowerable_route": expectation.emitc_route,
-        "rvv_selected_body_operation": expectation.kind,
-        "rvv_selected_body_typed_compute_op": expectation.typed_compute_op,
-        "tcrv_rvv.config_contract": expectation.config_contract,
-        "tcrv_rvv.sew": "32",
-        "tcrv_rvv.lmul": expectation.lmul,
-        "tcrv_rvv.tail_policy": "agnostic",
-        "tcrv_rvv.mask_policy": "agnostic",
-        "tcrv_rvv.memory_form": expectation.memory_form,
-        "tcrv_rvv.bounded_slice": expectation.bounded_slice,
-        **COMMON_EXPECTED_METADATA,
-    }
-    if expectation.is_reduce_add:
-        expected_metadata.update(
-            {
-                "tcrv_rvv.reduction_accumulator_layout": REDUCE_ADD_ACCUMULATOR_LAYOUT,
-                "tcrv_rvv.reduction_result_layout": REDUCE_ADD_RESULT_LAYOUT,
-                "tcrv_rvv.reduction_store_vl": REDUCE_ADD_STORE_VL,
-            }
-        )
-    if expectation.is_masked_add:
-        expected_metadata.update(
-            {
-                "tcrv_rvv.mask_source": MASKED_ADD_MASK_SOURCE,
-                "tcrv_rvv.masked_passthrough_layout": MASKED_ADD_PASSTHROUGH_LAYOUT,
-            }
-        )
-    if expectation.is_macc_add:
-        expected_metadata.update(
-            {
-                "tcrv_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
-                "tcrv_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
-            }
-        )
+    expected_metadata = expected_metadata_for(expectation)
     metadata_lines = "\n".join(
         f"""  artifact_metadata[{index}]:
     key: "{key}"
@@ -1649,8 +1800,9 @@ extern "C" {{
     c_type: "{parameter['c_type']}"
     role: "{parameter['role']}"
     ownership: "{parameter['ownership']}" """
-        for index, parameter in enumerate(EXPECTED_RUNTIME_PARAMETERS)
+        for index, parameter in enumerate(expectation.runtime_parameters)
     )
+    runtime_parameter_count = len(expectation.runtime_parameters)
     index_text = f"""
 tianchenrv.target_artifact_bundle.version: 1
 bundle_status: "complete"
@@ -1671,7 +1823,7 @@ artifact[0]:
   runtime_abi: "{expectation.external_abi_name}"
   runtime_abi_kind: "{EXPECTED_RUNTIME_ABI_KIND}"
   runtime_abi_name: "{expectation.external_abi_name}"
-  runtime_abi_parameter_count: 4
+  runtime_abi_parameter_count: {runtime_parameter_count}
 {parameter_lines}
 {metadata_lines}
   handoff_kind: "materialized-emitc-cpp-rvv-intrinsic-object"
@@ -1692,7 +1844,7 @@ artifact[1]:
   runtime_abi: "{expectation.external_abi_name}"
   runtime_abi_kind: "{EXPECTED_RUNTIME_ABI_KIND}"
   runtime_abi_name: "{expectation.external_abi_name}"
-  runtime_abi_parameter_count: 4
+  runtime_abi_parameter_count: {runtime_parameter_count}
 {parameter_lines}
 {metadata_lines}
   handoff_kind: "materialized-emitc-cpp-rvv-intrinsic-object"

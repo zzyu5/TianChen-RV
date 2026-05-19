@@ -356,6 +356,24 @@ getRVVSelectedBodyRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 7>
+getRVVSelectedBodyStridedRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 7> parameters;
+  llvm::SmallVector<support::RuntimeABIParameter, 4> base =
+      getRVVSelectedBodyRuntimeABIParameters();
+  parameters.append(base.begin(), base.end());
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs_stride", "size_t",
+      support::RuntimeABIParameterRole::LHSInputStride));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs_stride", "size_t",
+      support::RuntimeABIParameterRole::RHSInputStride));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out_stride", "size_t",
+      support::RuntimeABIParameterRole::OutputStride));
+  return parameters;
+}
+
 llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
     llvm::StringRef context) {
@@ -364,10 +382,16 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, expected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 7> stridedExpected =
+      getRVVSelectedBodyStridedRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, stridedExpected))
+    return llvm::Error::success();
+
   return makeRuntimeABIError(
       llvm::Twine(context) +
-      " must use ordered runtime ABI parameters lhs, rhs, out, n with "
-      "stable C types, roles, and target-export ownership");
+      " must use ordered runtime ABI parameters lhs, rhs, out, n or "
+      "lhs, rhs, out, n, lhs_stride, rhs_stride, out_stride with stable C "
+      "types, roles, and target-export ownership");
 }
 
 llvm::StringRef getRVVSelectedBodyRuntimeAVLParameterName() {

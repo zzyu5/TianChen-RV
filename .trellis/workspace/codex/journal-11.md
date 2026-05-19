@@ -53,6 +53,75 @@ Added a bounded generic typed RVV reduce(add) selected-body route skeleton with 
 | `this commit` | (see git log) |
 
 
+## Session 139: Stage2 RVV typed strided memory-form route semantics
+
+**Date**: 2026-05-19
+**Task**: `stage2-rvv-typed-strided-memory-route`
+**Branch**: `main`
+
+### Summary
+
+Added one bounded generic typed RVV strided load/store memory-form route through
+an explicit selected-body add path. The route binds lhs/rhs/out stride runtime
+ABI values, verifies typed `tcrv_rvv.strided_load/store` structure, derives RVV
+provider route/header/intrinsic/artifact facts from typed body/config/runtime
+facts, and reaches real `ssh rvv` correctness evidence.
+
+### Main Changes
+
+- Added `tcrv_rvv.strided_load` and `tcrv_rvv.strided_store` plus verifier
+  checks for stride runtime ABI roles, base pointer roles, VL, vector
+  type/config, and selected-body placement.
+- Added explicit runtime ABI stride roles and the bounded seven-parameter
+  selected-body ABI contract for strided add.
+- Extended RVV construction protocol and RVV EmitC route provider with the
+  `strided_add` route, strided layout mirrors, provider-derived intrinsic
+  leaves, and generated target metadata.
+- Kept common EmitC/export neutral by adding generic expression materialization
+  for provider-built scaled pointer expressions.
+- Extended `scripts/rvv_generated_bundle_abi_e2e.py` with `--op-kind
+  strided_add`, dry-run checks, and real RVV correctness harness support.
+
+### Testing
+
+- [OK] Focused build for `tcrv-opt`, `tcrv-translate`, RVV dialect/plugin,
+  construction protocol, and target artifact export tests.
+- [OK] Focused lit filter for strided dialect, EmitC, target artifact, and
+  script dry-run fixtures: 5/5 passed.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Focused C++ test binaries for RVV dialect, RVV plugin, construction
+  protocol, and target artifact export.
+- [OK] Local strided add generated-bundle dry-run at
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/local-strided-add-dry-run`.
+- [OK] Real `ssh rvv` strided add correctness evidence at
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/ssh-strided-add`:
+  `PASS op=strided_add counts=7,16,23`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 166/166 passed.
+- [OK] `git diff --check`
+- [OK] active-authority scan found no new positive legacy RVV route authority.
+
+### Self-Repair
+
+- Repaired stride runtime ABI verifier handling for `index`-typed
+  `runtime_abi_value` results.
+- Replaced literal C pointer payloads with neutral EmitC SSA expression
+  materialization.
+- Repaired target artifact runtime ABI preflight for provider-derived dynamic
+  route signatures.
+- Updated stale FileCheck diagnostics after the selected-body op list gained
+  strided load/store.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round makes a real RVV
+correctness claim only for bounded `strided_add` counts `7,16,23`.
+
+### Next Steps
+
+- Future continuation, if requested: broaden Stage2 memory movement beyond this
+  single strided add memory-form submodule under a separate bounded task.
+
+
 ## Session 134: Stage1 Gate A RVV route identity cleanup
 
 **Date**: 2026-05-19

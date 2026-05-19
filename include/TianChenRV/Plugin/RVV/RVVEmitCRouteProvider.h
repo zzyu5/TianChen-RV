@@ -30,11 +30,13 @@ enum class RVVSelectedBodyOperationKind {
   ReduceAdd,
   MaskedAdd,
   MAccAdd,
+  StridedAdd,
 };
 
 enum class RVVSelectedBodyMemoryForm {
   VectorRHSLoad,
   RHSBroadcastLoad,
+  StridedLoadStore,
 };
 
 struct RVVSelectedBodyEmitCRouteDescription {
@@ -73,8 +75,10 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef maskCType;
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef stridedLoadIntrinsic;
   llvm::StringRef rhsBroadcastIntrinsic;
   llvm::StringRef storeIntrinsic;
+  llvm::StringRef stridedStoreIntrinsic;
   llvm::StringRef intrinsic;
   llvm::StringRef compareIntrinsic;
   llvm::StringRef maskedMergeIntrinsic;
@@ -87,7 +91,11 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef reductionStoreVL;
   llvm::StringRef maccAccumulatorLayout;
   llvm::StringRef maccResultLayout;
-  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+  llvm::StringRef stridedMemoryLayout;
+  llvm::StringRef lhsStrideSource;
+  llvm::StringRef rhsStrideSource;
+  llvm::StringRef outStrideSource;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>
       runtimeABIParameters;
 };
 

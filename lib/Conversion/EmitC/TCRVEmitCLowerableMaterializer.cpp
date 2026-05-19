@@ -203,6 +203,37 @@ parseSimpleBinaryExpression(llvm::StringRef expression) {
   return std::nullopt;
 }
 
+std::optional<std::pair<llvm::StringRef, llvm::StringRef>>
+parseSimpleProductExpression(llvm::StringRef expression) {
+  std::pair<llvm::StringRef, llvm::StringRef> parts =
+      expression.split(" * ");
+  if (parts.second.empty())
+    return std::nullopt;
+  if (parts.first.empty() || parts.second.empty())
+    return std::nullopt;
+  return std::pair<llvm::StringRef, llvm::StringRef>(parts.first.trim(),
+                                                     parts.second.trim());
+}
+
+std::optional<std::tuple<llvm::StringRef, llvm::StringRef, llvm::StringRef>>
+parseScaledPointerExpression(llvm::StringRef expression) {
+  std::pair<llvm::StringRef, llvm::StringRef> parts =
+      expression.split(" + ");
+  if (parts.second.empty())
+    return std::nullopt;
+  llvm::StringRef base = parts.first.trim();
+  llvm::StringRef scaled = parts.second.trim();
+  if (!isSafeIdentifier(base) || !scaled.starts_with("(") ||
+      !scaled.ends_with(")"))
+    return std::nullopt;
+  std::optional<std::pair<llvm::StringRef, llvm::StringRef>> product =
+      parseSimpleProductExpression(scaled.drop_front().drop_back().trim());
+  if (!product)
+    return std::nullopt;
+  return std::tuple<llvm::StringRef, llvm::StringRef, llvm::StringRef>(
+      base, product->first, product->second);
+}
+
 std::optional<std::pair<llvm::StringRef, std::uint64_t>>
 parseSimpleSubscriptExpression(llvm::StringRef expression) {
   std::pair<llvm::StringRef, llvm::StringRef> lhs = expression.split('[');
@@ -417,6 +448,73 @@ private:
           .create<mlir::emitc::LoadOp>(builder.getUnknownLoc(),
                                        lvalueType.getValueType(),
                                        subscriptOp.getResult())
+          .getResult();
+    }
+
+    if (std::optional<
+            std::tuple<llvm::StringRef, llvm::StringRef, llvm::StringRef>>
+            scaledPointer = parseScaledPointerExpression(expression)) {
+      llvm::StringRef baseName = std::get<0>(*scaledPointer);
+      llvm::StringRef offsetName = std::get<1>(*scaledPointer);
+      llvm::StringRef strideName = std::get<2>(*scaledPointer);
+      mlir::Value base = valueMap.lookup(baseName);
+      mlir::Value offset = valueMap.lookup(offsetName);
+      mlir::Value stride = valueMap.lookup(strideName);
+      if (!base || !offset || !stride)
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("operand expression '") + expression +
+                "' references values that are not materialized in the "
+                "current EmitC scope");
+      mlir::Value scaledOffset =
+          builder
+              .create<mlir::emitc::MulOp>(builder.getUnknownLoc(),
+                                          offset.getType(), offset, stride)
+              .getResult();
+      return builder
+          .create<mlir::emitc::AddOp>(
+              builder.getUnknownLoc(),
+              getEmitCTypeForCType(context, operand.cType), base,
+              scaledOffset)
+          .getResult();
+    }
+
+    if (std::optional<std::pair<llvm::StringRef, llvm::StringRef>> product =
+            parseSimpleProductExpression(expression)) {
+      llvm::StringRef lhsName = product->first;
+      llvm::StringRef rhsToken = product->second;
+      mlir::Value lhs = valueMap.lookup(lhsName);
+      if (!lhs)
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("operand expression '") + expression +
+                "' references values that are not materialized in the "
+                "current EmitC scope");
+      mlir::Value rhs;
+      if (isSafeIdentifier(rhsToken)) {
+        rhs = valueMap.lookup(rhsToken);
+        if (!rhs)
+          return makeMaterializerError(
+              route.getRouteID(),
+              llvm::Twine("operand expression '") + expression +
+                  "' references values that are not materialized in the "
+                  "current EmitC scope");
+      } else {
+        std::uint64_t immediate = 0;
+        if (rhsToken.getAsInteger(10, immediate))
+          return makeMaterializerError(
+              route.getRouteID(),
+              llvm::Twine("operand expression '") + expression +
+                  "' has unsupported product operand '" + rhsToken + "'");
+        rhs = builder
+                  .create<mlir::emitc::LiteralOp>(
+                      builder.getUnknownLoc(), lhs.getType(),
+                      llvm::Twine(immediate).str())
+                  .getResult();
+      }
+      return builder
+          .create<mlir::emitc::MulOp>(builder.getUnknownLoc(), lhs.getType(),
+                                      lhs, rhs)
           .getResult();
     }
 

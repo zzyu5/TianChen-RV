@@ -28,6 +28,9 @@ enum class RuntimeABIParameterRole {
   RHSInputBuffer,
   OutputBuffer,
   RuntimeElementCount,
+  LHSInputStride,
+  RHSInputStride,
+  OutputStride,
   DispatchAvailabilityGuard,
 };
 
@@ -69,6 +72,12 @@ inline llvm::StringRef stringifyRuntimeABIParameterRole(
     return "output-buffer";
   case RuntimeABIParameterRole::RuntimeElementCount:
     return "runtime-element-count";
+  case RuntimeABIParameterRole::LHSInputStride:
+    return "lhs-input-stride";
+  case RuntimeABIParameterRole::RHSInputStride:
+    return "rhs-input-stride";
+  case RuntimeABIParameterRole::OutputStride:
+    return "output-stride";
   case RuntimeABIParameterRole::DispatchAvailabilityGuard:
     return "dispatch-availability-guard";
   }
@@ -85,6 +94,12 @@ symbolizeRuntimeABIParameterRole(llvm::StringRef role) {
     return RuntimeABIParameterRole::OutputBuffer;
   if (role == "runtime-element-count")
     return RuntimeABIParameterRole::RuntimeElementCount;
+  if (role == "lhs-input-stride")
+    return RuntimeABIParameterRole::LHSInputStride;
+  if (role == "rhs-input-stride")
+    return RuntimeABIParameterRole::RHSInputStride;
+  if (role == "output-stride")
+    return RuntimeABIParameterRole::OutputStride;
   if (role == "dispatch-availability-guard")
     return RuntimeABIParameterRole::DispatchAvailabilityGuard;
   return std::nullopt;

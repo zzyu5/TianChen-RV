@@ -50,13 +50,14 @@ constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "scope:rvv.role.scope.with_vl:tcrv_rvv.with_vl:"
     "TCRVConfigOpInterface:TCRVEmitCLowerableInterface;"
     "load:rvv.role.load.generic_load:tcrv_rvv.load|"
-    "tcrv_rvv.broadcast_load:"
+    "tcrv_rvv.broadcast_load|tcrv_rvv.strided_load:"
     "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;"
     "compute:rvv.role.compute.generic_vector:tcrv_rvv.binary|"
     "tcrv_rvv.compare|tcrv_rvv.masked_binary|tcrv_rvv.select|"
     "tcrv_rvv.reduce|tcrv_rvv.macc:"
     "TCRVComputeOpInterface:TCRVEmitCLowerableInterface;"
-    "store:rvv.role.store.generic_store:tcrv_rvv.store:"
+    "store:rvv.role.store.generic_store:tcrv_rvv.store|"
+    "tcrv_rvv.strided_store:"
     "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface");
 constexpr llvm::StringLiteral kInterfaceRealizationArtifactSummary(
     "runtime_abi/resource+emitc;configure/config+emitc;"
@@ -66,18 +67,21 @@ constexpr llvm::StringLiteral kTypedRoleArtifactSummary(
     "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;"
     "scope:tcrv_rvv.with_vl;load:tcrv_rvv.load;"
     "broadcast_load:tcrv_rvv.broadcast_load;"
+    "strided_load:tcrv_rvv.strided_load;"
     "compute:tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.select|"
     "tcrv_rvv.masked_binary|tcrv_rvv.reduce|tcrv_rvv.macc;"
-    "store:tcrv_rvv.store");
+    "store:tcrv_rvv.store;strided_store:tcrv_rvv.strided_store");
 
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
     "TCRVEmitCLowerableOpInterface");
 constexpr llvm::StringLiteral kSourceOps(
     "tcrv_rvv.runtime_abi_value->tcrv_rvv.setvl->tcrv_rvv.with_vl->"
-    "tcrv_rvv.load->(tcrv_rvv.load|tcrv_rvv.broadcast_load)->"
+    "(tcrv_rvv.load|tcrv_rvv.strided_load)->"
+    "(tcrv_rvv.load|tcrv_rvv.broadcast_load|tcrv_rvv.strided_load)->"
     "(tcrv_rvv.binary|tcrv_rvv.compare->tcrv_rvv.select|"
     "tcrv_rvv.compare->tcrv_rvv.masked_binary|tcrv_rvv.reduce|"
-    "tcrv_rvv.load->tcrv_rvv.macc)->tcrv_rvv.store");
+    "tcrv_rvv.load->tcrv_rvv.macc)->"
+    "(tcrv_rvv.store|tcrv_rvv.strided_store)");
 constexpr llvm::StringLiteral kSourceRoles(
     "runtime_abi->configure->scope->load->load->compute->"
     "optional_compute->store");
@@ -178,11 +182,12 @@ const RVVConstructionSemanticRole kSemanticRoles[] = {
      "TCRVEmitCLowerableInterface",
      "own the selected with_vl lowering boundary for the arithmetic body"},
     {"load", 3,
-     "tcrv_rvv.load|tcrv_rvv.broadcast_load",
+     "tcrv_rvv.load|tcrv_rvv.broadcast_load|tcrv_rvv.strided_load",
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "load explicit ABI buffers into typed RVV vector dataflow values or "
-     "broadcast the explicit RHS ABI buffer into a typed RVV dataflow value"},
+     "load explicit ABI buffers into typed RVV vector dataflow values, "
+     "broadcast the explicit RHS ABI buffer into a typed RVV dataflow value, "
+     "or load with explicit runtime element stride values"},
     {"compute", 4,
      "tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.masked_binary|"
      "tcrv_rvv.select|tcrv_rvv.reduce|tcrv_rvv.macc",
@@ -191,10 +196,11 @@ const RVVConstructionSemanticRole kSemanticRoles[] = {
      "perform the bounded generic RVV arithmetic, masked arithmetic, "
      "compare/select, reduction/accumulation, or multiply-accumulate compute "
      "operation"},
-    {"store", 5, "tcrv_rvv.store",
+    {"store", 5, "tcrv_rvv.store|tcrv_rvv.strided_store",
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
-     "store the typed RVV arithmetic result through the output ABI buffer"},
+     "store the typed RVV arithmetic result through the output ABI buffer, "
+     "optionally with an explicit runtime element stride value"},
 };
 
 const RVVConstructionManifest kManifest = {
@@ -247,7 +253,7 @@ const RVVTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
     {"rvv.role.load.generic_load",
      "load",
      3,
-     "tcrv_rvv.load|tcrv_rvv.broadcast_load",
+     "tcrv_rvv.load|tcrv_rvv.broadcast_load|tcrv_rvv.strided_load",
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVMemoryOpInterface",
@@ -264,7 +270,7 @@ const RVVTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
     {"rvv.role.store.generic_store",
      "store",
      5,
-     "tcrv_rvv.store",
+     "tcrv_rvv.store|tcrv_rvv.strided_store",
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVMemoryOpInterface",
@@ -324,6 +330,12 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-macc-add-emitc-route",
      "rvv-generic-macc-add-callable-c-abi.v1",
      "rvv-generic-macc-add-callable-c-abi"},
+    {"strided_add",
+     "tcrv_rvv.binary",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-strided-add-emitc-route",
+     "rvv-generic-strided-add-callable-c-abi.v1",
+     "rvv-generic-strided-add-callable-c-abi"},
 };
 
 const RVVSelectedBodyTargetArtifactMapping kTargetArtifactMapping = {
@@ -436,10 +448,10 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 7)
+          .size() != 8)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
-        "cmp_select, reduce_add, masked_add, and macc_add");
+        "cmp_select, reduce_add, masked_add, macc_add, and strided_add");
   return llvm::Error::success();
 }
 
@@ -549,6 +561,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
   const bool isReduction = route->operationMnemonic == "reduce_add";
   const bool isMaskedAdd = route->operationMnemonic == "masked_add";
   const bool isMAccAdd = route->operationMnemonic == "macc_add";
+  const bool isStridedAdd = route->operationMnemonic == "strided_add";
   if (isCompareSelect && typedComputeOpName != "tcrv_rvv.select")
     return makeRVVConstructionError(
         "RVV compare/select construction requires generic tcrv_rvv.select");
@@ -564,17 +577,27 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "RVV multiply-accumulate construction requires generic "
         "tcrv_rvv.macc");
   if (!isCompareSelect && !isReduction && !isMaskedAdd && !isMAccAdd &&
-      !usesGenericBinary)
+      !isStridedAdd && !usesGenericBinary)
     return makeRVVConstructionError(
         llvm::Twine("RVV arithmetic construction requires generic "
                     "tcrv_rvv.binary, not legacy typed compute op '") +
         typedComputeOpName + "'");
   if (rhsSourceOperationName != "tcrv_rvv.load" &&
-      rhsSourceOperationName != "tcrv_rvv.broadcast_load")
+      rhsSourceOperationName != "tcrv_rvv.broadcast_load" &&
+      rhsSourceOperationName != "tcrv_rvv.strided_load")
     return makeRVVConstructionError(
         llvm::Twine("RVV RHS source operation must be generic "
-                    "tcrv_rvv.load or tcrv_rvv.broadcast_load, not '") +
+                    "tcrv_rvv.load, tcrv_rvv.broadcast_load, or "
+                    "tcrv_rvv.strided_load, not '") +
         rhsSourceOperationName + "'");
+  if (isStridedAdd && rhsSourceOperationName != "tcrv_rvv.strided_load")
+    return makeRVVConstructionError(
+        "RVV generic strided add construction requires explicit strided lhs, "
+        "rhs, and output memory roles");
+  if (!isStridedAdd && rhsSourceOperationName == "tcrv_rvv.strided_load")
+    return makeRVVConstructionError(
+        "RVV generic strided memory form is only supported by strided_add in "
+        "this bounded slice");
   if (isCompareSelect &&
       rhsSourceOperationName != "tcrv_rvv.load")
     return makeRVVConstructionError(
@@ -614,6 +637,40 @@ buildRVVSelectedBodyExecutableRoleSteps(
                    "rvv.role.runtime_abi.runtime_abi_value",
                    "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
                    "n", 3});
+  if (isStridedAdd) {
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "lhs_stride", 4});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "rhs_stride", 5});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "out_stride", 6});
+    steps.push_back({"configure", "tcrv_rvv.setvl",
+                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+                     7});
+    steps.push_back({"scope", "tcrv_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "with_vl", 8});
+    steps.push_back({"load", "tcrv_rvv.strided_load",
+                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
+                     "TCRVEmitCLowerableInterface", "lhs_strided_load", 9});
+    steps.push_back({"load", "tcrv_rvv.strided_load",
+                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
+                     "TCRVEmitCLowerableInterface", "rhs_strided_load", 10});
+    steps.push_back({"compute", typedComputeOpName, route->typedRoleID,
+                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     route->operationMnemonic, 11});
+    steps.push_back({"store", "tcrv_rvv.strided_store",
+                     "rvv.role.store.generic_store", "TCRVMemoryOpInterface",
+                     "TCRVEmitCLowerableInterface", "strided_store", 12});
+    return steps;
+  }
   steps.push_back({"configure", "tcrv_rvv.setvl", "rvv.role.configure.setvl",
                    "TCRVConfigOpInterface", "TCRVEmitCLowerableInterface",
                    "__riscv_vsetvl_e32m1", 4});
@@ -1118,6 +1175,23 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
           verifyRVVSelectedBodyConstructionRuntimeABIParameters(
               facts.runtimeABIParameters))
     return error;
+  llvm::SmallVector<support::RuntimeABIParameter, 7> expectedParameters;
+  if (route->operationMnemonic == "strided_add") {
+    llvm::SmallVector<support::RuntimeABIParameter, 7> stridedParameters =
+        tcrv::rvv::getRVVSelectedBodyStridedRuntimeABIParameters();
+    expectedParameters.append(stridedParameters.begin(),
+                              stridedParameters.end());
+  } else {
+    llvm::SmallVector<support::RuntimeABIParameter, 4> baseParameters =
+        tcrv::rvv::getRVVSelectedBodyRuntimeABIParameters();
+    expectedParameters.append(baseParameters.begin(), baseParameters.end());
+  }
+  if (!support::runtimeABIParametersEqual(facts.runtimeABIParameters,
+                                          expectedParameters))
+    return makeRVVConstructionError(
+        llvm::Twine(context) +
+        " runtime ABI parameters must mirror provider-derived operation '" +
+        facts.operationMnemonic + "'");
 
   return llvm::Error::success();
 }
