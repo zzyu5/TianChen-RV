@@ -1,0 +1,53 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-i64-add --overwrite --op-kind i64_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-i64-add/evidence.json
+# RUN: FileCheck %s --check-prefix=I64 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-i64-add/i64_add/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-i64-add/i64_add/rvv_generated_bundle_abi_i64_add_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "pre-realized-selected-body"
+# ROOT: "i64_add"
+# ROOT: "pre_realized_selected_body": true
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# I64-DAG: "input_mode": "pre-realized-selected-body"
+# I64-DAG: "op_kind": "i64_add"
+# I64-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-i64-add.mlir"
+# I64-DAG: "prototype": "void tcrv_emitc_pre_realized_body_i64_add_kernel_pre_realized_body_rvv_i64_add(const int64_t *lhs, const int64_t *rhs, int64_t *out, size_t n);"
+# I64-DAG: "expected_function": "tcrv_emitc_pre_realized_body_i64_add_kernel_pre_realized_body_rvv_i64_add"
+# I64-DAG: "expected_runtime_abi_name": "rvv-generic-binary-add-callable-c-abi.v1"
+# I64-DAG: "expected_selected_variant": "pre_realized_body_rvv_i64_add"
+# I64-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# I64-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# I64-DAG: --tcrv-materialize-selected-lowering-boundaries
+# I64-DAG: "pre_realized_body_consumed": true
+# I64-DAG: "key": "rvv_emitc_lowerable_route"
+# I64-DAG: "value": "rvv-generic-binary-add-emitc-route"
+# I64-DAG: "key": "rvv_selected_body_operation"
+# I64-DAG: "value": "add"
+# I64-DAG: "key": "rvv_selected_body_typed_compute_op"
+# I64-DAG: "value": "tcrv_rvv.binary"
+# I64-DAG: "key": "tcrv_rvv.config_contract"
+# I64-DAG: "value": "rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1"
+# I64-DAG: "key": "tcrv_rvv.sew"
+# I64-DAG: "value": "64"
+# I64-DAG: "key": "tcrv_rvv.memory_form"
+# I64-DAG: "value": "vector-rhs-load"
+# I64-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# I64-DAG: "value": "lhs,rhs,out,n"
+# I64-DAG: "typed_compute_op": "tcrv_rvv.binary"
+# I64-DAG: "memory_form": "vector-rhs-load"
+# I64-DAG: "status": "dry_run_success"
+
+# HARNESS: int64_t *lhs = (int64_t *)malloc(sizeof(int64_t) * alloc_n);
+# HARNESS: int64_t *rhs = (int64_t *)malloc(sizeof(int64_t) * alloc_n);
+# HARNESS: int64_t *out = (int64_t *)malloc(sizeof(int64_t) * alloc_n);
+# HARNESS: tcrv_emitc_pre_realized_body_i64_add_kernel_pre_realized_body_rvv_i64_add(lhs, rhs, out, n);
+# HARNESS: int64_t expected = lhs[index] + rhs[index];
+# HARNESS: got=%lld expected=%lld lhs=%lld rhs=%lld
+# HARNESS: tcrv_rvv_generated_bundle_abi_i64_add_ok counts=7,16,23
+# HARNESS: PASS op=i64_add counts=7,16,23

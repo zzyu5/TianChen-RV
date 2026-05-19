@@ -38,7 +38,7 @@ module {
 module {
   tcrv.exec.kernel @rvv_setvl_reject_sew {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
-    // expected-error@+1 {{requires bounded RVV first-slice compile-time config to be SEW32 with LMUL "m1" or "m2"}}
+    // expected-error@+1 {{requires bounded RVV first-slice compile-time config to be SEW32 with LMUL "m1" or "m2", or SEW64 with LMUL "m1"}}
     %vl = tcrv_rvv.setvl %avl {
       lmul = "m1",
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
@@ -52,7 +52,7 @@ module {
 module {
   tcrv.exec.kernel @rvv_setvl_reject_lmul {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
-    // expected-error@+1 {{requires bounded RVV first-slice compile-time config to be SEW32 with LMUL "m1" or "m2"}}
+    // expected-error@+1 {{requires bounded RVV first-slice compile-time config to be SEW32 with LMUL "m1" or "m2", or SEW64 with LMUL "m1"}}
     %vl = tcrv_rvv.setvl %avl {
       lmul = "m4",
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,

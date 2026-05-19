@@ -53,18 +53,27 @@ struct RVVConfigContractDiagnostic {
 };
 
 std::int64_t getRVVFirstSliceSEWBits();
+std::int64_t getRVVSEW64Bits();
 llvm::StringRef getRVVLMULM1();
 llvm::StringRef getRVVLMULM2();
 const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyM1ConfigVLContract();
 const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyM2ConfigVLContract();
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyI64M1ConfigVLContract();
 PolicyAttr getRVVSelectedBodyDefaultPolicy(mlir::MLIRContext *context);
 void populateRVVSelectedBodyDefaultConfigAttrs(mlir::Builder &builder,
                                                mlir::OperationState &state);
+void populateRVVSelectedBodyConfigAttrs(mlir::Builder &builder,
+                                        mlir::OperationState &state,
+                                        std::int64_t sew,
+                                        llvm::StringRef lmul,
+                                        PolicyAttr policy);
 
 bool isRVVFirstSliceDataflowConfig(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyM1Config(std::int64_t sew, llvm::StringRef lmul);
+bool isRVVSelectedBodyI64M1Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVAgnosticPolicy(PolicyAttr policy);
 
 RVVCompileTimeConfig getRVVSetVLCompileTimeConfig(SetVLOp setvl);
@@ -80,11 +89,15 @@ const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyConfigVLContract();
 const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyConfigVLContract(llvm::StringRef lmul);
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyConfigVLContract(std::int64_t sew, llvm::StringRef lmul);
 RVVConfigContractDiagnostic
 validateRVVSelectedBodyM1ConfigVLContract(SetVLOp setvl, WithVLOp withVL);
 
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+getRVVSelectedBodyI64RuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>

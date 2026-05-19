@@ -151,6 +151,66 @@ correctness claim only for bounded pre-realized `reduce_add` counts
 |------|---------|
 | `this commit` | (see git log) |
 
+## Session 143: Stage2 RVV i64 SEW64 executable route slice
+
+**Date**: 2026-05-20
+**Task**: `stage2-rvv-non-i32-dtype-sew-route-policy`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and implemented one
+bounded non-i32 RVV typed route instance: pre-realized selected-body
+`i64`/SEW64/LMUL m1 unit-stride add now realizes to generic RVV body structure,
+routes through RVVEmitCRoutePlanning, emits through common EmitC, exports a
+generated target artifact, and executes on real RVV hardware.
+
+### Main Changes
+
+- Added SEW64/LMUL m1 selected-body config contract and i64 runtime ABI
+  parameter contract.
+- Extended generic RVV verification and selected-body realization so i64 add is
+  an ordinary typed route instance, not a dtype-prefixed op family.
+- Extended RVV route planning to derive int64 ABI/header types, SEW64 metadata,
+  `vint64m1_t`, and e64/i64 intrinsic leaves from typed route facts.
+- Added positive target/materialization/generated-bundle coverage plus
+  fail-closed i64 route-policy negative cases.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Focused lit for i64 materialization, negative route-policy cases,
+  target/header export, script dry-run, setvl, and with-vl: 6/6 passed.
+- [OK] Focused C++ tests:
+  `tianchenrv-rvv-dialect-test`, `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-construction-protocol-common-test`,
+  `tianchenrv-target-artifact-export-test`.
+- [OK] Generated-bundle dry-run for `--op-kind i64_add`.
+- [OK] Real `ssh rvv` evidence for counts `7,16,23`:
+  `PASS op=i64_add counts=7,16,23`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 187/187 passed.
+- [OK] Active-authority scan found no positive added/new-file hits for legacy
+  i32/source/descriptor/common-export route authority.
+- [OK] `git diff --check`.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round makes a correctness/runtime
+claim only for bounded `i64_add` counts `7,16,23`; no performance claim is made.
+
+### Next Steps
+
+- Future continuation, if requested: broaden non-i32 RVV coverage under a new
+  bounded PRD, still deriving dtype/SEW/LMUL/policy from typed body/config
+  facts rather than route labels or artifact names.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 ## Session 141: Stage2 RVV vector-scalar broadcast executable path
 
 **Date**: 2026-05-20

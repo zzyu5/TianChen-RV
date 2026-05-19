@@ -1232,11 +1232,20 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
     expectedParameters.append(baseParameters.begin(), baseParameters.end());
   }
   if (!support::runtimeABIParametersEqual(facts.runtimeABIParameters,
-                                          expectedParameters))
-    return makeRVVConstructionError(
-        llvm::Twine(context) +
-        " runtime ABI parameters must mirror provider-derived operation '" +
-        facts.operationMnemonic + "'");
+                                          expectedParameters)) {
+    bool acceptsI64AddParameters = false;
+    if (route->operationMnemonic == "add") {
+      llvm::SmallVector<support::RuntimeABIParameter, 4> i64Parameters =
+          tcrv::rvv::getRVVSelectedBodyI64RuntimeABIParameters();
+      acceptsI64AddParameters = support::runtimeABIParametersEqual(
+          facts.runtimeABIParameters, i64Parameters);
+    }
+    if (!acceptsI64AddParameters)
+      return makeRVVConstructionError(
+          llvm::Twine(context) +
+          " runtime ABI parameters must mirror provider-derived operation '" +
+          facts.operationMnemonic + "'");
+  }
 
   return llvm::Error::success();
 }

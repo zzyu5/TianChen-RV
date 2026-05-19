@@ -48,6 +48,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "macc_add",
     "strided_add",
     "scalar_broadcast_add",
+    "i64_add",
 )
 REDUCE_ADD_ACCUMULATOR_LAYOUT = "rhs-vector-seed-lane0-per-vl-chunk"
 REDUCE_ADD_RESULT_LAYOUT = "store-reduction-lane0-to-output-chunk-base"
@@ -92,6 +93,8 @@ class OpExpectation:
     expected_expression: str
     out_initializer: str = OUT_SENTINEL
     lmul: str = "m1"
+    sew: str = "32"
+    element_c_type: str = "int32_t"
     config_contract: str = "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
     bounded_slice: str = "multi-vl-selected-body-sew32-lmul-m1"
 
@@ -109,8 +112,9 @@ class OpExpectation:
                 "int32_t rhs_scalar, int32_t *out, size_t n);"
             )
         return (
-            f"void {self.function_name}(const int32_t *lhs, "
-            "const int32_t *rhs, int32_t *out, size_t n);"
+            f"void {self.function_name}(const {self.element_c_type} *lhs, "
+            f"const {self.element_c_type} *rhs, "
+            f"{self.element_c_type} *out, size_t n);"
         )
 
     @property
@@ -119,7 +123,15 @@ class OpExpectation:
             return EXPECTED_STRIDED_RUNTIME_PARAMETERS
         if self.is_scalar_broadcast_add:
             return EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS
+        if self.is_i64_add:
+            return EXPECTED_I64_RUNTIME_PARAMETERS
         return EXPECTED_RUNTIME_PARAMETERS
+
+    @property
+    def selected_body_operation(self) -> str:
+        if self.is_i64_add:
+            return "add"
+        return self.kind
 
     @property
     def runtime_abi_order(self) -> str:
@@ -164,6 +176,10 @@ class OpExpectation:
     @property
     def is_scalar_broadcast_add(self) -> bool:
         return self.kind == "scalar_broadcast_add"
+
+    @property
+    def is_i64_add(self) -> bool:
+        return self.kind == "i64_add"
 
 
 EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
@@ -431,6 +447,22 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         rhs_initializer="(int32_t)-37",
         expected_expression="lhs[index] + rhs_scalar",
     ),
+    "i64_add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
+        kind="i64_add",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-i64-add.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_i64_add",
+        function_name="tcrv_emitc_pre_realized_body_i64_add_kernel_pre_realized_body_rvv_i64_add",
+        lhs_initializer="(int64_t)(7000000000LL + (int64_t)(index * 3000003LL))",
+        rhs_initializer="(int64_t)(-2000000000LL + (int64_t)(index * 5000005LL))",
+        expected_expression="lhs[index] + rhs[index]",
+        out_initializer="(int64_t)0x5a5a5a5a5a5a5a5aLL",
+        sew="64",
+        element_c_type="int64_t",
+        config_contract="rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew64-lmul-m1",
+    ),
 }
 
 EXPECTED_RUNTIME_PARAMETERS = (
@@ -449,6 +481,32 @@ EXPECTED_RUNTIME_PARAMETERS = (
     {
         "c_name": "out",
         "c_type": "int32_t *",
+        "role": "output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "n",
+        "c_type": "size_t",
+        "role": "runtime-element-count",
+        "ownership": "target-export-abi-owned",
+    },
+)
+EXPECTED_I64_RUNTIME_PARAMETERS = (
+    {
+        "c_name": "lhs",
+        "c_type": "const int64_t *",
+        "role": "lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "rhs",
+        "c_type": "const int64_t *",
+        "role": "rhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "out",
+        "c_type": "int64_t *",
         "role": "output-buffer",
         "ownership": "target-export-abi-owned",
     },
@@ -849,10 +907,10 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     common_metadata["tcrv_rvv.runtime_abi_order"] = expectation.runtime_abi_order
     per_op_metadata = {
         "rvv_emitc_lowerable_route": expectation.emitc_route,
-        "rvv_selected_body_operation": expectation.kind,
+        "rvv_selected_body_operation": expectation.selected_body_operation,
         "rvv_selected_body_typed_compute_op": expectation.typed_compute_op,
         "tcrv_rvv.config_contract": expectation.config_contract,
-        "tcrv_rvv.sew": "32",
+        "tcrv_rvv.sew": expectation.sew,
         "tcrv_rvv.lmul": expectation.lmul,
         "tcrv_rvv.tail_policy": "agnostic",
         "tcrv_rvv.mask_policy": "agnostic",
@@ -1067,6 +1125,17 @@ def verify_materialized_selected_body(
         f'lmul = "{expectation.lmul}"',
         "materialized selected-body MLIR LMUL config",
     )
+    require_contains(
+        text,
+        f"sew = {expectation.sew} : i64",
+        "materialized selected-body MLIR SEW config",
+    )
+    if expectation.is_i64_add:
+        require_contains(
+            text,
+            '!tcrv_rvv.vector<i64, "m1">',
+            "materialized selected-body MLIR i64 vector type",
+        )
     if expectation.is_rhs_broadcast:
         require_contains(
             text,
@@ -1160,9 +1229,9 @@ static int run_case(size_t n) {{
   const size_t out_stride = 2;
   const size_t max_stride = rhs_stride;
   size_t alloc_n = (n == 0 ? 1 : n) * max_stride + 8;
-  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  {expectation.element_c_type} *lhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *rhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *out = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
   if (!lhs || !rhs || !out) {{
     fprintf(stderr, "allocation failed for n=%zu\\n", n);
     free(lhs);
@@ -1245,8 +1314,8 @@ int main(void) {{
 static int run_case(size_t n) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
-  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  {expectation.element_c_type} *lhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *out = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
   int32_t rhs_scalar = {expectation.rhs_initializer};
   if (!lhs || !out) {{
     fprintf(stderr, "allocation failed for n=%zu\\n", n);
@@ -1306,9 +1375,9 @@ int main(void) {{
 static int run_case(size_t n) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
-  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  {expectation.element_c_type} *lhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *rhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *out = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
   if (!lhs || !rhs || !out) {{
     fprintf(stderr, "allocation failed for n=%zu\\n", n);
     free(lhs);
@@ -1397,9 +1466,9 @@ int main(void) {{
 
 static int run_case(size_t n) {{
   size_t alloc_n = n == 0 ? 1 : n;
-  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  {expectation.element_c_type} *lhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *rhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *out = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
   if (!lhs || !rhs || !out) {{
     fprintf(stderr, "allocation failed for n=%zu\\n", n);
     free(lhs);
@@ -1478,9 +1547,9 @@ int main(void) {{
 
 static int run_case(size_t n) {{
   size_t alloc_n = n == 0 ? 1 : n;
-  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
-  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  {expectation.element_c_type} *lhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *rhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *out = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
   if (!lhs || !rhs || !out) {{
     fprintf(stderr, "allocation failed for n=%zu\\n", n);
     free(lhs);
@@ -1498,11 +1567,12 @@ static int run_case(size_t n) {{
   {expectation.function_name}(lhs, rhs, out, n);
 
   for (size_t index = 0; index < n; ++index) {{
-    int32_t expected = {expectation.expected_expression};
+    {expectation.element_c_type} expected = {expectation.expected_expression};
     if (out[index] != expected) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d lhs=%d rhs=%d\\n",
-              n, index, out[index], expected, lhs[index], rhs[index]);
+              "{expectation.kind} mismatch n=%zu index=%zu got=%lld expected=%lld lhs=%lld rhs=%lld\\n",
+              n, index, (long long)out[index], (long long)expected,
+              (long long)lhs[index], (long long)rhs[index]);
       free(lhs);
       free(rhs);
       free(out);

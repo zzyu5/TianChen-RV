@@ -220,6 +220,16 @@ bool isSupportedTypedBinaryPreRealizedMemoryForm(llvm::StringRef memoryForm) {
          memoryForm == "strided-load-store";
 }
 
+bool isSupportedTypedBinaryPreRealizedConfig(llvm::StringRef opKind,
+                                             llvm::StringRef memoryForm,
+                                             std::int64_t sew,
+                                             llvm::StringRef lmul) {
+  if (isRVVSelectedBodyM1Config(sew, lmul))
+    return true;
+  return isRVVSelectedBodyI64M1Config(sew, lmul) && opKind == "add" &&
+         memoryForm == "vector-rhs-load";
+}
+
 bool isSupportedTypedMaskedBinaryPreRealizedBodyOpKind(
     llvm::StringRef opKind) {
   return opKind == "masked_add";
@@ -416,22 +426,44 @@ bool isSafeCIdentifier(llvm::StringRef value) {
   return llvm::all_of(value.drop_front(), isTail);
 }
 
-llvm::StringRef getBoundedRuntimeABIValueCType(
+bool isSupportedBoundedRuntimeABIValueCType(
+    tianchenrv::support::RuntimeABIParameterRole role, llvm::StringRef cType) {
+  using Role = tianchenrv::support::RuntimeABIParameterRole;
+  switch (role) {
+  case Role::LHSInputBuffer:
+  case Role::RHSInputBuffer:
+    return cType == "const int32_t *" || cType == "const int64_t *";
+  case Role::RHSScalarValue:
+    return cType == "int32_t";
+  case Role::OutputBuffer:
+    return cType == "int32_t *" || cType == "int64_t *";
+  case Role::RuntimeElementCount:
+  case Role::LHSInputStride:
+  case Role::RHSInputStride:
+  case Role::OutputStride:
+    return cType == "size_t";
+  case Role::DispatchAvailabilityGuard:
+    return false;
+  }
+  return false;
+}
+
+llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
     tianchenrv::support::RuntimeABIParameterRole role) {
   using Role = tianchenrv::support::RuntimeABIParameterRole;
   switch (role) {
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
-    return "const int32_t *";
+    return "'const int32_t *' or 'const int64_t *'";
   case Role::RHSScalarValue:
-    return "int32_t";
+    return "'int32_t'";
   case Role::OutputBuffer:
-    return "int32_t *";
+    return "'int32_t *' or 'int64_t *'";
   case Role::RuntimeElementCount:
   case Role::LHSInputStride:
   case Role::RHSInputStride:
   case Role::OutputStride:
-    return "size_t";
+    return "'size_t'";
   case Role::DispatchAvailabilityGuard:
     return {};
   }
@@ -659,9 +691,10 @@ llvm::StringRef getGenericRVVVectorLMUL(mlir::Type type) {
   auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
   if (!vector)
     return {};
-  if (!vector.getElementType().isInteger(32))
+  auto elementType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
+  if (!elementType)
     return {};
-  if (vector.getLmul() == "m1" || vector.getLmul() == "m2")
+  if (isRVVFirstSliceDataflowConfig(elementType.getWidth(), vector.getLmul()))
     return vector.getLmul();
   return {};
 }
@@ -686,18 +719,19 @@ mlir::LogicalResult verifyGenericVectorTypeForWithVL(mlir::Operation *op,
     return op->emitOpError()
            << "requires " << role
            << " type to be generic !tcrv_rvv.vector";
-  if (!vector.getElementType().isInteger(32))
+  auto integerType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
+  if (!integerType)
     return op->emitOpError()
            << "currently requires " << role
-           << " element type to be i32 for the retained Stage 1 arithmetic "
+           << " element type to be an integer for the bounded generic RVV "
               "route";
 
   llvm::StringRef valueLMUL = getGenericRVVVectorLMUL(value.getType());
   if (valueLMUL.empty())
     return op->emitOpError()
            << "requires " << role
-           << " LMUL to be \"m1\" or \"m2\" for the retained Stage 1 "
-              "arithmetic route";
+           << " config to be SEW32 LMUL \"m1\" or \"m2\", or SEW64 LMUL "
+              "\"m1\", for the bounded generic RVV route";
 
   auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
   if (!withVL)
@@ -709,11 +743,12 @@ mlir::LogicalResult verifyGenericVectorTypeForWithVL(mlir::Operation *op,
     return op->emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
               "metadata for generic RVV vector dataflow";
-  if (expectedSEW.getInt() != getRVVFirstSliceSEWBits())
+  if (expectedSEW.getInt() != integerType.getWidth())
     return op->emitOpError()
-           << "requires " << role
-           << " element type i32 to agree with enclosing tcrv_rvv.with_vl "
-              "SEW32 metadata";
+           << "requires " << role << " element width "
+           << integerType.getWidth()
+           << " to agree with enclosing tcrv_rvv.with_vl SEW"
+           << expectedSEW.getInt() << " metadata";
 
   auto expectedLMUL =
       withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
@@ -1048,15 +1083,15 @@ mlir::LogicalResult RuntimeABIValueOp::verify() {
            << "' for the bounded RVV callable C ABI";
 
   llvm::StringRef expectedCType =
-      getBoundedRuntimeABIValueCType(*parsedRole);
+      getBoundedRuntimeABIValueCTypeDescription(*parsedRole);
   if (expectedCType.empty())
     return emitOpError()
            << "does not support runtime ABI role '" << getRole()
            << "' in the bounded RVV callable ABI";
-  if (getCType() != expectedCType)
+  if (!isSupportedBoundedRuntimeABIValueCType(*parsedRole, getCType()))
     return emitOpError()
            << "requires runtime ABI role '" << getRole()
-           << "' to use C type '" << expectedCType << "'";
+           << "' to use C type " << expectedCType;
 
   if (isBoundedRuntimeIndexRole(*parsedRole)) {
     if (!getValue().getType().isIndex())
@@ -1127,7 +1162,8 @@ mlir::LogicalResult SetVLOp::verify() {
                                      getLmul()))
     return emitOpError()
            << "requires bounded RVV first-slice compile-time config to be "
-              "SEW32 with LMUL \"m1\" or \"m2\"";
+              "SEW32 with LMUL \"m1\" or \"m2\", or SEW64 with LMUL "
+              "\"m1\"";
 
   if (!getPolicy())
     return emitOpError()
@@ -1181,7 +1217,8 @@ mlir::LogicalResult WithVLOp::verify() {
       !isRVVFirstSliceDataflowConfig(sew.getInt(), lmul.getValue()))
     return emitOpError()
            << "requires bounded RVV first-slice compile-time config to be "
-              "SEW32 with LMUL \"m1\" or \"m2\"";
+              "SEW32 with LMUL \"m1\" or \"m2\", or SEW64 with LMUL "
+              "\"m1\"";
   if (sew && !lmul)
     return emitOpError()
            << "requires optional 'lmul' metadata when optional 'sew' "
@@ -1351,10 +1388,12 @@ mlir::LogicalResult TypedBinaryPreRealizedBodyOp::verify() {
               "\"rhs-scalar-broadcast\", or \"strided-load-store\" for the "
               "bounded selected-body realization hook";
 
-  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
-      getLmul() != getRVVLMULM1())
+  if (!isSupportedTypedBinaryPreRealizedConfig(
+          getOpKind(), getMemoryForm(), static_cast<std::int64_t>(getSew()),
+          getLmul()))
     return emitOpError()
-           << "requires bounded pre-realized config to be SEW32 LMUL m1";
+           << "requires bounded pre-realized config to be SEW32 LMUL m1, "
+              "or SEW64 LMUL m1 only for unit-stride op_kind \"add\"";
   if (!isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "

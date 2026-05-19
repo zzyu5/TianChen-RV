@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, stage order, and RVV-first authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed body authority, selected-body realization, route support, and Stage1/Stage2 boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and common EmitC materializer neutrality requirements."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-owned interfaces and no core family-specific semantic branches."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected variant/body constraints and tuning/coverage boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/FileCheck/runtime evidence policy for compiler behavior changes."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVConfigContract.h", "reason": "Selected-body SEW64/LMUL m1 config and i64 runtime ABI contract surface."}
+{"file": "lib/Dialect/RVV/IR/RVVConfigContract.cpp", "reason": "Concrete SEW64 config contract, bounded slice, and i64 runtime ABI validation."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Generic integer vector verification, SEW64/LMUL m1 acceptance, and pre-realized i64 add gate."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Plugin-local realization from typed pre-realized i64 body to generic RVV body."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Provider-owned route profile derivation for i64 ABI types and e64/i64 intrinsic leaves."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Evidence tooling support for the bounded pre-realized i64 add generated-bundle path."}

@@ -84,6 +84,10 @@ struct RVVSelectedBodyConfigProfile {
   llvm::StringRef maskTypeName;
   llvm::StringRef vectorCType;
   llvm::StringRef maskCType;
+  llvm::StringRef scalarCType;
+  llvm::StringRef constInputPointerCType;
+  llvm::StringRef outputPointerCType;
+  llvm::StringRef elementByteSize;
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
   llvm::StringRef stridedLoadIntrinsic;
@@ -202,12 +206,12 @@ llvm::Error makeUnsupportedRVVSelectedBodyRouteProfileError(
 llvm::Expected<RVVSelectedBodyConfigProfile>
 deriveRVVSelectedBodyConfigProfile(
     const RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      description.tailPolicy != "agnostic" ||
+  if (description.tailPolicy != "agnostic" ||
       description.maskPolicy != "agnostic")
     return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
 
-  if (description.lmul == tcrv::rvv::getRVVLMULM1())
+  if (description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      description.lmul == tcrv::rvv::getRVVLMULM1())
     return RVVSelectedBodyConfigProfile{
         32,
         "m1",
@@ -219,6 +223,10 @@ deriveRVVSelectedBodyConfigProfile(
         "!tcrv_rvv.mask<i32, \"m1\">",
         "vint32m1_t",
         "vbool32_t",
+        "int32_t",
+        "const int32_t *",
+        "int32_t *",
+        "4",
         "__riscv_vsetvl_e32m1",
         "__riscv_vle32_v_i32m1",
         "__riscv_vlse32_v_i32m1",
@@ -226,7 +234,8 @@ deriveRVVSelectedBodyConfigProfile(
         "__riscv_vse32_v_i32m1",
         "__riscv_vsse32_v_i32m1"};
 
-  if (description.lmul == tcrv::rvv::getRVVLMULM2())
+  if (description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      description.lmul == tcrv::rvv::getRVVLMULM2())
     return RVVSelectedBodyConfigProfile{
         32,
         "m2",
@@ -238,6 +247,10 @@ deriveRVVSelectedBodyConfigProfile(
         "!tcrv_rvv.mask<i32, \"m2\">",
         "vint32m2_t",
         "vbool16_t",
+        "int32_t",
+        "const int32_t *",
+        "int32_t *",
+        "4",
         "__riscv_vsetvl_e32m2",
         "__riscv_vle32_v_i32m2",
         "__riscv_vlse32_v_i32m2",
@@ -245,23 +258,59 @@ deriveRVVSelectedBodyConfigProfile(
         "__riscv_vse32_v_i32m2",
         "__riscv_vsse32_v_i32m2"};
 
+  if (description.sew == tcrv::rvv::getRVVSEW64Bits() &&
+      description.lmul == tcrv::rvv::getRVVLMULM1() &&
+      description.tailPolicy == "agnostic" &&
+      description.maskPolicy == "agnostic")
+    return RVVSelectedBodyConfigProfile{
+        64,
+        "m1",
+        "agnostic",
+        "agnostic",
+        &tcrv::rvv::getRVVSelectedBodyConfigVLContract(64, "m1"),
+        "size_t",
+        "!tcrv_rvv.vector<i64, \"m1\">",
+        "!tcrv_rvv.mask<i64, \"m1\">",
+        "vint64m1_t",
+        "vbool64_t",
+        "int64_t",
+        "const int64_t *",
+        "int64_t *",
+        "8",
+        "__riscv_vsetvl_e64m1",
+        "__riscv_vle64_v_i64m1",
+        "__riscv_vlse64_v_i64m1",
+        "__riscv_vmv_v_x_i64m1",
+        "__riscv_vse64_v_i64m1",
+        "__riscv_vsse64_v_i64m1"};
+
   return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
 }
 
 llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
-    RVVSelectedBodyOperationKind operation, llvm::StringRef lmul) {
+    RVVSelectedBodyOperationKind operation,
+    const RVVSelectedBodyConfigProfile &config) {
+  if (config.sew == tcrv::rvv::getRVVSEW64Bits()) {
+    if (operation == RVVSelectedBodyOperationKind::Add)
+      return "__riscv_vadd_vv_i64m1";
+    return {};
+  }
+
   switch (operation) {
   case RVVSelectedBodyOperationKind::Add:
   case RVVSelectedBodyOperationKind::StridedAdd:
   case RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
-    return lmul == tcrv::rvv::getRVVLMULM2() ? "__riscv_vadd_vv_i32m2"
-                                                : "__riscv_vadd_vv_i32m1";
+    return config.lmul == tcrv::rvv::getRVVLMULM2()
+               ? "__riscv_vadd_vv_i32m2"
+               : "__riscv_vadd_vv_i32m1";
   case RVVSelectedBodyOperationKind::Sub:
-    return lmul == tcrv::rvv::getRVVLMULM2() ? "__riscv_vsub_vv_i32m2"
-                                                : "__riscv_vsub_vv_i32m1";
+    return config.lmul == tcrv::rvv::getRVVLMULM2()
+               ? "__riscv_vsub_vv_i32m2"
+               : "__riscv_vsub_vv_i32m1";
   case RVVSelectedBodyOperationKind::Mul:
-    return lmul == tcrv::rvv::getRVVLMULM2() ? "__riscv_vmul_vv_i32m2"
-                                                : "__riscv_vmul_vv_i32m1";
+    return config.lmul == tcrv::rvv::getRVVLMULM2()
+               ? "__riscv_vmul_vv_i32m2"
+               : "__riscv_vmul_vv_i32m1";
   case RVVSelectedBodyOperationKind::CmpSelect:
     llvm_unreachable("compare/select uses dedicated compare and merge leaves");
   case RVVSelectedBodyOperationKind::ReduceAdd:
@@ -307,6 +356,11 @@ deriveRVVSelectedBodyTargetLeafProfile(
     const RVVSelectedBodyEmitCRouteDescription &description,
     const RVVSelectedBodyOperationProfile &operationProfile,
     const RVVSelectedBodyConfigProfile &configProfile) {
+  if (configProfile.sew == tcrv::rvv::getRVVSEW64Bits() &&
+      (description.operation != RVVSelectedBodyOperationKind::Add ||
+       description.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad))
+    return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+
   if (operationProfile.isCompareSelect) {
     if (description.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad)
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
@@ -329,8 +383,8 @@ deriveRVVSelectedBodyTargetLeafProfile(
     if (description.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad)
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     return RVVSelectedBodyTargetLeafProfile{
-        getRVVSelectedBodyArithmeticIntrinsic(RVVSelectedBodyOperationKind::Add,
-                                             configProfile.lmul),
+        getRVVSelectedBodyArithmeticIntrinsic(
+            RVVSelectedBodyOperationKind::Add, configProfile),
         getRVVSelectedBodyCompareIntrinsic(configProfile.lmul),
         getRVVSelectedBodySelectIntrinsic(configProfile.lmul), ""};
   }
@@ -349,7 +403,7 @@ deriveRVVSelectedBodyTargetLeafProfile(
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     return RVVSelectedBodyTargetLeafProfile{
         getRVVSelectedBodyArithmeticIntrinsic(
-            RVVSelectedBodyOperationKind::StridedAdd, configProfile.lmul),
+            RVVSelectedBodyOperationKind::StridedAdd, configProfile),
         "", "", ""};
   }
 
@@ -357,7 +411,7 @@ deriveRVVSelectedBodyTargetLeafProfile(
       description.memoryForm == RVVSelectedBodyMemoryForm::RHSScalarBroadcast)
     return RVVSelectedBodyTargetLeafProfile{
         getRVVSelectedBodyArithmeticIntrinsic(description.operation,
-                                             configProfile.lmul),
+                                             configProfile),
         "", "", configProfile.rhsBroadcastIntrinsic};
 
   if (description.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad)
@@ -365,7 +419,7 @@ deriveRVVSelectedBodyTargetLeafProfile(
 
   return RVVSelectedBodyTargetLeafProfile{
       getRVVSelectedBodyArithmeticIntrinsic(description.operation,
-                                           configProfile.lmul),
+                                           configProfile),
       "", "", ""};
 }
 
@@ -780,6 +834,7 @@ llvm::Error assignRVVGenericStridedStoreBinding(
 llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     RVVSelectedBodyRouteSlice &slice,
     const RVVSelectedBodyConstructionRoute &constructionRoute,
+    const RVVSelectedBodyConfigProfile &configProfile,
     const support::RuntimeABIParameter &runtimeElementCountABI,
     const support::RuntimeABIParameter &outABI) {
   slice.runtimeElementCountABI = runtimeElementCountABI;
@@ -798,8 +853,9 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
              RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
     support::FiniteBinaryRuntimeABIContract contract(
         support::FiniteBinaryRuntimeABIContractSpec{
-            constructionRoute.runtimeABIContractName, "const int32_t *",
-            "int32_t *"});
+            constructionRoute.runtimeABIContractName,
+            configProfile.constInputPointerCType,
+            configProfile.outputPointerCType});
     llvm::Expected<support::FiniteBinaryCallableRuntimeABIParameterBindings>
         bindings = support::bindFiniteBinaryCallableRuntimeABIParametersByRole(
             ordered, "RVV selected-body explicit runtime ABI values",
@@ -1530,7 +1586,7 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
           validateRVVSelectedBodyTypedConfigFacts(*slice, config))
     return std::move(error);
   const auto &configContract =
-      tcrv::rvv::getRVVSelectedBodyConfigVLContract(config.lmul);
+      tcrv::rvv::getRVVSelectedBodyConfigVLContract(config.sew, config.lmul);
 
   RVVSelectedBodyRouteAnalysis analysis;
   analysis.slice = std::move(*slice);
@@ -1666,7 +1722,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
 
   if (llvm::Error error = validateRVVSelectedBodyRuntimeABIParameters(
           analysis.slice, *analysis.constructionRoute,
-          analysis.slice.runtimeElementCountABI, analysis.slice.outABI))
+          routeProfile->config, analysis.slice.runtimeElementCountABI,
+          analysis.slice.outABI))
     return error;
   if (llvm::Error error = verifyRVVSelectedBodyConstructionRouteMapping(
           routeProfile->operation.operationMnemonic,

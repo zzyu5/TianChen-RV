@@ -122,7 +122,7 @@ module {
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
     } : index -> !tcrv_rvv.vl
-    // expected-error@+1 {{requires bounded RVV first-slice compile-time config to be SEW32 with LMUL "m1" or "m2"}}
+    // expected-error@+1 {{requires bounded RVV first-slice compile-time config to be SEW32 with LMUL "m1" or "m2", or SEW64 with LMUL "m1"}}
     tcrv_rvv.with_vl %vl attributes {
       lmul = "m1",
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,

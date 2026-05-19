@@ -12,18 +12,23 @@ namespace tianchenrv::tcrv::rvv {
 namespace {
 
 constexpr std::int64_t kRVVFirstSliceSEWBits = 32;
+constexpr std::int64_t kRVVSEW64Bits = 64;
 constexpr llvm::StringLiteral kRVVLMULM1("m1");
 constexpr llvm::StringLiteral kRVVLMULM2("m2");
 constexpr llvm::StringLiteral kRVVSelectedBodyM1ConfigContract(
     "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1");
 constexpr llvm::StringLiteral kRVVSelectedBodyM2ConfigContract(
     "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1");
+constexpr llvm::StringLiteral kRVVSelectedBodyI64M1ConfigContract(
+    "rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1");
 constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeVLContract(
     "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1");
 constexpr llvm::StringLiteral
     kRVVSelectedBodyM1BoundedSlice("multi-vl-selected-body-sew32-lmul-m1");
 constexpr llvm::StringLiteral
     kRVVSelectedBodyM2BoundedSlice("multi-vl-selected-body-sew32-lmul-m2");
+constexpr llvm::StringLiteral
+    kRVVSelectedBodyI64M1BoundedSlice("multi-vl-selected-body-sew64-lmul-m1");
 constexpr llvm::StringLiteral kRVVSelectedBodyMultiVLSupport("supported");
 constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeAVLABIParameter("n");
 constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeAVLASource(
@@ -85,6 +90,27 @@ const RVVSelectedBodyConfigVLContract kRVVSelectedBodyM2ConfigVLContract = {
     kRVVSelectedBodyM2BoundedSlice,
     kRVVSelectedBodyMultiVLSupport};
 
+const RVVSelectedBodyConfigVLContract kRVVSelectedBodyI64M1ConfigVLContract = {
+    kRVVSEW64Bits,
+    kRVVLMULM1,
+    TailPolicy::Agnostic,
+    MaskPolicy::Agnostic,
+    kRVVSelectedBodyI64M1ConfigContract,
+    kRVVSelectedBodyRuntimeVLContract,
+    kRVVSelectedBodyRuntimeAVLABIParameter,
+    kRVVSelectedBodyRuntimeAVLASource,
+    kRVVSelectedBodyRuntimeABIOrder,
+    kRVVSelectedBodyVLDefOpName,
+    kRVVSelectedBodyVLScopeOpName,
+    kRVVSelectedBodyVLUses,
+    kRVVSelectedBodyEmitCLoopKind,
+    kRVVSelectedBodyEmitCLoopInduction,
+    kRVVSelectedBodyEmitCFullChunkVL,
+    kRVVSelectedBodyRemainingAVLMetadata,
+    kRVVSelectedBodyPointerAdvanceMetadata,
+    kRVVSelectedBodyI64M1BoundedSlice,
+    kRVVSelectedBodyMultiVLSupport};
+
 std::string toString(llvm::Twine message) {
   std::string storage;
   llvm::raw_string_ostream stream(storage);
@@ -126,6 +152,8 @@ RVVConfigContractDiagnostic::failure(llvm::StringRef message) {
 
 std::int64_t getRVVFirstSliceSEWBits() { return kRVVFirstSliceSEWBits; }
 
+std::int64_t getRVVSEW64Bits() { return kRVVSEW64Bits; }
+
 llvm::StringRef getRVVLMULM1() { return kRVVLMULM1; }
 
 llvm::StringRef getRVVLMULM2() { return kRVVLMULM2; }
@@ -138,6 +166,11 @@ getRVVSelectedBodyM1ConfigVLContract() {
 const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyM2ConfigVLContract() {
   return kRVVSelectedBodyM2ConfigVLContract;
+}
+
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyI64M1ConfigVLContract() {
+  return kRVVSelectedBodyI64M1ConfigVLContract;
 }
 
 PolicyAttr getRVVSelectedBodyDefaultPolicy(mlir::MLIRContext *context) {
@@ -156,13 +189,28 @@ void populateRVVSelectedBodyDefaultConfigAttrs(mlir::Builder &builder,
                      getRVVSelectedBodyDefaultPolicy(builder.getContext()));
 }
 
+void populateRVVSelectedBodyConfigAttrs(mlir::Builder &builder,
+                                        mlir::OperationState &state,
+                                        std::int64_t sew,
+                                        llvm::StringRef lmul,
+                                        PolicyAttr policy) {
+  state.addAttribute("sew", builder.getI64IntegerAttr(sew));
+  state.addAttribute("lmul", builder.getStringAttr(lmul));
+  state.addAttribute("policy", policy);
+}
+
 bool isRVVFirstSliceDataflowConfig(std::int64_t sew, llvm::StringRef lmul) {
-  return sew == kRVVFirstSliceSEWBits &&
-         (lmul == kRVVLMULM1 || lmul == kRVVLMULM2);
+  if (sew == kRVVFirstSliceSEWBits)
+    return lmul == kRVVLMULM1 || lmul == kRVVLMULM2;
+  return sew == kRVVSEW64Bits && lmul == kRVVLMULM1;
 }
 
 bool isRVVSelectedBodyM1Config(std::int64_t sew, llvm::StringRef lmul) {
   return sew == kRVVFirstSliceSEWBits && lmul == kRVVLMULM1;
+}
+
+bool isRVVSelectedBodyI64M1Config(std::int64_t sew, llvm::StringRef lmul) {
+  return sew == kRVVSEW64Bits && lmul == kRVVLMULM1;
 }
 
 bool isRVVAgnosticPolicy(PolicyAttr policy) {
@@ -237,6 +285,13 @@ getRVVSelectedBodyConfigVLContract(llvm::StringRef lmul) {
   if (lmul == getRVVLMULM2())
     return getRVVSelectedBodyM2ConfigVLContract();
   return getRVVSelectedBodyM1ConfigVLContract();
+}
+
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyConfigVLContract(std::int64_t sew, llvm::StringRef lmul) {
+  if (isRVVSelectedBodyI64M1Config(sew, lmul))
+    return getRVVSelectedBodyI64M1ConfigVLContract();
+  return getRVVSelectedBodyConfigVLContract(lmul);
 }
 
 RVVConfigContractDiagnostic
@@ -357,6 +412,23 @@ getRVVSelectedBodyRuntimeABIParameters() {
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVSelectedBodyI64RuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int64_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs", "const int64_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int64_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyI64M1ConfigVLContract.runtimeAVLABIParameterName,
+      "size_t", support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 4>
 getRVVSelectedBodyScalarBroadcastRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
   parameters.push_back(support::makeTargetExportABIParameter(
@@ -399,6 +471,11 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, expected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 4> i64Expected =
+      getRVVSelectedBodyI64RuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, i64Expected))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 7> stridedExpected =
       getRVVSelectedBodyStridedRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, stridedExpected))
@@ -411,10 +488,11 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
 
   return makeRuntimeABIError(
       llvm::Twine(context) +
-      " must use ordered runtime ABI parameters lhs, rhs, out, n; "
-      "lhs, rhs_scalar, out, n; or lhs, rhs, out, n, lhs_stride, "
-      "rhs_stride, out_stride with stable C types, roles, and target-export "
-      "ownership");
+      " must use ordered runtime ABI parameters lhs, rhs, out, n for "
+      "int32_t or int64_t buffers; lhs, rhs_scalar, out, n for the bounded "
+      "int32_t scalar-broadcast route; or lhs, rhs, out, n, lhs_stride, "
+      "rhs_stride, out_stride for the bounded int32_t strided route with "
+      "stable C types, roles, and target-export ownership");
 }
 
 llvm::StringRef getRVVSelectedBodyRuntimeAVLParameterName() {

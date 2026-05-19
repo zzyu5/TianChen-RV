@@ -204,11 +204,15 @@ llvm::Error validatePreRealizedRVVSelectedBody(
     return makeRVVPluginError(
         "pre-realized RVV selected strided body currently supports only "
         "op_kind 'add'");
-  if (static_cast<std::int64_t>(body.getSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+  if (!tcrv::rvv::isRVVSelectedBodyM1Config(
+          static_cast<std::int64_t>(body.getSew()), body.getLmul()) &&
+      !(tcrv::rvv::isRVVSelectedBodyI64M1Config(
+            static_cast<std::int64_t>(body.getSew()), body.getLmul()) &&
+        body.getOpKind() == "add" &&
+        isPreRealizedUnitStrideMemoryForm(body.getMemoryForm())))
     return makeRVVPluginError(
-        "pre-realized RVV selected body requires SEW32 LMUL m1");
+        "pre-realized RVV selected body requires SEW32 LMUL m1, or SEW64 "
+        "LMUL m1 only for unit-stride op_kind 'add'");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVPluginError(
         "pre-realized RVV selected body requires tail agnostic, mask agnostic "
@@ -676,21 +680,26 @@ llvm::Error validatePreRealizedRVVSelectedMAccBody(
 }
 
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
-                                     mlir::Location loc, mlir::Value nValue) {
+                                     mlir::Location loc, mlir::Value nValue,
+                                     std::int64_t sew, llvm::StringRef lmul,
+                                     tcrv::rvv::PolicyAttr policy) {
   mlir::OperationState state(loc, "tcrv_rvv.setvl");
   state.addOperands(nValue);
   state.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
-  tcrv::rvv::populateRVVSelectedBodyDefaultConfigAttrs(builder, state);
+  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+                                                policy);
   return builder.create(state);
 }
 
 tcrv::rvv::WithVLOp createRealizedWithVL(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value vlValue,
     tcrv::exec::KernelOp kernel, tcrv::exec::VariantOp variant,
-    VariantEmissionRole role, mlir::ArrayAttr requires) {
+    VariantEmissionRole role, mlir::ArrayAttr requires, std::int64_t sew,
+    llvm::StringRef lmul, tcrv::rvv::PolicyAttr policy) {
   mlir::OperationState state(loc, "tcrv_rvv.with_vl");
   state.addOperands(vlValue);
-  tcrv::rvv::populateRVVSelectedBodyDefaultConfigAttrs(builder, state);
+  tcrv::rvv::populateRVVSelectedBodyConfigAttrs(builder, state, sew, lmul,
+                                                policy);
   state.addAttribute(rvv::getRVVSourceKernelAttrName(),
                      builder.getStringAttr(kernel.getSymName()));
   state.addAttribute(rvv::getRVVSelectedVariantAttrName(),
@@ -711,9 +720,13 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
   return withVL;
 }
 
-mlir::Type getStage1GenericVectorType(mlir::OpBuilder &builder) {
+mlir::Type getGenericVectorType(mlir::OpBuilder &builder, std::int64_t sew,
+                                llvm::StringRef lmul) {
+  mlir::Type elementType = sew == tcrv::rvv::getRVVSEW64Bits()
+                               ? builder.getI64Type()
+                               : builder.getI32Type();
   return tcrv::rvv::VectorType::get(
-      builder.getContext(), builder.getI32Type(), tcrv::rvv::getRVVLMULM1());
+      builder.getContext(), elementType, lmul);
 }
 
 mlir::Type getStage1GenericMaskType(mlir::OpBuilder &builder) {
@@ -724,20 +737,22 @@ mlir::Type getStage1GenericMaskType(mlir::OpBuilder &builder) {
 mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
                                            mlir::Location loc,
                                            mlir::Value buffer,
-                                           mlir::Value vl) {
+                                           mlir::Value vl, std::int64_t sew,
+                                           llvm::StringRef lmul) {
   mlir::OperationState state(loc, "tcrv_rvv.load");
   state.addOperands({buffer, vl});
-  state.addTypes(getStage1GenericVectorType(builder));
+  state.addTypes(getGenericVectorType(builder, sew, lmul));
   return builder.create(state);
 }
 
 mlir::Operation *createRealizedGenericSplat(mlir::OpBuilder &builder,
                                             mlir::Location loc,
                                             mlir::Value scalar,
-                                            mlir::Value vl) {
+                                            mlir::Value vl, std::int64_t sew,
+                                            llvm::StringRef lmul) {
   mlir::OperationState state(loc, "tcrv_rvv.splat");
   state.addOperands({scalar, vl});
-  state.addTypes(getStage1GenericVectorType(builder));
+  state.addTypes(getGenericVectorType(builder, sew, lmul));
   return builder.create(state);
 }
 
@@ -748,7 +763,9 @@ mlir::Operation *createRealizedGenericStridedLoad(mlir::OpBuilder &builder,
                                                   mlir::Value vl) {
   mlir::OperationState state(loc, "tcrv_rvv.strided_load");
   state.addOperands({buffer, stride, vl});
-  state.addTypes(getStage1GenericVectorType(builder));
+  state.addTypes(getGenericVectorType(
+      builder, tcrv::rvv::getRVVFirstSliceSEWBits(),
+      tcrv::rvv::getRVVLMULM1()));
   return builder.create(state);
 }
 
@@ -902,11 +919,14 @@ realizePreRealizedRVVSelectedBody(
     mlir::Location loc = body->getLoc();
     builder.setInsertionPoint(body.getOperation());
 
+    std::int64_t sew = static_cast<std::int64_t>(body.getSew());
+    llvm::StringRef lmul = body.getLmul();
+    auto policy = body.getPolicy();
     auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
-        createRealizedSetVL(builder, loc, body.getN()));
+        createRealizedSetVL(builder, loc, body.getN(), sew, lmul, policy));
     tcrv::rvv::WithVLOp withVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires);
+                             request.getRole(), requires, sew, lmul, policy);
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
     mlir::Value lhsValue;
@@ -923,17 +943,17 @@ realizePreRealizedRVVSelectedBody(
       rhsValue = rhsLoad.getLoaded();
     } else if (isPreRealizedScalarBroadcastMemoryForm(body.getMemoryForm())) {
       auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-          builder, loc, body.getLhs(), setvl.getVl()));
+          builder, loc, body.getLhs(), setvl.getVl(), sew, lmul));
       auto rhsSplat = llvm::cast<tcrv::rvv::SplatOp>(
           createRealizedGenericSplat(builder, loc, body.getRhs(),
-                                     setvl.getVl()));
+                                     setvl.getVl(), sew, lmul));
       lhsValue = lhsLoad.getLoaded();
       rhsValue = rhsSplat.getBroadcast();
     } else {
       auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-          builder, loc, body.getLhs(), setvl.getVl()));
+          builder, loc, body.getLhs(), setvl.getVl(), sew, lmul));
       auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-          builder, loc, body.getRhs(), setvl.getVl()));
+          builder, loc, body.getRhs(), setvl.getVl(), sew, lmul));
       lhsValue = lhsLoad.getLoaded();
       rhsValue = rhsLoad.getLoaded();
     }
@@ -966,16 +986,24 @@ realizePreRealizedRVVSelectedBody(
     builder.setInsertionPoint(compareSelectBody.getOperation());
 
     auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
-        createRealizedSetVL(builder, loc, compareSelectBody.getN()));
+        createRealizedSetVL(builder, loc, compareSelectBody.getN(),
+                            tcrv::rvv::getRVVFirstSliceSEWBits(),
+                            tcrv::rvv::getRVVLMULM1(),
+                            compareSelectBody.getPolicy()));
     tcrv::rvv::WithVLOp withVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires);
+                             request.getRole(), requires,
+                             tcrv::rvv::getRVVFirstSliceSEWBits(),
+                             tcrv::rvv::getRVVLMULM1(),
+                             compareSelectBody.getPolicy());
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
     auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-        builder, loc, compareSelectBody.getLhs(), setvl.getVl()));
+        builder, loc, compareSelectBody.getLhs(), setvl.getVl(),
+        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
     auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-        builder, loc, compareSelectBody.getRhs(), setvl.getVl()));
+        builder, loc, compareSelectBody.getRhs(), setvl.getVl(),
+        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
     mlir::Value lhsValue = lhsLoad.getLoaded();
     mlir::Value rhsValue = rhsLoad.getLoaded();
     auto compare = llvm::cast<tcrv::rvv::CompareOp>(
@@ -1000,17 +1028,25 @@ realizePreRealizedRVVSelectedBody(
     builder.setInsertionPoint(reduceBody.getOperation());
 
     auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
-        createRealizedSetVL(builder, loc, reduceBody.getN()));
+        createRealizedSetVL(builder, loc, reduceBody.getN(),
+                            tcrv::rvv::getRVVFirstSliceSEWBits(),
+                            tcrv::rvv::getRVVLMULM1(),
+                            reduceBody.getPolicy()));
     tcrv::rvv::WithVLOp withVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires);
+                             request.getRole(), requires,
+                             tcrv::rvv::getRVVFirstSliceSEWBits(),
+                             tcrv::rvv::getRVVLMULM1(),
+                             reduceBody.getPolicy());
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
     auto inputLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-        builder, loc, reduceBody.getLhs(), setvl.getVl()));
+        builder, loc, reduceBody.getLhs(), setvl.getVl(),
+        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
     auto accumulatorLoad =
         llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, reduceBody.getRhs(), setvl.getVl()));
+            builder, loc, reduceBody.getRhs(), setvl.getVl(),
+            tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
     llvm::Expected<mlir::Operation *> compute =
         createRealizedGenericReduceCompute(
             builder, loc, reduceBody.getOpKind(), inputLoad.getLoaded(),
@@ -1033,19 +1069,27 @@ realizePreRealizedRVVSelectedBody(
     builder.setInsertionPoint(maccBody.getOperation());
 
     auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
-        createRealizedSetVL(builder, loc, maccBody.getN()));
+        createRealizedSetVL(builder, loc, maccBody.getN(),
+                            tcrv::rvv::getRVVFirstSliceSEWBits(),
+                            tcrv::rvv::getRVVLMULM1(), maccBody.getPolicy()));
     tcrv::rvv::WithVLOp withVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires);
+                             request.getRole(), requires,
+                             tcrv::rvv::getRVVFirstSliceSEWBits(),
+                             tcrv::rvv::getRVVLMULM1(),
+                             maccBody.getPolicy());
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
     auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-        builder, loc, maccBody.getLhs(), setvl.getVl()));
+        builder, loc, maccBody.getLhs(), setvl.getVl(),
+        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
     auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-        builder, loc, maccBody.getRhs(), setvl.getVl()));
+        builder, loc, maccBody.getRhs(), setvl.getVl(),
+        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
     auto accumulatorLoad =
         llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, maccBody.getOut(), setvl.getVl()));
+            builder, loc, maccBody.getOut(), setvl.getVl(),
+            tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
     llvm::Expected<mlir::Operation *> compute = createRealizedGenericMAccCompute(
         builder, loc, maccBody.getOpKind(), lhsLoad.getLoaded(),
         rhsLoad.getLoaded(), accumulatorLoad.getLoaded(), setvl.getVl());
@@ -1070,16 +1114,24 @@ realizePreRealizedRVVSelectedBody(
   builder.setInsertionPoint(maskedBody.getOperation());
 
   auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
-      createRealizedSetVL(builder, loc, maskedBody.getN()));
+      createRealizedSetVL(builder, loc, maskedBody.getN(),
+                          tcrv::rvv::getRVVFirstSliceSEWBits(),
+                          tcrv::rvv::getRVVLMULM1(),
+                          maskedBody.getPolicy()));
   tcrv::rvv::WithVLOp withVL =
       createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                           request.getRole(), requires);
+                           request.getRole(), requires,
+                           tcrv::rvv::getRVVFirstSliceSEWBits(),
+                           tcrv::rvv::getRVVLMULM1(),
+                           maskedBody.getPolicy());
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
   auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-      builder, loc, maskedBody.getLhs(), setvl.getVl()));
+      builder, loc, maskedBody.getLhs(), setvl.getVl(),
+      tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
   auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-      builder, loc, maskedBody.getRhs(), setvl.getVl()));
+      builder, loc, maskedBody.getRhs(), setvl.getVl(),
+      tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
   mlir::Value lhsValue = lhsLoad.getLoaded();
   mlir::Value rhsValue = rhsLoad.getLoaded();
   auto compare = llvm::cast<tcrv::rvv::CompareOp>(
