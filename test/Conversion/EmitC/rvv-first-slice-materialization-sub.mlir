@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
 
 module {
   tcrv.exec.kernel @rvv_i32_sub_kernel {
@@ -35,10 +35,5 @@ module {
   }
 }
 
-// CHECK: emitc.include <"riscv_vector.h">
-// CHECK: emitc.func @tcrv_emitc_rvv_i32_sub_kernel_rvv_i32_sub
-// CHECK: for
-// CHECK: call_opaque "__riscv_vsetvl_e32m1"
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.i32_sub role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsub_vv_i32m1
-// CHECK: call_opaque "__riscv_vsub_vv_i32m1"
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.i32_store role=store op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vse32_v_i32m1
+// CHECK: legacy selected-body op 'tcrv_rvv.i32_load' is fail-closed during RVV Stage1
+// CHECK-SAME: generic tcrv_rvv.load, tcrv_rvv.binary, and tcrv_rvv.store

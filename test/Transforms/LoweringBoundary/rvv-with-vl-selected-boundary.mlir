@@ -22,10 +22,10 @@ module {
         source_kernel = "rvv_i32m1_add_selected_boundary",
         status = "selected-lowering-boundary"
       } {
-        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        tcrv_rvv.i32_store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+        %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs = tcrv_rvv.load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %sum = tcrv_rvv.binary %lhs, %rhs, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
     tcrv.exec.diagnostic {message = "selected add", reason = "variant-selected", selection_kind = "static-variant", severity = "note", status = "selected", target = @rvv_i32_add}
@@ -52,10 +52,10 @@ module {
         source_kernel = "rvv_i32m1_sub_selected_boundary",
         status = "selected-lowering-boundary"
       } {
-        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %diff = tcrv_rvv.i32_sub %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        tcrv_rvv.i32_store %out_ptr, %diff, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+        %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs = tcrv_rvv.load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %diff = tcrv_rvv.binary %lhs, %rhs, %vl {kind = "sub"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out_ptr, %diff, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
     tcrv.exec.diagnostic {message = "selected sub", reason = "variant-selected", selection_kind = "static-variant", severity = "note", status = "selected", target = @rvv_i32_sub}
@@ -82,10 +82,10 @@ module {
         source_kernel = "rvv_i32m1_mul_selected_boundary",
         status = "selected-lowering-boundary"
       } {
-        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %product = tcrv_rvv.i32_mul %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        tcrv_rvv.i32_store %out_ptr, %product, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+        %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs = tcrv_rvv.load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %product = tcrv_rvv.binary %lhs, %rhs, %vl {kind = "mul"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out_ptr, %product, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
     tcrv.exec.diagnostic {message = "selected mul", reason = "variant-selected", selection_kind = "static-variant", severity = "note", status = "selected", target = @rvv_i32_mul}
@@ -98,14 +98,14 @@ module {
 // CHECK-SAME: selected_variant = @rvv_i32_add
 // CHECK-SAME: source_kernel = "rvv_i32m1_add_selected_boundary"
 // CHECK-SAME: status = "selected-lowering-boundary"
-// CHECK: tcrv_rvv.i32_add
+// CHECK: tcrv_rvv.binary
 // CHECK-LABEL: tcrv.exec.kernel @rvv_i32m1_sub_selected_boundary
 // CHECK: tcrv_rvv.with_vl
 // CHECK-SAME: selected_variant = @rvv_i32_sub
 // CHECK-SAME: source_kernel = "rvv_i32m1_sub_selected_boundary"
-// CHECK: tcrv_rvv.i32_sub
+// CHECK: tcrv_rvv.binary
 // CHECK-LABEL: tcrv.exec.kernel @rvv_i32m1_mul_selected_boundary
 // CHECK: tcrv_rvv.with_vl
 // CHECK-SAME: selected_variant = @rvv_i32_mul
 // CHECK-SAME: source_kernel = "rvv_i32m1_mul_selected_boundary"
-// CHECK: tcrv_rvv.i32_mul
+// CHECK: tcrv_rvv.binary

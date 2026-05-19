@@ -20,5 +20,5 @@ module {
   }
 }
 
-// CHECK: bounded RVV compare/select EmitC route requires exactly two tcrv_rvv.i32_load ops
-// CHECK-SAME: does not support broadcast predicates
+// CHECK: legacy selected-body op 'tcrv_rvv.i32_load' is fail-closed during RVV Stage1
+// CHECK-SAME: generic tcrv_rvv.load, tcrv_rvv.binary, and tcrv_rvv.store

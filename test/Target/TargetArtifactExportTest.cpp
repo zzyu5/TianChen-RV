@@ -466,6 +466,21 @@ llvm::StringRef getRVVTestArithmeticOperationName(
   llvm_unreachable("unknown RVV test arithmetic op");
 }
 
+llvm::StringRef getRVVTestBinaryKind(
+    tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Add:
+    return "add";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Sub:
+    return "sub";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Mul:
+    return "mul";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect:
+    return "cmp_select";
+  }
+  llvm_unreachable("unknown RVV test binary kind");
+}
+
 std::string getRVVTestVariantSymbol(
     tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op) {
   return (llvm::Twine("rvv_i32_") +
@@ -480,10 +495,17 @@ mlir::OwningOpRef<mlir::ModuleOp> parseRVVSelectedBodyCandidateModule(
   std::string source;
   llvm::raw_string_ostream os(source);
   std::string variant = getRVVTestVariantSymbol(op);
+  const bool useLegacyBody =
+      useRHSBroadcast ||
+      op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect;
   std::string vectorType =
-      (lmul == tianchenrv::tcrv::rvv::getRVVI32M2LMUL())
-          ? "!tcrv_rvv.i32m2"
-          : "!tcrv_rvv.i32m1";
+      useLegacyBody
+          ? ((lmul == tianchenrv::tcrv::rvv::getRVVI32M2LMUL())
+                 ? "!tcrv_rvv.i32m2"
+                 : "!tcrv_rvv.i32m1")
+          : ((lmul == tianchenrv::tcrv::rvv::getRVVI32M2LMUL())
+                 ? "!tcrv_rvv.vector<i32, \"m2\">"
+                 : "!tcrv_rvv.vector<i32, \"m1\">");
   os << R"mlir(
 module {
   tcrv.exec.kernel @rvv_i32_body_kernel {
@@ -497,17 +519,30 @@ module {
       %vl = tcrv_rvv.setvl %n {lmul = ")mlir" << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = ")mlir" << lmul << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
      << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
+)mlir";
+  if (useLegacyBody)
+    os << R"mlir(
         %lhs_vec = tcrv_rvv.i32_load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
-     << vectorType << R"mlir(
+       << vectorType << R"mlir(
+)mlir";
+  else
+    os << R"mlir(
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
 )mlir";
   if (useRHSBroadcast)
     os << R"mlir(
         %rhs_vec = tcrv_rvv.i32_broadcast_load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
        << vectorType << R"mlir(
 )mlir";
-  else
+  else if (useLegacyBody)
     os << R"mlir(
         %rhs_vec = tcrv_rvv.i32_load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+)mlir";
+  else
+    os << R"mlir(
+        %rhs_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
        << vectorType << R"mlir(
 )mlir";
   if (op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect) {
@@ -519,17 +554,33 @@ module {
        << vectorType << R"mlir(
 )mlir";
   } else {
-    os << R"mlir(
+    if (useLegacyBody)
+      os << R"mlir(
         %result = )mlir"
-       << getRVVTestArithmeticOperationName(op)
-       << R"mlir( %lhs_vec, %rhs_vec, %vl : )mlir" << vectorType
-       << R"mlir(, )mlir" << vectorType << R"mlir(, !tcrv_rvv.vl -> )mlir"
-       << vectorType << R"mlir(
+         << getRVVTestArithmeticOperationName(op)
+         << R"mlir( %lhs_vec, %rhs_vec, %vl : )mlir" << vectorType
+         << R"mlir(, )mlir" << vectorType << R"mlir(, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
+)mlir";
+    else
+      os << R"mlir(
+        %result = tcrv_rvv.binary %lhs_vec, %rhs_vec, %vl {kind = ")mlir"
+         << getRVVTestBinaryKind(op) << R"mlir("} : )mlir" << vectorType
+         << R"mlir(, )mlir" << vectorType << R"mlir(, !tcrv_rvv.vl -> )mlir"
+         << vectorType << R"mlir(
 )mlir";
   }
-  os << R"mlir(
+  if (useLegacyBody)
+    os << R"mlir(
         tcrv_rvv.i32_store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
-     << vectorType << R"mlir(, !tcrv_rvv.vl
+       << vectorType << R"mlir(, !tcrv_rvv.vl
+)mlir";
+  else
+    os << R"mlir(
+        tcrv_rvv.store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, )mlir"
+       << vectorType << R"mlir(, !tcrv_rvv.vl
+)mlir";
+  os << R"mlir(
       } : !tcrv_rvv.vl
     }
   }
@@ -795,10 +846,12 @@ bool expectRVVTargetArtifactExporterShape(
           broadcastFixture,
           "build valid RVV broadcast selected-body candidate fixture"))
     return false;
-  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
-                         broadcastFixture.candidate, *exporter),
-                     "validate RVV broadcast selected-body target artifact "
-                     "candidate"))
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               broadcastFixture.candidate, *exporter),
+                           "RVV artifact rejects legacy broadcast selected-body "
+                           "candidate",
+                           {"legacy selected-body op 'tcrv_rvv.i32_load'",
+                            "fail-closed during RVV Stage1"}))
     return false;
 
   RVVTargetArtifactCandidateFixture compareSelectFixture(
@@ -807,10 +860,12 @@ bool expectRVVTargetArtifactExporterShape(
           compareSelectFixture,
           "build valid RVV compare/select selected-body candidate fixture"))
     return false;
-  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
-                         compareSelectFixture.candidate, *exporter),
-                     "validate RVV compare/select selected-body target "
-                     "artifact candidate"))
+  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
+                               compareSelectFixture.candidate, *exporter),
+                           "RVV artifact rejects legacy compare/select "
+                           "selected-body candidate",
+                           {"legacy selected-body op 'tcrv_rvv.i32_load'",
+                            "fail-closed during RVV Stage1"}))
     return false;
 
   RVVTargetArtifactCandidateFixture lmulM2Fixture(
@@ -1033,7 +1088,7 @@ bool expectRVVTargetArtifactExporterShape(
                            "compute metadata",
                            {tianchenrv::plugin::rvv::
                                 getRVVSelectedBodyTypedComputeOpMetadataName(),
-                            "tcrv_rvv.i32_add"}))
+                            "tcrv_rvv.binary"}))
     return false;
 
   TargetArtifactCandidate staleSourceOps = candidate;
@@ -1510,10 +1565,10 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_add, sew = 32 : i64, source_kernel = "rvv_stale_lmul_kernel", status = "selected-lowering-boundary"} {
-        %lhs_vec = tcrv_rvv.i32_load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
-        %rhs_vec = tcrv_rvv.i32_load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
-        %result = tcrv_rvv.i32_add %lhs_vec, %rhs_vec, %vl : !tcrv_rvv.i32m2, !tcrv_rvv.i32m2, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
-        tcrv_rvv.i32_store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m2, !tcrv_rvv.vl
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
+        %rhs_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
+        %result = tcrv_rvv.binary %lhs_vec, %rhs_vec, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
+        tcrv_rvv.store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
     tcrv.exec.diagnostic {

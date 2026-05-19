@@ -3,7 +3,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-artifact > %t.o
 // RUN: llvm-readobj -h %t.o | FileCheck %s --check-prefix=OBJECT
 // RUN: llvm-readobj --symbols %t.o | FileCheck %s --check-prefix=SYMBOL --implicit-check-not="_Z57tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add"
-// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.i32_add/s//tcrv_rvv.i32_sub/' | not tcrv-translate --tcrv-export-target-artifact 2>&1 | FileCheck %s --check-prefix=STALE-OP --implicit-check-not="Format: elf64"
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/rvv_selected_body_operation\", value = \"add\"/s//rvv_selected_body_operation\", value = \"sub\"/' | not tcrv-translate --tcrv-export-target-artifact 2>&1 | FileCheck %s --check-prefix=STALE-OP --implicit-check-not="Format: elf64"
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed 's/rvv-i32m1-add-emitc-route/rvv-i32m1-sub-emitc-route/' | not tcrv-translate --tcrv-export-target-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ROUTE --implicit-check-not="Format: elf64"
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER --implicit-check-not="__riscv_" --implicit-check-not="vint32m1_t" --implicit-check-not="return;" --implicit-check-not="int main" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-direct-microkernel"
 // RUN: rm -rf %t.bundle && mkdir %t.bundle
@@ -28,10 +28,10 @@ module {
       %3 = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "source-arg-3:n", role = "runtime-element-count"} : index
       %4 = tcrv_rvv.setvl %3 {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %4 attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "dispatch case", selected_variant = @vector_source_rvv_i32_add, sew = 32 : i64, source_kernel = "vector_source_kernel", status = "selected-lowering-boundary"} {
-        %5 = tcrv_rvv.i32_load %0, %4 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %6 = tcrv_rvv.i32_load %1, %4 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %7 = tcrv_rvv.i32_add %5, %6, %4 : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        tcrv_rvv.i32_store %2, %7, %4 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+        %5 = tcrv_rvv.load %0, %4 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %6 = tcrv_rvv.load %1, %4 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %7 = tcrv_rvv.binary %5, %6, %4 {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %2, %7, %4 : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
     tcrv.exec.variant @vector_source_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
@@ -50,8 +50,8 @@ module {
 // SYMBOL: Name: tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add
 
 // STALE-OP: RVV materialized EmitC target artifact bridge failed
-// STALE-OP: rvv_emitc_lowerable_route provenance must mirror selected typed RVV body route 'rvv-i32m1-sub-emitc-route'
-// STALE-OP-SAME: rvv-i32m1-add-emitc-route
+// STALE-OP: rvv_selected_body_operation provenance must mirror selected typed RVV body operation 'add'
+// STALE-OP-SAME: sub
 
 // STALE-ROUTE: RVV materialized EmitC target artifact bridge failed
 // STALE-ROUTE: rvv_emitc_lowerable_route provenance must mirror selected typed RVV body route 'rvv-i32m1-add-emitc-route'

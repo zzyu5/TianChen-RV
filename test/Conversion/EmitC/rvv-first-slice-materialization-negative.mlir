@@ -35,4 +35,5 @@ module {
   }
 }
 
-// CHECK: unsupported RVV selected-body route profile: operation=add, memory_form=rhs-broadcast-load, SEW=32, LMUL=m2
+// CHECK: legacy selected-body op 'tcrv_rvv.i32_load' is fail-closed during RVV Stage1
+// CHECK-SAME: generic tcrv_rvv.load, tcrv_rvv.binary, and tcrv_rvv.store

@@ -1,4 +1,4 @@
-// RUN: tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes | FileCheck %s
+// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s --implicit-check-not="emitc.func"
 
 module {
   tcrv.exec.kernel @rvv_i32_add_kernel {
@@ -35,24 +35,5 @@ module {
   }
 }
 
-// CHECK: emitc.include <"stddef.h">
-// CHECK: emitc.include <"stdint.h">
-// CHECK: emitc.include <"riscv_vector.h">
-// CHECK: emitc.func @tcrv_emitc_rvv_i32_add_kernel_rvv_i32_add
-// CHECK-NOT: unrealized_conversion_cast
-// CHECK: tcrv_emitc.route_source_op=tcrv_rvv.with_vl role=scope op_interface=TCRVEmitCLowerableOpInterface
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.setvl role=configure op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e32m1
-// CHECK: call_opaque "__riscv_vsetvl_e32m1"
-// CHECK: for
-// CHECK-SAME: step
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.setvl role=configure op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vsetvl_e32m1
-// CHECK: sub
-// CHECK: call_opaque "__riscv_vsetvl_e32m1"
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.i32_load role=load op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle32_v_i32m1
-// CHECK: add
-// CHECK: call_opaque "__riscv_vle32_v_i32m1"
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.i32_add role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vadd_vv_i32m1
-// CHECK: call_opaque "__riscv_vadd_vv_i32m1"
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.i32_store role=store op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vse32_v_i32m1
-// CHECK: add
-// CHECK: call_opaque "__riscv_vse32_v_i32m1"
+// CHECK: legacy selected-body op 'tcrv_rvv.i32_load' is fail-closed during RVV Stage1
+// CHECK-SAME: generic tcrv_rvv.load, tcrv_rvv.binary, and tcrv_rvv.store

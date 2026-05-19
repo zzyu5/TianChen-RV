@@ -1836,3 +1836,36 @@ Added explicit RHS broadcast add/sub/mul selected-body fixtures, provider memory
 ### Next Steps
 
 - None - task complete
+
+
+## Session 131: Stage1 legacy RVV route-authority retirement
+
+**Date**: 2026-05-19
+**Task**: Stage1 legacy RVV route-authority retirement
+**Branch**: `main`
+
+### Summary
+
+Retired active legacy RVV i32 route authority on the generic typed surface: provider routes now require generic load/binary/store, source-front-door fails closed, legacy positive fixtures moved to generic or negative coverage, and check-tianchenrv passes 149/149.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

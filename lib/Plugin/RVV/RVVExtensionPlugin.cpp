@@ -523,9 +523,8 @@ llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
   out.push_back(SourceFrontDoorPassRegistration(
       kRVVPluginName, "tcrv-rvv-materialize-i32m1-vector-source-front-door",
-      "Materialize one bounded MLIR vector i32 add/sub/mul source pattern "
-      "into the RVV i32m1 selected boundary and dispatch front door as an "
-      "explicit non-default typed-body seed",
+      "Fail closed for the legacy RVV i32m1 source-front-door materializer "
+      "during Stage 1; use explicit generic typed tcrv_rvv bodies instead",
       [] { return createMaterializeRVVI32M1VectorSourceFrontDoorPass(); },
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
           ExplicitOnly));

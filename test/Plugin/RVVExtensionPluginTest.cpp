@@ -463,10 +463,10 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i32_add, sew = 32 : i64, source_kernel = "rvv_i32m1_boundary_kernel", status = "selected-lowering-boundary"} {
-        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        tcrv_rvv.i32_store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+        %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs = tcrv_rvv.load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %sum = tcrv_rvv.binary %lhs, %rhs, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
 
@@ -477,10 +477,10 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i32_sub, sew = 32 : i64, source_kernel = "rvv_i32m1_boundary_kernel", status = "selected-lowering-boundary"} {
-        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %diff = tcrv_rvv.i32_sub %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        tcrv_rvv.i32_store %out_ptr, %diff, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+        %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs = tcrv_rvv.load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %diff = tcrv_rvv.binary %lhs, %rhs, %vl {kind = "sub"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out_ptr, %diff, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
 
@@ -491,10 +491,10 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i32_mul, sew = 32 : i64, source_kernel = "rvv_i32m1_boundary_kernel", status = "selected-lowering-boundary"} {
-        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %product = tcrv_rvv.i32_mul %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        tcrv_rvv.i32_store %out_ptr, %product, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+        %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs = tcrv_rvv.load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %product = tcrv_rvv.binary %lhs, %rhs, %vl {kind = "mul"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out_ptr, %product, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -605,7 +605,8 @@ module {
                 routeDescription->tailPolicy == "agnostic" &&
                 routeDescription->maskPolicy == "agnostic" &&
                 routeDescription->boundaryOpName == "tcrv_rvv.with_vl" &&
-                routeDescription->vectorTypeName == "!tcrv_rvv.i32m1" &&
+                routeDescription->vectorTypeName ==
+                    "!tcrv_rvv.vector<i32, \"m1\">" &&
                 routeDescription->vectorCType == "vint32m1_t" &&
                 routeDescription->setVLIntrinsic == "__riscv_vsetvl_e32m1" &&
                 routeDescription->vectorLoadIntrinsic ==
@@ -840,8 +841,8 @@ module {
           VariantEmissionRequest(variant, kernel, capabilities,
                                  VariantEmissionRole::DirectVariant),
           plan),
-      {"bounded RVV EmitC route requires either two tcrv_rvv.i32_load ops",
-       "tcrv_rvv.i32_broadcast_load"});
+      {"bounded generic RVV EmitC route requires exactly two "
+       "tcrv_rvv.load ops"});
 }
 
 int runLMULM2SelectedBodyRouteTest(mlir::MLIRContext &context) {
@@ -856,10 +857,10 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i32_m2_add, sew = 32 : i64, source_kernel = "rvv_unsupported_lmul_kernel", status = "selected-lowering-boundary"} {
-        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
-        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
-        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m2, !tcrv_rvv.i32m2, !tcrv_rvv.vl -> !tcrv_rvv.i32m2
-        tcrv_rvv.i32_store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m2, !tcrv_rvv.vl
+        %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
+        %rhs = tcrv_rvv.load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
+        %sum = tcrv_rvv.binary %lhs, %rhs, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
+        tcrv_rvv.store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -977,78 +978,14 @@ module {
     return result;
 
   VariantEmissionPlan plan;
-  if (int result = expectSuccess(
-          registry.buildVariantEmissionPlan(
-              VariantEmissionRequest(variant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
-              plan),
-          "build RVV broadcast selected-body emission plan"))
-    return result;
-  if (int result = expect(
-          plan.isSupported() &&
-              plan.getRuntimeABI() ==
-                  tianchenrv::plugin::rvv::getRVVSelectedBodyRuntimeABIName(
-                      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
-                          Add),
-          "RVV broadcast body reuses the bounded add callable ABI "
-          "while selected typed body owns broadcast semantics"))
-    return result;
-
-  bool sawBroadcastSourceMetadata = false;
-  for (const tianchenrv::support::ArtifactMetadataEntry &entry :
-       plan.getArtifactMetadata()) {
-    if (entry.key == tianchenrv::plugin::rvv::getRVVSourceOpsMetadataName() &&
-        llvm::StringRef(entry.value).contains("tcrv_rvv.i32_broadcast_load"))
-      sawBroadcastSourceMetadata = true;
-  }
-  if (int result = expect(
-          sawBroadcastSourceMetadata,
-          "RVV broadcast emission plan advertises typed broadcast-load source "
-          "coverage"))
-    return result;
-
-  llvm::Expected<
-      tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
-      routeDescription =
-          tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
-              VariantEmitCLowerableRequest(
-                  variant, kernel, capabilities,
-                  VariantEmissionRole::DirectVariant));
-  if (!routeDescription)
-    return fail(llvm::Twine("describe RVV broadcast selected-body route: ") +
-                llvm::toString(routeDescription.takeError()));
-  if (int result = expect(
-          routeDescription->rhsBroadcastIntrinsic ==
-              "__riscv_vmv_v_x_i32m1",
-          "RVV broadcast route profile exposes the broadcast intrinsic only "
-          "for the validated broadcast memory form"))
-    return result;
-
-  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
-  if (int result = expectSuccess(
-          registry.buildVariantEmitCLowerableRoute(
-              VariantEmitCLowerableRequest(variant, kernel, capabilities,
-                                           VariantEmissionRole::DirectVariant),
-              route),
-          "build RVV broadcast selected-body EmitC route"))
-    return result;
-  if (int result =
-          expect(route.getForLoops().size() == 1 &&
-                     route.getForLoops().front().bodySteps.size() == 5 &&
-                     route.getForLoops().front().bodySteps[2].sourceOp.opName ==
-                         "tcrv_rvv.i32_broadcast_load" &&
-                     route.getForLoops().front().bodySteps[2].callee ==
-                         "__riscv_vmv_v_x_i32m1" &&
-                     route.getForLoops().front().bodySteps[3].callee ==
-                         "__riscv_vadd_vv_i32m1",
-                 "RVV broadcast route materializes explicit broadcast-load "
-                 "before vector arithmetic"))
-    return result;
-  return expectSuccess(
-      tianchenrv::conversion::emitc::
-          verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
-              route, "tcrv_rvv_broadcast_selected_body", {}),
-      "RVV broadcast EmitC lowerable route materializes to EmitC");
+  return expectErrorContains(
+      registry.buildVariantEmissionPlan(
+          VariantEmissionRequest(variant, kernel, capabilities,
+                                 VariantEmissionRole::DirectVariant),
+          plan),
+      {"legacy selected-body op 'tcrv_rvv.i32_load' is fail-closed during "
+       "RVV Stage1",
+       "generic tcrv_rvv.load, tcrv_rvv.binary, and tcrv_rvv.store"});
 }
 
 int runCompareSelectSelectedBodyRouteTest(mlir::MLIRContext &context) {
@@ -1089,68 +1026,14 @@ module {
     return result;
 
   VariantEmissionPlan plan;
-  if (int result = expectSuccess(
-          registry.buildVariantEmissionPlan(
-              VariantEmissionRequest(variant, kernel, capabilities,
-                                     VariantEmissionRole::DirectVariant),
-              plan),
-          "build RVV compare/select selected-body emission plan"))
-    return result;
-  if (int result = expect(
-          plan.isSupported() &&
-              plan.getRuntimeABI() ==
-                  tianchenrv::plugin::rvv::getRVVSelectedBodyRuntimeABIName(
-                      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
-                          CmpSelect),
-          "RVV compare/select body owns a bounded callable ABI"))
-    return result;
-
-  bool sawCompareSelectSourceMetadata = false;
-  bool sawCompareSelectOpMetadata = false;
-  for (const tianchenrv::support::ArtifactMetadataEntry &entry :
-       plan.getArtifactMetadata()) {
-    if (entry.key == tianchenrv::plugin::rvv::getRVVSourceOpsMetadataName() &&
-        llvm::StringRef(entry.value).contains("tcrv_rvv.i32_cmp_eq") &&
-        llvm::StringRef(entry.value).contains("tcrv_rvv.i32_select"))
-      sawCompareSelectSourceMetadata = true;
-    if (entry.key == tianchenrv::plugin::rvv::
-                         getRVVSelectedBodyOperationMetadataName() &&
-        entry.value == "cmp_select")
-      sawCompareSelectOpMetadata = true;
-  }
-  if (int result = expect(
-          sawCompareSelectSourceMetadata && sawCompareSelectOpMetadata,
-          "RVV compare/select emission plan advertises typed compare/select "
-          "source coverage and route provenance"))
-    return result;
-
-  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
-  if (int result = expectSuccess(
-          registry.buildVariantEmitCLowerableRoute(
-              VariantEmitCLowerableRequest(variant, kernel, capabilities,
-                                           VariantEmissionRole::DirectVariant),
-              route),
-          "build RVV compare/select selected-body EmitC route"))
-    return result;
-  if (int result =
-          expect(route.getForLoops().size() == 1 &&
-                     route.getForLoops().front().bodySteps.size() == 6 &&
-                     route.getForLoops().front().bodySteps[3].sourceOp.opName ==
-                         "tcrv_rvv.i32_cmp_eq" &&
-                     route.getForLoops().front().bodySteps[3].callee ==
-                         "__riscv_vmseq_vv_i32m1_b32" &&
-                     route.getForLoops().front().bodySteps[4].sourceOp.opName ==
-                         "tcrv_rvv.i32_select" &&
-                     route.getForLoops().front().bodySteps[4].callee ==
-                         "__riscv_vmerge_vvm_i32m1",
-                 "RVV compare/select route materializes compare before "
-                 "select/merge"))
-    return result;
-  return expectSuccess(
-      tianchenrv::conversion::emitc::
-          verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
-              route, "tcrv_rvv_compare_select_selected_body", {}),
-      "RVV compare/select EmitC lowerable route materializes to EmitC");
+  return expectErrorContains(
+      registry.buildVariantEmissionPlan(
+          VariantEmissionRequest(variant, kernel, capabilities,
+                                 VariantEmissionRole::DirectVariant),
+          plan),
+      {"legacy selected-body op 'tcrv_rvv.i32_load' is fail-closed during "
+       "RVV Stage1",
+       "generic tcrv_rvv.load, tcrv_rvv.binary, and tcrv_rvv.store"});
 }
 
 int runOutOfOrderSelectedRoleSequenceRejectionTest(mlir::MLIRContext &context) {
@@ -1165,10 +1048,10 @@ module {
       %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i32_add_out_of_order_roles, sew = 32 : i64, source_kernel = "rvv_i32m1_out_of_order_role_kernel", status = "selected-lowering-boundary"} {
-        %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-        tcrv_rvv.i32_store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+        %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs = tcrv_rvv.load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %sum = tcrv_rvv.binary %lhs, %rhs, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }

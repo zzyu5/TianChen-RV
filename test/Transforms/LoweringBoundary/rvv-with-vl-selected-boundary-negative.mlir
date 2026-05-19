@@ -15,4 +15,4 @@ module {
 
 // CHECK: TianChen-RV selected lowering-boundary materialization failed
 // CHECK-SAME: origin plugin 'rvv-plugin' failed lowering-boundary materialization
-// CHECK: bounded RVV i32m1 arithmetic compile-time config requires tcrv_rvv.setvl SEW32 LMUL m1
+// CHECK: selected RVV lowering-boundary validation requires non-empty string attribute 'source_kernel'
