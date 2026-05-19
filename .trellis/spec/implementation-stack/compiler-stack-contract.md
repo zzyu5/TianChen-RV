@@ -52,6 +52,10 @@ lowering pipeline
 emission pipeline
 compiler legality model
 compiler decision objects
+selected-body realization
+plugin route authority
+capability mapping
+typed extension-body generation
 ```
 
 ## Wrong vs Correct
@@ -71,6 +75,12 @@ Define dialect ops in TableGen / ODS.
 Implement verifiers, passes, registries, and lowering in C++ using MLIR/LLVM APIs.
 Use Python only to run `mlir-opt`, launch `ssh rvv` probes, parse artifacts, or supervise runs.
 ```
+
+For RVV, Python must not generate the authoritative typed `tcrv_rvv` body,
+decide dtype/config/operation facts, realize selected bodies, map RVV
+intrinsics, construct route provider payloads, or implement capability
+relations. Python may prepare fixtures or probes only when the compiler-owned
+C++/MLIR path remains the source of truth.
 
 ## Missing Toolchain Rule
 

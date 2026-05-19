@@ -20,7 +20,8 @@ and tests for maintainability. Conceptually, RVV, IME, TensorExt, Offload, and
 future vendor/custom targets are not unrelated independent backend dialects.
 They are extension families inside the same TCRV dialect suite and share the
 same capability model, extension interfaces, common orchestration passes,
-EmitC route framework, manifests, and test expectations.
+EmitC route framework, optional provenance/scaffolding manifests, and test
+expectations. Manifests are never source, compute, dtype, or route authority.
 
 ## Common Abstraction
 
@@ -40,8 +41,8 @@ extension configuration state
 extension resource
 extension operation
 ABI boundary
-dispatch / fallback
-EmitC lowering route
+variant selection / dispatch / fallback
+provider-built EmitC lowering route
 ```
 
 ## Core Responsibilities
@@ -55,7 +56,8 @@ requires
 dispatch
 fallback
 ABI boundary
-route selection
+variant selection
+dispatch orchestration
 plugin registry
 extension family registration
 diagnostics
@@ -77,18 +79,19 @@ types
 attributes
 verifiers
 local canonicalization / legalization hooks
-EmitC lowering mapping
+selected-body realization
+route provider / EmitC lowering mapping
 tests
 ```
 
 Example architectural operation families may look like:
 
 ```text
-tcrv.rvv_setvl
-tcrv.rvv_with_vl
-tcrv.rvv_load
-tcrv.rvv_add
-tcrv.rvv_store
+tcrv_rvv.setvl
+tcrv_rvv.load
+tcrv_rvv.binary {kind = add}
+tcrv_rvv.mask
+tcrv_rvv.store
 
 tcrv.ime_config
 tcrv.ime_load_frag
@@ -129,7 +132,10 @@ semantic source, compatibility aid, production input, or evidence authority.
 Executable rebuild work must start from:
 
 ```text
-extension family ops
+selected tcrv.exec variant
+  -> typed extension family body
+  -> plugin legality / optional selected-body realization / route provider
+  -> TCRVEmitCLowerableRoute
   -> common EmitC lowering
   -> intrinsic / vendor builtin / runtime C ABI
 ```
@@ -139,8 +145,10 @@ extension family ops
 The current main lowering route is:
 
 ```text
-TCRV extension family ops
-  -> EmitC ops
+selected tcrv.exec variant
+  -> typed extension family body or selected extension boundary
+  -> plugin-built TCRVEmitCLowerableRoute
+  -> common EmitC ops
   -> C/C++ emitter
   -> intrinsic / vendor builtin / runtime C ABI
   -> native compiler

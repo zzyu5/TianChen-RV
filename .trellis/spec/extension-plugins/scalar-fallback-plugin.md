@@ -88,7 +88,7 @@ coherence checks, but it must not become scalar compute, a metadata-only
 emission route, a runtime ABI, or target artifact authority:
 
 ```text
-readiness status: unsupported
+diagnostic result: unsupported
 emission kind: scalar-fallback-unsupported-emission
 lowering pipeline: scalar-fallback-no-materialized-emitc-route
 runtime ABI: scalar-fallback-no-runtime-abi
@@ -99,11 +99,16 @@ required capabilities: selected scalar fallback variant required capability refs
 artifact kind: unsupported-emission-diagnostic
 ```
 
-This unsupported emission-plan diagnostic records a missing rebuild route only.
+This unsupported diagnostic/result records a missing rebuild route only.
 It does not mean that TianChen-RV emitted LLVM IR, generated an object, linked a
 runtime, executed a scalar kernel, proved correctness, or measured performance.
 It also does not authorize metadata-alone selected lowering-boundary
 materialization.
+
+Scalar fallback must not pull Stage3/family-generalization work forward before
+RVV maturity. Until a later plugin-local rebuild creates a real typed scalar
+body and EmitC route, it remains a conservative selection/fallback diagnostic
+surface only.
 
 ## Selected Lowering Boundary
 

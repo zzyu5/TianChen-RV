@@ -11,6 +11,8 @@ Use before adding target features, variant generation, legality checks, dispatch
 - [ ] Is absence handled by verifier failure, runtime dispatch, or fallback?
 - [ ] Does the diagnostic explain missing capability and unavailable emission/runtime path?
 - [ ] Is any extension-specific check delegated to plugin verifier?
+- [ ] Are hardware/profile facts only constraining plugin legality/realization, not defining RVV dtype/config/route?
+- [ ] For RVV, are dtype, config, and operation kind structural in typed `tcrv_rvv` body or consumed into realized body?
 
 ## Red Flags
 
@@ -19,3 +21,4 @@ Use before adding target features, variant generation, legality checks, dispatch
 - Variant can reach emission even when required toolchain/runtime is absent.
 - Fallback exists in prose but not in IR/metadata.
 - Profile facts such as VLEN, dtype support, or runtime availability are guessed.
+- Capability/profile facts are used to invent route ids, artifact names, intrinsic spellings, or RVV dtype authority.

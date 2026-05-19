@@ -184,8 +184,9 @@ Each review must check whether the worker preserved the TianChen-RV project boun
 - Concrete computation stays in TCRV extension families such as RVV, IME,
   TensorExt, Offload, scalar fallback, or future vendor/custom families.
 - The current main route is extension family ops -> EmitC -> intrinsic/vendor
-  builtin/runtime C/C++; descriptor-driven computation and descriptor-driven
-  C/source export are implementation debt, not architecture.
+  builtin/runtime C/C++ through plugin-built lowerable routes;
+  descriptor-driven computation and descriptor-driven C/source export are
+  implementation debt, not architecture.
 - RVV routes are provider-built lowering payloads over selected typed
   `tcrv_rvv` bodies, not decorators over old `i32_*` op names, route ids,
   descriptors, or artifact labels. Common EmitC/export materializes the
@@ -200,6 +201,11 @@ Each review must check whether the worker preserved the TianChen-RV project boun
 - AME and future custom ISA paths remain future plugin slots until real target facts exist.
 
 Hermes must redirect the next worker if a run implements compiler internals in Python, adds generic compute operations to `tcrv.exec`, hard-codes concrete extensions in core passes, claims RVV progress without `ssh rvv` evidence, delivers only metadata/status/report work when active compiler structure is needed, or confuses VLEN/vlenb as runtime values, SEW/LMUL as hardware facts only, AVL/vl as capabilities, `setvl`/`with_vl` as modeled without real IR/ABI surfaces, `element_count` as shape/AVL, or grows `required_march` string-comparison dependence when structured capabilities or properties are available.
+
+Hermes must also redirect positive legacy `rvv-i32m1-*` object/header/bundle
+support, source-front-door positive RVV artifact work during Stage 1,
+emission-plan/status/artifact metadata presented as route authority, and
+test/dashboard/report-only progress when no production compiler path changed.
 
 ## Next Codex Prompt Contract
 
@@ -375,13 +381,15 @@ Stage 2 coverage before Stage 1 evidence is clean.
 After campaign exit, the intended mature route is:
 
 ```text
-explicit extension-family ops
--> selected-body realization when needed by the origin plugin
--> materialized common EmitC module
--> MLIR C/C++ emitter
--> intrinsic/vendor runtime ABI
--> target export validation and packaging
--> ssh rvv evidence for the RVV plugin path
+tcrv.exec envelope
+-> selected RVV variant
+-> typed low-level tcrv_rvv vector-level body
+-> RVV plugin-owned legality / selected-body realization / route provider
+-> TCRVEmitCLowerableRoute
+-> common EmitC materializer
+-> RVV intrinsic C/C++ or equivalent backend representation
+-> target artifact
+-> ssh rvv evidence when runtime/correctness/performance is claimed
 ```
 
 This is a route order, not a new state machine, bundle index, artifact ledger,
@@ -390,6 +398,10 @@ and packages supported emitted artifacts; it must not synthesize compute
 semantics, scheduling, dtype/LMUL policy, or RVV body shape. One-shot steering
 may name the next bounded owner, but it must not create durable architecture
 outside the specs and committed prompt.
+
+Hints, config, policy, and profile facts are not status/progress products. If
+they affect generated code, Hermes must require the worker to consume them into
+real `tcrv_rvv` body structure before claiming route or performance progress.
 
 Stage 2 is the RVV completion stage. It expands route-supported RVV coverage on
 the corrected vector-level `tcrv_rvv` surface and includes RVV plugin-local

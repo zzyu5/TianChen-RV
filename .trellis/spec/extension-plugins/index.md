@@ -12,6 +12,9 @@ backend dialects.
 - [ ] Does the plugin declare capability, legality, tuning, cost, and emission behavior?
 - [ ] Does the plugin rely on `tcrv.exec` for variant/dispatch/fallback structure?
 - [ ] Does the plugin use common TCRV interfaces and the common EmitC route where possible?
+- [ ] Is RVV Stage 1/2 work prioritized before IME/offload/future-family positive workflows?
+- [ ] If this is RVV, does executable support start from typed `tcrv_rvv` body and plugin route provider rather than legacy `i32m1` route tables?
+- [ ] If this is scalar fallback, is there no active executable scalar body unless a later rebuild task adds one?
 - [ ] Are current hardware claims limited to verified environments?
 
 ## Guidelines Index
@@ -27,8 +30,12 @@ backend dialects.
 ## Quality Check
 
 - RVV is the first full plugin and current mainline.
-- Scalar fallback is a coverage path and must not become the primary
-  performance story without real lowering/runtime evidence.
-- IME is a later extension plugin validation path.
-- Offload is runtime capability, not custom ISA.
-- Future plugins remain slots unless actual target facts exist.
+- Stage 1 resets RVV route authority and fail-closes legacy `RVVI32M1*` /
+  `rvv-i32m1-*` executable routes.
+- Stage 2 expands coverage and selected-body realization on the corrected typed
+  `tcrv_rvv` surface.
+- Scalar fallback has no active executable scalar body unless rebuilt later.
+- IME and Offload executable integration are Stage3/later unless explicitly
+  selected after RVV maturity.
+- Future plugins remain Stage3/later slots unless actual target facts and an
+  explicit task promote them.

@@ -6,12 +6,13 @@ IME plugin is the later K3/IME extension family path inside the unified TCRV
 system. Its primary value is to validate plugin-local matrix-extension
 integration without turning IME into an independent backend.
 
-Expected system behavior when IME is available:
+Expected Stage3/later behavior when IME is available and RVV maturity has been
+established:
 
 ```text
 existing system supports RVV
 add IME plugin
-same high-level op gains IME execution variant
+same validated scenario may gain an IME execution variant
 core pass does not hard-code IME
 core pass modifications remain small or zero when existing interfaces suffice
 ```
@@ -25,6 +26,11 @@ ISA-level matrix-like extension
 vector-register-backed matrix execution
 RVV-resource-related matrix/dot execution
 ```
+
+All executable IME integration is Stage3/later unless an explicit task promotes
+it after RVV typed-body route maturity and real hardware/toolchain evidence.
+The op classes below are future evidence scenarios, not current
+source-front-door or high-level frontend work.
 
 IME plugin must understand:
 
@@ -101,7 +107,7 @@ These are IME execution ops, not high-level matmul ops.
 
 ## Variant Generation Scope
 
-IME plugin prioritizes:
+IME plugin may later validate:
 
 ```text
 matmul
@@ -111,7 +117,8 @@ MLP dense block
 int8/fp16/bf16 dot-like kernels
 ```
 
-It does not need to cover every operator. It should cover operators that show matrix-extension value.
+It does not need to cover every operator. It should cover operators that show
+matrix-extension value after the Stage3 gate is explicitly opened.
 
 ## Legality Rules
 

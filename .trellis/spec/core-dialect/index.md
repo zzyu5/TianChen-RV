@@ -10,6 +10,8 @@ This layer defines `tcrv.exec`, the stable core dialect for execution organizati
 - [ ] Does each variant declare `requires` and `origin`?
 - [ ] Is fallback or an explicit external fallback declaration present?
 - [ ] Is runtime dispatch represented structurally when multiple conditions are valid?
+- [ ] Do `mem_window` / `runtime_param` only declare ABI/runtime roles, with selected typed body importing and consuming those values explicitly?
+- [ ] Are C ABI strings treated as export spelling only, never dtype or compute authority?
 - [ ] Is the core dialect implemented in C++/MLIR/TableGen rather than Python?
 
 ## Guidelines Index
@@ -27,4 +29,5 @@ This layer defines `tcrv.exec`, the stable core dialect for execution organizati
 - If a proposed core op includes algorithm-specific semantics, move it to a
   TCRV extension family or reject it.
 - Verifier behavior must catch missing capabilities, missing fallback, illegal extension ops, and incomplete offload ABI.
+- Core verification checks generic structure and delegates extension legality to plugin hooks. It must not hard-code RVV/IME/offload semantics.
 - Dialect syntax, parsing, verification, and pass-facing behavior require lit/FileCheck coverage.

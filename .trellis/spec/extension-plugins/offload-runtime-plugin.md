@@ -20,12 +20,13 @@ This is a `runtime-offload capability`, not a custom RISC-V ISA extension.
 
 ## First C++ Plugin Slice
 
-The first concrete C++ runtime-offload slice is intentionally bounded. It proves
-plugin identity, explicit capability gating, proposal metadata, legality
-routing, conservative preference metadata, selected lowering-boundary
-materialization, plugin-owned runtime ABI handoff metadata, emission manifest
-serialization, and explicit unsupported emission planning after descriptor
-artifact deletion.
+The first concrete C++ runtime-offload slice is intentionally bounded and is
+currently stale/no-active-route validation only. Executable Offload integration
+is Stage3/later unless explicitly selected after RVV maturity. The current
+slice may prove plugin identity, explicit capability gating, proposal metadata,
+legality routing, conservative preference metadata, and unsupported
+diagnostics after descriptor artifact deletion; it must not publish a target
+artifact/export route.
 
 Stable first-slice names:
 
@@ -100,7 +101,7 @@ RISC-V CPU + PCIe accelerator
 RISC-V SoC + on-chip accelerator runtime
 ```
 
-Runtime offload answers:
+Runtime offload later answers:
 
 - can this high-level op be offloaded?
 - is offload better than RVV CPU variant?
@@ -172,9 +173,9 @@ custom RISC-V ISA op, vendor runtime call, DMA operation, accelerator kernel,
 object-generation step, correctness result, or performance result.
 
 When the selected offload path has this matching lowering boundary, the current
-compiler may report the selected metadata surface and an unsupported emission
-plan. It must not emit a target artifact or bundle record for Offload until a
-future runtime C ABI lowering path is specified and implemented.
+compiler may report the selected metadata surface and an unsupported diagnostic
+mirror. It must not emit a target artifact or bundle record for Offload until a
+future Stage3 runtime C ABI lowering path is specified and implemented.
 
 Future types may include:
 
@@ -201,7 +202,7 @@ tcrv.offload.shape_guard
 
 ## Variant Generation Scope
 
-Prioritize coarse-grained operators:
+Future Stage3/later validation may prioritize coarse-grained operators:
 
 ```text
 matmul / batched matmul

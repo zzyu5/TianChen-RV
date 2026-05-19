@@ -31,8 +31,8 @@ Rules:
 - RVV evidence should include probe output for relevant facts such as host identity, RISC-V architecture, core count, RVV/toolchain availability, CMake availability, and sudo behavior when relevant.
 - Probe artifacts may expose a sanitized `capability_facts` section as bounded
   evidence-tool output. Python probe tooling must not translate that section
-  into `tcrv.exec` MLIR capability, target, kernel, selected route, or scalar
-  fallback modeling.
+  into `tcrv.exec` MLIR capability, target, kernel, selected route mirror,
+  selected typed body, route provider input, or scalar fallback modeling.
 - The authoritative transition from RVV probe evidence to compiler-visible
   capabilities is plugin-local C++ RVV capability profile validation followed
   by `TargetCapabilitySet` population. Python must not implement capability
@@ -41,6 +41,9 @@ Rules:
 - Remote probe output must not fabricate compiler-route config facts such as
   first-slice SEW, LMUL, tail policy, or mask policy. Such finite config facts
   are plugin-selected compiler facts, not raw hardware/toolchain evidence.
+- RVV profile facts are evidence and capability inputs only. They never create
+  `tcrv_rvv` bodies, dtype authority, route ids, source-front-door routes, or
+  intrinsic choices.
 - Required positive facts for the RVV probe-derived profile include `riscv64` architecture, `hart_count > 0`, bounded RVV ISA/vector hints, clang and CMake availability/version facts, minimal hand-written RVV compile/run success, and selected march/mabi facts when emitted by the probe.
 - Stable profile capability identities must remain plugin-local and generic,
   such as `rv64`, `rvv`, `rvv.hart_count`, `riscv.toolchain.march`,

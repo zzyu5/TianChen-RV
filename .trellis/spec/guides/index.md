@@ -15,6 +15,7 @@
 - 修改 target、profile、variant legality、dispatch、emission path：读 capability-first guide。
 - 新增 RVV/IME/offload/future extension：读 plugin-locality guide。
 - 新增 op/dialect/pass 表达：读 compute-boundary guide。
+- 修改 RVV route、lowering、artifact、测试或 performance layer：读 RVV plugin spec、variant pipeline、EmitC route、testing contract，并确认 typed body authority、selected-body realization、no legacy i32 positive route、no source-front-door current route、no status/artifact authority。
 
 ## Rule
 

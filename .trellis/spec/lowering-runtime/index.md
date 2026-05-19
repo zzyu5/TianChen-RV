@@ -6,6 +6,8 @@ This layer defines lowering, emission, runtime glue, and toolchain boundaries.
 
 - [ ] Is extension-specific emission implemented by the plugin emission provider?
 - [ ] Does the route lower extension family ops through the common EmitC route?
+- [ ] Does executable RVV lowering consume typed/realized `tcrv_rvv` body through an RVV plugin-built `TCRVEmitCLowerableRoute`?
+- [ ] Are emission-plan diagnostics, status fields, route ids, and artifact metadata mirrors only, never route/dtype/compute authority?
 - [ ] Is clang/LLVM the default native compiler, with GCC only a compatibility path?
 - [ ] Are compiler flags, headers, libraries, runtime handles, and ABI needs recorded in capability/plugin metadata?
 - [ ] Does verifier reject unavailable toolchain/runtime paths before emission?
@@ -27,4 +29,6 @@ This layer defines lowering, emission, runtime glue, and toolchain boundaries.
 - Direct descriptor-to-C string export is deleted-route residue or fail-closed
   implementation debt, not a transition lowering route or production system
   path.
+- Common EmitC/export materializes provider-built routes. It must not choose
+  RVV intrinsics, infer dtype, create RVV schedules, or invent body shape.
 - Emission output must be reproducible enough for experiments: selected variant, capabilities, flags, libraries, path, fallback status, and failure reason.

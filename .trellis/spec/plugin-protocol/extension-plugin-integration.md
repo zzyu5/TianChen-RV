@@ -1,230 +1,122 @@
 # Extension Plugin Integration Contract
 
-This document is a durable integration contract for adding a new extension
-plugin to TianChen-RV. It is not a current progress report and it is not a
-step-by-step task script.
+## Scope
 
-## Meaning
+This contract describes how a new extension family integrates with TianChen-RV
+without rewriting core passes or turning metadata into executable authority.
 
-An extension plugin is an extension family realization provider inside the
-unified TCRV RISC-V MLIR system. It is not a completely independent backend,
-not a separate backend dialect family, and it must not rewrite TianChen-RV core
-orchestration.
+Current RVV maturity work has priority. IME, Offload, TensorExtLite,
+Template/Toy, source-front-door, and future-family positives are Stage3/later
+unless an explicit task opens them after RVV maturity.
 
-A new extension plugin normally provides:
+## Standard Flow
 
-- capability provider;
-- extension family operation, type, and attribute registration;
-- TCRV interface implementations;
-- variant proposal or selected-boundary materialization;
-- legality verification;
-- cost or preference hook when supported by the interface;
-- plugin-owned EmitC lowering mapping and emission route;
-- optional target artifact route;
-- tests.
-
-The durable construction sequence for those contributions is defined by the
-Extension-Family Plugin Construction Protocol:
+The standard executable flow is:
 
 ```text
-extension archetype
-  -> semantic role graph
-  -> extension family declaration
-  -> common interface realization
-  -> EmitC route mapping
-  -> evidence profile
+selected tcrv.exec variant
+  -> typed extension-family body or selected boundary
+  -> plugin legality
+  -> optional plugin selected-body realization
+  -> plugin-built TCRVEmitCLowerableRoute
+  -> common EmitC materializer
+  -> target artifact packaging
+  -> runtime/hardware evidence when claimed
 ```
 
-The Extension Manifest is the machine-readable entry point to this protocol.
-It must describe the family archetype, semantic roles, capabilities,
-ops/types/attrs, interface realization, EmitC mapping, and evidence profile.
+For RVV, the typed body is low-level `tcrv_rvv` vector-level structure.
 
-The plugin may own extension-specific lowering, but it should reuse the common
-TianChen-RV capability, variant, selection, dispatch, fallback, runtime ABI,
-and artifact-route organization whenever the existing interfaces are
-sufficient.
+## Plugin Adds
 
-## Current Input Boundary
+A plugin may add:
 
-Current plugin work does not require a high-level MLIR lowering contract before
-the plugin can be integrated and tested. This does not ban frontend lowering:
-when a frontend owner is chosen, high-level lowering may start from `linalg`
-and use hand-written or test `linalg` inputs to drive TianChen-RV MLIR.
+- capability ids/properties and relation contracts;
+- extension dialect ops/types/attrs;
+- verifier and legality hooks;
+- variant builders;
+- selected-body realization;
+- route provider;
+- cost/tuning hooks;
+- EmitC route payload mapping;
+- runtime ABI adapters;
+- focused tests.
 
-Valid current inputs include:
+Compiler behavior remains C++/MLIR/TableGen/CMake/lit/FileCheck. Python may
+only orchestrate, probe, or parse artifacts.
 
-- hand-written TianChen-RV MLIR;
-- test TianChen-RV MLIR;
-- `tcrv.exec.kernel` with capability anchors;
-- already materialized `tcrv.exec.variant`;
-- selected lowering-boundary IR;
-- `tcrv.exec.mem_window`;
-- `tcrv.exec.runtime_param`;
-- bounded selected-boundary surfaces.
+## Optional Planning Artifacts
 
-Existing descriptor-based slices are historical residue, deletion targets, or
-fail-closed implementation debt. They are not valid architecture inputs,
-transition architecture, evidence authority, or compatibility aids for new
-extension-family design.
+Extension Manifest, semantic role graph, construction template, and
+source-front-door examples are optional planning/provenance surfaces. They
+cannot be source, route, dtype, compute, artifact, or progress authority.
 
-High-level op analysis becomes necessary for frontend lowering from `linalg`,
-`stablehlo`, `tosa`, or other high-level MLIR. Backend and extension plugin
-integration should not wait for that phase: extension plugins may be validated
-from TianChen-RV MLIR and selected-boundary IR first, while `linalg` can be the
-first high-level frontend path once the backend surfaces are ready enough to
-consume it.
+Core may see route ids, artifact kinds, manifests, or selected-path metadata
+only as validated mirrors after plugin decisions. Core must not use them to
+construct or infer routes.
 
-## Standard Integration Flow
+## Current Valid Inputs
 
-For a future `TensorExt`, `IME`, or similar extension, the standard path is:
+Current plugin work may start from:
+
+- hand-written or generated TianChen-RV MLIR;
+- selected `tcrv.exec` variant;
+- typed extension-family body;
+- selected boundary that the origin plugin can legally consume;
+- plugin-owned capability/profile data.
+
+Selected-path metadata alone is diagnostic/control mirror only. It is not a
+valid compute or route input.
+
+## Source Front Doors
+
+Source-front-door defaults must be explicit-only or disabled. Positive
+source-front-door examples are Stage3/later unless a task explicitly enables a
+mature typed-body route for that family.
+
+During RVV Stage 1, source-front-door/source-artifact RVV paths are
+fail-closed. No current test should require positive RVV artifact generation
+from source-only metadata.
+
+## Integration Checklist
+
+- [ ] Does the plugin declare structured capabilities and requirements?
+- [ ] Does executable work start from a typed body or legal selected boundary?
+- [ ] Does plugin legality run before route provider output?
+- [ ] Does selected-body realization consume code-affecting hints/config into body structure?
+- [ ] Does the plugin build `TCRVEmitCLowerableRoute`?
+- [ ] Does common EmitC only materialize provider output?
+- [ ] Are manifests/templates/source markers optional provenance only?
+- [ ] Are route ids and artifact kinds mirrors only?
+- [ ] Are tests attached to production compiler behavior?
+
+## Good / Bad Cases
+
+Good:
 
 ```text
-define extension capability ids, such as tensorext or tensorext.fp16
-  -> define extension family ops/types/attrs, such as tcrv_tensorext.*
-  -> implement TCRV extension/config/resource/memory/compute/EmitC interfaces
-  -> register family ops and capabilities through the plugin
-  -> connect variant proposal, legality, selected-boundary materialization,
-     cost, lowering, and emission hooks through the plugin registry
-  -> materialize a plugin-owned lowering boundary or extension ops when selected
-  -> generate EmitC, then intrinsic, vendor builtin, runtime C ABI, or object
-     artifact through plugin-owned mapping and target-owned emission
-  -> reuse tcrv.exec.variant, requires, dispatch, fallback, mem_window,
-     runtime_param, runtime ABI, and artifact-route mechanisms
+selected RVV variant
+  -> typed tcrv_rvv body
+  -> RVV legality / realization
+  -> RVV route provider
+  -> common EmitC
 ```
 
-The core should see generic route ids, artifact kinds, selected variant
-references, and plugin interface results. It should not learn extension
-intrinsic names, fragment layouts, custom tile semantics, or runtime-call
-details.
-
-## Built-in Registration Front Door
-
-Built-in extension registration must preserve extension bundle identity as part
-of the public construction path. Tool and target registration code should use
-`registerBuiltinExtensionBundlePlugins`, or explicitly call
-`registerBuiltinExtensionBundles` followed by
-`ExtensionBundleRegistry::registerExtensionPlugins` when it needs to inspect or
-reuse bundle metadata.
-
-Do not reintroduce a plugin-only compatibility API that hides
-`ExtensionBundleRegistry` behind a built-in plugin registration wrapper. Tests
-for built-in availability should exercise the canonical bundle front door
-directly instead of protecting a legacy alias.
-
-Target-layer built-in artifact exporter and target translate route registration
-must consume the same visible `ExtensionBundleRegistry` and
-`ExtensionPluginRegistry` pair. Do not add or keep target-side aggregate
-wrappers that internally construct built-in bundles/plugins or accept plugins
-without the matching bundle registry.
-
-## Lowering And Emission Template
-
-A plugin-owned lowering path should fit this template:
+Bad:
 
 ```text
-tcrv.exec selected variant
-  -> plugin-owned lowering boundary or extension op family
-  -> plugin-owned config attrs and runtime ABI metadata
-  -> plugin-owned emission plan route
-  -> common tcrv-lower-extension-to-emitc pass through TCRVEmitCLowerableInterface
-  -> EmitC ops
-  -> intrinsic / vendor builtin / runtime C ABI / object artifact
+Extension Manifest / semantic role graph
+  -> executable route construction
 ```
 
-The selected-boundary operation is a handoff from core selection to plugin
-lowering. It is not proof that executable code was generated. The emission
-route becomes evidence only when the corresponding target/exporter/conversion
-path actually produces the claimed artifact, and RVV runtime or correctness
-claims still require `ssh rvv` evidence.
-
-## Core And Plugin Boundary
-
-Core passes may know about:
-
-- `tcrv.exec.kernel`;
-- `tcrv.exec.capability`;
-- `tcrv.exec.variant`;
-- `requires`;
-- selected, fallback, and dispatch structure;
-- `tcrv.exec.mem_window`;
-- `tcrv.exec.runtime_param`;
-- generic route ids;
-- artifact kind;
-- plugin registry interfaces.
-
-Core passes should not know about:
-
-- RVV intrinsic names;
-- tensor extension intrinsic names;
-- scalar loop semantics;
-- offload runtime-call semantics;
-- extension-specific fragment layouts;
-- extension-specific dtype, tile, or microkernel legality details.
-
-Those details belong in the extension family plugin, family ops/interfaces, or
-target-owned lowering/export path.
-
-## Expected File Changes For A New Plugin
-
-Usually allowed:
-
-- new plugin directories;
-- new extension family op/type/attr directories;
-- new target/exporter directories when needed;
-- CMake registration and link entries;
-- built-in plugin registration aggregation if the current architecture needs it;
-- tests.
-
-Usually not expected:
-
-- extension-specific semantic branches in the core variant selection pass;
-- extension-specific branches in the core capability checker;
-- extension-specific branches in the core dispatch planner;
-- extension-specific branches in the core selected-boundary pass;
-- extension-specific semantic switches in the core artifact front door.
-
-If core changes are required, they must extend a public extension interface or a
-generic orchestration surface. They must not add a one-off branch for a concrete
-extension.
-
-## Recommended Directory Layout
+Bad:
 
 ```text
-include/TianChenRV/Plugin/<Ext>/
-lib/Plugin/<Ext>/
-
-include/TianChenRV/Dialect/<Ext>/IR/
-lib/Dialect/<Ext>/IR/
-
-include/TianChenRV/Target/<Ext>/        optional
-lib/Target/<Ext>/                       optional
-
-test/Plugin/<Ext>/
-test/Dialect/<Ext>/
-test/Target/<Ext>/
+selected-path metadata
+  -> common lower-to-EmitC without typed body or plugin route provider
 ```
 
-The exact layout should follow existing project conventions, but new extension
-code should remain discoverable as plugin, dialect, target/exporter, and test
-surfaces rather than being folded into generic core files.
+Bad:
 
-## Recommended Test Template
-
-When adding a plugin, prefer a small set of tests that proves real integration:
-
-- capability recognized and not recognized;
-- plugin can register dialects and capabilities;
-- variant or selected-boundary is produced only when capability is present;
-- illegal config fails closed;
-- selected-boundary materialization is plugin-owned;
-- lowering or emission route is plugin-owned;
-- fallback or dispatch reuses existing core mechanisms when applicable;
-- no extension-specific semantic branch was added to core passes.
-
-These tests should validate plugin integration and compiler behavior. They
-should not turn into broad smoke matrices or helper-only progress.
-
-See [Extension Family Plugin Template](./extension-family-plugin-template.md)
-for the Extension-Family Plugin Construction Protocol, manifest, interface,
-common pass, EmitC mapping, directory, and evidence profile expected for new
-families.
+```text
+core branch recognizes RVV/Toy/TensorExtLite route id
+```

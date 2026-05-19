@@ -115,12 +115,14 @@ or ABI surface that states the new meaning.
    identities are compile-time compiler/profile facts for the explicitly owned
    first slice; they are not runtime `n`, AVL/VL, or deleted local count
    claims.
-2. Compile-time variant config belongs in plugin-proposed variant metadata,
-   selected config, tuning, or lowering-boundary metadata and must be checked
-   against target capability. Examples include SEW, LMUL, tail policy, mask
-   policy, unroll, and selected lowering strategy. RVV executable config must
-   come from explicit extension-family IR and checked capability facts, not from
-   target-owned selected-shape descriptors or suffix catalogs.
+2. Compile-time variant config may be proposed by plugin-owned variant
+   metadata, selected config, tuning, or lowering-boundary mirrors and must be
+   checked against target capability. Examples include SEW, LMUL, tail policy,
+   mask policy, unroll, and selected lowering strategy. For executable RVV
+   routes, config that affects generated code must be structural in the typed
+   `tcrv_rvv` body or consumed into the realized `tcrv_rvv` body before route
+   construction. Metadata/hints may guide realization; they are not route,
+   dtype, intrinsic, or schedule authority.
 3. Runtime SSA values / runtime control values belong in real IR or ABI
    surfaces: SSA values, region or block arguments, op attributes that
    explicitly mean ABI/control values, or generated C ABI parameters. Examples
@@ -279,6 +281,13 @@ as generic properties. Property values are deterministic textual renderings of
 MLIR attributes for diagnostics and plugin decisions; they are derived from
 structured IR attributes, not from comments, JSON blobs, or Python-only
 records.
+
+`CapabilityDescriptor` is a capability-query container name only. It is not a
+compute descriptor, not a selected-route descriptor, and not an RVV body or
+dtype authority. Microarchitecture facts such as preferred LMUL, dtype
+throughput, and VLEN constrain plugin legality/realization; they do not
+directly choose route ids, intrinsic spellings, artifact names, or executable
+RVV body shape.
 
 ## Generic Capability Query Contract
 
@@ -511,10 +520,11 @@ else -> fallback
 Capability verifier must check:
 
 - variant `requires` is satisfied by target capability or guarded by dispatch;
-- extension ops appear only in compatible variants;
-- `tcrv.rvv` ops appear only in RVV-capable variants;
-- `tcrv.ime` ops appear only in IME-capable variants;
-- `tcrv.offload` ops appear only in runtime-offload-capable variants;
+- generic variant/capability structure is well formed before plugins run;
+- extension-family legality is delegated to plugin hooks rather than
+  hard-coded by core family-name checks;
+- extension ops appear only in variants whose plugin-owned legality accepted
+  their capability requirements;
 - selected emission path is supported by toolchain capability;
 - runtime ABI declarations are complete;
 - dispatch/fallback covers unavailable conditions.

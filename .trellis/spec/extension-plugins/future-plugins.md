@@ -12,7 +12,8 @@ vendor-specific custom instructions
 sparse / DMA / cluster / accelerator runtime variants
 ```
 
-These are extension slots, not current required hardware paths.
+These are Stage3/later extension slots, not current required hardware paths and
+not current source-front-door authority.
 
 ## Required Rule
 
@@ -45,7 +46,8 @@ Before adding a future plugin, define:
 - required TCRV common interfaces;
 - types and ops;
 - required toolchain/runtime;
-- supported high-level op classes;
+- supported high-level op classes as evidence/coverage planning only, not
+  current frontend or route authority;
 - variant generation contract;
 - legality verifier;
 - tuning space;

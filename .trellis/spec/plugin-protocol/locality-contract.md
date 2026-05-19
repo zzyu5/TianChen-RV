@@ -32,7 +32,10 @@ Plugin owns:
 - extension-specific lowering;
 - extension-specific tuning;
 - extension-specific runtime ABI;
-- extension-specific emission plans for selected paths;
+- selected-body realization when code-affecting hints/config/profile must
+  become concrete body structure;
+- extension-specific route provider output;
+- extension-specific emission diagnostics/mirrors for selected paths;
 - extension-specific legality details;
 - extension-specific toolchain workarounds.
 
@@ -50,17 +53,18 @@ Core owns:
 - common verifier orchestration;
 - common diagnostics format.
 
-Core may route and validate emission-plan objects through the registry, but it
-must not fill in RVV/IME/offload lowering pipelines, runtime ABIs, artifact
-kinds, or supported-path claims on behalf of plugins. A plan is plugin-owned
-metadata/intent and remains separate from executable code generation evidence.
-Core may also materialize those plugin-owned plans into
-`tcrv.exec.diagnostic {reason = "emission_plan"}` metadata after selected-path
-collection succeeds. That materialization is limited to copying generic plan
-fields, validating symbol structure, and validating the selected plugin-owned
-lowering-boundary metadata when the selected path has such a boundary. It is
-not lowering, runtime glue, artifact generation, RVV support, correctness
-evidence, or performance evidence.
+Core may orchestrate selected-body realization and route-provider calls through
+generic interfaces, but the semantics stay plugin-owned. Core must not fill in
+RVV/IME/offload lowering pipelines, runtime ABIs, artifact kinds, intrinsic
+names, dtype choices, or supported-path claims on behalf of plugins.
+
+Emission-plan metadata is not executable route authority. Core may materialize
+optional plugin-owned mirrors into
+`tcrv.exec.diagnostic {reason = "emission_plan"}` only after selected-path
+collection and provider route construction. That materialization is limited to
+copying generic mirror fields and validating symbol structure. It is not
+lowering, runtime glue, artifact generation, RVV support, correctness evidence,
+performance evidence, or progress.
 
 Public tool integration is a front-door/plugin-loader responsibility, not a core
 target-family branch. For example, `tcrv-opt` may construct a deterministic
@@ -97,5 +101,7 @@ For any new plugin, record:
 - new ops/types;
 - new variant builders;
 - supported high-level op classes;
+- selected-body realization hooks;
+- route provider implementation;
 - whether core contains extension-specific branch;
 - whether `tcrv.exec.variant`, dispatch, verifier orchestration, and emission interfaces are reused.

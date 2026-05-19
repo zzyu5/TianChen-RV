@@ -25,7 +25,7 @@ dispatch
 case
 fallback
 diagnostics
-selected route
+selected variant/path diagnostic mirror
 ABI envelope
 ```
 
@@ -42,6 +42,8 @@ RVV vector add/load/store
 IME mma
 TensorExt tensor op
 offload runtime call semantics
+selected route authority
+RVV dtype/config/schedule/intrinsic spelling
 ```
 
 Concrete computation belongs to TCRV extension families such as RVV, IME,
@@ -345,6 +347,12 @@ make a target export boundary ambiguous. The op must be nested in a
 context only, not tensor computation, tensor shape, vector math, or
 extension-owned buffer ops.
 
+`abi_role`, `access`, `ownership`, `c_type`, symbol names, and artifact-facing
+metadata are ABI/export declarations only. They do not define element dtype,
+operation kind, memory form, RVV config, or compute semantics. A selected
+typed extension-family body must explicitly import and consume these ABI values
+before any plugin route provider can build executable lowering.
+
 ### `tcrv.exec.runtime_param`
 
 Represents a named runtime scalar ABI/control parameter for execution
@@ -380,6 +388,11 @@ ambiguous. The op must be nested in a `tcrv.exec.kernel` or
 `tcrv.exec.variant`. It describes runtime ABI/control organization only, not
 tensor computation, tensor shape, vector math, hardware probing, or
 target-family legality.
+
+`c_name`, `c_type`, `abi_role`, and parameter names are export spellings and
+runtime roles only. They must not be used by core code, common EmitC/export, or
+tests to infer RVV dtype, operation kind, vector length policy, or route
+identity.
 
 ### `tcrv.exec.dispatch`
 
@@ -474,16 +487,18 @@ When present on a selection diagnostic, preference metadata is plugin-provided
 heuristic ranking context and must not be interpreted as performance truth or
 soft legality.
 
-Emission-plan diagnostics are a structured specialization of
-`tcrv.exec.diagnostic`, not a new core op. They use
-`reason = "emission_plan"` and must remain generic compiler-visible metadata:
+Emission-plan diagnostics are an optional, non-authoritative specialization of
+`tcrv.exec.diagnostic`, not a new core op and not route authority. They may be
+materialized only after plugin-owned legality, optional selected-body
+realization, and route-provider decisions have already produced the selected
+typed body / provider-built route:
 
 ```mlir
 tcrv.exec.diagnostic {
   reason = "emission_plan",
   message = "plugin-owned lowering/runtime route for selected path",
   severity = "info",
-  status = "supported",
+  result = "supported",
   target = @selected_variant,
   origin = "example-plugin",
   role = "direct variant",
@@ -500,24 +515,15 @@ tcrv.exec.diagnostic {
 }
 ```
 
-For `reason = "emission_plan"`, `target`, `origin`, `role`, `status`,
-`runtime_abi_kind`, `runtime_abi_name`, `runtime_glue_role`, and
-`required_capabilities` are required and non-empty. `status` must be
-`supported` or `unsupported`. `required_capabilities` must contain capability
-symbol references that are a safe subset of the selected target variant
-`requires` metadata. Supported diagnostics additionally require non-empty
-`emission_kind`, `lowering_pipeline`, `runtime_abi`, and `artifact_kind`.
-Unsupported diagnostics require non-empty
-diagnostic text through `message`; they may still carry plugin-owned runtime
-ABI ownership metadata to explain the unsupported boundary. The target must
-resolve to a direct sibling `tcrv.exec.variant` in the same kernel.
-Duplicate emission-plan diagnostics for the same target in one kernel are
-invalid. When the selected path has a materialized plugin lowering boundary, a
-diagnostic may also carry non-empty `lowering_boundary` metadata naming the
-boundary operation used for the plan. This is a generic diagnostic link only;
-it is not lowering, execution, correctness, or performance evidence. These
-diagnostics do not prove that executable code was generated, linked, run,
-correct, or performant.
+For `reason = "emission_plan"`, fields such as `target`, `origin`, `role`,
+`result`, `runtime_abi_kind`, `runtime_abi_name`, `runtime_glue_role`,
+`required_capabilities`, `emission_kind`, `lowering_pipeline`, `runtime_abi`,
+`artifact_kind`, and `lowering_boundary` are exact mirrors when present. They
+must not be required as the source of route construction, and they must not
+define dtype, compute, schedule, selected route identity, target artifact
+authority, correctness, performance, or progress. Unsupported results require
+diagnostic text through `message`. Duplicate mirrors for the same selected
+path are invalid only to keep diagnostics deterministic.
 
 ## Core Types And Attributes
 
@@ -549,13 +555,12 @@ The `tcrv.exec` verifier must check:
 
 - each kernel has fallback or explicit external fallback declaration;
 - each variant declares `requires`;
-- variant body extension ops are compatible with variant requirements;
+- generic variant/body structure is well formed;
 - variant origin is registered plugin or explicitly marked external;
 - dispatch covers capability-unavailable conditions;
 - no high-level generic compute op appears in core dialect;
-- offload variant declares runtime ABI and synchronization boundary;
-- IME variant declares IME capability;
-- RVV variant declares RVV capability.
+- extension legality, including RVV/IME/offload capability compatibility, is
+  delegated to plugin hooks;
 - diagnostics are emitted for missing capabilities, invalid extension ops, missing emission path, or incomplete fallback/dispatch.
 
 ## Relation To High-Level MLIR
@@ -564,7 +569,9 @@ High-level MLIR lowering is a future frontend integration phase, not a
 precondition for current `tcrv.exec` and extension plugin development. Current
 tests and bounded slices may start from hand-written TianChen-RV MLIR,
 materialized `tcrv.exec.variant`, selected-boundary IR, `mem_window`,
-`runtime_param`, typed extension-family bodies, or selected-path metadata. When
+`runtime_param`, or typed extension-family bodies. Selected-path metadata is
+allowed only as diagnostic/control mirror and cannot be the compute or route
+input. When
 frontend lowering becomes the selected owner, it may start from hand-written or
 test `linalg` inputs and lower them into complete TianChen-RV execution
 surfaces: `tcrv.exec` envelope plus plugin-owned typed bodies or selected

@@ -4,7 +4,21 @@
 
 TianChen-RV MLIR 是 high-level MLIR 之后的 unified TCRV RISC-V MLIR。它不重新表达算法语义，不把每个硬件做成互不相关的 backend dialect，而是在一个 TCRV dialect suite 内组织 RISC-V target capabilities、execution variants、extension families、dispatch、fallback 和 ABI/lowering route。
 
-长期数据流：
+当前 RVV-first 数据流：
+
+```text
+tcrv.exec envelope
+  -> selected RVV variant
+  -> typed low-level tcrv_rvv vector-level body
+  -> RVV plugin-owned legality / selected-body realization / route provider
+  -> TCRVEmitCLowerableRoute
+  -> common EmitC materializer
+  -> RVV intrinsic C/C++ or equivalent backend representation
+  -> target artifact
+  -> ssh rvv evidence when runtime/correctness/performance is claimed
+```
+
+长期 frontend 数据流：
 
 ```text
 High-level MLIR
@@ -22,6 +36,11 @@ TCRV extension family ops
         v
 EmitC -> intrinsic / vendor builtin / runtime C ABI
 ```
+
+The long-term frontend path is not the current Stage1/Stage2 source authority.
+Linalg/Vector-like structured computation classes calibrate RVV coverage, but
+current RVV maturity work starts from selected `tcrv.exec` variants and typed
+`tcrv_rvv` bodies unless a task explicitly chooses frontend integration.
 
 ## Core Contribution Boundaries
 
@@ -77,6 +96,11 @@ Examples:
 - RVV: LMUL、SEW、VL policy、unroll、thread partition。
 - IME: fragment shape、K blocking、accumulator policy、packing。
 - Offload: transfer threshold、batch size、async overlap、buffer reuse。
+
+For RVV, tuning output is not a status field or metadata-only plan. Any choice
+that affects generated code must be consumed into the realized `tcrv_rvv` body:
+setvl/VL placement, SEW/LMUL/policy, memory forms, mask/tail materialization,
+unroll/prefetch structure, and accumulator/reduction layout.
 
 ## Module Map
 

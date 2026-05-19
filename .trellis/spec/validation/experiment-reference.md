@@ -66,6 +66,12 @@ elementwise + reduction fusion
 attention micro-kernel fragments
 ```
 
+These objects calibrate Stage2 RVV coverage and future frontend proof. They do
+not make current high-level Linalg/frontend lowering the source authority.
+Current RVV codegen claims must still flow through selected `tcrv.exec`
+variants, typed `tcrv_rvv` bodies, RVV plugin legality/realization, provider
+routes, and common EmitC.
+
 Comparisons:
 
 ```text
@@ -75,6 +81,9 @@ scalar/OpenMP baseline
 hand-written RVV kernels if available
 existing AI-Benchmark RVV kernels if usable
 ```
+
+MLIR Linalg/Vector default lowering is comparison/reference only unless a
+future frontend task explicitly selects it.
 
 Metrics:
 
@@ -93,8 +102,8 @@ Profiles:
 
 ```text
 RVV only
-RVV + offload runtime
-RVV + IME, after K3 available
+RVV + offload runtime, Stage3/later after RVV maturity
+RVV + IME, Stage3/later after K3 available
 fallback-only profile
 ```
 
@@ -102,8 +111,8 @@ Expected behavior:
 
 ```text
 RVV only -> RVV variant + fallback
-RVV + offload -> RVV variant + offload variant + dispatch + fallback
-RVV + IME -> RVV variant + IME variant + dispatch + fallback
+RVV + offload -> future Stage3 RVV variant + offload variant + dispatch + fallback
+RVV + IME -> future Stage3 RVV variant + IME variant + dispatch + fallback
 fallback-only -> fallback
 ```
 
@@ -119,10 +128,10 @@ diagnostics are clear
 
 ### Q3: Is extension plugin integration local?
 
-Reference process:
+Stage3/later reference process:
 
 ```text
-system has RVV plugin
+system has mature RVV plugin
 add offload plugin
 later add IME plugin
 measure core pass changes and plugin boundary
@@ -142,6 +151,10 @@ reuse of tcrv.exec.variant / dispatch / verifier orchestration
 ```
 
 ### Q4: Can runtime-offload capability join the same execution layer?
+
+Q4 is Stage3/later after RVV maturity unless explicitly selected. It is not
+current RVV Stage1/Stage2 work and must not introduce source-front-door or
+offload artifact authority before the gate opens.
 
 Objects:
 
@@ -178,6 +191,9 @@ This validates runtime-offload capability, not custom RISC-V ISA.
 ```
 
 ### Q5: After IME arrives, can plugin-local matrix-extension integration be shown?
+
+Q5 is Stage3/later after RVV maturity and after real IME hardware/toolchain
+evidence exists.
 
 Objects:
 
@@ -243,6 +259,9 @@ Ordinary tile-size tuning is the main theory.
 AME is current verified primary hardware.
 Any future extension never needs core changes.
 TianChen-RV is a new high-level tensor IR.
+Structured kernel validation objects are current source-route authority.
+Offload or IME dispatch is required before RVV typed-route maturity.
+Source-front-door generated artifacts prove RVV Stage1 maturity.
 ```
 
 Use:

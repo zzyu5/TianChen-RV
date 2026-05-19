@@ -9,6 +9,10 @@ TianChen-RV MLIR must not become:
 - a descriptor-driven microkernel/exporter framework;
 - a generic compute dialect with `tcrv.matmul`, `tcrv.softmax`, `tcrv.reduce`, `tcrv.generic_tile`, or `tcrv.generic_mma`;
 - a collection of hard-coded backend branches in core passes;
+- a retained executable legacy `i32m1` compatibility route;
+- a per-Linalg-op frontend phase before RVV route-authority reset;
+- a source-front-door or source-artifact positive RVV artifact path during Stage 1;
+- an emission-plan/readiness/dashboard/status system that acts as route, progress, or evidence authority;
 - a claim that future hardware extensions require zero work;
 - a claim that Sophgo/runtime offload is a RISC-V custom ISA extension;
 - a paper story where ordinary parameter search is the primary theory.
@@ -64,6 +68,7 @@ Current lowering route is extension family ops -> EmitC -> intrinsic/vendor buil
 Sophgo/offload is modeled as runtime-offload capability.
 IME is a later matrix-extension plugin used to evaluate plugin-local integration.
 Tuning is part of capability-aware variant selection and variant-local optimization.
+Current RVV work follows tcrv.exec envelope -> selected RVV variant -> typed tcrv_rvv body -> RVV plugin-owned realization/route provider -> TCRVEmitCLowerableRoute -> common EmitC -> target artifact.
 ```
 
 Avoid:
@@ -73,6 +78,10 @@ TianChen-RV is a new tensor IR.
 RVV/IME/TensorExt/Offload are unrelated independent backend dialects.
 tcrv.exec.kernel is the hardware IR body.
 Descriptor-driven computation is the architecture.
+Legacy i32m1 route tables are a supported RVV architecture.
+Source-front-door generated RVV artifacts prove Stage 1 maturity.
+tcrv.exec owns selected RVV routes or dtype semantics.
+Emission-plan status or artifact metadata is route authority.
 Sophgo is a RISC-V custom ISA extension.
 AME is the current primary hardware path.
 Any future extension can be added with zero core work.

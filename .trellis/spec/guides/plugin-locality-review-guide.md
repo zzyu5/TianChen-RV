@@ -10,6 +10,8 @@ Use before adding or reviewing an extension plugin.
 - [ ] What legality rules are plugin-owned?
 - [ ] What tuning parameters and cost inputs are plugin-owned?
 - [ ] What emission/runtime/toolchain path is plugin-owned?
+- [ ] Does the plugin own selected-body realization such as `realizeSelectedVariantBody` when performance/config needs concrete body structure?
+- [ ] Does the plugin own route provider output and extension-specific type/intrinsic/ABI mapping?
 - [ ] What core APIs does it use?
 - [ ] Did any core pass gain extension-specific branches?
 - [ ] If core changed, is the change a generic interface extension or a concrete-extension workaround?
@@ -26,6 +28,8 @@ When evaluating plugin integration, record:
 - selection/dispatch reuse;
 - verifier orchestration reuse;
 - emission provider reuse.
+- selected-body realization provider reuse;
+- provider-built `TCRVEmitCLowerableRoute` reuse.
 
 ## Red Flags
 
@@ -33,3 +37,5 @@ When evaluating plugin integration, record:
 - New extension lowering lives outside plugin adapter.
 - Future extensions are forced into RVV or IME dialect for convenience.
 - Pluginization is described as zero-work hardware support.
+- Common/core code chooses RVV scheduling, intrinsic names, C vector types, dtype, or route ids.
+- Emission-plan/status/artifact metadata is treated as route authority rather than plugin-owned route output mirrors.

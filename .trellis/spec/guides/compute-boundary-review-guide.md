@@ -10,6 +10,9 @@ Use before introducing any new op, dialect, or lowering pass.
 - [ ] Does `tcrv.exec` only contain kernel, target, capability, variant, requires, region, hart_parallel, mem_window, dispatch, fallback, or diagnostics structure?
 - [ ] Are matmul/softmax/reduce semantics absent from core dialect?
 - [ ] Does the construct preserve plugin-driven variant proposal?
+- [ ] In current RVV work, does the path start from hand-authored/selected TianChen-RV MLIR plus typed `tcrv_rvv` body, not a new high-level frontend?
+- [ ] Do selected bodies explicitly import/consume `mem_window` / `runtime_param` ABI values?
+- [ ] If performance config affects code, is it consumed into realized body structure rather than status metadata?
 
 ## Allowed In Core
 
@@ -49,6 +52,19 @@ high-level tensor compute in core dialect
 ```
 
 ## Correct Transform Shape
+
+Current RVV Stage1/Stage2 shape:
+
+```text
+hand-authored or selected TianChen-RV MLIR
+  -> tcrv.exec envelope + selected RVV variant
+  -> typed low-level tcrv_rvv body
+  -> RVV plugin legality / selected-body realization / route provider
+  -> TCRVEmitCLowerableRoute
+  -> common EmitC route
+```
+
+Future frontend shape after RVV maturity:
 
 ```text
 high-level MLIR op
