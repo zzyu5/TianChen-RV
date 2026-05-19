@@ -153,52 +153,68 @@ RVV Stage 1 is route-authority replacement:
 replace or fail-close bounded i32m1-as-route-authority.
 ```
 
-Stage 1 remains open while a production/default path treats bounded `i32m1`
-arithmetic, source-front-door/source-artifact patterns, route ids, artifact
-names, descriptor residue, intrinsic spellings, or common/export code as RVV
-route authority.
-Stage 1 also remains open while the active RVV provider route surface is still
-organized around `RVVI32M1*` specs/slices, finite `i32_*` route cases, route
-ids, or exact `__riscv_*_i32m1` spellings as the family architecture. During
-Stage 1, delete, rewrite, or fail-close obsolete paths instead of preserving
-them through compatibility wrappers. If removal exposes a missing new
-architecture gap, report that gap and keep the task state truthful instead of
-restoring the old path.
+Stage 1 exits only when both gates are satisfied:
 
-Stage 1 may establish a selected-body realization boundary/hook or faithful
-selected-body consumption only when needed to replace old route authority.
-Performance-sensitive selected-body realization and tuning are Stage 2 RVV
-completion work.
+```text
+Gate A: no active production/default RVV path uses old i32m1 route authority:
+  RVVI32M1*, rvv-i32m1 route ids, finite tcrv_rvv.i32_* ops,
+  !tcrv_rvv.i32m* types, exact __riscv_*_i32m1 spellings,
+  source-front-door/source-artifact patterns, artifact names,
+  emission-plan metadata, descriptor residue, or common/export RVV branches.
 
-Stage 2 begins only after Stage 1 evidence shows no active compiler path uses
-`i32m1` or source/artifact/route metadata as RVV authority and the old i32m1
-route architecture has been deleted or fail-closed from production/default
-paths. Do not preserve it as a compatibility route during Stage 1. Any future
-i32 ordinary instance belongs only after the corrected typed vector-level
-`tcrv_rvv` value/config/body route surface already exists and must not be
-implemented by keeping the old finite `i32_*` namespace alive. Stage 2 expands
-route-supported RVV coverage on that corrected surface using dependency order,
-not small completion batches, and includes RVV plugin-local selected-body
-realization for performance-sensitive vector-level bodies.
+Gate B: the repo has a minimal corrected generic typed low-level tcrv_rvv
+route-surface skeleton or equivalent:
+  typed vector value/config carries elem type, SEW, LMUL, policy;
+  generic setvl/load/store/binary{kind} or equivalent vector-level ops exist;
+  selected tcrv.exec RVV variant can bind/import ABI/runtime values into the body;
+  RVV provider consumes typed body/config/capability/runtime facts to derive
+  route/type/header/intrinsic or fails closed with targeted diagnostics.
+```
+
+If Gate A is satisfied but Gate B is not, Stage 1 is not complete. The next
+owner is `Stage1 generic typed RVV body-surface replacement`, not Stage 2.
+Deleting/fail-closing old authority without the corrected generic typed surface
+is not enough. During Stage 1, delete, rewrite, or fail-close obsolete paths
+instead of preserving them through compatibility wrappers, while building the
+minimal positive typed RVV surface.
+
+A retained i32 add/sub/mul case is allowed only as an ordinary instance of the
+generic typed surface. It must not be implemented by old finite `i32_*` ops,
+`!tcrv_rvv.i32m*` types, `RVVI32M1*` slices/specs, `rvv-i32m1` route ids,
+artifact names, source-front-door markers, or exact intrinsic spelling as route
+authority.
 
 If live evidence shows `RVVI32M1ArithmeticRouteSpec`,
 `RVVI32M1ArithmeticSlice`, `collectRVVI32M1ArithmeticSlice`, finite `i32_*`
 route-case growth, or exact `__riscv_*_i32m1` intrinsic spelling as the current
 route architecture, do not add broadcast, compare/select, reduction,
 conversion, dtype, LMUL, source-shape, or intrinsic cases to that table. The
-next owner is route-surface replacement: dtype, SEW, LMUL, policy, memory
-form, operation kind, runtime ABI use, and intrinsic mapping must be validated
-or derived from typed `tcrv_rvv` body/config structure by the RVV plugin. A new
-`tcrv_rvv.i32_*` helper, wrapper, route label, reduction op, accumulator load,
-or multiply-accumulate op is categorically not Stage 2 progress. Stage 1 owners
-must delete or fail-close the legacy i32 route authority instead of migrating it
-forward as a retained executable route.
+next owner is `Stage1 generic typed RVV body-surface replacement`: dtype, SEW,
+LMUL, policy, memory form, operation kind, runtime ABI use, and intrinsic
+mapping must be validated or derived from typed `tcrv_rvv` body/config
+structure by the RVV plugin. A new `tcrv_rvv.i32_*` helper, wrapper, route
+label, reduction op, accumulator load, or multiply-accumulate op is
+categorically not Stage 2 progress. Stage 1 owners must delete or fail-close
+legacy i32 route authority instead of migrating it forward as a retained
+executable route.
+
+Good Stage 1 owner categories are:
+
+```text
+typed RVV vector value/config surface: elem type, SEW, LMUL, policy
+generic vector-level op surface: setvl, load, store, binary{kind}
+explicit ABI/runtime binding into selected tcrv_rvv body
+RVV provider derivation from typed body/config/capability/runtime facts
+fail-closed rejection of legacy i32/helper/metadata/source-front-door paths
+common EmitC/export neutrality
+```
 
 While Stage 1 is open, do not switch to Scalar, IME, Offload, TensorExt,
 high-level Linalg/Vector/StableHLO frontend generalization, Stage 2 coverage
 expansion, dashboards, global autotuning DBs, readiness state machines,
 one-intrinsic wrappers, high-level kernel ops, compatibility wrappers
-preserving old i32 authority, or dtype/LMUL/source clone batches.
+preserving old i32 authority, dtype/LMUL/source clone batches, Template/Toy
+examples, source-front-door positive routes, or future plugin work.
 
 Stage 2 coverage should be expressed as low-level RVV capability classes:
 VL/control, mask/tail policy, memory movement, elementwise/broadcast,

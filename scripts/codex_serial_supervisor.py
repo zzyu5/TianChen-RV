@@ -1048,6 +1048,39 @@ def task_status(snapshot: dict[str, Any]) -> str:
     return ""
 
 
+def current_task_info(snapshot: dict[str, Any]) -> dict[str, str | bool]:
+    current = (snapshot.get("trellis") or {}).get("current_task") or {}
+    if not isinstance(current, dict):
+        current = {}
+    task_json = current.get("task_json") if isinstance(current.get("task_json"), dict) else {}
+    status = str(task_json.get("status") or "").strip().lower()
+    ref = str(current.get("ref") or "").strip()
+    title = str(task_json.get("title") or "").strip()
+    return {
+        "active": bool(ref) and status not in {"done", "finished", "archived", "complete", "completed"},
+        "ref": ref,
+        "status": status,
+        "title": title,
+    }
+
+
+def manual_steering_names_single_owner(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return False
+    owner_markers = (
+        "single owner",
+        "module owner",
+        "owner:",
+        "direction title",
+        "Stage1 generic typed RVV body-surface replacement",
+    )
+    if not any(marker.lower() in stripped.lower() for marker in owner_markers):
+        return False
+    multi_choice_markers = ("choose one", "candidate tasks", "either", " or ", "\n- ")
+    return not any(marker in stripped.lower() for marker in multi_choice_markers)
+
+
 def write_review_input(run_dir: Path, before: dict[str, Any], after: dict[str, Any], code: int | None, delta: str) -> None:
     repo = Path(before["repo"])
     diff = git_range(repo, before, after)
@@ -1101,7 +1134,7 @@ def write_review_input(run_dir: Path, before: dict[str, Any], after: dict[str, A
         "- Did it produce active code/schema/build/RVV evidence, not just docs or scaffolding labels?",
         "- Did it keep `tcrv.exec` compute-free and extension-specific behavior plugin-local?",
         "- Did any RVV correctness/performance claim rely on real `ssh rvv` evidence?",
-        "- Did it preserve parameter layering: hardware facts / target capability, compile-time variant config, runtime SSA/control values, and descriptor-local boundaries?",
+        "- Did it preserve parameter layering: hardware facts / target capability, compile-time variant config, runtime SSA/control values, and ABI/runtime envelope plus capability descriptor facts only where applicable; no descriptor-driven computation?",
         "- Did RVV dtype/config/operation authority come from the explicit typed `tcrv_rvv` body plus RVV plugin validation, not from i32 helper names, route ids, ABI strings, artifacts, descriptors, tests, or common EmitC/export code?",
         "- Did it avoid treating legacy `RVVI32M1*` route-table expansion as Stage 2 RVV progress?",
         "- Did it keep source-front-door/source-artifact paths fail-closed by default and treat emission-plan result/status, manifests, route ids, and artifact metadata as mirrors only?",
@@ -1368,6 +1401,19 @@ def normalize_review(raw_text: str) -> dict[str, Any]:
     }
 
 
+def ignored_base_prompt_edit_results(edits: Any) -> list[dict[str, Any]]:
+    if not isinstance(edits, list):
+        return []
+    return [
+        {
+            "ignored": True,
+            "reason": "base_prompt_edits are schema-compatible review notes only; they never become next_prompt.",
+            "edit": edit,
+        }
+        for edit in edits
+    ]
+
+
 def extract_hermes_session_id(raw_text: str) -> str:
     match = re.search(r"(?m)^session_id:\s*(\S+)\s*$", raw_text)
     return match.group(1).strip() if match else ""
@@ -1464,6 +1510,9 @@ Repository root:
 The runner will prepend the canonical Codex base prompt to your `next_prompt`.
 Therefore `next_prompt` must be a focused Direction Brief, not a full PRD, not
 a repeated copy of the base prompt, and not a long architecture document.
+`base_prompt_edits` is kept only for JSON schema compatibility. The runner
+logs it and ignores it; it must never become `next_prompt` and must never be
+appended below the base prompt.
 
 ## Evidence Priority
 
@@ -1527,7 +1576,7 @@ a selected variant materialized to extension ops
 a plugin-owned extension family lowering or EmitC emission path completed
 a runtime ABI boundary carried from IR to artifact
 a bounded RVV kernel carried from IR to generated artifact and ssh rvv evidence
-an extension plugin template that makes future plugin integration clearer
+the minimal generic typed RVV surface while Stage 1 is open
 ```
 
 Tiny helpers, one-off negative tests, broad smoke matrices, metadata-only
@@ -1614,44 +1663,54 @@ executable:
 Use live repo evidence plus any human steering to decide the stage. Keep the
 review bounded, but do not throw away the stage context.
 
-Stage 1 is active while any production/default path still treats bounded
-`i32m1` arithmetic, source-front-door/source-artifact patterns, route ids,
-artifact names, descriptor residue, intrinsic spellings, or common/export code
-as RVV route authority. Stage 1 is also active while the active RVV provider
-route surface is still organized around `RVVI32M1*` specs/slices, finite
-`i32_*` route cases, route ids, or exact `__riscv_*_i32m1` spellings as the
-family architecture.
-Stage 1 owner:
+Stage 1 exits only when both gates are satisfied:
 
 ```text
-RVV route-authority replacement:
-replace or fail-close i32m1-as-architecture-authority with typed low-level
-tcrv_rvv bodies plus RVV-owned legality, selected-body realization, and route
-builder logic.
+Gate A: no active production/default RVV path uses old i32m1 route authority:
+  RVVI32M1*, rvv-i32m1 route ids, finite tcrv_rvv.i32_* ops,
+  !tcrv_rvv.i32m* types, exact __riscv_*_i32m1 spellings,
+  source-front-door/source-artifact patterns, artifact names,
+  emission-plan metadata, descriptor residue, or common/export RVV branches.
+
+Gate B: the repo has a minimal corrected generic typed low-level tcrv_rvv
+route-surface skeleton or equivalent:
+  typed vector value/config carries elem type, SEW, LMUL, policy;
+  generic setvl/load/store/binary{{kind}} or equivalent vector-level ops exist;
+  selected tcrv.exec RVV variant can bind/import ABI/runtime values into the body;
+  RVV provider consumes typed body/config/capability/runtime facts to derive
+  route/type/header/intrinsic or fails closed with targeted diagnostics.
 ```
 
-In Stage 1, selected-body realization means only the fail-closed plugin
-boundary/hook or faithful selected-body consumption needed to replace old route
-authority. Performance-sensitive selected-body realization and tuning belong to
-Stage 2 RVV completion.
+If Gate A is satisfied but Gate B is not, Stage 1 is not complete. The next
+owner is `Stage1 generic typed RVV body-surface replacement`, not Stage 2.
+Deleting/fail-closing old authority without the corrected generic typed surface
+is not enough. A retained i32 add/sub/mul case is allowed only as an ordinary
+instance of the generic typed surface, never old finite `i32_*` authority.
 
 Good Stage 1 owners are concrete module owners such as:
 
 ```text
-tcrv_rvv body/type/op surface correction
-RVV selected-body realization hook implementation or faithful consumption
-RVV route provider consuming the selected/realized body faithfully
-source-front-door demotion or fail-closed boundary
-common EmitC route boundary kept neutral while RVV mapping stays plugin-owned
-target artifact/export rejection when selected typed RVV authority is missing
-focused checks for the just-changed production path
+typed RVV vector value/config surface: elem type, SEW, LMUL, policy
+generic vector-level op surface: setvl, load, store, binary{{kind}}
+explicit ABI/runtime binding into selected tcrv_rvv body
+RVV provider derivation from typed body/config/capability/runtime facts
+fail-closed rejection of legacy i32/helper/metadata/source-front-door paths
+common EmitC/export neutrality
 ```
 
-Stage 2 begins only after Stage 1 evidence shows no active compiler path uses
-`i32m1` or source/artifact/route metadata as RVV authority and the old i32m1
-route architecture has been replaced, deleted, or fail-closed. A retained
-i32m1 case is acceptable only as an ordinary specialization of the corrected
-typed vector-level `tcrv_rvv` value/config/body route surface. Stage 2 owner:
+Stage 2 begins only after Gate A and Gate B both have focused repo evidence.
+When Hermes is about to switch to Stage 2, inspect or require Codex to provide:
+
+```bash
+rg -n "RVVI32M1|rvv-i32m1|tcrv_rvv\\.i32_|!tcrv_rvv\\.i32m|__riscv_.*_i32m1|source-front-door|source-artifact|emission_plan|selected route" include lib test .trellis/spec
+```
+
+Remaining matches are allowed only as deprecated/fail-closed/negative-test
+inventory, not active route authority. Hermes must also verify evidence for
+typed vector value/config, generic setvl/load/store/binary or equivalent,
+provider derivation from typed body/config, and fail-closed unsupported cases.
+
+Only after both gates are satisfied may the Stage 2 owner be:
 
 ```text
 expand route-supported RVV coverage on the corrected vector-level tcrv_rvv
@@ -1665,11 +1724,13 @@ If live evidence shows `RVVI32M1ArithmeticRouteSpec`,
 route-case growth, or exact `__riscv_*_i32m1` intrinsic spelling as the current
 route architecture, do not ask Codex to add broadcast, compare/select,
 reduction, conversion, dtype, LMUL, source-shape, or intrinsic cases to that
-table. Choose route-surface replacement instead: dtype, SEW, LMUL, policy,
-memory form, operation kind, runtime ABI use, and intrinsic mapping must be
-validated or derived from typed `tcrv_rvv` body/config structure by the RVV
-plugin. A new `tcrv_rvv.i32_*` helper or wrapper is not enough unless it is
-merely a retained ordinary specialization of the corrected vector-level surface.
+table. Choose `Stage1 generic typed RVV body-surface replacement` instead:
+dtype, SEW, LMUL, policy, memory form, operation kind, runtime ABI use, and
+intrinsic mapping must be validated or derived from typed `tcrv_rvv`
+body/config structure by the RVV plugin. If the last round only
+fail-closed/deleted legacy route authority but did not introduce the corrected
+generic typed `tcrv_rvv` surface skeleton, continue Stage 1 with the positive
+replacement owner.
 
 Stage 2 expands the route-supported low-level RVV surface toward structured
 kernel capability classes: VL/control, mask/tail policy, memory movement,
@@ -1726,7 +1787,9 @@ While Stage 1 is open, do not send Codex to Scalar, IME, Offload, TensorExt,
 high-level Linalg/Vector/StableHLO frontend generalization, Stage 2 coverage
 expansion, global autotuning databases, readiness state machines, one-intrinsic
 wrapper dialects, high-level kernel ops, compatibility wrappers preserving old
-i32 authority, or dtype/LMUL/source clone batches.
+i32 authority, dtype/LMUL/source clone batches, reduction/matmul/broadcast/
+compare expansion, source-front-door positive routes, Template/Toy examples,
+or future plugin work.
 
 Hard redirections:
 
@@ -1799,8 +1862,10 @@ The JSON must be parseable by Python `json.loads` and contain exactly:
 }}
 ```
 
-`next_prompt` must be a single JSON string. Encode newlines as `\\n`; do not
-place literal unescaped line breaks inside the JSON string.
+`next_prompt` must be a short non-empty single JSON string when
+`continue=true`. Encode newlines as `\\n`; do not place literal unescaped line
+breaks inside the JSON string. If no such focused Direction Brief exists, set
+`continue=false`; do not use `base_prompt_edits` as a fallback.
 
 ## Loop Context
 
@@ -1887,16 +1952,53 @@ def hermes_review(
     previous_prompt_mode: str,
 ) -> dict[str, Any]:
     if args.review_no_llm:
+        after = load_json(run_dir / "snapshot_after.json")
+        if not isinstance(after, dict):
+            after = {}
+        task_info = current_task_info(after)
+        manual_steering = read_review_steering(repo, args, max_chars=4000)
+        if task_info.get("active"):
+            next_prompt = (
+                "Review LLM is disabled. Continue only the already-active Trellis task "
+                f"`{task_info.get('ref')}`"
+                + (f" ({task_info.get('title')})" if task_info.get("title") else "")
+                + ". Do not invent new work. While RVV Stage 1 is open, the only default "
+                "fallback owner is `Stage1 generic typed RVV body-surface replacement`; "
+                "do not choose Stage2/Stage3/source-front-door/future-plugin work."
+            )
+            reason = "review_no_llm was set; continuing the already-active Trellis task only."
+        elif manual_steering_names_single_owner(manual_steering):
+            next_prompt = (
+                "Review LLM is disabled. No active Trellis task exists, but manual steering "
+                "appears to provide a single owner. Use that owner only. While RVV Stage 1 "
+                "is open, the only default fallback owner is `Stage1 generic typed RVV "
+                "body-surface replacement`; do not invent Stage2/Stage3/source-front-door/"
+                "future-plugin work."
+            )
+            reason = "review_no_llm was set; proceeding only because manual steering names a single owner."
+        else:
+            return {
+                "continue": False,
+                "delta": "",
+                "next_prompt": "",
+                "base_prompt_edits": [],
+                "reason": (
+                    "review_no_llm was set, no active Trellis task exists, and manual steering "
+                    "did not explicitly provide a single owner; supervisor stopped instead of "
+                    "inventing broad work."
+                ),
+                "telegram_note": "review_no_llm stopped: no active task or single-owner steering.",
+                "raw": "",
+                "parse_error": False,
+                "cmd": [],
+                "returncode": 0,
+            }
         return {
             "continue": True,
             "delta": "",
-            "next_prompt": (
-                "Review LLM is disabled for this round. Inspect repository evidence, "
-                "continue the current Trellis task if one is active, and otherwise "
-                "create or repair a module-sized Trellis task before implementation."
-            ),
+            "next_prompt": next_prompt,
             "base_prompt_edits": [],
-            "reason": "review_no_llm was set; using a minimal Direction Brief with the canonical base prompt.",
+            "reason": reason,
             "telegram_note": "",
             "raw": "",
             "parse_error": False,
@@ -2073,6 +2175,7 @@ def hermes_review(
                 "- Return only JSON, no markdown and no code fence.\n"
                 "- If the raw output does not contain enough information for a non-empty next_prompt, set continue=false.\n"
                 "- next_prompt must be a single JSON string when continue=true.\n\n"
+                "- base_prompt_edits is ignored by the runner and must not be used as next_prompt.\n\n"
                 "Raw output prefix:\n"
                 "```text\n"
                 + failed_raw[:6000]
@@ -2162,6 +2265,13 @@ Use evidence in this order:
 If prior chat context conflicts with current repository evidence, trust current repository evidence.
 
 Answer in concise Markdown. It is okay to name concrete files, commits, risks, and suggested next owner candidates. Keep the answer read-only.
+
+Ask-only Stage1/Stage2 gate: do not suggest Stage2/Stage3/source-front-door/
+future-plugin work while RVV Stage 1 may still be open. Stage 1 is complete
+only if both old i32m1 route authority is absent from active paths and the repo
+has a minimal corrected generic typed `tcrv_rvv` surface skeleton. If unsure,
+recommend `Stage1 generic typed RVV body-surface replacement` or ask for
+focused Gate A/Gate B evidence; do not jump to coverage expansion.
 
 ## User Question
 
@@ -2630,14 +2740,8 @@ def command_loop(args: argparse.Namespace) -> int:
                     "telegram_note": "Hermes resume review raised an exception; supervisor stopped.",
                     "parse_error": True,
                 }
-            base_prompt_text = read_text(Path(args.base_prompt), max_chars=200000).strip()
-            edited_prompt, prompt_edit_results = apply_prompt_edits(
-                base_prompt_text,
-                review.get("base_prompt_edits", []),
-            )
+            prompt_edit_results = ignored_base_prompt_edit_results(review.get("base_prompt_edits", []))
             next_prompt = str(review.get("next_prompt") or "").strip()
-            if not next_prompt and prompt_edit_results and any(r.get("applied") for r in prompt_edit_results):
-                next_prompt = edited_prompt
             if review.get("continue", True) and not next_prompt:
                 review["continue"] = False
                 if review.get("parse_error"):
@@ -2939,14 +3043,8 @@ def command_loop(args: argparse.Namespace) -> int:
                     ),
                     "parse_error": True,
                 }
-            base_prompt_text = read_text(Path(args.base_prompt), max_chars=200000).strip()
-            edited_prompt, prompt_edit_results = apply_prompt_edits(
-                base_prompt_text,
-                review.get("base_prompt_edits", []),
-            )
+            prompt_edit_results = ignored_base_prompt_edit_results(review.get("base_prompt_edits", []))
             next_prompt = str(review.get("next_prompt") or "").strip()
-            if not next_prompt and prompt_edit_results and any(r.get("applied") for r in prompt_edit_results):
-                next_prompt = edited_prompt
             if review.get("continue", True) and not next_prompt:
                 review["continue"] = False
                 if review.get("parse_error"):
@@ -3221,7 +3319,14 @@ def add_loop_args(parser: argparse.ArgumentParser) -> None:
         ),
     )
     add_manual_steering_arg(parser)
-    parser.add_argument("--review-no-llm", action="store_true", help="Skip Hermes review and always continue.")
+    parser.add_argument(
+        "--review-no-llm",
+        action="store_true",
+        help=(
+            "Skip Hermes review; continue only an active Trellis task or explicit "
+            "single-owner manual steering, otherwise stop."
+        ),
+    )
     parser.add_argument("--review-max-chars", type=int, default=30000, help="Max chars included in Hermes review prompt.")
     parser.add_argument("--hermes-bin", default="hermes")
     parser.add_argument(
