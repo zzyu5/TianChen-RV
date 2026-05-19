@@ -226,6 +226,8 @@ bool isSupportedTypedBinaryPreRealizedConfig(llvm::StringRef opKind,
                                              llvm::StringRef lmul) {
   if (isRVVSelectedBodyM1Config(sew, lmul))
     return true;
+  if (sew == getRVVFirstSliceSEWBits() && lmul == getRVVLMULM2())
+    return opKind == "add" && memoryForm == "vector-rhs-load";
   return isRVVSelectedBodyI64M1Config(sew, lmul) && opKind == "add" &&
          memoryForm == "vector-rhs-load";
 }
@@ -1393,7 +1395,8 @@ mlir::LogicalResult TypedBinaryPreRealizedBodyOp::verify() {
           getLmul()))
     return emitOpError()
            << "requires bounded pre-realized config to be SEW32 LMUL m1, "
-              "or SEW64 LMUL m1 only for unit-stride op_kind \"add\"";
+              "SEW32 LMUL m2 only for unit-stride op_kind \"add\", or SEW64 "
+              "LMUL m1 only for unit-stride op_kind \"add\"";
   if (!isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "

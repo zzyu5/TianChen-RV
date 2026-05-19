@@ -206,13 +206,19 @@ llvm::Error validatePreRealizedRVVSelectedBody(
         "op_kind 'add'");
   if (!tcrv::rvv::isRVVSelectedBodyM1Config(
           static_cast<std::int64_t>(body.getSew()), body.getLmul()) &&
+      !(static_cast<std::int64_t>(body.getSew()) ==
+            tcrv::rvv::getRVVFirstSliceSEWBits() &&
+        body.getLmul() == tcrv::rvv::getRVVLMULM2() &&
+        body.getOpKind() == "add" &&
+        isPreRealizedUnitStrideMemoryForm(body.getMemoryForm())) &&
       !(tcrv::rvv::isRVVSelectedBodyI64M1Config(
             static_cast<std::int64_t>(body.getSew()), body.getLmul()) &&
         body.getOpKind() == "add" &&
         isPreRealizedUnitStrideMemoryForm(body.getMemoryForm())))
     return makeRVVPluginError(
-        "pre-realized RVV selected body requires SEW32 LMUL m1, or SEW64 "
-        "LMUL m1 only for unit-stride op_kind 'add'");
+        "pre-realized RVV selected body requires SEW32 LMUL m1, SEW32 LMUL "
+        "m2 only for unit-stride op_kind 'add', or SEW64 LMUL m1 only for "
+        "unit-stride op_kind 'add'");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVPluginError(
         "pre-realized RVV selected body requires tail agnostic, mask agnostic "

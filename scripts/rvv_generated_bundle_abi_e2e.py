@@ -49,6 +49,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "strided_add",
     "scalar_broadcast_add",
     "i64_add",
+    "lmul_m2_add",
 )
 REDUCE_ADD_ACCUMULATOR_LAYOUT = "rhs-vector-seed-lane0-per-vl-chunk"
 REDUCE_ADD_RESULT_LAYOUT = "store-reduction-lane0-to-output-chunk-base"
@@ -129,7 +130,7 @@ class OpExpectation:
 
     @property
     def selected_body_operation(self) -> str:
-        if self.is_i64_add:
+        if self.is_i64_add or self.is_lmul_m2_add:
             return "add"
         return self.kind
 
@@ -180,6 +181,10 @@ class OpExpectation:
     @property
     def is_i64_add(self) -> bool:
         return self.kind == "i64_add"
+
+    @property
+    def is_lmul_m2_add(self) -> bool:
+        return self.kind == "lmul_m2_add"
 
 
 EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
@@ -462,6 +467,17 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         element_c_type="int64_t",
         config_contract="rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew64-lmul-m1",
+    ),
+    "lmul_m2_add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
+        kind="lmul_m2_add",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-lmul-m2-add.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_lmul_m2_add",
+        function_name="tcrv_emitc_pre_realized_body_lmul_m2_add_kernel_pre_realized_body_rvv_lmul_m2_add",
+        lmul="m2",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
     ),
 }
 
@@ -1135,6 +1151,12 @@ def verify_materialized_selected_body(
             text,
             '!tcrv_rvv.vector<i64, "m1">',
             "materialized selected-body MLIR i64 vector type",
+        )
+    if expectation.is_lmul_m2_add:
+        require_contains(
+            text,
+            '!tcrv_rvv.vector<i32, "m2">',
+            "materialized selected-body MLIR i32 LMUL m2 vector type",
         )
     if expectation.is_rhs_broadcast:
         require_contains(
@@ -2453,7 +2475,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help=(
             "use the pre-realized selected-body add/sub/mul/masked_add/"
-            "reduce_add/macc_add/strided_add "
+            "reduce_add/macc_add/strided_add/lmul_m2_add "
             "fixtures and run public selected lowering-boundary "
             "materialization before emission planning; mutually exclusive "
             "with --rhs-broadcast-selected-body and --lmul-m2-selected-body"

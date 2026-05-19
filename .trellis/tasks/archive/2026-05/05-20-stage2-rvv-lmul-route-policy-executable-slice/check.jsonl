@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Check the final change preserves the global RVV-first authority chain and Stage1/Stage2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-local ownership, selected-body realization, route-provider derivation, and legacy fail-closed policy."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export did not become RVV semantic or LMUL/intrinsic authority."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check runtime ABI roles remain envelope declarations consumed by typed RVV body structure."}
+{"file": ".trellis/spec/capability-model/capability-contract.md", "reason": "Check LMUL/SEW/dtype/capability/runtime facts remain layered and structural."}
+{"file": ".trellis/spec/capability-model/profiles.md", "reason": "Check any RVV executable correctness claim includes real ssh rvv evidence."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check metadata, route ids, and emission mirrors are not used as route or config authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused positive/negative tests and RVV runtime evidence match the touched behavior."}

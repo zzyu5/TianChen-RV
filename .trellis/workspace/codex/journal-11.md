@@ -1227,3 +1227,79 @@ or performance claim, so no fresh `ssh rvv` run was required.
 | Hash | Message |
 |------|---------|
 | `this commit` | (see git log) |
+
+## Session 144: Stage2 RVV LMUL route-policy executable slice
+
+**Date**: 2026-05-20
+**Task**: `stage2-rvv-lmul-route-policy-executable-slice`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and implemented one
+bounded Stage2 LMUL m2 route-policy executable slice. The new positive path is
+an i32 / SEW32 / LMUL m2 / unit-stride `add` pre-realized selected body that is
+realized by the RVV plugin into generic typed `tcrv_rvv` structure and then
+routed through the existing provider-owned EmitC route planning path.
+
+### Main Changes
+
+- Extended the typed binary pre-realized verifier to accept only the bounded
+  SEW32 / LMUL m2 / unit-stride `add` tuple outside the existing m1 and
+  i64/m1 slices.
+- Extended RVV selected-body realization validation for the same bounded m2
+  tuple, preserving plugin-local realization into `setvl`, `with_vl`, `load`,
+  `binary`, and `store`.
+- Added `lmul_m2_add` to the generated-bundle evidence harness as a script
+  selector that maps to provider operation `add` and verifies the realized
+  generic vector type `!tcrv_rvv.vector<i32, "m2">`.
+- Added a pre-realized LMUL m2 positive MLIR artifact test and a generated
+  bundle dry-run lit test with descriptor/direct-C/source-export/i32 helper
+  guardrails.
+- Updated negative coverage so m2/sub still fails closed and m2/add with the
+  wrong policy fails closed.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] focused build for `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-rvv-dialect-test`, `tianchenrv-rvv-extension-plugin-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] focused C++ RVV dialect/plugin/export tests.
+- [OK] focused lit for the new LMUL m2 pre-realized artifact, generated-bundle
+  dry-run, pre-realized negative suite, and existing i64/m2 controls.
+- [OK] manual generated-bundle dry-run for `lmul_m2_add` counts `7,16,23`.
+- [OK] real `ssh rvv` generated-bundle correctness:
+  `PASS op=lmul_m2_add counts=7,16,23`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`
+- [OK] `git diff --check`
+- [OK] active-authority scan found no positive reintroduction in diff-added
+  hunks; broader matches remain pre-existing deprecated inventory,
+  fail-closed tests, harness guardrails, or provider-derived leaves.
+
+### Self-Repair
+
+- After adding the direct m2 wrong-policy negative, the first focused lit rerun
+  failed because the expected diagnostic contained an extra `binary` word. The
+  test expectation was corrected to the verifier's actual message and the
+  focused rerun passed.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round claims executable
+correctness only for the bounded `lmul_m2_add` counts `7,16,23`; no performance
+claim is made.
+
+### Next Steps
+
+- Future continuation, if requested: expand LMUL policy beyond this single
+  bounded m2/add slice under a separate PRD, without creating a dtype/LMUL
+  clone matrix or reviving old `!tcrv_rvv.i32m*` route authority.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
