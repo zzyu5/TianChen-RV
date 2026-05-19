@@ -92,3 +92,57 @@ Closed the bounded Stage1 Gate A route-identity residues for the active RVV sele
 ### Next Steps
 
 - Future continuation, if requested: delete or further fail-close the remaining parseable legacy dialect debt under a separate Stage1 deletion task; do not treat it as Stage2 coverage work.
+
+
+## Session 135: Stage2 executable closure for generic RVV reduction
+
+**Date**: 2026-05-19
+**Task**: `stage2-generic-rvv-reduction-executable-closure`
+**Branch**: `main`
+
+### Summary
+
+Closed the existing generic `tcrv_rvv.reduce {kind = "add"}` selected-body
+path as executable RVV evidence. The provider now makes the bounded reduction
+layout explicit: RHS is the vector seed, lane 0 carries the per-VL chunk result,
+and generated code stores only lane 0 to `out[offset]`.
+
+### Main Changes
+
+- Added provider-derived reduction accumulator/result layout fields to
+  `RVVSelectedBodyEmitCRouteDescription`.
+- Updated the RVV EmitC route provider so reduce-add stores with VL `1`, making
+  non-result lanes untouched and giving the external ABI harness a precise
+  correctness contract.
+- Added reduce-add metadata mirrors to target artifact bundle metadata.
+- Extended `scripts/rvv_generated_bundle_abi_e2e.py` with `--op-kind
+  reduce_add` dry-run and `ssh rvv` correctness support.
+- Updated focused reduce-add materialization and artifact fixtures.
+
+### Testing
+
+- [OK] Trellis context validation.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] focused C++ build for `tcrv-opt`, `tcrv-translate`, RVV plugin,
+  construction protocol, and target artifact export tests.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] reduce-add generated bundle dry-run.
+- [OK] existing add/sub/mul/cmp_select generated bundle dry-run.
+- [OK] real `ssh rvv` run for reduce-add counts `1,7,16,17,257`:
+  `tcrv_rvv_generated_bundle_abi_reduce_add_ok counts=1,7,16,17,257`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 154/154 passed.
+- [OK] `git diff --check`
+- [OK] diff-only active-authority scan introduced no legacy RVV route authority.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round makes a real RVV
+correctness claim only for the bounded reduce-add chunk layout described above.
+
+### Next Steps
+
+- Future continuation, if requested: broaden reduction/accumulation semantics
+  beyond this bounded per-VL chunk layout under a separate Stage2 coverage task.

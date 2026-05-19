@@ -24,3 +24,5 @@ module {
 // CHECK: tcrv_emitc.source_op=tcrv_rvv.load role=load op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle32_v_i32m1
 // CHECK: tcrv_emitc.source_op=tcrv_rvv.reduce role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vredsum_vs_i32m1_i32m1
 // CHECK: tcrv_emitc.source_op=tcrv_rvv.store role=store op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vse32_v_i32m1
+// CHECK: literal "1" : !emitc.opaque<"size_t">
+// CHECK: call_opaque "__riscv_vse32_v_i32m1"({{.*}}) : (!emitc.ptr<!emitc.opaque<"int32_t">>, !emitc.opaque<"vint32m1_t">, !emitc.opaque<"size_t">) -> ()

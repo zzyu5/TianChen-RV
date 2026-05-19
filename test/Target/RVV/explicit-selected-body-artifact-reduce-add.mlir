@@ -36,6 +36,9 @@ module {
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "reduce_add"}
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.reduce"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "vector-rhs-load"}
+// PLAN-SAME: {key = "tcrv_rvv.reduction_accumulator_layout", value = "rhs-vector-seed-lane0-per-vl-chunk"}
+// PLAN-SAME: {key = "tcrv_rvv.reduction_result_layout", value = "store-reduction-lane0-to-output-chunk-base"}
+// PLAN-SAME: {key = "tcrv_rvv.reduction_store_vl", value = "1"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: origin = "rvv-plugin"
 // PLAN-SAME: runtime_abi_name = "rvv-generic-reduce-add-callable-c-abi.v1"

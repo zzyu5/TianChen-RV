@@ -37,6 +37,11 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVSelectedBodyRuntimeGlueRole("emitc-cpp-rvv-intrinsic-runtime-glue");
 constexpr llvm::StringLiteral
+    kRVVReductionAccumulatorLayout("rhs-vector-seed-lane0-per-vl-chunk");
+constexpr llvm::StringLiteral
+    kRVVReductionResultLayout("store-reduction-lane0-to-output-chunk-base");
+constexpr llvm::StringLiteral kRVVReductionStoreVL("1");
+constexpr llvm::StringLiteral
     kEmitCLowerableOpInterfaceName("TCRVEmitCLowerableOpInterface");
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);
@@ -1122,6 +1127,12 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       analysis.routeProfile.targetLeaves.compareIntrinsic;
   analysis.description.resultName = analysis.routeProfile.operation.resultName;
   analysis.description.maskName = analysis.routeProfile.operation.maskName;
+  if (analysis.routeProfile.operation.isReduction) {
+    analysis.description.reductionAccumulatorLayout =
+        kRVVReductionAccumulatorLayout;
+    analysis.description.reductionResultLayout = kRVVReductionResultLayout;
+    analysis.description.reductionStoreVL = kRVVReductionStoreVL;
+  }
 
   if (llvm::Error error = validateRVVSelectedBodyRuntimeABIParameters(
           analysis.slice, *analysis.constructionRoute,
@@ -1409,6 +1420,33 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "mask value name", description.maskName, ""))
       return error;
   }
+  if (operationProfile.isReduction) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "reduction accumulator layout",
+            description.reductionAccumulatorLayout,
+            kRVVReductionAccumulatorLayout))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "reduction result layout",
+            description.reductionResultLayout, kRVVReductionResultLayout))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "reduction store VL", description.reductionStoreVL,
+            kRVVReductionStoreVL))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "reduction accumulator layout",
+            description.reductionAccumulatorLayout, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "reduction result layout",
+            description.reductionResultLayout, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "reduction store VL", description.reductionStoreVL, ""))
+      return error;
+  }
   if (description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad)
     if (llvm::Error error = requireRouteDescriptionText(
             context, "RHS broadcast intrinsic",
@@ -1461,6 +1499,14 @@ getRVVSelectedBodyConfigArtifactMetadata(
       {"tcrv_rvv.pointer_advance", description.pointerAdvanceMetadata});
   metadata.push_back({"tcrv_rvv.bounded_slice", description.boundedSlice});
   metadata.push_back({"tcrv_rvv.multi_vl", description.multiVL});
+  if (description.operation == RVVSelectedBodyOperationKind::ReduceAdd) {
+    metadata.push_back({"tcrv_rvv.reduction_accumulator_layout",
+                        description.reductionAccumulatorLayout});
+    metadata.push_back({"tcrv_rvv.reduction_result_layout",
+                        description.reductionResultLayout});
+    metadata.push_back(
+        {"tcrv_rvv.reduction_store_vl", description.reductionStoreVL});
+  }
   return metadata;
 }
 
@@ -1612,6 +1658,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   }
+  llvm::StringRef storeVLName =
+      analysis.routeProfile.operation.isReduction ? description.reductionStoreVL
+                                                  : loopVLName;
   if (llvm::Error error = addLoopStep(
           slice->storeOperation, "store", description.storeIntrinsic,
           {TCRVEmitCCallOpaqueOperand{
@@ -1620,7 +1669,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                slice->outABI.cType},
            TCRVEmitCCallOpaqueOperand{description.resultName.str(),
                                       description.vectorCType.str()},
-           TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+           TCRVEmitCCallOpaqueOperand{storeVLName.str(),
                                       description.vlCType.str()}}))
     return error;
 

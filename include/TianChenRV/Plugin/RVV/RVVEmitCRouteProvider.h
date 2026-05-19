@@ -77,6 +77,9 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef compareIntrinsic;
   llvm::StringRef resultName;
   llvm::StringRef maskName;
+  llvm::StringRef reductionAccumulatorLayout;
+  llvm::StringRef reductionResultLayout;
+  llvm::StringRef reductionStoreVL;
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
       runtimeABIParameters;
 };

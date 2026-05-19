@@ -41,7 +41,11 @@ DEFAULT_RUNTIME_COUNTS = (1, 7, 16, 17, 257)
 MIN_RUNTIME_COUNT_CASES = 2
 MIN_NON_ONE_VECTOR_SENTINEL_COUNT = 17
 DEFAULT_OP_KINDS = ("add", "sub", "mul")
-OP_KIND_CHOICES = DEFAULT_OP_KINDS + ("cmp_select",)
+OP_KIND_CHOICES = DEFAULT_OP_KINDS + ("cmp_select", "reduce_add")
+REDUCE_ADD_ACCUMULATOR_LAYOUT = "rhs-vector-seed-lane0-per-vl-chunk"
+REDUCE_ADD_RESULT_LAYOUT = "store-reduction-lane0-to-output-chunk-base"
+REDUCE_ADD_STORE_VL = "1"
+OUT_SENTINEL = "(int32_t)0x5a5a5a5a"
 
 INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
 EXPECTED_SELECTED_ROLE = "dispatch case"
@@ -91,6 +95,10 @@ class OpExpectation:
     @property
     def is_rhs_broadcast(self) -> bool:
         return self.input_mode == "rhs-broadcast-selected-body"
+
+    @property
+    def is_reduce_add(self) -> bool:
+        return self.kind == "reduce_add"
 
 
 EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
@@ -153,6 +161,21 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         lhs_initializer="(int32_t)(41 + (int32_t)(index * 9))",
         rhs_initializer="(int32_t)(-300 - (int32_t)(index * 7))",
         expected_expression="(lhs[index] == rhs[index] ? lhs[index] : rhs[index])",
+    ),
+    "reduce_add": OpExpectation(
+        kind="reduce_add",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-reduce-add.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_reduce_add",
+        external_abi_name="rvv-generic-reduce-add-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_reduce_add_kernel_explicit_selected_body_rvv_reduce_add",
+        emitc_route="rvv-generic-reduce-add-emitc-route",
+        typed_compute_op="tcrv_rvv.reduce",
+        memory_form="vector-rhs-load",
+        lhs_initializer="(int32_t)(1 + (int32_t)(index % 11))",
+        rhs_initializer="(int32_t)(1000 + (int32_t)(index * 3))",
+        expected_expression="rhs[chunk_start] + sum(lhs[chunk_start:chunk_start+vl])",
     ),
 }
 
@@ -667,6 +690,14 @@ def verify_record_metadata(
         "tcrv_rvv.memory_form": expectation.memory_form,
         "tcrv_rvv.bounded_slice": expectation.bounded_slice,
     }
+    if expectation.is_reduce_add:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.reduction_accumulator_layout": REDUCE_ADD_ACCUMULATOR_LAYOUT,
+                "tcrv_rvv.reduction_result_layout": REDUCE_ADD_RESULT_LAYOUT,
+                "tcrv_rvv.reduction_store_vl": REDUCE_ADD_STORE_VL,
+            }
+        )
     for key, expected in {**per_op_metadata, **COMMON_EXPECTED_METADATA}.items():
         require_equal(metadata.get(key), expected, f"{context} metadata {key}")
     for key, value in metadata.items():
@@ -866,6 +897,99 @@ def harness_source(
     header_file_name: str, runtime_counts: list[int], expectation: OpExpectation
 ) -> str:
     counts = ", ".join(str(count) for count in runtime_counts)
+    if expectation.is_reduce_add:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <riscv_vector.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n == 0 ? 1 : n;
+  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  if (!lhs || !rhs || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(lhs);
+    free(rhs);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < n; ++index) {{
+    lhs[index] = {expectation.lhs_initializer};
+    rhs[index] = {expectation.rhs_initializer};
+    out[index] = {OUT_SENTINEL};
+  }}
+
+  {expectation.function_name}(lhs, rhs, out, n);
+
+  if (n > 0) {{
+    size_t full_chunk_vl = __riscv_vsetvl_e32m1(n);
+    if (full_chunk_vl == 0) {{
+      fprintf(stderr, "reduce_add invalid full_chunk_vl=0 for n=%zu\\n", n);
+      free(lhs);
+      free(rhs);
+      free(out);
+      return 13;
+    }}
+
+    for (size_t chunk_start = 0; chunk_start < n; chunk_start += full_chunk_vl) {{
+      size_t vl = __riscv_vsetvl_e32m1(n - chunk_start);
+      int32_t expected = rhs[chunk_start];
+      for (size_t lane = 0; lane < vl; ++lane)
+        expected = (int32_t)(expected + lhs[chunk_start + lane]);
+
+      if (out[chunk_start] != expected) {{
+        fprintf(stderr,
+                "reduce_add mismatch n=%zu chunk_start=%zu got=%d expected=%d rhs_seed=%d vl=%zu\\n",
+                n, chunk_start, out[chunk_start], expected, rhs[chunk_start], vl);
+        free(lhs);
+        free(rhs);
+        free(out);
+        return 12;
+      }}
+
+      for (size_t lane = 1; lane < vl; ++lane) {{
+        size_t index = chunk_start + lane;
+        if (out[index] != {OUT_SENTINEL}) {{
+          fprintf(stderr,
+                  "reduce_add touched non-result lane n=%zu index=%zu got=%d sentinel=%d\\n",
+                  n, index, out[index], {OUT_SENTINEL});
+          free(lhs);
+          free(rhs);
+          free(out);
+          return 14;
+        }}
+      }}
+    }}
+  }}
+
+  free(lhs);
+  free(rhs);
+  free(out);
+  printf("{expectation.kind} case n=%zu ok\\n", n);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
     return f"""
 #include <stddef.h>
 #include <stdint.h>
@@ -890,7 +1014,7 @@ static int run_case(size_t n) {{
   for (size_t index = 0; index < n; ++index) {{
     lhs[index] = {expectation.lhs_initializer};
     rhs[index] = {expectation.rhs_initializer};
-    out[index] = (int32_t)0x5a5a5a5a;
+    out[index] = {OUT_SENTINEL};
   }}
 
   {expectation.function_name}(lhs, rhs, out, n);
@@ -1473,6 +1597,14 @@ extern "C" {{
         "tcrv_rvv.bounded_slice": expectation.bounded_slice,
         **COMMON_EXPECTED_METADATA,
     }
+    if expectation.is_reduce_add:
+        expected_metadata.update(
+            {
+                "tcrv_rvv.reduction_accumulator_layout": REDUCE_ADD_ACCUMULATOR_LAYOUT,
+                "tcrv_rvv.reduction_result_layout": REDUCE_ADD_RESULT_LAYOUT,
+                "tcrv_rvv.reduction_store_vl": REDUCE_ADD_STORE_VL,
+            }
+        )
     metadata_lines = "\n".join(
         f"""  artifact_metadata[{index}]:
     key: "{key}"
