@@ -163,6 +163,8 @@ bool isAllowedSelectAttr(llvm::StringRef) { return false; }
 
 bool isAllowedReduceAttr(llvm::StringRef name) { return name == "kind"; }
 
+bool isAllowedMAccAttr(llvm::StringRef name) { return name == "kind"; }
+
 bool isAllowedStoreAttr(llvm::StringRef) { return false; }
 
 bool isSupportedTypedBinaryPreRealizedBodyOpKind(llvm::StringRef opKind) {
@@ -182,6 +184,10 @@ bool isSupportedGenericCompareKind(llvm::StringRef kind) {
 }
 
 bool isSupportedGenericReduceKind(llvm::StringRef kind) {
+  return kind == "add";
+}
+
+bool isSupportedGenericMAccKind(llvm::StringRef kind) {
   return kind == "add";
 }
 
@@ -1131,12 +1137,13 @@ mlir::LogicalResult LoadOp::verify() {
 
   if (op->getNumOperands() != 2 || op->getNumResults() != 1)
     return emitOpError()
-           << "requires exactly one explicit input buffer ABI operand, one "
+           << "requires exactly one explicit buffer ABI operand, one "
               "!tcrv_rvv.vl operand, and one generic RVV vector result";
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
-          op, getBuffer(), "input buffer",
+          op, getBuffer(), "buffer",
           {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+           tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
@@ -1434,6 +1441,57 @@ mlir::LogicalResult ReduceOp::verify() {
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
   if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getInput(), "input")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getAccumulator(),
+                                                    "accumulator")))
+    return mlir::failure();
+  return verifyGenericVectorTypeForWithVL(op, getResult(), "result");
+}
+
+mlir::LogicalResult MAccOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.macc keeps SEW/LMUL/policy on setvl/with_vl, "
+                "runtime n/AVL/VL in the surrounding control-plane IR, and "
+                "rejects deleted local element_count metadata";
+
+    if (!isAllowedMAccAttr(attrName))
+      return emitOpError()
+             << "only accepts generic multiply-accumulate attribute 'kind"
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!isSupportedGenericMAccKind(getKind()))
+    return emitOpError()
+           << "currently supports only kind \"add\" for the bounded Stage 2 "
+              "multiply-accumulate route";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires lhs, rhs, and accumulator generic RVV vector "
+              "operands, one !tcrv_rvv.vl operand, and one generic RVV "
+              "vector result";
+  if (getLhs().getType() != getRhs().getType() ||
+      getLhs().getType() != getAccumulator().getType() ||
+      getLhs().getType() != getResult().getType())
+    return emitOpError()
+           << "requires lhs, rhs, accumulator, and result to have the same "
+              "generic RVV vector type";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getLhs(), "lhs")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getRhs(), "rhs")))
     return mlir::failure();
   if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getAccumulator(),
                                                     "accumulator")))

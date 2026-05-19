@@ -41,12 +41,14 @@ DEFAULT_RUNTIME_COUNTS = (1, 7, 16, 17, 257)
 MIN_RUNTIME_COUNT_CASES = 2
 MIN_NON_ONE_VECTOR_SENTINEL_COUNT = 17
 DEFAULT_OP_KINDS = ("add", "sub", "mul")
-OP_KIND_CHOICES = DEFAULT_OP_KINDS + ("cmp_select", "reduce_add", "masked_add")
+OP_KIND_CHOICES = DEFAULT_OP_KINDS + ("cmp_select", "reduce_add", "masked_add", "macc_add")
 REDUCE_ADD_ACCUMULATOR_LAYOUT = "rhs-vector-seed-lane0-per-vl-chunk"
 REDUCE_ADD_RESULT_LAYOUT = "store-reduction-lane0-to-output-chunk-base"
 REDUCE_ADD_STORE_VL = "1"
 MASKED_ADD_MASK_SOURCE = "compare-produced-mask-same-vl-scope"
 MASKED_ADD_PASSTHROUGH_LAYOUT = "passthrough-vector-preserves-inactive-lanes"
+MACC_ADD_ACCUMULATOR_LAYOUT = "output-buffer-vector-accumulator-input"
+MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
 OUT_SENTINEL = "(int32_t)0x5a5a5a5a"
 
 INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
@@ -75,6 +77,7 @@ class OpExpectation:
     lhs_initializer: str
     rhs_initializer: str
     expected_expression: str
+    out_initializer: str = OUT_SENTINEL
     lmul: str = "m1"
     config_contract: str = "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
     bounded_slice: str = "multi-vl-selected-body-sew32-lmul-m1"
@@ -105,6 +108,10 @@ class OpExpectation:
     @property
     def is_masked_add(self) -> bool:
         return self.kind == "masked_add"
+
+    @property
+    def is_macc_add(self) -> bool:
+        return self.kind == "macc_add"
 
 
 EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
@@ -197,6 +204,22 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         lhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(20 + (int32_t)index) : (int32_t)(3 + (int32_t)index))",
         rhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(20 + (int32_t)index) : (int32_t)(100 + (int32_t)index))",
         expected_expression="(lhs[index] == rhs[index] ? (int32_t)(lhs[index] + rhs[index]) : lhs[index])",
+    ),
+    "macc_add": OpExpectation(
+        kind="macc_add",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-macc-add.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_macc_add",
+        external_abi_name="rvv-generic-macc-add-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_macc_add_kernel_explicit_selected_body_rvv_macc_add",
+        emitc_route="rvv-generic-macc-add-emitc-route",
+        typed_compute_op="tcrv_rvv.macc",
+        memory_form="vector-rhs-load",
+        lhs_initializer="(int32_t)((int)(index % 13) - 6)",
+        rhs_initializer="(int32_t)((int)(index % 17) - 8)",
+        out_initializer="(int32_t)(17 - (int32_t)(index % 9))",
+        expected_expression="(int32_t)((int32_t)(17 - (int32_t)(index % 9)) + (int32_t)(lhs[index] * rhs[index]))",
     ),
 }
 
@@ -726,6 +749,13 @@ def verify_record_metadata(
                 "tcrv_rvv.masked_passthrough_layout": MASKED_ADD_PASSTHROUGH_LAYOUT,
             }
         )
+    if expectation.is_macc_add:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
+                "tcrv_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
+            }
+        )
     for key, expected in {**per_op_metadata, **COMMON_EXPECTED_METADATA}.items():
         require_equal(metadata.get(key), expected, f"{context} metadata {key}")
     for key, value in metadata.items():
@@ -1042,7 +1072,7 @@ static int run_case(size_t n) {{
   for (size_t index = 0; index < n; ++index) {{
     lhs[index] = {expectation.lhs_initializer};
     rhs[index] = {expectation.rhs_initializer};
-    out[index] = {OUT_SENTINEL};
+    out[index] = {expectation.out_initializer};
   }}
 
   {expectation.function_name}(lhs, rhs, out, n);
@@ -1638,6 +1668,13 @@ extern "C" {{
             {
                 "tcrv_rvv.mask_source": MASKED_ADD_MASK_SOURCE,
                 "tcrv_rvv.masked_passthrough_layout": MASKED_ADD_PASSTHROUGH_LAYOUT,
+            }
+        )
+    if expectation.is_macc_add:
+        expected_metadata.update(
+            {
+                "tcrv_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
+                "tcrv_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
             }
         )
     metadata_lines = "\n".join(

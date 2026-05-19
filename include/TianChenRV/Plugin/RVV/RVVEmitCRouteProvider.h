@@ -29,6 +29,7 @@ enum class RVVSelectedBodyOperationKind {
   CmpSelect,
   ReduceAdd,
   MaskedAdd,
+  MAccAdd,
 };
 
 enum class RVVSelectedBodyMemoryForm {
@@ -84,6 +85,8 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef reductionAccumulatorLayout;
   llvm::StringRef reductionResultLayout;
   llvm::StringRef reductionStoreVL;
+  llvm::StringRef maccAccumulatorLayout;
+  llvm::StringRef maccResultLayout;
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
       runtimeABIParameters;
 };

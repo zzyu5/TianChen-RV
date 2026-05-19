@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check changed behavior against global TianChen-RV architecture and Stage 1/2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider ownership, typed body authority, contraction-like accumulation semantics, and fail-closed legacy guardrails."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remains neutral and consumes provider-built payloads only."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check route/provider behavior remains plugin-local and interface-driven."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused verifier/lit/runtime evidence matches the task claims."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected-body route support does not turn metadata into route authority."}

@@ -275,3 +275,83 @@ correctness claim only for bounded m2 generic arithmetic add/sub/mul counts
 
 - Future continuation, if requested: broaden typed-config derivation beyond
   this bounded generic arithmetic m1/m2 surface under a separate Stage2 task.
+
+
+## Session 138: Stage2 RVV contraction multiply-add route skeleton
+
+**Date**: 2026-05-19
+**Task**: `stage2-rvv-multiply-add-route-skeleton`
+**Branch**: `main`
+
+### Summary
+
+Added one bounded generic typed `tcrv_rvv.macc {kind = "add"}` selected-body
+route for `accumulator + lhs * rhs`. The route now carries lhs/rhs/output-buffer
+accumulator/result roles through RVV dialect verification, construction protocol
+recognition, RVV provider route derivation, common EmitC materialization, target
+artifact export, generated-bundle dry-run, and real `ssh rvv` correctness
+checks.
+
+### Main Changes
+
+- Added non-dtype-prefixed `tcrv_rvv.macc` and verifier checks for bounded add
+  macc kind, same generic vector type across lhs/rhs/accumulator/result, same
+  selected VL scope, and typed config agreement.
+- Extended RVV construction protocol with `macc_add` selected-body route,
+  provider-owned route/runtime ABI identity, role sequence, and artifact role
+  metadata.
+- Extended the RVV EmitC route provider to derive `rvv-generic-macc-add-*`
+  facts after typed config validation, recognize output-buffer accumulator
+  loads, materialize accumulator load + vmacc + store, and emit macc layout
+  metadata mirrors.
+- Added positive materialization, target artifact, generated-bundle dry-run, and
+  negative fail-closed tests for unsupported macc forms.
+- Extended `scripts/rvv_generated_bundle_abi_e2e.py` with `--op-kind macc_add`
+  dry-run and real RVV correctness harness support.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] Focused build for `tcrv-opt`, `tcrv-translate`, RVV plugin,
+  construction protocol, and target artifact export tests.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused macc dialect/materialization/negative/target/script and
+  existing first-slice regression lit set: 10/10 passed.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] macc generated-bundle dry-run at
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/local-macc-add-dry-run`.
+- [OK] real `ssh rvv` macc correctness evidence at
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/ssh-macc-add-evidence`:
+  `PASS op=macc_add counts=7,16,23`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 161/161 passed.
+- [OK] `git diff --check`
+- [OK] diff-only active-authority scan: only added legacy-shaped token is
+  provider-derived `__riscv_vmacc_vv_i32m1`; no new positive legacy RVV route
+  authority was introduced.
+
+### Self-Repair
+
+- Repaired the macc accumulator-type negative verifier test so the intended
+  `tcrv_rvv.macc` diagnostic is reached.
+- Repaired the macc generated-bundle FileCheck expectations to match the actual
+  evidence schema and harness execution order.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round makes a real RVV
+correctness claim only for bounded `macc_add` counts `7,16,23`.
+
+### Next Steps
+
+- Future continuation, if requested: broaden contraction-supporting Stage2
+  coverage beyond this single macc_add route under a separate bounded task.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |

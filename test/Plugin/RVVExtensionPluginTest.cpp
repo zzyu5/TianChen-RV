@@ -1090,8 +1090,8 @@ module {
        "RVV Stage1",
        "Stage2 routes must use generic tcrv_rvv.load, "
        "tcrv_rvv.broadcast_load, tcrv_rvv.binary, tcrv_rvv.compare, "
-       "tcrv_rvv.masked_binary, tcrv_rvv.select, tcrv_rvv.reduce, and "
-       "tcrv_rvv.store"});
+       "tcrv_rvv.masked_binary, tcrv_rvv.select, tcrv_rvv.reduce, "
+       "tcrv_rvv.macc, and tcrv_rvv.store"});
 }
 
 int runOutOfOrderSelectedRoleSequenceRejectionTest(mlir::MLIRContext &context) {

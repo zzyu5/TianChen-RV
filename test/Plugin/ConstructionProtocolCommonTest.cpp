@@ -1627,7 +1627,9 @@ int runRVVCommonValidationTest() {
             : (route.operationMnemonic == "reduce_add" ? "tcrv_rvv.reduce"
                : (route.operationMnemonic == "masked_add"
                       ? "tcrv_rvv.masked_binary"
-                      : "tcrv_rvv.binary"));
+                  : (route.operationMnemonic == "macc_add"
+                         ? "tcrv_rvv.macc"
+                         : "tcrv_rvv.binary")));
     llvm::Expected<llvm::SmallVector<
         rvv::RVVSelectedBodyExecutableRoleStep, 10>>
         steps = rvv::getRVVSelectedBodyExecutableRoleSteps(
@@ -1638,7 +1640,8 @@ int runRVVCommonValidationTest() {
                   llvm::toString(steps.takeError()));
     const bool hasMaskProducer = route.operationMnemonic == "cmp_select" ||
                                  route.operationMnemonic == "masked_add";
-    if (steps->size() != (hasMaskProducer ? 11u : 10u))
+    const bool hasAccumulatorLoad = route.operationMnemonic == "macc_add";
+    if (steps->size() != ((hasMaskProducer || hasAccumulatorLoad) ? 11u : 10u))
       return fail("RVV executable role sequence must include explicit ABI, "
                   "config, scope, load, compute, optional mask-producing "
                   "compute, and store steps");

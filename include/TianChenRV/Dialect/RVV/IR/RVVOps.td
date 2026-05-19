@@ -348,6 +348,9 @@ def LoadOp : TCRVRVV_Op<"load",
     nested directly under tcrv_rvv.with_vl, consumes one explicit runtime ABI
     buffer SSA value plus the active !tcrv_rvv.vl token, and produces one
     !tcrv_rvv.vector element/LMUL token matching the enclosing config.
+    LHS/RHS input buffers are valid for ordinary arithmetic routes; an output
+    buffer load is valid only when the RVV provider recognizes it as an
+    explicit accumulator input for a multiply-accumulate selected body.
 
     Buffer ABI provenance comes from the explicit runtime ABI operand. Element
     dtype and LMUL come from the result type and are validated with the
@@ -535,6 +538,38 @@ def ReduceOp : TCRVRVV_Op<"reduce",
 
   let assemblyFormat =
     "$input `,` $accumulator `,` $vl attr-dict `:` type($input) `,` type($accumulator) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def MAccOp : TCRVRVV_Op<"macc",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary = "generic typed RVV multiply-accumulate dataflow op";
+  let description = [{
+    Records one bounded generic plugin-local RVV multiply-accumulate dataflow
+    step. The op is nested directly under tcrv_rvv.with_vl, consumes lhs and
+    rhs typed !tcrv_rvv.vector operands, an explicit typed accumulator vector,
+    and the active !tcrv_rvv.vl token. It carries an explicit accumulation kind
+    and produces one typed !tcrv_rvv.vector result.
+
+    For the current bounded Stage 2 contraction-supporting slice, kind is
+    limited to add, representing accumulator + lhs * rhs. Lhs, rhs,
+    accumulator, result, VL, SEW, LMUL, policy, and memory-form facts are
+    structural in the selected RVV body. Route ids, helper names, ABI strings,
+    artifact names, status fields, exact intrinsic spellings, and common
+    EmitC/export code must not infer or choose multiply-accumulate semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$accumulator,
+    AnyType:$vl,
+    StrAttr:$kind
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $accumulator `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($accumulator) `,` type($vl) `->` type($result)";
   let hasVerifier = 1;
 }
 

@@ -466,6 +466,8 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     return "tcrv_rvv.reduce";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedAdd:
     return "tcrv_rvv.masked_binary";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
+    return "tcrv_rvv.macc";
   }
   llvm_unreachable("unknown RVV test arithmetic op");
 }
@@ -485,6 +487,8 @@ llvm::StringRef getRVVTestBinaryKind(
     return "reduce_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedAdd:
     return "masked_add";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
+    return "macc_add";
   }
   llvm_unreachable("unknown RVV test binary kind");
 }
@@ -557,6 +561,12 @@ module {
         %rhs_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
        << vectorType << R"mlir(
 )mlir";
+  if (op ==
+      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd)
+    os << R"mlir(
+        %acc_vec = tcrv_rvv.load %out, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+)mlir";
   if (op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect) {
     os << R"mlir(
         %mask = tcrv_rvv.i32_cmp_eq %lhs_vec, %rhs_vec, %vl : )mlir"
@@ -582,6 +592,14 @@ module {
         %result = tcrv_rvv.masked_binary %mask, %lhs_vec, %lhs_vec, %rhs_vec, %vl {kind = "add"} : !tcrv_rvv.mask<i32, ")mlir"
        << lmul << R"mlir(">, )mlir" << vectorType << R"mlir(, )mlir"
        << vectorType << R"mlir(, )mlir" << vectorType
+       << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType << R"mlir(
+)mlir";
+  } else if (op ==
+             tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd) {
+    os << R"mlir(
+        %result = tcrv_rvv.macc %lhs_vec, %rhs_vec, %acc_vec, %vl {kind = "add"} : )mlir"
+       << vectorType << R"mlir(, )mlir" << vectorType
+       << R"mlir(, )mlir" << vectorType
        << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType << R"mlir(
 )mlir";
   } else {
