@@ -148,11 +148,11 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         external_abi_name="rvv-i32m1-cmp-select-callable-c-abi.v1",
         function_name="tcrv_emitc_explicit_selected_body_cmp_select_kernel_explicit_selected_body_rvv_i32_cmp_select",
         emitc_route="rvv-i32m1-cmp-select-emitc-route",
-        typed_compute_op="tcrv_rvv.i32_select",
+        typed_compute_op="tcrv_rvv.select",
         memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)(41 + (int32_t)(index * 9))",
         rhs_initializer="(int32_t)(-300 - (int32_t)(index * 7))",
-        expected_expression="lhs[index]",
+        expected_expression="(lhs[index] == rhs[index] ? lhs[index] : rhs[index])",
     ),
 }
 
@@ -840,7 +840,7 @@ def verify_materialized_selected_body(
     if expectation.is_rhs_broadcast:
         require_contains(
             text,
-            "tcrv_rvv.i32_broadcast_load",
+            "tcrv_rvv.broadcast_load",
             "materialized selected-body MLIR RHS broadcast load",
         )
     if expectation.is_pre_realized:
@@ -1811,7 +1811,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help=(
             "use explicit selected-body add/sub/mul fixtures where rhs is "
-            "produced by tcrv_rvv.i32_broadcast_load; mutually exclusive with "
+            "produced by tcrv_rvv.broadcast_load; mutually exclusive with "
             "--source-seed, --pre-realized-selected-body, and "
             "--lmul-m2-selected-body"
         ),

@@ -1869,3 +1869,62 @@ Retired active legacy RVV i32 route authority on the generic typed surface: prov
 ### Next Steps
 
 - None - task complete
+
+
+## Session 132: Stage2 generic typed RVV elementwise predicate route coverage
+
+**Date**: 2026-05-19
+**Task**: Stage2 generic typed RVV elementwise predicate route coverage
+**Branch**: `main`
+
+### Summary
+
+Added bounded Stage2 generic typed RVV broadcast/scalar-load and compare/select route support through RVV dialect ops, provider-derived EmitC routes, generic-only construction role surface, positive artifact/script fixtures, and fail-closed legacy authority checks.
+
+### Main Changes
+
+### Main Changes
+
+- Created Trellis task `05-19-stage2-generic-typed-rvv-elementwise-predicate-route-coverage` from the Direction Brief and repaired the PRD before implementation.
+- Added generic RVV `!tcrv_rvv.mask`, `tcrv_rvv.broadcast_load`, `tcrv_rvv.compare`, and `tcrv_rvv.select` surface with verifier checks for typed config, VL use, runtime ABI roles, mask/vector agreement, compare kind, and same-scope predicate dataflow.
+- Extended the RVV EmitC route provider so generic selected bodies derive RHS broadcast, compare, select, mask type, intrinsic leaves, runtime ABI metadata, and target artifact fields from typed body/config/runtime facts.
+- Kept common EmitC/export neutral; fixed RHS broadcast materialization to use structured `rhs[0]` scalar-load expression instead of an unsupported raw dereference literal.
+- Reworked RVV construction protocol active role summaries/default executable role steps to generic-only `load|broadcast_load`, `binary|compare|select`, and `store`; retained old i32 labels only as legacy mirrors/fail-closed tests.
+- Migrated broadcast-add and compare/select positive artifact/script fixtures to generic typed bodies, while legacy broadcast/cmp-select fixtures remain negative or deprecated.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] focused Stage2 lit filter: `generic-stage2|rvv-generic-stage2|broadcast-add|rhs-broadcast|cmp-select|broadcast-cmp-select` (7/7)
+- [OK] manual RHS broadcast target-artifact bundle export through `tcrv-translate`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (151/151)
+- [OK] `git diff --check`
+- [OK] Trellis task context validation
+- [OK] active-authority scan over `include lib test .trellis/spec`; remaining legacy matches are specs/docs, legacy verifier/negative fixtures, retained route-id/runtime-ABI mirrors, source-front-door negative/deprecated materializers, or intrinsic leaves derived only after generic provider validation.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None for this bounded Stage2 module.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

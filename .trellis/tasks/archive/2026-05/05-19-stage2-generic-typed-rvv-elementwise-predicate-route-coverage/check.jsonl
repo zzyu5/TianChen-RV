@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture invariants and RVV stage order after implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-owned authority, typed body support, and Stage2 boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export neutrality and provider-built route contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused lit/C++ coverage and RVV evidence discipline."}
+{"file": ".trellis/tasks/archive/2026-05/05-19-05-19-stage1-generic-typed-rvv-body-surface/prd.md", "reason": "Check that Stage1 legacy authority remains retired/fail-closed."}

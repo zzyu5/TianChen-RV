@@ -29,4 +29,4 @@ module {
   }
 }
 
-// FAIL: legacy selected-body op 'tcrv_rvv.i32_load' is fail-closed during RVV Stage1
+// FAIL: legacy selected-body op 'tcrv_rvv.i32_load' is fail-closed

@@ -1,6 +1,25 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --rhs-broadcast-selected-body --artifact-root %t.artifacts --run-id rhs-broadcast --overwrite --op-kind add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="dry_run_success"
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --rhs-broadcast-selected-body --artifact-root %t.artifacts --run-id rhs-broadcast --overwrite --op-kind add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/rhs-broadcast/evidence.json
+# RUN: FileCheck %s --check-prefix=ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_broadcast_load" < %t.artifacts/rhs-broadcast/add/evidence.json
 
-# FAIL: rvv_generated_bundle_abi_e2e: failed
-# FAIL: legacy selected-body op 'tcrv_rvv.i32_load' is fail-closed during RVV Stage1
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+
+# ROOT: "input_mode": "rhs-broadcast-selected-body"
+# ROOT: "rhs_broadcast_selected_body": true
+# ROOT: "status": "dry_run_success"
+
+# ADD-DAG: "input_mode": "rhs-broadcast-selected-body"
+# ADD-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-broadcast-add.mlir"
+# ADD-DAG: "expected_selected_variant": "explicit_selected_body_rvv_i32_broadcast_add"
+# ADD-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_broadcast_add_kernel_explicit_selected_body_rvv_i32_broadcast_add"
+# ADD-DAG: "key": "rvv_selected_body_operation"
+# ADD-DAG: "value": "add"
+# ADD-DAG: "key": "rvv_selected_body_typed_compute_op"
+# ADD-DAG: "value": "tcrv_rvv.binary"
+# ADD-DAG: "key": "tcrv_rvv.memory_form"
+# ADD-DAG: "value": "rhs-broadcast-load"
+# ADD-DAG: "materialized_selected_body"
+# ADD-DAG: "typed_compute_op": "tcrv_rvv.binary"
+# ADD-DAG: "status": "dry_run_success"

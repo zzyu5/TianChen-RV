@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture invariants and RVV stage order for this Stage2 task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority placement, typed body contract, Stage2 coverage boundaries, and fail-closed rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route boundary and common materialization neutrality requirements."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected variant and mirror-field authority boundaries relevant to route support."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused MLIR/lit/C++ testing and RVV evidence expectations."}
+{"file": ".trellis/tasks/archive/2026-05/05-19-05-19-stage1-generic-typed-rvv-body-surface/prd.md", "reason": "Archived Stage1 completion boundary and legacy route authority guardrails to preserve."}

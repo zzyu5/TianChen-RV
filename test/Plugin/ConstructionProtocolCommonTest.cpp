@@ -1621,15 +1621,18 @@ int runRVVCommonValidationTest() {
                 route.emitCRouteID, route.runtimeABIName),
             "RVV selected-body construction route validates"))
       return result;
+    llvm::StringRef executableComputeOp =
+        route.operationMnemonic == "cmp_select" ? "tcrv_rvv.select"
+                                                : "tcrv_rvv.binary";
     llvm::Expected<llvm::SmallVector<
         rvv::RVVSelectedBodyExecutableRoleStep, 10>>
         steps = rvv::getRVVSelectedBodyExecutableRoleSteps(
-            route.typedComputeOpName);
+            route.operationMnemonic, executableComputeOp, "tcrv_rvv.load");
     if (!steps)
       return fail(llvm::Twine("RVV executable role steps are built from "
                               "route operation: ") +
                   llvm::toString(steps.takeError()));
-    const bool isCompareSelect = route.typedComputeOpName == "tcrv_rvv.i32_select";
+    const bool isCompareSelect = route.operationMnemonic == "cmp_select";
     if (steps->size() != (isCompareSelect ? 11u : 10u))
       return fail("RVV executable role sequence must include explicit ABI, "
                   "config, scope, load, compute, optional compare/select "

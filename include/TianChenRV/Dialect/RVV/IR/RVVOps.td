@@ -171,6 +171,25 @@ def TCRVRVV_VectorType : TCRVRVV_Type<"Vector", "vector"> {
   let assemblyFormat = "`<` $elementType `,` $lmul `>`";
 }
 
+def TCRVRVV_MaskType : TCRVRVV_Type<"Mask", "mask"> {
+  let summary = "generic typed RVV predicate mask dataflow token type";
+  let description = [{
+    A generic plugin-local RVV predicate token produced by compare dataflow on
+    the corrected typed RVV surface. The type carries the compared element
+    dtype and LMUL so the RVV plugin can derive the concrete mask C type from
+    body/config facts after legality validation.
+
+    This type is not a route id, descriptor, artifact name, source front door
+    marker, intrinsic spelling, runtime evidence, or performance claim.
+  }];
+
+  let parameters = (ins
+    "mlir::Type":$elementType,
+    StringRefParameter<"LMUL string">:$lmul
+  );
+  let assemblyFormat = "`<` $elementType `,` $lmul `>`";
+}
+
 def RuntimeABIValueOp : TCRVRVV_Op<"runtime_abi_value",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",
@@ -347,6 +366,34 @@ def LoadOp : TCRVRVV_Op<"load",
   let hasVerifier = 1;
 }
 
+def BroadcastLoadOp : TCRVRVV_Op<"broadcast_load",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV RHS scalar broadcast load dataflow op";
+  let description = [{
+    Records one generic plugin-local RVV RHS scalar-load/broadcast dataflow
+    step. The op is nested directly under tcrv_rvv.with_vl, consumes one
+    explicit RHS runtime ABI buffer SSA value plus the active !tcrv_rvv.vl
+    token, and produces one !tcrv_rvv.vector element/LMUL token matching the
+    enclosing config.
+
+    The memory form is structural in this op. The RVV plugin derives the
+    concrete scalar load / vector broadcast intrinsic from this typed body
+    fact, the vector type, SEW/LMUL/policy, and runtime ABI binding.
+  }];
+
+  let arguments = (ins
+    AnyType:$buffer,
+    AnyType:$vl
+  );
+  let results = (outs AnyType:$broadcast);
+
+  let assemblyFormat =
+    "$buffer `,` $vl attr-dict `:` type($buffer) `,` type($vl) `->` type($broadcast)";
+  let hasVerifier = 1;
+}
+
 def BinaryOp : TCRVRVV_Op<"binary",
     [TCRVEmitCLowerableOpInterface]> {
   let summary = "generic typed RVV binary arithmetic dataflow op";
@@ -372,6 +419,60 @@ def BinaryOp : TCRVRVV_Op<"binary",
 
   let assemblyFormat =
     "$lhs `,` $rhs `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def CompareOp : TCRVRVV_Op<"compare",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary = "generic typed RVV predicate-producing compare dataflow op";
+  let description = [{
+    Records one generic plugin-local RVV vector compare dataflow step. The op
+    is nested directly under tcrv_rvv.with_vl, consumes two same-typed
+    !tcrv_rvv.vector operands and the active !tcrv_rvv.vl token, carries an
+    explicit comparison kind, and produces one matching !tcrv_rvv.mask token.
+
+    For the current bounded Stage 2 predicate slice, kind is limited to eq.
+    Compare semantics come only from this typed operation in the selected RVV
+    body.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$vl,
+    StrAttr:$kind
+  );
+  let results = (outs AnyType:$mask);
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($vl) `->` type($mask)";
+  let hasVerifier = 1;
+}
+
+def SelectOp : TCRVRVV_Op<"select",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary = "generic typed RVV predicate-consuming select dataflow op";
+  let description = [{
+    Records one generic plugin-local RVV vector select dataflow step. The op is
+    nested directly under tcrv_rvv.with_vl, consumes one !tcrv_rvv.mask
+    predicate produced by tcrv_rvv.compare in the same selected VL scope,
+    consumes true and false !tcrv_rvv.vector values, consumes the active
+    !tcrv_rvv.vl token, and produces one selected !tcrv_rvv.vector value.
+
+    Select semantics come only from this typed operation and its explicit
+    predicate operand in the selected RVV body.
+  }];
+
+  let arguments = (ins
+    AnyType:$mask,
+    AnyType:$true_value,
+    AnyType:$false_value,
+    AnyType:$vl
+  );
+  let results = (outs AnyType:$selected);
+
+  let assemblyFormat =
+    "$mask `,` $true_value `,` $false_value `,` $vl attr-dict `:` type($mask) `,` type($true_value) `,` type($false_value) `,` type($vl) `->` type($selected)";
   let hasVerifier = 1;
 }
 

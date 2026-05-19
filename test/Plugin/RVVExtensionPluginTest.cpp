@@ -841,7 +841,7 @@ module {
           VariantEmissionRequest(variant, kernel, capabilities,
                                  VariantEmissionRole::DirectVariant),
           plan),
-      {"bounded generic RVV EmitC route requires exactly two "
+      {"bounded generic RVV vector-load route requires exactly two "
        "tcrv_rvv.load ops"});
 }
 
@@ -985,7 +985,9 @@ module {
           plan),
       {"legacy selected-body op 'tcrv_rvv.i32_load' is fail-closed during "
        "RVV Stage1",
-       "generic tcrv_rvv.load, tcrv_rvv.binary, and tcrv_rvv.store"});
+       "Stage2 routes must use generic tcrv_rvv.load, "
+       "tcrv_rvv.broadcast_load, tcrv_rvv.binary, tcrv_rvv.compare, "
+       "tcrv_rvv.select, and tcrv_rvv.store"});
 }
 
 int runCompareSelectSelectedBodyRouteTest(mlir::MLIRContext &context) {
@@ -1033,7 +1035,9 @@ module {
           plan),
       {"legacy selected-body op 'tcrv_rvv.i32_load' is fail-closed during "
        "RVV Stage1",
-       "generic tcrv_rvv.load, tcrv_rvv.binary, and tcrv_rvv.store"});
+       "Stage2 routes must use generic tcrv_rvv.load, "
+       "tcrv_rvv.broadcast_load, tcrv_rvv.binary, tcrv_rvv.compare, "
+       "tcrv_rvv.select, and tcrv_rvv.store"});
 }
 
 int runOutOfOrderSelectedRoleSequenceRejectionTest(mlir::MLIRContext &context) {
