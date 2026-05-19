@@ -21,4 +21,4 @@ module {
 }
 
 // CHECK: bounded generic RVV multiply-accumulate route requires explicit vector lhs, rhs, and accumulator loads
-// CHECK-SAME: broadcast macc is not in this bounded slice
+// CHECK-SAME: broadcast/splat macc is not in this bounded slice

@@ -85,6 +85,8 @@ validateRVVSelectedBodyM1ConfigVLContract(SetVLOp setvl, WithVLOp withVL);
 
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>
 getRVVSelectedBodyStridedRuntimeABIParameters();
 llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(

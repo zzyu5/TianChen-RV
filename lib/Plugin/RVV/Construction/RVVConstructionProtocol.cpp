@@ -50,7 +50,7 @@ constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "scope:rvv.role.scope.with_vl:tcrv_rvv.with_vl:"
     "TCRVConfigOpInterface:TCRVEmitCLowerableInterface;"
     "load:rvv.role.load.generic_load:tcrv_rvv.load|"
-    "tcrv_rvv.broadcast_load|tcrv_rvv.strided_load:"
+    "tcrv_rvv.broadcast_load|tcrv_rvv.splat|tcrv_rvv.strided_load:"
     "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;"
     "compute:rvv.role.compute.generic_vector:tcrv_rvv.binary|"
     "tcrv_rvv.compare|tcrv_rvv.masked_binary|tcrv_rvv.select|"
@@ -67,6 +67,7 @@ constexpr llvm::StringLiteral kTypedRoleArtifactSummary(
     "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;"
     "scope:tcrv_rvv.with_vl;load:tcrv_rvv.load;"
     "broadcast_load:tcrv_rvv.broadcast_load;"
+    "splat:tcrv_rvv.splat;"
     "strided_load:tcrv_rvv.strided_load;"
     "compute:tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.select|"
     "tcrv_rvv.masked_binary|tcrv_rvv.reduce|tcrv_rvv.macc;"
@@ -77,7 +78,8 @@ constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
 constexpr llvm::StringLiteral kSourceOps(
     "tcrv_rvv.runtime_abi_value->tcrv_rvv.setvl->tcrv_rvv.with_vl->"
     "(tcrv_rvv.load|tcrv_rvv.strided_load)->"
-    "(tcrv_rvv.load|tcrv_rvv.broadcast_load|tcrv_rvv.strided_load)->"
+    "(tcrv_rvv.load|tcrv_rvv.broadcast_load|tcrv_rvv.splat|"
+    "tcrv_rvv.strided_load)->"
     "(tcrv_rvv.binary|tcrv_rvv.compare->tcrv_rvv.select|"
     "tcrv_rvv.compare->tcrv_rvv.masked_binary|tcrv_rvv.reduce|"
     "tcrv_rvv.load->tcrv_rvv.macc)->"
@@ -182,11 +184,13 @@ const RVVConstructionSemanticRole kSemanticRoles[] = {
      "TCRVEmitCLowerableInterface",
      "own the selected with_vl lowering boundary for the arithmetic body"},
     {"load", 3,
-     "tcrv_rvv.load|tcrv_rvv.broadcast_load|tcrv_rvv.strided_load",
+     "tcrv_rvv.load|tcrv_rvv.broadcast_load|tcrv_rvv.splat|"
+     "tcrv_rvv.strided_load",
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "load explicit ABI buffers into typed RVV vector dataflow values, "
      "broadcast the explicit RHS ABI buffer into a typed RVV dataflow value, "
+     "splat an explicit RHS scalar ABI value into a typed RVV dataflow value, "
      "or load with explicit runtime element stride values"},
     {"compute", 4,
      "tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.masked_binary|"
@@ -253,7 +257,8 @@ const RVVTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
     {"rvv.role.load.generic_load",
      "load",
      3,
-     "tcrv_rvv.load|tcrv_rvv.broadcast_load|tcrv_rvv.strided_load",
+     "tcrv_rvv.load|tcrv_rvv.broadcast_load|tcrv_rvv.splat|"
+     "tcrv_rvv.strided_load",
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVMemoryOpInterface",
@@ -336,6 +341,12 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-strided-add-emitc-route",
      "rvv-generic-strided-add-callable-c-abi.v1",
      "rvv-generic-strided-add-callable-c-abi"},
+    {"scalar_broadcast_add",
+     "tcrv_rvv.binary",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-scalar-broadcast-add-emitc-route",
+     "rvv-generic-scalar-broadcast-add-callable-c-abi.v1",
+     "rvv-generic-scalar-broadcast-add-callable-c-abi"},
 };
 
 const RVVSelectedBodyTargetArtifactMapping kTargetArtifactMapping = {
@@ -448,10 +459,11 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 8)
+          .size() != 9)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
-        "cmp_select, reduce_add, masked_add, macc_add, and strided_add");
+        "cmp_select, reduce_add, masked_add, macc_add, strided_add, and "
+        "scalar_broadcast_add");
   return llvm::Error::success();
 }
 
@@ -562,6 +574,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
   const bool isMaskedAdd = route->operationMnemonic == "masked_add";
   const bool isMAccAdd = route->operationMnemonic == "macc_add";
   const bool isStridedAdd = route->operationMnemonic == "strided_add";
+  const bool isScalarBroadcastAdd =
+      route->operationMnemonic == "scalar_broadcast_add";
   if (isCompareSelect && typedComputeOpName != "tcrv_rvv.select")
     return makeRVVConstructionError(
         "RVV compare/select construction requires generic tcrv_rvv.select");
@@ -584,12 +598,21 @@ buildRVVSelectedBodyExecutableRoleSteps(
         typedComputeOpName + "'");
   if (rhsSourceOperationName != "tcrv_rvv.load" &&
       rhsSourceOperationName != "tcrv_rvv.broadcast_load" &&
+      rhsSourceOperationName != "tcrv_rvv.splat" &&
       rhsSourceOperationName != "tcrv_rvv.strided_load")
     return makeRVVConstructionError(
         llvm::Twine("RVV RHS source operation must be generic "
-                    "tcrv_rvv.load, tcrv_rvv.broadcast_load, or "
-                    "tcrv_rvv.strided_load, not '") +
+                    "tcrv_rvv.load, tcrv_rvv.broadcast_load, "
+                    "tcrv_rvv.splat, or tcrv_rvv.strided_load, not '") +
         rhsSourceOperationName + "'");
+  if (isScalarBroadcastAdd && rhsSourceOperationName != "tcrv_rvv.splat")
+    return makeRVVConstructionError(
+        "RVV generic scalar-broadcast add construction requires explicit RHS "
+        "runtime scalar splat");
+  if (!isScalarBroadcastAdd && rhsSourceOperationName == "tcrv_rvv.splat")
+    return makeRVVConstructionError(
+        "RVV generic scalar splat memory form is only supported by "
+        "scalar_broadcast_add in this bounded slice");
   if (isStridedAdd && rhsSourceOperationName != "tcrv_rvv.strided_load")
     return makeRVVConstructionError(
         "RVV generic strided add construction requires explicit strided lhs, "
@@ -684,7 +707,9 @@ buildRVVSelectedBodyExecutableRoleSteps(
                    "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
                    rhsSourceOperationName == "tcrv_rvv.broadcast_load"
                        ? "rhs_broadcast"
-                       : "rhs_load",
+                       : rhsSourceOperationName == "tcrv_rvv.splat"
+                             ? "rhs_scalar_splat"
+                             : "rhs_load",
                    7});
   if (isMAccAdd) {
     steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
@@ -1005,8 +1030,23 @@ llvm::Error verifyRVVConstructionProtocolReady() {
     return error;
   for (const RVVSelectedBodyConstructionRoute &route :
        kRetainedSelectedBodySpecializations) {
+    llvm::SmallVector<support::RuntimeABIParameter, 7> routeRuntimeABIParameters;
+    if (route.operationMnemonic == "strided_add") {
+      llvm::SmallVector<support::RuntimeABIParameter, 7> stridedParameters =
+          tcrv::rvv::getRVVSelectedBodyStridedRuntimeABIParameters();
+      routeRuntimeABIParameters.append(stridedParameters.begin(),
+                                       stridedParameters.end());
+    } else if (route.operationMnemonic == "scalar_broadcast_add") {
+      llvm::SmallVector<support::RuntimeABIParameter, 4> scalarParameters =
+          tcrv::rvv::getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
+      routeRuntimeABIParameters.append(scalarParameters.begin(),
+                                       scalarParameters.end());
+    } else {
+      routeRuntimeABIParameters.append(runtimeABIParameters.begin(),
+                                       runtimeABIParameters.end());
+    }
     RVVSelectedBodyConstructionMetadataFacts facts =
-        makeConstructionMetadataFactsForRoute(route, runtimeABIParameters);
+        makeConstructionMetadataFactsForRoute(route, routeRuntimeABIParameters);
     metadataStorage.push_back(buildExpectedConstructionArtifactMetadata(facts));
     llvm::ArrayRef<support::ArtifactMetadataEntry> metadata =
         metadataStorage.back();
@@ -1181,6 +1221,11 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         tcrv::rvv::getRVVSelectedBodyStridedRuntimeABIParameters();
     expectedParameters.append(stridedParameters.begin(),
                               stridedParameters.end());
+  } else if (route->operationMnemonic == "scalar_broadcast_add") {
+    llvm::SmallVector<support::RuntimeABIParameter, 4> scalarParameters =
+        tcrv::rvv::getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
+    expectedParameters.append(scalarParameters.begin(),
+                              scalarParameters.end());
   } else {
     llvm::SmallVector<support::RuntimeABIParameter, 4> baseParameters =
         tcrv::rvv::getRVVSelectedBodyRuntimeABIParameters();

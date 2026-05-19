@@ -151,6 +151,72 @@ correctness claim only for bounded pre-realized `reduce_add` counts
 |------|---------|
 | `this commit` | (see git log) |
 
+## Session 141: Stage2 RVV vector-scalar broadcast executable path
+
+**Date**: 2026-05-20
+**Task**: `stage2-rvv-vector-scalar-broadcast-executable-path`
+**Branch**: `main`
+
+### Summary
+
+Implemented one bounded Stage2 RVV vector-scalar executable path:
+`lhs` vector load plus explicit runtime `rhs_scalar` ABI value, realized through
+generic `tcrv_rvv.splat`, generic binary add, provider-built EmitC route,
+target artifact bundle, and `ssh rvv` correctness evidence.
+
+### Main Changes
+
+- Added `rhs-scalar-value` as an explicit runtime ABI role with scalar i32
+  type validation and the ordered ABI contract `lhs,rhs_scalar,out,n`.
+- Added generic `tcrv_rvv.splat` as the typed RVV scalar-to-vector dataflow
+  op; it is verifier-guarded to consume an explicit RHS scalar runtime ABI
+  value inside the matching `with_vl` scope.
+- Extended pre-realized selected-body validation and realization so
+  `memory_form = "rhs-scalar-broadcast"` realizes to
+  `setvl/with_vl/load/splat/binary/store`.
+- Extended RVV route planning, construction metadata, and EmitC materialization
+  for one `scalar_broadcast_add` route while preserving common EmitC/export
+  neutrality.
+- Added target, conversion, dialect, lowering-boundary, script dry-run, and
+  generated-bundle evidence coverage for the new path and its fail-closed
+  cases.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] focused `tcrv-opt`/`FileCheck` checks for the new pre-realized
+  scalar-broadcast target fixture, materialization fixture, dialect dataflow,
+  conversion negatives, and lowering-boundary negatives.
+- [OK] generated-bundle dry-run for `scalar_broadcast_add` counts `7,16,23`:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-scalar-broadcast-dryrun`.
+- [OK] real `ssh rvv` generated-bundle correctness for `scalar_broadcast_add`
+  counts `7,16,23`:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-scalar-broadcast-rvv`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 183/183 lit
+  tests passed after updating stale construction/plugin test expectations.
+- [OK] `git diff --check`
+- [OK] added-line authority scan found no new `RVVI32M1`, `rvv-i32m1`,
+  finite positive `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`,
+  source-front-door/source-seed, descriptor, or legacy route-id authority.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round makes a real RVV
+correctness claim only for bounded `scalar_broadcast_add` counts `7,16,23`.
+
+### Next Steps
+
+- Future Stage2 coverage should stay in low-level RVV capability classes and
+  use a separate bounded PRD; this scalar-broadcast route must not be expanded
+  by adding dtype-prefixed helper ops or route-id/metadata authority.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 ## Session 141: Stage2 RVV compare/select executable ABI closure
 
 **Date**: 2026-05-20

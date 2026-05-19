@@ -47,6 +47,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "masked_add",
     "macc_add",
     "strided_add",
+    "scalar_broadcast_add",
 )
 REDUCE_ADD_ACCUMULATOR_LAYOUT = "rhs-vector-seed-lane0-per-vl-chunk"
 REDUCE_ADD_RESULT_LAYOUT = "store-reduction-lane0-to-output-chunk-base"
@@ -56,6 +57,7 @@ MASKED_ADD_PASSTHROUGH_LAYOUT = "passthrough-vector-preserves-inactive-lanes"
 MACC_ADD_ACCUMULATOR_LAYOUT = "output-buffer-vector-accumulator-input"
 MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
 STRIDED_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride"
+SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,out,n"
 STRIDED_ADD_MEMORY_LAYOUT = "element-strided-lhs-rhs-output-runtime-abi"
 STRIDED_ADD_LHS_STRIDE_SOURCE = "runtime_abi:lhs_stride"
 STRIDED_ADD_RHS_STRIDE_SOURCE = "runtime_abi:rhs_stride"
@@ -101,6 +103,11 @@ class OpExpectation:
                 "const int32_t *rhs, int32_t *out, size_t n, "
                 "size_t lhs_stride, size_t rhs_stride, size_t out_stride);"
             )
+        if self.is_scalar_broadcast_add:
+            return (
+                f"void {self.function_name}(const int32_t *lhs, "
+                "int32_t rhs_scalar, int32_t *out, size_t n);"
+            )
         return (
             f"void {self.function_name}(const int32_t *lhs, "
             "const int32_t *rhs, int32_t *out, size_t n);"
@@ -110,12 +117,16 @@ class OpExpectation:
     def runtime_parameters(self) -> tuple[dict[str, str], ...]:
         if self.is_strided_add:
             return EXPECTED_STRIDED_RUNTIME_PARAMETERS
+        if self.is_scalar_broadcast_add:
+            return EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS
         return EXPECTED_RUNTIME_PARAMETERS
 
     @property
     def runtime_abi_order(self) -> str:
         if self.is_strided_add:
             return STRIDED_ADD_RUNTIME_ABI_ORDER
+        if self.is_scalar_broadcast_add:
+            return SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER
         return "lhs,rhs,out,n"
 
     @property
@@ -149,6 +160,10 @@ class OpExpectation:
     @property
     def is_strided_add(self) -> bool:
         return self.kind == "strided_add"
+
+    @property
+    def is_scalar_broadcast_add(self) -> bool:
+        return self.kind == "scalar_broadcast_add"
 
 
 EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
@@ -402,6 +417,20 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="pre_realized_body_rvv_strided_add",
         function_name="tcrv_emitc_pre_realized_body_strided_add_kernel_pre_realized_body_rvv_strided_add",
     ),
+    "scalar_broadcast_add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
+        kind="scalar_broadcast_add",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-scalar-broadcast-add.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_scalar_broadcast_add",
+        external_abi_name="rvv-generic-scalar-broadcast-add-callable-c-abi.v1",
+        function_name="tcrv_emitc_pre_realized_body_scalar_broadcast_add_kernel_pre_realized_body_rvv_scalar_broadcast_add",
+        emitc_route="rvv-generic-scalar-broadcast-add-emitc-route",
+        typed_compute_op="tcrv_rvv.binary",
+        memory_form="rhs-scalar-broadcast",
+        rhs_initializer="(int32_t)-37",
+        expected_expression="lhs[index] + rhs_scalar",
+    ),
 }
 
 EXPECTED_RUNTIME_PARAMETERS = (
@@ -449,6 +478,17 @@ EXPECTED_STRIDED_RUNTIME_PARAMETERS = EXPECTED_RUNTIME_PARAMETERS + (
         "role": "output-stride",
         "ownership": "target-export-abi-owned",
     },
+)
+EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS = (
+    EXPECTED_RUNTIME_PARAMETERS[0],
+    {
+        "c_name": "rhs_scalar",
+        "c_type": "int32_t",
+        "role": "rhs-scalar-value",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_RUNTIME_PARAMETERS[2],
+    EXPECTED_RUNTIME_PARAMETERS[3],
 )
 COMMON_EXPECTED_METADATA = {
     "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
@@ -1033,6 +1073,17 @@ def verify_materialized_selected_body(
             "tcrv_rvv.broadcast_load",
             "materialized selected-body MLIR RHS broadcast load",
         )
+    if expectation.is_scalar_broadcast_add:
+        require_contains(
+            text,
+            "tcrv_rvv.splat",
+            "materialized selected-body MLIR RHS scalar splat",
+        )
+        require_contains(
+            text,
+            'role = "rhs-scalar-value"',
+            "materialized selected-body MLIR RHS scalar ABI role",
+        )
     if expectation.is_strided_add:
         require_contains(
             text,
@@ -1166,6 +1217,66 @@ static int run_case(size_t n) {{
   free(rhs);
   free(out);
   printf("{expectation.kind} case n=%zu ok\\n", n);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
+    if expectation.is_scalar_broadcast_add:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n == 0 ? 1 : n;
+  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t rhs_scalar = {expectation.rhs_initializer};
+  if (!lhs || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(lhs);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < n; ++index) {{
+    lhs[index] = {expectation.lhs_initializer};
+    out[index] = {expectation.out_initializer};
+  }}
+
+  {expectation.function_name}(lhs, rhs_scalar, out, n);
+
+  for (size_t index = 0; index < n; ++index) {{
+    int32_t expected = {expectation.expected_expression};
+    if (out[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d lhs=%d rhs_scalar=%d\\n",
+              n, index, out[index], expected, lhs[index], rhs_scalar);
+      free(lhs);
+      free(out);
+      return 12;
+    }}
+  }}
+
+  free(lhs);
+  free(out);
+  printf("{expectation.kind} case n=%zu ok rhs_scalar=%d\\n", n, rhs_scalar);
   return 0;
 }}
 

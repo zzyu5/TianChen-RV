@@ -31,11 +31,13 @@ enum class RVVSelectedBodyOperationKind {
   MaskedAdd,
   MAccAdd,
   StridedAdd,
+  ScalarBroadcastAdd,
 };
 
 enum class RVVSelectedBodyMemoryForm {
   VectorRHSLoad,
   RHSBroadcastLoad,
+  RHSScalarBroadcast,
   StridedLoadStore,
 };
 

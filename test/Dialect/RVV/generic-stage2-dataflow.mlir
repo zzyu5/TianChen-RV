@@ -6,6 +6,7 @@ module {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
     %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
     %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+    %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
     %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
     %lhs_stride = tcrv_rvv.runtime_abi_value {c_name = "lhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "lhs-input-stride"} : index
     %rhs_stride = tcrv_rvv.runtime_abi_value {c_name = "rhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "rhs-input-stride"} : index
@@ -16,8 +17,12 @@ module {
       %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       // CHECK: tcrv_rvv.broadcast_load
       %rhs_broadcast = tcrv_rvv.broadcast_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      // CHECK: tcrv_rvv.splat
+      %rhs_scalar_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       // CHECK: tcrv_rvv.binary
       %sum = tcrv_rvv.binary %lhs, %rhs_broadcast, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      // CHECK: tcrv_rvv.binary
+      %scalar_sum = tcrv_rvv.binary %lhs, %rhs_scalar_vec, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       // CHECK: tcrv_rvv.compare
       %mask = tcrv_rvv.compare %lhs, %sum, %vl {kind = "eq"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
       // CHECK: tcrv_rvv.select
@@ -30,6 +35,8 @@ module {
       %macc = tcrv_rvv.macc %lhs, %rhs_broadcast, %reduced, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       // CHECK: tcrv_rvv.store
       tcrv_rvv.store %out_ptr, %macc, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      // CHECK: tcrv_rvv.store
+      tcrv_rvv.store %out_ptr, %scalar_sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
       // CHECK: tcrv_rvv.strided_load
       %strided_lhs = tcrv_rvv.strided_load %lhs_ptr, %lhs_stride, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       // CHECK: tcrv_rvv.strided_load
@@ -161,6 +168,20 @@ module {
     tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
       // expected-error@+1 {{requires broadcast RHS buffer operand to bind runtime ABI role 'rhs-input-buffer'}}
       %rhs = tcrv_rvv.broadcast_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+    } : !tcrv_rvv.vl
+  }
+}
+
+// -----
+
+module {
+  tcrv.exec.kernel @rvv_generic_splat_reject_buffer_role {
+    %avl = "builtin.unrealized_conversion_cast"() : () -> index
+    %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+    %vl = tcrv_rvv.setvl %avl {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+    tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
+      // expected-error@+1 {{requires RHS scalar operand to have i32 scalar type}}
+      %rhs = tcrv_rvv.splat %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
     } : !tcrv_rvv.vl
   }
 }

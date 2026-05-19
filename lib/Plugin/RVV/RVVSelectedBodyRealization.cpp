@@ -30,6 +30,10 @@ bool isPreRealizedUnitStrideMemoryForm(llvm::StringRef memoryForm) {
   return memoryForm == "vector-rhs-load";
 }
 
+bool isPreRealizedScalarBroadcastMemoryForm(llvm::StringRef memoryForm) {
+  return memoryForm == "rhs-scalar-broadcast";
+}
+
 bool isPreRealizedStridedMemoryForm(llvm::StringRef memoryForm) {
   return memoryForm == "strided-load-store";
 }
@@ -184,10 +188,17 @@ llvm::Error validatePreRealizedRVVSelectedBody(
         "pre-realized RVV selected body currently supports only op_kind "
         "'add', 'sub', or 'mul'");
   if (!isPreRealizedUnitStrideMemoryForm(body.getMemoryForm()) &&
+      !isPreRealizedScalarBroadcastMemoryForm(body.getMemoryForm()) &&
       !isPreRealizedStridedMemoryForm(body.getMemoryForm()))
     return makeRVVPluginError(
         "pre-realized RVV selected body currently supports only memory_form "
-        "'vector-rhs-load' or 'strided-load-store'");
+        "'vector-rhs-load', 'rhs-scalar-broadcast', or "
+        "'strided-load-store'");
+  if (isPreRealizedScalarBroadcastMemoryForm(body.getMemoryForm()) &&
+      body.getOpKind() != "add")
+    return makeRVVPluginError(
+        "pre-realized RVV selected scalar-broadcast body currently supports "
+        "only op_kind 'add'");
   if (isPreRealizedStridedMemoryForm(body.getMemoryForm()) &&
       body.getOpKind() != "add")
     return makeRVVPluginError(
@@ -212,7 +223,9 @@ llvm::Error validatePreRealizedRVVSelectedBody(
   llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
       requirePreRealizedRuntimeABIValue(
           body.getRhs(), "pre-realized RVV rhs operand",
-          support::RuntimeABIParameterRole::RHSInputBuffer);
+          isPreRealizedScalarBroadcastMemoryForm(body.getMemoryForm())
+              ? support::RuntimeABIParameterRole::RHSScalarValue
+              : support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!rhs)
     return rhs.takeError();
   llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
@@ -229,11 +242,12 @@ llvm::Error validatePreRealizedRVVSelectedBody(
     return n.takeError();
 
   mlir::OperandRange strides = body.getStrides();
-  if (isPreRealizedUnitStrideMemoryForm(body.getMemoryForm())) {
+  if (isPreRealizedUnitStrideMemoryForm(body.getMemoryForm()) ||
+      isPreRealizedScalarBroadcastMemoryForm(body.getMemoryForm())) {
     if (!strides.empty())
       return makeRVVPluginError(
-          "pre-realized RVV unit-stride selected body must not carry stride "
-          "operands");
+          "pre-realized RVV unit-stride or scalar-broadcast selected body "
+          "must not carry stride operands");
   }
   if (isPreRealizedStridedMemoryForm(body.getMemoryForm())) {
     if (strides.size() != 3)
@@ -717,6 +731,16 @@ mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
   return builder.create(state);
 }
 
+mlir::Operation *createRealizedGenericSplat(mlir::OpBuilder &builder,
+                                            mlir::Location loc,
+                                            mlir::Value scalar,
+                                            mlir::Value vl) {
+  mlir::OperationState state(loc, "tcrv_rvv.splat");
+  state.addOperands({scalar, vl});
+  state.addTypes(getStage1GenericVectorType(builder));
+  return builder.create(state);
+}
+
 mlir::Operation *createRealizedGenericStridedLoad(mlir::OpBuilder &builder,
                                                   mlir::Location loc,
                                                   mlir::Value buffer,
@@ -897,6 +921,14 @@ realizePreRealizedRVVSelectedBody(
                                            strides[1], setvl.getVl()));
       lhsValue = lhsLoad.getLoaded();
       rhsValue = rhsLoad.getLoaded();
+    } else if (isPreRealizedScalarBroadcastMemoryForm(body.getMemoryForm())) {
+      auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+          builder, loc, body.getLhs(), setvl.getVl()));
+      auto rhsSplat = llvm::cast<tcrv::rvv::SplatOp>(
+          createRealizedGenericSplat(builder, loc, body.getRhs(),
+                                     setvl.getVl()));
+      lhsValue = lhsLoad.getLoaded();
+      rhsValue = rhsSplat.getBroadcast();
     } else {
       auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
           builder, loc, body.getLhs(), setvl.getVl()));

@@ -198,7 +198,20 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   }
-  if (description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad) {
+  if (description.memoryForm ==
+      RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
+    if (llvm::Error error = addLoopStep(
+            slice->rhsLoadOperation, "load",
+            description.rhsBroadcastIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{slice->rhsABI.cName,
+                                        slice->rhsABI.cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"rhs_vec",
+                                      description.vectorCType.str()}))
+      return error;
+  } else if (description.memoryForm ==
+             RVVSelectedBodyMemoryForm::RHSBroadcastLoad) {
     if (llvm::Error error = addLoopStep(
             slice->rhsLoadOperation, "load",
             description.rhsBroadcastIntrinsic,

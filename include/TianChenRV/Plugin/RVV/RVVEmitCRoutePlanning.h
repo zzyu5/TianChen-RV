@@ -22,6 +22,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::StridedLoadOp lhsStridedLoad;
   tcrv::rvv::StridedLoadOp rhsStridedLoad;
   tcrv::rvv::BroadcastLoadOp rhsBroadcastLoad;
+  tcrv::rvv::SplatOp rhsScalarSplat;
   tcrv::rvv::CompareOp compareOp;
   tcrv::rvv::SelectOp selectOp;
   tcrv::rvv::ReduceOp reduceOp;

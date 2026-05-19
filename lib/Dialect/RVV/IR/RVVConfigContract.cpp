@@ -356,6 +356,23 @@ getRVVSelectedBodyRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVSelectedBodyScalarBroadcastRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs_scalar", "int32_t",
+      support::RuntimeABIParameterRole::RHSScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 7>
 getRVVSelectedBodyStridedRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 7> parameters;
@@ -387,11 +404,17 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, stridedExpected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 4> scalarBroadcastExpected =
+      getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, scalarBroadcastExpected))
+    return llvm::Error::success();
+
   return makeRuntimeABIError(
       llvm::Twine(context) +
-      " must use ordered runtime ABI parameters lhs, rhs, out, n or "
-      "lhs, rhs, out, n, lhs_stride, rhs_stride, out_stride with stable C "
-      "types, roles, and target-export ownership");
+      " must use ordered runtime ABI parameters lhs, rhs, out, n; "
+      "lhs, rhs_scalar, out, n; or lhs, rhs, out, n, lhs_stride, "
+      "rhs_stride, out_stride with stable C types, roles, and target-export "
+      "ownership");
 }
 
 llvm::StringRef getRVVSelectedBodyRuntimeAVLParameterName() {

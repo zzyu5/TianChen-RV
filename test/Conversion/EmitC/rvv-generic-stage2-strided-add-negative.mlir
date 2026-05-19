@@ -47,4 +47,4 @@ module {
   }
 }
 
-// CHECK: bounded generic RVV strided route cannot mix strided memory ops with unit-stride load/store or broadcast memory forms
+// CHECK: bounded generic RVV strided route cannot mix strided memory ops with unit-stride load/store, broadcast, or scalar-splat memory forms

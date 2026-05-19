@@ -55,7 +55,7 @@ module {
       %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      // expected-error@+1 {{currently supports only memory_form "vector-rhs-load" or "strided-load-store"}}
+      // expected-error@+1 {{currently supports only memory_form "vector-rhs-load", "rhs-scalar-broadcast", or "strided-load-store"}}
       tcrv_rvv.typed_binary_pre_realized_body %lhs, %rhs, %out, %n {lmul = "m1", memory_form = "rhs-broadcast-load", op_kind = "sub", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @pre_realized_reject_memory_form_scalar attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
@@ -63,6 +63,52 @@ module {
     tcrv.exec.dispatch {
       tcrv.exec.case @pre_realized_reject_memory_form {origin = "rvv-plugin"}
       tcrv.exec.fallback @pre_realized_reject_memory_form_scalar {origin = "scalar-plugin"}
+    }
+  }
+}
+
+// -----
+
+module {
+  tcrv.exec.kernel @pre_realized_reject_scalar_broadcast_rhs_role_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @pre_realized_reject_scalar_broadcast_rhs_role attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = "builtin.unrealized_conversion_cast"() : () -> i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      // expected-error@+1 {{requires rhs scalar operand to be defined by tcrv_rvv.runtime_abi_value}}
+      tcrv_rvv.typed_binary_pre_realized_body %lhs, %rhs, %out, %n {lmul = "m1", memory_form = "rhs-scalar-broadcast", op_kind = "add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @pre_realized_reject_scalar_broadcast_rhs_role_scalar attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @pre_realized_reject_scalar_broadcast_rhs_role {origin = "rvv-plugin"}
+      tcrv.exec.fallback @pre_realized_reject_scalar_broadcast_rhs_role_scalar {origin = "scalar-plugin"}
+    }
+  }
+}
+
+// -----
+
+module {
+  tcrv.exec.kernel @pre_realized_reject_scalar_broadcast_op_kind_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @pre_realized_reject_scalar_broadcast_op_kind attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      // expected-error@+1 {{requires op_kind "add" for memory_form "rhs-scalar-broadcast"}}
+      tcrv_rvv.typed_binary_pre_realized_body %lhs, %rhs_scalar, %out, %n {lmul = "m1", memory_form = "rhs-scalar-broadcast", op_kind = "sub", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @pre_realized_reject_scalar_broadcast_op_kind_scalar attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @pre_realized_reject_scalar_broadcast_op_kind {origin = "rvv-plugin"}
+      tcrv.exec.fallback @pre_realized_reject_scalar_broadcast_op_kind_scalar {origin = "scalar-plugin"}
     }
   }
 }

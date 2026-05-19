@@ -1631,9 +1631,12 @@ int runRVVCommonValidationTest() {
                   : (route.operationMnemonic == "macc_add"
                          ? "tcrv_rvv.macc"
                          : "tcrv_rvv.binary")));
-    llvm::StringRef rhsSourceOp = route.operationMnemonic == "strided_add"
-                                      ? "tcrv_rvv.strided_load"
-                                      : "tcrv_rvv.load";
+    llvm::StringRef rhsSourceOp =
+        route.operationMnemonic == "strided_add"
+            ? "tcrv_rvv.strided_load"
+            : (route.operationMnemonic == "scalar_broadcast_add"
+                   ? "tcrv_rvv.splat"
+                   : "tcrv_rvv.load");
     llvm::Expected<llvm::SmallVector<
         rvv::RVVSelectedBodyExecutableRoleStep, 10>>
         steps = rvv::getRVVSelectedBodyExecutableRoleSteps(
@@ -1673,6 +1676,10 @@ int runRVVCommonValidationTest() {
     if (route.operationMnemonic == "strided_add")
       facts.runtimeABIParameters =
           tianchenrv::tcrv::rvv::getRVVSelectedBodyStridedRuntimeABIParameters();
+    else if (route.operationMnemonic == "scalar_broadcast_add")
+      facts.runtimeABIParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
     else
       facts.runtimeABIParameters = parameters;
 

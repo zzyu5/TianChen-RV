@@ -102,8 +102,9 @@ def TCRVRVV_RuntimeABIValueType
     A plugin-local token type representing one explicit runtime ABI value
     visible to the bounded RVV first-slice IR. Buffer ABI values such as lhs,
     rhs, and out use this token before the RVV EmitC route maps them to C
-    pointer parameters. Runtime scalar values such as n may use ordinary MLIR
-    scalar types while still being defined by tcrv_rvv.runtime_abi_value.
+    pointer parameters. Runtime scalar values such as n and bounded RHS scalar
+    values may use ordinary MLIR scalar types while still being defined by
+    tcrv_rvv.runtime_abi_value.
 
     This type is not a descriptor, vector register, memory model, source
     exporter, runtime result, correctness evidence, or performance evidence.
@@ -313,7 +314,9 @@ def TypedBinaryPreRealizedBodyOp
     typed RVV binary family. The op is nested directly in a selected
     tcrv.exec.variant and binds explicit runtime ABI values for lhs, rhs, out,
     runtime n/AVL, and optional runtime stride values together with the
-    selected operation kind, memory form, and compile-time RVV config.
+    selected operation kind, memory form, and compile-time RVV config. RHS may
+    be a buffer ABI value for vector RHS routes or a scalar ABI value for the
+    bounded scalar-broadcast add route.
 
     This op is not a common route, descriptor, source-front-door marker,
     direct-C exporter, intrinsic wrapper, runtime artifact, correctness
@@ -546,6 +549,37 @@ def BroadcastLoadOp : TCRVRVV_Op<"broadcast_load",
 
   let assemblyFormat =
     "$buffer `,` $vl attr-dict `:` type($buffer) `,` type($vl) `->` type($broadcast)";
+  let hasVerifier = 1;
+}
+
+def SplatOp : TCRVRVV_Op<"splat",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV runtime scalar splat dataflow op";
+  let description = [{
+    Records one bounded plugin-local RVV runtime scalar broadcast dataflow
+    step. The op is nested directly under tcrv_rvv.with_vl, consumes one
+    explicit RHS scalar runtime ABI SSA value plus the active !tcrv_rvv.vl
+    token, and produces one !tcrv_rvv.vector element/LMUL token matching the
+    enclosing config.
+
+    The scalar value is structural body authority: it must come from an
+    explicit tcrv_rvv.runtime_abi_value with the rhs-scalar-value role. The RVV
+    plugin derives the concrete vector splat intrinsic from this typed body
+    fact, the vector type, SEW/LMUL/policy, and runtime ABI binding. Route ids,
+    artifact names, C ABI strings, helper names, and common EmitC/export code
+    must not infer scalar-broadcast semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$scalar,
+    AnyType:$vl
+  );
+  let results = (outs AnyType:$broadcast);
+
+  let assemblyFormat =
+    "$scalar `,` $vl attr-dict `:` type($scalar) `,` type($vl) `->` type($broadcast)";
   let hasVerifier = 1;
 }
 
