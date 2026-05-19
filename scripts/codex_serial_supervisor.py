@@ -1104,6 +1104,7 @@ def write_review_input(run_dir: Path, before: dict[str, Any], after: dict[str, A
         "- Did it preserve parameter layering: hardware facts / target capability, compile-time variant config, runtime SSA/control values, and descriptor-local boundaries?",
         "- Did RVV dtype/config/operation authority come from the explicit typed `tcrv_rvv` body plus RVV plugin validation, not from i32 helper names, route ids, ABI strings, artifacts, descriptors, tests, or common EmitC/export code?",
         "- Did it avoid treating legacy `RVVI32M1*` route-table expansion as Stage 2 RVV progress?",
+        "- Did it keep source-front-door/source-artifact paths fail-closed by default and treat emission-plan result/status, manifests, route ids, and artifact metadata as mirrors only?",
         "- If continuing, Hermes must generate a focused Direction Brief from current evidence; the runner prepends the base prompt.",
     ]
     (run_dir / "review_input.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
@@ -1547,7 +1548,8 @@ The project shape that matters for review is:
 TianChen-RV MLIR / tcrv.exec envelope
   -> selected extension-family variant
   -> typed extension-family body
-  -> plugin-owned legality / selected-body realization / route construction
+  -> plugin-owned legality / selected-body realization / route provider
+  -> TCRVEmitCLowerableRoute
   -> common EmitC materialization and target artifact mechanics
 ```
 
@@ -1555,11 +1557,12 @@ For the current real hardware mainline, the selected family is RVV:
 
 ```text
 selected tcrv.exec RVV variant
-  -> explicit vector-level tcrv_rvv body
-  -> RVV plugin-owned legality / selected-body realization / route builder
-  -> faithful TCRVEmitCLowerableRoute
-  -> common EmitC / target export mechanics
-  -> ssh rvv evidence only when runtime/correctness/performance is claimed
+  -> typed low-level tcrv_rvv vector-level body
+  -> RVV plugin-owned legality / selected-body realization / route provider
+  -> TCRVEmitCLowerableRoute
+  -> common EmitC materializer
+  -> target artifact
+  -> ssh rvv evidence when runtime/correctness/performance is claimed
 ```
 
 `tcrv.exec` is the execution envelope and ABI/runtime binding surface. It does
@@ -1573,6 +1576,10 @@ or artifact. The provider builds `TCRVEmitCLowerableRoute` only after the
 selected vector-level `tcrv_rvv` body structurally carries the operation, dtype,
 config, memory form, runtime value use, and policy facts. Common materialization
 then lowers that route to MLIR EmitC; it must not choose RVV semantics itself.
+Emission-plan diagnostics, result fields, route ids, manifests, and artifact
+metadata are mirrors only. Bare `supported`/`status`/`result` wording must not
+be treated as acceptance state or route authority; mirror fields should use
+explicit mirror labels such as `provider_supported_mirror`.
 
 Dtype/config authority must stay layered. `tcrv.exec.mem_window` and
 `tcrv.exec.runtime_param` bind parameter roles and runtime SSA values; they do
@@ -1608,11 +1615,12 @@ Use live repo evidence plus any human steering to decide the stage. Keep the
 review bounded, but do not throw away the stage context.
 
 Stage 1 is active while any production/default path still treats bounded
-`i32m1` arithmetic, source-front-door patterns, route ids, artifact names,
-descriptor residue, intrinsic spellings, or common/export code as RVV route
-authority. Stage 1 is also active while the active RVV provider route surface
-is still organized around `RVVI32M1*` specs/slices, finite `i32_*` route cases,
-route ids, or exact `__riscv_*_i32m1` spellings as the family architecture.
+`i32m1` arithmetic, source-front-door/source-artifact patterns, route ids,
+artifact names, descriptor residue, intrinsic spellings, or common/export code
+as RVV route authority. Stage 1 is also active while the active RVV provider
+route surface is still organized around `RVVI32M1*` specs/slices, finite
+`i32_*` route cases, route ids, or exact `__riscv_*_i32m1` spellings as the
+family architecture.
 Stage 1 owner:
 
 ```text
@@ -1632,7 +1640,7 @@ Good Stage 1 owners are concrete module owners such as:
 ```text
 tcrv_rvv body/type/op surface correction
 RVV selected-body realization hook implementation or faithful consumption
-RVV route builder consuming the selected/realized body faithfully
+RVV route provider consuming the selected/realized body faithfully
 source-front-door demotion or fail-closed boundary
 common EmitC route boundary kept neutral while RVV mapping stays plugin-owned
 target artifact/export rejection when selected typed RVV authority is missing

@@ -498,7 +498,8 @@ tcrv.exec.diagnostic {
   reason = "emission_plan",
   message = "plugin-owned lowering/runtime route for selected path",
   severity = "info",
-  result = "supported",
+  // mirror only; not route authority or acceptance state
+  result = "provider_supported_mirror",
   target = @selected_variant,
   origin = "example-plugin",
   role = "direct variant",
@@ -522,8 +523,10 @@ For `reason = "emission_plan"`, fields such as `target`, `origin`, `role`,
 must not be required as the source of route construction, and they must not
 define dtype, compute, schedule, selected route identity, target artifact
 authority, correctness, performance, or progress. Unsupported results require
-diagnostic text through `message`. Duplicate mirrors for the same selected
-path are invalid only to keep diagnostics deterministic.
+diagnostic text through `message`. Prefer mirror-explicit result labels such as
+`provider_supported_mirror` over bare `supported` so agents do not interpret
+the field as acceptance state. Duplicate mirrors for the same selected path are
+invalid only to keep diagnostics deterministic.
 
 ## Core Types And Attributes
 

@@ -51,11 +51,12 @@ the PRD first; do not choose an unrelated direction.
 - Descriptor-driven computation is invalid as long-term architecture. Do not
   add computation semantics through descriptors or descriptor-driven C/source
   export.
-- New extension work should follow the Extension-Family Plugin Construction
-  Protocol in the Trellis specs: archetype, semantic role graph, family
-  declaration, common interface realization, EmitC route mapping, and evidence
-  profile. Do not make a new extension an independent backend or descriptor-
-  driven compute path.
+- New extension work should follow the Trellis plugin specs without treating
+  manifests, semantic role graphs, or construction templates as executable
+  authority. Use plugin-owned typed bodies/boundaries, legality,
+  selected-body realization, route providers, common interfaces, EmitC route
+  mapping, and evidence profiles. Do not make a new extension an independent
+  backend or descriptor-driven compute path.
 - Do not treat prompt edits, reports, helper-only changes, guardrails, or broad
   smoke tests as the main achievement.
 - RVV runtime, correctness, or performance claims require real `ssh rvv`
@@ -96,10 +97,12 @@ TianChen-RV's current real mainline is RVV-first:
 ```text
 TianChen-RV MLIR / tcrv.exec envelope
   -> selected RVV variant
-  -> explicit vector-level tcrv_rvv body
-  -> RVV plugin-owned legality / selected-body realization / route builder
-  -> faithful TCRVEmitCLowerableRoute
-  -> common EmitC / target export mechanics
+  -> typed low-level tcrv_rvv vector-level body
+  -> RVV plugin-owned legality / selected-body realization / route provider
+  -> TCRVEmitCLowerableRoute
+  -> common EmitC materializer
+  -> target artifact
+  -> ssh rvv evidence when runtime/correctness/performance is claimed
 ```
 
 `tcrv.exec` binds ABI/runtime roles and selected variants. It does not own
@@ -111,6 +114,10 @@ or artifact. The provider builds `TCRVEmitCLowerableRoute` only after the
 selected vector-level `tcrv_rvv` body structurally carries the operation, dtype,
 config, memory form, runtime value use, and policy facts. Common materialization
 then lowers that route to MLIR EmitC; it must not choose RVV semantics itself.
+Emission-plan diagnostics, result fields, route ids, manifests, and artifact
+metadata are mirrors only. Bare `supported`/`status`/`result` wording must not
+be treated as acceptance state or route authority; mirror fields should use
+explicit mirror labels such as `provider_supported_mirror`.
 
 Dtype/config authority must stay layered. `tcrv.exec.mem_window` and
 `tcrv.exec.runtime_param` bind parameter roles and runtime SSA values; they do
@@ -147,8 +154,9 @@ replace or fail-close bounded i32m1-as-route-authority.
 ```
 
 Stage 1 remains open while a production/default path treats bounded `i32m1`
-arithmetic, source-front-door patterns, route ids, artifact names, descriptor
-residue, intrinsic spellings, or common/export code as RVV route authority.
+arithmetic, source-front-door/source-artifact patterns, route ids, artifact
+names, descriptor residue, intrinsic spellings, or common/export code as RVV
+route authority.
 Stage 1 also remains open while the active RVV provider route surface is still
 organized around `RVVI32M1*` specs/slices, finite `i32_*` route cases, route
 ids, or exact `__riscv_*_i32m1` spellings as the family architecture. During
