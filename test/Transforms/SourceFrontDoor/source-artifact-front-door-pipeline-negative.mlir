@@ -1,4 +1,4 @@
-// RUN: not tcrv-opt %s --tcrv-source-artifact-front-door-pipeline 2>&1 | FileCheck %s --implicit-check-not="rvv-i32m1-add-emitc-route" --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
+// RUN: not tcrv-opt %s --tcrv-source-artifact-front-door-pipeline 2>&1 | FileCheck %s --implicit-check-not="rvv-generic-binary-add-emitc-route" --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
 
 // The default source-artifact pipeline no longer runs the RVV source
 // recognizer. Stale RVV source metadata therefore cannot become selected-body

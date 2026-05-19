@@ -33,7 +33,7 @@ module {
         policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
         required_capabilities = [@rvv],
         rvv_construction_protocol = "extension-family-construction-protocol.v1",
-        rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family",
+        rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family",
         selected_path_role = "dispatch case",
         selected_variant = @rvv_i32_add,
         sew = 32 : i64,

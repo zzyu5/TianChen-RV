@@ -1,5 +1,5 @@
-// RUN: not tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="tcrv.exec.kernel" --implicit-check-not="tcrv_rvv.i32_"
-// RUN: not tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
+// RUN: not tcrv-opt %s --tcrv-rvv-fail-closed-legacy-vector-source-front-door 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="tcrv.exec.kernel" --implicit-check-not="tcrv_rvv.i32_"
+// RUN: not tcrv-opt %s --tcrv-rvv-fail-closed-legacy-vector-source-front-door --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
 
 module {
   func.func @vector_source_mul(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
@@ -18,6 +18,6 @@ module {
   }
 }
 
-// FAIL: bounded RVV i32m1 vector-source front door failed
+// FAIL: legacy RVV vector-source front door failed
 // FAIL-SAME: RVV Stage1 source-front-door materialization is disabled
 // FAIL-SAME: explicit selected generic tcrv_rvv.load/tcrv_rvv.binary/tcrv_rvv.store body

@@ -22,7 +22,7 @@ namespace construction = tianchenrv::plugin::construction;
 
 constexpr llvm::StringLiteral kProtocolVersion(
     "extension-family-construction-protocol.v1");
-constexpr llvm::StringLiteral kArchetype("rvv-finite-binary");
+constexpr llvm::StringLiteral kArchetype("rvv-generic-typed-body");
 constexpr llvm::StringLiteral kSemanticRoleGraph(
     "runtime_abi->configure->scope->load->compute->store");
 constexpr llvm::StringLiteral kInterfaceRealization(
@@ -49,13 +49,13 @@ constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "TCRVConfigOpInterface:TCRVEmitCLowerableInterface;"
     "scope:rvv.role.scope.with_vl:tcrv_rvv.with_vl:"
     "TCRVConfigOpInterface:TCRVEmitCLowerableInterface;"
-    "load:rvv.role.load.i32_load:tcrv_rvv.load|"
+    "load:rvv.role.load.generic_load:tcrv_rvv.load|"
     "tcrv_rvv.broadcast_load:"
     "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;"
     "compute:rvv.role.compute.generic_vector:tcrv_rvv.binary|"
     "tcrv_rvv.compare|tcrv_rvv.select|tcrv_rvv.reduce:"
     "TCRVComputeOpInterface:TCRVEmitCLowerableInterface;"
-    "store:rvv.role.store.i32_store:tcrv_rvv.store:"
+    "store:rvv.role.store.generic_store:tcrv_rvv.store:"
     "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface");
 constexpr llvm::StringLiteral kInterfaceRealizationArtifactSummary(
     "runtime_abi/resource+emitc;configure/config+emitc;"
@@ -137,9 +137,9 @@ constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral kRVVCapabilityID("rvv");
 constexpr llvm::StringLiteral kRVVCapabilityKind("isa-vector");
 constexpr llvm::StringLiteral kRVVFirstSliceVariantName(
-    "rvv_i32m1_arithmetic_first_slice");
+    "rvv_generic_typed_body_first_slice");
 constexpr llvm::StringLiteral kRVVSelectedBodyTargetArtifactRouteID(
-    "rvv-i32m1-arithmetic-emitc-route-family");
+    "rvv-generic-typed-body-emitc-route-family");
 constexpr llvm::StringLiteral kRVVSelectedBodyEmissionKind(
     "materialized-emitc-cpp-rvv-intrinsic-object");
 constexpr llvm::StringLiteral kRVVSelectedBodyArtifactKind(
@@ -147,17 +147,17 @@ constexpr llvm::StringLiteral kRVVSelectedBodyArtifactKind(
 constexpr llvm::StringLiteral kRVVSelectedBodyLoweringBoundaryOpName(
     "tcrv_rvv.with_vl");
 constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeABIFamily(
-    "rvv-i32m1-arithmetic-callable-c-abi-family.v1");
+    "rvv-generic-typed-body-callable-c-abi-family.v1");
 constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeABIKind(
     "plugin-owned-runtime-abi");
 constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeGlueRole(
     "emitc-cpp-rvv-intrinsic-runtime-glue");
 constexpr llvm::StringLiteral kRVVMaterializedEmitCHeaderRouteID(
-    "rvv-i32m1-arithmetic-emitc-route-family.header");
+    "rvv-generic-typed-body-emitc-route-family.header");
 constexpr llvm::StringLiteral kRuntimeCallableCHeaderArtifactKind(
     "runtime-callable-c-header");
 constexpr llvm::StringLiteral kRVVMaterializedEmitCBundleComponentGroup(
-    "rvv-i32m1-arithmetic-materialized-emitc-bundle.v1");
+    "rvv-generic-typed-body-materialized-emitc-bundle.v1");
 constexpr llvm::StringLiteral kRVVSelectedBodyObjectHandoffKind(
     "materialized-emitc-cpp-rvv-intrinsic-object");
 constexpr llvm::StringLiteral kRVVEmitCToCppRouteID(
@@ -241,7 +241,7 @@ const RVVTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "TCRVEmitCLowerableInterface",
      "TCRVConfigOpInterface",
      "TCRVEmitCLowerableInterface"},
-    {"rvv.role.load.i32_load",
+    {"rvv.role.load.generic_load",
      "load",
      3,
      "tcrv_rvv.load|tcrv_rvv.broadcast_load",
@@ -257,7 +257,7 @@ const RVVTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVComputeOpInterface",
      "TCRVEmitCLowerableInterface"},
-    {"rvv.role.store.i32_store",
+    {"rvv.role.store.generic_store",
      "store",
      5,
      "tcrv_rvv.store",
@@ -277,33 +277,31 @@ const RVVTypedRoleGraphRealization kTypedRoleGraphRealization = {
     kEvidenceProfile,
 };
 
-// Retained i32m1 labels are specialization facts checked after selected-body
-// validation; they are not a public route-authority table.
 const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = {
     {"add",
-     "tcrv_rvv.i32_add",
+     "tcrv_rvv.binary",
      "rvv.role.compute.generic_vector",
-     "rvv-i32m1-add-emitc-route",
-     "rvv-i32m1-add-callable-c-abi.v1",
-     "rvv-i32m1-add-callable-c-abi"},
+     "rvv-generic-binary-add-emitc-route",
+     "rvv-generic-binary-add-callable-c-abi.v1",
+     "rvv-generic-binary-add-callable-c-abi"},
     {"sub",
-     "tcrv_rvv.i32_sub",
+     "tcrv_rvv.binary",
      "rvv.role.compute.generic_vector",
-     "rvv-i32m1-sub-emitc-route",
-     "rvv-i32m1-sub-callable-c-abi.v1",
-     "rvv-i32m1-sub-callable-c-abi"},
+     "rvv-generic-binary-sub-emitc-route",
+     "rvv-generic-binary-sub-callable-c-abi.v1",
+     "rvv-generic-binary-sub-callable-c-abi"},
     {"mul",
-     "tcrv_rvv.i32_mul",
+     "tcrv_rvv.binary",
      "rvv.role.compute.generic_vector",
-     "rvv-i32m1-mul-emitc-route",
-     "rvv-i32m1-mul-callable-c-abi.v1",
-     "rvv-i32m1-mul-callable-c-abi"},
+     "rvv-generic-binary-mul-emitc-route",
+     "rvv-generic-binary-mul-callable-c-abi.v1",
+     "rvv-generic-binary-mul-callable-c-abi"},
     {"cmp_select",
      "tcrv_rvv.select",
      "rvv.role.compute.generic_vector",
-     "rvv-i32m1-cmp-select-emitc-route",
-     "rvv-i32m1-cmp-select-callable-c-abi.v1",
-     "rvv-i32m1-cmp-select-callable-c-abi"},
+     "rvv-generic-cmp-select-emitc-route",
+     "rvv-generic-cmp-select-callable-c-abi.v1",
+     "rvv-generic-cmp-select-callable-c-abi"},
     {"reduce_add",
      "tcrv_rvv.reduce",
      "rvv.role.compute.generic_vector",
@@ -374,17 +372,6 @@ bool operationNameMatchesTypedRole(llvm::StringRef operationName,
   return llvm::is_contained(names, operationName);
 }
 
-bool isRetainedLegacyArithmeticTypedComputeMirror(
-    const RVVSelectedBodyConstructionRoute &route) {
-  if (route.operationMnemonic == "add")
-    return route.typedComputeOpName == "tcrv_rvv.i32_add";
-  if (route.operationMnemonic == "sub")
-    return route.typedComputeOpName == "tcrv_rvv.i32_sub";
-  if (route.operationMnemonic == "mul")
-    return route.typedComputeOpName == "tcrv_rvv.i32_mul";
-  return false;
-}
-
 llvm::Error requireRouteText(llvm::StringRef field, llvm::StringRef value) {
   if (value.empty())
     return makeRVVConstructionError(llvm::Twine("route field '") + field +
@@ -397,7 +384,6 @@ llvm::Error requireRouteText(llvm::StringRef field, llvm::StringRef value) {
 
 llvm::Error verifySelectedBodyRoutes() {
   llvm::StringSet<> seenOperations;
-  llvm::StringSet<> seenTypedComputeOps;
   llvm::StringSet<> seenEmitCRoutes;
   for (const RVVSelectedBodyConstructionRoute &route :
        kRetainedSelectedBodySpecializations) {
@@ -420,18 +406,13 @@ llvm::Error verifySelectedBodyRoutes() {
       return makeRVVConstructionError(llvm::Twine("duplicate selected-body "
                                                   "operation '") +
                                       route.operationMnemonic + "'");
-    if (!seenTypedComputeOps.insert(route.typedComputeOpName).second)
-      return makeRVVConstructionError(llvm::Twine("duplicate typed compute "
-                                                  "op '") +
-                                      route.typedComputeOpName + "'");
     if (!seenEmitCRoutes.insert(route.emitCRouteID).second)
       return makeRVVConstructionError(
           llvm::Twine("duplicate EmitC route '") + route.emitCRouteID + "'");
     const RVVTypedRoleInterfaceRealization *compute = findTypedRole("compute");
     if (!compute || route.typedRoleID != compute->typedRoleID ||
-        (!operationNameMatchesTypedRole(route.typedComputeOpName,
-                                        compute->operationName) &&
-         !isRetainedLegacyArithmeticTypedComputeMirror(route)))
+        !operationNameMatchesTypedRole(route.typedComputeOpName,
+                                       compute->operationName))
       return makeRVVConstructionError(
           llvm::Twine("selected-body construction route '") +
           route.operationMnemonic +
@@ -602,10 +583,10 @@ buildRVVSelectedBodyExecutableRoleSteps(
   steps.push_back({"scope", "tcrv_rvv.with_vl", "rvv.role.scope.with_vl",
                    "TCRVConfigOpInterface", "TCRVEmitCLowerableInterface",
                    "with_vl", 5});
-  steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.i32_load",
+  steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
                    "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
                    "lhs_load", 6});
-  steps.push_back({"load", rhsSourceOperationName, "rvv.role.load.i32_load",
+  steps.push_back({"load", rhsSourceOperationName, "rvv.role.load.generic_load",
                    "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
                    rhsSourceOperationName == "tcrv_rvv.broadcast_load"
                        ? "rhs_broadcast"
@@ -620,7 +601,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
                      route->typedRoleID,
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
                      route->operationMnemonic, 9});
-    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.i32_store",
+    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
                      "store", 10});
     return steps;
@@ -630,7 +611,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
                    route->typedRoleID,
                    "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
                    route->operationMnemonic, 8});
-  steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.i32_store",
+  steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
                    "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
                    "store", 9});
   return steps;

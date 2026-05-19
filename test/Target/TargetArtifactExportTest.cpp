@@ -455,11 +455,11 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op) {
   switch (op) {
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Add:
-    return "tcrv_rvv.i32_add";
+    return "tcrv_rvv.binary";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Sub:
-    return "tcrv_rvv.i32_sub";
+    return "tcrv_rvv.binary";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Mul:
-    return "tcrv_rvv.i32_mul";
+    return "tcrv_rvv.binary";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect:
     return "tcrv_rvv.i32_select";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ReduceAdd:
@@ -500,14 +500,13 @@ mlir::OwningOpRef<mlir::ModuleOp> parseRVVSelectedBodyCandidateModule(
   llvm::raw_string_ostream os(source);
   std::string variant = getRVVTestVariantSymbol(op);
   const bool useLegacyBody =
-      useRHSBroadcast ||
       op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect;
   std::string vectorType =
       useLegacyBody
-          ? ((lmul == tianchenrv::tcrv::rvv::getRVVI32M2LMUL())
+          ? ((lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
                  ? "!tcrv_rvv.i32m2"
                  : "!tcrv_rvv.i32m1")
-          : ((lmul == tianchenrv::tcrv::rvv::getRVVI32M2LMUL())
+          : ((lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
                  ? "!tcrv_rvv.vector<i32, \"m2\">"
                  : "!tcrv_rvv.vector<i32, \"m1\">");
   os << R"mlir(
@@ -521,7 +520,7 @@ module {
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "source-arg-2:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "source-arg-3:n", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = ")mlir" << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir" << lmul << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+      tcrv_rvv.with_vl %vl attributes {lmul = ")mlir" << lmul << R"mlir(", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
      << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_i32_body_kernel", status = "selected-lowering-boundary"} {
 )mlir";
   if (useLegacyBody)
@@ -534,9 +533,14 @@ module {
         %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
        << vectorType << R"mlir(
 )mlir";
-  if (useRHSBroadcast)
+  if (useRHSBroadcast && useLegacyBody)
     os << R"mlir(
         %rhs_vec = tcrv_rvv.i32_broadcast_load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+       << vectorType << R"mlir(
+)mlir";
+  else if (useRHSBroadcast)
+    os << R"mlir(
+        %rhs_vec = tcrv_rvv.broadcast_load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
        << vectorType << R"mlir(
 )mlir";
   else if (useLegacyBody)
@@ -828,7 +832,7 @@ bool expectRVVTargetArtifactExporterShape(
       exporter->getHandoffKind() !=
           "materialized-emitc-cpp-rvv-intrinsic-object" ||
       exporter->getComponentGroup() !=
-          "rvv-i32m1-arithmetic-materialized-emitc-bundle.v1" ||
+          "rvv-generic-typed-body-materialized-emitc-bundle.v1" ||
       !exporter->getExternalABIName().empty() ||
       !tianchenrv::support::runtimeABIParametersEqual(
           exporter->getRequiredRuntimeABIParameters(),
@@ -857,13 +861,22 @@ bool expectRVVTargetArtifactExporterShape(
           broadcastFixture,
           "build valid RVV broadcast selected-body candidate fixture"))
     return false;
-  if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
-                               broadcastFixture.candidate, *exporter),
-                           "RVV artifact rejects legacy broadcast selected-body "
-                           "candidate",
-                           {"legacy selected-body op 'tcrv_rvv.i32_load'",
-                            "fail-closed during RVV Stage1"}))
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         broadcastFixture.candidate, *exporter),
+                     "validate RVV generic broadcast selected-body target "
+                     "artifact candidate"))
     return false;
+  bool sawBroadcastMemoryForm = false;
+  for (const tianchenrv::support::ArtifactMetadataEntry &entry :
+       broadcastFixture.candidate.artifactMetadata)
+    if (entry.key == "tcrv_rvv.memory_form" &&
+        entry.value == "rhs-broadcast-load")
+      sawBroadcastMemoryForm = true;
+  if (!sawBroadcastMemoryForm) {
+    llvm::errs() << "RVV broadcast target artifact candidate mirrors "
+                    "rhs-broadcast-load memory form\n";
+    return false;
+  }
 
   RVVTargetArtifactCandidateFixture compareSelectFixture(
       tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect);
@@ -881,7 +894,7 @@ bool expectRVVTargetArtifactExporterShape(
 
   RVVTargetArtifactCandidateFixture lmulM2Fixture(
       tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Add,
-      /*useRHSBroadcast=*/false, tianchenrv::tcrv::rvv::getRVVI32M2LMUL());
+      /*useRHSBroadcast=*/false, tianchenrv::tcrv::rvv::getRVVLMULM2());
   if (!expectRVVTargetArtifactCandidateFixtureReady(
           lmulM2Fixture,
           "build valid RVV LMUL m2 selected-body candidate fixture"))
@@ -960,12 +973,12 @@ bool expectRVVTargetArtifactExporterShape(
     return false;
 
   TargetArtifactCandidate badABI = candidate;
-  badABI.runtimeABIName = "rvv-i32m1-stale-callable-c-abi.v1";
+  badABI.runtimeABIName = "rvv-generic-stale-callable-c-abi.v1";
   if (!expectErrorContains(validateTargetArtifactCandidateAgainstExporter(
                                badABI, *exporter),
                            "RVV artifact rejects stale runtime ABI",
                            {"runtime ABI name",
-                            "rvv-i32m1-add-callable-c-abi.v1"}))
+                            "rvv-generic-binary-add-callable-c-abi.v1"}))
     return false;
 
   TargetArtifactCandidate staleLowerableRoute = candidate;
@@ -983,8 +996,8 @@ bool expectRVVTargetArtifactExporterShape(
                            "mismatch",
                            {"provenance must mirror selected typed RVV body "
                             "route",
-                            "rvv-i32m1-add-emitc-route",
-                            "rvv-i32m1-sub-emitc-route"}))
+                            "rvv-generic-binary-add-emitc-route",
+                            "rvv-generic-binary-sub-emitc-route"}))
     return false;
 
   TargetArtifactCandidate staleSelectedBodyOperationMetadata = candidate;
@@ -1071,7 +1084,7 @@ bool expectRVVTargetArtifactExporterShape(
   if (!rewriteArtifactMetadataValue(
           staleConstructionRuntimeABI,
           tianchenrv::plugin::rvv::getRVVRuntimeABINameMetadataName(),
-          "rvv-i32m1-sub-callable-c-abi.v1")) {
+          "rvv-generic-binary-sub-callable-c-abi.v1")) {
     llvm::errs() << "test fixture did not contain RVV runtime ABI metadata\n";
     return false;
   }
@@ -1081,7 +1094,7 @@ bool expectRVVTargetArtifactExporterShape(
                            "metadata",
                            {tianchenrv::plugin::rvv::
                                 getRVVRuntimeABINameMetadataName(),
-                            "rvv-i32m1-add-callable-c-abi.v1"}))
+                            "rvv-generic-binary-add-callable-c-abi.v1"}))
     return false;
 
   TargetArtifactCandidate staleTypedComputeOp = candidate;
@@ -1089,7 +1102,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleTypedComputeOp,
           tianchenrv::plugin::rvv::
               getRVVSelectedBodyTypedComputeOpMetadataName(),
-          "tcrv_rvv.i32_sub")) {
+          "tcrv_rvv.i32_add")) {
     llvm::errs() << "test fixture did not contain RVV typed compute metadata\n";
     return false;
   }
@@ -1222,7 +1235,7 @@ bool expectRVVTargetHeaderCompositeShape(
       exporter->getOwner() !=
           tianchenrv::plugin::rvv::getRVVExtensionPluginName() ||
       exporter->getComponentGroup() !=
-          "rvv-i32m1-arithmetic-materialized-emitc-bundle.v1" ||
+          "rvv-generic-typed-body-materialized-emitc-bundle.v1" ||
       !exporter->getExternalABIName().empty() || !exporter->getMatchFn() ||
       !exporter->getExportFn() || !exporter->getCandidateValidationFn() ||
       !exporter->getRuntimeABIParametersFn() ||
@@ -1277,7 +1290,7 @@ bool expectRVVTargetHeaderCompositeShape(
     return false;
   }
   if (metadata->componentGroup !=
-          "rvv-i32m1-arithmetic-materialized-emitc-bundle.v1" ||
+          "rvv-generic-typed-body-materialized-emitc-bundle.v1" ||
       metadata->handoffKind != "materialized-emitc-cpp-rvv-intrinsic-object") {
     llvm::errs() << context << ": RVV header bundle metadata did not preserve "
                     "component group and object handoff identity\n";
@@ -1332,7 +1345,7 @@ bool expectRVVTargetHeaderCompositeShape(
   if (!expectErrorContains(
           exporter->getCandidateValidationFn()(staleDeletedRoute),
           "RVV header composite rejects historical deleted route ids",
-          {"route id", "rvv-i32m1-arithmetic-emitc-route-family"}))
+          {"route id", "rvv-generic-typed-body-emitc-route-family"}))
     return false;
 
   llvm::SmallVector<TargetArtifactCandidate, 2> directCResidue(candidates);
@@ -1409,16 +1422,16 @@ module {
       artifact_kind = "riscv-elf-relocatable-object",
       emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object",
       lowering_boundary = "tcrv_rvv.with_vl",
-      lowering_pipeline = "rvv-i32m1-arithmetic-emitc-route-family",
+      lowering_pipeline = "rvv-generic-typed-body-emitc-route-family",
       message = "stale RVV plan missing the selected with_vl boundary",
       origin = "rvv-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",
       required_capabilities = [@rvv],
       role = "direct variant",
-      runtime_abi = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_abi = "rvv-generic-binary-add-callable-c-abi.v1",
       runtime_abi_kind = "plugin-owned-runtime-abi",
-      runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_abi_name = "rvv-generic-binary-add-callable-c-abi.v1",
       runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue",
       severity = "info",
       status = "supported",
@@ -1465,16 +1478,16 @@ module {
       artifact_kind = "riscv-elf-relocatable-object",
       emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object",
       lowering_boundary = "tcrv_rvv.with_vl",
-      lowering_pipeline = "rvv-i32m1-arithmetic-emitc-route-family",
+      lowering_pipeline = "rvv-generic-typed-body-emitc-route-family",
       message = "stale RVV plan missing selected-boundary attrs",
       origin = "rvv-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",
       required_capabilities = [@rvv],
       role = "direct variant",
-      runtime_abi = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_abi = "rvv-generic-binary-add-callable-c-abi.v1",
       runtime_abi_kind = "plugin-owned-runtime-abi",
-      runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_abi_name = "rvv-generic-binary-add-callable-c-abi.v1",
       runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue",
       severity = "info",
       status = "supported",
@@ -1511,7 +1524,7 @@ module {
     tcrv.exec.variant @rvv_i32_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_stale, sew = 32 : i64, source_kernel = "rvv_stale_selected_variant_kernel", status = "selected-lowering-boundary"} {
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_stale, sew = 32 : i64, source_kernel = "rvv_stale_selected_variant_kernel", status = "selected-lowering-boundary"} {
       } : !tcrv_rvv.vl
     }
     tcrv.exec.diagnostic {
@@ -1526,16 +1539,16 @@ module {
       artifact_kind = "riscv-elf-relocatable-object",
       emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object",
       lowering_boundary = "tcrv_rvv.with_vl",
-      lowering_pipeline = "rvv-i32m1-arithmetic-emitc-route-family",
+      lowering_pipeline = "rvv-generic-typed-body-emitc-route-family",
       message = "stale RVV plan with stale selected boundary variant",
       origin = "rvv-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",
       required_capabilities = [@rvv],
       role = "direct variant",
-      runtime_abi = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_abi = "rvv-generic-binary-add-callable-c-abi.v1",
       runtime_abi_kind = "plugin-owned-runtime-abi",
-      runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_abi_name = "rvv-generic-binary-add-callable-c-abi.v1",
       runtime_glue_role = "emitc-cpp-rvv-intrinsic-runtime-glue",
       severity = "info",
       status = "supported",
@@ -1575,7 +1588,7 @@ module {
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_add, sew = 32 : i64, source_kernel = "rvv_stale_lmul_kernel", status = "selected-lowering-boundary"} {
+      tcrv_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @rvv_i32_add, sew = 32 : i64, source_kernel = "rvv_stale_lmul_kernel", status = "selected-lowering-boundary"} {
         %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
         %rhs_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
         %result = tcrv_rvv.binary %lhs_vec, %rhs_vec, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vector<i32, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m2">
@@ -1594,16 +1607,16 @@ module {
       artifact_kind = "riscv-elf-relocatable-object",
       emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object",
       lowering_boundary = "tcrv_rvv.with_vl",
-      lowering_pipeline = "rvv-i32m1-arithmetic-emitc-route-family",
+      lowering_pipeline = "rvv-generic-typed-body-emitc-route-family",
       message = "stale RVV plan with mismatched selected boundary LMUL",
       origin = "rvv-plugin",
       plan_kind = "plugin-emission-plan",
       reason = "emission_plan",
       required_capabilities = [@rvv],
       role = "direct variant",
-      runtime_abi = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_abi = "rvv-generic-binary-add-callable-c-abi.v1",
       runtime_abi_kind = "plugin-owned-runtime-abi",
-      runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1",
+      runtime_abi_name = "rvv-generic-binary-add-callable-c-abi.v1",
       runtime_abi_parameters = [
         {c_name = "lhs", c_type = "const int32_t *", role = "lhs-input-buffer", ownership = "target-export-abi-owned"},
         {c_name = "rhs", c_type = "const int32_t *", role = "rhs-input-buffer", ownership = "target-export-abi-owned"},

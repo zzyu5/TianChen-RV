@@ -1,7 +1,7 @@
-// RUN: tcrv-opt %s --split-input-file --verify-diagnostics --tcrv-rvv-materialize-i32m1-vector-source-front-door
+// RUN: tcrv-opt %s --split-input-file --verify-diagnostics --tcrv-rvv-fail-closed-legacy-vector-source-front-door
 
 module {
-  // expected-error@+1 {{bounded RVV i32m1 vector-source front door failed: RVV Stage1 source-front-door materialization is disabled; use an explicit selected generic tcrv_rvv.load/tcrv_rvv.binary/tcrv_rvv.store body instead}}
+  // expected-error@+1 {{legacy RVV vector-source front door failed: RVV Stage1 source-front-door materialization is disabled; use an explicit selected generic tcrv_rvv.load/tcrv_rvv.binary/tcrv_rvv.store body instead}}
   func.func @valid_add_source_is_fail_closed(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
     %c0 = arith.constant 0 : index
     %pad = arith.constant 0 : i32
@@ -22,7 +22,7 @@ module {
 
 module {
   tcrv.exec.kernel @preexisting_rvv_boundary {
-    // expected-error@+1 {{bounded RVV i32m1 vector-source front door failed: source materializer requires source-only MLIR input; pre-existing tcrv.exec/tcrv_rvv selected-boundary or unselected variant residue is not accepted}}
+    // expected-error@+1 {{legacy RVV vector-source front door failed: source materializer requires source-only MLIR input; pre-existing tcrv.exec/tcrv_rvv selected-boundary or unselected variant residue is not accepted}}
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
   }
 

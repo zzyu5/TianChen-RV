@@ -138,7 +138,7 @@ deriveRVVSelectedBodyConfigProfile(
       description.maskPolicy != "agnostic")
     return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
 
-  if (description.lmul == tcrv::rvv::getRVVI32M1LMUL())
+  if (description.lmul == tcrv::rvv::getRVVLMULM1())
     return RVVSelectedBodyConfigProfile{
         32,
         "m1",
@@ -155,7 +155,7 @@ deriveRVVSelectedBodyConfigProfile(
         "__riscv_vmv_v_x_i32m1",
         "__riscv_vse32_v_i32m1"};
 
-  if (description.lmul == tcrv::rvv::getRVVI32M2LMUL())
+  if (description.lmul == tcrv::rvv::getRVVLMULM2())
     return RVVSelectedBodyConfigProfile{
         32,
         "m2",
@@ -179,13 +179,13 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
     RVVSelectedBodyOperationKind operation, llvm::StringRef lmul) {
   switch (operation) {
   case RVVSelectedBodyOperationKind::Add:
-    return lmul == tcrv::rvv::getRVVI32M2LMUL() ? "__riscv_vadd_vv_i32m2"
+    return lmul == tcrv::rvv::getRVVLMULM2() ? "__riscv_vadd_vv_i32m2"
                                                 : "__riscv_vadd_vv_i32m1";
   case RVVSelectedBodyOperationKind::Sub:
-    return lmul == tcrv::rvv::getRVVI32M2LMUL() ? "__riscv_vsub_vv_i32m2"
+    return lmul == tcrv::rvv::getRVVLMULM2() ? "__riscv_vsub_vv_i32m2"
                                                 : "__riscv_vsub_vv_i32m1";
   case RVVSelectedBodyOperationKind::Mul:
-    return lmul == tcrv::rvv::getRVVI32M2LMUL() ? "__riscv_vmul_vv_i32m2"
+    return lmul == tcrv::rvv::getRVVLMULM2() ? "__riscv_vmul_vv_i32m2"
                                                 : "__riscv_vmul_vv_i32m1";
   case RVVSelectedBodyOperationKind::CmpSelect:
     llvm_unreachable("compare/select uses dedicated compare and merge leaves");
@@ -197,21 +197,21 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
 
 llvm::StringRef
 getRVVSelectedBodyReductionIntrinsic(llvm::StringRef lmul) {
-  if (lmul == tcrv::rvv::getRVVI32M1LMUL())
+  if (lmul == tcrv::rvv::getRVVLMULM1())
     return "__riscv_vredsum_vs_i32m1_i32m1";
   return {};
 }
 
 llvm::StringRef
 getRVVSelectedBodyCompareIntrinsic(llvm::StringRef lmul) {
-  return lmul == tcrv::rvv::getRVVI32M2LMUL()
+  return lmul == tcrv::rvv::getRVVLMULM2()
              ? "__riscv_vmseq_vv_i32m2_b16"
              : "__riscv_vmseq_vv_i32m1_b32";
 }
 
 llvm::StringRef
 getRVVSelectedBodySelectIntrinsic(llvm::StringRef lmul) {
-  return lmul == tcrv::rvv::getRVVI32M2LMUL()
+  return lmul == tcrv::rvv::getRVVLMULM2()
              ? "__riscv_vmerge_vvm_i32m2"
              : "__riscv_vmerge_vvm_i32m1";
 }

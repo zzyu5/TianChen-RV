@@ -305,12 +305,11 @@ def WithVLOp : TCRVRVV_Op<"with_vl",
   let hasVerifier = 1;
 }
 
-def I32BinaryPreRealizedBodyOp
-    : TCRVRVV_Op<"i32_binary_pre_realized_body"> {
-  let summary = "bounded pre-realized RVV i32 binary selected body";
+def TypedBinaryPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_binary_pre_realized_body"> {
+  let summary = "generic typed pre-realized RVV binary selected body";
   let description = [{
-    Carries the RVV plugin-local pre-realized selected body for the bounded
-    i32m1 arithmetic binary family. The op is nested directly in a selected
+    Carries the RVV plugin-local pre-realized selected body for the generic typed RVV binary family. The op is nested directly in a selected
     tcrv.exec.variant and binds explicit runtime ABI values for lhs, rhs, out,
     and runtime n/AVL together with the selected operation kind, memory form,
     and compile-time RVV config.

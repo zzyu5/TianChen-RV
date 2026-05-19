@@ -31,22 +31,22 @@ module {
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "sub"}
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.binary"}
-// PLAN-SAME: {key = "tcrv_rvv.config_contract", value = "rvv-i32m2-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.config_contract", value = "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.lmul", value = "m2"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "vector-rhs-load"}
-// PLAN-SAME: {key = "tcrv_rvv.bounded_slice", value = "multi-vl-i32m2-arithmetic"}
+// PLAN-SAME: {key = "tcrv_rvv.bounded_slice", value = "multi-vl-selected-body-sew32-lmul-m2"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: lowering_boundary = "tcrv_rvv.with_vl"
 // PLAN-SAME: origin = "rvv-plugin"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: role = "dispatch case"
-// PLAN-SAME: runtime_abi_name = "rvv-i32m1-sub-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-generic-binary-sub-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @explicit_selected_body_rvv_i32m2_sub
 
 // HEADER: tianchenrv.rvv.selected_variant: @explicit_selected_body_rvv_i32m2_sub
-// HEADER: tianchenrv.rvv.runtime_abi_name: rvv-i32m1-sub-callable-c-abi.v1
-// HEADER: tianchenrv.rvv.config_contract: rvv-i32m2-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1
+// HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-binary-sub-callable-c-abi.v1
+// HEADER: tianchenrv.rvv.config_contract: rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1
 // HEADER: tianchenrv.rvv.lmul: m2
-// HEADER: tianchenrv.rvv.bounded_slice: multi-vl-i32m2-arithmetic
+// HEADER: tianchenrv.rvv.bounded_slice: multi-vl-selected-body-sew32-lmul-m2
 // HEADER: void tcrv_emitc_explicit_selected_body_m2_sub_kernel_explicit_selected_body_rvv_i32m2_sub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

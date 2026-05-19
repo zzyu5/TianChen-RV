@@ -304,7 +304,7 @@ int runBuiltinSourceFrontDoorCollectionTest() {
                   "source-seed public API");
     if (pass.getOwnerPlugin() == "rvv-plugin" &&
         pass.getArgument() ==
-            "tcrv-rvv-materialize-i32m1-vector-source-front-door")
+            "tcrv-rvv-fail-closed-legacy-vector-source-front-door")
       rvvIndex = static_cast<int>(index);
     if (pass.getOwnerPlugin() ==
             tianchenrv::plugin::toy::getToyExtensionPluginName() &&

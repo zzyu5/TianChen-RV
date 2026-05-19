@@ -37,11 +37,11 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "rhs-broadcast-load"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: origin = "rvv-plugin"
-// PLAN-SAME: runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-generic-binary-add-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @explicit_selected_body_rvv_i32_broadcast_add
 
 // HEADER: tianchenrv.rvv.selected_variant: @explicit_selected_body_rvv_i32_broadcast_add
-// HEADER: tianchenrv.rvv.runtime_abi_name: rvv-i32m1-add-callable-c-abi.v1
-// HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-i32m1-arithmetic-emitc-route-family
+// HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-binary-add-callable-c-abi.v1
+// HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: void tcrv_emitc_explicit_selected_body_broadcast_add_kernel_explicit_selected_body_rvv_i32_broadcast_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

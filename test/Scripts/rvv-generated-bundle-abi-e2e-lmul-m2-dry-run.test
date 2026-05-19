@@ -2,9 +2,9 @@
 # RUN: rm -rf %t.artifacts
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --lmul-m2-selected-body --artifact-root %t.artifacts --run-id lmul-m2 --overwrite --op-kind add --op-kind sub --op-kind mul --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/lmul-m2/evidence.json
-# RUN: FileCheck %s --check-prefix=ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv_arithmetic_op" --implicit-check-not="tcrv-rvv-materialize-i32m1-vector-source-front-door" < %t.artifacts/lmul-m2/add/evidence.json
-# RUN: FileCheck %s --check-prefix=SUB --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv_arithmetic_op" --implicit-check-not="tcrv-rvv-materialize-i32m1-vector-source-front-door" < %t.artifacts/lmul-m2/sub/evidence.json
-# RUN: FileCheck %s --check-prefix=MUL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv_arithmetic_op" --implicit-check-not="tcrv-rvv-materialize-i32m1-vector-source-front-door" < %t.artifacts/lmul-m2/mul/evidence.json
+# RUN: FileCheck %s --check-prefix=ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv_arithmetic_op" --implicit-check-not="tcrv-rvv-fail-closed-legacy-vector-source-front-door" < %t.artifacts/lmul-m2/add/evidence.json
+# RUN: FileCheck %s --check-prefix=SUB --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv_arithmetic_op" --implicit-check-not="tcrv-rvv-fail-closed-legacy-vector-source-front-door" < %t.artifacts/lmul-m2/sub/evidence.json
+# RUN: FileCheck %s --check-prefix=MUL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv_arithmetic_op" --implicit-check-not="tcrv-rvv-fail-closed-legacy-vector-source-front-door" < %t.artifacts/lmul-m2/mul/evidence.json
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
 # STDOUT: artifact_dir:
@@ -23,11 +23,11 @@
 # ADD-DAG: "expected_selected_variant": "explicit_selected_body_rvv_i32m2_add"
 # ADD-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_m2_add_kernel_explicit_selected_body_rvv_i32m2_add"
 # ADD-DAG: "key": "tcrv_rvv.config_contract"
-# ADD-DAG: "value": "rvv-i32m2-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"
+# ADD-DAG: "value": "rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1"
 # ADD-DAG: "key": "tcrv_rvv.lmul"
 # ADD-DAG: "value": "m2"
 # ADD-DAG: "key": "tcrv_rvv.bounded_slice"
-# ADD-DAG: "value": "multi-vl-i32m2-arithmetic"
+# ADD-DAG: "value": "multi-vl-selected-body-sew32-lmul-m2"
 # ADD-DAG: "key": "rvv_selected_body_typed_compute_op"
 # ADD-DAG: "value": "tcrv_rvv.binary"
 # ADD-DAG: "lmul": "m2"

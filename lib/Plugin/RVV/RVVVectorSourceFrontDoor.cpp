@@ -22,7 +22,7 @@ constexpr llvm::StringLiteral kSeedAttrName("tcrv_rvv.lowering_seed");
 constexpr llvm::StringLiteral kLoweringSeedAttrSuffix(".lowering_seed");
 
 mlir::LogicalResult failMaterializer(mlir::Operation *op, llvm::Twine message) {
-  op->emitError() << "bounded RVV i32m1 vector-source front door failed: "
+  op->emitError() << "legacy RVV vector-source front door failed: "
                   << message;
   return mlir::failure();
 }
@@ -55,17 +55,17 @@ mlir::LogicalResult requireSourceOnlyModule(mlir::ModuleOp module) {
                           "not accepted");
 }
 
-class MaterializeRVVI32M1VectorSourceFrontDoorPass final
+class FailClosedRVVLegacyVectorSourceFrontDoorPass final
     : public mlir::PassWrapper<
-          MaterializeRVVI32M1VectorSourceFrontDoorPass,
+          FailClosedRVVLegacyVectorSourceFrontDoorPass,
           mlir::OperationPass<mlir::ModuleOp>> {
 public:
   llvm::StringRef getArgument() const final {
-    return "tcrv-rvv-materialize-i32m1-vector-source-front-door";
+    return "tcrv-rvv-fail-closed-legacy-vector-source-front-door";
   }
 
   llvm::StringRef getDescription() const final {
-    return "Fail closed for legacy RVV i32m1 vector source-front-door "
+    return "Fail closed for legacy RVV vector source-front-door "
            "materialization during RVV Stage 1";
   }
 
@@ -111,8 +111,8 @@ public:
 } // namespace
 
 std::unique_ptr<::mlir::Pass>
-createMaterializeRVVI32M1VectorSourceFrontDoorPass() {
-  return std::make_unique<MaterializeRVVI32M1VectorSourceFrontDoorPass>();
+createFailClosedRVVLegacyVectorSourceFrontDoorPass() {
+  return std::make_unique<FailClosedRVVLegacyVectorSourceFrontDoorPass>();
 }
 
 } // namespace tianchenrv::plugin::rvv

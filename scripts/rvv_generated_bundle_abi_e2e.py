@@ -45,10 +45,10 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + ("cmp_select",)
 
 INDEX_FILE_NAME = "tianchenrv-target-artifact-bundle.index"
 EXPECTED_SELECTED_ROLE = "dispatch case"
-EXPECTED_COMPONENT_GROUP = "rvv-i32m1-arithmetic-materialized-emitc-bundle.v1"
+EXPECTED_COMPONENT_GROUP = "rvv-generic-typed-body-materialized-emitc-bundle.v1"
 EXPECTED_RUNTIME_ABI_KIND = "plugin-owned-runtime-abi"
-EXPECTED_OBJECT_ROUTE = "rvv-i32m1-arithmetic-emitc-route-family"
-EXPECTED_HEADER_ROUTE = "rvv-i32m1-arithmetic-emitc-route-family.header"
+EXPECTED_OBJECT_ROUTE = "rvv-generic-typed-body-emitc-route-family"
+EXPECTED_HEADER_ROUTE = "rvv-generic-typed-body-emitc-route-family.header"
 EXPECTED_OWNER = "rvv-plugin"
 EXPECTED_OBJECT_KIND = "riscv-elf-relocatable-object"
 EXPECTED_HEADER_KIND = "runtime-callable-c-header"
@@ -70,8 +70,8 @@ class OpExpectation:
     rhs_initializer: str
     expected_expression: str
     lmul: str = "m1"
-    config_contract: str = "rvv-i32m1-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
-    bounded_slice: str = "multi-vl-i32m1-arithmetic"
+    config_contract: str = "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
+    bounded_slice: str = "multi-vl-selected-body-sew32-lmul-m1"
 
     @property
     def prototype(self) -> str:
@@ -100,9 +100,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="explicit-selected-body",
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_i32_add",
-        external_abi_name="rvv-i32m1-add-callable-c-abi.v1",
+        external_abi_name="rvv-generic-binary-add-callable-c-abi.v1",
         function_name="tcrv_emitc_explicit_selected_body_add_kernel_explicit_selected_body_rvv_i32_add",
-        emitc_route="rvv-i32m1-add-emitc-route",
+        emitc_route="rvv-generic-binary-add-emitc-route",
         typed_compute_op="tcrv_rvv.binary",
         memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)(7 + (int32_t)(index * 3))",
@@ -115,9 +115,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="explicit-selected-body",
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_i32_sub",
-        external_abi_name="rvv-i32m1-sub-callable-c-abi.v1",
+        external_abi_name="rvv-generic-binary-sub-callable-c-abi.v1",
         function_name="tcrv_emitc_explicit_selected_body_sub_kernel_explicit_selected_body_rvv_i32_sub",
-        emitc_route="rvv-i32m1-sub-emitc-route",
+        emitc_route="rvv-generic-binary-sub-emitc-route",
         typed_compute_op="tcrv_rvv.binary",
         memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)(500 - (int32_t)(index * 2))",
@@ -130,9 +130,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="explicit-selected-body",
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_i32_mul",
-        external_abi_name="rvv-i32m1-mul-callable-c-abi.v1",
+        external_abi_name="rvv-generic-binary-mul-callable-c-abi.v1",
         function_name="tcrv_emitc_explicit_selected_body_mul_kernel_explicit_selected_body_rvv_i32_mul",
-        emitc_route="rvv-i32m1-mul-emitc-route",
+        emitc_route="rvv-generic-binary-mul-emitc-route",
         typed_compute_op="tcrv_rvv.binary",
         memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)((int)(index % 13) - 6)",
@@ -145,9 +145,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="explicit-selected-body",
         source_seed=False,
         selected_variant="explicit_selected_body_rvv_i32_cmp_select",
-        external_abi_name="rvv-i32m1-cmp-select-callable-c-abi.v1",
+        external_abi_name="rvv-generic-cmp-select-callable-c-abi.v1",
         function_name="tcrv_emitc_explicit_selected_body_cmp_select_kernel_explicit_selected_body_rvv_i32_cmp_select",
-        emitc_route="rvv-i32m1-cmp-select-emitc-route",
+        emitc_route="rvv-generic-cmp-select-emitc-route",
         typed_compute_op="tcrv_rvv.select",
         memory_form="vector-rhs-load",
         lhs_initializer="(int32_t)(41 + (int32_t)(index * 9))",
@@ -197,8 +197,8 @@ LMUL_M2_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="explicit_selected_body_rvv_i32m2_add",
         function_name="tcrv_emitc_explicit_selected_body_m2_add_kernel_explicit_selected_body_rvv_i32m2_add",
         lmul="m2",
-        config_contract="rvv-i32m2-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
-        bounded_slice="multi-vl-i32m2-arithmetic",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
     ),
     "sub": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["sub"],
@@ -207,8 +207,8 @@ LMUL_M2_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="explicit_selected_body_rvv_i32m2_sub",
         function_name="tcrv_emitc_explicit_selected_body_m2_sub_kernel_explicit_selected_body_rvv_i32m2_sub",
         lmul="m2",
-        config_contract="rvv-i32m2-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
-        bounded_slice="multi-vl-i32m2-arithmetic",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
     ),
     "mul": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["mul"],
@@ -217,8 +217,8 @@ LMUL_M2_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="explicit_selected_body_rvv_i32m2_mul",
         function_name="tcrv_emitc_explicit_selected_body_m2_mul_kernel_explicit_selected_body_rvv_i32m2_mul",
         lmul="m2",
-        config_contract="rvv-i32m2-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
-        bounded_slice="multi-vl-i32m2-arithmetic",
+        config_contract="rvv-selected-body-sew32-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m2",
     ),
 }
 
@@ -846,7 +846,7 @@ def verify_materialized_selected_body(
     if expectation.is_pre_realized:
         require_not_contains(
             text,
-            "tcrv_rvv.i32_binary_pre_realized_body",
+            "tcrv_rvv.typed_binary_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
     require_no_forbidden_public_residue(text, "materialized selected-body MLIR")
@@ -941,7 +941,7 @@ def generate_bundle(
     materialize_command = [tcrv_opt, str(expectation.input_path)]
     if expectation.source_seed:
         materialize_command.append(
-            "--tcrv-rvv-materialize-i32m1-vector-source-front-door"
+            "--tcrv-rvv-fail-closed-legacy-vector-source-front-door"
         )
     if expectation.is_pre_realized:
         materialize_command.append("--tcrv-materialize-selected-lowering-boundaries")
@@ -982,7 +982,7 @@ def generate_bundle(
     }
     if expectation.source_seed:
         result["front_door"] = "legacy-rvv-source-front-door-seed"
-        result["materializer"] = "tcrv-rvv-materialize-i32m1-vector-source-front-door"
+        result["materializer"] = "tcrv-rvv-fail-closed-legacy-vector-source-front-door"
         result["seed_boundary"] = (
             "legacy source may only construct typed tcrv_rvv selected-body IR "
             "before provider route construction"
@@ -1434,11 +1434,11 @@ def make_fake_bundle(root: Path, expectation: OpExpectation) -> Path:
     bundle_dir.mkdir(parents=True)
     object_name = (
         "artifact-0-riscv-elf-relocatable-object-"
-        "rvv-i32m1-arithmetic-emitc-route-family.o"
+        "rvv-generic-typed-body-emitc-route-family.o"
     )
     header_name = (
         "artifact-1-runtime-callable-c-header-"
-        "rvv-i32m1-arithmetic-emitc-route-family.header.h"
+        "rvv-generic-typed-body-emitc-route-family.header.h"
     )
     (bundle_dir / object_name).write_bytes(b"\x7fELFfake-riscv-object")
     (bundle_dir / header_name).write_text(
@@ -1580,7 +1580,7 @@ def run_self_test() -> int:
             )
             verify_bundle(bundle, readobj=None, expectation=expectation)
             harness = harness_source(
-                "artifact-1-runtime-callable-c-header-rvv-i32m1-arithmetic-emitc-route-family.header.h",
+                "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
                 [1, 17, 257],
                 expectation,
             )
@@ -1700,7 +1700,7 @@ def run_self_test() -> int:
         text = index_path.read_text(encoding="utf-8")
         text = text.replace(
             expectation.external_abi_name,
-            "rvv-i32m1-stale-callable-c-abi.v1",
+            "rvv-generic-stale-callable-c-abi.v1",
             1,
         )
         index_path.write_text(text, encoding="utf-8")

@@ -51,3 +51,44 @@ Added a bounded generic typed RVV reduce(add) selected-body route skeleton with 
 | Hash | Message |
 |------|---------|
 | `this commit` | (see git log) |
+
+
+## Session 134: Stage1 Gate A RVV route identity cleanup
+
+**Date**: 2026-05-19
+**Task**: `stage1-gate-a-rvv-route-identity-cleanup`
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded Stage1 Gate A route-identity residues for the active RVV selected-body route path. Route ids, runtime ABI names, artifact route/header/bundle names, config-contract APIs, source-front-door pass naming, and pre-realized selected-body entry points now use generic selected-body / typed-body authority rather than `rvv-i32m1`, `RVVI32M1`, or `i32_binary_pre_realized_body` as positive route identity.
+
+### Main Changes
+
+- Renamed active RVV construction identities to `rvv-generic-typed-body-*` and per-operation provider-derived `rvv-generic-binary-*`, `rvv-generic-cmp-select-*`, and `rvv-generic-reduce-add-*` route/runtime ABI labels.
+- Renamed active config-contract APIs and metadata to selected-body generic names while preserving SEW32/LMUL/policy facts as typed config facts.
+- Replaced positive `tcrv_rvv.i32_binary_pre_realized_body` fixtures with `tcrv_rvv.typed_binary_pre_realized_body`.
+- Kept retained i32 add/sub/mul as ordinary generic typed `tcrv_rvv.binary {kind = ...}` instances, and kept legacy `tcrv_rvv.i32_*` selected-body snippets only as negative fail-closed fixtures.
+- Renamed the RVV source-front-door pass to a fail-closed legacy vector-source front-door identity.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-dialect-test tianchenrv-rvv-extension-plugin-test tianchenrv-construction-protocol-common-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-dialect-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] focused lit filter for `Target/RVV`, RVV lowering/source-front-door transforms, and RVV script dry-runs: 40/40 passed.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 154/154 passed.
+- [OK] `git diff --check`
+- [OK] exact Stage1 Gate A brief scan over `include/TianChenRV lib/Plugin/RVV lib/Dialect/RVV test/Target/RVV`: no `rvv-i32m1`, `RVVI32M1`, or `i32_binary_pre_realized_body` matches.
+- [OK] remaining extended legacy matches are classified as negative fail-closed Target/RVV fixtures, dialect parse/verifier debt, and provider-derived intrinsic leaf spellings.
+
+### Status
+
+[OK] **Completed and ready to archive**. No `ssh rvv` runtime, correctness, or performance claim was made.
+
+### Next Steps
+
+- Future continuation, if requested: delete or further fail-close the remaining parseable legacy dialect debt under a separate Stage1 deletion task; do not treat it as Stage2 coverage work.

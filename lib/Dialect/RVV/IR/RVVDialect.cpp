@@ -139,7 +139,7 @@ bool isAllowedI32BroadcastLoadAttr(llvm::StringRef) {
   return false;
 }
 
-bool isAllowedI32BinaryPreRealizedBodyAttr(llvm::StringRef name) {
+bool isAllowedTypedBinaryPreRealizedBodyAttr(llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
          name == kSEWAttrName || name == kLMULAttrName ||
          name == kPolicyAttrName;
@@ -161,7 +161,7 @@ bool isAllowedReduceAttr(llvm::StringRef name) { return name == "kind"; }
 
 bool isAllowedStoreAttr(llvm::StringRef) { return false; }
 
-bool isSupportedI32BinaryPreRealizedBodyOpKind(llvm::StringRef opKind) {
+bool isSupportedTypedBinaryPreRealizedBodyOpKind(llvm::StringRef opKind) {
   return opKind == "add" || opKind == "sub" || opKind == "mul";
 }
 
@@ -1051,7 +1051,7 @@ mlir::LogicalResult I32BroadcastLoadOp::verify() {
   return mlir::success();
 }
 
-mlir::LogicalResult I32BinaryPreRealizedBodyOp::verify() {
+mlir::LogicalResult TypedBinaryPreRealizedBodyOp::verify() {
   mlir::Operation *op = getOperation();
 
   for (mlir::NamedAttribute attr : op->getAttrs()) {
@@ -1064,7 +1064,7 @@ mlir::LogicalResult I32BinaryPreRealizedBodyOp::verify() {
                 "operation/config/memory/runtime SSA facts and must be "
                 "realized by the RVV plugin before route construction";
 
-    if (!isAllowedI32BinaryPreRealizedBodyAttr(attrName))
+    if (!isAllowedTypedBinaryPreRealizedBodyAttr(attrName))
       return emitOpError()
              << "only accepts pre-realization attributes '" << kOpKindAttrName
              << "', '" << kMemoryFormAttrName << "', '" << kSEWAttrName
@@ -1081,7 +1081,7 @@ mlir::LogicalResult I32BinaryPreRealizedBodyOp::verify() {
            << "requires lhs, rhs, out, and runtime n/AVL operands and no "
               "results";
 
-  if (!isSupportedI32BinaryPreRealizedBodyOpKind(getOpKind()))
+  if (!isSupportedTypedBinaryPreRealizedBodyOpKind(getOpKind()))
     return emitOpError()
            << "currently supports only op_kind \"add\", \"sub\", or "
               "\"mul\" for the bounded selected-body realization hook";
@@ -1091,7 +1091,7 @@ mlir::LogicalResult I32BinaryPreRealizedBodyOp::verify() {
               "the bounded selected-body realization hook";
 
   if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
-      getLmul() != getRVVI32M1LMUL())
+      getLmul() != getRVVLMULM1())
     return emitOpError()
            << "requires bounded pre-realized config to be SEW32 LMUL m1";
   if (!isRVVAgnosticPolicy(getPolicy()))

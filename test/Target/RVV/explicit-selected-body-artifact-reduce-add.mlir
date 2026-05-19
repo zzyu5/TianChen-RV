@@ -44,5 +44,5 @@ module {
 
 // HEADER: tianchenrv.rvv.selected_variant: @explicit_selected_body_rvv_reduce_add
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-reduce-add-callable-c-abi.v1
-// HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-i32m1-arithmetic-emitc-route-family
+// HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: void tcrv_emitc_explicit_selected_body_reduce_add_kernel_explicit_selected_body_rvv_reduce_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

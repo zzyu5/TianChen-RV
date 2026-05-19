@@ -15,7 +15,7 @@ module {
       %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body:rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body:n", role = "runtime-element-count"} : index
-      tcrv_rvv.i32_binary_pre_realized_body %lhs, %rhs, %out, %n {lmul = "m1", memory_form = "vector-rhs-load", op_kind = "add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
+      tcrv_rvv.typed_binary_pre_realized_body %lhs, %rhs, %out, %n {lmul = "m1", memory_form = "vector-rhs-load", op_kind = "add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index
     }
     tcrv.exec.variant @pre_realized_body_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
     }
@@ -26,7 +26,7 @@ module {
   }
 }
 
-// REALIZED-NOT: tcrv_rvv.i32_binary_pre_realized_body
+// REALIZED-NOT: tcrv_rvv.typed_binary_pre_realized_body
 // REALIZED: %[[VL:.*]] = tcrv_rvv.setvl %{{.*}} {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: origin = "rvv-plugin"
@@ -37,7 +37,7 @@ module {
 // REALIZED: tcrv_rvv.binary
 // REALIZED-SAME: kind = "add"
 // REALIZED: tcrv_rvv.store
-// REALIZED-NOT: tcrv_rvv.i32_binary_pre_realized_body
+// REALIZED-NOT: tcrv_rvv.typed_binary_pre_realized_body
 
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
@@ -48,11 +48,11 @@ module {
 // PLAN-SAME: origin = "rvv-plugin"
 // PLAN-SAME: reason = "emission_plan"
 // PLAN-SAME: role = "dispatch case"
-// PLAN-SAME: runtime_abi_name = "rvv-i32m1-add-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-generic-binary-add-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_i32_add
 
 // HEADER: tianchenrv.rvv.selected_variant: @pre_realized_body_rvv_i32_add
-// HEADER: tianchenrv.rvv.runtime_abi_name: rvv-i32m1-add-callable-c-abi.v1
-// HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-i32m1-arithmetic-emitc-route-family
+// HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-binary-add-callable-c-abi.v1
+// HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: void tcrv_emitc_pre_realized_body_add_kernel_pre_realized_body_rvv_i32_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

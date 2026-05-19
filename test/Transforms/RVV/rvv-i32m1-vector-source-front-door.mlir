@@ -1,7 +1,7 @@
-// RUN: not tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="tcrv.exec.kernel" --implicit-check-not="tcrv_rvv.i32_"
-// RUN: not tcrv-opt %s --tcrv-rvv-materialize-i32m1-vector-source-front-door --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
-// RUN: not tcrv-opt %s --tcrv-source-artifact-front-door-pipeline 2>&1 | FileCheck %s --check-prefix=PIPE-FAIL --implicit-check-not="rvv-i32m1-add-emitc-route" --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
-// RUN: not tcrv-opt %s --tcrv-disable-builtin-plugins --tcrv-rvv-materialize-i32m1-vector-source-front-door 2>&1 | FileCheck %s --check-prefix=NO-BUILTIN
+// RUN: not tcrv-opt %s --tcrv-rvv-fail-closed-legacy-vector-source-front-door 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="tcrv.exec.kernel" --implicit-check-not="tcrv_rvv.i32_"
+// RUN: not tcrv-opt %s --tcrv-rvv-fail-closed-legacy-vector-source-front-door --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
+// RUN: not tcrv-opt %s --tcrv-source-artifact-front-door-pipeline 2>&1 | FileCheck %s --check-prefix=PIPE-FAIL --implicit-check-not="rvv-generic-binary-add-emitc-route" --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
+// RUN: not tcrv-opt %s --tcrv-disable-builtin-plugins --tcrv-rvv-fail-closed-legacy-vector-source-front-door 2>&1 | FileCheck %s --check-prefix=NO-BUILTIN
 
 module {
   func.func @vector_source(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
@@ -20,12 +20,12 @@ module {
   }
 }
 
-// FAIL: bounded RVV i32m1 vector-source front door failed
+// FAIL: legacy RVV vector-source front door failed
 // FAIL-SAME: RVV Stage1 source-front-door materialization is disabled
 // FAIL-SAME: explicit selected generic tcrv_rvv.load/tcrv_rvv.binary/tcrv_rvv.store body
 
 // NO-BUILTIN: Unknown command line argument
-// NO-BUILTIN-SAME: tcrv-rvv-materialize-i32m1-vector-source-front-door
+// NO-BUILTIN-SAME: tcrv-rvv-fail-closed-legacy-vector-source-front-door
 
 // PIPE-FAIL: TianChen-RV execution plan coherence check failed for kernel <missing>
 // PIPE-FAIL-SAME: requires at least one tcrv.exec.kernel

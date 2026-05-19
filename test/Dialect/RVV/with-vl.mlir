@@ -42,7 +42,7 @@ module {
       // CHECK-SAME: origin = "rvv-plugin"
       // CHECK-SAME: required_capabilities = [@rvv]
       // CHECK-SAME: rvv_construction_protocol = "extension-family-construction-protocol.v1"
-      // CHECK-SAME: rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family"
+      // CHECK-SAME: rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family"
       // CHECK-SAME: selected_path_role = "direct variant"
       // CHECK-SAME: selected_variant = @rvv_selected
       // CHECK-SAME: source_kernel = "rvv_with_vl_selected_boundary_attrs"
@@ -53,7 +53,7 @@ module {
         policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
         required_capabilities = [@rvv],
         rvv_construction_protocol = "extension-family-construction-protocol.v1",
-        rvv_emitc_route_mapping = "rvv-i32m1-arithmetic-emitc-route-family",
+        rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family",
         selected_path_role = "direct variant",
         selected_variant = @rvv_selected,
         sew = 32 : i64,

@@ -1725,10 +1725,10 @@ int runRVVFailClosedConstructionValidationTest() {
       *rvv::lookupRVVSelectedBodyConstructionRouteByOperationMnemonic("add");
   if (int result = expectErrorContains(
           rvv::verifyRVVSelectedBodyConstructionRouteMapping(
-              "add", "tcrv_rvv.i32_sub", addRoute->emitCRouteID,
+              "add", "tcrv_rvv.i32_add", addRoute->emitCRouteID,
               addRoute->runtimeABIName),
           {"selected-body typed compute op for operation",
-           "tcrv_rvv.i32_add"},
+           "tcrv_rvv.binary"},
           "RVV construction rejects stale route/op mapping"))
     return result;
 
@@ -1787,7 +1787,7 @@ int runRVVFailClosedConstructionValidationTest() {
     return result;
 
   rvv::RVVSelectedBodyConstructionMetadataFacts staleRuntimeFacts = addFacts;
-  staleRuntimeFacts.runtimeABIName = "rvv-i32m1-stale-callable-c-abi.v1";
+  staleRuntimeFacts.runtimeABIName = "rvv-generic-stale-callable-c-abi.v1";
   if (int result = expectErrorContains(
           rvv::verifyRVVSelectedBodyConstructionMetadataFacts(
               staleRuntimeFacts, "RVV construction stale facts test"),

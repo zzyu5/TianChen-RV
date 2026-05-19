@@ -38,11 +38,11 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "vector-rhs-load"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: origin = "rvv-plugin"
-// PLAN-SAME: runtime_abi_name = "rvv-i32m1-cmp-select-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-generic-cmp-select-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @explicit_selected_body_rvv_i32_cmp_select
 
 // HEADER: tianchenrv.rvv.selected_variant: @explicit_selected_body_rvv_i32_cmp_select
-// HEADER: tianchenrv.rvv.runtime_abi_name: rvv-i32m1-cmp-select-callable-c-abi.v1
-// HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-i32m1-arithmetic-emitc-route-family
+// HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-cmp-select-callable-c-abi.v1
+// HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: void tcrv_emitc_explicit_selected_body_cmp_select_kernel_explicit_selected_body_rvv_i32_cmp_select(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

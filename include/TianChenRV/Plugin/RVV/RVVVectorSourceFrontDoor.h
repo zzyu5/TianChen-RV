@@ -10,7 +10,7 @@ class Pass;
 namespace tianchenrv::plugin::rvv {
 
 std::unique_ptr<::mlir::Pass>
-createMaterializeRVVI32M1VectorSourceFrontDoorPass();
+createFailClosedRVVLegacyVectorSourceFrontDoorPass();
 
 } // namespace tianchenrv::plugin::rvv
 

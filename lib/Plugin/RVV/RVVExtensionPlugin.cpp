@@ -67,7 +67,7 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
     return false;
 
   bool found = false;
-  variant.getBody().walk([&](tcrv::rvv::I32BinaryPreRealizedBodyOp) {
+  variant.getBody().walk([&](tcrv::rvv::TypedBinaryPreRealizedBodyOp) {
     found = true;
   });
   return found;
@@ -162,28 +162,28 @@ requirePreRealizedRuntimeABIValue(
   return binding;
 }
 
-llvm::Expected<tcrv::rvv::I32BinaryPreRealizedBodyOp>
+llvm::Expected<tcrv::rvv::TypedBinaryPreRealizedBodyOp>
 findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
   if (!variant)
     return makeRVVPluginError(
         "selected RVV realization requires a materialized tcrv.exec.variant");
 
-  llvm::SmallVector<tcrv::rvv::I32BinaryPreRealizedBodyOp, 2> bodies;
-  variant.getBody().walk([&](tcrv::rvv::I32BinaryPreRealizedBodyOp body) {
+  llvm::SmallVector<tcrv::rvv::TypedBinaryPreRealizedBodyOp, 2> bodies;
+  variant.getBody().walk([&](tcrv::rvv::TypedBinaryPreRealizedBodyOp body) {
     bodies.push_back(body);
   });
 
   if (bodies.size() != 1)
     return makeRVVPluginError(
         "selected RVV realization requires exactly one "
-        "tcrv_rvv.i32_binary_pre_realized_body op when no realized "
+        "tcrv_rvv.typed_binary_pre_realized_body op when no realized "
         "setvl/with_vl body is present");
   return bodies.front();
 }
 
 llvm::Error validatePreRealizedRVVSelectedBody(
     const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::I32BinaryPreRealizedBodyOp body) {
+    tcrv::rvv::TypedBinaryPreRealizedBodyOp body) {
   tcrv::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVPluginError(
@@ -203,7 +203,7 @@ llvm::Error validatePreRealizedRVVSelectedBody(
         "'vector-rhs-load'");
   if (static_cast<std::int64_t>(body.getSew()) !=
           tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getLmul() != tcrv::rvv::getRVVI32M1LMUL())
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
     return makeRVVPluginError(
         "pre-realized RVV selected body requires SEW32 LMUL m1");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
@@ -244,7 +244,7 @@ llvm::Error validatePreRealizedRVVSelectedBody(
         op->getName().getDialectNamespace() != "tcrv_rvv")
       return;
     if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
-                  tcrv::rvv::I32BinaryPreRealizedBodyOp>(op))
+                  tcrv::rvv::TypedBinaryPreRealizedBodyOp>(op))
       return;
     if (llvm::isa<tcrv::rvv::SetVLOp>(op)) {
       ++realizedSetVLCount;
@@ -280,7 +280,7 @@ mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
   mlir::OperationState state(loc, "tcrv_rvv.setvl");
   state.addOperands(nValue);
   state.addTypes(tcrv::rvv::VLType::get(builder.getContext()));
-  tcrv::rvv::populateRVVI32M1ArithmeticConfigAttrs(builder, state);
+  tcrv::rvv::populateRVVSelectedBodyDefaultConfigAttrs(builder, state);
   return builder.create(state);
 }
 
@@ -290,7 +290,7 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
     VariantEmissionRole role, mlir::ArrayAttr requires) {
   mlir::OperationState state(loc, "tcrv_rvv.with_vl");
   state.addOperands(vlValue);
-  tcrv::rvv::populateRVVI32M1ArithmeticConfigAttrs(builder, state);
+  tcrv::rvv::populateRVVSelectedBodyDefaultConfigAttrs(builder, state);
   state.addAttribute(rvv::getRVVSourceKernelAttrName(),
                      builder.getStringAttr(kernel.getSymName()));
   state.addAttribute(rvv::getRVVSelectedVariantAttrName(),
@@ -314,7 +314,7 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
 mlir::Type getStage1GenericVectorType(mlir::OpBuilder &builder) {
   return tcrv::rvv::VectorType::get(
       builder.getContext(), builder.getI32Type(),
-      tcrv::rvv::getRVVI32M1LMUL());
+      tcrv::rvv::getRVVLMULM1());
 }
 
 mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
@@ -362,7 +362,7 @@ realizePreRealizedRVVSelectedBody(
         "pre-realized RVV selected-body realization requires materialized "
         "kernel and variant");
 
-  llvm::Expected<tcrv::rvv::I32BinaryPreRealizedBodyOp> body =
+  llvm::Expected<tcrv::rvv::TypedBinaryPreRealizedBodyOp> body =
       findUniquePreRealizedRVVSelectedBody(variant);
   if (!body)
     return body.takeError();
@@ -522,10 +522,10 @@ RVVExtensionPlugin::verifyExecutableConstructionConformance() const {
 llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
     llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) const {
   out.push_back(SourceFrontDoorPassRegistration(
-      kRVVPluginName, "tcrv-rvv-materialize-i32m1-vector-source-front-door",
-      "Fail closed for the legacy RVV i32m1 source-front-door materializer "
+      kRVVPluginName, "tcrv-rvv-fail-closed-legacy-vector-source-front-door",
+      "Fail closed for the legacy RVV source-front-door materializer "
       "during Stage 1; use explicit generic typed tcrv_rvv bodies instead",
-      [] { return createMaterializeRVVI32M1VectorSourceFrontDoorPass(); },
+      [] { return createFailClosedRVVLegacyVectorSourceFrontDoorPass(); },
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
           ExplicitOnly));
   return llvm::Error::success();

@@ -411,8 +411,8 @@ int runI32M1ConfigVLContractAPITest() {
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();
 
-  const tianchenrv::tcrv::rvv::RVVI32M1ArithmeticConfigVLContract &contract =
-      tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticConfigVLContract();
+  const tianchenrv::tcrv::rvv::RVVSelectedBodyConfigVLContract &contract =
+      tianchenrv::tcrv::rvv::getRVVSelectedBodyM1ConfigVLContract();
   if (int result = expect(contract.sew == 32, "contract records SEW32"))
     return result;
   if (int result = expect(contract.lmul == "m1", "contract records LMUL m1"))
@@ -431,7 +431,7 @@ int runI32M1ConfigVLContractAPITest() {
     return result;
 
   PolicyAttr policy =
-      tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticPolicy(&context);
+      tianchenrv::tcrv::rvv::getRVVSelectedBodyDefaultPolicy(&context);
   if (int result = expect(policy.getTail() == TailPolicy::Agnostic,
                           "contract creates tail-agnostic policy"))
     return result;
@@ -440,7 +440,7 @@ int runI32M1ConfigVLContractAPITest() {
     return result;
 
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
-      tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticRuntimeABIParameters();
+      tianchenrv::tcrv::rvv::getRVVSelectedBodyRuntimeABIParameters();
   if (int result =
           expect(parameters.size() == 4,
                  "contract exposes four runtime ABI parameters"))
@@ -452,25 +452,25 @@ int runI32M1ConfigVLContractAPITest() {
                           "contract preserves lhs,rhs,out,n ABI order"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::tcrv::rvv::verifyRVVI32M1ArithmeticRuntimeABIParameters(
+          tianchenrv::tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
               parameters, "RVV dialect contract test"),
           "verify shared RVV runtime ABI contract"))
     return result;
   parameters[3].cName = "count";
   if (int result = expectFailure(
-          tianchenrv::tcrv::rvv::verifyRVVI32M1ArithmeticRuntimeABIParameters(
+          tianchenrv::tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
               parameters, "RVV dialect contract test"),
           "reject stale runtime ABI parameter name"))
     return result;
 
   llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata =
-      tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticArtifactMetadata();
+      tianchenrv::tcrv::rvv::getRVVSelectedBodyConfigArtifactMetadata();
   if (int result =
           expect(metadata.size() == 19,
                  "contract exposes complete artifact metadata vector"))
     return result;
   if (int result = expectSuccess(
-          tianchenrv::tcrv::rvv::verifyRVVI32M1ArithmeticArtifactMetadata(
+          tianchenrv::tcrv::rvv::verifyRVVSelectedBodyConfigArtifactMetadata(
               metadata, "RVV dialect contract test"),
           "verify shared RVV artifact metadata contract"))
     return result;
@@ -479,19 +479,19 @@ int runI32M1ConfigVLContractAPITest() {
       staleMetadata(metadata.begin(), metadata.end());
   staleMetadata[0].value = "stale-config";
   if (int result = expectFailure(
-          tianchenrv::tcrv::rvv::verifyRVVI32M1ArithmeticArtifactMetadata(
+          tianchenrv::tcrv::rvv::verifyRVVSelectedBodyConfigArtifactMetadata(
               staleMetadata, "RVV dialect contract test"),
           "reject stale RVV artifact metadata"))
     return result;
 
   std::string remaining =
-      tianchenrv::tcrv::rvv::getRVVI32M1ArithmeticEmitCRemainingAVLExpression(
+      tianchenrv::tcrv::rvv::getRVVSelectedBodyEmitCRemainingAVLExpression(
           contract.runtimeAVLABIParameterName, contract.emitCLoopInductionName);
   if (int result = expect(remaining == "n - offset",
                           "contract formats EmitC remaining AVL expression"))
     return result;
 
-  llvm::outs() << "RVV i32m1 config/VL contract API preserved\n";
+  llvm::outs() << "RVV selected-body config/VL contract API preserved\n";
   return 0;
 }
 

@@ -44,8 +44,6 @@ struct RVVSelectedBodyConfigVLContract {
   llvm::StringRef multiVL;
 };
 
-using RVVI32M1ArithmeticConfigVLContract = RVVSelectedBodyConfigVLContract;
-
 struct RVVConfigContractDiagnostic {
   bool ok = true;
   std::string message;
@@ -55,18 +53,18 @@ struct RVVConfigContractDiagnostic {
 };
 
 std::int64_t getRVVFirstSliceSEWBits();
-llvm::StringRef getRVVI32M1LMUL();
-llvm::StringRef getRVVI32M2LMUL();
-const RVVI32M1ArithmeticConfigVLContract &
-getRVVI32M1ArithmeticConfigVLContract();
+llvm::StringRef getRVVLMULM1();
+llvm::StringRef getRVVLMULM2();
 const RVVSelectedBodyConfigVLContract &
-getRVVI32M2ArithmeticConfigVLContract();
-PolicyAttr getRVVI32M1ArithmeticPolicy(mlir::MLIRContext *context);
-void populateRVVI32M1ArithmeticConfigAttrs(mlir::Builder &builder,
-                                           mlir::OperationState &state);
+getRVVSelectedBodyM1ConfigVLContract();
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyM2ConfigVLContract();
+PolicyAttr getRVVSelectedBodyDefaultPolicy(mlir::MLIRContext *context);
+void populateRVVSelectedBodyDefaultConfigAttrs(mlir::Builder &builder,
+                                               mlir::OperationState &state);
 
 bool isRVVFirstSliceDataflowConfig(std::int64_t sew, llvm::StringRef lmul);
-bool isRVVI32M1ArithmeticConfig(std::int64_t sew, llvm::StringRef lmul);
+bool isRVVSelectedBodyM1Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVAgnosticPolicy(PolicyAttr policy);
 
 RVVCompileTimeConfig getRVVSetVLCompileTimeConfig(SetVLOp setvl);
@@ -83,7 +81,7 @@ getRVVSelectedBodyConfigVLContract();
 const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyConfigVLContract(llvm::StringRef lmul);
 RVVConfigContractDiagnostic
-validateRVVI32M1ArithmeticConfigVLContract(SetVLOp setvl, WithVLOp withVL);
+validateRVVSelectedBodyM1ConfigVLContract(SetVLOp setvl, WithVLOp withVL);
 
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyRuntimeABIParameters();
@@ -102,25 +100,6 @@ llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry>
 getRVVSelectedBodyConfigArtifactMetadata();
 
 llvm::Error verifyRVVSelectedBodyConfigArtifactMetadata(
-    llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
-    llvm::StringRef context);
-
-llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
-getRVVI32M1ArithmeticRuntimeABIParameters();
-llvm::Error verifyRVVI32M1ArithmeticRuntimeABIParameters(
-    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter> parameters,
-    llvm::StringRef context);
-llvm::StringRef getRVVI32M1ArithmeticRuntimeAVLParameterName();
-llvm::StringRef getRVVI32M1ArithmeticEmitCLoopInductionName();
-llvm::StringRef getRVVI32M1ArithmeticEmitCFullChunkVLName();
-llvm::StringRef getRVVI32M1ArithmeticEmitCLoopVLName();
-std::string getRVVI32M1ArithmeticEmitCRemainingAVLExpression(
-    llvm::StringRef runtimeCountName, llvm::StringRef inductionName);
-
-llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry>
-getRVVI32M1ArithmeticArtifactMetadata();
-
-llvm::Error verifyRVVI32M1ArithmeticArtifactMetadata(
     llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
     llvm::StringRef context);
 

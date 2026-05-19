@@ -1,13 +1,13 @@
 // RUN: rm -rf %t.bundle && mkdir %t.bundle
-// RUN: not tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.bundle %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete" --implicit-check-not="rvv-i32m1-add-emitc-route"
+// RUN: not tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.bundle %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete" --implicit-check-not="rvv-generic-binary-add-emitc-route"
 // RUN: not test -e %t.bundle/tianchenrv-target-artifact-bundle.index
 
 // RUN: rm -rf %t.sub.bundle && mkdir %t.sub.bundle
-// RUN: not tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.sub.bundle %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door-sub.mlir 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete" --implicit-check-not="rvv-i32m1-sub-emitc-route"
+// RUN: not tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.sub.bundle %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door-sub.mlir 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete" --implicit-check-not="rvv-generic-binary-sub-emitc-route"
 // RUN: not test -e %t.sub.bundle/tianchenrv-target-artifact-bundle.index
 
 // RUN: rm -rf %t.mul.bundle && mkdir %t.mul.bundle
-// RUN: not tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.mul.bundle %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door-mul.mlir 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete" --implicit-check-not="rvv-i32m1-mul-emitc-route"
+// RUN: not tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.mul.bundle %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door-mul.mlir 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete" --implicit-check-not="rvv-generic-binary-mul-emitc-route"
 // RUN: not test -e %t.mul.bundle/tianchenrv-target-artifact-bundle.index
 
 // RVV source-only fixtures must not reach default target artifact bundles.

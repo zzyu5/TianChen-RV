@@ -31,10 +31,10 @@ module {
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "sub"}
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.binary"}
-// PLAN-SAME: runtime_abi_name = "rvv-i32m1-sub-callable-c-abi.v1"
+// PLAN-SAME: runtime_abi_name = "rvv-generic-binary-sub-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @explicit_selected_body_rvv_i32_sub
 
 // HEADER: tianchenrv.rvv.selected_variant: @explicit_selected_body_rvv_i32_sub
-// HEADER: tianchenrv.rvv.runtime_abi_name: rvv-i32m1-sub-callable-c-abi.v1
+// HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-binary-sub-callable-c-abi.v1
 // HEADER: void tcrv_emitc_explicit_selected_body_sub_kernel_explicit_selected_body_rvv_i32_sub(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
