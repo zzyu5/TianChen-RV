@@ -69,7 +69,8 @@ public:
                                   llvm::StringRef description,
                                   Factory factory,
                                   DefaultArtifactFrontDoorPolicy policy =
-                                      DefaultArtifactFrontDoorPolicy::Eligible);
+                                      DefaultArtifactFrontDoorPolicy::
+                                          ExplicitOnly);
 
   llvm::StringRef getOwnerPlugin() const { return ownerPlugin; }
   llvm::StringRef getArgument() const { return argument; }
@@ -89,7 +90,7 @@ private:
   std::string description;
   Factory factory;
   DefaultArtifactFrontDoorPolicy defaultArtifactFrontDoorPolicy =
-      DefaultArtifactFrontDoorPolicy::Eligible;
+      DefaultArtifactFrontDoorPolicy::ExplicitOnly;
 };
 
 class VariantProposalRequest {

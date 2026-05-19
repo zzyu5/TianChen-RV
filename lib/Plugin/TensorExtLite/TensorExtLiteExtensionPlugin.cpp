@@ -784,7 +784,9 @@ llvm::Error TensorExtLiteExtensionPlugin::registerSourceFrontDoorPasses(
       "the selected TensorExtLite role-sequence front door",
       [] {
         return createMaterializeTensorExtLiteFragmentMmaSourceFrontDoorPass();
-      }));
+      },
+      SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
+          Eligible));
   return llvm::Error::success();
 }
 

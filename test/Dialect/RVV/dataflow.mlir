@@ -1,8 +1,13 @@
 // RUN: tcrv-opt %s --split-input-file --verify-diagnostics | FileCheck %s
 
+// Deprecated Stage1 inventory only: finite tcrv_rvv.i32_* ops and
+// !tcrv_rvv.i32m* types are retained here to exercise parser/verifier
+// diagnostics. This file must not be used as positive route, EmitC, target
+// artifact, source-front-door, runtime, correctness, or performance evidence.
+
 module {
-  // CHECK-LABEL: tcrv.exec.kernel @rvv_i32_dataflow_valid
-  tcrv.exec.kernel @rvv_i32_dataflow_valid {
+  // CHECK-LABEL: tcrv.exec.kernel @rvv_legacy_i32_dataflow_deprecated_parse_inventory
+  tcrv.exec.kernel @rvv_legacy_i32_dataflow_deprecated_parse_inventory {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
     %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
     %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -41,8 +46,8 @@ module {
 // -----
 
 module {
-  // CHECK-LABEL: tcrv.exec.kernel @rvv_i32m2_dataflow_valid
-  tcrv.exec.kernel @rvv_i32m2_dataflow_valid {
+  // CHECK-LABEL: tcrv.exec.kernel @rvv_legacy_i32m2_dataflow_deprecated_parse_inventory
+  tcrv.exec.kernel @rvv_legacy_i32m2_dataflow_deprecated_parse_inventory {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
     %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
     %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value

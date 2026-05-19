@@ -216,6 +216,9 @@ int runPolicyAttributeRoundTripTest() {
   mlir::MLIRContext context(dialectRegistry);
   context.loadAllAvailableDialects();
 
+  // Deprecated Stage1 inventory only: these finite i32 ops still round-trip
+  // through the dialect parser/printer so stale route inputs can be rejected
+  // with targeted diagnostics. They are not positive route or artifact support.
   constexpr llvm::StringLiteral source = R"mlir(
 module {
   tcrv.exec.kernel @policy_roundtrip attributes {} {

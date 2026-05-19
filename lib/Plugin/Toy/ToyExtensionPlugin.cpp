@@ -611,7 +611,9 @@ llvm::Error ToyExtensionPlugin::registerSourceFrontDoorPasses(
       getName(), "tcrv-toy-materialize-template-source-front-door",
       "Materialize one bounded Toy construction-template source marker into "
       "the Toy selected compute_skeleton front door",
-      [] { return createMaterializeToyTemplateSourceFrontDoorPass(); }));
+      [] { return createMaterializeToyTemplateSourceFrontDoorPass(); },
+      SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
+          Eligible));
   return llvm::Error::success();
 }
 

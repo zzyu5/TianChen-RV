@@ -112,40 +112,40 @@ def TCRVRVV_RuntimeABIValueType
 }
 
 def TCRVRVV_I32M1VectorType : TCRVRVV_Type<"I32M1Vector", "i32m1"> {
-  let summary = "finite RVV i32 m1 vector dataflow token type";
+  let summary = "deprecated finite RVV i32 m1 parse-only dataflow token type";
   let description = [{
-    A bounded plugin-local vector dataflow token for explicit RVV i32 dataflow
-    under an existing tcrv_rvv.with_vl scope. It represents the
-    compiler-visible result of tcrv_rvv.i32_load plus tcrv_rvv.i32_add,
-    tcrv_rvv.i32_sub, or tcrv_rvv.i32_mul in that non-executable scope. It does
-    not model arbitrary vector registers, generic memory, masks, layouts,
-    runtime ABI parameters, route selection, artifact emission, hardware facts,
-    correctness evidence, or performance evidence.
+    Deprecated Stage1 inventory for finite RVV i32 dataflow parser/verifier
+    coverage under an existing tcrv_rvv.with_vl scope. It represents stale
+    compiler-visible results from tcrv_rvv.i32_* ops only so those surfaces can
+    remain diagnosable. It does not model arbitrary vector registers, generic
+    memory, masks, layouts, runtime ABI parameters, route selection, artifact
+    emission, source-front-door authority, hardware facts, correctness
+    evidence, or performance evidence.
   }];
 }
 
 def TCRVRVV_I32M1MaskType : TCRVRVV_Type<"I32M1Mask", "i32m1_mask"> {
-  let summary = "finite RVV i32 m1 predicate mask dataflow token type";
+  let summary = "deprecated finite RVV i32 m1 predicate mask parse-only type";
   let description = [{
-    A bounded plugin-local predicate token for explicit RVV i32m1 compare and
-    select dataflow under an existing tcrv_rvv.with_vl scope. It represents
-    the compiler-visible result of a typed tcrv_rvv.i32_cmp_eq op and may be
-    consumed by a typed tcrv_rvv.i32_select op in the same bounded scope.
+    Deprecated Stage1 inventory for finite RVV i32m1 compare/select
+    parser/verifier coverage under an existing tcrv_rvv.with_vl scope. It
+    represents stale tcrv_rvv.i32_cmp_eq / tcrv_rvv.i32_select dataflow only
+    so those surfaces can remain diagnosable.
 
     This is not a generic mask register type, vector dialect mask, descriptor,
-    route selector, artifact authority, hardware fact, correctness evidence,
-    or performance evidence.
+    route selector, artifact authority, source-front-door authority, hardware
+    fact, correctness evidence, or performance evidence.
   }];
 }
 
 def TCRVRVV_I32M2VectorType : TCRVRVV_Type<"I32M2Vector", "i32m2"> {
-  let summary = "finite RVV i32 m2 vector dataflow token type";
+  let summary = "deprecated finite RVV i32 m2 parse-only dataflow token type";
   let description = [{
-    A bounded plugin-local vector dataflow token for explicit RVV i32 dataflow
-    when the enclosing control-plane config is SEW 32 and LMUL m2. It is a
-    sibling of !tcrv_rvv.i32m1, not a generic RVV vector type. The enclosing
-    tcrv_rvv.setvl / tcrv_rvv.with_vl metadata remains the source of
-    SEW/LMUL/policy truth. This token does not authorize target emission.
+    Deprecated Stage1 inventory for finite RVV i32 dataflow parser/verifier
+    coverage when the enclosing control-plane config is SEW 32 and LMUL m2.
+    It is a sibling of !tcrv_rvv.i32m1, not a generic RVV vector type. This
+    token does not authorize route support, source-front-door materialization,
+    or target emission.
   }];
 }
 
@@ -600,19 +600,21 @@ def I32LoadOp : TCRVRVV_Op<"i32_load",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",
        "getTCRVEmitCLowerableSourceRole"]>]> {
-  let summary = "bounded RVV i32 load dataflow op";
+  let summary = "deprecated bounded RVV i32 load parse-only dataflow op";
   let description = [{
-    Records one bounded plugin-local RVV i32 load dataflow step. The op is
-    nested directly under tcrv_rvv.with_vl, consumes one explicit runtime ABI
-    buffer SSA value plus the same runtime !tcrv_rvv.vl control token as the
-    surrounding scope, and produces one bounded !tcrv_rvv.i32m1 or
-    !tcrv_rvv.i32m2 dataflow token matching the enclosing LMUL scope.
+    Deprecated Stage1 inventory for one bounded plugin-local RVV i32 load
+    parser/verifier step. The op is nested directly under tcrv_rvv.with_vl,
+    consumes one explicit runtime ABI buffer SSA value plus the same runtime
+    !tcrv_rvv.vl control token as the surrounding scope, and produces one
+    bounded !tcrv_rvv.i32m1 or !tcrv_rvv.i32m2 dataflow token matching the
+    enclosing LMUL scope.
 
     Buffer names, C types, and ABI roles come from the defining
     tcrv_rvv.runtime_abi_value op, not from descriptor metadata or target-side
     inference. Runtime n/AVL/VL remains represented by real runtime
     SSA/control surfaces. Deleted local element-count metadata is not accepted
-    here.
+    here. This op is not route-supported and must not authorize target
+    artifacts or source-front-door materialization.
   }];
 
   let arguments = (ins
@@ -630,19 +632,20 @@ def I32BroadcastLoadOp : TCRVRVV_Op<"i32_broadcast_load",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",
        "getTCRVEmitCLowerableSourceRole"]>]> {
-  let summary = "bounded RVV i32 broadcast load dataflow op";
+  let summary = "deprecated bounded RVV i32 broadcast parse-only dataflow op";
   let description = [{
-    Records one bounded plugin-local RVV i32 broadcast dataflow step. The op
-    is nested directly under tcrv_rvv.with_vl, consumes one explicit RHS
-    runtime ABI buffer SSA value plus the same runtime !tcrv_rvv.vl control
-    token as the surrounding scope, and produces one bounded
-    !tcrv_rvv.i32m1 or !tcrv_rvv.i32m2 value matching the enclosing LMUL
-    scope.
+    Deprecated Stage1 inventory for one bounded plugin-local RVV i32 broadcast
+    parser/verifier step. The op is nested directly under tcrv_rvv.with_vl,
+    consumes one explicit RHS runtime ABI buffer SSA value plus the same
+    runtime !tcrv_rvv.vl control token as the surrounding scope, and produces
+    one bounded !tcrv_rvv.i32m1 or !tcrv_rvv.i32m2 value matching the enclosing
+    LMUL scope.
 
-    This is the typed Stage 2 broadcast surface for the current i32m1/i32m2
-    slice. The broadcast source is the explicit RHS ABI operand, not a route
-    id, artifact name, source-front-door name, descriptor, ABI parameter name,
-    or target/export-side inference.
+    This is retained only so stale i32 broadcast inputs stay diagnosable. The
+    broadcast source is the explicit RHS ABI operand, not a route id, artifact
+    name, source-front-door name, descriptor, ABI parameter name, or
+    target/export-side inference. This op is not route-supported and must not
+    authorize target artifacts or source-front-door materialization.
   }];
 
   let arguments = (ins
@@ -658,16 +661,16 @@ def I32BroadcastLoadOp : TCRVRVV_Op<"i32_broadcast_load",
 
 def I32AddOp : TCRVRVV_Op<"i32_add",
     [TCRVEmitCLowerableOpInterface]> {
-  let summary = "bounded RVV i32 add dataflow op";
+  let summary = "deprecated bounded RVV i32 add parse-only dataflow op";
   let description = [{
-    Records one bounded plugin-local RVV i32 vector add dataflow step. The op
-    is nested directly under tcrv_rvv.with_vl, consumes two same-LMUL i32
-    dataflow tokens and the same runtime !tcrv_rvv.vl control token as the
-    surrounding scope, and produces one bounded i32 dataflow token matching the
-    enclosing LMUL scope.
+    Deprecated Stage1 inventory for one bounded plugin-local RVV i32 vector
+    add parser/verifier step. The op is nested directly under tcrv_rvv.with_vl,
+    consumes two same-LMUL i32 dataflow tokens and the same runtime
+    !tcrv_rvv.vl control token as the surrounding scope, and produces one
+    bounded i32 dataflow token matching the enclosing LMUL scope.
 
-    This is not generic arithmetic IR and does not authorize RVV artifact
-    emission.
+    This is not generic arithmetic IR, is not route-supported, and does not
+    authorize RVV artifact emission.
   }];
 
   let arguments = (ins
@@ -684,16 +687,16 @@ def I32AddOp : TCRVRVV_Op<"i32_add",
 
 def I32SubOp : TCRVRVV_Op<"i32_sub",
     [TCRVEmitCLowerableOpInterface]> {
-  let summary = "bounded RVV i32 subtract dataflow op";
+  let summary = "deprecated bounded RVV i32 subtract parse-only dataflow op";
   let description = [{
-    Records one bounded plugin-local RVV i32 vector subtract dataflow step. The
-    op is nested directly under tcrv_rvv.with_vl, consumes two same-LMUL i32
-    dataflow tokens and the same runtime !tcrv_rvv.vl control token as the
-    surrounding scope, and produces one bounded i32 dataflow token matching the
-    enclosing LMUL scope.
+    Deprecated Stage1 inventory for one bounded plugin-local RVV i32 vector
+    subtract parser/verifier step. The op is nested directly under
+    tcrv_rvv.with_vl, consumes two same-LMUL i32 dataflow tokens and the same
+    runtime !tcrv_rvv.vl control token as the surrounding scope, and produces
+    one bounded i32 dataflow token matching the enclosing LMUL scope.
 
-    This is not generic arithmetic IR and does not authorize RVV artifact
-    emission.
+    This is not generic arithmetic IR, is not route-supported, and does not
+    authorize RVV artifact emission.
   }];
 
   let arguments = (ins
@@ -710,16 +713,16 @@ def I32SubOp : TCRVRVV_Op<"i32_sub",
 
 def I32MulOp : TCRVRVV_Op<"i32_mul",
     [TCRVEmitCLowerableOpInterface]> {
-  let summary = "bounded RVV i32 multiply dataflow op";
+  let summary = "deprecated bounded RVV i32 multiply parse-only dataflow op";
   let description = [{
-    Records one bounded plugin-local RVV i32 vector multiply dataflow step. The
-    op is nested directly under tcrv_rvv.with_vl, consumes two same-LMUL i32
-    dataflow tokens and the same runtime !tcrv_rvv.vl control token as the
-    surrounding scope, and produces one bounded i32 dataflow token matching the
-    enclosing LMUL scope.
+    Deprecated Stage1 inventory for one bounded plugin-local RVV i32 vector
+    multiply parser/verifier step. The op is nested directly under
+    tcrv_rvv.with_vl, consumes two same-LMUL i32 dataflow tokens and the same
+    runtime !tcrv_rvv.vl control token as the surrounding scope, and produces
+    one bounded i32 dataflow token matching the enclosing LMUL scope.
 
-    This is not generic arithmetic IR and does not authorize RVV artifact
-    emission.
+    This is not generic arithmetic IR, is not route-supported, and does not
+    authorize RVV artifact emission.
   }];
 
   let arguments = (ins
@@ -736,7 +739,7 @@ def I32MulOp : TCRVRVV_Op<"i32_mul",
 
 def I32CmpEqOp : TCRVRVV_Op<"i32_cmp_eq",
     [TCRVEmitCLowerableOpInterface]> {
-  let summary = "bounded RVV i32m1 equality compare dataflow op";
+  let summary = "deprecated bounded RVV i32m1 compare parse-only dataflow op";
   let description = [{
     Records one bounded plugin-local RVV i32m1 predicate-producing compare
     step. The op is nested directly under tcrv_rvv.with_vl, consumes two
@@ -764,7 +767,7 @@ def I32CmpEqOp : TCRVRVV_Op<"i32_cmp_eq",
 
 def I32SelectOp : TCRVRVV_Op<"i32_select",
     [TCRVEmitCLowerableOpInterface]> {
-  let summary = "bounded RVV i32m1 predicate-consuming select dataflow op";
+  let summary = "deprecated bounded RVV i32m1 select parse-only dataflow op";
   let description = [{
     Records one bounded plugin-local RVV i32m1 select dataflow step. The op is
     nested directly under tcrv_rvv.with_vl, consumes one
@@ -796,19 +799,20 @@ def I32StoreOp : TCRVRVV_Op<"i32_store",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",
        "getTCRVEmitCLowerableSourceRole"]>]> {
-  let summary = "bounded RVV i32 store dataflow op";
+  let summary = "deprecated bounded RVV i32 store parse-only dataflow op";
   let description = [{
-    Records one bounded plugin-local RVV i32 store dataflow step. The op is
-    nested directly under tcrv_rvv.with_vl, consumes one explicit output
-    runtime ABI buffer SSA value, one bounded i32 dataflow token matching the
-    enclosing LMUL scope, and the same runtime !tcrv_rvv.vl control token as
-    the surrounding scope.
+    Deprecated Stage1 inventory for one bounded plugin-local RVV i32 store
+    parser/verifier step. The op is nested directly under tcrv_rvv.with_vl,
+    consumes one explicit output runtime ABI buffer SSA value, one bounded i32
+    dataflow token matching the enclosing LMUL scope, and the same runtime
+    !tcrv_rvv.vl control token as the surrounding scope.
 
     Output C name, C type, and ABI role come from the defining
     tcrv_rvv.runtime_abi_value op, not from descriptor metadata or target-side
     inference. Runtime n/AVL/VL remains represented by real runtime
     SSA/control surfaces. Deleted local element-count metadata is not accepted
-    here.
+    here. This op is not route-supported and must not authorize target
+    artifacts or source-front-door materialization.
   }];
 
   let arguments = (ins

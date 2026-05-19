@@ -216,20 +216,22 @@ int main() {
           expect(sourceFrontDoorPasses.size() == 2,
                  "source front-door pass collection sees enabled plugins only"))
     return result;
+  const bool alphaDefaultEligible =
+      sourceFrontDoorPasses[0].isDefaultArtifactFrontDoorEligible();
+  const bool gammaDefaultEligible =
+      sourceFrontDoorPasses[1].isDefaultArtifactFrontDoorEligible();
   if (int result = expect(sourceFrontDoorPasses[0].getOwnerPlugin() == "alpha" &&
                               sourceFrontDoorPasses[0].getArgument() ==
                                   "alpha-source-front-door" &&
-                              sourceFrontDoorPasses[0]
-                                  .isDefaultArtifactFrontDoorEligible() &&
+                              !alphaDefaultEligible &&
                               sourceFrontDoorPasses[1].getOwnerPlugin() ==
                                   "gamma" &&
                               sourceFrontDoorPasses[1].getArgument() ==
                                   "gamma-source-front-door" &&
-                              sourceFrontDoorPasses[1]
-                                  .isDefaultArtifactFrontDoorEligible(),
+                              !gammaDefaultEligible,
                           "source front-door pass order follows enabled plugin "
-                          "order and default artifact eligibility defaults to "
-                          "true"))
+                          "order and default artifact eligibility is "
+                          "explicit-only"))
     return result;
   if (int result = expect(static_cast<bool>(
                               sourceFrontDoorPasses[0].getFactory()),

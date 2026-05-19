@@ -7,8 +7,8 @@ emission plans, exports the generated target artifact bundle, checks the
 bundle, builds a small external C ABI consumer, and optionally runs that
 consumer on the real RVV target. ``--pre-realized-selected-body`` starts from
 the bounded pre-realized selected-body fixtures and uses the public selected
-lowering-boundary materialization pass before emission planning. An explicit
-``--source-seed`` mode remains only for the legacy RVV source-front-door seed.
+lowering-boundary materialization pass before emission planning. The legacy
+``--source-seed`` mode is unsupported and exits before bundle generation.
 The script does not implement compiler IR, lowering, plugin selection,
 emission, descriptors, fallback computation, or runtime glue.
 """
@@ -310,33 +310,6 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_i32_mul",
         function_name="tcrv_emitc_pre_realized_body_mul_kernel_pre_realized_body_rvv_i32_mul",
-    ),
-}
-
-SOURCE_SEED_OP_EXPECTATIONS = {
-    "add": replace(
-        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
-        input_path=Path("test/Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir"),
-        input_mode="legacy-rvv-source-seed",
-        source_seed=True,
-        selected_variant="vector_source_rvv_i32_add",
-        function_name="tcrv_emitc_vector_source_kernel_vector_source_rvv_i32_add",
-    ),
-    "sub": replace(
-        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["sub"],
-        input_path=Path("test/Transforms/RVV/rvv-i32m1-vector-source-front-door-sub.mlir"),
-        input_mode="legacy-rvv-source-seed",
-        source_seed=True,
-        selected_variant="vector_source_sub_rvv_i32_sub",
-        function_name="tcrv_emitc_vector_source_sub_kernel_vector_source_sub_rvv_i32_sub",
-    ),
-    "mul": replace(
-        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["mul"],
-        input_path=Path("test/Transforms/RVV/rvv-i32m1-vector-source-front-door-mul.mlir"),
-        input_mode="legacy-rvv-source-seed",
-        source_seed=True,
-        selected_variant="vector_source_mul_rvv_i32_mul",
-        function_name="tcrv_emitc_vector_source_mul_kernel_vector_source_mul_rvv_i32_mul",
     ),
 }
 
@@ -1121,10 +1094,6 @@ def generate_bundle(
 ) -> dict[str, Any]:
     materialized_path = bundle_dir.parent / "materialized_selected_body.mlir"
     materialize_command = [tcrv_opt, str(expectation.input_path)]
-    if expectation.source_seed:
-        materialize_command.append(
-            "--tcrv-rvv-fail-closed-legacy-vector-source-front-door"
-        )
     if expectation.is_pre_realized:
         materialize_command.append("--tcrv-materialize-selected-lowering-boundaries")
     materialize_command.extend(
@@ -1162,14 +1131,7 @@ def generate_bundle(
         "tcrv_opt": materialize_record,
         "tcrv_translate": translate_record,
     }
-    if expectation.source_seed:
-        result["front_door"] = "legacy-rvv-source-front-door-seed"
-        result["materializer"] = "tcrv-rvv-fail-closed-legacy-vector-source-front-door"
-        result["seed_boundary"] = (
-            "legacy source may only construct typed tcrv_rvv selected-body IR "
-            "before provider route construction"
-        )
-    elif expectation.is_pre_realized:
+    if expectation.is_pre_realized:
         result["front_door"] = "pre-realized-selected-tcrv-exec-rvv-body"
         result["materializer"] = "tcrv-materialize-selected-lowering-boundaries"
         result["realization_boundary"] = (
@@ -1333,23 +1295,25 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
         raise EvidenceError(f"duplicate --op-kind values are not allowed: {op_kinds}")
     if args.input is not None and len(op_kinds) != 1:
         raise EvidenceError("--input may only be used with exactly one --op-kind")
+    if args.source_seed:
+        raise EvidenceError(
+            "legacy RVV --source-seed evidence mode is unsupported during "
+            "Stage1 residue hygiene; use explicit selected generic typed "
+            "tcrv_rvv body fixtures instead"
+        )
     selected_modes = [
-        args.source_seed,
         args.pre_realized_selected_body,
         args.rhs_broadcast_selected_body,
         args.lmul_m2_selected_body,
     ]
     if sum(1 for selected in selected_modes if selected) > 1:
         raise EvidenceError(
-            "--source-seed, --pre-realized-selected-body, "
-            "--rhs-broadcast-selected-body, and --lmul-m2-selected-body are "
+            "--pre-realized-selected-body, --rhs-broadcast-selected-body, "
+            "and --lmul-m2-selected-body are "
             "mutually exclusive"
         )
 
-    if args.source_seed:
-        expectation_table = SOURCE_SEED_OP_EXPECTATIONS
-        mode = "legacy-rvv-source-seed"
-    elif args.pre_realized_selected_body:
+    if args.pre_realized_selected_body:
         expectation_table = PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS
         mode = "pre-realized-selected-body"
     elif args.rhs_broadcast_selected_body:
@@ -1452,9 +1416,7 @@ def run_one_op_e2e(
     }
 
     try:
-        if expectation.source_seed:
-            input_copy_name = "source_seed.mlir"
-        elif expectation.is_pre_realized:
+        if expectation.is_pre_realized:
             input_copy_name = "pre_realized_selected_body_input.mlir"
         else:
             input_copy_name = "selected_body_input.mlir"
@@ -1552,9 +1514,7 @@ def run_e2e(args: argparse.Namespace) -> int:
         "runtime_counts": runtime_counts,
         "op_results": {},
     }
-    if args.source_seed:
-        evidence["input_mode"] = "legacy-rvv-source-seed"
-    elif args.pre_realized_selected_body:
+    if args.pre_realized_selected_body:
         evidence["input_mode"] = "pre-realized-selected-body"
     elif args.rhs_broadcast_selected_body:
         evidence["input_mode"] = "rhs-broadcast-selected-body"
@@ -1996,8 +1956,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--source-seed",
         action="store_true",
         help=(
-            "use the legacy RVV source-front-door seed before selected-body "
-            "artifact export; default input is explicit selected-body IR"
+            "unsupported legacy RVV source-front-door seed mode; exits before "
+            "bundle generation"
         ),
     )
     parser.add_argument(
@@ -2006,8 +1966,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=(
             "use the pre-realized selected-body add/sub/mul fixtures and run "
             "public selected lowering-boundary materialization before emission "
-            "planning; mutually exclusive with --source-seed and "
-            "--rhs-broadcast-selected-body and --lmul-m2-selected-body"
+            "planning; mutually exclusive with --rhs-broadcast-selected-body "
+            "and --lmul-m2-selected-body"
         ),
     )
     parser.add_argument(
@@ -2016,7 +1976,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=(
             "use explicit selected-body add/sub/mul fixtures where rhs is "
             "produced by tcrv_rvv.broadcast_load; mutually exclusive with "
-            "--source-seed, --pre-realized-selected-body, and "
+            "--pre-realized-selected-body and "
             "--lmul-m2-selected-body"
         ),
     )
@@ -2025,8 +1985,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help=(
             "use explicit selected-body add/sub/mul fixtures with "
-            "!tcrv_rvv.i32m2 dataflow and lmul=m2 config; mutually exclusive "
-            "with source-seed, pre-realized, and rhs-broadcast modes"
+            "generic !tcrv_rvv.vector<i32, \"m2\"> dataflow and lmul=m2 "
+            "config; mutually exclusive "
+            "with pre-realized and rhs-broadcast modes"
         ),
     )
     parser.add_argument("--artifact-root", type=Path, default=DEFAULT_ARTIFACT_ROOT)
@@ -2045,7 +2006,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help=(
             "override the selected-body MLIR fixture for exactly one --op-kind; "
-            "applies to explicit, pre-realized, or legacy source-seed mode"
+            "applies to explicit or pre-realized selected-body modes"
         ),
     )
     parser.add_argument("--tcrv-opt", default="build/bin/tcrv-opt")
