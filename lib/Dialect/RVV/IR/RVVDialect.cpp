@@ -854,22 +854,6 @@ llvm::StringRef WithVLOp::getTCRVEmitCLowerableSourceRole() {
   return "scope";
 }
 
-llvm::StringRef I32LoadOp::getTCRVEmitCLowerableSourceOpName() {
-  return getOperation()->getName().getStringRef();
-}
-
-llvm::StringRef I32LoadOp::getTCRVEmitCLowerableSourceRole() {
-  return "load";
-}
-
-llvm::StringRef I32BroadcastLoadOp::getTCRVEmitCLowerableSourceOpName() {
-  return getOperation()->getName().getStringRef();
-}
-
-llvm::StringRef I32BroadcastLoadOp::getTCRVEmitCLowerableSourceRole() {
-  return "load";
-}
-
 llvm::StringRef LoadOp::getTCRVEmitCLowerableSourceOpName() {
   return getOperation()->getName().getStringRef();
 }
@@ -907,14 +891,6 @@ llvm::StringRef StridedStoreOp::getTCRVEmitCLowerableSourceOpName() {
 }
 
 llvm::StringRef StridedStoreOp::getTCRVEmitCLowerableSourceRole() {
-  return "store";
-}
-
-llvm::StringRef I32StoreOp::getTCRVEmitCLowerableSourceOpName() {
-  return getOperation()->getName().getStringRef();
-}
-
-llvm::StringRef I32StoreOp::getTCRVEmitCLowerableSourceRole() {
   return "store";
 }
 

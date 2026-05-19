@@ -86,6 +86,66 @@ correctness claim only for bounded pre-realized `reduce_add` counts
 |------|---------|
 | `this commit` | (see git log) |
 
+## Session 141: Stage1 legacy finite RVV i32 parse-only residue cleanup
+
+**Date**: 2026-05-20
+**Task**: `stage1-legacy-rvv-i32-residue-cleanup`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and cleaned the
+remaining active-looking legacy finite RVV i32 parse-only residue. The retained
+`tcrv_rvv.i32_*` parser/verifier surface no longer implements
+`TCRVEmitCLowerableOpInterface`; positive EmitC-lowerable assertions now target
+the corrected generic typed RVV dataflow surface.
+
+### Main Changes
+
+- Removed EmitC lowerable interface declarations from retained legacy
+  `tcrv_rvv.i32_*` ODS ops.
+- Removed obsolete `I32LoadOp`, `I32BroadcastLoadOp`, and `I32StoreOp`
+  lowerable source-role method implementations.
+- Reworked the RVV dialect C++ test so positive lowerable roundtrip uses
+  `tcrv_rvv.load`, `tcrv_rvv.binary`, and `tcrv_rvv.store`.
+- Added a C++ assertion that retained legacy `i32_load`, `i32_add`, and
+  `i32_store` remain parse-only and non-lowerable.
+- Updated RVV dialect descriptions so `with_vl`, `status`, and
+  `rvv_emitc_route_mapping` read as mirror/handoff facts, not route or
+  acceptance authority.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] `cmake --build build --target tcrv-opt tianchenrv-rvv-dialect-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-dialect-test`
+- [OK] Focused lit: 5/5 passed for RVV dialect dataflow, generic binary
+  materialization, legacy fail-closed materialization, and target artifact
+  smoke.
+- [OK] Focused lit: 13/13 passed for legacy selected-body fail-closed,
+  legacy source-front-door fail-closed, and generic typed Stage2
+  materialization paths.
+- [OK] After-scan found no legacy i32 EmitC-lowerable authority.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 176/176 passed.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round makes no runtime,
+correctness, or performance claim, so no fresh `ssh rvv` evidence was required.
+
+### Next Steps
+
+- Future continuation, if requested: further Stage1 cleanup can delete the
+  deprecated parse-only i32 ODS surface entirely once no parser/verifier
+  inventory tests need it.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 
 ## Session 133: Stage2 generic RVV reduction accumulation route
 

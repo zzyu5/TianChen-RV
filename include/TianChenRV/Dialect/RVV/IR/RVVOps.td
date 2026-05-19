@@ -18,13 +18,12 @@ def TCRV_RVV_Dialect : Dialect {
 
     The current bounded slice exposes the tcrv_rvv.setvl runtime AVL-to-VL
     control-plane surface, the matching tcrv_rvv.with_vl VL scope region, and
-    plugin-local i32 dataflow tokens and ops that may appear only under an
-    explicit with_vl scope. These dataflow surfaces are not executable route,
-    ABI, artifact, or exporter authority; future RVV execution must be rebuilt
-    through explicit extension-family IR plus a materialized EmitC route.
-    Generic RVV lowering, arbitrary vector memory modeling, runtime ABI
-    implementation, correctness claims, and performance evidence remain out of
-    scope for the dialect skeleton.
+    generic typed RVV vector-level dataflow ops nested under explicit with_vl
+    scopes. Deprecated finite i32 parse-only inventory may still appear in
+    negative or verifier fixtures, but it is not executable route, ABI,
+    EmitC-lowerable, selected-body, artifact, source-front-door, or exporter
+    authority. Current RVV execution goes through explicit generic typed
+    extension-family IR plus a provider-built materialized EmitC route.
   }];
 
   let useDefaultTypePrinterParser = 1;
@@ -199,8 +198,8 @@ def RuntimeABIValueOp : TCRVRVV_Op<"runtime_abi_value",
     Binds one callable runtime ABI value into explicit RVV extension-family IR
     for the current first slice. The operation records the ABI role, C
     parameter name, C type spelling, and ownership class, then produces one SSA
-    value consumed by tcrv_rvv.setvl, tcrv_rvv.i32_load, or
-    tcrv_rvv.i32_store.
+    value consumed by tcrv_rvv.setvl, generic tcrv_rvv.load / tcrv_rvv.store,
+    or other typed RVV body ops.
 
     This op is an ABI/provenance boundary only. It does not describe
     computation, infer route selection, expose target hardware facts, replace
@@ -269,13 +268,14 @@ def WithVLOp : TCRVRVV_Op<"with_vl",
     by setvl and are verified for compatibility when the consumed VL is visibly
     defined by a tcrv_rvv.setvl op.
 
-    On the selected bounded i32m1 materialized EmitC artifact path, this op is
+    On the selected generic typed materialized EmitC artifact path, this op is
     also the selected construction-template boundary. In that role it may carry
-    generic selected-boundary conformance facts such as source kernel, selected
-    variant, origin, selected path role, status, required capabilities, and
-    RVV-owned route/config handoff attributes. Those facts are validation
-    inputs for the artifact adapter; they are not descriptor fields or compute
-    semantics.
+    generic selected-boundary conformance mirrors such as source kernel,
+    selected variant, origin, selected path role, status, required
+    capabilities, and RVV-owned route/config handoff attributes. Those facts
+    mirror provider-owned route/config decisions for validation and artifact
+    handoff; they are not descriptor fields, acceptance state, dtype authority,
+    route authority, or compute semantics.
 
     This op is a structural prerequisite for RVV control/body lowering work
     only. It does not model VLEN/vlenb hardware facts, deleted local
@@ -765,10 +765,7 @@ def StridedStoreOp : TCRVRVV_Op<"strided_store",
   let hasVerifier = 1;
 }
 
-def I32LoadOp : TCRVRVV_Op<"i32_load",
-    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
-      ["getTCRVEmitCLowerableSourceOpName",
-       "getTCRVEmitCLowerableSourceRole"]>]> {
+def I32LoadOp : TCRVRVV_Op<"i32_load"> {
   let summary = "deprecated bounded RVV i32 load parse-only dataflow op";
   let description = [{
     Deprecated Stage1 inventory for one bounded plugin-local RVV i32 load
@@ -782,8 +779,9 @@ def I32LoadOp : TCRVRVV_Op<"i32_load",
     tcrv_rvv.runtime_abi_value op, not from descriptor metadata or target-side
     inference. Runtime n/AVL/VL remains represented by real runtime
     SSA/control surfaces. Deleted local element-count metadata is not accepted
-    here. This op is not route-supported and must not authorize target
-    artifacts or source-front-door materialization.
+    here. This op is not route-supported, does not implement the EmitC
+    lowerable interface, and must not authorize target artifacts or
+    source-front-door materialization.
   }];
 
   let arguments = (ins
@@ -797,10 +795,7 @@ def I32LoadOp : TCRVRVV_Op<"i32_load",
   let hasVerifier = 1;
 }
 
-def I32BroadcastLoadOp : TCRVRVV_Op<"i32_broadcast_load",
-    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
-      ["getTCRVEmitCLowerableSourceOpName",
-       "getTCRVEmitCLowerableSourceRole"]>]> {
+def I32BroadcastLoadOp : TCRVRVV_Op<"i32_broadcast_load"> {
   let summary = "deprecated bounded RVV i32 broadcast parse-only dataflow op";
   let description = [{
     Deprecated Stage1 inventory for one bounded plugin-local RVV i32 broadcast
@@ -813,8 +808,9 @@ def I32BroadcastLoadOp : TCRVRVV_Op<"i32_broadcast_load",
     This is retained only so stale i32 broadcast inputs stay diagnosable. The
     broadcast source is the explicit RHS ABI operand, not a route id, artifact
     name, source-front-door name, descriptor, ABI parameter name, or
-    target/export-side inference. This op is not route-supported and must not
-    authorize target artifacts or source-front-door materialization.
+    target/export-side inference. This op is not route-supported, does not
+    implement the EmitC lowerable interface, and must not authorize target
+    artifacts or source-front-door materialization.
   }];
 
   let arguments = (ins
@@ -828,8 +824,7 @@ def I32BroadcastLoadOp : TCRVRVV_Op<"i32_broadcast_load",
   let hasVerifier = 1;
 }
 
-def I32AddOp : TCRVRVV_Op<"i32_add",
-    [TCRVEmitCLowerableOpInterface]> {
+def I32AddOp : TCRVRVV_Op<"i32_add"> {
   let summary = "deprecated bounded RVV i32 add parse-only dataflow op";
   let description = [{
     Deprecated Stage1 inventory for one bounded plugin-local RVV i32 vector
@@ -838,8 +833,9 @@ def I32AddOp : TCRVRVV_Op<"i32_add",
     !tcrv_rvv.vl control token as the surrounding scope, and produces one
     bounded i32 dataflow token matching the enclosing LMUL scope.
 
-    This is not generic arithmetic IR, is not route-supported, and does not
-    authorize RVV artifact emission.
+    This is not generic arithmetic IR, is not route-supported, does not
+    implement the EmitC lowerable interface, and does not authorize RVV
+    artifact emission.
   }];
 
   let arguments = (ins
@@ -854,8 +850,7 @@ def I32AddOp : TCRVRVV_Op<"i32_add",
   let hasVerifier = 1;
 }
 
-def I32SubOp : TCRVRVV_Op<"i32_sub",
-    [TCRVEmitCLowerableOpInterface]> {
+def I32SubOp : TCRVRVV_Op<"i32_sub"> {
   let summary = "deprecated bounded RVV i32 subtract parse-only dataflow op";
   let description = [{
     Deprecated Stage1 inventory for one bounded plugin-local RVV i32 vector
@@ -864,8 +859,9 @@ def I32SubOp : TCRVRVV_Op<"i32_sub",
     runtime !tcrv_rvv.vl control token as the surrounding scope, and produces
     one bounded i32 dataflow token matching the enclosing LMUL scope.
 
-    This is not generic arithmetic IR, is not route-supported, and does not
-    authorize RVV artifact emission.
+    This is not generic arithmetic IR, is not route-supported, does not
+    implement the EmitC lowerable interface, and does not authorize RVV
+    artifact emission.
   }];
 
   let arguments = (ins
@@ -880,8 +876,7 @@ def I32SubOp : TCRVRVV_Op<"i32_sub",
   let hasVerifier = 1;
 }
 
-def I32MulOp : TCRVRVV_Op<"i32_mul",
-    [TCRVEmitCLowerableOpInterface]> {
+def I32MulOp : TCRVRVV_Op<"i32_mul"> {
   let summary = "deprecated bounded RVV i32 multiply parse-only dataflow op";
   let description = [{
     Deprecated Stage1 inventory for one bounded plugin-local RVV i32 vector
@@ -890,8 +885,9 @@ def I32MulOp : TCRVRVV_Op<"i32_mul",
     runtime !tcrv_rvv.vl control token as the surrounding scope, and produces
     one bounded i32 dataflow token matching the enclosing LMUL scope.
 
-    This is not generic arithmetic IR, is not route-supported, and does not
-    authorize RVV artifact emission.
+    This is not generic arithmetic IR, is not route-supported, does not
+    implement the EmitC lowerable interface, and does not authorize RVV
+    artifact emission.
   }];
 
   let arguments = (ins
@@ -906,20 +902,19 @@ def I32MulOp : TCRVRVV_Op<"i32_mul",
   let hasVerifier = 1;
 }
 
-def I32CmpEqOp : TCRVRVV_Op<"i32_cmp_eq",
-    [TCRVEmitCLowerableOpInterface]> {
+def I32CmpEqOp : TCRVRVV_Op<"i32_cmp_eq"> {
   let summary = "deprecated bounded RVV i32m1 compare parse-only dataflow op";
   let description = [{
-    Records one bounded plugin-local RVV i32m1 predicate-producing compare
-    step. The op is nested directly under tcrv_rvv.with_vl, consumes two
-    !tcrv_rvv.i32m1 dataflow tokens and the same runtime !tcrv_rvv.vl control
-    token as the surrounding scope, and produces one !tcrv_rvv.i32m1_mask
-    predicate token.
+    Deprecated Stage1 inventory for one bounded plugin-local RVV i32m1
+    predicate-producing compare parser/verifier step. The op is nested
+    directly under tcrv_rvv.with_vl, consumes two !tcrv_rvv.i32m1 dataflow
+    tokens and the same runtime !tcrv_rvv.vl control token as the surrounding
+    scope, and produces one !tcrv_rvv.i32m1_mask predicate token.
 
-    Compare semantics come only from this typed operation in the selected RVV
-    body. Route ids, artifact names, source-front-door names, descriptor
-    residue, ABI parameter names, and common/export code must not infer or
-    choose compare behavior.
+    This op is retained only so stale i32 compare inputs stay diagnosable. It
+    is not route-supported, does not implement the EmitC lowerable interface,
+    and must not authorize selected-body realization, target artifacts, or
+    source-front-door materialization.
   }];
 
   let arguments = (ins
@@ -934,21 +929,21 @@ def I32CmpEqOp : TCRVRVV_Op<"i32_cmp_eq",
   let hasVerifier = 1;
 }
 
-def I32SelectOp : TCRVRVV_Op<"i32_select",
-    [TCRVEmitCLowerableOpInterface]> {
+def I32SelectOp : TCRVRVV_Op<"i32_select"> {
   let summary = "deprecated bounded RVV i32m1 select parse-only dataflow op";
   let description = [{
-    Records one bounded plugin-local RVV i32m1 select dataflow step. The op is
-    nested directly under tcrv_rvv.with_vl, consumes one
-    !tcrv_rvv.i32m1_mask predicate produced by tcrv_rvv.i32_cmp_eq in the same
-    selected VL scope, consumes true and false !tcrv_rvv.i32m1 dataflow
-    values, consumes the same runtime !tcrv_rvv.vl control token as the
-    surrounding scope, and produces one selected !tcrv_rvv.i32m1 value.
+    Deprecated Stage1 inventory for one bounded plugin-local RVV i32m1 select
+    parser/verifier step. The op is nested directly under tcrv_rvv.with_vl,
+    consumes one !tcrv_rvv.i32m1_mask predicate produced by
+    tcrv_rvv.i32_cmp_eq in the same VL scope, consumes true and false
+    !tcrv_rvv.i32m1 dataflow values, consumes the same runtime
+    !tcrv_rvv.vl control token as the surrounding scope, and produces one
+    selected !tcrv_rvv.i32m1 value.
 
-    Select semantics come only from this typed operation and its explicit
-    predicate operand in the selected RVV body. They must not be inferred from
-    route metadata, artifact names, source-front-door names, descriptors, ABI
-    parameter names, or common/export code.
+    This op is retained only so stale i32 select inputs stay diagnosable. It
+    is not route-supported, does not implement the EmitC lowerable interface,
+    and must not authorize selected-body realization, target artifacts, or
+    source-front-door materialization.
   }];
 
   let arguments = (ins
@@ -964,10 +959,7 @@ def I32SelectOp : TCRVRVV_Op<"i32_select",
   let hasVerifier = 1;
 }
 
-def I32StoreOp : TCRVRVV_Op<"i32_store",
-    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
-      ["getTCRVEmitCLowerableSourceOpName",
-       "getTCRVEmitCLowerableSourceRole"]>]> {
+def I32StoreOp : TCRVRVV_Op<"i32_store"> {
   let summary = "deprecated bounded RVV i32 store parse-only dataflow op";
   let description = [{
     Deprecated Stage1 inventory for one bounded plugin-local RVV i32 store
@@ -980,8 +972,9 @@ def I32StoreOp : TCRVRVV_Op<"i32_store",
     tcrv_rvv.runtime_abi_value op, not from descriptor metadata or target-side
     inference. Runtime n/AVL/VL remains represented by real runtime
     SSA/control surfaces. Deleted local element-count metadata is not accepted
-    here. This op is not route-supported and must not authorize target
-    artifacts or source-front-door materialization.
+    here. This op is not route-supported, does not implement the EmitC
+    lowerable interface, and must not authorize target artifacts or
+    source-front-door materialization.
   }];
 
   let arguments = (ins

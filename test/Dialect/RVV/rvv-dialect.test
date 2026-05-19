@@ -1,5 +1,7 @@
 # RUN: tianchenrv-rvv-dialect-test | FileCheck %s
 
 # CHECK: RVV typed policy attribute round trip preserved
-# CHECK: RVV i32 vector-add dataflow round trip preserved
+# CHECK: RVV generic typed vector-add dataflow round trip preserved
+# CHECK: RVV legacy i32 dataflow remains parse-only
+# CHECK: RVV selected-body config/VL contract API preserved
 # CHECK: RVV dialect registration smoke test passed

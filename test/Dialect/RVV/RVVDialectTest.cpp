@@ -19,14 +19,17 @@ using tianchenrv::plugin::ExtensionPlugin;
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
 using tianchenrv::conversion::emitc::TCRVEmitCLowerableOpInterface;
+using tianchenrv::tcrv::rvv::BinaryOp;
 using tianchenrv::tcrv::exec::VariantOp;
 using tianchenrv::tcrv::rvv::I32AddOp;
 using tianchenrv::tcrv::rvv::I32LoadOp;
 using tianchenrv::tcrv::rvv::I32StoreOp;
+using tianchenrv::tcrv::rvv::LoadOp;
 using tianchenrv::tcrv::rvv::MaskPolicy;
 using tianchenrv::tcrv::rvv::PolicyAttr;
 using tianchenrv::tcrv::rvv::RuntimeABIValueOp;
 using tianchenrv::tcrv::rvv::SetVLOp;
+using tianchenrv::tcrv::rvv::StoreOp;
 using tianchenrv::tcrv::rvv::TCRVRVVDialect;
 using tianchenrv::tcrv::rvv::TailPolicy;
 using tianchenrv::tcrv::rvv::WithVLOp;
@@ -155,6 +158,14 @@ int expectEmitCLowerableRole(mlir::Operation *op, llvm::StringRef role) {
                 "EmitC lowerable source role reflects RVV op role");
 }
 
+int expectNotEmitCLowerable(mlir::Operation *op, llvm::StringRef context) {
+  auto lowerable = llvm::dyn_cast<TCRVEmitCLowerableOpInterface>(op);
+  return expect(!static_cast<bool>(lowerable),
+                llvm::Twine(context) +
+                    " remains deprecated parse-only residue, not an EmitC "
+                    "lowerable source op");
+}
+
 int runPluginDialectRegistrationRoundTripTest() {
   ExtensionPluginRegistry plugins;
   if (int result = expectSuccess(
@@ -269,11 +280,11 @@ module {
   return 0;
 }
 
-int runI32DataflowRoundTripTest() {
+int runGenericDataflowRoundTripTest() {
   ExtensionPluginRegistry plugins;
   if (int result = expectSuccess(
           tianchenrv::plugin::registerRVVExtensionPlugin(plugins),
-          "register RVV plugin for dataflow round trip"))
+          "register RVV plugin for generic dataflow round trip"))
     return result;
 
   mlir::DialectRegistry dialectRegistry;
@@ -311,10 +322,10 @@ module {
       policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
       sew = 32 : i64
     } {
-      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-      %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-      %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
-      tcrv_rvv.i32_store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+      %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      %rhs = tcrv_rvv.load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      %sum = tcrv_rvv.binary %lhs, %rhs, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      tcrv_rvv.store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
     } : !tcrv_rvv.vl
   }
 }
@@ -323,20 +334,20 @@ module {
 
   mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
   if (!module)
-    return fail("failed to parse RVV i32 vector-add dataflow ops");
+    return fail("failed to parse generic typed RVV vector-add dataflow ops");
 
-  I32AddOp add;
-  I32LoadOp load;
-  I32StoreOp store;
+  BinaryOp add;
+  LoadOp load;
+  StoreOp store;
   RuntimeABIValueOp runtimeABIValue;
   SetVLOp setvl;
   WithVLOp withVL;
-  module->walk([&](I32AddOp candidate) { add = candidate; });
-  module->walk([&](I32LoadOp candidate) {
+  module->walk([&](BinaryOp candidate) { add = candidate; });
+  module->walk([&](LoadOp candidate) {
     if (!load)
       load = candidate;
   });
-  module->walk([&](I32StoreOp candidate) { store = candidate; });
+  module->walk([&](StoreOp candidate) { store = candidate; });
   module->walk([&](RuntimeABIValueOp candidate) {
     if (!runtimeABIValue)
       runtimeABIValue = candidate;
@@ -344,7 +355,7 @@ module {
   module->walk([&](SetVLOp candidate) { setvl = candidate; });
   module->walk([&](WithVLOp candidate) { withVL = candidate; });
   if (int result =
-          expect(static_cast<bool>(add), "module contains tcrv_rvv.i32_add"))
+          expect(static_cast<bool>(add), "module contains tcrv_rvv.binary"))
     return result;
   if (int result =
           expect(static_cast<bool>(setvl), "module contains tcrv_rvv.setvl"))
@@ -353,10 +364,10 @@ module {
                           "module contains tcrv_rvv.with_vl"))
     return result;
   if (int result =
-          expect(static_cast<bool>(load), "module contains tcrv_rvv.i32_load"))
+          expect(static_cast<bool>(load), "module contains tcrv_rvv.load"))
     return result;
   if (int result = expect(static_cast<bool>(store),
-                          "module contains tcrv_rvv.i32_store"))
+                          "module contains tcrv_rvv.store"))
     return result;
   if (int result = expect(static_cast<bool>(runtimeABIValue),
                           "module contains tcrv_rvv.runtime_abi_value"))
@@ -384,12 +395,12 @@ module {
                      llvm::StringRef(printedStorage)
                          .contains("tcrv_rvv.with_vl") &&
                      llvm::StringRef(printedStorage)
-                         .contains("tcrv_rvv.i32_load") &&
+                         .contains("tcrv_rvv.load") &&
                      llvm::StringRef(printedStorage)
-                         .contains("tcrv_rvv.i32_add") &&
+                         .contains("tcrv_rvv.binary") &&
                      llvm::StringRef(printedStorage)
-                         .contains("tcrv_rvv.i32_store"),
-                 "printed module preserves explicit RVV dataflow body"))
+                         .contains("tcrv_rvv.store"),
+                 "printed module preserves generic typed RVV dataflow body"))
     return result;
 
   mlir::OwningOpRef<mlir::ModuleOp> reparsed =
@@ -397,13 +408,91 @@ module {
   if (!reparsed)
     return fail("failed to reparse printed RVV dataflow module");
 
-  I32AddOp reparsedAdd;
-  reparsed->walk([&](I32AddOp candidate) { reparsedAdd = candidate; });
+  BinaryOp reparsedAdd;
+  reparsed->walk([&](BinaryOp candidate) { reparsedAdd = candidate; });
   if (int result = expect(static_cast<bool>(reparsedAdd),
-                          "reparsed module preserves RVV dataflow op"))
+                          "reparsed module preserves generic RVV dataflow op"))
     return result;
 
-  llvm::outs() << "RVV i32 vector-add dataflow round trip preserved\n";
+  llvm::outs() << "RVV generic typed vector-add dataflow round trip preserved\n";
+  return 0;
+}
+
+int runLegacyI32DataflowIsParseOnlyTest() {
+  ExtensionPluginRegistry plugins;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(plugins),
+          "register RVV plugin for legacy parse-only check"))
+    return result;
+
+  mlir::DialectRegistry dialectRegistry;
+  tianchenrv::registerAllDialects(dialectRegistry);
+  tianchenrv::registerPluginDialects(plugins, dialectRegistry);
+
+  mlir::MLIRContext context(dialectRegistry);
+  context.loadAllAvailableDialects();
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @legacy_i32_parse_only attributes {} {
+    %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+    %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+    %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+    %runtime_n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+    %vl = tcrv_rvv.setvl %runtime_n {
+      lmul = "m1",
+      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      sew = 32 : i64
+    } : index -> !tcrv_rvv.vl
+    tcrv_rvv.with_vl %vl attributes {
+      lmul = "m1",
+      policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>,
+      sew = 32 : i64
+    } {
+      %lhs = tcrv_rvv.i32_load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+      %rhs = tcrv_rvv.i32_load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+      %sum = tcrv_rvv.i32_add %lhs, %rhs, %vl : !tcrv_rvv.i32m1, !tcrv_rvv.i32m1, !tcrv_rvv.vl -> !tcrv_rvv.i32m1
+      tcrv_rvv.i32_store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.i32m1, !tcrv_rvv.vl
+    } : !tcrv_rvv.vl
+  }
+}
+
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse deprecated legacy RVV i32 dataflow fixture");
+
+  I32AddOp add;
+  I32LoadOp load;
+  I32StoreOp store;
+  module->walk([&](I32AddOp candidate) { add = candidate; });
+  module->walk([&](I32LoadOp candidate) {
+    if (!load)
+      load = candidate;
+  });
+  module->walk([&](I32StoreOp candidate) { store = candidate; });
+
+  if (int result =
+          expect(static_cast<bool>(add), "module contains legacy i32_add"))
+    return result;
+  if (int result =
+          expect(static_cast<bool>(load), "module contains legacy i32_load"))
+    return result;
+  if (int result =
+          expect(static_cast<bool>(store), "module contains legacy i32_store"))
+    return result;
+  if (int result =
+          expectNotEmitCLowerable(load.getOperation(), "legacy i32_load"))
+    return result;
+  if (int result =
+          expectNotEmitCLowerable(add.getOperation(), "legacy i32_add"))
+    return result;
+  if (int result =
+          expectNotEmitCLowerable(store.getOperation(), "legacy i32_store"))
+    return result;
+
+  llvm::outs() << "RVV legacy i32 dataflow remains parse-only\n";
   return 0;
 }
 
@@ -614,7 +703,9 @@ int main() {
     return result;
   if (int result = runPolicyAttributeRoundTripTest())
     return result;
-  if (int result = runI32DataflowRoundTripTest())
+  if (int result = runGenericDataflowRoundTripTest())
+    return result;
+  if (int result = runLegacyI32DataflowIsParseOnlyTest())
     return result;
   if (int result = runI32M1ConfigVLContractAPITest())
     return result;
