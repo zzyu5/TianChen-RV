@@ -808,10 +808,11 @@ def MAccOp : TCRVRVV_Op<"macc",
 
     For the current bounded Stage 2 contraction-supporting slice, kind is
     limited to add, representing accumulator + lhs * rhs. Lhs, rhs,
-    accumulator, result, VL, SEW, LMUL, policy, and memory-form facts are
-    structural in the selected RVV body. Route ids, helper names, ABI strings,
-    artifact names, status fields, exact intrinsic spellings, and common
-    EmitC/export code must not infer or choose multiply-accumulate semantics.
+    accumulator, result, VL, SEW, LMUL, policy, accumulator layout, result
+    layout, and memory-form facts are structural in the selected RVV body.
+    Route ids, helper names, ABI strings, artifact names, status fields, exact
+    intrinsic spellings, and common EmitC/export code must not infer or choose
+    multiply-accumulate semantics.
   }];
 
   let arguments = (ins
@@ -819,7 +820,9 @@ def MAccOp : TCRVRVV_Op<"macc",
     AnyType:$rhs,
     AnyType:$accumulator,
     AnyType:$vl,
-    StrAttr:$kind
+    StrAttr:$kind,
+    OptionalAttr<StrAttr>:$accumulator_layout,
+    OptionalAttr<StrAttr>:$result_layout
   );
   let results = (outs AnyType:$result);
 

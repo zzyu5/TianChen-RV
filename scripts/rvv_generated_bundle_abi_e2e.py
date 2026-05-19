@@ -1281,6 +1281,17 @@ def verify_materialized_selected_body(
             'result_layout = "store-reduction-lane0-to-output-chunk-base"',
             "materialized selected-body MLIR reduce result layout",
         )
+    if expectation.is_macc_add:
+        require_contains(
+            text,
+            'accumulator_layout = "output-buffer-vector-accumulator-input"',
+            "materialized selected-body MLIR macc accumulator layout",
+        )
+        require_contains(
+            text,
+            'result_layout = "store-multiply-accumulate-result-to-output-buffer"',
+            "materialized selected-body MLIR macc result layout",
+        )
     if expectation.is_pre_realized:
         require_not_contains(
             text,

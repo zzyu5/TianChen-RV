@@ -36,7 +36,9 @@ module {
 // REALIZED: %[[RHS:.*]] = tcrv_rvv.load
 // REALIZED: %[[ACC:.*]] = tcrv_rvv.load
 // REALIZED: %[[SUM:.*]] = tcrv_rvv.macc %[[LHS]], %[[RHS]], %[[ACC]], %[[VL]]
+// REALIZED-SAME: accumulator_layout = "output-buffer-vector-accumulator-input"
 // REALIZED-SAME: kind = "add"
+// REALIZED-SAME: result_layout = "store-multiply-accumulate-result-to-output-buffer"
 // REALIZED: tcrv_rvv.store
 // REALIZED-NOT: tcrv_rvv.typed_macc_pre_realized_body
 

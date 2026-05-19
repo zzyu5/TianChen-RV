@@ -151,6 +151,83 @@ correctness claim only for bounded pre-realized `reduce_add` counts
 |------|---------|
 | `this commit` | (see git log) |
 
+## Session 145: Stage2 RVV macc executable slice
+
+**Date**: 2026-05-20
+**Task**: `05-20-stage2-rvv-macc-executable-slice`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and completed one
+bounded Stage2 signed i32 / SEW32 / LMUL m1 / unit-stride RVV
+multiply-accumulate executable slice. The production gap was that
+`typed_macc_pre_realized_body` already carried accumulator/result layout facts,
+but realized `tcrv_rvv.macc` did not; route planning filled macc layout mirrors
+from constants. This round makes those layout facts structural in the realized
+typed body and provider-derived route metadata.
+
+### Main Changes
+
+- Added structural `accumulator_layout` and `result_layout` attrs to generic
+  `tcrv_rvv.macc`.
+- Updated `MAccOp::verify()` to reject missing or unsupported macc layout
+  facts with targeted diagnostics.
+- Updated RVV selected-body realization so pre-realized macc copies its
+  accumulator/result layout facts into realized `tcrv_rvv.macc`.
+- Updated RVVEmitCRoutePlanning so macc metadata mirrors are derived from the
+  realized typed body instead of unconditional constants.
+- Updated generated-bundle evidence checks, explicit/pre-realized macc MLIR
+  fixtures, EmitC materialization coverage, and target artifact C++ fixtures.
+- Added negative dialect coverage for missing/unsupported macc accumulator and
+  result layout facts.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] focused build for `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-rvv-dialect-test`, `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-construction-protocol-common-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] focused C++ RVV dialect/plugin/construction/export tests.
+- [OK] focused lit: 8/8 passed for macc dataflow, EmitC materialization,
+  target artifacts, pre-realized negatives, and dry-run fixtures.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] local explicit and pre-realized `macc_add` generated-bundle dry-runs for
+  counts `7,16,23`.
+- [OK] real `ssh rvv` explicit macc correctness:
+  `PASS op=macc_add counts=7,16,23`.
+- [OK] real `ssh rvv` pre-realized macc correctness:
+  `PASS op=macc_add counts=7,16,23`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 193/193 passed.
+- [OK] `git diff --check`
+- [OK] added-authority scan found no forbidden legacy/source/descriptor/common
+  RVV authority in diff-added hunks.
+
+### Self-Repair
+
+- The first broad text replacement for macc layout attrs also touched unrelated
+  `binary`/`masked_binary` add fixtures. Those accidental attrs were removed
+  before validation; focused lit and full `check-tianchenrv` passed afterward.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round claims executable
+correctness only for bounded `macc_add` counts `7,16,23`; no performance claim
+is made.
+
+### Next Steps
+
+- No continuation is required for this bounded slice. Future Stage2 work should
+  open a separate PRD and stay at low-level RVV typed-body capability classes.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 ## Session 145: Stage2 RVV reduce-add production executable slice
 
 **Date**: 2026-05-20

@@ -609,7 +609,7 @@ module {
   } else if (op ==
              tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd) {
     os << R"mlir(
-        %result = tcrv_rvv.macc %lhs_vec, %rhs_vec, %acc_vec, %vl {kind = "add"} : )mlir"
+        %result = tcrv_rvv.macc %lhs_vec, %rhs_vec, %acc_vec, %vl {accumulator_layout = "output-buffer-vector-accumulator-input", kind = "add", result_layout = "store-multiply-accumulate-result-to-output-buffer"} : )mlir"
        << vectorType << R"mlir(, )mlir" << vectorType
        << R"mlir(, )mlir" << vectorType
        << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType << R"mlir(

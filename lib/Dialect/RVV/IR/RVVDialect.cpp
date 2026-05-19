@@ -222,7 +222,10 @@ bool isAllowedReduceAttr(llvm::StringRef name) {
          name == kResultLayoutAttrName;
 }
 
-bool isAllowedMAccAttr(llvm::StringRef name) { return name == "kind"; }
+bool isAllowedMAccAttr(llvm::StringRef name) {
+  return name == "kind" || name == kAccumulatorLayoutAttrName ||
+         name == kResultLayoutAttrName;
+}
 
 bool isAllowedWideningConvertAttr(llvm::StringRef name) {
   return name == "kind";
@@ -381,6 +384,14 @@ bool isSupportedGenericReduceResultLayout(llvm::StringRef layout) {
 
 bool isSupportedGenericMAccKind(llvm::StringRef kind) {
   return kind == "add";
+}
+
+bool isSupportedGenericMAccAccumulatorLayout(llvm::StringRef layout) {
+  return layout == "output-buffer-vector-accumulator-input";
+}
+
+bool isSupportedGenericMAccResultLayout(llvm::StringRef layout) {
+  return layout == "store-multiply-accumulate-result-to-output-buffer";
 }
 
 bool isSupportedGenericWideningConvertKind(llvm::StringRef kind) {
@@ -2372,14 +2383,38 @@ mlir::LogicalResult MAccOp::verify() {
 
     if (!isAllowedMAccAttr(attrName))
       return emitOpError()
-             << "only accepts generic multiply-accumulate attribute 'kind"
-             << "'; unexpected attribute '" << attr.getName() << "'";
+             << "only accepts generic multiply-accumulate attributes 'kind', "
+                "'accumulator_layout', and 'result_layout'; unexpected "
+                "attribute '"
+             << attr.getName() << "'";
   }
 
   if (!isSupportedGenericMAccKind(getKind()))
     return emitOpError()
            << "currently supports only kind \"add\" for the bounded Stage 2 "
               "multiply-accumulate route";
+  std::optional<llvm::StringRef> accumulatorLayout = getAccumulatorLayout();
+  if (!accumulatorLayout)
+    return emitOpError()
+           << "requires accumulator_layout "
+              "\"output-buffer-vector-accumulator-input\" for the bounded "
+              "Stage 2 multiply-accumulate route";
+  if (!isSupportedGenericMAccAccumulatorLayout(*accumulatorLayout))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"output-buffer-vector-accumulator-input\" for the bounded "
+              "Stage 2 multiply-accumulate route";
+  std::optional<llvm::StringRef> resultLayout = getResultLayout();
+  if (!resultLayout)
+    return emitOpError()
+           << "requires result_layout "
+              "\"store-multiply-accumulate-result-to-output-buffer\" for the "
+              "bounded Stage 2 multiply-accumulate route";
+  if (!isSupportedGenericMAccResultLayout(*resultLayout))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-multiply-accumulate-result-to-output-buffer\" for the "
+              "bounded Stage 2 multiply-accumulate route";
 
   if (op->getNumOperands() != 4 || op->getNumResults() != 1)
     return emitOpError()

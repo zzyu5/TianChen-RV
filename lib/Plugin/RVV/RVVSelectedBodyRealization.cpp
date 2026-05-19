@@ -953,6 +953,7 @@ llvm::Expected<mlir::Operation *> createRealizedGenericReduceCompute(
 
 llvm::Expected<mlir::Operation *> createRealizedGenericMAccCompute(
     mlir::OpBuilder &builder, mlir::Location loc, llvm::StringRef opKind,
+    llvm::StringRef accumulatorLayout, llvm::StringRef resultLayout,
     mlir::Value lhs, mlir::Value rhs, mlir::Value accumulator,
     mlir::Value vl) {
   if (!isPreRealizedMAccOpKind(opKind))
@@ -963,6 +964,9 @@ llvm::Expected<mlir::Operation *> createRealizedGenericMAccCompute(
   mlir::OperationState state(loc, "tcrv_rvv.macc");
   state.addOperands({lhs, rhs, accumulator, vl});
   state.addAttribute("kind", builder.getStringAttr("add"));
+  state.addAttribute("accumulator_layout",
+                     builder.getStringAttr(accumulatorLayout));
+  state.addAttribute("result_layout", builder.getStringAttr(resultLayout));
   state.addTypes(lhs.getType());
   return builder.create(state);
 }
@@ -1219,8 +1223,9 @@ realizePreRealizedRVVSelectedBody(
             builder, loc, maccBody.getOut(), setvl.getVl(),
             tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
     llvm::Expected<mlir::Operation *> compute = createRealizedGenericMAccCompute(
-        builder, loc, maccBody.getOpKind(), lhsLoad.getLoaded(),
-        rhsLoad.getLoaded(), accumulatorLoad.getLoaded(), setvl.getVl());
+        builder, loc, maccBody.getOpKind(), maccBody.getAccumulatorLayout(),
+        maccBody.getResultLayout(), lhsLoad.getLoaded(), rhsLoad.getLoaded(),
+        accumulatorLoad.getLoaded(), setvl.getVl());
     if (!compute)
       return compute.takeError();
     createRealizedGenericStore(builder, loc, maccBody.getOut(),

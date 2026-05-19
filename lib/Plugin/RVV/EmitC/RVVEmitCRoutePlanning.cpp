@@ -1079,6 +1079,27 @@ llvm::Error recordRVVSelectedBodyMAcc(RVVSelectedBodyRouteSlice &slice,
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic tcrv_rvv.macc kind '") +
         macc.getKind() + "' for bounded RVV multiply-accumulate route");
+  std::optional<llvm::StringRef> accumulatorLayout =
+      macc.getAccumulatorLayout();
+  if (!accumulatorLayout)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV multiply-accumulate route requires tcrv_rvv.macc to "
+        "carry accumulator_layout 'output-buffer-vector-accumulator-input'");
+  if (*accumulatorLayout != kRVVMAccAccumulatorLayout)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(
+            "unsupported generic tcrv_rvv.macc accumulator_layout '") +
+        *accumulatorLayout + "' for bounded RVV multiply-accumulate route");
+  std::optional<llvm::StringRef> resultLayout = macc.getResultLayout();
+  if (!resultLayout)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV multiply-accumulate route requires tcrv_rvv.macc to "
+        "carry result_layout "
+        "'store-multiply-accumulate-result-to-output-buffer'");
+  if (*resultLayout != kRVVMAccResultLayout)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.macc result_layout '") +
+        *resultLayout + "' for bounded RVV multiply-accumulate route");
   slice.maccOp = macc;
   slice.arithmeticOp = macc.getOperation();
   slice.arithmeticKind = RVVSelectedBodyOperationKind::MAccAdd;
@@ -1935,8 +1956,10 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     analysis.description.reductionStoreVL = kRVVReductionStoreVL;
   }
   if (routeProfile->operation.isMultiplyAccumulate) {
-    analysis.description.maccAccumulatorLayout = kRVVMAccAccumulatorLayout;
-    analysis.description.maccResultLayout = kRVVMAccResultLayout;
+    analysis.description.maccAccumulatorLayout =
+        *analysis.slice.maccOp.getAccumulatorLayout();
+    analysis.description.maccResultLayout =
+        *analysis.slice.maccOp.getResultLayout();
   }
   if (routeProfile->operation.isStridedMemory) {
     analysis.description.stridedMemoryLayout = kRVVStridedMemoryLayout;
