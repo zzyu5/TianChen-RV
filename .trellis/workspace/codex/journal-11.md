@@ -214,3 +214,64 @@ correctness claim only for bounded masked add counts `1,7,16,17,257`.
 
 - Future continuation, if requested: expand Stage2 masked execution classes
   beyond this single masked add submodule under a separate bounded task.
+
+
+## Session 137: Stage2 RVV typed SEW/LMUL config derivation for generic arithmetic
+
+**Date**: 2026-05-19
+**Task**: `stage2-rvv-typed-config-arithmetic`
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded Stage2 generic arithmetic typed-config task by repairing the
+RVV provider-local resolver to cross-check typed vector/mask element width and
+LMUL against selected `setvl`/`with_vl` config before route/profile/intrinsic
+selection. Existing m2 arithmetic support was confirmed as a real generic typed
+selected-body route, not stale artifact metadata, and was revalidated through
+local artifact dry-run plus real `ssh rvv` correctness evidence.
+
+### Main Changes
+
+- Added provider-side typed-config validation for generic
+  `!tcrv_rvv.vector` and `!tcrv_rvv.mask` values before deriving route
+  profiles and intrinsic/header payloads.
+- Added C++ plugin coverage that proves LMUL m2 selected-body add derives m2
+  RVV intrinsics and then fails closed if the same typed m2 body is paired with
+  stale LMUL m1 config metadata.
+- Kept the change inside the RVV provider/test surface; common EmitC/export,
+  source front doors, reduction/mask/broadcast coverage, and route-family
+  breadth were not expanded.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] Focused build for `tcrv-opt`, `tcrv-translate`, RVV plugin,
+  construction protocol, and target artifact export tests.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-dialect-test`
+- [OK] focused m2 target artifact/script lit commands: 4/4 passed.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] m2 add/sub/mul generated-bundle dry-run at
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260519T-stage2-typed-config-m2-dry`.
+- [OK] real `ssh rvv` m2 add/sub/mul correctness evidence at
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260519T-stage2-typed-config-m2-ssh`:
+  `PASS op=add counts=7,16,23`, `PASS op=sub counts=7,16,23`,
+  and `PASS op=mul counts=7,16,23`.
+- [OK] `git diff --check`
+- [OK] diff active-authority scan introduced no legacy RVV route authority.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 157/157 passed.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round makes a real RVV
+correctness claim only for bounded m2 generic arithmetic add/sub/mul counts
+`7,16,23`.
+
+### Next Steps
+
+- Future continuation, if requested: broaden typed-config derivation beyond
+  this bounded generic arithmetic m1/m2 surface under a separate Stage2 task.

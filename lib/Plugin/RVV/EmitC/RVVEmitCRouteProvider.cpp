@@ -450,6 +450,90 @@ struct RVVSelectedBodyRouteAnalysis {
   RVVSelectedBodyEmitCRouteDescription description;
 };
 
+llvm::Error validateRVVSelectedBodyVectorTypeAgainstConfig(
+    mlir::Value value, llvm::StringRef role,
+    const tcrv::rvv::RVVCompileTimeConfig &config) {
+  auto vectorType = llvm::dyn_cast<tcrv::rvv::VectorType>(value.getType());
+  if (!vectorType)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("selected RVV typed config resolver requires ") + role +
+        " to be a generic !tcrv_rvv.vector value before route construction");
+
+  auto integerElementType =
+      llvm::dyn_cast<mlir::IntegerType>(vectorType.getElementType());
+  if (!integerElementType)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("selected RVV typed config resolver requires ") + role +
+        " element type to be an integer type");
+  if (integerElementType.getWidth() != config.sew)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("selected RVV typed config resolver requires ") + role +
+        " element width " + llvm::Twine(integerElementType.getWidth()) +
+        " to match selected config SEW " + llvm::Twine(config.sew));
+  if (vectorType.getLmul() != config.lmul)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("selected RVV typed config resolver requires ") + role +
+        " LMUL '" + vectorType.getLmul() +
+        "' to match selected config LMUL '" + config.lmul + "'");
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVSelectedBodyMaskTypeAgainstConfig(
+    mlir::Value value, llvm::StringRef role,
+    const tcrv::rvv::RVVCompileTimeConfig &config) {
+  auto maskType = llvm::dyn_cast<tcrv::rvv::MaskType>(value.getType());
+  if (!maskType)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("selected RVV typed config resolver requires ") + role +
+        " to be a generic !tcrv_rvv.mask value before route construction");
+
+  auto integerElementType =
+      llvm::dyn_cast<mlir::IntegerType>(maskType.getElementType());
+  if (!integerElementType)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("selected RVV typed config resolver requires ") + role +
+        " element type to be an integer type");
+  if (integerElementType.getWidth() != config.sew)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("selected RVV typed config resolver requires ") + role +
+        " element width " + llvm::Twine(integerElementType.getWidth()) +
+        " to match selected config SEW " + llvm::Twine(config.sew));
+  if (maskType.getLmul() != config.lmul)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("selected RVV typed config resolver requires ") + role +
+        " LMUL '" + maskType.getLmul() +
+        "' to match selected config LMUL '" + config.lmul + "'");
+
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVSelectedBodyTypedConfigFacts(
+    const RVVSelectedBodyRouteSlice &slice,
+    const tcrv::rvv::RVVCompileTimeConfig &config) {
+  if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+          slice.lhsValue, "lhs vector", config))
+    return error;
+  if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+          slice.rhsValue, "rhs vector", config))
+    return error;
+  if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+          slice.arithmeticResult, "compute result vector", config))
+    return error;
+  if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+          slice.storeValue, "stored vector", config))
+    return error;
+  if (slice.compareOp)
+    if (llvm::Error error = validateRVVSelectedBodyMaskTypeAgainstConfig(
+            slice.compareMask, "compare mask", config))
+      return error;
+  if (slice.maskedBinaryOp)
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.maskedPassthrough, "masked passthrough vector", config))
+      return error;
+  return llvm::Error::success();
+}
+
 std::string formatRuntimeABIExpectedRoles(
     llvm::ArrayRef<support::RuntimeABIParameterRole> expectedRoles) {
   std::string expected;
@@ -1124,6 +1208,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
 
   tcrv::rvv::RVVCompileTimeConfig config =
       tcrv::rvv::getRVVSetVLCompileTimeConfig(slice->setvl);
+  if (llvm::Error error =
+          validateRVVSelectedBodyTypedConfigFacts(*slice, config))
+    return std::move(error);
   const auto &configContract =
       tcrv::rvv::getRVVSelectedBodyConfigVLContract(config.lmul);
 

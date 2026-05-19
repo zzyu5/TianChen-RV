@@ -10,6 +10,7 @@
 #include "TianChenRV/Transforms/VariantMaterialization.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectRegistry.h"
@@ -938,11 +939,32 @@ module {
                  "RVV LMUL m2 route derives m2 setvl/load/add/store "
                  "intrinsics from typed config"))
     return result;
-  return expectSuccess(
+  if (int result = expectSuccess(
       tianchenrv::conversion::emitc::
           verifyTCRVEmitCLowerableRouteMaterializesToEmitC(
               route, "tcrv_rvv_lmul_m2_selected_body", {}),
-      "RVV LMUL m2 EmitC lowerable route materializes to EmitC");
+      "RVV LMUL m2 EmitC lowerable route materializes to EmitC"))
+    return result;
+
+  mlir::Builder builder(&context);
+  auto setvl = llvm::dyn_cast_or_null<tianchenrv::tcrv::rvv::SetVLOp>(
+      findFirstNestedOp(variant, "tcrv_rvv.setvl"));
+  auto withVL = llvm::dyn_cast_or_null<tianchenrv::tcrv::rvv::WithVLOp>(
+      findFirstNestedOp(variant, "tcrv_rvv.with_vl"));
+  if (int result =
+          expect(setvl && withVL, "LMUL m2 route test locates setvl/with_vl"))
+    return result;
+  setvl->setAttr("lmul", builder.getStringAttr("m1"));
+  withVL->setAttr("lmul", builder.getStringAttr("m1"));
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute staleConfigRoute;
+  return expectErrorContains(
+      registry.buildVariantEmitCLowerableRoute(
+          VariantEmitCLowerableRequest(variant, kernel, capabilities,
+                                       VariantEmissionRole::DirectVariant),
+          staleConfigRoute),
+      {"selected RVV typed config resolver requires lhs vector LMUL 'm2' to "
+       "match selected config LMUL 'm1'"});
 }
 
 int runBroadcastSelectedBodyRouteTest(mlir::MLIRContext &context) {
