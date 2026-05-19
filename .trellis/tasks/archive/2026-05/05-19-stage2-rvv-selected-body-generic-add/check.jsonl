@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check the final work against the global RVV authority chain and stage boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin ownership, selected-body realization, and fail-closed legacy inventory"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that route authority stays provider-built and common EmitC/export stays neutral"}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused lit/C++/runtime evidence coverage"}
+{"file": ".trellis/tasks/archive/2026-05/05-19-rvv-arithmetic-pre-realized-realization-closure/prd.md", "reason": "Compare current generic pre-realized behavior to prior accepted realization evidence"}

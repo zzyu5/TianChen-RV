@@ -52,7 +52,6 @@ Added a bounded generic typed RVV reduce(add) selected-body route skeleton with 
 |------|---------|
 | `this commit` | (see git log) |
 
-
 ## Session 139: Stage2 RVV typed strided memory-form route semantics
 
 **Date**: 2026-05-19
@@ -418,6 +417,67 @@ correctness claim only for bounded `macc_add` counts `7,16,23`.
 - Future continuation, if requested: broaden contraction-supporting Stage2
   coverage beyond this single macc_add route under a separate bounded task.
 
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+## Session 140: Stage2 RVV selected-body realization for generic add
+
+**Date**: 2026-05-19
+**Task**: `stage2-rvv-selected-body-generic-add`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and verified the
+current HEAD already contains the bounded generic typed pre-realized selected
+body realization path for add. The RVV plugin consumes
+`tcrv_rvv.typed_binary_pre_realized_body` into realized
+`setvl/with_vl/load/binary/store` structure before provider route construction.
+
+### Main Changes
+
+- Added the task PRD and curated implement/check context for the bounded
+  generic-add selected-body realization round.
+- Added one missing fail-closed lit negative case for a pre-realized selected
+  body with no explicit `op_kind` attribute.
+- Confirmed no production C++ behavior change was needed: the current
+  plugin-local realization hook and provider handoff already satisfy the
+  bounded generic add module behavior.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] Focused build for `tcrv-opt`, `tcrv-translate`, RVV plugin test, and
+  target artifact export test.
+- [OK] focused lit for pre-realized add, pre-realized negative cases, existing
+  explicit selected-body add/sub/mul, and pre-realized generated-bundle dry-run:
+  6/6 passed.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] add-only local dry-run at
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260519T-stage2-pre-realized-generic-add-dry`.
+- [OK] `git diff --check`
+- [OK] active-authority scan classified remaining high-risk RVV matches as
+  provider-derived intrinsic leaves, deprecated parse-only inventory,
+  fail-closed legacy tests, unsupported source-seed diagnostics, or residue
+  rejection filters.
+
+### Status
+
+[OK] **Completed and archived**. This round makes no new runtime, correctness,
+or performance claim, so no fresh `ssh rvv` run was required.
+
+### Next Steps
+
+- Future continuation, if requested: Stage2 selected-body realization beyond
+  this bounded generic binary add handoff should use a separate PRD and must
+  not infer semantics from route ids, artifact names, or source-front-door
+  markers.
 
 ### Git Commits
 
