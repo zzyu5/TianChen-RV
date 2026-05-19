@@ -934,6 +934,7 @@ llvm::Expected<mlir::Operation *> createRealizedGenericMaskedBinaryCompute(
 
 llvm::Expected<mlir::Operation *> createRealizedGenericReduceCompute(
     mlir::OpBuilder &builder, mlir::Location loc, llvm::StringRef opKind,
+    llvm::StringRef accumulatorLayout, llvm::StringRef resultLayout,
     mlir::Value input, mlir::Value accumulator, mlir::Value vl) {
   if (!isPreRealizedReduceOpKind(opKind))
     return makeRVVPluginError(
@@ -943,6 +944,9 @@ llvm::Expected<mlir::Operation *> createRealizedGenericReduceCompute(
   mlir::OperationState state(loc, "tcrv_rvv.reduce");
   state.addOperands({input, accumulator, vl});
   state.addAttribute("kind", builder.getStringAttr("add"));
+  state.addAttribute("accumulator_layout",
+                     builder.getStringAttr(accumulatorLayout));
+  state.addAttribute("result_layout", builder.getStringAttr(resultLayout));
   state.addTypes(input.getType());
   return builder.create(state);
 }
@@ -1172,8 +1176,9 @@ realizePreRealizedRVVSelectedBody(
             tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
     llvm::Expected<mlir::Operation *> compute =
         createRealizedGenericReduceCompute(
-            builder, loc, reduceBody.getOpKind(), inputLoad.getLoaded(),
-            accumulatorLoad.getLoaded(), setvl.getVl());
+            builder, loc, reduceBody.getOpKind(),
+            reduceBody.getAccumulatorLayout(), reduceBody.getResultLayout(),
+            inputLoad.getLoaded(), accumulatorLoad.getLoaded(), setvl.getVl());
     if (!compute)
       return compute.takeError();
     createRealizedGenericStore(builder, loc, reduceBody.getOut(),

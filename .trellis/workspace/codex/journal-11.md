@@ -151,6 +151,93 @@ correctness claim only for bounded pre-realized `reduce_add` counts
 |------|---------|
 | `this commit` | (see git log) |
 
+## Session 145: Stage2 RVV reduce-add production executable slice
+
+**Date**: 2026-05-20
+**Task**: `stage2-rvv-reduce-add-production-executable-slice`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes redirect brief and moved the
+reduce-add work out of metadata-only closeout mode. The production gap in
+current HEAD was that pre-realized reduce-add carried accumulator/result layout
+facts, but realization erased them into a `tcrv_rvv.reduce` with only
+`kind = "add"`; route planning then filled layout mirrors from bounded
+operation constants. This round made accumulator/result layout structural on
+the realized typed `tcrv_rvv.reduce` body consumed by the RVV provider.
+
+### Main Changes
+
+- Added structural `accumulator_layout` and `result_layout` attrs to generic
+  `tcrv_rvv.reduce`.
+- Tightened `ReduceOp::verify()` to fail closed for missing or unsupported
+  reduce accumulator/result layout facts.
+- Updated RVV selected-body realization so
+  `tcrv_rvv.typed_reduce_pre_realized_body` consumes its layout facts into the
+  realized `tcrv_rvv.reduce` before provider route construction.
+- Updated RVV EmitC route planning to validate and read layout facts from the
+  typed reduce op, then populate provider-derived reduction metadata mirrors
+  from those facts.
+- Updated generated-bundle evidence tooling to assert materialized reduce-add
+  MLIR contains the structural layout attrs.
+- Updated positive explicit/pre-realized reduce-add tests and C++ target
+  artifact fixture generation; added negative dialect coverage for missing and
+  unsupported layout facts.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] focused build for `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-rvv-dialect-test`, `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-construction-protocol-common-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] focused C++ RVV dialect/plugin/construction/export tests.
+- [OK] focused lit 6/6 for generic dataflow, reduce-add materialization,
+  reduce-add negatives, explicit/pre-realized target artifact tests, and
+  pre-realized generated-bundle dry-run.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] generated-bundle dry-run:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260520T-typed-reduce-layout-dry`.
+- [OK] real `ssh rvv` generated-bundle correctness:
+  `PASS op=reduce_add counts=7,16,23` with evidence root
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260520T-typed-reduce-layout-ssh`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 193/193 passed.
+- [OK] `git diff --check`
+- [OK] diff-only active-authority scan found no positive legacy/source/
+  descriptor/common-export authority reintroduced in active RVV code/tests.
+
+### Self-Repair
+
+- The first lit invocation from the repository root could not resolve the
+  generated site config relative path. Re-ran focused lit from `build/test`,
+  which is the repository's lit working directory convention.
+
+### Spec Update Decision
+
+No `.trellis/spec/` update was needed. Existing specs already require Stage2
+RVV reduction/accumulator/result facts to be structural in typed or realized
+`tcrv_rvv` body structure and require common EmitC/export neutrality.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round claims executable
+correctness only for bounded pre-realized `reduce_add` counts `7,16,23`; no
+performance claim is made.
+
+### Next Steps
+
+- Future continuation, if requested: broaden reduction classes under a new
+  PRD only after preserving this typed-body layout authority, without adding
+  dtype-prefixed helper ops or route-id/artifact-name authority.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
 ## Session 146: Stage2 RVV reduce-add executable slice closure
 
 **Date**: 2026-05-20

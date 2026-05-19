@@ -1042,6 +1042,25 @@ llvm::Error recordRVVSelectedBodyReduction(RVVSelectedBodyRouteSlice &slice,
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic tcrv_rvv.reduce kind '") +
         reduce.getKind() + "' for bounded RVV reduction route");
+  std::optional<llvm::StringRef> accumulatorLayout =
+      reduce.getAccumulatorLayout();
+  if (!accumulatorLayout)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV reduction route requires tcrv_rvv.reduce to carry "
+        "accumulator_layout 'rhs-vector-seed-lane0-per-vl-chunk'");
+  if (*accumulatorLayout != kRVVReductionAccumulatorLayout)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.reduce accumulator_layout '") +
+        *accumulatorLayout + "' for bounded RVV reduction route");
+  std::optional<llvm::StringRef> resultLayout = reduce.getResultLayout();
+  if (!resultLayout)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV reduction route requires tcrv_rvv.reduce to carry "
+        "result_layout 'store-reduction-lane0-to-output-chunk-base'");
+  if (*resultLayout != kRVVReductionResultLayout)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.reduce result_layout '") +
+        *resultLayout + "' for bounded RVV reduction route");
   slice.reduceOp = reduce;
   slice.arithmeticOp = reduce.getOperation();
   slice.arithmeticKind = RVVSelectedBodyOperationKind::ReduceAdd;
@@ -1910,8 +1929,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   }
   if (routeProfile->operation.isReduction) {
     analysis.description.reductionAccumulatorLayout =
-        kRVVReductionAccumulatorLayout;
-    analysis.description.reductionResultLayout = kRVVReductionResultLayout;
+        *analysis.slice.reduceOp.getAccumulatorLayout();
+    analysis.description.reductionResultLayout =
+        *analysis.slice.reduceOp.getResultLayout();
     analysis.description.reductionStoreVL = kRVVReductionStoreVL;
   }
   if (routeProfile->operation.isMultiplyAccumulate) {

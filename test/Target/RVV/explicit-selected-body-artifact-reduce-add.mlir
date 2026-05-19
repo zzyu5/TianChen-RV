@@ -2,8 +2,9 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 
 // Stage2 reduction/accumulation selected-body input. Reduction dataflow is
-// carried by generic tcrv_rvv.reduce; this fixture proves route/header
-// materialization only and does not claim ssh rvv correctness.
+// carried by generic tcrv_rvv.reduce, including accumulator/result layout
+// facts; this fixture proves route/header materialization only and does not
+// claim ssh rvv correctness.
 
 module {
   tcrv.exec.kernel @explicit_selected_body_reduce_add_kernel {
@@ -18,7 +19,7 @@ module {
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @explicit_selected_body_rvv_reduce_add, sew = 32 : i64, source_kernel = "explicit_selected_body_reduce_add_kernel", status = "selected-lowering-boundary"} {
         %input = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
         %acc = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        %reduced = tcrv_rvv.reduce %input, %acc, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %reduced = tcrv_rvv.reduce %input, %acc, %vl {accumulator_layout = "rhs-vector-seed-lane0-per-vl-chunk", kind = "add", result_layout = "store-reduction-lane0-to-output-chunk-base"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
         tcrv_rvv.store %out, %reduced, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }

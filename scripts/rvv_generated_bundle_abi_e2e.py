@@ -1270,6 +1270,17 @@ def verify_materialized_selected_body(
             "tcrv_rvv.compare",
             "materialized selected-body MLIR compare mask producer",
         )
+    if expectation.is_reduce_add:
+        require_contains(
+            text,
+            'accumulator_layout = "rhs-vector-seed-lane0-per-vl-chunk"',
+            "materialized selected-body MLIR reduce accumulator layout",
+        )
+        require_contains(
+            text,
+            'result_layout = "store-reduction-lane0-to-output-chunk-base"',
+            "materialized selected-body MLIR reduce result layout",
+        )
     if expectation.is_pre_realized:
         require_not_contains(
             text,

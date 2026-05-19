@@ -217,7 +217,10 @@ bool isAllowedCompareAttr(llvm::StringRef name) { return name == "kind"; }
 
 bool isAllowedSelectAttr(llvm::StringRef) { return false; }
 
-bool isAllowedReduceAttr(llvm::StringRef name) { return name == "kind"; }
+bool isAllowedReduceAttr(llvm::StringRef name) {
+  return name == "kind" || name == kAccumulatorLayoutAttrName ||
+         name == kResultLayoutAttrName;
+}
 
 bool isAllowedMAccAttr(llvm::StringRef name) { return name == "kind"; }
 
@@ -366,6 +369,14 @@ bool isSupportedGenericCompareKind(llvm::StringRef kind) {
 
 bool isSupportedGenericReduceKind(llvm::StringRef kind) {
   return kind == "add";
+}
+
+bool isSupportedGenericReduceAccumulatorLayout(llvm::StringRef layout) {
+  return layout == "rhs-vector-seed-lane0-per-vl-chunk";
+}
+
+bool isSupportedGenericReduceResultLayout(llvm::StringRef layout) {
+  return layout == "store-reduction-lane0-to-output-chunk-base";
 }
 
 bool isSupportedGenericMAccKind(llvm::StringRef kind) {
@@ -2289,14 +2300,38 @@ mlir::LogicalResult ReduceOp::verify() {
 
     if (!isAllowedReduceAttr(attrName))
       return emitOpError()
-             << "only accepts generic reduction attribute 'kind"
-             << "'; unexpected attribute '" << attr.getName() << "'";
+             << "only accepts generic reduction attributes 'kind', '"
+             << kAccumulatorLayoutAttrName << "', and '"
+             << kResultLayoutAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
   }
 
   if (!isSupportedGenericReduceKind(getKind()))
     return emitOpError()
            << "currently supports only kind \"add\" for the bounded Stage 2 "
               "reduction/accumulation route";
+  std::optional<llvm::StringRef> accumulatorLayout = getAccumulatorLayout();
+  if (!accumulatorLayout)
+    return emitOpError()
+           << "requires accumulator_layout "
+              "\"rhs-vector-seed-lane0-per-vl-chunk\" for the bounded "
+              "Stage 2 reduction/accumulation route";
+  if (!isSupportedGenericReduceAccumulatorLayout(*accumulatorLayout))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"rhs-vector-seed-lane0-per-vl-chunk\" for the bounded "
+              "Stage 2 reduction/accumulation route";
+  std::optional<llvm::StringRef> resultLayout = getResultLayout();
+  if (!resultLayout)
+    return emitOpError()
+           << "requires result_layout "
+              "\"store-reduction-lane0-to-output-chunk-base\" for the "
+              "bounded Stage 2 reduction/accumulation route";
+  if (!isSupportedGenericReduceResultLayout(*resultLayout))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-reduction-lane0-to-output-chunk-base\" for the "
+              "bounded Stage 2 reduction/accumulation route";
 
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()

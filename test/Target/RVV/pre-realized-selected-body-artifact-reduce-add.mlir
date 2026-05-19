@@ -3,7 +3,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 
 // Pre-realized reduce_add selected-body input. The RVV plugin must consume
-// explicit accumulator/result layout facts into typed tcrv_rvv reduction
+// explicit accumulator/result layout facts into typed tcrv_rvv.reduce
 // structure before the existing provider/common EmitC/target path can consume it.
 
 module {
@@ -35,7 +35,9 @@ module {
 // REALIZED: %[[INPUT:.*]] = tcrv_rvv.load
 // REALIZED: %[[ACC:.*]] = tcrv_rvv.load
 // REALIZED: %[[REDUCED:.*]] = tcrv_rvv.reduce %[[INPUT]], %[[ACC]], %[[VL]]
+// REALIZED-SAME: accumulator_layout = "rhs-vector-seed-lane0-per-vl-chunk"
 // REALIZED-SAME: kind = "add"
+// REALIZED-SAME: result_layout = "store-reduction-lane0-to-output-chunk-base"
 // REALIZED: tcrv_rvv.store
 // REALIZED-NOT: tcrv_rvv.typed_reduce_pre_realized_body
 

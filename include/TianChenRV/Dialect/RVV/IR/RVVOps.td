@@ -775,17 +775,19 @@ def ReduceOp : TCRVRVV_Op<"reduce",
     produces one typed !tcrv_rvv.vector accumulator/result token.
 
     For the current bounded Stage 2 skeleton, kind is limited to add. The
-    vector input, accumulator, result, VL, SEW, LMUL, and policy facts are
-    structural in the selected RVV body. Route ids, helper names, ABI strings,
-    artifact names, status fields, and common EmitC/export code must not infer
-    or choose reduction semantics.
+    vector input, accumulator, result, VL, SEW, LMUL, policy, accumulator
+    layout, and result layout facts are structural in the selected RVV body.
+    Route ids, helper names, ABI strings, artifact names, status fields, and
+    common EmitC/export code must not infer or choose reduction semantics.
   }];
 
   let arguments = (ins
     AnyType:$input,
     AnyType:$accumulator,
     AnyType:$vl,
-    StrAttr:$kind
+    StrAttr:$kind,
+    OptionalAttr<StrAttr>:$accumulator_layout,
+    OptionalAttr<StrAttr>:$result_layout
   );
   let results = (outs AnyType:$result);
 

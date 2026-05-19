@@ -590,7 +590,7 @@ module {
   } else if (op ==
              tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ReduceAdd) {
     os << R"mlir(
-        %result = tcrv_rvv.reduce %lhs_vec, %rhs_vec, %vl {kind = "add"} : )mlir"
+        %result = tcrv_rvv.reduce %lhs_vec, %rhs_vec, %vl {accumulator_layout = "rhs-vector-seed-lane0-per-vl-chunk", kind = "add", result_layout = "store-reduction-lane0-to-output-chunk-base"} : )mlir"
        << vectorType << R"mlir(, )mlir" << vectorType
        << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType << R"mlir(
 )mlir";
