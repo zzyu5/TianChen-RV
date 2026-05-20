@@ -36,6 +36,7 @@ enum class RVVSelectedBodyOperationKind {
   IndexedScatterUnitLoad,
   MaskedUnitLoadStore,
   ComputedMaskUnitLoadStore,
+  Segment2DeinterleaveUnitStore,
   ScalarBroadcastAdd,
   WidenI32ToI64,
 };
@@ -50,6 +51,7 @@ enum class RVVSelectedBodyMemoryForm {
   UnitLoadIndexedStore,
   MaskedUnitLoadStore,
   ComputedMaskUnitLoadStore,
+  Segment2LoadUnitStore,
   UnitStrideConversion,
 };
 
@@ -124,6 +126,17 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef maccResultLayout;
   llvm::StringRef stridedMemoryLayout;
   llvm::StringRef indexedMemoryLayout;
+  llvm::StringRef segmentMemoryLayout;
+  std::int64_t segmentCount = 0;
+  llvm::StringRef segmentTupleCType;
+  llvm::StringRef segmentLoadIntrinsic;
+  llvm::StringRef segmentFieldExtractIntrinsic;
+  llvm::StringRef field0Role;
+  llvm::StringRef field1Role;
+  llvm::StringRef field0Name;
+  llvm::StringRef field1Name;
+  llvm::StringRef field0DestinationMemoryForm;
+  llvm::StringRef field1DestinationMemoryForm;
   std::int64_t indexEEW = 0;
   llvm::StringRef offsetUnit;
   llvm::StringRef indexUniqueness;
@@ -136,7 +149,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef sourceStrideSource;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
-  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
       runtimeABIParameters;
 };
 

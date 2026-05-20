@@ -31,6 +31,8 @@ enum class RuntimeABIParameterRole {
   MaskInputBuffer,
   RHSScalarValue,
   OutputBuffer,
+  SegmentField0OutputBuffer,
+  SegmentField1OutputBuffer,
   RuntimeElementCount,
   LHSInputStride,
   RHSInputStride,
@@ -82,6 +84,10 @@ inline llvm::StringRef stringifyRuntimeABIParameterRole(
     return "rhs-scalar-value";
   case RuntimeABIParameterRole::OutputBuffer:
     return "output-buffer";
+  case RuntimeABIParameterRole::SegmentField0OutputBuffer:
+    return "segment-field0-output-buffer";
+  case RuntimeABIParameterRole::SegmentField1OutputBuffer:
+    return "segment-field1-output-buffer";
   case RuntimeABIParameterRole::RuntimeElementCount:
     return "runtime-element-count";
   case RuntimeABIParameterRole::LHSInputStride:
@@ -112,6 +118,10 @@ symbolizeRuntimeABIParameterRole(llvm::StringRef role) {
     return RuntimeABIParameterRole::RHSScalarValue;
   if (role == "output-buffer")
     return RuntimeABIParameterRole::OutputBuffer;
+  if (role == "segment-field0-output-buffer")
+    return RuntimeABIParameterRole::SegmentField0OutputBuffer;
+  if (role == "segment-field1-output-buffer")
+    return RuntimeABIParameterRole::SegmentField1OutputBuffer;
   if (role == "runtime-element-count")
     return RuntimeABIParameterRole::RuntimeElementCount;
   if (role == "lhs-input-stride")

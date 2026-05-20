@@ -602,6 +602,24 @@ getRVVSelectedBodyComputedMaskMemoryRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVSelectedBodySegment2DeinterleaveRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out0", "int32_t *",
+      support::RuntimeABIParameterRole::SegmentField0OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out1", "int32_t *",
+      support::RuntimeABIParameterRole::SegmentField1OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
     llvm::StringRef context) {
@@ -645,6 +663,11 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, computedMaskMemory))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 4> segment2 =
+      getRVVSelectedBodySegment2DeinterleaveRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, segment2))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 4> scalarBroadcastExpected =
       getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, scalarBroadcastExpected))
@@ -669,7 +692,8 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "dst, n for the bounded int32_t masked unit-load/store route with "
       "ABI mask input; or cmp_lhs, cmp_rhs, src, dst, n for the bounded "
       "int32_t computed-mask masked unit-load/store route with compare "
-      "producer; all with "
+      "producer; or src, out0, out1, n for the bounded int32_t segment2 "
+      "deinterleave route; all with "
       "stable C types, roles, and target-export ownership");
 }
 

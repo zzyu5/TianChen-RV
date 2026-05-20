@@ -26,6 +26,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::IndexedLoadOp indexedLoad;
   tcrv::rvv::IndexedStoreOp indexedStore;
   tcrv::rvv::MaskLoadOp maskLoad;
+  tcrv::rvv::Segment2LoadOp segment2Load;
   tcrv::rvv::BroadcastLoadOp rhsBroadcastLoad;
   tcrv::rvv::SplatOp rhsScalarSplat;
   tcrv::rvv::CompareOp compareOp;
@@ -35,6 +36,8 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::MAccOp maccOp;
   tcrv::rvv::WideningConvertOp wideningConvertOp;
   tcrv::rvv::MoveOp moveOp;
+  tcrv::rvv::MoveOp field0MoveOp;
+  tcrv::rvv::MoveOp field1MoveOp;
   tcrv::rvv::MaskedMoveOp maskedMoveOp;
   mlir::Operation *arithmeticOp = nullptr;
   mlir::Value arithmeticLhs;
@@ -53,6 +56,8 @@ struct RVVSelectedBodyRouteSlice {
   RVVSelectedBodyMemoryForm memoryForm =
       RVVSelectedBodyMemoryForm::VectorRHSLoad;
   tcrv::rvv::StoreOp genericStore;
+  tcrv::rvv::StoreOp field0Store;
+  tcrv::rvv::StoreOp field1Store;
   tcrv::rvv::StridedStoreOp stridedStore;
   mlir::Operation *lhsLoadOperation = nullptr;
   mlir::Operation *rhsLoadOperation = nullptr;
@@ -61,6 +66,11 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Operation *indexedLoadOperation = nullptr;
   mlir::Operation *indexedStoreOperation = nullptr;
   mlir::Operation *maskLoadOperation = nullptr;
+  mlir::Operation *segment2LoadOperation = nullptr;
+  mlir::Operation *field0MoveOperation = nullptr;
+  mlir::Operation *field1MoveOperation = nullptr;
+  mlir::Operation *field0StoreOperation = nullptr;
+  mlir::Operation *field1StoreOperation = nullptr;
   mlir::Operation *accumulatorLoadOperation = nullptr;
   mlir::Operation *storeOperation = nullptr;
   mlir::Value lhsBuffer;
@@ -68,6 +78,8 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value sourceBuffer;
   mlir::Value indexBuffer;
   mlir::Value maskBuffer;
+  mlir::Value field0Buffer;
+  mlir::Value field1Buffer;
   mlir::Value indexValue;
   mlir::Value indexedDataBuffer;
   mlir::Value indexedDestinationBuffer;
@@ -79,6 +91,10 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value lhsValue;
   mlir::Value rhsValue;
   mlir::Value sourceValue;
+  mlir::Value field0LoadedValue;
+  mlir::Value field1LoadedValue;
+  mlir::Value field0Value;
+  mlir::Value field1Value;
   mlir::Value accumulatorValue;
   mlir::Value storeValue;
   support::RuntimeABIParameter lhsABI;
@@ -86,6 +102,8 @@ struct RVVSelectedBodyRouteSlice {
   support::RuntimeABIParameter sourceABI;
   support::RuntimeABIParameter indexABI;
   support::RuntimeABIParameter maskABI;
+  support::RuntimeABIParameter field0ABI;
+  support::RuntimeABIParameter field1ABI;
   support::RuntimeABIParameter accumulatorABI;
   support::RuntimeABIParameter outABI;
   support::RuntimeABIParameter runtimeElementCountABI;

@@ -96,3 +96,44 @@ generated artifact export, and ssh rvv correctness evidence.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 142: Stage2 RVV segment2 deinterleave executable slice
+
+**Date**: 2026-05-20
+**Task**: Stage2 RVV segment2 deinterleave executable slice
+**Branch**: `main`
+
+### Summary
+
+Implemented bounded i32 segment2 deinterleave RVV route with typed body, route planning/provider, generated-bundle dry-run, ssh rvv evidence, and archived Trellis task.
+
+### Main Changes
+
+- Added typed segment2 pre-realized body and segment2_load RVV dataflow surface for one bounded SEW32 LMUL m1 route.
+- Realized selected bodies into setvl/with_vl/segment2_load/field0 move/field1 move/dual unit-stride stores.
+- Extended RVV route planning/provider/runtime ABI metadata and common EmitC materialization support for constant scaled pointer expressions used by segmented source loads.
+- Added positive target/lit/script tests and negative verifier diagnostics for segment count, field roles, destination/source roles, memory form, and stale route_id authority.
+- Validation: check-tianchenrv 217/217; generated-bundle dry-run for counts 7,16,23; ssh rvv PASS for counts 7,16,23 with field_order_distinguishing_lanes and tail_preserved output; git diff --check passed.
+
+
+### Git Commits
+
+- Final commit created after journal update in this session.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `ninja -C build check-tianchenrv` - 217/217 passed
+- [OK] generated-bundle dry-run for `segment2_deinterleave_unit_store`, counts `7,16,23`
+- [OK] `ssh rvv` generated-bundle harness PASS for counts `7,16,23`, with `field_order_distinguishing_lanes` and `tail_preserved`
+- [OK] active-authority scan found only existing fail-closed/negative legacy references plus the new negative `route_id` diagnostic
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

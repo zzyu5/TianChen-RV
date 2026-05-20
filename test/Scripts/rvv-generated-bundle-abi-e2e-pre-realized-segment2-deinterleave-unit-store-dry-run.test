@@ -1,0 +1,66 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-segment2-deinterleave-unit-store --overwrite --op-kind segment2_deinterleave_unit_store --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-segment2-deinterleave-unit-store/evidence.json
+# RUN: FileCheck %s --check-prefix=SEGMENT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-segment2-deinterleave-unit-store/segment2_deinterleave_unit_store/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-segment2-deinterleave-unit-store/segment2_deinterleave_unit_store/rvv_generated_bundle_abi_segment2_deinterleave_unit_store_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "pre-realized-selected-body"
+# ROOT: "segment2_deinterleave_unit_store"
+# ROOT: "pre_realized_selected_body": true
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# SEGMENT-DAG: "input_mode": "pre-realized-selected-body"
+# SEGMENT-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-segment2-deinterleave-unit-store.mlir"
+# SEGMENT-DAG: "prototype": "void tcrv_emitc_pre_realized_body_segment2_deinterleave_unit_store_kernel_pre_realized_body_rvv_segment2_deinterleave_unit_store(const int32_t *src, int32_t *out0, int32_t *out1, size_t n);"
+# SEGMENT-DAG: "expected_function": "tcrv_emitc_pre_realized_body_segment2_deinterleave_unit_store_kernel_pre_realized_body_rvv_segment2_deinterleave_unit_store"
+# SEGMENT-DAG: "expected_runtime_abi_name": "rvv-generic-segment2-deinterleave-unit-store-callable-c-abi.v1"
+# SEGMENT-DAG: "expected_selected_variant": "pre_realized_body_rvv_segment2_deinterleave_unit_store"
+# SEGMENT-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# SEGMENT-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# SEGMENT-DAG: --tcrv-materialize-selected-lowering-boundaries
+# SEGMENT-DAG: "pre_realized_body_consumed": true
+# SEGMENT-DAG: "key": "rvv_emitc_lowerable_route"
+# SEGMENT-DAG: "value": "rvv-generic-segment2-deinterleave-unit-store-emitc-route"
+# SEGMENT-DAG: "key": "rvv_selected_body_operation"
+# SEGMENT-DAG: "value": "segment2_deinterleave_unit_store"
+# SEGMENT-DAG: "key": "rvv_selected_body_typed_compute_op"
+# SEGMENT-DAG: "value": "tcrv_rvv.move"
+# SEGMENT-DAG: "key": "tcrv_rvv.memory_form"
+# SEGMENT-DAG: "value": "segment2-load-unit-store"
+# SEGMENT-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# SEGMENT-DAG: "value": "src,out0,out1,n"
+# SEGMENT-DAG: "key": "tcrv_rvv.segment_memory_layout"
+# SEGMENT-DAG: "value": "segment2-interleaved-source-dual-unit-stride-destination-runtime-abi"
+# SEGMENT-DAG: "key": "tcrv_rvv.segment_count"
+# SEGMENT-DAG: "value": "2"
+# SEGMENT-DAG: "key": "tcrv_rvv.segment_tuple_c_type"
+# SEGMENT-DAG: "value": "vint32m1x2_t"
+# SEGMENT-DAG: "key": "tcrv_rvv.segment_load_intrinsic"
+# SEGMENT-DAG: "value": "__riscv_vlseg2e32_v_i32m1x2"
+# SEGMENT-DAG: "key": "tcrv_rvv.segment_field_extract_intrinsic"
+# SEGMENT-DAG: "value": "__riscv_vget_v_i32m1x2_i32m1"
+# SEGMENT-DAG: "key": "tcrv_rvv.source_memory_form"
+# SEGMENT-DAG: "value": "segment2-interleaved-unit-stride-load"
+# SEGMENT-DAG: "key": "tcrv_rvv.destination_memory_form"
+# SEGMENT-DAG: "value": "unit-stride-store"
+# SEGMENT-DAG: "key": "tcrv_rvv.field0_role"
+# SEGMENT-DAG: "value": "segment-field0-output-buffer"
+# SEGMENT-DAG: "key": "tcrv_rvv.field1_role"
+# SEGMENT-DAG: "value": "segment-field1-output-buffer"
+# SEGMENT-DAG: "field_order_contract": "multi-lane segment2_deinterleave_unit_store cases require even and odd interleaved source fields to be distinguishable"
+# SEGMENT-DAG: "tail_lane_contract": "field0 and field1 output tail lanes must preserve sentinel values past runtime n"
+# SEGMENT-DAG: "typed_compute_op": "tcrv_rvv.move"
+# SEGMENT-DAG: "memory_form": "segment2-load-unit-store"
+# SEGMENT-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_pre_realized_body_segment2_deinterleave_unit_store_kernel_pre_realized_body_rvv_segment2_deinterleave_unit_store(src, out0, out1, n);
+# HARNESS: int32_t expected0 = src[2 * index];
+# HARNESS: int32_t expected1 = src[2 * index + 1];
+# HARNESS: field_order_distinguishing_lanes
+# HARNESS: tail_preserved
+# HARNESS: PASS op=segment2_deinterleave_unit_store counts=7,16,23

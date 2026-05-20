@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Re-check global authority and stack boundaries before finish."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Confirm segment2 deinterleave support remains plugin-owned and typed-body-derived."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Confirm common EmitC/export remains neutral and consumes provider-built route output only."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Confirm selected-body realization and route provider ownership are preserved."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Confirm selected-body realization consumes code-affecting segmented memory facts into typed structure."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Confirm focused checks and ssh-rvv evidence satisfy testing policy."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-05-20-stage2-rvv-segment2-deinterleave-memory-executable-slice/prd.md", "reason": "Check implementation and validation against current task acceptance criteria."}
+{"file": "test/CMakeLists.txt", "reason": "Final full check-tianchenrv lit gate passed 217/217 after adding segment2 route, dialect, target, script, and old fail-closed text updates."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/segment2_deinterleave_dry_run/evidence.json", "reason": "Generated-bundle dry-run passed for segment2_deinterleave_unit_store counts 7,16,23."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/segment2_deinterleave_ssh/segment2_deinterleave_unit_store/evidence.json", "reason": "Real ssh rvv executable correctness passed for counts 7,16,23 with field_order_distinguishing_lanes and tail_preserved output."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-segment2-deinterleave-unit-store-dry-run.test", "reason": "git diff --check passed; script-level lit fixes the generated-bundle evidence path in the checked tree."}
+{"file": "test/Dialect/RVV/segment2-deinterleave-memory-dataflow.mlir", "reason": "Active-authority scan showed only existing fail-closed/negative legacy references and this new negative route_id diagnostic; no positive segment2 legacy/source/descriptor authority was introduced."}

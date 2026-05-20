@@ -460,12 +460,26 @@ private:
       mlir::Value base = valueMap.lookup(baseName);
       mlir::Value offset = valueMap.lookup(offsetName);
       mlir::Value stride = valueMap.lookup(strideName);
-      if (!base || !offset || !stride)
+      if (!base || !offset)
         return makeMaterializerError(
             route.getRouteID(),
             llvm::Twine("operand expression '") + expression +
                 "' references values that are not materialized in the "
                 "current EmitC scope");
+      if (!stride) {
+        std::uint64_t immediate = 0;
+        if (strideName.getAsInteger(10, immediate))
+          return makeMaterializerError(
+              route.getRouteID(),
+              llvm::Twine("operand expression '") + expression +
+                  "' references values that are not materialized in the "
+                  "current EmitC scope");
+        stride = builder
+                     .create<mlir::emitc::LiteralOp>(
+                         builder.getUnknownLoc(), offset.getType(),
+                         llvm::Twine(immediate).str())
+                     .getResult();
+      }
       mlir::Value scaledOffset =
           builder
               .create<mlir::emitc::MulOp>(builder.getUnknownLoc(),
