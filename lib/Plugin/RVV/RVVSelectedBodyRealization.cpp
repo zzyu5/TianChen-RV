@@ -3282,6 +3282,296 @@ void createRealizedGenericStridedStore(mlir::OpBuilder &builder,
   (void)builder.create(state);
 }
 
+struct RVVSelectedBodyContractionRealizationPlan {
+  mlir::Operation *preRealizedBody = nullptr;
+
+  bool usesWideningMAcc = false;
+  bool usesDotReduction = false;
+  bool usesComputedMask = false;
+  bool usesStridedInputs = false;
+
+  llvm::StringRef opKind;
+  llvm::StringRef accumulatorLayout;
+  llvm::StringRef resultLayout;
+  llvm::StringRef contractionRelation;
+  llvm::StringRef predicateKind;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+
+  std::int64_t sourceSEW = 0;
+  llvm::StringRef sourceLMUL;
+  std::int64_t resultSEW = 0;
+  llvm::StringRef resultLMUL;
+  tcrv::rvv::PolicyAttr policy;
+
+  mlir::Value compareLHS;
+  mlir::Value compareRHS;
+  mlir::Value lhs;
+  mlir::Value rhs;
+  mlir::Value acc;
+  mlir::Value out;
+  mlir::Value n;
+  mlir::Value lhsStride;
+  mlir::Value rhsStride;
+};
+
+void populateWideningDotContractionRealizationPlan(
+    RVVSelectedBodyContractionRealizationPlan &plan, mlir::Operation *bodyOp,
+    mlir::Location loc, llvm::StringRef opKind,
+    llvm::StringRef accumulatorLayout, llvm::StringRef resultLayout,
+    llvm::StringRef dotProductRelation, std::int64_t sourceSEW,
+    llvm::StringRef sourceLMUL, std::int64_t resultSEW,
+    llvm::StringRef resultLMUL, tcrv::rvv::PolicyAttr policy,
+    mlir::Value lhs, mlir::Value rhs, mlir::Value acc, mlir::Value out,
+    mlir::Value n) {
+  plan.preRealizedBody = bodyOp;
+  plan.usesDotReduction = true;
+  plan.opKind = opKind;
+  plan.accumulatorLayout = accumulatorLayout;
+  plan.resultLayout = resultLayout;
+  plan.contractionRelation = dotProductRelation;
+  plan.sourceSEW = sourceSEW;
+  plan.sourceLMUL = sourceLMUL;
+  plan.resultSEW = resultSEW;
+  plan.resultLMUL = resultLMUL;
+  plan.policy = policy;
+  plan.lhs = lhs;
+  plan.rhs = rhs;
+  plan.acc = acc;
+  plan.out = out;
+  plan.n = n;
+}
+
+void populateComputedMaskContractionRealizationPlan(
+    RVVSelectedBodyContractionRealizationPlan &plan, mlir::Value compareLHS,
+    mlir::Value compareRHS, llvm::StringRef predicateKind,
+    llvm::StringRef maskRole, llvm::StringRef maskSource,
+    llvm::StringRef maskMemoryForm) {
+  plan.usesComputedMask = true;
+  plan.compareLHS = compareLHS;
+  plan.compareRHS = compareRHS;
+  plan.predicateKind = predicateKind;
+  plan.maskRole = maskRole;
+  plan.maskSource = maskSource;
+  plan.maskMemoryForm = maskMemoryForm;
+}
+
+RVVSelectedBodyContractionRealizationPlan
+makeContractionRealizationPlan(
+    tcrv::rvv::TypedWideningMAccPreRealizedBodyOp body) {
+  RVVSelectedBodyContractionRealizationPlan plan;
+  plan.preRealizedBody = body.getOperation();
+  plan.usesWideningMAcc = true;
+  plan.opKind = body.getOpKind();
+  plan.accumulatorLayout = body.getAccumulatorLayout();
+  plan.resultLayout = body.getResultLayout();
+  plan.contractionRelation = body.getMaccRelation();
+  plan.sourceSEW = static_cast<std::int64_t>(body.getSourceSew());
+  plan.sourceLMUL = body.getSourceLmul();
+  plan.resultSEW = static_cast<std::int64_t>(body.getResultSew());
+  plan.resultLMUL = body.getResultLmul();
+  plan.policy = body.getPolicy();
+  plan.lhs = body.getLhs();
+  plan.rhs = body.getRhs();
+  plan.acc = body.getAcc();
+  plan.out = body.getOut();
+  plan.n = body.getN();
+  return plan;
+}
+
+RVVSelectedBodyContractionRealizationPlan
+makeContractionRealizationPlan(
+    tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp body) {
+  RVVSelectedBodyContractionRealizationPlan plan;
+  populateWideningDotContractionRealizationPlan(
+      plan, body.getOperation(), body->getLoc(), body.getOpKind(),
+      body.getAccumulatorLayout(), body.getResultLayout(),
+      body.getDotProductRelation(),
+      static_cast<std::int64_t>(body.getSourceSew()), body.getSourceLmul(),
+      static_cast<std::int64_t>(body.getResultSew()), body.getResultLmul(),
+      body.getPolicy(), body.getLhs(), body.getRhs(), body.getAcc(),
+      body.getOut(), body.getN());
+  return plan;
+}
+
+RVVSelectedBodyContractionRealizationPlan
+makeContractionRealizationPlan(
+    tcrv::rvv::TypedStridedInputWideningDotReducePreRealizedBodyOp body) {
+  RVVSelectedBodyContractionRealizationPlan plan;
+  populateWideningDotContractionRealizationPlan(
+      plan, body.getOperation(), body->getLoc(), body.getOpKind(),
+      body.getAccumulatorLayout(), body.getResultLayout(),
+      body.getDotProductRelation(),
+      static_cast<std::int64_t>(body.getSourceSew()), body.getSourceLmul(),
+      static_cast<std::int64_t>(body.getResultSew()), body.getResultLmul(),
+      body.getPolicy(), body.getLhs(), body.getRhs(), body.getAcc(),
+      body.getOut(), body.getN());
+  plan.usesStridedInputs = true;
+  plan.lhsStride = body.getLhsStride();
+  plan.rhsStride = body.getRhsStride();
+  return plan;
+}
+
+RVVSelectedBodyContractionRealizationPlan
+makeContractionRealizationPlan(
+    tcrv::rvv::TypedComputedMaskWideningDotReducePreRealizedBodyOp body) {
+  RVVSelectedBodyContractionRealizationPlan plan;
+  populateWideningDotContractionRealizationPlan(
+      plan, body.getOperation(), body->getLoc(), body.getOpKind(),
+      body.getAccumulatorLayout(), body.getResultLayout(),
+      body.getDotProductRelation(),
+      static_cast<std::int64_t>(body.getSourceSew()), body.getSourceLmul(),
+      static_cast<std::int64_t>(body.getResultSew()), body.getResultLmul(),
+      body.getPolicy(), body.getLhs(), body.getRhs(), body.getAcc(),
+      body.getOut(), body.getN());
+  populateComputedMaskContractionRealizationPlan(
+      plan, body.getCompareLhs(), body.getCompareRhs(), body.getPredicateKind(),
+      body.getMaskRole(), body.getMaskSource(), body.getMaskMemoryForm());
+  return plan;
+}
+
+RVVSelectedBodyContractionRealizationPlan
+makeContractionRealizationPlan(
+    tcrv::rvv::
+        TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp body) {
+  RVVSelectedBodyContractionRealizationPlan plan;
+  populateWideningDotContractionRealizationPlan(
+      plan, body.getOperation(), body->getLoc(), body.getOpKind(),
+      body.getAccumulatorLayout(), body.getResultLayout(),
+      body.getDotProductRelation(),
+      static_cast<std::int64_t>(body.getSourceSew()), body.getSourceLmul(),
+      static_cast<std::int64_t>(body.getResultSew()), body.getResultLmul(),
+      body.getPolicy(), body.getLhs(), body.getRhs(), body.getAcc(),
+      body.getOut(), body.getN());
+  populateComputedMaskContractionRealizationPlan(
+      plan, body.getCompareLhs(), body.getCompareRhs(), body.getPredicateKind(),
+      body.getMaskRole(), body.getMaskSource(), body.getMaskMemoryForm());
+  plan.usesStridedInputs = true;
+  plan.lhsStride = body.getLhsStride();
+  plan.rhsStride = body.getRhsStride();
+  return plan;
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVSelectedContractionFamily(
+    const VariantLoweringBoundaryRequest &request, mlir::ArrayAttr requires,
+    const RVVSelectedBodyContractionRealizationPlan &plan) {
+  if (!plan.preRealizedBody)
+    return makeRVVPluginError(
+        "pre-realized RVV contraction selected-body realization requires a "
+        "contraction family pre-realized body op");
+  if (!plan.usesWideningMAcc && !plan.usesDotReduction)
+    return makeRVVPluginError(
+        "pre-realized RVV contraction selected-body realization requires a "
+        "widening macc or widening dot reduction family operation");
+  if (plan.usesStridedInputs && (!plan.lhsStride || !plan.rhsStride))
+    return makeRVVPluginError(
+        "pre-realized RVV contraction selected-body realization requires lhs "
+        "and rhs stride runtime ABI values for strided-input routes");
+  if (plan.usesComputedMask && (!plan.compareLHS || !plan.compareRHS))
+    return makeRVVPluginError(
+        "pre-realized RVV contraction selected-body realization requires "
+        "compare lhs/rhs runtime ABI values for computed-mask routes");
+
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  mlir::OpBuilder &builder = request.getBuilder();
+  mlir::Location loc = plan.preRealizedBody->getLoc();
+
+  builder.setInsertionPoint(plan.preRealizedBody);
+  auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+      createRealizedSetVL(builder, loc, plan.n, plan.resultSEW,
+                          plan.resultLMUL, plan.policy));
+  tcrv::rvv::WithVLOp withVL =
+      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                           request.getRole(), requires, plan.resultSEW,
+                           plan.resultLMUL, plan.policy);
+
+  builder.setInsertionPointToStart(&withVL.getBody().front());
+  mlir::Value compareLHSValue;
+  mlir::Value compareRHSValue;
+  if (plan.usesComputedMask) {
+    auto compareLHSLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, plan.compareLHS, setvl.getVl(),
+            tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+    auto compareRHSLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, plan.compareRHS, setvl.getVl(),
+            tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+    compareLHSValue = compareLHSLoad.getLoaded();
+    compareRHSValue = compareRHSLoad.getLoaded();
+  }
+
+  auto realizeContractionSourceLoad =
+      [&](mlir::Value buffer, mlir::Value stride) -> mlir::Value {
+    if (plan.usesStridedInputs) {
+      auto load = llvm::cast<tcrv::rvv::StridedLoadOp>(
+          createRealizedGenericStridedLoad(builder, loc, buffer, stride,
+                                           setvl.getVl(), plan.sourceSEW,
+                                           plan.sourceLMUL));
+      return load.getLoaded();
+    }
+    auto load = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, buffer, setvl.getVl(), plan.sourceSEW,
+        plan.sourceLMUL));
+    return load.getLoaded();
+  };
+
+  mlir::Value lhsValue =
+      realizeContractionSourceLoad(plan.lhs, plan.lhsStride);
+  mlir::Value rhsValue =
+      realizeContractionSourceLoad(plan.rhs, plan.rhsStride);
+  mlir::Value compareMask;
+  if (plan.usesComputedMask) {
+    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(builder, loc, compareLHSValue,
+                                     compareRHSValue, setvl.getVl(),
+                                     plan.predicateKind));
+    compareMask = compare.getMask();
+  }
+
+  if (plan.usesWideningMAcc) {
+    auto accumulatorLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, plan.acc, setvl.getVl(), plan.resultSEW,
+            plan.resultLMUL));
+    llvm::Expected<mlir::Operation *> compute =
+        createRealizedGenericWideningMAccCompute(
+            builder, loc, plan.opKind, plan.accumulatorLayout,
+            plan.resultLayout, plan.contractionRelation, lhsValue, rhsValue,
+            accumulatorLoad.getLoaded(), setvl.getVl());
+    if (!compute)
+      return compute.takeError();
+    createRealizedGenericStore(builder, loc, plan.out,
+                               (*compute)->getResult(0), setvl.getVl());
+  } else if (plan.usesComputedMask) {
+    llvm::Expected<mlir::Operation *> compute =
+        createRealizedGenericMaskedWideningDotReduceCompute(
+            builder, loc, plan.opKind, plan.maskRole, plan.maskSource,
+            plan.maskMemoryForm, plan.accumulatorLayout, plan.resultLayout,
+            plan.contractionRelation, compareMask, lhsValue, rhsValue, plan.acc,
+            setvl.getVl());
+    if (!compute)
+      return compute.takeError();
+    createRealizedGenericStore(builder, loc, plan.out,
+                               (*compute)->getResult(0), setvl.getVl());
+  } else {
+    llvm::Expected<mlir::Operation *> compute =
+        createRealizedGenericWideningDotReduceCompute(
+            builder, loc, plan.opKind, plan.accumulatorLayout,
+            plan.resultLayout, plan.contractionRelation, lhsValue, rhsValue,
+            plan.acc, setvl.getVl());
+    if (!compute)
+      return compute.takeError();
+    createRealizedGenericStore(builder, loc, plan.out,
+                               (*compute)->getResult(0), setvl.getVl());
+  }
+  plan.preRealizedBody->erase();
+  return withVL;
+}
+
 } // namespace
 
 bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
@@ -3536,51 +3826,8 @@ realizePreRealizedRVVSelectedBody(
             validatePreRealizedRVVSelectedWideningMAccBody(request,
                                                            wideningMAccBody))
       return std::move(error);
-
-    mlir::Location loc = wideningMAccBody->getLoc();
-    builder.setInsertionPoint(wideningMAccBody.getOperation());
-
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
-        createRealizedSetVL(builder, loc, wideningMAccBody.getN(),
-                            static_cast<std::int64_t>(
-                                wideningMAccBody.getResultSew()),
-                            wideningMAccBody.getResultLmul(),
-                            wideningMAccBody.getPolicy()));
-    tcrv::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires,
-                             static_cast<std::int64_t>(
-                                 wideningMAccBody.getResultSew()),
-                             wideningMAccBody.getResultLmul(),
-                             wideningMAccBody.getPolicy());
-
-    builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-        builder, loc, wideningMAccBody.getLhs(), setvl.getVl(),
-        static_cast<std::int64_t>(wideningMAccBody.getSourceSew()),
-        wideningMAccBody.getSourceLmul()));
-    auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-        builder, loc, wideningMAccBody.getRhs(), setvl.getVl(),
-        static_cast<std::int64_t>(wideningMAccBody.getSourceSew()),
-        wideningMAccBody.getSourceLmul()));
-    auto accumulatorLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, wideningMAccBody.getAcc(), setvl.getVl(),
-            static_cast<std::int64_t>(wideningMAccBody.getAccumulatorSew()),
-            wideningMAccBody.getAccumulatorLmul()));
-    llvm::Expected<mlir::Operation *> compute =
-        createRealizedGenericWideningMAccCompute(
-            builder, loc, wideningMAccBody.getOpKind(),
-            wideningMAccBody.getAccumulatorLayout(),
-            wideningMAccBody.getResultLayout(),
-            wideningMAccBody.getMaccRelation(), lhsLoad.getLoaded(),
-            rhsLoad.getLoaded(), accumulatorLoad.getLoaded(), setvl.getVl());
-    if (!compute)
-      return compute.takeError();
-    createRealizedGenericStore(builder, loc, wideningMAccBody.getOut(),
-                               (*compute)->getResult(0), setvl.getVl());
-    wideningMAccBody->erase();
-    return withVL;
+    return realizePreRealizedRVVSelectedContractionFamily(
+        request, requires, makeContractionRealizationPlan(wideningMAccBody));
   }
 
   if (auto dotReduceBody = llvm::dyn_cast<
@@ -3589,44 +3836,8 @@ realizePreRealizedRVVSelectedBody(
             validatePreRealizedRVVSelectedWideningDotReduceBody(
                 request, dotReduceBody))
       return std::move(error);
-
-    mlir::Location loc = dotReduceBody->getLoc();
-    builder.setInsertionPoint(dotReduceBody.getOperation());
-
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
-        builder, loc, dotReduceBody.getN(),
-        static_cast<std::int64_t>(dotReduceBody.getResultSew()),
-        dotReduceBody.getResultLmul(), dotReduceBody.getPolicy()));
-    tcrv::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires,
-                             static_cast<std::int64_t>(
-                                 dotReduceBody.getResultSew()),
-                             dotReduceBody.getResultLmul(),
-                             dotReduceBody.getPolicy());
-
-    builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-        builder, loc, dotReduceBody.getLhs(), setvl.getVl(),
-        static_cast<std::int64_t>(dotReduceBody.getSourceSew()),
-        dotReduceBody.getSourceLmul()));
-    auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-        builder, loc, dotReduceBody.getRhs(), setvl.getVl(),
-        static_cast<std::int64_t>(dotReduceBody.getSourceSew()),
-        dotReduceBody.getSourceLmul()));
-    llvm::Expected<mlir::Operation *> compute =
-        createRealizedGenericWideningDotReduceCompute(
-            builder, loc, dotReduceBody.getOpKind(),
-            dotReduceBody.getAccumulatorLayout(),
-            dotReduceBody.getResultLayout(),
-            dotReduceBody.getDotProductRelation(), lhsLoad.getLoaded(),
-            rhsLoad.getLoaded(), dotReduceBody.getAcc(), setvl.getVl());
-    if (!compute)
-      return compute.takeError();
-    createRealizedGenericStore(builder, loc, dotReduceBody.getOut(),
-                               (*compute)->getResult(0), setvl.getVl());
-    dotReduceBody->erase();
-    return withVL;
+    return realizePreRealizedRVVSelectedContractionFamily(
+        request, requires, makeContractionRealizationPlan(dotReduceBody));
   }
 
   if (auto stridedDotReduceBody =
@@ -3637,49 +3848,9 @@ realizePreRealizedRVVSelectedBody(
             validatePreRealizedRVVSelectedStridedInputWideningDotReduceBody(
                 request, stridedDotReduceBody))
       return std::move(error);
-
-    mlir::Location loc = stridedDotReduceBody->getLoc();
-    builder.setInsertionPoint(stridedDotReduceBody.getOperation());
-
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
-        builder, loc, stridedDotReduceBody.getN(),
-        static_cast<std::int64_t>(stridedDotReduceBody.getResultSew()),
-        stridedDotReduceBody.getResultLmul(),
-        stridedDotReduceBody.getPolicy()));
-    tcrv::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires,
-                             static_cast<std::int64_t>(
-                                 stridedDotReduceBody.getResultSew()),
-                             stridedDotReduceBody.getResultLmul(),
-                             stridedDotReduceBody.getPolicy());
-
-    builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto lhsLoad = llvm::cast<tcrv::rvv::StridedLoadOp>(
-        createRealizedGenericStridedLoad(
-            builder, loc, stridedDotReduceBody.getLhs(),
-            stridedDotReduceBody.getLhsStride(), setvl.getVl(),
-            static_cast<std::int64_t>(stridedDotReduceBody.getSourceSew()),
-            stridedDotReduceBody.getSourceLmul()));
-    auto rhsLoad = llvm::cast<tcrv::rvv::StridedLoadOp>(
-        createRealizedGenericStridedLoad(
-            builder, loc, stridedDotReduceBody.getRhs(),
-            stridedDotReduceBody.getRhsStride(), setvl.getVl(),
-            static_cast<std::int64_t>(stridedDotReduceBody.getSourceSew()),
-            stridedDotReduceBody.getSourceLmul()));
-    llvm::Expected<mlir::Operation *> compute =
-        createRealizedGenericWideningDotReduceCompute(
-            builder, loc, stridedDotReduceBody.getOpKind(),
-            stridedDotReduceBody.getAccumulatorLayout(),
-            stridedDotReduceBody.getResultLayout(),
-            stridedDotReduceBody.getDotProductRelation(), lhsLoad.getLoaded(),
-            rhsLoad.getLoaded(), stridedDotReduceBody.getAcc(), setvl.getVl());
-    if (!compute)
-      return compute.takeError();
-    createRealizedGenericStore(builder, loc, stridedDotReduceBody.getOut(),
-                               (*compute)->getResult(0), setvl.getVl());
-    stridedDotReduceBody->erase();
-    return withVL;
+    return realizePreRealizedRVVSelectedContractionFamily(
+        request, requires,
+        makeContractionRealizationPlan(stridedDotReduceBody));
   }
 
   if (auto maskedDotReduceBody =
@@ -3690,64 +3861,8 @@ realizePreRealizedRVVSelectedBody(
             validatePreRealizedRVVSelectedComputedMaskWideningDotReduceBody(
                 request, maskedDotReduceBody))
       return std::move(error);
-
-    mlir::Location loc = maskedDotReduceBody->getLoc();
-    builder.setInsertionPoint(maskedDotReduceBody.getOperation());
-
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
-        builder, loc, maskedDotReduceBody.getN(),
-        static_cast<std::int64_t>(maskedDotReduceBody.getResultSew()),
-        maskedDotReduceBody.getResultLmul(),
-        maskedDotReduceBody.getPolicy()));
-    tcrv::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires,
-                             static_cast<std::int64_t>(
-                                 maskedDotReduceBody.getResultSew()),
-                             maskedDotReduceBody.getResultLmul(),
-                             maskedDotReduceBody.getPolicy());
-
-    builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto compareLHSLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, maskedDotReduceBody.getCompareLhs(), setvl.getVl(),
-            tcrv::rvv::getRVVFirstSliceSEWBits(),
-            tcrv::rvv::getRVVLMULM1()));
-    auto compareRHSLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, maskedDotReduceBody.getCompareRhs(), setvl.getVl(),
-            tcrv::rvv::getRVVFirstSliceSEWBits(),
-            tcrv::rvv::getRVVLMULM1()));
-    auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-        builder, loc, maskedDotReduceBody.getLhs(), setvl.getVl(),
-        static_cast<std::int64_t>(maskedDotReduceBody.getSourceSew()),
-        maskedDotReduceBody.getSourceLmul()));
-    auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-        builder, loc, maskedDotReduceBody.getRhs(), setvl.getVl(),
-        static_cast<std::int64_t>(maskedDotReduceBody.getSourceSew()),
-        maskedDotReduceBody.getSourceLmul()));
-    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
-        createRealizedGenericCompare(
-            builder, loc, compareLHSLoad.getLoaded(),
-            compareRHSLoad.getLoaded(), setvl.getVl(),
-            maskedDotReduceBody.getPredicateKind()));
-    llvm::Expected<mlir::Operation *> compute =
-        createRealizedGenericMaskedWideningDotReduceCompute(
-            builder, loc, maskedDotReduceBody.getOpKind(),
-            maskedDotReduceBody.getMaskRole(),
-            maskedDotReduceBody.getMaskSource(),
-            maskedDotReduceBody.getMaskMemoryForm(),
-            maskedDotReduceBody.getAccumulatorLayout(),
-            maskedDotReduceBody.getResultLayout(),
-            maskedDotReduceBody.getDotProductRelation(), compare.getMask(),
-            lhsLoad.getLoaded(), rhsLoad.getLoaded(),
-            maskedDotReduceBody.getAcc(), setvl.getVl());
-    if (!compute)
-      return compute.takeError();
-    createRealizedGenericStore(builder, loc, maskedDotReduceBody.getOut(),
-                               (*compute)->getResult(0), setvl.getVl());
-    maskedDotReduceBody->erase();
-    return withVL;
+    return realizePreRealizedRVVSelectedContractionFamily(
+        request, requires, makeContractionRealizationPlan(maskedDotReduceBody));
   }
 
   if (auto maskedStridedDotReduceBody =
@@ -3758,71 +3873,9 @@ realizePreRealizedRVVSelectedBody(
             validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
                 request, maskedStridedDotReduceBody))
       return std::move(error);
-
-    mlir::Location loc = maskedStridedDotReduceBody->getLoc();
-    builder.setInsertionPoint(maskedStridedDotReduceBody.getOperation());
-
-    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
-        builder, loc, maskedStridedDotReduceBody.getN(),
-        static_cast<std::int64_t>(
-            maskedStridedDotReduceBody.getResultSew()),
-        maskedStridedDotReduceBody.getResultLmul(),
-        maskedStridedDotReduceBody.getPolicy()));
-    tcrv::rvv::WithVLOp withVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires,
-                             static_cast<std::int64_t>(
-                                 maskedStridedDotReduceBody.getResultSew()),
-                             maskedStridedDotReduceBody.getResultLmul(),
-                             maskedStridedDotReduceBody.getPolicy());
-
-    builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto compareLHSLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, maskedStridedDotReduceBody.getCompareLhs(),
-            setvl.getVl(), tcrv::rvv::getRVVFirstSliceSEWBits(),
-            tcrv::rvv::getRVVLMULM1()));
-    auto compareRHSLoad =
-        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, maskedStridedDotReduceBody.getCompareRhs(),
-            setvl.getVl(), tcrv::rvv::getRVVFirstSliceSEWBits(),
-            tcrv::rvv::getRVVLMULM1()));
-    auto lhsLoad = llvm::cast<tcrv::rvv::StridedLoadOp>(
-        createRealizedGenericStridedLoad(
-            builder, loc, maskedStridedDotReduceBody.getLhs(),
-            maskedStridedDotReduceBody.getLhsStride(), setvl.getVl(),
-            static_cast<std::int64_t>(
-                maskedStridedDotReduceBody.getSourceSew()),
-            maskedStridedDotReduceBody.getSourceLmul()));
-    auto rhsLoad = llvm::cast<tcrv::rvv::StridedLoadOp>(
-        createRealizedGenericStridedLoad(
-            builder, loc, maskedStridedDotReduceBody.getRhs(),
-            maskedStridedDotReduceBody.getRhsStride(), setvl.getVl(),
-            static_cast<std::int64_t>(
-                maskedStridedDotReduceBody.getSourceSew()),
-            maskedStridedDotReduceBody.getSourceLmul()));
-    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
-        createRealizedGenericCompare(
-            builder, loc, compareLHSLoad.getLoaded(),
-            compareRHSLoad.getLoaded(), setvl.getVl(),
-            maskedStridedDotReduceBody.getPredicateKind()));
-    llvm::Expected<mlir::Operation *> compute =
-        createRealizedGenericMaskedWideningDotReduceCompute(
-            builder, loc, maskedStridedDotReduceBody.getOpKind(),
-            maskedStridedDotReduceBody.getMaskRole(),
-            maskedStridedDotReduceBody.getMaskSource(),
-            maskedStridedDotReduceBody.getMaskMemoryForm(),
-            maskedStridedDotReduceBody.getAccumulatorLayout(),
-            maskedStridedDotReduceBody.getResultLayout(),
-            maskedStridedDotReduceBody.getDotProductRelation(),
-            compare.getMask(), lhsLoad.getLoaded(), rhsLoad.getLoaded(),
-            maskedStridedDotReduceBody.getAcc(), setvl.getVl());
-    if (!compute)
-      return compute.takeError();
-    createRealizedGenericStore(builder, loc, maskedStridedDotReduceBody.getOut(),
-                               (*compute)->getResult(0), setvl.getVl());
-    maskedStridedDotReduceBody->erase();
-    return withVL;
+    return realizePreRealizedRVVSelectedContractionFamily(
+        request, requires,
+        makeContractionRealizationPlan(maskedStridedDotReduceBody));
   }
 
   if (auto conversionBody =

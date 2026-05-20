@@ -1,0 +1,28 @@
+{
+  "id": "stage2-rvv-contraction-selected-body-family",
+  "name": "stage2-rvv-contraction-selected-body-family",
+  "title": "Stage2 RVV contraction selected-body realization family boundary",
+  "description": "Consolidate RVV plugin-local selected-body realization for the five existing contraction route-family variants from the Hermes Direction Brief.",
+  "status": "completed",
+  "dev_type": "implementation",
+  "scope": "rvv-plugin-selected-body-realization",
+  "package": "extension-plugins/lowering-runtime",
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-21",
+  "completedAt": "2026-05-21",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp"
+  ],
+  "notes": "Completed bounded RVV contraction selected-body realization family consolidation for the five existing contraction routes. Added a plugin-local realization plan/helper, preserved existing route planning/provider authority, passed focused build/FileCheck/C++/script/generated-bundle dry-run, real ssh rvv representative evidence, authority scan, git diff --check, and check-tianchenrv 245/245.",
+  "meta": {}
+}

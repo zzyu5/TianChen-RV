@@ -88,6 +88,70 @@ real `ssh rvv` correctness evidence.
 - None - task complete
 
 
+## Session 146: Stage2 RVV contraction selected-body realization family boundary
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV contraction selected-body realization family boundary
+**Branch**: `main`
+
+### Summary
+
+Consolidated the five existing Stage2 RVV contraction pre-realized
+selected-body realization paths behind one plugin-local family realization
+plan/helper while preserving route planning/provider authority and executable
+behavior.
+
+### Main Changes
+
+- Created `RVVSelectedBodyContractionRealizationPlan` in
+  `lib/Plugin/RVV/RVVSelectedBodyRealization.cpp`.
+- Added one shared contraction realization helper for:
+  `widening_macc_add`, `widening_dot_reduce_add`,
+  `strided_input_widening_dot_reduce_add`,
+  `computed_masked_widening_dot_reduce_add`, and
+  `computed_masked_strided_input_widening_dot_reduce_add`.
+- Rewired the five existing pre-realized selected-body branches to validate
+  typed facts, build the shared family plan, and materialize through the shared
+  helper.
+- Kept route planning/provider as the authority for contraction family route
+  emission; common EmitC/export and target metadata were not given RVV
+  semantic authority.
+
+### Self-Repair
+
+- Fixed the initial plan design after C++ compile showed `mlir::Location` is
+  not default-constructible.
+- Restored the previous computed-mask construction order after focused
+  FileCheck detected a construction-order mismatch.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Manual FileCheck for five positive pre-realized contraction artifact tests, with `REALIZED`, `PLAN`, and `HEADER` prefixes.
+- [OK] Manual fail-closed checks for widening macc, strided dot, computed-mask dot, and computed-mask strided dot negative tests.
+- [OK] `cmake --build build --target tianchenrv-rvv-dialect-test tianchenrv-rvv-extension-plugin-test tianchenrv-construction-protocol-common-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-dialect-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Generated-bundle dry-run for all five named contraction routes at counts `7,16,23`.
+- [OK] Real `ssh rvv` PASS for `widening_macc_add`, `widening_dot_reduce_add`, and `computed_masked_strided_input_widening_dot_reduce_add` at counts `7,16,23`.
+- [OK] Active-authority diff scan: no new legacy/source/descriptor/common-export authority introduced.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 245/245 passed.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+### Next Steps
+
+- None for this bounded selected-body realization consolidation.
+
+
 ## Session 145: Stage2 RVV widening multiply-accumulate executable slice
 
 **Date**: 2026-05-20
