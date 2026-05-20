@@ -31,34 +31,6 @@ bool isRVVSelectedBodyMAccRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::MAccAdd;
 }
 
-bool isRVVSelectedBodyWideningMAccRoute(RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::WideningMAccAdd;
-}
-
-bool isRVVSelectedBodyWideningDotReductionRoute(
-    RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
-         op == RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd ||
-         op == RVVSelectedBodyOperationKind::
-                   ComputedMaskStridedInputWideningDotReduceAdd;
-}
-
-bool isRVVSelectedBodyComputedMaskWideningDotReductionRoute(
-    RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd ||
-         op == RVVSelectedBodyOperationKind::
-                   ComputedMaskStridedInputWideningDotReduceAdd;
-}
-
-bool isRVVSelectedBodyStridedInputWideningDotReductionRoute(
-    RVVSelectedBodyOperationKind op) {
-  return op ==
-             RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd ||
-         op == RVVSelectedBodyOperationKind::
-                   ComputedMaskStridedInputWideningDotReduceAdd;
-}
-
 bool isRVVSelectedBodyReductionRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::ReduceAdd;
 }
@@ -166,6 +138,18 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   RVVSelectedBodyRouteSlice *slice = &analysis.slice;
   const RVVSelectedBodyEmitCRouteDescription &description =
       analysis.description;
+  const RVVSelectedBodyContractionRouteFamilyPlan *contractionPlan =
+      analysis.contractionRouteFamilyPlan
+          ? &*analysis.contractionRouteFamilyPlan
+          : nullptr;
+  const bool emitsContractionDotReduction =
+      contractionPlan && contractionPlan->usesDotReduction;
+  const bool emitsContractionWideningMAcc =
+      contractionPlan && contractionPlan->usesWideningMAcc;
+  const bool emitsComputedMaskContraction =
+      contractionPlan && contractionPlan->usesComputedMask;
+  const bool emitsStridedInputContraction =
+      contractionPlan && contractionPlan->usesStridedInputs;
 
   conversion::emitc::TCRVEmitCLowerableRoute route(
       analysis.description.emitCRouteID,
@@ -204,7 +188,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                     description.vlCType.str()}))
     return error;
 
-  if (isRVVSelectedBodyWideningDotReductionRoute(description.operation)) {
+  if (emitsContractionDotReduction) {
     if (llvm::Error error = addCallStepFromSource(
             route, slice->arithmeticOp, "compute",
             description.scalarSeedSplatIntrinsic,
@@ -261,11 +245,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                     description.vlCType.str()}))
     return error;
 
-  if (isRVVSelectedBodyComputedMaskWideningDotReductionRoute(
-          description.operation)) {
-    const bool isStridedDotSource =
-        isRVVSelectedBodyStridedInputWideningDotReductionRoute(
-            description.operation);
+  if (emitsContractionDotReduction && emitsComputedMaskContraction) {
+    const bool isStridedDotSource = emitsStridedInputContraction;
     if (llvm::Error error = addLoopStep(
             slice->lhsLoadOperation, "load", description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
@@ -608,8 +589,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{lhsResultName.str(),
                                       description.vectorCType.str()}))
       return error;
-  } else if (isRVVSelectedBodyStridedInputWideningDotReductionRoute(
-                 description.operation)) {
+  } else if (emitsContractionDotReduction &&
+             emitsStridedInputContraction) {
     if (llvm::Error error = addLoopStep(
             slice->lhsLoadOperation, "load",
             description.stridedLoadIntrinsic,
@@ -627,9 +608,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.sourceVectorCType.str()}))
       return error;
   } else if (isRVVSelectedBodyWideningConversionRoute(description.operation) ||
-             isRVVSelectedBodyWideningMAccRoute(description.operation) ||
-             isRVVSelectedBodyWideningDotReductionRoute(
-                 description.operation)) {
+             emitsContractionWideningMAcc || emitsContractionDotReduction) {
     if (llvm::Error error = addLoopStep(
             slice->lhsLoadOperation, "load",
             description.sourceVectorLoadIntrinsic,
@@ -728,8 +707,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       isRuntimeMaskMemory ||
       isRVVSelectedBodyMemoryMovementRoute(description.operation)) {
     // These bounded routes have no RHS dataflow.
-  } else if (isRVVSelectedBodyStridedInputWideningDotReductionRoute(
-                 description.operation)) {
+  } else if (emitsContractionDotReduction &&
+             emitsStridedInputContraction) {
     if (llvm::Error error = addLoopStep(
             slice->rhsLoadOperation, "load",
             description.stridedLoadIntrinsic,
@@ -746,9 +725,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{"rhs_vec",
                                       description.sourceVectorCType.str()}))
       return error;
-  } else if (isRVVSelectedBodyWideningMAccRoute(description.operation) ||
-             isRVVSelectedBodyWideningDotReductionRoute(
-                 description.operation)) {
+  } else if (emitsContractionWideningMAcc || emitsContractionDotReduction) {
     if (llvm::Error error = addLoopStep(
             slice->rhsLoadOperation, "load",
             description.sourceVectorLoadIntrinsic,
@@ -878,7 +855,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   }
-  if (isRVVSelectedBodyWideningMAccRoute(description.operation)) {
+  if (emitsContractionWideningMAcc) {
     if (llvm::Error error = addLoopStep(
             slice->accumulatorLoadOperation, "load",
             description.vectorLoadIntrinsic,
@@ -999,7 +976,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{description.resultName.str(),
                                       description.vectorCType.str()}))
       return error;
-  } else if (isRVVSelectedBodyWideningMAccRoute(description.operation)) {
+  } else if (emitsContractionWideningMAcc) {
     if (llvm::Error error = addLoopStep(
             slice->arithmeticOp, "compute", description.intrinsic,
             {TCRVEmitCCallOpaqueOperand{"acc_vec",
@@ -1013,8 +990,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{description.resultName.str(),
                                       description.vectorCType.str()}))
       return error;
-  } else if (isRVVSelectedBodyWideningDotReductionRoute(
-                 description.operation)) {
+  } else if (emitsContractionDotReduction) {
     if (llvm::Error error = addLoopStep(
             slice->arithmeticOp, "compute",
             description.wideningProductIntrinsic,
@@ -1078,10 +1054,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   }
   llvm::StringRef storeVLName =
       (isRVVSelectedBodyReductionRoute(description.operation) ||
-       isRVVSelectedBodyWideningDotReductionRoute(description.operation))
+       emitsContractionDotReduction)
           ? description.reductionStoreVL
           : loopVLName;
-  if (isRVVSelectedBodyWideningDotReductionRoute(description.operation)) {
+  if (emitsContractionDotReduction) {
     if (llvm::Error error = addLoopStep(
             slice->storeOperation, "store", description.storeIntrinsic,
             {TCRVEmitCCallOpaqueOperand{slice->outABI.cName,

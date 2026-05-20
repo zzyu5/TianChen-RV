@@ -10,7 +10,10 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Error.h"
+
+#include <optional>
 
 namespace tianchenrv::plugin::rvv {
 
@@ -127,10 +130,46 @@ struct RVVSelectedBodyRouteSlice {
   support::RuntimeABIParameter outStrideABI;
 };
 
+struct RVVSelectedBodyContractionRouteFamilyPlan {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  bool usesWideningMAcc = false;
+  bool usesDotReduction = false;
+  bool usesComputedMask = false;
+  bool usesStridedInputs = false;
+  bool usesScalarSeed = false;
+  bool usesVectorAccumulator = false;
+  llvm::StringRef runtimeABIOrder;
+  std::int64_t sourceSEW = 0;
+  llvm::StringRef sourceLMUL;
+  llvm::StringRef sourceVectorTypeName;
+  llvm::StringRef sourceVectorCType;
+  llvm::StringRef sourceVectorLoadIntrinsic;
+  llvm::StringRef stridedLoadIntrinsic;
+  llvm::StringRef accumulatorLayout;
+  llvm::StringRef resultLayout;
+  llvm::StringRef relation;
+  llvm::StringRef wideningProductIntrinsic;
+  llvm::StringRef maskedWideningProductIntrinsic;
+  llvm::StringRef scalarSeedSplatIntrinsic;
+  llvm::StringRef reductionStoreVL;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef stridedMemoryLayout;
+  llvm::StringRef lhsStrideSource;
+  llvm::StringRef rhsStrideSource;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::SmallVector<support::RuntimeABIParameter, 8> runtimeABIParameters;
+};
+
 struct RVVSelectedBodyRouteAnalysis {
   RVVSelectedBodyRouteSlice slice;
   const RVVSelectedBodyConstructionRoute *constructionRoute = nullptr;
   RVVSelectedBodyEmitCRouteDescription description;
+  std::optional<RVVSelectedBodyContractionRouteFamilyPlan>
+      contractionRouteFamilyPlan;
 };
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);
