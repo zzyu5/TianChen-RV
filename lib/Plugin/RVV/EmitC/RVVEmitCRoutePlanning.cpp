@@ -68,6 +68,17 @@ constexpr llvm::StringLiteral kRVVWideningDotProductResultLayout(
 constexpr llvm::StringLiteral kRVVWideningDotProductRelation(
     "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32");
 constexpr llvm::StringLiteral kRVVWideningDotProductStoreVL("1");
+constexpr llvm::StringLiteral kRVVContractionTargetLeafProfile(
+    "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVContractionProviderSupportedMirror(
+    "provider_supported_mirror:rvv-contraction-family-plan-validated");
+constexpr llvm::StringLiteral kRVVContractionRequiredHeaderDeclarations(
+    "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral kRVVContractionCTypeMappingSummary(
+    "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32");
+constexpr llvm::StringLiteral
+    kRVVContractionMaskedInactiveLaneZeroingRequirement(
+        "masked-widening-products-zero-inactive-lanes-before-reduction");
 constexpr llvm::StringLiteral kRVVStridedRuntimeABIOrder(
     "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride");
 constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreRuntimeABIOrder(
@@ -922,6 +933,163 @@ llvm::StringRef getRVVSelectedBodyContractionRuntimeABIOrder(
   }
 }
 
+llvm::Error requireRVVSelectedBodyContractionPlanField(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan,
+    llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("contraction route-family target-leaf/profile validation "
+                  "for operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
+      field + " '" + expected + "' but found '" + actual + "'");
+}
+
+llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "target leaf profile", plan.targetLeafProfile,
+          kRVVContractionTargetLeafProfile))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "provider_supported_mirror", plan.providerSupportedMirror,
+          kRVVContractionProviderSupportedMirror))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "header declarations", plan.requiredHeaderDeclarations,
+          kRVVContractionRequiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "C type mapping summary", plan.cTypeMappingSummary,
+          kRVVContractionCTypeMappingSummary))
+    return error;
+  if (plan.requiredHeaders.size() != 3 ||
+      plan.requiredHeaders[0] != "stddef.h" ||
+      plan.requiredHeaders[1] != "stdint.h" ||
+      plan.requiredHeaders[2] != "riscv_vector.h")
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("contraction route-family target-leaf/profile "
+                    "validation for operation '") +
+        stringifyRVVSelectedBodyOperationKind(plan.operation) +
+        "' requires provider-owned header declarations "
+        "'stddef.h,stdint.h,riscv_vector.h'");
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "VL C type", plan.vlCType, "size_t"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "result vector type", plan.resultVectorTypeName,
+          "!tcrv_rvv.vector<i32, \"m1\">"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "result vector C type", plan.resultVectorCType,
+          "vint32m1_t"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "setvl leaf", plan.setVLIntrinsic,
+          "__riscv_vsetvl_e32m1"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "source vector-load leaf", plan.sourceVectorLoadIntrinsic,
+          "__riscv_vle16_v_i16mf2"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "store leaf", plan.storeIntrinsic,
+          "__riscv_vse32_v_i32m1"))
+    return error;
+
+  if (plan.usesStridedInputs) {
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "strided source-load leaf", plan.stridedLoadIntrinsic,
+            "__riscv_vlse16_v_i16mf2"))
+      return error;
+  } else if (llvm::Error error =
+                 requireRVVSelectedBodyContractionPlanField(
+                     plan, "strided source-load leaf",
+                     plan.stridedLoadIntrinsic, ""))
+    return error;
+
+  if (plan.usesWideningMAcc) {
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "widening macc leaf", plan.contractionComputeIntrinsic,
+            "__riscv_vwmacc_vv_i32m1"))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "widening product leaf", plan.wideningProductIntrinsic, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "masked widening product leaf",
+            plan.maskedWideningProductIntrinsic, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "scalar seed splat leaf", plan.scalarSeedSplatIntrinsic, ""))
+      return error;
+  } else {
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "widening product leaf", plan.wideningProductIntrinsic,
+            "__riscv_vwmul_vv_i32m1"))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "reduction leaf", plan.contractionComputeIntrinsic,
+            "__riscv_vredsum_vs_i32m1_i32m1"))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "scalar seed splat leaf", plan.scalarSeedSplatIntrinsic,
+            "__riscv_vmv_v_x_i32m1"))
+      return error;
+  }
+
+  if (plan.usesComputedMask) {
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "mask type", plan.maskTypeName,
+            "!tcrv_rvv.mask<i32, \"m1\">"))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "mask C type", plan.maskCType, "vbool32_t"))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "compare leaf", plan.compareIntrinsic,
+            "__riscv_vmslt_vv_i32m1_b32"))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "masked merge leaf", plan.maskedMergeIntrinsic,
+            "__riscv_vmerge_vvm_i32m1"))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "masked widening product leaf",
+            plan.maskedWideningProductIntrinsic,
+            "__riscv_vwmul_vv_i32m1_m"))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "inactive-lane zeroing requirement",
+            plan.inactiveLaneZeroingRequirement,
+            kRVVContractionMaskedInactiveLaneZeroingRequirement))
+      return error;
+  } else {
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "mask type", plan.maskTypeName, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "mask C type", plan.maskCType, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "compare leaf", plan.compareIntrinsic, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "masked merge leaf", plan.maskedMergeIntrinsic, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "masked widening product leaf",
+            plan.maskedWideningProductIntrinsic, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "inactive-lane zeroing requirement",
+            plan.inactiveLaneZeroingRequirement, ""))
+      return error;
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Expected<RVVSelectedBodyContractionRouteFamilyPlan>
 deriveRVVSelectedBodyContractionRouteFamilyPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
@@ -948,6 +1116,19 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   plan.usesVectorAccumulator = plan.usesWideningMAcc;
   plan.runtimeABIOrder =
       getRVVSelectedBodyContractionRuntimeABIOrder(operation);
+  plan.targetLeafProfile = kRVVContractionTargetLeafProfile;
+  plan.providerSupportedMirror = kRVVContractionProviderSupportedMirror;
+  plan.requiredHeaders.push_back("stddef.h");
+  plan.requiredHeaders.push_back("stdint.h");
+  plan.requiredHeaders.push_back("riscv_vector.h");
+  plan.requiredHeaderDeclarations = kRVVContractionRequiredHeaderDeclarations;
+  plan.cTypeMappingSummary = kRVVContractionCTypeMappingSummary;
+  plan.vlCType = configProfile.vlCType;
+  plan.resultVectorTypeName = configProfile.vectorTypeName;
+  plan.resultVectorCType = configProfile.vectorCType;
+  plan.maskTypeName = plan.usesComputedMask ? configProfile.maskTypeName : "";
+  plan.maskCType = plan.usesComputedMask ? configProfile.maskCType : "";
+  plan.setVLIntrinsic = configProfile.setVLIntrinsic;
   plan.sourceSEW = tcrv::rvv::getRVVSEW16Bits();
   plan.sourceLMUL = tcrv::rvv::getRVVLMULMF2();
   plan.sourceVectorTypeName = "!tcrv_rvv.vector<i16, \"mf2\">";
@@ -955,6 +1136,7 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   plan.sourceVectorLoadIntrinsic = "__riscv_vle16_v_i16mf2";
   if (plan.usesStridedInputs)
     plan.stridedLoadIntrinsic = "__riscv_vlse16_v_i16mf2";
+  plan.storeIntrinsic = configProfile.storeIntrinsic;
 
   plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
   plan.runtimeABIParameters.push_back(analysis.slice.rhsABI);
@@ -975,45 +1157,59 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
         analysis.slice.wideningMAccOp.getAccumulatorLayout();
     plan.resultLayout = analysis.slice.wideningMAccOp.getResultLayout();
     plan.relation = analysis.slice.wideningMAccOp.getMaccRelation();
-    return plan;
-  }
-
-  if (plan.usesComputedMask) {
-    plan.accumulatorLayout =
-        analysis.slice.maskedWideningDotReduceOp.getAccumulatorLayout();
-    plan.resultLayout =
-        analysis.slice.maskedWideningDotReduceOp.getResultLayout();
-    plan.relation =
-        analysis.slice.maskedWideningDotReduceOp.getDotProductRelation();
-    plan.maskRole = analysis.slice.maskedWideningDotReduceOp.getMaskRole();
-    plan.maskSource =
-        analysis.slice.maskedWideningDotReduceOp.getMaskSource();
-    plan.maskMemoryForm =
-        analysis.slice.maskedWideningDotReduceOp.getMaskMemoryForm();
+    plan.contractionComputeIntrinsic =
+        getRVVSelectedBodyWideningMAccIntrinsic(analysis.description);
   } else {
-    plan.accumulatorLayout =
-        analysis.slice.wideningDotReduceOp.getAccumulatorLayout();
-    plan.resultLayout = analysis.slice.wideningDotReduceOp.getResultLayout();
-    plan.relation = analysis.slice.wideningDotReduceOp.getDotProductRelation();
+    if (plan.usesComputedMask) {
+      plan.accumulatorLayout =
+          analysis.slice.maskedWideningDotReduceOp.getAccumulatorLayout();
+      plan.resultLayout =
+          analysis.slice.maskedWideningDotReduceOp.getResultLayout();
+      plan.relation =
+          analysis.slice.maskedWideningDotReduceOp.getDotProductRelation();
+      plan.maskRole = analysis.slice.maskedWideningDotReduceOp.getMaskRole();
+      plan.maskSource =
+          analysis.slice.maskedWideningDotReduceOp.getMaskSource();
+      plan.maskMemoryForm =
+          analysis.slice.maskedWideningDotReduceOp.getMaskMemoryForm();
+      plan.compareIntrinsic =
+          getRVVSelectedBodySignedLessThanCompareIntrinsic(configProfile.lmul);
+      plan.maskedMergeIntrinsic =
+          getRVVSelectedBodySelectIntrinsic(configProfile.lmul);
+      plan.maskedWideningProductIntrinsic =
+          getRVVSelectedBodyMaskedWideningProductIntrinsic(
+              analysis.description);
+      plan.inactiveLaneZeroingRequirement =
+          kRVVContractionMaskedInactiveLaneZeroingRequirement;
+    } else {
+      plan.accumulatorLayout =
+          analysis.slice.wideningDotReduceOp.getAccumulatorLayout();
+      plan.resultLayout = analysis.slice.wideningDotReduceOp.getResultLayout();
+      plan.relation =
+          analysis.slice.wideningDotReduceOp.getDotProductRelation();
+    }
+
+    plan.contractionComputeIntrinsic =
+        getRVVSelectedBodyReductionIntrinsic(configProfile.lmul);
+    plan.wideningProductIntrinsic =
+        getRVVSelectedBodyWideningProductIntrinsic(analysis.description);
+    plan.scalarSeedSplatIntrinsic = configProfile.rhsBroadcastIntrinsic;
+    plan.reductionStoreVL = kRVVWideningDotProductStoreVL;
+    if (plan.usesStridedInputs) {
+      plan.stridedMemoryLayout =
+          plan.usesComputedMask
+              ? kRVVComputedMaskStridedInputWideningDotMemoryLayout
+              : kRVVStridedInputWideningDotMemoryLayout;
+      plan.lhsStrideSource = kRVVLHSStrideSource;
+      plan.rhsStrideSource = kRVVRHSStrideSource;
+      plan.sourceMemoryForm = kRVVStridedInputDotSourceMemoryForm;
+      plan.destinationMemoryForm = kRVVDestinationMemoryForm;
+    }
   }
 
-  plan.wideningProductIntrinsic =
-      getRVVSelectedBodyWideningProductIntrinsic(analysis.description);
-  if (plan.usesComputedMask)
-    plan.maskedWideningProductIntrinsic =
-        getRVVSelectedBodyMaskedWideningProductIntrinsic(analysis.description);
-  plan.scalarSeedSplatIntrinsic = configProfile.rhsBroadcastIntrinsic;
-  plan.reductionStoreVL = kRVVWideningDotProductStoreVL;
-  if (plan.usesStridedInputs) {
-    plan.stridedMemoryLayout =
-        plan.usesComputedMask
-            ? kRVVComputedMaskStridedInputWideningDotMemoryLayout
-            : kRVVStridedInputWideningDotMemoryLayout;
-    plan.lhsStrideSource = kRVVLHSStrideSource;
-    plan.rhsStrideSource = kRVVRHSStrideSource;
-    plan.sourceMemoryForm = kRVVStridedInputDotSourceMemoryForm;
-    plan.destinationMemoryForm = kRVVDestinationMemoryForm;
-  }
+  if (llvm::Error error =
+          validateRVVSelectedBodyContractionRouteFamilyPlan(plan))
+    return std::move(error);
   return plan;
 }
 
@@ -1021,11 +1217,22 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan,
     RVVSelectedBodyEmitCRouteDescription &description) {
   description.runtimeABIOrder = plan.runtimeABIOrder;
+  description.targetLeafProfile = plan.targetLeafProfile;
+  description.providerSupportedMirror = plan.providerSupportedMirror;
+  description.requiredHeaderDeclarations = plan.requiredHeaderDeclarations;
+  description.cTypeMappingSummary = plan.cTypeMappingSummary;
+  description.vlCType = plan.vlCType;
+  description.vectorTypeName = plan.resultVectorTypeName;
+  description.vectorCType = plan.resultVectorCType;
+  description.maskTypeName = plan.maskTypeName;
+  description.maskCType = plan.maskCType;
+  description.setVLIntrinsic = plan.setVLIntrinsic;
   description.sourceSEW = plan.sourceSEW;
   description.sourceLMUL = plan.sourceLMUL;
   description.sourceVectorTypeName = plan.sourceVectorTypeName;
   description.sourceVectorCType = plan.sourceVectorCType;
   description.sourceVectorLoadIntrinsic = plan.sourceVectorLoadIntrinsic;
+  description.storeIntrinsic = plan.storeIntrinsic;
   description.runtimeABIParameters.clear();
   description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
                                           plan.runtimeABIParameters.end());
@@ -1034,17 +1241,23 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
     description.wideningMAccAccumulatorLayout = plan.accumulatorLayout;
     description.wideningMAccResultLayout = plan.resultLayout;
     description.wideningMAccRelation = plan.relation;
+    description.intrinsic = plan.contractionComputeIntrinsic;
     return;
   }
 
   description.wideningDotProductAccumulatorLayout = plan.accumulatorLayout;
   description.wideningDotProductResultLayout = plan.resultLayout;
   description.wideningDotProductRelation = plan.relation;
+  description.intrinsic = plan.contractionComputeIntrinsic;
+  description.compareIntrinsic = plan.compareIntrinsic;
+  description.maskedMergeIntrinsic = plan.maskedMergeIntrinsic;
   description.wideningProductIntrinsic = plan.wideningProductIntrinsic;
   description.maskedWideningProductIntrinsic =
       plan.maskedWideningProductIntrinsic;
   description.scalarSeedSplatIntrinsic = plan.scalarSeedSplatIntrinsic;
   description.reductionStoreVL = plan.reductionStoreVL;
+  description.inactiveLaneZeroingRequirement =
+      plan.inactiveLaneZeroingRequirement;
   if (plan.usesComputedMask) {
     description.maskRole = plan.maskRole;
     description.maskSource = plan.maskSource;
@@ -5995,6 +6208,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   const bool isStridedInputWideningDotReduce =
       operationProfile.operation ==
       RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd;
+  const bool isContractionRoute =
+      isRVVSelectedBodyContractionRouteOperation(operationProfile.operation);
 
   llvm::Expected<const RVVSelectedBodyConstructionRoute *> route =
       lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
@@ -6063,6 +6278,42 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           context, "runtime AVL source", description.runtimeAVLASource,
           configContract.runtimeAVLASource))
     return error;
+  if (isContractionRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "target leaf profile", description.targetLeafProfile,
+            kRVVContractionTargetLeafProfile))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "provider_supported_mirror",
+            description.providerSupportedMirror,
+            kRVVContractionProviderSupportedMirror))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "required header declarations",
+            description.requiredHeaderDeclarations,
+            kRVVContractionRequiredHeaderDeclarations))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "C type mapping summary", description.cTypeMappingSummary,
+            kRVVContractionCTypeMappingSummary))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "target leaf profile", description.targetLeafProfile, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "provider_supported_mirror",
+            description.providerSupportedMirror, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "required header declarations",
+            description.requiredHeaderDeclarations, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "C type mapping summary", description.cTypeMappingSummary,
+            ""))
+      return error;
+  }
   llvm::StringRef expectedRuntimeABIOrder = configContract.runtimeABIOrder;
   if (isComputedMaskStridedInputWideningDotReduce) {
     expectedRuntimeABIOrder =
@@ -6579,6 +6830,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "mask memory form", description.maskMemoryForm, ""))
       return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "inactive-lane zeroing requirement",
+            description.inactiveLaneZeroingRequirement, ""))
+      return error;
   } else if (isComputedMaskWideningDotReduce ||
              isComputedMaskStridedInputWideningDotReduce) {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -6600,6 +6855,11 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "masked passthrough layout",
             description.maskedPassthroughLayout, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "inactive-lane zeroing requirement",
+            description.inactiveLaneZeroingRequirement,
+            kRVVContractionMaskedInactiveLaneZeroingRequirement))
       return error;
   } else if (operationProfile.isMaskedMemoryMovement) {
     const bool isComputedMask =
@@ -6630,6 +6890,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             description.maskedPassthroughLayout,
             kRVVMaskedMemoryPassthroughLayout))
       return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "inactive-lane zeroing requirement",
+            description.inactiveLaneZeroingRequirement, ""))
+      return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "mask role", description.maskRole, ""))
@@ -6647,6 +6911,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "masked passthrough layout",
             description.maskedPassthroughLayout, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "inactive-lane zeroing requirement",
+            description.inactiveLaneZeroingRequirement, ""))
       return error;
   }
   if (operationProfile.isReduction) {
@@ -7440,6 +7708,19 @@ getRVVSelectedBodyConfigArtifactMetadata(
       {"tcrv_rvv.pointer_advance", description.pointerAdvanceMetadata});
   metadata.push_back({"tcrv_rvv.bounded_slice", description.boundedSlice});
   metadata.push_back({"tcrv_rvv.multi_vl", description.multiVL});
+  if (isRVVSelectedBodyContractionRouteOperation(description.operation)) {
+    metadata.push_back(
+        {"tcrv_rvv.target_leaf_profile", description.targetLeafProfile});
+    metadata.push_back({"tcrv_rvv.provider_supported_mirror",
+                        description.providerSupportedMirror});
+    metadata.push_back({"tcrv_rvv.required_header_declarations",
+                        description.requiredHeaderDeclarations});
+    metadata.push_back(
+        {"tcrv_rvv.c_type_mapping", description.cTypeMappingSummary});
+    if (!description.inactiveLaneZeroingRequirement.empty())
+      metadata.push_back({"tcrv_rvv.inactive_lane_zeroing_requirement",
+                          description.inactiveLaneZeroingRequirement});
+  }
   if (description.operation == RVVSelectedBodyOperationKind::MaskedAdd) {
     metadata.push_back({"tcrv_rvv.mask_role", description.maskRole});
     metadata.push_back({"tcrv_rvv.mask_source", description.maskSource});

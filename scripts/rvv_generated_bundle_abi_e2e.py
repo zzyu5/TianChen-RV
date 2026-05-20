@@ -87,6 +87,17 @@ WIDENING_DOT_RESULT_LAYOUT = "store-dot-reduction-lane0-to-output-scalar"
 WIDENING_DOT_RELATION = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"
 WIDENING_DOT_REDUCTION_STORE_VL = "1"
 WIDENING_DOT_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
+CONTRACTION_TARGET_LEAF_PROFILE = "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1"
+CONTRACTION_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-contraction-family-plan-validated"
+)
+CONTRACTION_REQUIRED_HEADER_DECLARATIONS = "stddef.h,stdint.h,riscv_vector.h"
+CONTRACTION_C_TYPE_MAPPING = (
+    "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32"
+)
+CONTRACTION_MASKED_INACTIVE_LANE_ZEROING_REQUIREMENT = (
+    "masked-widening-products-zero-inactive-lanes-before-reduction"
+)
 STRIDED_INPUT_WIDENING_DOT_RUNTIME_ABI_ORDER = (
     "lhs,rhs,acc,out,n,lhs_stride,rhs_stride"
 )
@@ -2293,6 +2304,25 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.conversion_relation": WIDEN_I16_TO_I32_CONVERSION_RELATION,
             }
         )
+    if (
+        expectation.is_widening_macc_add
+        or expectation.is_widening_dot_reduce_add
+        or expectation.is_strided_input_widening_dot_reduce_add
+        or expectation.is_computed_masked_widening_dot_reduce_add
+        or expectation.is_computed_masked_strided_input_widening_dot_reduce_add
+    ):
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.target_leaf_profile": CONTRACTION_TARGET_LEAF_PROFILE,
+                "tcrv_rvv.provider_supported_mirror": (
+                    CONTRACTION_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    CONTRACTION_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": CONTRACTION_C_TYPE_MAPPING,
+            }
+        )
     if expectation.is_widening_macc_add:
         per_op_metadata.update(
             {
@@ -2381,6 +2411,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
                 "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "tcrv_rvv.inactive_lane_zeroing_requirement": (
+                    CONTRACTION_MASKED_INACTIVE_LANE_ZEROING_REQUIREMENT
+                ),
                 "tcrv_rvv.widening_dot_accumulator_layout": (
                     WIDENING_DOT_ACCUMULATOR_LAYOUT
                 ),
@@ -2422,6 +2455,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
                 "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "tcrv_rvv.inactive_lane_zeroing_requirement": (
+                    CONTRACTION_MASKED_INACTIVE_LANE_ZEROING_REQUIREMENT
+                ),
                 "tcrv_rvv.widening_dot_accumulator_layout": (
                     WIDENING_DOT_ACCUMULATOR_LAYOUT
                 ),

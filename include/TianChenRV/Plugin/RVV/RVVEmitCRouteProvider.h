@@ -81,6 +81,10 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef runtimeVLContractID;
   llvm::StringRef runtimeAVLASource;
   llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
   llvm::StringRef vlDefOpName;
   llvm::StringRef vlScopeOpName;
   llvm::StringRef vlUses;
@@ -148,6 +152,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef wideningProductIntrinsic;
   llvm::StringRef maskedWideningProductIntrinsic;
   llvm::StringRef scalarSeedSplatIntrinsic;
+  llvm::StringRef inactiveLaneZeroingRequirement;
   llvm::StringRef stridedMemoryLayout;
   llvm::StringRef indexedMemoryLayout;
   llvm::StringRef segmentMemoryLayout;

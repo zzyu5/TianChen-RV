@@ -1172,6 +1172,164 @@ module {
        "masked-off-lanes-preserve-passthrough-vector"});
 }
 
+int runContractionTargetLeafProfileValidationTest(mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_contraction_leaf_profile_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_computed_mask_strided_dot attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %lhs_stride = tcrv_rvv.runtime_abi_value {c_name = "lhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "lhs-input-stride"} : index
+      %rhs_stride = tcrv_rvv.runtime_abi_value {c_name = "rhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "rhs-input-stride"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_computed_mask_strided_dot, sew = 32 : i64, source_kernel = "rvv_contraction_leaf_profile_kernel", status = "selected-lowering-boundary"} {
+        %cmp_lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %cmp_rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %lhs_vec = tcrv_rvv.strided_load %lhs, %lhs_stride, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %rhs_vec = tcrv_rvv.strided_load %rhs, %rhs_stride, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %mask = tcrv_rvv.compare %cmp_lhs_vec, %cmp_rhs_vec, %vl {kind = "slt"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %sum = tcrv_rvv.masked_widening_dot_reduce %mask, %lhs_vec, %rhs_vec, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", dot_product_relation = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32", kind = "signed_masked_widening_dot_reduce_add", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", result_layout = "store-dot-reduction-lane0-to-output-scalar"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV contraction leaf-profile module");
+  KernelOp kernel = findKernel(*module, "rvv_contraction_leaf_profile_kernel");
+  VariantOp variant = findVariant(kernel, "rvv_computed_mask_strided_dot");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
+      routeDescription =
+          tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+              VariantEmitCLowerableRequest(
+                  variant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant));
+  if (!routeDescription)
+    return fail("describe RVV contraction leaf-profile route: " +
+                llvm::toString(routeDescription.takeError()));
+  if (int result = expect(
+          routeDescription->targetLeafProfile ==
+                  "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1" &&
+              routeDescription->providerSupportedMirror ==
+                  "provider_supported_mirror:rvv-contraction-family-plan-validated" &&
+              routeDescription->requiredHeaderDeclarations ==
+                  "stddef.h,stdint.h,riscv_vector.h" &&
+              routeDescription->cTypeMappingSummary ==
+                  "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32" &&
+              routeDescription->sourceVectorLoadIntrinsic ==
+                  "__riscv_vle16_v_i16mf2" &&
+              routeDescription->stridedLoadIntrinsic ==
+                  "__riscv_vlse16_v_i16mf2" &&
+              routeDescription->wideningProductIntrinsic ==
+                  "__riscv_vwmul_vv_i32m1" &&
+              routeDescription->maskedWideningProductIntrinsic ==
+                  "__riscv_vwmul_vv_i32m1_m" &&
+              routeDescription->intrinsic ==
+                  "__riscv_vredsum_vs_i32m1_i32m1" &&
+              routeDescription->storeIntrinsic == "__riscv_vse32_v_i32m1" &&
+              routeDescription->inactiveLaneZeroingRequirement ==
+                  "masked-widening-products-zero-inactive-lanes-before-reduction",
+          "RVV contraction route records validated target profile, leaves, "
+          "headers, type mapping, support mirror, and zeroing requirement"))
+    return result;
+
+  auto expectStaleFieldRejected =
+      [&](tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription stale,
+          std::initializer_list<llvm::StringRef> expected) -> int {
+    return expectErrorContains(
+        tianchenrv::plugin::rvv::verifyRVVSelectedBodyEmitCRouteDescription(
+            stale, "RVV contraction stale target-leaf/profile test"),
+        expected);
+  };
+
+  tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription stale =
+      *routeDescription;
+  stale.targetLeafProfile = "metadata-selected-profile";
+  if (int result = expectStaleFieldRejected(
+          stale, {"target leaf profile",
+                  "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1",
+                  "metadata-selected-profile"}))
+    return result;
+
+  stale = *routeDescription;
+  stale.providerSupportedMirror = "supported";
+  if (int result = expectStaleFieldRejected(
+          stale, {"provider_supported_mirror",
+                  "provider_supported_mirror:rvv-contraction-family-plan-validated",
+                  "supported"}))
+    return result;
+
+  stale = *routeDescription;
+  stale.sourceVectorLoadIntrinsic = "__riscv_vle32_v_i32m1";
+  if (int result = expectStaleFieldRejected(
+          stale, {"source vector-load intrinsic",
+                  "__riscv_vle16_v_i16mf2",
+                  "__riscv_vle32_v_i32m1"}))
+    return result;
+
+  stale = *routeDescription;
+  stale.stridedLoadIntrinsic = "__riscv_vlse32_v_i32m1";
+  if (int result = expectStaleFieldRejected(
+          stale, {"strided-load intrinsic", "__riscv_vlse16_v_i16mf2",
+                  "__riscv_vlse32_v_i32m1"}))
+    return result;
+
+  stale = *routeDescription;
+  stale.wideningProductIntrinsic = "__riscv_vmul_vv_i32m1";
+  if (int result = expectStaleFieldRejected(
+          stale, {"widening product intrinsic", "__riscv_vwmul_vv_i32m1",
+                  "__riscv_vmul_vv_i32m1"}))
+    return result;
+
+  stale = *routeDescription;
+  stale.maskedWideningProductIntrinsic = "__riscv_vwmul_vv_i32m1";
+  if (int result = expectStaleFieldRejected(
+          stale, {"masked widening product intrinsic",
+                  "__riscv_vwmul_vv_i32m1_m",
+                  "__riscv_vwmul_vv_i32m1"}))
+    return result;
+
+  stale = *routeDescription;
+  stale.intrinsic = "__riscv_vadd_vv_i32m1";
+  if (int result = expectStaleFieldRejected(
+          stale, {"compute intrinsic", "__riscv_vredsum_vs_i32m1_i32m1",
+                  "__riscv_vadd_vv_i32m1"}))
+    return result;
+
+  stale = *routeDescription;
+  stale.storeIntrinsic = "__riscv_vsse32_v_i32m1";
+  if (int result = expectStaleFieldRejected(
+          stale, {"store intrinsic", "__riscv_vse32_v_i32m1",
+                  "__riscv_vsse32_v_i32m1"}))
+    return result;
+
+  stale = *routeDescription;
+  stale.inactiveLaneZeroingRequirement = "mask-policy-metadata";
+  if (int result = expectStaleFieldRejected(
+          stale, {"inactive-lane zeroing requirement",
+                  "masked-widening-products-zero-inactive-lanes-before-reduction",
+                  "mask-policy-metadata"}))
+    return result;
+
+  stale = *routeDescription;
+  stale.emitCRouteID = "rvv-i32m1-stale-route";
+  return expectStaleFieldRejected(
+      stale, {"EmitC route id", routeDescription->emitCRouteID,
+              "rvv-i32m1-stale-route"});
+}
+
 int runCompareSelectSelectedBodyRouteTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -1309,6 +1467,8 @@ int main() {
   if (int result = runBroadcastSelectedBodyRouteTest(context))
     return result;
   if (int result = runMaskedAddSelectedBodyPolicyRouteTest(context))
+    return result;
+  if (int result = runContractionTargetLeafProfileValidationTest(context))
     return result;
   if (int result = runCompareSelectSelectedBodyRouteTest(context))
     return result;
