@@ -516,6 +516,51 @@ def TypedMAccPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedWideningMAccPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_widening_macc_pre_realized_body"> {
+  let summary = "generic typed pre-realized RVV widening macc selected body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body for signed
+    widening multiply-accumulate. The op is nested directly in a selected
+    tcrv.exec.variant and binds explicit runtime ABI values for i16 lhs, i16
+    rhs, i32 accumulator input, i32 output, and runtime n/AVL together with
+    operation kind, unit-stride memory form, accumulator role/layout, result
+    layout, source and accumulator/result SEW+LMUL facts, relation, and policy.
+
+    This op is not a matmul route, contraction framework, dtype-prefixed helper
+    namespace, descriptor, source-front-door marker, direct-C exporter, route
+    id, intrinsic wrapper, runtime artifact, correctness evidence, or
+    performance evidence. The RVV plugin must realize it into explicit
+    setvl/with_vl/load/load/load/widening_macc/store tcrv_rvv body structure
+    before the provider may construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$acc,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    StrAttr:$accumulator_role,
+    StrAttr:$accumulator_layout,
+    StrAttr:$result_layout,
+    I64Attr:$source_sew,
+    StrAttr:$source_lmul,
+    I64Attr:$accumulator_sew,
+    StrAttr:$accumulator_lmul,
+    I64Attr:$result_sew,
+    StrAttr:$result_lmul,
+    StrAttr:$macc_relation,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $acc `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedWideningConversionPreRealizedBodyOp
     : TCRVRVV_Op<"typed_widening_conversion_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV widening conversion body";
@@ -1414,6 +1459,44 @@ def MAccOp : TCRVRVV_Op<"macc",
     StrAttr:$kind,
     OptionalAttr<StrAttr>:$accumulator_layout,
     OptionalAttr<StrAttr>:$result_layout
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $accumulator `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($accumulator) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def WideningMAccOp : TCRVRVV_Op<"widening_macc",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary = "generic typed RVV widening multiply-accumulate dataflow op";
+  let description = [{
+    Records one bounded generic plugin-local RVV signed widening
+    multiply-accumulate dataflow step. The op is nested directly under
+    tcrv_rvv.with_vl, consumes two i16 !tcrv_rvv.vector source operands, an
+    explicit i32 typed accumulator vector, and the active !tcrv_rvv.vl token.
+    It carries explicit operation kind, accumulator layout, result layout, and
+    widening macc relation facts, and produces one i32 !tcrv_rvv.vector result.
+
+    For the current bounded Stage 2 mixed-width slice, kind is limited to
+    signed_widening_macc_add, representing
+    accumulator + sign_extend(lhs) * sign_extend(rhs). Lhs, rhs, accumulator,
+    result, VL, source/result SEW/LMUL, policy, accumulator layout, result
+    layout, and memory-form facts are structural in the selected RVV body.
+    Route ids, helper names, ABI strings, artifact names, status fields, exact
+    intrinsic spellings, and common EmitC/export code must not infer or choose
+    widening multiply-accumulate semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$accumulator,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$accumulator_layout,
+    StrAttr:$result_layout,
+    StrAttr:$macc_relation
   );
   let results = (outs AnyType:$result);
 

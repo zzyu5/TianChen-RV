@@ -114,6 +114,45 @@ bool isPreRealizedMAccResultLayout(llvm::StringRef layout) {
   return layout == "store-multiply-accumulate-result-to-output-buffer";
 }
 
+bool isPreRealizedWideningMAccOpKind(llvm::StringRef opKind) {
+  return opKind == "signed_widening_macc_add";
+}
+
+bool isPreRealizedWideningMAccMemoryForm(llvm::StringRef memoryForm) {
+  return memoryForm == "unit-stride-widening-macc";
+}
+
+bool isPreRealizedWideningMAccAccumulatorRole(llvm::StringRef role) {
+  return role == "accumulator-input-buffer";
+}
+
+bool isPreRealizedWideningMAccAccumulatorLayout(llvm::StringRef layout) {
+  return layout == "separate-i32-vector-accumulator-input";
+}
+
+bool isPreRealizedWideningMAccResultLayout(llvm::StringRef layout) {
+  return layout == "store-widening-multiply-accumulate-result-to-output-buffer";
+}
+
+bool isPreRealizedWideningMAccRelation(llvm::StringRef relation) {
+  return relation == "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1";
+}
+
+bool isPreRealizedWideningMAccSignature(
+    llvm::StringRef opKind, std::int64_t sourceSEW,
+    llvm::StringRef sourceLMUL, std::int64_t accumulatorSEW,
+    llvm::StringRef accumulatorLMUL, std::int64_t resultSEW,
+    llvm::StringRef resultLMUL, llvm::StringRef relation) {
+  return opKind == "signed_widening_macc_add" &&
+         sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
+         sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
+         accumulatorSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+         accumulatorLMUL == tcrv::rvv::getRVVLMULM1() &&
+         resultSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+         resultLMUL == tcrv::rvv::getRVVLMULM1() &&
+         relation == "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1";
+}
+
 bool isPreRealizedWideningConversionOpKind(llvm::StringRef opKind) {
   return opKind == "widen_i32_to_i64" ||
          opKind == "sign_extend_widen_vf2";
@@ -367,6 +406,7 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedReducePreRealizedBodyOp,
                   tcrv::rvv::TypedMAccPreRealizedBodyOp,
+                  tcrv::rvv::TypedWideningMAccPreRealizedBodyOp,
                   tcrv::rvv::TypedWideningConversionPreRealizedBodyOp,
                   tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp,
@@ -389,6 +429,7 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.typed_compare_select_pre_realized_body or "
         "tcrv_rvv.typed_reduce_pre_realized_body or "
         "tcrv_rvv.typed_macc_pre_realized_body or "
+        "tcrv_rvv.typed_widening_macc_pre_realized_body or "
         "tcrv_rvv.typed_widening_conversion_pre_realized_body or "
         "tcrv_rvv.typed_strided_memory_pre_realized_body or "
         "tcrv_rvv.typed_strided_store_memory_pre_realized_body or "
@@ -544,7 +585,8 @@ llvm::Error validatePreRealizedRVVSelectedBody(
   (void)realizedSetVLCount;
   (void)realizedWithVLCount;
 
-  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  auto variantRequires =
+      request.getVariant()->getAttrOfType<mlir::ArrayAttr>("requires");
   if (!variantRequires || variantRequires.empty())
     return makeRVVPluginError(
         "pre-realized RVV selected-body realization requires non-empty "
@@ -632,7 +674,8 @@ llvm::Error validatePreRealizedRVVSelectedMaskedBody(
                     "with already realized RVV route body op '") +
         unexpectedRVVOp->getName().getStringRef() + "'");
 
-  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  auto variantRequires =
+      request.getVariant()->getAttrOfType<mlir::ArrayAttr>("requires");
   if (!variantRequires || variantRequires.empty())
     return makeRVVPluginError(
         "pre-realized RVV selected masked-body realization requires non-empty "
@@ -913,6 +956,120 @@ llvm::Error validatePreRealizedRVVSelectedMAccBody(
         "pre-realized RVV selected macc-body realization requires non-empty "
         "selected variant requires metadata");
 
+  return llvm::Error::success();
+}
+
+llvm::Error validatePreRealizedRVVSelectedWideningMAccBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedWideningMAccPreRealizedBodyOp body) {
+  if (!body)
+    return makeRVVPluginError(
+        "selected RVV widening macc realization requires a pre-realized "
+        "widening macc body op");
+  if (body->getParentOp() != request.getVariant().getOperation())
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening macc body must be a direct child "
+        "of the selected variant");
+  if (!isPreRealizedWideningMAccOpKind(body.getOpKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening macc body currently supports "
+        "only op_kind 'signed_widening_macc_add'");
+  if (!isPreRealizedWideningMAccMemoryForm(body.getMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening macc body currently supports "
+        "only memory_form 'unit-stride-widening-macc'");
+  if (!isPreRealizedWideningMAccAccumulatorRole(body.getAccumulatorRole()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening macc body currently supports "
+        "only accumulator_role 'accumulator-input-buffer'");
+  if (!isPreRealizedWideningMAccAccumulatorLayout(
+          body.getAccumulatorLayout()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening macc body currently supports "
+        "only accumulator_layout 'separate-i32-vector-accumulator-input'");
+  if (!isPreRealizedWideningMAccResultLayout(body.getResultLayout()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening macc body currently supports "
+        "only result_layout "
+        "'store-widening-multiply-accumulate-result-to-output-buffer'");
+  if (!isPreRealizedWideningMAccRelation(body.getMaccRelation()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening macc body currently supports "
+        "only macc_relation "
+        "'signed-i16mf2xi16mf2-plus-i32m1-to-i32m1'");
+  if (!isPreRealizedWideningMAccSignature(
+          body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
+          body.getSourceLmul(),
+          static_cast<std::int64_t>(body.getAccumulatorSew()),
+          body.getAccumulatorLmul(),
+          static_cast<std::int64_t>(body.getResultSew()),
+          body.getResultLmul(), body.getMaccRelation()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening macc config/relation must match "
+        "op_kind 'signed_widening_macc_add' with source SEW16 LMUL mf2, "
+        "accumulator/result SEW32 LMUL m1, and relation "
+        "'signed-i16mf2xi16mf2-plus-i32m1-to-i32m1'");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening macc body requires tail "
+        "agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getLhs(), "pre-realized RVV widening macc lhs operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!lhs)
+    return lhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getRhs(), "pre-realized RVV widening macc rhs operand",
+          support::RuntimeABIParameterRole::RHSInputBuffer);
+  if (!rhs)
+    return rhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+      requirePreRealizedRuntimeABIValue(
+          body.getAcc(), "pre-realized RVV widening macc accumulator operand",
+          support::RuntimeABIParameterRole::AccumulatorInputBuffer);
+  if (!acc)
+    return acc.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+      requirePreRealizedRuntimeABIValue(
+          body.getOut(), "pre-realized RVV widening macc out operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!out)
+    return out.takeError();
+  if ((*lhs).getCType() != "const int16_t *" ||
+      (*rhs).getCType() != "const int16_t *" ||
+      (*acc).getCType() != "const int32_t *" ||
+      (*out).getCType() != "int32_t *")
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening macc body requires lhs/rhs "
+        "const int16_t *, accumulator const int32_t *, and out int32_t * "
+        "runtime ABI bindings");
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(), "pre-realized RVV widening macc runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  for (mlir::Operation &op : request.getVariant().getBody().front()) {
+    if (&op == body.getOperation())
+      continue;
+    if (llvm::isa<tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
+                  tcrv::rvv::LoadOp, tcrv::rvv::WideningMAccOp,
+                  tcrv::rvv::StoreOp>(op))
+      return makeRVVPluginError(
+          llvm::Twine("pre-realized RVV selected widening macc body must not "
+                      "be mixed with already realized RVV route body op '") +
+          op.getName().getStringRef() + "'");
+  }
+  auto wideningMAccVariantRequires =
+      request.getVariant()->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!wideningMAccVariantRequires || wideningMAccVariantRequires.empty())
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening macc realization requires "
+        "non-empty selected variant requires metadata");
   return llvm::Error::success();
 }
 
@@ -2224,6 +2381,29 @@ llvm::Expected<mlir::Operation *> createRealizedGenericMAccCompute(
   return builder.create(state);
 }
 
+llvm::Expected<mlir::Operation *> createRealizedGenericWideningMAccCompute(
+    mlir::OpBuilder &builder, mlir::Location loc, llvm::StringRef opKind,
+    llvm::StringRef accumulatorLayout, llvm::StringRef resultLayout,
+    llvm::StringRef maccRelation, mlir::Value lhs, mlir::Value rhs,
+    mlir::Value accumulator, mlir::Value vl) {
+  if (!isPreRealizedWideningMAccOpKind(opKind))
+    return makeRVVPluginError(
+        "pre-realized RVV selected-body widening macc realization supports "
+        "only op_kind 'signed_widening_macc_add'");
+
+  mlir::OperationState state(loc, "tcrv_rvv.widening_macc");
+  state.addOperands({lhs, rhs, accumulator, vl});
+  state.addAttribute("kind", builder.getStringAttr(opKind));
+  state.addAttribute("accumulator_layout",
+                     builder.getStringAttr(accumulatorLayout));
+  state.addAttribute("result_layout", builder.getStringAttr(resultLayout));
+  state.addAttribute("macc_relation", builder.getStringAttr(maccRelation));
+  state.addTypes(getGenericVectorType(builder,
+                                      tcrv::rvv::getRVVFirstSliceSEWBits(),
+                                      tcrv::rvv::getRVVLMULM1()));
+  return builder.create(state);
+}
+
 llvm::Expected<mlir::Operation *> createRealizedGenericWideningConvert(
     mlir::OpBuilder &builder, mlir::Location loc, llvm::StringRef opKind,
     mlir::Value source, mlir::Value vl) {
@@ -2311,6 +2491,7 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedReducePreRealizedBodyOp,
                   tcrv::rvv::TypedMAccPreRealizedBodyOp,
+                  tcrv::rvv::TypedWideningMAccPreRealizedBodyOp,
                   tcrv::rvv::TypedWideningConversionPreRealizedBodyOp,
                   tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp,
@@ -2536,6 +2717,60 @@ realizePreRealizedRVVSelectedBody(
     createRealizedGenericStore(builder, loc, maccBody.getOut(),
                                (*compute)->getResult(0), setvl.getVl());
     maccBody->erase();
+    return withVL;
+  }
+
+  if (auto wideningMAccBody =
+          llvm::dyn_cast<tcrv::rvv::TypedWideningMAccPreRealizedBodyOp>(
+              *bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedWideningMAccBody(request,
+                                                           wideningMAccBody))
+      return std::move(error);
+
+    mlir::Location loc = wideningMAccBody->getLoc();
+    builder.setInsertionPoint(wideningMAccBody.getOperation());
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc, wideningMAccBody.getN(),
+                            static_cast<std::int64_t>(
+                                wideningMAccBody.getResultSew()),
+                            wideningMAccBody.getResultLmul(),
+                            wideningMAccBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             static_cast<std::int64_t>(
+                                 wideningMAccBody.getResultSew()),
+                             wideningMAccBody.getResultLmul(),
+                             wideningMAccBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, wideningMAccBody.getLhs(), setvl.getVl(),
+        static_cast<std::int64_t>(wideningMAccBody.getSourceSew()),
+        wideningMAccBody.getSourceLmul()));
+    auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, wideningMAccBody.getRhs(), setvl.getVl(),
+        static_cast<std::int64_t>(wideningMAccBody.getSourceSew()),
+        wideningMAccBody.getSourceLmul()));
+    auto accumulatorLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, wideningMAccBody.getAcc(), setvl.getVl(),
+            static_cast<std::int64_t>(wideningMAccBody.getAccumulatorSew()),
+            wideningMAccBody.getAccumulatorLmul()));
+    llvm::Expected<mlir::Operation *> compute =
+        createRealizedGenericWideningMAccCompute(
+            builder, loc, wideningMAccBody.getOpKind(),
+            wideningMAccBody.getAccumulatorLayout(),
+            wideningMAccBody.getResultLayout(),
+            wideningMAccBody.getMaccRelation(), lhsLoad.getLoaded(),
+            rhsLoad.getLoaded(), accumulatorLoad.getLoaded(), setvl.getVl());
+    if (!compute)
+      return compute.takeError();
+    createRealizedGenericStore(builder, loc, wideningMAccBody.getOut(),
+                               (*compute)->getResult(0), setvl.getVl());
+    wideningMAccBody->erase();
     return withVL;
   }
 

@@ -1625,6 +1625,8 @@ int runRVVCommonValidationTest() {
     const bool isConversionRoute =
         route.operationMnemonic == "widen_i32_to_i64" ||
         route.operationMnemonic == "widen_i16_to_i32";
+    const bool isWideningMAccRoute =
+        route.operationMnemonic == "widening_macc_add";
     llvm::StringRef executableComputeOp =
         route.operationMnemonic == "cmp_select"
             ? "tcrv_rvv.select"
@@ -1634,8 +1636,10 @@ int runRVVCommonValidationTest() {
                           ? "tcrv_rvv.masked_binary"
                           : (route.operationMnemonic == "macc_add"
                                  ? "tcrv_rvv.macc"
-                                 : (isConversionRoute
-                                        ? "tcrv_rvv.widening_convert"
+                                 : (isWideningMAccRoute
+                                        ? "tcrv_rvv.widening_macc"
+                                    : (isConversionRoute
+                                           ? "tcrv_rvv.widening_convert"
                                         : (route.operationMnemonic ==
                                                   "masked_unit_load_store" ||
                                            route.operationMnemonic ==
@@ -1657,7 +1661,7 @@ int runRVVCommonValidationTest() {
                                                       : route.operationMnemonic ==
                                                                 "segment2_interleave_unit_load"
                                                             ? "tcrv_rvv.segment2_store"
-                                                      : "tcrv_rvv.binary"))))));
+                                                      : "tcrv_rvv.binary")))))));
     llvm::StringRef rhsSourceOp =
         isConversionRoute
             ? ""
@@ -1720,8 +1724,10 @@ int runRVVCommonValidationTest() {
     const bool hasSegment2Interleave =
         route.operationMnemonic == "segment2_interleave_unit_load";
     const bool hasConversion = isConversionRoute;
+    const bool hasWideningMAcc = isWideningMAccRoute;
     unsigned expectedStepCount =
         hasConversion          ? 8u
+        : hasWideningMAcc                       ? 12u
         : (hasStridedMemoryMovement || hasUnitLoadStridedStore) ? 9u
         : (hasIndexedGather || hasIndexedScatter) ? 10u
         : hasMaskedMemory                        ? 11u
@@ -1835,6 +1841,12 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "widening_macc_add") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyWideningMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else {

@@ -31,6 +31,10 @@ bool isRVVSelectedBodyMAccRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::MAccAdd;
 }
 
+bool isRVVSelectedBodyWideningMAccRoute(RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::WideningMAccAdd;
+}
+
 bool isRVVSelectedBodyReductionRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::ReduceAdd;
 }
@@ -385,7 +389,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{lhsResultName.str(),
                                       description.vectorCType.str()}))
       return error;
-  } else if (isRVVSelectedBodyWideningConversionRoute(description.operation)) {
+  } else if (isRVVSelectedBodyWideningConversionRoute(description.operation) ||
+             isRVVSelectedBodyWideningMAccRoute(description.operation)) {
     if (llvm::Error error = addLoopStep(
             slice->lhsLoadOperation, "load",
             description.sourceVectorLoadIntrinsic,
@@ -484,6 +489,19 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       isRuntimeMaskMemory ||
       isRVVSelectedBodyMemoryMovementRoute(description.operation)) {
     // These bounded routes have no RHS dataflow.
+  } else if (isRVVSelectedBodyWideningMAccRoute(description.operation)) {
+    if (llvm::Error error = addLoopStep(
+            slice->rhsLoadOperation, "load",
+            description.sourceVectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->rhsABI.cName) + " + " + inductionName)
+                     .str(),
+                 slice->rhsABI.cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"rhs_vec",
+                                      description.sourceVectorCType.str()}))
+      return error;
   } else if (description.memoryForm ==
       RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
     if (llvm::Error error = addLoopStep(
@@ -601,6 +619,21 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   }
+  if (isRVVSelectedBodyWideningMAccRoute(description.operation)) {
+    if (llvm::Error error = addLoopStep(
+            slice->accumulatorLoadOperation, "load",
+            description.vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->accumulatorABI.cName) + " + " +
+                  inductionName)
+                     .str(),
+                 slice->accumulatorABI.cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"acc_vec",
+                                      description.vectorCType.str()}))
+      return error;
+  }
   if (isRVVSelectedBodyCompareSelectRoute(description.operation)) {
     if (llvm::Error error = addLoopStep(
             slice->compareOp.getOperation(), "compute",
@@ -702,6 +735,20 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{"rhs_vec",
                                         description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                      description.vectorCType.str()}))
+      return error;
+  } else if (isRVVSelectedBodyWideningMAccRoute(description.operation)) {
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", description.intrinsic,
+            {TCRVEmitCCallOpaqueOperand{"acc_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                        description.sourceVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"rhs_vec",
+                                        description.sourceVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{description.resultName.str(),

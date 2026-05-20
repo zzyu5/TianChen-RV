@@ -517,6 +517,22 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"conversion_relation", "tcrv_rvv.conversion_relation", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"accumulator_sew", "tcrv_rvv.accumulator_sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"accumulator_lmul", "tcrv_rvv.accumulator_lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"result_sew", "tcrv_rvv.result_sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"result_lmul", "tcrv_rvv.result_lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"widening_macc_accumulator_layout",
+       "tcrv_rvv.widening_macc_accumulator_layout", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"widening_macc_result_layout",
+       "tcrv_rvv.widening_macc_result_layout", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"widening_macc_relation", "tcrv_rvv.widening_macc_relation", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
   });
   return evidence;
 }

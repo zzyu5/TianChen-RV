@@ -46,6 +46,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "reduce_add",
     "masked_add",
     "macc_add",
+    "widening_macc_add",
     "strided_add",
     "strided_load_unit_store",
     "unit_load_strided_store",
@@ -71,6 +72,12 @@ MASKED_ADD_INACTIVE_LANE_CONTRACT = "masked-off-lanes-preserve-passthrough-vecto
 MASKED_ADD_PASSTHROUGH_LAYOUT = "passthrough-vector-preserves-inactive-lanes"
 MACC_ADD_ACCUMULATOR_LAYOUT = "output-buffer-vector-accumulator-input"
 MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
+WIDENING_MACC_ACCUMULATOR_LAYOUT = "separate-i32-vector-accumulator-input"
+WIDENING_MACC_RESULT_LAYOUT = (
+    "store-widening-multiply-accumulate-result-to-output-buffer"
+)
+WIDENING_MACC_RELATION = "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1"
+WIDENING_MACC_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
 STRIDED_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride"
 STRIDED_LOAD_UNIT_STORE_RUNTIME_ABI_ORDER = "src,out,n,src_stride"
 UNIT_LOAD_STRIDED_STORE_RUNTIME_ABI_ORDER = "src,dst,n,dst_stride"
@@ -262,6 +269,12 @@ class OpExpectation:
                 f"void {self.function_name}(const int16_t *lhs, "
                 "int32_t *out, size_t n);"
             )
+        if self.is_widening_macc_add:
+            return (
+                f"void {self.function_name}(const int16_t *lhs, "
+                "const int16_t *rhs, const int32_t *acc, "
+                "int32_t *out, size_t n);"
+            )
         return (
             f"void {self.function_name}(const {self.element_c_type} *lhs, "
             f"const {self.element_c_type} *rhs, "
@@ -296,6 +309,8 @@ class OpExpectation:
             return EXPECTED_WIDENING_CONVERSION_RUNTIME_PARAMETERS
         if self.is_widen_i16_to_i32:
             return EXPECTED_WIDEN_I16_TO_I32_RUNTIME_PARAMETERS
+        if self.is_widening_macc_add:
+            return EXPECTED_WIDENING_MACC_RUNTIME_PARAMETERS
         if self.is_i64_add:
             return EXPECTED_I64_RUNTIME_PARAMETERS
         return EXPECTED_RUNTIME_PARAMETERS
@@ -332,6 +347,8 @@ class OpExpectation:
             return SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER
         if self.is_widen_i32_to_i64 or self.is_widen_i16_to_i32:
             return WIDENING_CONVERSION_RUNTIME_ABI_ORDER
+        if self.is_widening_macc_add:
+            return WIDENING_MACC_RUNTIME_ABI_ORDER
         return "lhs,rhs,out,n"
 
     @property
@@ -361,6 +378,10 @@ class OpExpectation:
     @property
     def is_macc_add(self) -> bool:
         return self.kind == "macc_add"
+
+    @property
+    def is_widening_macc_add(self) -> bool:
+        return self.kind == "widening_macc_add"
 
     @property
     def is_strided_add(self) -> bool:
@@ -951,6 +972,28 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
     ),
+    "widening_macc_add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
+        kind="widening_macc_add",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-widening-macc-add.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_widening_macc_add",
+        external_abi_name="rvv-generic-widening-macc-add-callable-c-abi.v1",
+        function_name="tcrv_emitc_pre_realized_body_widening_macc_add_kernel_pre_realized_body_rvv_widening_macc_add",
+        emitc_route="rvv-generic-widening-macc-add-emitc-route",
+        typed_compute_op="tcrv_rvv.widening_macc",
+        memory_form="vector-rhs-load",
+        lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 97) + 2) : ((int)(index % 97) + 3))",
+        rhs_initializer="(int16_t)(((index % 3) == 0) ? -((int)(index % 41) + 5) : ((int)(index % 41) + 7))",
+        source_initializer="(int32_t)(300 + (int32_t)(index * 11))",
+        expected_expression="(int32_t)(acc[index] + (int32_t)lhs[index] * (int32_t)rhs[index])",
+        out_initializer=OUT_SENTINEL,
+        lmul="m1",
+        sew="32",
+        element_c_type="int32_t",
+        config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
+    ),
 }
 
 EXPECTED_RUNTIME_PARAMETERS = (
@@ -1274,6 +1317,33 @@ EXPECTED_WIDEN_I16_TO_I32_RUNTIME_PARAMETERS = (
         "c_name": "lhs",
         "c_type": "const int16_t *",
         "role": "lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "out",
+        "c_type": "int32_t *",
+        "role": "output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_RUNTIME_PARAMETERS[3],
+)
+EXPECTED_WIDENING_MACC_RUNTIME_PARAMETERS = (
+    {
+        "c_name": "lhs",
+        "c_type": "const int16_t *",
+        "role": "lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "rhs",
+        "c_type": "const int16_t *",
+        "role": "rhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "acc",
+        "c_type": "const int32_t *",
+        "role": "accumulator-input-buffer",
         "ownership": "target-export-abi-owned",
     },
     {
@@ -1900,6 +1970,24 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.conversion_relation": WIDEN_I16_TO_I32_CONVERSION_RELATION,
             }
         )
+    if expectation.is_widening_macc_add:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.source_sew": "16",
+                "tcrv_rvv.source_lmul": "mf2",
+                "tcrv_rvv.accumulator_sew": "32",
+                "tcrv_rvv.accumulator_lmul": "m1",
+                "tcrv_rvv.result_sew": "32",
+                "tcrv_rvv.result_lmul": "m1",
+                "tcrv_rvv.widening_macc_accumulator_layout": (
+                    WIDENING_MACC_ACCUMULATOR_LAYOUT
+                ),
+                "tcrv_rvv.widening_macc_result_layout": (
+                    WIDENING_MACC_RESULT_LAYOUT
+                ),
+                "tcrv_rvv.widening_macc_relation": WIDENING_MACC_RELATION,
+            }
+        )
     return {**per_op_metadata, **common_metadata}
 
 
@@ -2125,6 +2213,37 @@ def verify_materialized_selected_body(
             text,
             'kind = "sign_extend_widen_vf2"',
             "materialized selected-body MLIR sign-extend widening conversion kind",
+        )
+    if expectation.is_widening_macc_add:
+        require_contains(
+            text,
+            'role = "accumulator-input-buffer"',
+            "materialized selected-body MLIR widening macc accumulator ABI role",
+        )
+        require_contains(
+            text,
+            '!tcrv_rvv.vector<i16, "mf2">',
+            "materialized selected-body MLIR widening macc source vector type",
+        )
+        require_contains(
+            text,
+            '!tcrv_rvv.vector<i32, "m1">',
+            "materialized selected-body MLIR widening macc accumulator/result vector type",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.widening_macc",
+            "materialized selected-body MLIR widening macc compute op",
+        )
+        require_contains(
+            text,
+            'kind = "signed_widening_macc_add"',
+            "materialized selected-body MLIR widening macc kind",
+        )
+        require_contains(
+            text,
+            f'macc_relation = "{WIDENING_MACC_RELATION}"',
+            "materialized selected-body MLIR widening macc relation",
         )
     if expectation.is_rhs_broadcast:
         require_contains(
@@ -2561,6 +2680,17 @@ def verify_materialized_selected_body(
             'result_layout = "store-multiply-accumulate-result-to-output-buffer"',
             "materialized selected-body MLIR macc result layout",
         )
+    if expectation.is_widening_macc_add:
+        require_contains(
+            text,
+            f'accumulator_layout = "{WIDENING_MACC_ACCUMULATOR_LAYOUT}"',
+            "materialized selected-body MLIR widening macc accumulator layout",
+        )
+        require_contains(
+            text,
+            f'result_layout = "{WIDENING_MACC_RESULT_LAYOUT}"',
+            "materialized selected-body MLIR widening macc result layout",
+        )
     if expectation.is_pre_realized:
         require_not_contains(
             text,
@@ -2590,6 +2720,11 @@ def verify_materialized_selected_body(
         require_not_contains(
             text,
             "tcrv_rvv.typed_widening_conversion_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_widening_macc_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
@@ -4022,6 +4157,112 @@ int main(void) {{
   printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
   printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
   return 0;
+	}}
+	""".lstrip()
+    if expectation.is_widening_macc_add:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n + 5;
+  if (alloc_n == 5 && n == 0)
+    alloc_n = 6;
+  int16_t *lhs = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
+  int16_t *rhs = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
+  int32_t *acc = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  if (!lhs || !rhs || !acc || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(lhs);
+    free(rhs);
+    free(acc);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    lhs[index] = {expectation.lhs_initializer};
+    rhs[index] = {expectation.rhs_initializer};
+    acc[index] = {expectation.source_initializer};
+    out[index] = {expectation.out_initializer};
+  }}
+
+  {expectation.function_name}(lhs, rhs, acc, out, n);
+
+  size_t positive_products = 0;
+  size_t negative_products = 0;
+  size_t nonzero_accumulators = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    int32_t product = (int32_t)lhs[index] * (int32_t)rhs[index];
+    int32_t expected = {expectation.expected_expression};
+    if (product > 0)
+      ++positive_products;
+    if (product < 0)
+      ++negative_products;
+    if (acc[index] != 0)
+      ++nonzero_accumulators;
+    if (out[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d lhs=%d rhs=%d acc=%d product=%d\\n",
+              n, index, out[index], expected, lhs[index], rhs[index], acc[index], product);
+      free(lhs);
+      free(rhs);
+      free(acc);
+      free(out);
+      return 12;
+    }}
+  }}
+
+  for (size_t index = n; index < alloc_n; ++index) {{
+    if (out[index] != {expectation.out_initializer}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
+              n, index, out[index], {expectation.out_initializer});
+      free(lhs);
+      free(rhs);
+      free(acc);
+      free(out);
+      return 13;
+    }}
+  }}
+
+  if (n > 3 && (positive_products == 0 || negative_products == 0 ||
+                nonzero_accumulators == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} coverage missing n=%zu positive_products=%zu negative_products=%zu nonzero_accumulators=%zu\\n",
+            n, positive_products, negative_products, nonzero_accumulators);
+    free(lhs);
+    free(rhs);
+    free(acc);
+    free(out);
+    return 14;
+  }}
+
+  free(lhs);
+  free(rhs);
+  free(acc);
+  free(out);
+  printf("{expectation.kind} case n=%zu ok signed_products accumulation tail_preserved\\n", n);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
 }}
 """.lstrip()
     if expectation.is_cmp_select:
@@ -5185,14 +5426,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help=(
             "use the pre-realized selected-body add/sub/mul/masked_add/"
-            "reduce_add/macc_add/strided_add/strided_load_unit_store/"
+            "reduce_add/macc_add/strided_add/"
+            "strided_load_unit_store/"
             "unit_load_strided_store/indexed_gather_unit_store/"
             "indexed_scatter_unit_load/"
             "masked_unit_load_store/computed_masked_unit_load_store/"
             "computed_masked_strided_store/"
             "segment2_deinterleave_unit_store/"
             "segment2_interleave_unit_load/"
-            "lmul_m2_add/widen_i32_to_i64/widen_i16_to_i32 "
+            "lmul_m2_add/widen_i32_to_i64/widen_i16_to_i32/"
+            "widening_macc_add "
             "fixtures and run public selected lowering-boundary "
             "materialization before emission planning; mutually exclusive "
             "with --rhs-broadcast-selected-body and --lmul-m2-selected-body"

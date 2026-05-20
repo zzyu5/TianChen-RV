@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, authority, and RVV Stage1/Stage2 invariants for this widening macc executable slice."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership boundary, typed body authority, selected-body realization, and Stage2 coverage rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality requirements."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin interface, selected-body realization, route provider, and fail-closed source-front-door boundaries."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Stage2 typed-body coverage and selected-body realization requirements for code-affecting RVV facts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/ssh rvv evidence expectations and legacy authority negative-test policy."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-widening-int-conversion/prd.md", "reason": "Immediate i16mf2 to i32m1 widening conversion baseline for typed source/result config and ssh evidence shape."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-05-20-stage2-rvv-macc-executable-slice/prd.md", "reason": "Existing generic macc route baseline for accumulator/result layout, route planning, and generated-bundle evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-19-05-19-stage2-rvv-selected-body-macc-add/prd.md", "reason": "Pre-realized selected-body macc realization baseline for accumulator role/layout fail-closed behavior."}
+{"file": ".trellis/workspace/codex/journal-12.md", "reason": "Recent current-head RVV Stage2 slice validation and authority-scan command history."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Added generic typed widening_macc and pre-realized widening macc selected-body surface for one signed i16mf2 x i16mf2 plus i32m1 route."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Materialized typed widening macc pre-realized body into setvl/with_vl/load/load/load/widening_macc/store from explicit runtime ABI facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Derived source/accumulator/result vector facts, ABI order lhs,rhs,acc,out,n, widening macc relation/layout, and provider leaf payload from typed RVV structure."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Emitted the provider-owned widening macc compute leaf and i16/i32 load-store leaves from the route plan without common EmitC semantic inference."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Added generated-bundle dry-run and ssh rvv harness coverage for widening_macc_add with signed products, nonzero accumulators, and tail preservation."}

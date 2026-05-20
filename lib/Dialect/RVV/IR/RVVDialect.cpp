@@ -78,6 +78,11 @@ constexpr llvm::StringLiteral kDestSEWAttrName("dest_sew");
 constexpr llvm::StringLiteral kDestLMULAttrName("dest_lmul");
 constexpr llvm::StringLiteral kConversionRelationAttrName(
     "conversion_relation");
+constexpr llvm::StringLiteral kAccumulatorSEWAttrName("accumulator_sew");
+constexpr llvm::StringLiteral kAccumulatorLMULAttrName("accumulator_lmul");
+constexpr llvm::StringLiteral kResultSEWAttrName("result_sew");
+constexpr llvm::StringLiteral kResultLMULAttrName("result_lmul");
+constexpr llvm::StringLiteral kMAccRelationAttrName("macc_relation");
 constexpr llvm::StringLiteral kStrideUnitAttrName("stride_unit");
 constexpr llvm::StringLiteral kIndexEEWAttrName("index_eew");
 constexpr llvm::StringLiteral kOffsetUnitAttrName("offset_unit");
@@ -207,6 +212,16 @@ bool isAllowedTypedMAccPreRealizedBodyAttr(llvm::StringRef name) {
          name == kAccumulatorLayoutAttrName || name == kResultLayoutAttrName ||
          name == kSEWAttrName || name == kLMULAttrName ||
          name == kPolicyAttrName;
+}
+
+bool isAllowedTypedWideningMAccPreRealizedBodyAttr(llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kAccumulatorRoleAttrName ||
+         name == kAccumulatorLayoutAttrName || name == kResultLayoutAttrName ||
+         name == kSourceSEWAttrName || name == kSourceLMULAttrName ||
+         name == kAccumulatorSEWAttrName || name == kAccumulatorLMULAttrName ||
+         name == kResultSEWAttrName || name == kResultLMULAttrName ||
+         name == kMAccRelationAttrName || name == kPolicyAttrName;
 }
 
 bool isAllowedTypedWideningConversionPreRealizedBodyAttr(
@@ -348,6 +363,11 @@ bool isAllowedMAccAttr(llvm::StringRef name) {
          name == kResultLayoutAttrName;
 }
 
+bool isAllowedWideningMAccAttr(llvm::StringRef name) {
+  return name == "kind" || name == kAccumulatorLayoutAttrName ||
+         name == kResultLayoutAttrName || name == kMAccRelationAttrName;
+}
+
 bool isAllowedWideningConvertAttr(llvm::StringRef name) {
   return name == "kind";
 }
@@ -467,6 +487,50 @@ bool isSupportedTypedMAccPreRealizedAccumulatorLayout(
 
 bool isSupportedTypedMAccPreRealizedResultLayout(llvm::StringRef layout) {
   return layout == "store-multiply-accumulate-result-to-output-buffer";
+}
+
+bool isSupportedTypedWideningMAccPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "signed_widening_macc_add";
+}
+
+bool isSupportedTypedWideningMAccPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-stride-widening-macc";
+}
+
+bool isSupportedTypedWideningMAccPreRealizedAccumulatorRole(
+    llvm::StringRef role) {
+  return role == "accumulator-input-buffer";
+}
+
+bool isSupportedTypedWideningMAccPreRealizedAccumulatorLayout(
+    llvm::StringRef layout) {
+  return layout == "separate-i32-vector-accumulator-input";
+}
+
+bool isSupportedTypedWideningMAccPreRealizedResultLayout(
+    llvm::StringRef layout) {
+  return layout == "store-widening-multiply-accumulate-result-to-output-buffer";
+}
+
+bool isSupportedTypedWideningMAccRelation(llvm::StringRef relation) {
+  return relation == "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1";
+}
+
+bool isSupportedTypedWideningMAccPreRealizedSignature(
+    llvm::StringRef opKind, std::int64_t sourceSEW,
+    llvm::StringRef sourceLMUL, std::int64_t accumulatorSEW,
+    llvm::StringRef accumulatorLMUL, std::int64_t resultSEW,
+    llvm::StringRef resultLMUL, llvm::StringRef relation) {
+  return opKind == "signed_widening_macc_add" &&
+         sourceSEW == getRVVSEW16Bits() &&
+         sourceLMUL == getRVVLMULMF2() &&
+         accumulatorSEW == getRVVFirstSliceSEWBits() &&
+         accumulatorLMUL == getRVVLMULM1() &&
+         resultSEW == getRVVFirstSliceSEWBits() &&
+         resultLMUL == getRVVLMULM1() &&
+         relation == "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1";
 }
 
 bool isSupportedTypedWideningConversionPreRealizedBodyOpKind(
@@ -721,6 +785,23 @@ bool isSupportedGenericMAccResultLayout(llvm::StringRef layout) {
   return layout == "store-multiply-accumulate-result-to-output-buffer";
 }
 
+bool isSupportedGenericWideningMAccKind(llvm::StringRef kind) {
+  return kind == "signed_widening_macc_add";
+}
+
+bool isSupportedGenericWideningMAccAccumulatorLayout(
+    llvm::StringRef layout) {
+  return layout == "separate-i32-vector-accumulator-input";
+}
+
+bool isSupportedGenericWideningMAccResultLayout(llvm::StringRef layout) {
+  return layout == "store-widening-multiply-accumulate-result-to-output-buffer";
+}
+
+bool isSupportedGenericWideningMAccRelation(llvm::StringRef relation) {
+  return relation == "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1";
+}
+
 bool isSupportedGenericWideningConvertKind(llvm::StringRef kind) {
   return kind == "widen_i32_to_i64" ||
          kind == "sign_extend_widen_vf2";
@@ -830,6 +911,7 @@ bool isSupportedBoundedRuntimeABIValueCType(
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
   case Role::SourceInputBuffer:
+  case Role::AccumulatorInputBuffer:
   case Role::SegmentField0InputBuffer:
   case Role::SegmentField1InputBuffer:
     return cType == "const int16_t *" || cType == "const int32_t *" ||
@@ -863,6 +945,7 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
   case Role::SourceInputBuffer:
+  case Role::AccumulatorInputBuffer:
   case Role::SegmentField0InputBuffer:
   case Role::SegmentField1InputBuffer:
     return "'const int16_t *', 'const int32_t *', or 'const int64_t *'";
@@ -893,6 +976,7 @@ bool isBoundedInputBufferRole(
   using Role = tianchenrv::support::RuntimeABIParameterRole;
   return role == Role::LHSInputBuffer || role == Role::RHSInputBuffer ||
          role == Role::SourceInputBuffer || role == Role::MaskInputBuffer ||
+         role == Role::AccumulatorInputBuffer ||
          role == Role::SegmentField0InputBuffer ||
          role == Role::SegmentField1InputBuffer;
 }
@@ -1385,6 +1469,34 @@ bool isBoundedWideningConversionSourceLoad(LoadOp load, WithVLOp withVL) {
     hasWideningUse = true;
   }
   return hasWideningUse;
+}
+
+bool isBoundedWideningMAccSourceLoad(LoadOp load, WithVLOp withVL) {
+  if (!load || !withVL)
+    return false;
+  auto sew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto lmul = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!sew || !lmul || !policy || !isRVVAgnosticPolicy(policy))
+    return false;
+  if (!isRVVSelectedBodyM1Config(sew.getInt(), lmul.getValue()))
+    return false;
+  if (!isGenericRVVVectorI16MF2(load.getLoaded().getType()))
+    return false;
+
+  bool hasWideningMAccUse = false;
+  for (mlir::Operation *user : load.getLoaded().getUsers()) {
+    auto macc = llvm::dyn_cast<WideningMAccOp>(user);
+    if (!macc || macc->getParentOp() != withVL.getOperation() ||
+        macc.getVl() != load.getVl() ||
+        (macc.getLhs() != load.getLoaded() &&
+         macc.getRhs() != load.getLoaded()))
+      return false;
+    if (macc.getKind() != "signed_widening_macc_add")
+      return false;
+    hasWideningMAccUse = true;
+  }
+  return hasWideningMAccUse;
 }
 
 mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
@@ -2373,6 +2485,132 @@ mlir::LogicalResult TypedMAccPreRealizedBodyOp::verify() {
   return verifyRuntimeElementCountOperand(op, getN());
 }
 
+mlir::LogicalResult TypedWideningMAccPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected widening macc bodies carry only "
+                "typed RVV source/accumulator/result config, operation, "
+                "memory, policy, and runtime SSA facts and must be realized "
+                "by the RVV plugin before route construction";
+
+    if (!isAllowedTypedWideningMAccPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '"
+             << kAccumulatorRoleAttrName << "', '"
+             << kAccumulatorLayoutAttrName << "', '" << kResultLayoutAttrName
+             << "', '" << kSourceSEWAttrName << "', '"
+             << kSourceLMULAttrName << "', '" << kAccumulatorSEWAttrName
+             << "', '" << kAccumulatorLMULAttrName << "', '"
+             << kResultSEWAttrName << "', '" << kResultLMULAttrName
+             << "', '" << kMAccRelationAttrName << "', and '"
+             << kPolicyAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires lhs, rhs, accumulator, out, runtime n/AVL operands "
+              "and no results";
+
+  if (!isSupportedTypedWideningMAccPreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"signed_widening_macc_add\" for the bounded selected-body "
+              "widening macc realization hook";
+  if (!isSupportedTypedWideningMAccPreRealizedMemoryForm(getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"unit-stride-widening-macc\" for the bounded selected-body "
+              "widening macc realization hook";
+  if (!isSupportedTypedWideningMAccPreRealizedAccumulatorRole(
+          getAccumulatorRole()))
+    return emitOpError()
+           << "currently supports only accumulator_role "
+              "\"accumulator-input-buffer\" for the bounded selected-body "
+              "widening macc realization hook";
+  if (!isSupportedTypedWideningMAccPreRealizedAccumulatorLayout(
+          getAccumulatorLayout()))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"separate-i32-vector-accumulator-input\" for the bounded "
+              "selected-body widening macc realization hook";
+  if (!isSupportedTypedWideningMAccPreRealizedResultLayout(getResultLayout()))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-widening-multiply-accumulate-result-to-output-buffer\" "
+              "for the bounded selected-body widening macc realization hook";
+  if (!isSupportedTypedWideningMAccRelation(getMaccRelation()))
+    return emitOpError()
+           << "currently supports only macc_relation "
+              "\"signed-i16mf2xi16mf2-plus-i32m1-to-i32m1\" for the bounded "
+              "selected-body widening macc realization hook";
+  if (!isSupportedTypedWideningMAccPreRealizedSignature(
+          getOpKind(), static_cast<std::int64_t>(getSourceSew()),
+          getSourceLmul(), static_cast<std::int64_t>(getAccumulatorSew()),
+          getAccumulatorLmul(), static_cast<std::int64_t>(getResultSew()),
+          getResultLmul(), getMaccRelation()))
+    return emitOpError()
+           << "requires typed widening macc config/relation to match "
+              "op_kind \"signed_widening_macc_add\" with source SEW16 LMUL "
+              "mf2, accumulator/result SEW32 LMUL m1, and relation "
+              "\"signed-i16mf2xi16mf2-plus-i32m1-to-i32m1\"";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body widening macc realization hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getRhs(), "rhs",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getAcc(), "accumulator",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               AccumulatorInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsBinding = getRhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp accBinding = getAcc().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
+  if (!lhsBinding || lhsBinding.getCType() != "const int16_t *")
+    return emitOpError()
+           << "requires lhs operand C type 'const int16_t *' to match typed "
+              "widening macc source dtype";
+  if (!rhsBinding || rhsBinding.getCType() != "const int16_t *")
+    return emitOpError()
+           << "requires rhs operand C type 'const int16_t *' to match typed "
+              "widening macc source dtype";
+  if (!accBinding || accBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires accumulator operand C type 'const int32_t *' to "
+              "match typed widening macc accumulator dtype";
+  if (!outBinding || outBinding.getCType() != "int32_t *")
+    return emitOpError()
+           << "requires out operand C type 'int32_t *' to match typed "
+              "widening macc result dtype";
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
 mlir::LogicalResult TypedWideningConversionPreRealizedBodyOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -3285,6 +3523,8 @@ mlir::LogicalResult LoadOp::verify() {
           op, getBuffer(), "buffer",
           {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
            tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::
+               AccumulatorInputBuffer,
            tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer,
            tianchenrv::support::RuntimeABIParameterRole::OutputBuffer,
            tianchenrv::support::RuntimeABIParameterRole::
@@ -3300,7 +3540,8 @@ mlir::LogicalResult LoadOp::verify() {
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
   if (auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp()))
-    if (isBoundedWideningConversionSourceLoad(*this, withVL))
+    if (isBoundedWideningConversionSourceLoad(*this, withVL) ||
+        isBoundedWideningMAccSourceLoad(*this, withVL))
       return mlir::success();
   return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
 }
@@ -4033,6 +4274,96 @@ mlir::LogicalResult MAccOp::verify() {
                                                     "accumulator")))
     return mlir::failure();
   return verifyGenericVectorTypeForWithVL(op, getResult(), "result");
+}
+
+mlir::LogicalResult WideningMAccOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.widening_macc keeps source/result "
+                "SEW/LMUL/policy on typed vector values and setvl/with_vl, "
+                "runtime n/AVL/VL in the surrounding control-plane IR, and "
+                "rejects deleted local element_count metadata";
+
+    if (!isAllowedWideningMAccAttr(attrName))
+      return emitOpError()
+             << "only accepts generic widening multiply-accumulate "
+                "attributes 'kind', 'accumulator_layout', 'result_layout', "
+                "and 'macc_relation'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!isSupportedGenericWideningMAccKind(getKind()))
+    return emitOpError()
+           << "currently supports only kind \"signed_widening_macc_add\" for "
+              "the bounded Stage 2 widening multiply-accumulate route";
+  if (!isSupportedGenericWideningMAccAccumulatorLayout(
+          getAccumulatorLayout()))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"separate-i32-vector-accumulator-input\" for the bounded "
+              "Stage 2 widening multiply-accumulate route";
+  if (!isSupportedGenericWideningMAccResultLayout(getResultLayout()))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-widening-multiply-accumulate-result-to-output-buffer\" "
+              "for the bounded Stage 2 widening multiply-accumulate route";
+  if (!isSupportedGenericWideningMAccRelation(getMaccRelation()))
+    return emitOpError()
+           << "currently supports only macc_relation "
+              "\"signed-i16mf2xi16mf2-plus-i32m1-to-i32m1\" for the bounded "
+              "Stage 2 widening multiply-accumulate route";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires lhs and rhs i16 generic RVV vector operands, one i32 "
+              "accumulator vector operand, one !tcrv_rvv.vl operand, and one "
+              "i32 generic RVV vector result";
+  if (!isGenericRVVVectorI16MF2(getLhs().getType()) ||
+      !isGenericRVVVectorI16MF2(getRhs().getType()))
+    return emitOpError()
+           << "requires lhs and rhs source vectors to have type "
+              "!tcrv_rvv.vector<i16, \"mf2\"> for the bounded signed "
+              "widening multiply-accumulate route";
+  if (!isGenericRVVVectorI32M1(getAccumulator().getType()) ||
+      !isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires accumulator and result vectors to have type "
+              "!tcrv_rvv.vector<i32, \"m1\"> for the bounded signed widening "
+              "multiply-accumulate route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto expectedSEW =
+      (*withVL)->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto expectedLMUL =
+      (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  if (!expectedSEW || !expectedLMUL)
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit "
+              "accumulator/result SEW/LMUL metadata for widening macc";
+  if (!isRVVSelectedBodyM1Config(expectedSEW.getInt(),
+                                 expectedLMUL.getValue()))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl accumulator/result config "
+              "to be SEW32 LMUL m1 for the bounded signed widening macc "
+              "route";
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for widening macc";
+
+  return mlir::success();
 }
 
 mlir::LogicalResult WideningConvertOp::verify() {

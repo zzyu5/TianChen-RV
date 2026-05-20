@@ -43,6 +43,7 @@ enum class RVVSelectedBodyOperationKind {
   ScalarBroadcastAdd,
   WidenI32ToI64,
   WidenI16ToI32,
+  WideningMAccAdd,
 };
 
 enum class RVVSelectedBodyMemoryForm {
@@ -131,6 +132,9 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef reductionStoreVL;
   llvm::StringRef maccAccumulatorLayout;
   llvm::StringRef maccResultLayout;
+  llvm::StringRef wideningMAccAccumulatorLayout;
+  llvm::StringRef wideningMAccResultLayout;
+  llvm::StringRef wideningMAccRelation;
   llvm::StringRef stridedMemoryLayout;
   llvm::StringRef indexedMemoryLayout;
   llvm::StringRef segmentMemoryLayout;

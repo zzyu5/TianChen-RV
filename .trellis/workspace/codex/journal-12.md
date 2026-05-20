@@ -6,6 +6,91 @@
 ---
 
 
+## Session 145: Stage2 RVV widening multiply-accumulate executable slice
+
+**Date**: 2026-05-20
+**Task**: `stage2-rvv-widening-macc-executable-slice`
+**Branch**: `main`
+
+### Summary
+
+Implemented one bounded signed mixed-width RVV widening multiply-accumulate
+slice:
+
+```text
+out_i32[i] = acc_i32[i] + sign_extend(lhs_i16[i]) * sign_extend(rhs_i16[i])
+```
+
+The production path now carries i16mf2 lhs/rhs source facts, i32m1
+accumulator/result facts, runtime `n`/AVL, ABI order `lhs,rhs,acc,out,n`,
+operation kind, relation, accumulator/result layout, policy, route metadata,
+generated bundle emission, and real `ssh rvv` correctness evidence.
+
+### Main Changes
+
+- Added `accumulator-input-buffer` runtime ABI role and the widening macc
+  selected-body ABI contract: `const int16_t *lhs`, `const int16_t *rhs`,
+  `const int32_t *acc`, `int32_t *out`, `size_t n`.
+- Added `typed_widening_macc_pre_realized_body` and generic
+  `tcrv_rvv.widening_macc` with fail-closed verifier diagnostics for kind,
+  source/accumulator/result configs, relation, layout, roles, memory form, and
+  policy.
+- Extended RVV selected-body realization to produce
+  `setvl/with_vl/load/load/load/widening_macc/store` from typed body/runtime
+  facts.
+- Extended RVV route planning/provider, construction protocol, and target
+  artifact header metadata to derive the mixed-width load/accumulate/store
+  route from typed structure, including source/accumulator/result metadata and
+  the provider-derived widening macc leaf.
+- Added generated-bundle script and harness support for `widening_macc_add`
+  with positive/negative i16 operands, nonzero i32 accumulator values, and tail
+  sentinel checks.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Focused verifier/materialization/header checks for
+  `generic-widening-macc-dataflow.mlir` and
+  `pre-realized-selected-body-artifact-widening-macc-add.mlir`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] Focused lit `-j1`: 3/3 passed
+- [OK] Generated-bundle dry-run:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/pre-realized-widening-macc-add`
+- [OK] Real `ssh rvv` generated-bundle evidence:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/pre-realized-widening-macc-add-rvv`,
+  counts `7,16,23`, each reporting
+  `signed_products accumulation tail_preserved`
+- [OK] `build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 235/235 passed
+- [OK] `git diff --check`
+- [OK] Diff authority scan found no newly introduced positive `RVVI32M1`,
+  `rvv-i32m1`, `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`,
+  source-front-door/source-seed, descriptor/direct-C/source-export, or
+  common/export RVV semantic authority. The only forbidden-word diff hit is a
+  negative description in the new op docs; the exact RVV intrinsic spelling is
+  a provider-derived leaf, not route authority.
+
+### Self-Repair
+
+- Fixed construction-protocol conformance route count after adding
+  `widening_macc_add`.
+- Changed route ABI validation so widening macc validates `lhs,rhs,acc,out,n`
+  instead of the older finite-binary `const int32_t *` lhs/rhs contract.
+- Extended RVV header metadata evidence so accumulator/result config and
+  widening macc relation/layout reach exported artifact comments.
+- Updated construction-protocol and target-artifact C++ tests for the new route
+  enum and step count after `check-tianchenrv` exposed stale expectations.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 
 ## Session 141: Stage2 RVV masked memory movement executable slice
 

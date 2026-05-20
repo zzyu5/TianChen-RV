@@ -55,6 +55,12 @@ constexpr llvm::StringLiteral
     kRVVMAccAccumulatorLayout("output-buffer-vector-accumulator-input");
 constexpr llvm::StringLiteral
     kRVVMAccResultLayout("store-multiply-accumulate-result-to-output-buffer");
+constexpr llvm::StringLiteral kRVVWideningMAccAccumulatorLayout(
+    "separate-i32-vector-accumulator-input");
+constexpr llvm::StringLiteral kRVVWideningMAccResultLayout(
+    "store-widening-multiply-accumulate-result-to-output-buffer");
+constexpr llvm::StringLiteral kRVVWideningMAccRelation(
+    "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1");
 constexpr llvm::StringLiteral kRVVStridedRuntimeABIOrder(
     "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride");
 constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreRuntimeABIOrder(
@@ -79,6 +85,8 @@ constexpr llvm::StringLiteral kRVVScalarBroadcastRuntimeABIOrder(
     "lhs,rhs_scalar,out,n");
 constexpr llvm::StringLiteral kRVVWideningConversionRuntimeABIOrder(
     "lhs,out,n");
+constexpr llvm::StringLiteral kRVVWideningMAccRuntimeABIOrder(
+    "lhs,rhs,acc,out,n");
 constexpr llvm::StringLiteral kRVVStridedMemoryLayout(
     "element-strided-lhs-rhs-output-runtime-abi");
 constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreMemoryLayout(
@@ -229,7 +237,8 @@ constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad,
     RVVSelectedBodyOperationKind::ScalarBroadcastAdd,
     RVVSelectedBodyOperationKind::WidenI32ToI64,
-    RVVSelectedBodyOperationKind::WidenI16ToI32};
+    RVVSelectedBodyOperationKind::WidenI16ToI32,
+    RVVSelectedBodyOperationKind::WideningMAccAdd};
 
 const RVVSelectedBodyOperationProfile &
 getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
@@ -407,6 +416,14 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
       /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
       /*isSegmentedMemoryMovement=*/false,
       /*isWideningConversion=*/true};
+  static const RVVSelectedBodyOperationProfile kWideningMAccAdd = {
+      RVVSelectedBodyOperationKind::WideningMAccAdd, "widening_macc_add",
+      "widening_macc_sum_vec", "", /*isCompareSelect=*/false,
+      /*isReduction=*/false, /*isMaskedArithmetic=*/false,
+      /*isMultiplyAccumulate=*/true, /*isStridedMemory=*/false,
+      /*isMemoryMovement=*/false, /*isIndexedMemoryMovement=*/false,
+      /*isMaskedMemoryMovement=*/false, /*isSegmentedMemoryMovement=*/false,
+      /*isWideningConversion=*/false};
 
   switch (op) {
   case RVVSelectedBodyOperationKind::Add:
@@ -449,6 +466,8 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
     return kWidenI32ToI64;
   case RVVSelectedBodyOperationKind::WidenI16ToI32:
     return kWidenI16ToI32;
+  case RVVSelectedBodyOperationKind::WideningMAccAdd:
+    return kWideningMAccAdd;
   }
   llvm_unreachable("unknown RVV selected-body operation");
 }
@@ -656,6 +675,8 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
   case RVVSelectedBodyOperationKind::WidenI32ToI64:
   case RVVSelectedBodyOperationKind::WidenI16ToI32:
     llvm_unreachable("widening conversion uses dedicated conversion leaf");
+  case RVVSelectedBodyOperationKind::WideningMAccAdd:
+    llvm_unreachable("widening macc uses dedicated widening macc leaf");
   }
   llvm_unreachable("unknown RVV selected-body operation");
 }
@@ -682,6 +703,17 @@ getRVVSelectedBodyMAccIntrinsic(llvm::StringRef lmul) {
   return lmul == tcrv::rvv::getRVVLMULM2()
              ? "__riscv_vmacc_vv_i32m2"
              : "__riscv_vmacc_vv_i32m1";
+}
+
+llvm::StringRef getRVVSelectedBodyWideningMAccIntrinsic(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      description.sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
+      description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      description.lmul == tcrv::rvv::getRVVLMULM1() &&
+      description.wideningMAccRelation == kRVVWideningMAccRelation)
+    return "__riscv_vwmacc_vv_i32m1";
+  return {};
 }
 
 llvm::StringRef
@@ -773,6 +805,13 @@ deriveRVVSelectedBodyTargetLeafProfile(
   if (operationProfile.isMultiplyAccumulate) {
     if (description.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad)
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+    if (description.operation == RVVSelectedBodyOperationKind::WideningMAccAdd) {
+      llvm::StringRef intrinsic =
+          getRVVSelectedBodyWideningMAccIntrinsic(description);
+      if (intrinsic.empty())
+        return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+      return RVVSelectedBodyTargetLeafProfile{intrinsic, "", "", ""};
+    }
     return RVVSelectedBodyTargetLeafProfile{
         getRVVSelectedBodyMAccIntrinsic(configProfile.lmul), "", "", ""};
   }
@@ -1104,6 +1143,29 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     return llvm::Error::success();
   }
 
+  if (slice.arithmeticKind == RVVSelectedBodyOperationKind::WideningMAccAdd) {
+    tcrv::rvv::RVVCompileTimeConfig sourceConfig;
+    sourceConfig.sew = tcrv::rvv::getRVVSEW16Bits();
+    sourceConfig.lmul = tcrv::rvv::getRVVLMULMF2();
+    sourceConfig.policy = config.policy;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.lhsValue, "widening macc lhs source vector", sourceConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.rhsValue, "widening macc rhs source vector", sourceConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.accumulatorValue, "widening macc accumulator vector", config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.arithmeticResult, "widening macc result vector", config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.storeValue, "widening macc stored vector", config))
+      return error;
+    return llvm::Error::success();
+  }
+
   if (slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::StridedLoadUnitStore) {
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
@@ -1401,6 +1463,18 @@ assignRVVGenericLoadBinding(RVVSelectedBodyRouteSlice &slice,
       return makeRVVEmitCRouteProviderError(
           "bounded RVV EmitC route requires a unique output-buffer "
           "accumulator load");
+    slice.accumulatorLoadOperation = load.getOperation();
+    slice.accumulatorBuffer = load.getBuffer();
+    slice.accumulatorValue = load.getLoaded();
+    slice.accumulatorABI = parameter;
+    return llvm::Error::success();
+  }
+  if (parameter.role ==
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer) {
+    if (slice.accumulatorLoadOperation)
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV EmitC route requires a unique "
+          "accumulator-input-buffer load");
     slice.accumulatorLoadOperation = load.getOperation();
     slice.accumulatorBuffer = load.getBuffer();
     slice.accumulatorValue = load.getLoaded();
@@ -1782,6 +1856,8 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     const support::RuntimeABIParameter &outABI) {
   slice.runtimeElementCountABI = runtimeElementCountABI;
   slice.outABI = outABI;
+  const bool isWideningMAcc =
+      slice.arithmeticKind == RVVSelectedBodyOperationKind::WideningMAccAdd;
 
   llvm::SmallVector<support::RuntimeABIParameter, 7> ordered;
   ordered.push_back(slice.lhsABI);
@@ -1821,6 +1897,8 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
       slice.memoryForm != RVVSelectedBodyMemoryForm::UnitLoadIndexedStore &&
       slice.memoryForm != RVVSelectedBodyMemoryForm::MaskedUnitLoadStore)
     ordered.push_back(slice.rhsABI);
+  if (isWideningMAcc)
+    ordered.push_back(slice.accumulatorABI);
   if (slice.memoryForm ==
           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore ||
       slice.memoryForm ==
@@ -1859,6 +1937,16 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
                  RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore &&
              slice.memoryForm !=
                  RVVSelectedBodyMemoryForm::MaskedUnitLoadStore) {
+    if (isWideningMAcc) {
+      if (llvm::Error error =
+              tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+                  ordered,
+                  "selected RVV EmitC route explicit widening macc runtime "
+                  "ABI values"))
+        return makeRVVEmitCRouteProviderError(
+            llvm::toString(std::move(error)));
+      return llvm::Error::success();
+    }
     support::FiniteBinaryRuntimeABIContract contract(
         support::FiniteBinaryRuntimeABIContractSpec{
             constructionRoute.runtimeABIContractName,
@@ -2018,6 +2106,45 @@ llvm::Error recordRVVSelectedBodyMAcc(RVVSelectedBodyRouteSlice &slice,
   slice.maccOp = macc;
   slice.arithmeticOp = macc.getOperation();
   slice.arithmeticKind = RVVSelectedBodyOperationKind::MAccAdd;
+  slice.arithmeticLhs = macc.getLhs();
+  slice.arithmeticRhs = macc.getRhs();
+  slice.arithmeticAccumulator = macc.getAccumulator();
+  slice.arithmeticResult = macc.getResult();
+  return llvm::Error::success();
+}
+
+llvm::Error
+recordRVVSelectedBodyWideningMAcc(RVVSelectedBodyRouteSlice &slice,
+                                  tcrv::rvv::WideningMAccOp macc) {
+  if (slice.arithmeticOp)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route requires exactly one selected compute op");
+  if (macc.getKind() != "signed_widening_macc_add")
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.widening_macc kind '") +
+        macc.getKind() +
+        "' for bounded RVV widening multiply-accumulate route");
+  if (macc.getAccumulatorLayout() != kRVVWideningMAccAccumulatorLayout)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.widening_macc "
+                    "accumulator_layout '") +
+        macc.getAccumulatorLayout() +
+        "' for bounded RVV widening multiply-accumulate route");
+  if (macc.getResultLayout() != kRVVWideningMAccResultLayout)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.widening_macc "
+                    "result_layout '") +
+        macc.getResultLayout() +
+        "' for bounded RVV widening multiply-accumulate route");
+  if (macc.getMaccRelation() != kRVVWideningMAccRelation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.widening_macc "
+                    "macc_relation '") +
+        macc.getMaccRelation() +
+        "' for bounded RVV widening multiply-accumulate route");
+  slice.wideningMAccOp = macc;
+  slice.arithmeticOp = macc.getOperation();
+  slice.arithmeticKind = RVVSelectedBodyOperationKind::WideningMAccAdd;
   slice.arithmeticLhs = macc.getLhs();
   slice.arithmeticRhs = macc.getRhs();
   slice.arithmeticAccumulator = macc.getAccumulator();
@@ -2275,6 +2402,13 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         return std::move(error);
       continue;
     }
+    if (auto wideningMAcc =
+            llvm::dyn_cast<tcrv::rvv::WideningMAccOp>(op)) {
+      if (llvm::Error error =
+              recordRVVSelectedBodyWideningMAcc(slice, wideningMAcc))
+        return std::move(error);
+      continue;
+    }
     if (auto conversion = llvm::dyn_cast<tcrv::rvv::WideningConvertOp>(op)) {
       if (llvm::Error error =
               recordRVVSelectedBodyWideningConvert(slice, conversion))
@@ -2375,6 +2509,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   const bool isMAccAdd =
       slice.arithmeticOp &&
       slice.arithmeticKind == RVVSelectedBodyOperationKind::MAccAdd;
+  const bool isWideningMAccAdd =
+      slice.arithmeticOp &&
+      slice.arithmeticKind == RVVSelectedBodyOperationKind::WideningMAccAdd;
   const bool isStridedLoadUnitStore =
       slice.arithmeticOp &&
       slice.arithmeticKind ==
@@ -2466,7 +2603,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "bounded generic RVV strided-load to unit-stride-store route cannot "
         "mix strided source memory with unit-stride input loads, broadcast, or "
         "scalar-splat memory forms");
-  if (hasStridedMemory && isMAccAdd)
+  if (hasStridedMemory && (isMAccAdd || isWideningMAccAdd))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided route supports only add in this slice, "
         "not multiply-accumulate");
@@ -2554,8 +2691,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed scatter route requires exactly one "
         "tcrv_rvv.indexed_store op");
-  if (hasIndexedMemory && (isMAccAdd || isWideningConversion || isCompareSelect ||
-                           isMaskedAdd || isReduction))
+  if (hasIndexedMemory &&
+      (isMAccAdd || isWideningMAccAdd || isWideningConversion ||
+       isCompareSelect || isMaskedAdd || isReduction))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed memory route supports only "
         "index_load/indexed_load_or_unit_load/move/store_or_indexed_store "
@@ -2567,7 +2705,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        !genericBroadcastLoads.empty() ||
        hasScalarBroadcast || hasSegmentedMemory || slice.maskedBinaryOp ||
        slice.selectOp ||
-       slice.reduceOp || slice.maccOp || isWideningConversion))
+       slice.reduceOp || slice.maccOp || slice.wideningMAccOp ||
+       isWideningConversion))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV masked memory route supports only runtime-mask "
         "unit-stride load/mask_load/old-destination-load/masked_move/store "
@@ -2580,7 +2719,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        !genericSegment2Stores.empty() ||
        stridedStoreCount != 0 || genericIndexedStores.size() != 0 ||
        slice.maskedBinaryOp || slice.selectOp || slice.reduceOp ||
-       slice.maccOp || slice.compareOp || isWideningConversion))
+       slice.maccOp || slice.wideningMAccOp || slice.compareOp ||
+       isWideningConversion))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 deinterleave route supports only "
         "segment2_load/field0 move/field1 move/field0 store/field1 store "
@@ -2591,7 +2731,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        hasScalarBroadcast || stridedStoreCount != 0 ||
        genericIndexedStores.size() != 0 || storeCount != 0 ||
        slice.maskedBinaryOp || slice.selectOp || slice.reduceOp ||
-       slice.maccOp || slice.compareOp || isWideningConversion))
+       slice.maccOp || slice.wideningMAccOp || slice.compareOp ||
+       isWideningConversion))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 interleave route supports only "
         "field0 load/field1 load/segment2_store memory movement in this "
@@ -2684,6 +2825,11 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "bounded generic RVV multiply-accumulate route requires explicit "
         "vector lhs, rhs, and accumulator loads; broadcast/splat macc is not "
         "in this bounded slice");
+  if (isWideningMAccAdd && hasRHSBroadcastLike)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV widening multiply-accumulate route requires "
+        "explicit vector lhs, rhs, and accumulator loads; broadcast/splat "
+        "macc is not in this bounded slice");
   if (isWideningConversion && hasRHSBroadcastLike)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV widening conversion route does not consume an "
@@ -2692,6 +2838,11 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV multiply-accumulate route requires exactly three "
         "tcrv_rvv.load ops for lhs, rhs, and output-buffer accumulator");
+  if (isWideningMAccAdd && genericLoads.size() != 3)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV widening multiply-accumulate route requires "
+        "exactly three tcrv_rvv.load ops for lhs, rhs, and "
+        "accumulator-input-buffer");
   if (hasScalarBroadcast && (!slice.arithmeticOp ||
                              slice.arithmeticKind !=
                                  RVVSelectedBodyOperationKind::Add))
@@ -2704,12 +2855,13 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.load source op");
   if (isWideningConversion &&
       (slice.compareOp || slice.maskedBinaryOp || slice.selectOp ||
-       slice.reduceOp || slice.maccOp))
+       slice.reduceOp || slice.maccOp || slice.wideningMAccOp))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV widening conversion route cannot mix "
         "compare/select/masked/reduce/macc compute ops");
   if (!hasStridedMemory && !hasIndexedMemory && !hasSegmentedMemory &&
       !isMAccAdd &&
+      !isWideningMAccAdd &&
       !isMaskedUnitLoadStore &&
       !isComputedMaskUnitLoadStore &&
       !isComputedMaskStridedStore &&
@@ -2721,6 +2873,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.load ops");
   if (!hasStridedMemory && !hasIndexedMemory && !hasSegmentedMemory &&
       !isMAccAdd &&
+      !isWideningMAccAdd &&
       !isMaskedUnitLoadStore &&
       !isComputedMaskUnitLoadStore &&
       !isComputedMaskStridedStore &&
@@ -2730,6 +2883,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.load op and one tcrv_rvv.broadcast_load op");
   if (!hasStridedMemory && !hasIndexedMemory && !hasSegmentedMemory &&
       !isMAccAdd &&
+      !isWideningMAccAdd &&
       !isMaskedUnitLoadStore &&
       !isComputedMaskUnitLoadStore &&
       !isComputedMaskStridedStore &&
@@ -2746,7 +2900,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route requires exactly one supported "
         "tcrv_rvv.binary, tcrv_rvv.select, tcrv_rvv.reduce, tcrv_rvv.macc, "
-        "tcrv_rvv.widening_convert, tcrv_rvv.move, or "
+        "tcrv_rvv.widening_macc, tcrv_rvv.widening_convert, tcrv_rvv.move, or "
         "tcrv_rvv.masked_move op");
   if (!hasStridedMemory && !hasIndexedMemory && !hasSegmentedMemory &&
       storeCount != 1)
@@ -2790,6 +2944,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           ? 11
       : isSegment2InterleaveUnitLoad
           ? 9
+      : isWideningMAccAdd
+          ? 12
       : isComputedMaskUnitLoadStore
           ? 14
       : isComputedMaskStridedStore
@@ -2822,6 +2978,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
              support::RuntimeABIParameterRole::RHSInputBuffer,
              support::RuntimeABIParameterRole::SourceInputBuffer,
              support::RuntimeABIParameterRole::OutputBuffer,
+             support::RuntimeABIParameterRole::AccumulatorInputBuffer,
              support::RuntimeABIParameterRole::SegmentField0InputBuffer,
              support::RuntimeABIParameterRole::SegmentField1InputBuffer});
     if (!parameter)
@@ -3223,9 +3380,31 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         slice.arithmeticRhs != slice.rhsValue ||
         slice.arithmeticAccumulator != slice.accumulatorValue)
       return makeRVVEmitCRouteProviderError(
-          "bounded generic RVV multiply-accumulate route requires "
-          "tcrv_rvv.macc to consume lhs/rhs generic load results and the "
-          "output-buffer accumulator load result");
+        "bounded generic RVV multiply-accumulate route requires "
+        "tcrv_rvv.macc to consume lhs/rhs generic load results and the "
+        "output-buffer accumulator load result");
+  } else if (isWideningMAccAdd) {
+    if (!slice.accumulatorLoadOperation)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV widening multiply-accumulate route requires "
+          "one accumulator-input-buffer tcrv_rvv.load");
+    if (slice.accumulatorABI.role !=
+        support::RuntimeABIParameterRole::AccumulatorInputBuffer)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV widening multiply-accumulate route requires "
+          "the accumulator load to bind accumulator-input-buffer, not output "
+          "buffer");
+    if (slice.accumulatorBuffer == slice.outBuffer)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV widening multiply-accumulate route requires "
+          "separate accumulator input and output destination ABI values");
+    if (slice.arithmeticLhs != slice.lhsValue ||
+        slice.arithmeticRhs != slice.rhsValue ||
+        slice.arithmeticAccumulator != slice.accumulatorValue)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV widening multiply-accumulate route requires "
+          "tcrv_rvv.widening_macc to consume lhs/rhs source loads and the "
+          "accumulator-input-buffer load result");
   } else if (isWideningConversion) {
     if (slice.conversionSource != slice.lhsValue)
       return makeRVVEmitCRouteProviderError(
@@ -3438,6 +3617,8 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       getRuntimeABI(slice.field0Buffer);
   auto field1ABI =
       getRuntimeABI(slice.field1Buffer);
+  auto accumulatorABI =
+      getRuntimeABI(slice.accumulatorBuffer);
   auto outABI =
       getRuntimeABI(slice.outBuffer);
   auto nABI =
@@ -3478,8 +3659,35 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       slice.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
   const bool isConversion =
       slice.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideConversion;
+  const bool isWideningMAcc =
+      slice.arithmeticKind == RVVSelectedBodyOperationKind::WideningMAccAdd;
   if (lhsABI && op == lhsABI.getOperation())
     return 0;
+  if (isWideningMAcc) {
+    if (rhsABI && op == rhsABI.getOperation())
+      return 1;
+    if (accumulatorABI && op == accumulatorABI.getOperation())
+      return 2;
+    if (outABI && op == outABI.getOperation())
+      return 3;
+    if (nABI && op == nABI.getOperation())
+      return 4;
+    if (op == slice.setvl.getOperation())
+      return 5;
+    if (op == slice.withVL.getOperation())
+      return 6;
+    if (op == slice.lhsLoadOperation)
+      return 7;
+    if (op == slice.rhsLoadOperation)
+      return 8;
+    if (op == slice.accumulatorLoadOperation)
+      return 9;
+    if (op == slice.arithmeticOp)
+      return 10;
+    if (op == slice.storeOperation)
+      return 11;
+    return 12;
+  }
   if (isSegment2InterleaveUnitLoad) {
     if (rhsABI && op == rhsABI.getOperation())
       return 1;
@@ -3786,6 +3994,8 @@ llvm::Error verifySelectedRVVRoleSequence(
       getRuntimeABI(slice.field0Buffer);
   auto field1ABI =
       getRuntimeABI(slice.field1Buffer);
+  auto accumulatorABI =
+      getRuntimeABI(slice.accumulatorBuffer);
   auto outABI =
       getRuntimeABI(slice.outBuffer);
   auto nABI =
@@ -3826,6 +4036,8 @@ llvm::Error verifySelectedRVVRoleSequence(
       slice.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
   const bool isConversion =
       slice.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideConversion;
+  const bool isWideningMAcc =
+      slice.arithmeticKind == RVVSelectedBodyOperationKind::WideningMAccAdd;
   if (!lhsABI ||
       (!isConversion && !isStridedLoadUnitStore &&
        !isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
@@ -3843,6 +4055,7 @@ llvm::Error verifySelectedRVVRoleSequence(
       (isComputedMaskUnitLoadStore && (!rhsABI || !sourceABI)) ||
       (isComputedMaskStridedStore &&
        (!rhsABI || !sourceABI || !outStrideABI)) ||
+      (isWideningMAcc && (!rhsABI || !accumulatorABI)) ||
       (isSegment2DeinterleaveUnitStore && (!field0ABI || !field1ABI)) ||
       (isSegment2InterleaveUnitLoad && (!rhsABI || !outABI)))
     return makeRVVEmitCRouteProviderError(
@@ -3978,6 +4191,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
         kRVVWideningConversionRuntimeABIOrder;
     break;
   }
+  if (analysis.slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::WideningMAccAdd)
+    analysis.description.runtimeABIOrder = kRVVWideningMAccRuntimeABIOrder;
   analysis.description.vlDefOpName = configContract.vlDefOpName;
   analysis.description.vlScopeOpName = configContract.vlScopeOpName;
   analysis.description.vlUses = configContract.vlUses;
@@ -4017,6 +4233,16 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
           "__riscv_vle32_v_i32m1";
       analysis.description.conversionRelation = kRVVWideningConversionRelation;
     }
+  } else if (analysis.slice.arithmeticKind ==
+             RVVSelectedBodyOperationKind::WideningMAccAdd) {
+    analysis.description.sourceSEW = tcrv::rvv::getRVVSEW16Bits();
+    analysis.description.sourceLMUL = tcrv::rvv::getRVVLMULMF2();
+    analysis.description.sourceVectorTypeName =
+        "!tcrv_rvv.vector<i16, \"mf2\">";
+    analysis.description.sourceVectorCType = "vint16mf2_t";
+    analysis.description.sourceVectorLoadIntrinsic =
+        "__riscv_vle16_v_i16mf2";
+    analysis.description.wideningMAccRelation = kRVVWideningMAccRelation;
   }
   analysis.description.boundaryOpName = kRVVSelectedBodyLoweringBoundaryOpName;
   analysis.description.targetArtifactRouteID =
@@ -4057,6 +4283,10 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       analysis.slice.memoryForm !=
           RVVSelectedBodyMemoryForm::Segment2LoadUnitStore)
     analysis.description.runtimeABIParameters.push_back(analysis.slice.rhsABI);
+  if (analysis.slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::WideningMAccAdd)
+    analysis.description.runtimeABIParameters.push_back(
+        analysis.slice.accumulatorABI);
   if (analysis.slice.memoryForm ==
           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore ||
       analysis.slice.memoryForm ==
@@ -4214,11 +4444,20 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
         *analysis.slice.reduceOp.getResultLayout();
     analysis.description.reductionStoreVL = kRVVReductionStoreVL;
   }
-  if (routeProfile->operation.isMultiplyAccumulate) {
+  if (routeProfile->operation.operation == RVVSelectedBodyOperationKind::MAccAdd) {
     analysis.description.maccAccumulatorLayout =
         *analysis.slice.maccOp.getAccumulatorLayout();
     analysis.description.maccResultLayout =
         *analysis.slice.maccOp.getResultLayout();
+  }
+  if (routeProfile->operation.operation ==
+      RVVSelectedBodyOperationKind::WideningMAccAdd) {
+    analysis.description.wideningMAccAccumulatorLayout =
+        analysis.slice.wideningMAccOp.getAccumulatorLayout();
+    analysis.description.wideningMAccResultLayout =
+        analysis.slice.wideningMAccOp.getResultLayout();
+    analysis.description.wideningMAccRelation =
+        analysis.slice.wideningMAccOp.getMaccRelation();
   }
   if (routeProfile->operation.operation ==
       RVVSelectedBodyOperationKind::StridedAdd) {
@@ -4576,6 +4815,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             : kRVVIndexedGatherRuntimeABIOrder;
   } else if (operationProfile.isWideningConversion) {
     expectedRuntimeABIOrder = kRVVWideningConversionRuntimeABIOrder;
+  } else if (operationProfile.operation ==
+             RVVSelectedBodyOperationKind::WideningMAccAdd) {
+    expectedRuntimeABIOrder = kRVVWideningMAccRuntimeABIOrder;
   } else if (description.memoryForm ==
              RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
     expectedRuntimeABIOrder = kRVVScalarBroadcastRuntimeABIOrder;
@@ -4656,7 +4898,34 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "index vector C type", description.indexVectorCType, ""))
       return error;
   }
-  if (operationProfile.isWideningConversion) {
+  if (operationProfile.operation == RVVSelectedBodyOperationKind::WideningMAccAdd) {
+    if (description.sourceSEW != tcrv::rvv::getRVVSEW16Bits())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " source SEW must be provider-derived from typed source vectors "
+          "for widening multiply-accumulate");
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source LMUL", description.sourceLMUL,
+            tcrv::rvv::getRVVLMULMF2()))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source vector type", description.sourceVectorTypeName,
+            "!tcrv_rvv.vector<i16, \"mf2\">"))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source vector C type", description.sourceVectorCType,
+            "vint16mf2_t"))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source vector-load intrinsic",
+            description.sourceVectorLoadIntrinsic,
+            "__riscv_vle16_v_i16mf2"))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "conversion relation", description.conversionRelation,
+            ""))
+      return error;
+  } else if (operationProfile.isWideningConversion) {
     const bool isI16ToI32 =
         operationProfile.operation == RVVSelectedBodyOperationKind::WidenI16ToI32;
     std::int64_t expectedSourceSEW =
@@ -4985,7 +5254,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "reduction store VL", description.reductionStoreVL, ""))
       return error;
   }
-  if (operationProfile.isMultiplyAccumulate) {
+  if (operationProfile.operation == RVVSelectedBodyOperationKind::MAccAdd) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "multiply-accumulate accumulator layout",
             description.maccAccumulatorLayout, kRVVMAccAccumulatorLayout))
@@ -5002,6 +5271,35 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "multiply-accumulate result layout",
             description.maccResultLayout, ""))
+      return error;
+  }
+  if (operationProfile.operation == RVVSelectedBodyOperationKind::WideningMAccAdd) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "widening multiply-accumulate accumulator layout",
+            description.wideningMAccAccumulatorLayout,
+            kRVVWideningMAccAccumulatorLayout))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "widening multiply-accumulate result layout",
+            description.wideningMAccResultLayout,
+            kRVVWideningMAccResultLayout))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "widening multiply-accumulate relation",
+            description.wideningMAccRelation, kRVVWideningMAccRelation))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "widening multiply-accumulate accumulator layout",
+            description.wideningMAccAccumulatorLayout, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "widening multiply-accumulate result layout",
+            description.wideningMAccResultLayout, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "widening multiply-accumulate relation",
+            description.wideningMAccRelation, ""))
       return error;
   }
   if (operationProfile.operation == RVVSelectedBodyOperationKind::StridedAdd) {
@@ -5585,6 +5883,23 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         description.maccAccumulatorLayout});
     metadata.push_back(
         {"tcrv_rvv.macc_result_layout", description.maccResultLayout});
+  }
+  if (description.operation == RVVSelectedBodyOperationKind::WideningMAccAdd) {
+    metadata.push_back(
+        {"tcrv_rvv.source_sew", llvm::Twine(description.sourceSEW).str()});
+    metadata.push_back({"tcrv_rvv.source_lmul", description.sourceLMUL});
+    metadata.push_back(
+        {"tcrv_rvv.accumulator_sew", llvm::Twine(description.sew).str()});
+    metadata.push_back({"tcrv_rvv.accumulator_lmul", description.lmul});
+    metadata.push_back(
+        {"tcrv_rvv.result_sew", llvm::Twine(description.sew).str()});
+    metadata.push_back({"tcrv_rvv.result_lmul", description.lmul});
+    metadata.push_back({"tcrv_rvv.widening_macc_accumulator_layout",
+                        description.wideningMAccAccumulatorLayout});
+    metadata.push_back({"tcrv_rvv.widening_macc_result_layout",
+                        description.wideningMAccResultLayout});
+    metadata.push_back({"tcrv_rvv.widening_macc_relation",
+                        description.wideningMAccRelation});
   }
   if (description.operation == RVVSelectedBodyOperationKind::StridedAdd) {
     metadata.push_back({"tcrv_rvv.strided_memory_layout",
