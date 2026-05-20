@@ -24,6 +24,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::IndexLoadOp indexLoad;
   tcrv::rvv::IndexedLoadOp indexedLoad;
   tcrv::rvv::IndexedStoreOp indexedStore;
+  tcrv::rvv::MaskLoadOp maskLoad;
   tcrv::rvv::BroadcastLoadOp rhsBroadcastLoad;
   tcrv::rvv::SplatOp rhsScalarSplat;
   tcrv::rvv::CompareOp compareOp;
@@ -33,6 +34,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::MAccOp maccOp;
   tcrv::rvv::WideningConvertOp wideningConvertOp;
   tcrv::rvv::MoveOp moveOp;
+  tcrv::rvv::MaskedMoveOp maskedMoveOp;
   mlir::Operation *arithmeticOp = nullptr;
   mlir::Value arithmeticLhs;
   mlir::Value arithmeticRhs;
@@ -41,7 +43,10 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value compareLhs;
   mlir::Value compareRhs;
   mlir::Value compareMask;
+  mlir::Value maskValue;
   mlir::Value maskedPassthrough;
+  mlir::Value maskedActiveValue;
+  mlir::Value maskedInactivePassthrough;
   mlir::Value conversionSource;
   RVVSelectedBodyOperationKind arithmeticKind;
   RVVSelectedBodyMemoryForm memoryForm =
@@ -53,11 +58,13 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Operation *indexLoadOperation = nullptr;
   mlir::Operation *indexedLoadOperation = nullptr;
   mlir::Operation *indexedStoreOperation = nullptr;
+  mlir::Operation *maskLoadOperation = nullptr;
   mlir::Operation *accumulatorLoadOperation = nullptr;
   mlir::Operation *storeOperation = nullptr;
   mlir::Value lhsBuffer;
   mlir::Value rhsBuffer;
   mlir::Value indexBuffer;
+  mlir::Value maskBuffer;
   mlir::Value indexValue;
   mlir::Value indexedDataBuffer;
   mlir::Value indexedDestinationBuffer;
@@ -73,6 +80,7 @@ struct RVVSelectedBodyRouteSlice {
   support::RuntimeABIParameter lhsABI;
   support::RuntimeABIParameter rhsABI;
   support::RuntimeABIParameter indexABI;
+  support::RuntimeABIParameter maskABI;
   support::RuntimeABIParameter accumulatorABI;
   support::RuntimeABIParameter outABI;
   support::RuntimeABIParameter runtimeElementCountABI;

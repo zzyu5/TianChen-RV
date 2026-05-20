@@ -63,6 +63,10 @@ constexpr llvm::StringLiteral kMemoryFormAttrName("memory_form");
 constexpr llvm::StringLiteral kMaskSourceAttrName("mask_source");
 constexpr llvm::StringLiteral kMaskedPassthroughAttrName(
     "masked_passthrough");
+constexpr llvm::StringLiteral kMaskRoleAttrName("mask_role");
+constexpr llvm::StringLiteral kMaskMemoryFormAttrName("mask_memory_form");
+constexpr llvm::StringLiteral kInactiveLanePolicyAttrName(
+    "inactive_lane_policy");
 constexpr llvm::StringLiteral kSelectLayoutAttrName("select_layout");
 constexpr llvm::StringLiteral kAccumulatorRoleAttrName("accumulator_role");
 constexpr llvm::StringLiteral kAccumulatorLayoutAttrName(
@@ -226,7 +230,18 @@ bool isAllowedTypedIndexedScatterMemoryPreRealizedBodyAttr(
          name == kPolicyAttrName;
 }
 
+bool isAllowedTypedMaskedMemoryPreRealizedBodyAttr(llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kMaskRoleAttrName || name == kMaskMemoryFormAttrName ||
+         name == kInactiveLanePolicyAttrName || name == kSEWAttrName ||
+         name == kLMULAttrName || name == kPolicyAttrName;
+}
+
 bool isAllowedLoadAttr(llvm::StringRef) { return false; }
+
+bool isAllowedMaskLoadAttr(llvm::StringRef name) {
+  return name == kMaskRoleAttrName || name == kMaskMemoryFormAttrName;
+}
 
 bool isAllowedBroadcastLoadAttr(llvm::StringRef) { return false; }
 
@@ -272,6 +287,8 @@ bool isAllowedWideningConvertAttr(llvm::StringRef name) {
 }
 
 bool isAllowedMoveAttr(llvm::StringRef name) { return name == "kind"; }
+
+bool isAllowedMaskedMoveAttr(llvm::StringRef name) { return name == "kind"; }
 
 bool isAllowedStoreAttr(llvm::StringRef) { return false; }
 
@@ -448,6 +465,29 @@ bool isSupportedTypedIndexedScatterIndexUniqueness(
   return indexUniqueness == "unique";
 }
 
+bool isSupportedTypedMaskedMemoryPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "masked_unit_load_store";
+}
+
+bool isSupportedTypedMaskedMemoryPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "masked-unit-load-store";
+}
+
+bool isSupportedTypedMaskedMemoryRole(llvm::StringRef role) {
+  return role == "predicate-mask-input-buffer";
+}
+
+bool isSupportedTypedMaskedMemoryMaskMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-stride-mask-load";
+}
+
+bool isSupportedTypedMaskedMemoryInactiveLanePolicy(llvm::StringRef policy) {
+  return policy == "preserve-old-destination";
+}
+
 bool isSupportedGenericBinaryKind(llvm::StringRef kind) {
   return kind == "add" || kind == "sub" || kind == "mul";
 }
@@ -490,6 +530,10 @@ bool isSupportedGenericWideningConvertKind(llvm::StringRef kind) {
 
 bool isSupportedGenericMoveKind(llvm::StringRef kind) {
   return kind == "copy";
+}
+
+bool isSupportedGenericMaskedMoveKind(llvm::StringRef kind) {
+  return kind == "active-source-preserve-old-destination";
 }
 
 bool isAllowedI32AddAttr(llvm::StringRef name) {
@@ -590,6 +634,8 @@ bool isSupportedBoundedRuntimeABIValueCType(
     return cType == "const int32_t *" || cType == "const int64_t *";
   case Role::IndexInputBuffer:
     return cType == "const uint32_t *";
+  case Role::MaskInputBuffer:
+    return cType == "const int32_t *";
   case Role::RHSScalarValue:
     return cType == "int32_t";
   case Role::OutputBuffer:
@@ -614,6 +660,8 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
     return "'const int32_t *' or 'const int64_t *'";
   case Role::IndexInputBuffer:
     return "'const uint32_t *'";
+  case Role::MaskInputBuffer:
+    return "'const int32_t *'";
   case Role::RHSScalarValue:
     return "'int32_t'";
   case Role::OutputBuffer:
@@ -632,7 +680,8 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
 bool isBoundedInputBufferRole(
     tianchenrv::support::RuntimeABIParameterRole role) {
   using Role = tianchenrv::support::RuntimeABIParameterRole;
-  return role == Role::LHSInputBuffer || role == Role::RHSInputBuffer;
+  return role == Role::LHSInputBuffer || role == Role::RHSInputBuffer ||
+         role == Role::MaskInputBuffer;
 }
 
 bool isBoundedScalarRole(tianchenrv::support::RuntimeABIParameterRole role) {
@@ -1241,6 +1290,14 @@ llvm::StringRef LoadOp::getTCRVEmitCLowerableSourceOpName() {
 }
 
 llvm::StringRef LoadOp::getTCRVEmitCLowerableSourceRole() {
+  return "load";
+}
+
+llvm::StringRef MaskLoadOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef MaskLoadOp::getTCRVEmitCLowerableSourceRole() {
   return "load";
 }
 
@@ -2374,6 +2431,92 @@ mlir::LogicalResult TypedIndexedScatterMemoryPreRealizedBodyOp::verify() {
   return verifyRuntimeElementCountOperand(op, getN());
 }
 
+mlir::LogicalResult TypedMaskedMemoryPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected masked memory bodies carry only "
+                "typed RVV source/mask/destination memory-form, mask-role, "
+                "inactive-lane policy, config, policy, and runtime SSA facts "
+                "and must be realized by the RVV plugin before route "
+                "construction";
+
+    if (!isAllowedTypedMaskedMemoryPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '" << kMaskRoleAttrName
+             << "', '" << kMaskMemoryFormAttrName << "', '"
+             << kInactiveLanePolicyAttrName << "', '" << kSEWAttrName
+             << "', '" << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires source, mask, destination, runtime n/AVL operands and "
+              "no results";
+
+  if (!isSupportedTypedMaskedMemoryPreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"masked_unit_load_store\" for the bounded selected-body "
+              "masked memory hook";
+  if (!isSupportedTypedMaskedMemoryPreRealizedMemoryForm(getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"masked-unit-load-store\" for the bounded selected-body "
+              "masked memory hook";
+  if (!isSupportedTypedMaskedMemoryRole(getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-input-buffer\" for the bounded selected-body "
+              "masked memory hook";
+  if (!isSupportedTypedMaskedMemoryMaskMemoryForm(getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"unit-stride-mask-load\" for the bounded selected-body masked "
+              "memory hook";
+  if (!isSupportedTypedMaskedMemoryInactiveLanePolicy(
+          getInactiveLanePolicy()))
+    return emitOpError()
+           << "requires inactive_lane_policy "
+              "\"preserve-old-destination\" because masked-off lanes must "
+              "preserve the old destination value in this bounded slice";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized masked memory data config to be "
+              "SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body masked memory hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSource(), "source",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getMask(), "mask",
+          {tianchenrv::support::RuntimeABIParameterRole::MaskInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getDestination(), "destination",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
 mlir::LogicalResult LoadOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -2402,6 +2545,39 @@ mlir::LogicalResult LoadOp::verify() {
     if (isBoundedWideningConversionSourceLoad(*this, withVL))
       return mlir::success();
   return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
+}
+
+mlir::LogicalResult MaskLoadOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.mask_load",
+                                         isAllowedMaskLoadAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires exactly one explicit mask buffer ABI operand, one "
+              "!tcrv_rvv.vl operand, and one generic RVV mask result";
+  if (!isSupportedTypedMaskedMemoryRole(getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-input-buffer\" for tcrv_rvv.mask_load";
+  if (!isSupportedTypedMaskedMemoryMaskMemoryForm(getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"unit-stride-mask-load\" for tcrv_rvv.mask_load";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getMask(), "mask",
+          {tianchenrv::support::RuntimeABIParameterRole::MaskInputBuffer})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  return verifyGenericMaskTypeForWithVL(op, getLoaded(), "result");
 }
 
 mlir::LogicalResult IndexLoadOp::verify() {
@@ -3115,6 +3291,80 @@ mlir::LogicalResult MoveOp::verify() {
                                                     "source")))
     return mlir::failure();
   return verifyGenericVectorTypeForWithVL(op, getResult(), "result");
+}
+
+mlir::LogicalResult MaskedMoveOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.masked_move keeps SEW/LMUL/policy on typed "
+                "vector/mask values and setvl/with_vl, runtime n/AVL/VL in "
+                "the surrounding control-plane IR, and rejects deleted local "
+                "element_count metadata";
+
+    if (!isAllowedMaskedMoveAttr(attrName))
+      return emitOpError()
+             << "only accepts generic masked movement attribute 'kind'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!isSupportedGenericMaskedMoveKind(getKind()))
+    return emitOpError()
+           << "currently supports only kind "
+              "\"active-source-preserve-old-destination\" for the bounded "
+              "Stage 2 masked memory movement route";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one generic RVV mask predicate, active source and "
+              "inactive passthrough generic RVV vector operands, one "
+              "!tcrv_rvv.vl operand, and one generic RVV vector result";
+  if (getActiveValue().getType() != getInactivePassthrough().getType() ||
+      getActiveValue().getType() != getResult().getType())
+    return emitOpError()
+           << "requires active source, inactive passthrough, and result to "
+              "have the same generic RVV vector type";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto maskLoad = getMask().getDefiningOp<MaskLoadOp>();
+  if (!maskLoad)
+    return emitOpError()
+           << "requires mask operand to be produced by tcrv_rvv.mask_load "
+              "inside the selected RVV typed body";
+  if (maskLoad.getVl() != getVl())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.mask_load to consume the same "
+              "!tcrv_rvv.vl token as tcrv_rvv.masked_move";
+  if (maskLoad->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.mask_load to be in the same "
+              "tcrv_rvv.with_vl body as tcrv_rvv.masked_move";
+
+  if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getActiveValue(),
+                                                    "active source")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op,
+                                                    getInactivePassthrough(),
+                                                    "inactive passthrough")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getResult(),
+                                                    "result")))
+    return mlir::failure();
+  return verifyGenericMaskMatchesVector(op, getMask(), getResult(), "mask",
+                                        "result");
 }
 
 mlir::LogicalResult StoreOp::verify() {

@@ -113,6 +113,8 @@ llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyIndexedGatherRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyIndexedScatterRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();
 llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
     llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter> parameters,
     llvm::StringRef context);

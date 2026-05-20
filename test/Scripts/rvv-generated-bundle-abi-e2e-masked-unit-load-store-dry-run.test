@@ -1,0 +1,52 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id masked-unit-load-store --overwrite --op-kind masked_unit_load_store --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/masked-unit-load-store/evidence.json
+# RUN: FileCheck %s --check-prefix=MASKED --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/masked-unit-load-store/masked_unit_load_store/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/masked-unit-load-store/masked_unit_load_store/rvv_generated_bundle_abi_masked_unit_load_store_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "masked_unit_load_store"
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# MASKED-DAG: "input_mode": "explicit-selected-body"
+# MASKED-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-masked-unit-load-store.mlir"
+# MASKED-DAG: "prototype": "void tcrv_emitc_explicit_selected_body_masked_unit_load_store_kernel_explicit_selected_body_rvv_masked_unit_load_store(const int32_t *src, const int32_t *mask, int32_t *dst, size_t n);"
+# MASKED-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_masked_unit_load_store_kernel_explicit_selected_body_rvv_masked_unit_load_store"
+# MASKED-DAG: "expected_runtime_abi_name": "rvv-generic-masked-unit-load-store-callable-c-abi.v1"
+# MASKED-DAG: "expected_selected_variant": "explicit_selected_body_rvv_masked_unit_load_store"
+# MASKED-DAG: "key": "rvv_emitc_lowerable_route"
+# MASKED-DAG: "value": "rvv-generic-masked-unit-load-store-emitc-route"
+# MASKED-DAG: "key": "rvv_selected_body_operation"
+# MASKED-DAG: "value": "masked_unit_load_store"
+# MASKED-DAG: "key": "rvv_selected_body_typed_compute_op"
+# MASKED-DAG: "value": "tcrv_rvv.masked_move"
+# MASKED-DAG: "key": "tcrv_rvv.memory_form"
+# MASKED-DAG: "value": "masked-unit-load-store"
+# MASKED-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# MASKED-DAG: "value": "src,mask,dst,n"
+# MASKED-DAG: "key": "tcrv_rvv.masked_memory_layout"
+# MASKED-DAG: "value": "unit-stride-source-mask-old-destination-runtime-abi"
+# MASKED-DAG: "key": "tcrv_rvv.mask_role"
+# MASKED-DAG: "value": "predicate-mask-input-buffer"
+# MASKED-DAG: "key": "tcrv_rvv.mask_source"
+# MASKED-DAG: "value": "runtime_abi:mask"
+# MASKED-DAG: "key": "tcrv_rvv.mask_memory_form"
+# MASKED-DAG: "value": "unit-stride-mask-load"
+# MASKED-DAG: "key": "tcrv_rvv.inactive_lane_contract"
+# MASKED-DAG: "value": "masked-off-lanes-preserve-old-destination"
+# MASKED-DAG: "key": "tcrv_rvv.masked_passthrough_layout"
+# MASKED-DAG: "value": "old-destination-vector-preserves-inactive-lanes"
+# MASKED-DAG: "typed_compute_op": "tcrv_rvv.masked_move"
+# MASKED-DAG: "memory_form": "masked-unit-load-store"
+# MASKED-DAG: "inactive_lane_contract": "masked-off lanes and tail lanes must preserve old destination sentinel values"
+# MASKED-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_explicit_selected_body_masked_unit_load_store_kernel_explicit_selected_body_rvv_masked_unit_load_store(src, mask, dst, n);
+# HARNESS: int32_t expected = (mask[index] != 0 ? src[index] : old_dst[index]);
+# HARNESS: inactive lane did not preserve old destination
+# HARNESS: touched tail sentinel
+# HARNESS: PASS op=masked_unit_load_store counts=7,16,23

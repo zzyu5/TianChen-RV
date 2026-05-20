@@ -1635,13 +1635,16 @@ int runRVVCommonValidationTest() {
                                            "widen_i32_to_i64"
                                         ? "tcrv_rvv.widening_convert"
                                         : (route.operationMnemonic ==
-                                                       "strided_load_unit_store" ||
-                                                   route.operationMnemonic ==
-                                                       "indexed_gather_unit_store" ||
-                                                   route.operationMnemonic ==
-                                                       "indexed_scatter_unit_load"
-                                               ? "tcrv_rvv.move"
-                                               : "tcrv_rvv.binary")))));
+                                                   "masked_unit_load_store"
+                                               ? "tcrv_rvv.masked_move"
+                                               : (route.operationMnemonic ==
+                                                              "strided_load_unit_store" ||
+                                                          route.operationMnemonic ==
+                                                              "indexed_gather_unit_store" ||
+                                                          route.operationMnemonic ==
+                                                              "indexed_scatter_unit_load"
+                                                      ? "tcrv_rvv.move"
+                                                      : "tcrv_rvv.binary"))))));
     llvm::StringRef rhsSourceOp =
         route.operationMnemonic == "widen_i32_to_i64"
             ? ""
@@ -1654,9 +1657,12 @@ int runRVVCommonValidationTest() {
                                     "indexed_scatter_unit_load"
                                 ? "tcrv_rvv.indexed_store"
                                 : (route.operationMnemonic ==
-                                           "scalar_broadcast_add"
-                                       ? "tcrv_rvv.splat"
-                                       : "tcrv_rvv.load")));
+                                           "masked_unit_load_store"
+                                       ? "tcrv_rvv.mask_load"
+                                       : (route.operationMnemonic ==
+                                                  "scalar_broadcast_add"
+                                              ? "tcrv_rvv.splat"
+                                              : "tcrv_rvv.load"))));
     llvm::Expected<llvm::SmallVector<
         rvv::RVVSelectedBodyExecutableRoleStep, 10>>
         steps = rvv::getRVVSelectedBodyExecutableRoleSteps(
@@ -1675,11 +1681,14 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "indexed_gather_unit_store";
     const bool hasIndexedScatter =
         route.operationMnemonic == "indexed_scatter_unit_load";
+    const bool hasMaskedMemory =
+        route.operationMnemonic == "masked_unit_load_store";
     const bool hasConversion = route.operationMnemonic == "widen_i32_to_i64";
     unsigned expectedStepCount =
         hasConversion          ? 8u
         : hasStridedMemoryMovement ? 9u
         : (hasIndexedGather || hasIndexedScatter) ? 10u
+        : hasMaskedMemory                        ? 11u
         : hasStridedMemory         ? 13u
         : ((hasMaskProducer || hasAccumulatorLoad) ? 11u : 10u);
     if (steps->size() != expectedStepCount)
@@ -1728,6 +1737,12 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyIndexedScatterRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "masked_unit_load_store") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "scalar_broadcast_add") {

@@ -565,6 +565,23 @@ getRVVSelectedBodyIndexedScatterRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVSelectedBodyMaskedMemoryRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "mask", "const int32_t *",
+      support::RuntimeABIParameterRole::MaskInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "dst", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
     llvm::StringRef context) {
@@ -598,6 +615,11 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, indexedScatter))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 4> maskedMemory =
+      getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, maskedMemory))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 4> scalarBroadcastExpected =
       getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, scalarBroadcastExpected))
@@ -617,8 +639,10 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "rhs_stride, out_stride for the bounded int32_t strided add route; or "
       "src, out, n, src_stride for the bounded int32_t strided-load to "
       "unit-stride-store route; or data, index, out, n for the bounded "
-      "int32_t indexed-gather to unit-stride-store route with stable C "
-      "types, roles, and target-export ownership");
+      "int32_t indexed-gather to unit-stride-store route; or src, index, "
+      "dst, n for the bounded int32_t indexed-scatter route; or src, mask, "
+      "dst, n for the bounded int32_t masked unit-load/store route with "
+      "stable C types, roles, and target-export ownership");
 }
 
 llvm::StringRef getRVVSelectedBodyRuntimeAVLParameterName() {

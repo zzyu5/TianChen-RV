@@ -34,6 +34,7 @@ enum class RVVSelectedBodyOperationKind {
   StridedLoadUnitStore,
   IndexedGatherUnitStore,
   IndexedScatterUnitLoad,
+  MaskedUnitLoadStore,
   ScalarBroadcastAdd,
   WidenI32ToI64,
 };
@@ -46,6 +47,7 @@ enum class RVVSelectedBodyMemoryForm {
   StridedLoadUnitStore,
   IndexedLoadUnitStore,
   UnitLoadIndexedStore,
+  MaskedUnitLoadStore,
   UnitStrideConversion,
 };
 
@@ -110,6 +112,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef maskName;
   llvm::StringRef maskRole;
   llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
   llvm::StringRef inactiveLaneContract;
   llvm::StringRef maskedPassthroughLayout;
   llvm::StringRef reductionAccumulatorLayout;

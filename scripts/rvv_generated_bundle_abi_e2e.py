@@ -50,6 +50,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "strided_load_unit_store",
     "indexed_gather_unit_store",
     "indexed_scatter_unit_load",
+    "masked_unit_load_store",
     "scalar_broadcast_add",
     "i64_add",
     "lmul_m2_add",
@@ -95,6 +96,15 @@ INDEXED_SCATTER_INDEX_UNIQUENESS = "unique"
 INDEXED_SCATTER_SOURCE_MEMORY_FORM = "unit-stride-load"
 INDEXED_SCATTER_INDEXED_DESTINATION_MEMORY_FORM = "indexed-store"
 INDEXED_SCATTER_DESTINATION_MEMORY_FORM = "indexed-store"
+MASKED_MEMORY_RUNTIME_ABI_ORDER = "src,mask,dst,n"
+MASKED_MEMORY_LAYOUT = "unit-stride-source-mask-old-destination-runtime-abi"
+MASKED_MEMORY_MASK_ROLE = "predicate-mask-input-buffer"
+MASKED_MEMORY_MASK_SOURCE = "runtime_abi:mask"
+MASKED_MEMORY_MASK_FORM = "unit-stride-mask-load"
+MASKED_MEMORY_INACTIVE_LANE_CONTRACT = "masked-off-lanes-preserve-old-destination"
+MASKED_MEMORY_PASSTHROUGH_LAYOUT = "old-destination-vector-preserves-inactive-lanes"
+MASKED_MEMORY_SOURCE_MEMORY_FORM = "unit-stride-load"
+MASKED_MEMORY_DESTINATION_MEMORY_FORM = "unit-stride-store"
 OUT_SENTINEL = "(int32_t)0x5a5a5a5a"
 I64_OUT_SENTINEL = "(int64_t)0x5a5a5a5a5a5a5a5aLL"
 
@@ -154,6 +164,11 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *src, "
                 "const uint32_t *index, int32_t *dst, size_t n);"
             )
+        if self.is_masked_unit_load_store:
+            return (
+                f"void {self.function_name}(const int32_t *src, "
+                "const int32_t *mask, int32_t *dst, size_t n);"
+            )
         if self.is_scalar_broadcast_add:
             return (
                 f"void {self.function_name}(const int32_t *lhs, "
@@ -180,6 +195,8 @@ class OpExpectation:
             return EXPECTED_INDEXED_GATHER_RUNTIME_PARAMETERS
         if self.is_indexed_scatter_unit_load:
             return EXPECTED_INDEXED_SCATTER_RUNTIME_PARAMETERS
+        if self.is_masked_unit_load_store:
+            return EXPECTED_MASKED_MEMORY_RUNTIME_PARAMETERS
         if self.is_scalar_broadcast_add:
             return EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS
         if self.is_widen_i32_to_i64:
@@ -204,6 +221,8 @@ class OpExpectation:
             return INDEXED_GATHER_RUNTIME_ABI_ORDER
         if self.is_indexed_scatter_unit_load:
             return INDEXED_SCATTER_RUNTIME_ABI_ORDER
+        if self.is_masked_unit_load_store:
+            return MASKED_MEMORY_RUNTIME_ABI_ORDER
         if self.is_scalar_broadcast_add:
             return SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER
         if self.is_widen_i32_to_i64:
@@ -253,6 +272,10 @@ class OpExpectation:
     @property
     def is_indexed_scatter_unit_load(self) -> bool:
         return self.kind == "indexed_scatter_unit_load"
+
+    @property
+    def is_masked_unit_load_store(self) -> bool:
+        return self.kind == "masked_unit_load_store"
 
     @property
     def is_scalar_broadcast_add(self) -> bool:
@@ -442,6 +465,22 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         rhs_initializer="unused",
         expected_expression="src[logical_index]",
     ),
+    "masked_unit_load_store": OpExpectation(
+        kind="masked_unit_load_store",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-masked-unit-load-store.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_masked_unit_load_store",
+        external_abi_name="rvv-generic-masked-unit-load-store-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_masked_unit_load_store_kernel_explicit_selected_body_rvv_masked_unit_load_store",
+        emitc_route="rvv-generic-masked-unit-load-store-emitc-route",
+        typed_compute_op="tcrv_rvv.masked_move",
+        memory_form="masked-unit-load-store",
+        lhs_initializer="(int32_t)(900 + (int32_t)(index * 13))",
+        rhs_initializer="(int32_t)(((index % 5) == 0 || (index % 5) == 2) ? 1 : 0)",
+        out_initializer="(int32_t)(-7000 - (int32_t)(index * 17))",
+        expected_expression="(mask[index] != 0 ? src[index] : old_dst[index])",
+    ),
 }
 
 RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS = {
@@ -587,6 +626,13 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_indexed_scatter_unit_load",
         function_name="tcrv_emitc_pre_realized_body_indexed_scatter_unit_load_kernel_pre_realized_body_rvv_indexed_scatter_unit_load",
+    ),
+    "masked_unit_load_store": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_unit_load_store"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-masked-unit-load-store.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_masked_unit_load_store",
+        function_name="tcrv_emitc_pre_realized_body_masked_unit_load_store_kernel_pre_realized_body_rvv_masked_unit_load_store",
     ),
     "scalar_broadcast_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
@@ -787,6 +833,32 @@ EXPECTED_INDEXED_SCATTER_RUNTIME_PARAMETERS = (
         "c_name": "index",
         "c_type": "const uint32_t *",
         "role": "index-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "dst",
+        "c_type": "int32_t *",
+        "role": "output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "n",
+        "c_type": "size_t",
+        "role": "runtime-element-count",
+        "ownership": "target-export-abi-owned",
+    },
+)
+EXPECTED_MASKED_MEMORY_RUNTIME_PARAMETERS = (
+    {
+        "c_name": "src",
+        "c_type": "const int32_t *",
+        "role": "lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "mask",
+        "c_type": "const int32_t *",
+        "role": "mask-input-buffer",
         "ownership": "target-export-abi-owned",
     },
     {
@@ -1281,6 +1353,25 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
+    if expectation.is_masked_unit_load_store:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.masked_memory_layout": MASKED_MEMORY_LAYOUT,
+                "tcrv_rvv.mask_role": MASKED_MEMORY_MASK_ROLE,
+                "tcrv_rvv.mask_source": MASKED_MEMORY_MASK_SOURCE,
+                "tcrv_rvv.mask_memory_form": MASKED_MEMORY_MASK_FORM,
+                "tcrv_rvv.inactive_lane_contract": (
+                    MASKED_MEMORY_INACTIVE_LANE_CONTRACT
+                ),
+                "tcrv_rvv.masked_passthrough_layout": (
+                    MASKED_MEMORY_PASSTHROUGH_LAYOUT
+                ),
+                "tcrv_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
+                "tcrv_rvv.destination_memory_form": (
+                    MASKED_MEMORY_DESTINATION_MEMORY_FORM
+                ),
+            }
+        )
     if expectation.is_widen_i32_to_i64:
         per_op_metadata.update(
             {
@@ -1642,6 +1733,52 @@ def verify_materialized_selected_body(
             "tcrv_rvv.binary",
             "materialized selected-body MLIR indexed scatter unit load",
         )
+    if expectation.is_masked_unit_load_store:
+        require_contains(
+            text,
+            "tcrv_rvv.mask_load",
+            "materialized selected-body MLIR mask load",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.masked_move",
+            "materialized selected-body MLIR masked movement op",
+        )
+        require_contains(
+            text,
+            'role = "mask-input-buffer"',
+            "materialized selected-body MLIR mask ABI role",
+        )
+        require_contains(
+            text,
+            'mask_role = "predicate-mask-input-buffer"',
+            "materialized selected-body MLIR mask role",
+        )
+        require_contains(
+            text,
+            'mask_memory_form = "unit-stride-mask-load"',
+            "materialized selected-body MLIR mask memory form",
+        )
+        require_contains(
+            text,
+            'kind = "active-source-preserve-old-destination"',
+            "materialized selected-body MLIR inactive lane preservation kind",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.store",
+            "materialized selected-body MLIR unit-stride store",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.binary",
+            "materialized selected-body MLIR masked memory movement",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.indexed_store",
+            "materialized selected-body MLIR masked memory movement",
+        )
     if expectation.is_cmp_select:
         require_contains(
             text,
@@ -1716,6 +1853,11 @@ def verify_materialized_selected_body(
             "tcrv_rvv.typed_indexed_scatter_memory_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_masked_memory_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
     require_no_forbidden_public_residue(text, "materialized selected-body MLIR")
     return {
         "path": str(materialized_path),
@@ -1733,6 +1875,139 @@ def harness_source(
     header_file_name: str, runtime_counts: list[int], expectation: OpExpectation
 ) -> str:
     counts = ", ".join(str(count) for count in runtime_counts)
+    if expectation.is_masked_unit_load_store:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n == 0 ? 1 : n;
+  size_t dst_alloc_n = alloc_n + 8;
+  int32_t *src = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *mask = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
+  int32_t *old_dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
+  if (!src || !mask || !dst || !old_dst) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(src);
+    free(mask);
+    free(dst);
+    free(old_dst);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    src[index] = {expectation.lhs_initializer};
+    mask[index] = {expectation.rhs_initializer};
+    dst[index] = {expectation.out_initializer};
+    old_dst[index] = dst[index];
+  }}
+  for (size_t index = alloc_n; index < dst_alloc_n; ++index) {{
+    dst[index] = {OUT_SENTINEL};
+    old_dst[index] = dst[index];
+  }}
+
+  {expectation.function_name}(src, mask, dst, n);
+
+  size_t active_lanes = 0;
+  size_t inactive_lanes = 0;
+  size_t inactive_preserved_lanes = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    int active = mask[index] != 0;
+    if (active)
+      ++active_lanes;
+    else
+      ++inactive_lanes;
+
+    int32_t expected = {expectation.expected_expression};
+    if (dst[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d src=%d mask=%d old_dst=%d\\n",
+              n, index, dst[index], expected, src[index], mask[index],
+              old_dst[index]);
+      free(src);
+      free(mask);
+      free(dst);
+      free(old_dst);
+      return 12;
+    }}
+
+    if (!active) {{
+      if (dst[index] != old_dst[index]) {{
+        fprintf(stderr,
+                "{expectation.kind} inactive lane did not preserve old destination n=%zu index=%zu got=%d old_dst=%d\\n",
+                n, index, dst[index], old_dst[index]);
+        free(src);
+        free(mask);
+        free(dst);
+        free(old_dst);
+        return 13;
+      }}
+      ++inactive_preserved_lanes;
+    }}
+  }}
+
+  for (size_t index = n; index < dst_alloc_n; ++index) {{
+    if (dst[index] != old_dst[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d old_dst=%d\\n",
+              n, index, dst[index], old_dst[index]);
+      free(src);
+      free(mask);
+      free(dst);
+      free(old_dst);
+      return 14;
+    }}
+  }}
+
+  if (n > 1 && (active_lanes == 0 || inactive_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} mask coverage missing n=%zu active_lanes=%zu inactive_lanes=%zu\\n",
+            n, active_lanes, inactive_lanes);
+    free(src);
+    free(mask);
+    free(dst);
+    free(old_dst);
+    return 15;
+  }}
+  if (inactive_lanes != inactive_preserved_lanes) {{
+    fprintf(stderr,
+            "{expectation.kind} inactive preservation coverage mismatch n=%zu inactive_lanes=%zu preserved_lanes=%zu\\n",
+            n, inactive_lanes, inactive_preserved_lanes);
+    free(src);
+    free(mask);
+    free(dst);
+    free(old_dst);
+    return 16;
+  }}
+
+  free(src);
+  free(mask);
+  free(dst);
+  free(old_dst);
+  printf("{expectation.kind} case n=%zu ok active_lanes=%zu inactive_lanes=%zu inactive_preserved_lanes=%zu tail_preserved\\n",
+         n, active_lanes, inactive_lanes, inactive_preserved_lanes);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_indexed_scatter_unit_load:
         return f"""
 #include <stddef.h>
@@ -2972,6 +3247,15 @@ def run_one_op_e2e(
             evidence["harness"]["inactive_lane_contract"] = (
                 "masked-off lanes must preserve the explicit passthrough vector"
             )
+        if expectation.is_masked_unit_load_store:
+            evidence["harness"]["mask_coverage_contract"] = (
+                "multi-lane masked_unit_load_store cases require active and "
+                "inactive mask lanes"
+            )
+            evidence["harness"]["inactive_lane_contract"] = (
+                "masked-off lanes and tail lanes must preserve old destination "
+                "sentinel values"
+            )
 
         if args.dry_run:
             evidence["status"] = "dry_run_success"
@@ -3444,7 +3728,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "use the pre-realized selected-body add/sub/mul/masked_add/"
             "reduce_add/macc_add/strided_add/strided_load_unit_store/"
             "indexed_gather_unit_store/indexed_scatter_unit_load/"
-            "lmul_m2_add/"
+            "masked_unit_load_store/lmul_m2_add/"
             "widen_i32_to_i64 "
             "fixtures and run public selected lowering-boundary "
             "materialization before emission planning; mutually exclusive "

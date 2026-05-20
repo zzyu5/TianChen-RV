@@ -668,6 +668,46 @@ def TypedIndexedScatterMemoryPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedMaskedMemoryPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_masked_memory_pre_realized_body"> {
+  let summary = "generic typed pre-realized RVV masked memory movement body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body for
+    mask-aware unit-stride source-to-destination memory movement. The op is
+    nested directly in a selected tcrv.exec.variant and binds explicit runtime
+    ABI values for source, mask, destination, and runtime n/AVL together with
+    selected memory movement operation kind, memory form, mask role/config,
+    inactive-lane preservation policy, compile-time RVV data/mask config, and
+    policy.
+
+    This op is not a masked memory framework, masked gather/scatter route,
+    descriptor, source-front-door marker, direct-C exporter, route id,
+    intrinsic wrapper, runtime artifact, correctness evidence, or performance
+    evidence. The RVV plugin must realize it into explicit setvl/with_vl/load/
+    mask_load/load/masked_move/store tcrv_rvv body structure before the
+    provider may construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$source,
+    AnyType:$mask,
+    AnyType:$destination,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    StrAttr:$mask_role,
+    StrAttr:$mask_memory_form,
+    StrAttr:$inactive_lane_policy,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$source `,` $mask `,` $destination `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def LoadOp : TCRVRVV_Op<"load",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",
@@ -695,6 +735,38 @@ def LoadOp : TCRVRVV_Op<"load",
 
   let assemblyFormat =
     "$buffer `,` $vl attr-dict `:` type($buffer) `,` type($vl) `->` type($loaded)";
+  let hasVerifier = 1;
+}
+
+def MaskLoadOp : TCRVRVV_Op<"mask_load",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV mask buffer load dataflow op";
+  let description = [{
+    Records one bounded plugin-local RVV mask-buffer load dataflow step. The
+    op is nested directly under tcrv_rvv.with_vl, consumes one explicit mask
+    input-buffer runtime ABI value plus the active !tcrv_rvv.vl token, carries
+    explicit mask role and mask memory form facts, and produces one
+    !tcrv_rvv.mask token matching the enclosing vector config.
+
+    The mask buffer role and mask memory form are structural body authority for
+    bounded masked memory movement. The RVV plugin derives mask materialization
+    from this typed body fact, the data/mask config, and runtime ABI binding;
+    route ids, artifact names, ABI strings, descriptor residue, and common
+    EmitC/export code must not infer mask semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$mask,
+    AnyType:$vl,
+    StrAttr:$mask_role,
+    StrAttr:$mask_memory_form
+  );
+  let results = (outs AnyType:$loaded);
+
+  let assemblyFormat =
+    "$mask `,` $vl attr-dict `:` type($mask) `,` type($vl) `->` type($loaded)";
   let hasVerifier = 1;
 }
 
@@ -1119,6 +1191,38 @@ def MoveOp : TCRVRVV_Op<"move",
 
   let assemblyFormat =
     "$source `,` $vl attr-dict `:` type($source) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def MaskedMoveOp : TCRVRVV_Op<"masked_move",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary = "generic typed RVV masked memory movement dataflow op";
+  let description = [{
+    Records one bounded plugin-local RVV masked movement step for
+    unit-stride source-to-destination memory movement. The op is nested
+    directly under tcrv_rvv.with_vl, consumes one !tcrv_rvv.mask produced by
+    tcrv_rvv.mask_load, one active source !tcrv_rvv.vector, one inactive
+    old-destination passthrough !tcrv_rvv.vector, and the active
+    !tcrv_rvv.vl token. It carries an explicit movement kind and produces the
+    same-typed vector to store.
+
+    For the current bounded Stage 2 masked memory slice, kind is limited to
+    active-source-preserve-old-destination. The active/inactive lane behavior
+    is structural body authority and must not be inferred from route ids, ABI
+    names, artifact metadata, exact intrinsic spelling, or harness sentinels.
+  }];
+
+  let arguments = (ins
+    AnyType:$mask,
+    AnyType:$active_value,
+    AnyType:$inactive_passthrough,
+    AnyType:$vl,
+    StrAttr:$kind
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$mask `,` $active_value `,` $inactive_passthrough `,` $vl attr-dict `:` type($mask) `,` type($active_value) `,` type($inactive_passthrough) `,` type($vl) `->` type($result)";
   let hasVerifier = 1;
 }
 

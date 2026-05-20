@@ -51,12 +51,12 @@ constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "TCRVConfigOpInterface:TCRVEmitCLowerableInterface;"
     "load:rvv.role.load.generic_load:tcrv_rvv.load|"
     "tcrv_rvv.broadcast_load|tcrv_rvv.splat|tcrv_rvv.strided_load|"
-    "tcrv_rvv.index_load|tcrv_rvv.indexed_load:"
+    "tcrv_rvv.index_load|tcrv_rvv.indexed_load|tcrv_rvv.mask_load:"
     "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;"
     "compute:rvv.role.compute.generic_vector:tcrv_rvv.binary|"
     "tcrv_rvv.compare|tcrv_rvv.masked_binary|tcrv_rvv.select|"
     "tcrv_rvv.reduce|tcrv_rvv.macc|tcrv_rvv.widening_convert|"
-    "tcrv_rvv.move:"
+    "tcrv_rvv.move|tcrv_rvv.masked_move:"
     "TCRVComputeOpInterface:TCRVEmitCLowerableInterface;"
     "store:rvv.role.store.generic_store:tcrv_rvv.store|"
     "tcrv_rvv.strided_store|tcrv_rvv.indexed_store:"
@@ -67,30 +67,21 @@ constexpr llvm::StringLiteral kInterfaceRealizationArtifactSummary(
     "compute/compute+resource+emitc;store/memory+resource+emitc");
 constexpr llvm::StringLiteral kTypedRoleArtifactSummary(
     "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;"
-    "scope:tcrv_rvv.with_vl;load:tcrv_rvv.load;"
-    "broadcast_load:tcrv_rvv.broadcast_load;"
-    "splat:tcrv_rvv.splat;"
-    "strided_load:tcrv_rvv.strided_load;"
-    "index_load:tcrv_rvv.index_load;"
-    "indexed_load:tcrv_rvv.indexed_load;"
-    "compute:tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.select|"
-    "tcrv_rvv.masked_binary|tcrv_rvv.reduce|tcrv_rvv.macc|"
-    "tcrv_rvv.widening_convert|tcrv_rvv.move;"
-    "store:tcrv_rvv.store;strided_store:tcrv_rvv.strided_store;"
-    "indexed_store:tcrv_rvv.indexed_store");
+    "scope:tcrv_rvv.with_vl;"
+    "load:tcrv_rvv.load|broadcast_load|splat|strided_load|index_load|"
+    "indexed_load|mask_load;"
+    "compute:tcrv_rvv.binary|compare|select|masked_binary|reduce|macc|"
+    "widening_convert|move|masked_move;"
+    "store:tcrv_rvv.store|strided_store|indexed_store");
 
 constexpr llvm::StringLiteral kEmitCLowerableOpInterfaceName(
     "TCRVEmitCLowerableOpInterface");
 constexpr llvm::StringLiteral kSourceOps(
     "tcrv_rvv.runtime_abi_value->tcrv_rvv.setvl->tcrv_rvv.with_vl->"
-    "(tcrv_rvv.load|tcrv_rvv.strided_load|tcrv_rvv.index_load)->"
-    "(tcrv_rvv.load|tcrv_rvv.broadcast_load|tcrv_rvv.splat|"
-    "tcrv_rvv.strided_load|tcrv_rvv.indexed_load)->"
-    "(tcrv_rvv.binary|tcrv_rvv.compare->tcrv_rvv.select|"
-    "tcrv_rvv.compare->tcrv_rvv.masked_binary|tcrv_rvv.reduce|"
-    "tcrv_rvv.load->tcrv_rvv.macc|tcrv_rvv.widening_convert|"
-    "tcrv_rvv.move)->"
-    "(tcrv_rvv.store|tcrv_rvv.strided_store|tcrv_rvv.indexed_store)");
+    "load_family->compute_family->store_family;"
+    "ops=load,broadcast_load,splat,strided_load,index_load,indexed_load,"
+    "mask_load,binary,compare,select,masked_binary,reduce,macc,"
+    "widening_convert,move,masked_move,store,strided_store,indexed_store");
 constexpr llvm::StringLiteral kSourceRoles(
     "runtime_abi->configure->scope->load->load->compute->"
     "optional_compute->store");
@@ -192,22 +183,24 @@ const RVVConstructionSemanticRole kSemanticRoles[] = {
      "own the selected with_vl lowering boundary for the arithmetic body"},
     {"load", 3,
      "tcrv_rvv.load|tcrv_rvv.broadcast_load|tcrv_rvv.splat|"
-     "tcrv_rvv.strided_load|tcrv_rvv.index_load|tcrv_rvv.indexed_load",
+     "tcrv_rvv.strided_load|tcrv_rvv.index_load|tcrv_rvv.indexed_load|"
+     "tcrv_rvv.mask_load",
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "load explicit ABI buffers into typed RVV vector dataflow values, "
      "broadcast the explicit RHS ABI buffer into a typed RVV dataflow value, "
      "splat an explicit RHS scalar ABI value into a typed RVV dataflow value, "
-     "or load with explicit runtime element stride values"},
+     "load explicit mask buffers into typed RVV predicate values, or load "
+     "with explicit runtime element stride values"},
     {"compute", 4,
      "tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.masked_binary|"
      "tcrv_rvv.select|tcrv_rvv.reduce|tcrv_rvv.macc|"
-     "tcrv_rvv.widening_convert|tcrv_rvv.move",
+     "tcrv_rvv.widening_convert|tcrv_rvv.move|tcrv_rvv.masked_move",
      "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "perform the bounded generic RVV arithmetic, masked arithmetic, "
      "compare/select, reduction/accumulation, or multiply-accumulate compute "
-     "operation"},
+     "operation, plus bounded typed masked memory movement"},
     {"store", 5,
      "tcrv_rvv.store|tcrv_rvv.strided_store|tcrv_rvv.indexed_store",
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
@@ -267,7 +260,8 @@ const RVVTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "load",
      3,
      "tcrv_rvv.load|tcrv_rvv.broadcast_load|tcrv_rvv.splat|"
-     "tcrv_rvv.strided_load|tcrv_rvv.index_load|tcrv_rvv.indexed_load",
+     "tcrv_rvv.strided_load|tcrv_rvv.index_load|tcrv_rvv.indexed_load|"
+     "tcrv_rvv.mask_load",
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVMemoryOpInterface",
@@ -277,7 +271,7 @@ const RVVTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      4,
      "tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.masked_binary|"
      "tcrv_rvv.select|tcrv_rvv.reduce|tcrv_rvv.macc|"
-     "tcrv_rvv.widening_convert|tcrv_rvv.move",
+     "tcrv_rvv.widening_convert|tcrv_rvv.move|tcrv_rvv.masked_move",
      "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVComputeOpInterface",
@@ -369,6 +363,12 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-indexed-scatter-unit-load-emitc-route",
      "rvv-generic-indexed-scatter-unit-load-callable-c-abi.v1",
      "rvv-generic-indexed-scatter-unit-load-callable-c-abi"},
+    {"masked_unit_load_store",
+     "tcrv_rvv.masked_move",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-masked-unit-load-store-emitc-route",
+     "rvv-generic-masked-unit-load-store-callable-c-abi.v1",
+     "rvv-generic-masked-unit-load-store-callable-c-abi"},
     {"scalar_broadcast_add",
      "tcrv_rvv.binary",
      "rvv.role.compute.generic_vector",
@@ -493,13 +493,13 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 13)
+          .size() != 14)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
         "cmp_select, reduce_add, masked_add, macc_add, strided_add, "
         "strided_load_unit_store, indexed_gather_unit_store, "
-        "indexed_scatter_unit_load, scalar_broadcast_add, and "
-        "widen_i32_to_i64");
+        "indexed_scatter_unit_load, masked_unit_load_store, "
+        "scalar_broadcast_add, and widen_i32_to_i64");
   return llvm::Error::success();
 }
 
@@ -616,6 +616,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
       route->operationMnemonic == "indexed_gather_unit_store";
   const bool isIndexedScatterUnitLoad =
       route->operationMnemonic == "indexed_scatter_unit_load";
+  const bool isMaskedUnitLoadStore =
+      route->operationMnemonic == "masked_unit_load_store";
   const bool isScalarBroadcastAdd =
       route->operationMnemonic == "scalar_broadcast_add";
   const bool isWidenI32ToI64 =
@@ -650,16 +652,21 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return makeRVVConstructionError(
         "RVV unit-stride-load to indexed scatter construction requires "
         "generic tcrv_rvv.move");
+  if (isMaskedUnitLoadStore && typedComputeOpName != "tcrv_rvv.masked_move")
+    return makeRVVConstructionError(
+        "RVV masked unit-stride memory movement construction requires generic "
+        "tcrv_rvv.masked_move");
   if (!isCompareSelect && !isReduction && !isMaskedAdd && !isMAccAdd &&
       !isStridedAdd && !isStridedLoadUnitStore &&
       !isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
-      !isWidenI32ToI64 && !usesGenericBinary)
+      !isMaskedUnitLoadStore && !isWidenI32ToI64 && !usesGenericBinary)
     return makeRVVConstructionError(
         llvm::Twine("RVV arithmetic construction requires generic "
                     "tcrv_rvv.binary, not legacy typed compute op '") +
         typedComputeOpName + "'");
   if (!isWidenI32ToI64 && !isStridedLoadUnitStore &&
       !isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
+      !isMaskedUnitLoadStore &&
       rhsSourceOperationName != "tcrv_rvv.load" &&
       rhsSourceOperationName != "tcrv_rvv.broadcast_load" &&
       rhsSourceOperationName != "tcrv_rvv.splat" &&
@@ -696,6 +703,15 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return makeRVVConstructionError(
         "RVV generic unit-stride-load to indexed scatter construction "
         "requires explicit index_load and indexed_store memory roles");
+  if (isMaskedUnitLoadStore && rhsSourceOperationName != "tcrv_rvv.mask_load")
+    return makeRVVConstructionError(
+        "RVV generic masked unit-stride memory movement construction requires "
+        "explicit source load, mask_load, old-destination load, masked_move, "
+        "and store roles");
+  if (!isMaskedUnitLoadStore && rhsSourceOperationName == "tcrv_rvv.mask_load")
+    return makeRVVConstructionError(
+        "RVV generic mask_load memory form is only supported by "
+        "masked_unit_load_store in this bounded slice");
   if (!isStridedAdd && !isStridedLoadUnitStore &&
       rhsSourceOperationName == "tcrv_rvv.strided_load")
     return makeRVVConstructionError(
@@ -742,8 +758,10 @@ buildRVVSelectedBodyExecutableRoleSteps(
                    "rvv.role.runtime_abi.runtime_abi_value",
                    "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
                    isIndexedGatherUnitStore ? "data"
-                                            : (isIndexedScatterUnitLoad ? "src"
-                                                                        : "lhs"),
+                                            : ((isIndexedScatterUnitLoad ||
+                                                isMaskedUnitLoadStore)
+                                                   ? "src"
+                                                   : "lhs"),
                    0});
   if (isWidenI32ToI64) {
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
@@ -869,6 +887,43 @@ buildRVVSelectedBodyExecutableRoleSteps(
     steps.push_back({"store", "tcrv_rvv.indexed_store",
                      "rvv.role.store.generic_store", "TCRVMemoryOpInterface",
                      "TCRVEmitCLowerableInterface", "indexed_store", 9});
+    return steps;
+  }
+  if (isMaskedUnitLoadStore) {
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "mask", 1});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "dst", 2});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "n", 3});
+    steps.push_back({"configure", "tcrv_rvv.setvl",
+                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+                     4});
+    steps.push_back({"scope", "tcrv_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "with_vl", 5});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "source_load", 6});
+    steps.push_back({"load", "tcrv_rvv.mask_load",
+                     "rvv.role.load.generic_load", "TCRVMemoryOpInterface",
+                     "TCRVEmitCLowerableInterface", "mask_load", 7});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "old_destination_load", 8});
+    steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
+                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     route->operationMnemonic, 9});
+    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "store", 10});
     return steps;
   }
   steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
@@ -1187,9 +1242,12 @@ getRVVSelectedBodyExecutableRoleSteps(llvm::StringRef typedComputeOpName) {
     return makeRVVConstructionError(
         llvm::Twine("unknown RVV selected-body typed compute op '") +
         typedComputeOpName + "'");
+  llvm::StringRef rhsSourceOperationName =
+      typedComputeOpName == "tcrv_rvv.masked_move" ? "tcrv_rvv.mask_load"
+                                                   : "tcrv_rvv.load";
   return buildRVVSelectedBodyExecutableRoleSteps(route->operationMnemonic,
                                                 typedComputeOpName,
-                                                "tcrv_rvv.load");
+                                                rhsSourceOperationName);
 }
 
 llvm::Expected<llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10>>
@@ -1275,6 +1333,11 @@ llvm::Error verifyRVVConstructionProtocolReady() {
           tcrv::rvv::getRVVSelectedBodyIndexedScatterRuntimeABIParameters();
       routeRuntimeABIParameters.append(indexedParameters.begin(),
                                        indexedParameters.end());
+    } else if (route.operationMnemonic == "masked_unit_load_store") {
+      llvm::SmallVector<support::RuntimeABIParameter, 4> maskedParameters =
+          tcrv::rvv::getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();
+      routeRuntimeABIParameters.append(maskedParameters.begin(),
+                                       maskedParameters.end());
     } else if (route.operationMnemonic == "scalar_broadcast_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 4> scalarParameters =
           tcrv::rvv::getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
@@ -1429,6 +1492,18 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         llvm::Twine(context) +
         " indexed gather to unit-stride-store cannot use generic "
         "tcrv_rvv.binary");
+  if (usesGenericBinary &&
+      route->operationMnemonic == "indexed_scatter_unit_load")
+    return makeRVVConstructionError(
+        llvm::Twine(context) +
+        " unit-stride-load to indexed scatter cannot use generic "
+        "tcrv_rvv.binary");
+  if (usesGenericBinary &&
+      route->operationMnemonic == "masked_unit_load_store")
+    return makeRVVConstructionError(
+        llvm::Twine(context) +
+        " masked unit-stride memory movement cannot use generic "
+        "tcrv_rvv.binary");
   if (!usesGenericBinary && facts.typedComputeOpName != route->typedComputeOpName)
     return makeRVVConstructionError(
         llvm::Twine(context) +
@@ -1440,7 +1515,9 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                  route->operationMnemonic == "macc_add" ||
                  route->operationMnemonic == "widen_i32_to_i64" ||
                  route->operationMnemonic == "strided_load_unit_store" ||
-                 route->operationMnemonic == "indexed_gather_unit_store"
+                 route->operationMnemonic == "indexed_gather_unit_store" ||
+                 route->operationMnemonic == "indexed_scatter_unit_load" ||
+                 route->operationMnemonic == "masked_unit_load_store"
              ? "'"
              : "' or generic 'tcrv_rvv.binary'") +
         " but was '" + facts.typedComputeOpName + "'");
@@ -1501,6 +1578,11 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         tcrv::rvv::getRVVSelectedBodyIndexedScatterRuntimeABIParameters();
     expectedParameters.append(indexedParameters.begin(),
                               indexedParameters.end());
+  } else if (route->operationMnemonic == "masked_unit_load_store") {
+    llvm::SmallVector<support::RuntimeABIParameter, 4> maskedParameters =
+        tcrv::rvv::getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();
+    expectedParameters.append(maskedParameters.begin(),
+                              maskedParameters.end());
   } else if (route->operationMnemonic == "scalar_broadcast_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 4> scalarParameters =
         tcrv::rvv::getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
@@ -1580,6 +1662,9 @@ llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
                    "configure->scope->load->load->compute->store"
                  : "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
                    "configure->scope->load->compute->store")
+      : typedComputeOpName == "tcrv_rvv.masked_move"
+          ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
+            "configure->scope->load->load->load->compute->store"
       : (typedComputeOpName == "tcrv_rvv.select" ||
        typedComputeOpName == "tcrv_rvv.masked_binary")
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
@@ -1740,6 +1825,11 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
     return makeRVVConstructionError(
         "selected-body unit-stride-load to indexed scatter cannot use "
         "generic tcrv_rvv.binary");
+  if (usesGenericBinary &&
+      expected.operationMnemonic == "masked_unit_load_store")
+    return makeRVVConstructionError(
+        "selected-body masked unit-stride memory movement cannot use generic "
+        "tcrv_rvv.binary");
   if (!usesGenericBinary && expected.typedComputeOpName != typedComputeOpName)
     return makeRVVConstructionError(
         llvm::Twine("selected-body typed compute op for operation '") +
@@ -1751,7 +1841,8 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
                  expected.operationMnemonic == "widen_i32_to_i64" ||
                  expected.operationMnemonic == "strided_load_unit_store" ||
                  expected.operationMnemonic == "indexed_gather_unit_store" ||
-                 expected.operationMnemonic == "indexed_scatter_unit_load"
+                 expected.operationMnemonic == "indexed_scatter_unit_load" ||
+                 expected.operationMnemonic == "masked_unit_load_store"
              ? "'"
              : "' or generic 'tcrv_rvv.binary'"));
   if (expected.emitCRouteID != emitCRouteID)
