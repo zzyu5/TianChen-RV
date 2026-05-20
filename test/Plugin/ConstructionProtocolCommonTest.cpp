@@ -1635,7 +1635,9 @@ int runRVVCommonValidationTest() {
                                            "widen_i32_to_i64"
                                         ? "tcrv_rvv.widening_convert"
                                         : (route.operationMnemonic ==
-                                                   "masked_unit_load_store"
+                                                   "masked_unit_load_store" ||
+                                           route.operationMnemonic ==
+                                               "computed_masked_unit_load_store"
                                                ? "tcrv_rvv.masked_move"
                                                : (route.operationMnemonic ==
                                                               "strided_load_unit_store" ||
@@ -1660,9 +1662,12 @@ int runRVVCommonValidationTest() {
                                            "masked_unit_load_store"
                                        ? "tcrv_rvv.mask_load"
                                        : (route.operationMnemonic ==
+                                                  "computed_masked_unit_load_store"
+                                              ? "tcrv_rvv.compare"
+                                       : (route.operationMnemonic ==
                                                   "scalar_broadcast_add"
                                               ? "tcrv_rvv.splat"
-                                              : "tcrv_rvv.load"))));
+                                              : "tcrv_rvv.load")))));
     llvm::Expected<llvm::SmallVector<
         rvv::RVVSelectedBodyExecutableRoleStep, 10>>
         steps = rvv::getRVVSelectedBodyExecutableRoleSteps(
@@ -1683,12 +1688,15 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "indexed_scatter_unit_load";
     const bool hasMaskedMemory =
         route.operationMnemonic == "masked_unit_load_store";
+    const bool hasComputedMaskMemory =
+        route.operationMnemonic == "computed_masked_unit_load_store";
     const bool hasConversion = route.operationMnemonic == "widen_i32_to_i64";
     unsigned expectedStepCount =
         hasConversion          ? 8u
         : hasStridedMemoryMovement ? 9u
         : (hasIndexedGather || hasIndexedScatter) ? 10u
         : hasMaskedMemory                        ? 11u
+        : hasComputedMaskMemory                  ? 14u
         : hasStridedMemory         ? 13u
         : ((hasMaskProducer || hasAccumulatorLoad) ? 11u : 10u);
     if (steps->size() != expectedStepCount)
@@ -1743,6 +1751,13 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
+               "computed_masked_unit_load_store") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyComputedMaskMemoryRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "scalar_broadcast_add") {

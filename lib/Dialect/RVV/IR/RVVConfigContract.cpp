@@ -582,6 +582,26 @@ getRVVSelectedBodyMaskedMemoryRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 5>
+getRVVSelectedBodyComputedMaskMemoryRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "cmp_lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "cmp_rhs", "const int32_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src", "const int32_t *",
+      support::RuntimeABIParameterRole::SourceInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "dst", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
     llvm::StringRef context) {
@@ -620,6 +640,11 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, maskedMemory))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 5> computedMaskMemory =
+      getRVVSelectedBodyComputedMaskMemoryRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, computedMaskMemory))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 4> scalarBroadcastExpected =
       getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, scalarBroadcastExpected))
@@ -642,6 +667,9 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "int32_t indexed-gather to unit-stride-store route; or src, index, "
       "dst, n for the bounded int32_t indexed-scatter route; or src, mask, "
       "dst, n for the bounded int32_t masked unit-load/store route with "
+      "ABI mask input; or cmp_lhs, cmp_rhs, src, dst, n for the bounded "
+      "int32_t computed-mask masked unit-load/store route with compare "
+      "producer; all with "
       "stable C types, roles, and target-export ownership");
 }
 

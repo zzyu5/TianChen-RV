@@ -65,7 +65,7 @@ module {
     tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
       %loaded = tcrv_rvv.load %src, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       %old = tcrv_rvv.load %dst, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-      // expected-error@+1 {{requires mask operand to be produced by tcrv_rvv.mask_load inside the selected RVV typed body}}
+      // expected-error@+1 {{requires mask operand to be produced by tcrv_rvv.mask_load or tcrv_rvv.compare inside the selected RVV typed body}}
       %moved = tcrv_rvv.masked_move %fake_mask, %loaded, %old, %vl {kind = "active-source-preserve-old-destination"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
     } : !tcrv_rvv.vl
   }

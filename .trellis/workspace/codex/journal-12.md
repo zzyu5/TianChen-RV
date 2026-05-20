@@ -46,3 +46,53 @@ Implemented bounded i32 SEW32 LMUL m1 masked unit-stride memory movement with ty
 ### Next Steps
 
 - None - task complete
+
+
+## Session 142: Stage2 RVV computed-mask memory dataflow executable slice
+
+**Date**: 2026-05-20
+**Task**: Stage2 RVV computed-mask memory dataflow executable slice
+**Branch**: `main`
+
+### Summary
+
+Implemented one bounded i32 SEW32 LMUL m1 computed-mask memory dataflow slice:
+`dst[i] = cmp_lhs[i] < cmp_rhs[i] ? src[i] : old_dst[i]`. The selected RVV
+body now carries compare lhs/rhs, active source, old/result destination,
+runtime n/AVL, predicate, mask role/source/form, inactive-lane policy, and
+typed RVV config through plugin-local realization, route planning/provider,
+generated artifact export, and ssh rvv correctness evidence.
+
+### Main Changes
+
+- Added `source-input-buffer` runtime ABI role and a five-parameter computed-mask memory ABI order `cmp_lhs,cmp_rhs,src,dst,n`.
+- Added `typed_computed_mask_memory_pre_realized_body` and verifier coverage for predicate `slt`, mask source `compare-produced-mask-same-vl-scope`, old-destination preservation, typed config, ABI roles, and stale authority metadata rejection.
+- Extended RVV selected-body realization to materialize the pre-realized body into `setvl`, compare lhs/rhs loads, active source load, old destination load, `tcrv_rvv.compare`, `tcrv_rvv.masked_move`, and store.
+- Extended route planning/provider, construction protocol, metadata, header ABI, and generated-bundle harness support for `computed_masked_unit_load_store`.
+- Added positive and fail-closed MLIR tests for computed-mask materialization/route planning and updated masked memory diagnostics to allow compare-produced masks.
+- Runtime evidence: pre-realized computed-mask generated bundle passed `ssh rvv` for counts `7,16,23`, proving compare-active lanes update while compare-false lanes and tail sentinels preserve old destination.
+- Checks: script py_compile/self-test, focused dialect/target FileCheck, C++ unit tests, generated-bundle dry-run, real ssh rvv generated-bundle run, `git diff --check`, `check-tianchenrv` 214/214, and active-authority scan.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] focused MLIR positive/fail-closed checks for computed-mask memory
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind computed_masked_unit_load_store --runtime-count 7 --runtime-count 16 --runtime-count 23 --dry-run ...`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind computed_masked_unit_load_store --runtime-count 7 --runtime-count 16 --runtime-count 23 --ssh-target rvv ...`
+- [OK] `cmake --build build --target check-tianchenrv -j2`
+- [OK] active-authority scan: no new `RVVI32M1`, `rvv-i32m1`, positive `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`, source-front-door/source-seed, descriptor, direct-C, or source-export route authority.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

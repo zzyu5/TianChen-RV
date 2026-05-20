@@ -708,6 +708,49 @@ def TypedMaskedMemoryPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedComputedMaskMemoryPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_computed_mask_memory_pre_realized_body"> {
+  let summary = "generic typed pre-realized RVV computed-mask memory body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body where a
+    signed i32 vector compare produces an in-body mask SSA value and masked
+    unit-stride memory movement consumes that mask. The op is nested directly
+    in a selected tcrv.exec.variant and binds explicit runtime ABI values for
+    compare lhs, compare rhs, active source, destination, and runtime n/AVL
+    together with compare predicate, memory form, mask role/source/config,
+    inactive-lane preservation policy, compile-time RVV data/mask config, and
+    policy.
+
+    This op is not a fusion framework, route label, intrinsic wrapper,
+    runtime artifact, correctness evidence, or performance evidence. The RVV
+    plugin must realize it into explicit setvl/with_vl/load/load/load/load/
+    compare/masked_move/store tcrv_rvv body structure before the provider may
+    construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$compare_lhs,
+    AnyType:$compare_rhs,
+    AnyType:$source,
+    AnyType:$destination,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$predicate_kind,
+    StrAttr:$memory_form,
+    StrAttr:$mask_role,
+    StrAttr:$mask_source,
+    StrAttr:$mask_memory_form,
+    StrAttr:$inactive_lane_policy,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$compare_lhs `,` $compare_rhs `,` $source `,` $destination `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def LoadOp : TCRVRVV_Op<"load",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",
@@ -718,9 +761,10 @@ def LoadOp : TCRVRVV_Op<"load",
     nested directly under tcrv_rvv.with_vl, consumes one explicit runtime ABI
     buffer SSA value plus the active !tcrv_rvv.vl token, and produces one
     !tcrv_rvv.vector element/LMUL token matching the enclosing config.
-    LHS/RHS input buffers are valid for ordinary arithmetic routes; an output
-    buffer load is valid only when the RVV provider recognizes it as an
-    explicit accumulator input for a multiply-accumulate selected body.
+    LHS/RHS input buffers are valid for ordinary arithmetic and compare
+    operands; source input buffers are valid for bounded computed-mask memory
+    movement; an output buffer load is valid only when the RVV provider
+    recognizes it as an explicit accumulator/old-destination input.
 
     Buffer ABI provenance comes from the explicit runtime ABI operand. Element
     dtype and LMUL come from the result type and are validated with the
@@ -1024,9 +1068,9 @@ def CompareOp : TCRVRVV_Op<"compare",
     !tcrv_rvv.vector operands and the active !tcrv_rvv.vl token, carries an
     explicit comparison kind, and produces one matching !tcrv_rvv.mask token.
 
-    For the current bounded Stage 2 predicate slice, kind is limited to eq.
-    Compare semantics come only from this typed operation in the selected RVV
-    body.
+    For the current bounded Stage 2 predicate slices, kind is limited to eq or
+    slt. Compare semantics come only from this typed operation in the selected
+    RVV body.
   }];
 
   let arguments = (ins
@@ -1201,10 +1245,10 @@ def MaskedMoveOp : TCRVRVV_Op<"masked_move",
     Records one bounded plugin-local RVV masked movement step for
     unit-stride source-to-destination memory movement. The op is nested
     directly under tcrv_rvv.with_vl, consumes one !tcrv_rvv.mask produced by
-    tcrv_rvv.mask_load, one active source !tcrv_rvv.vector, one inactive
-    old-destination passthrough !tcrv_rvv.vector, and the active
-    !tcrv_rvv.vl token. It carries an explicit movement kind and produces the
-    same-typed vector to store.
+    either tcrv_rvv.mask_load or tcrv_rvv.compare, one active source
+    !tcrv_rvv.vector, one inactive old-destination passthrough
+    !tcrv_rvv.vector, and the active !tcrv_rvv.vl token. It carries an explicit
+    movement kind and produces the same-typed vector to store.
 
     For the current bounded Stage 2 masked memory slice, kind is limited to
     active-source-preserve-old-destination. The active/inactive lane behavior

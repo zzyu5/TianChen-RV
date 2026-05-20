@@ -35,6 +35,7 @@ enum class RVVSelectedBodyOperationKind {
   IndexedGatherUnitStore,
   IndexedScatterUnitLoad,
   MaskedUnitLoadStore,
+  ComputedMaskUnitLoadStore,
   ScalarBroadcastAdd,
   WidenI32ToI64,
 };
@@ -48,6 +49,7 @@ enum class RVVSelectedBodyMemoryForm {
   IndexedLoadUnitStore,
   UnitLoadIndexedStore,
   MaskedUnitLoadStore,
+  ComputedMaskUnitLoadStore,
   UnitStrideConversion,
 };
 
