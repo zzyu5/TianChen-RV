@@ -692,3 +692,45 @@ Implemented bounded computed-mask signed i16 widening dot reduction through RVV 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 146: Stage2 RVV computed-mask vector select executable slice
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV computed-mask vector select executable slice
+**Branch**: `main`
+
+### Summary
+
+Implemented bounded computed-mask vector select through RVV selected-body realization, route planning/provider emission, generated bundle dry-run, real ssh rvv counts 7/16/23, fail-closed tests, authority scan, and check-tianchenrv 248/248.
+
+### Main Changes
+
+- Added bounded pre-realized `tcrv_rvv.typed_computed_mask_select_pre_realized_body` and runtime ABI roles for `cmp_lhs`, `cmp_rhs`, `true_value`, `false_value`, `out`, and `n`.
+- Extended RVV selected-body realization to materialize setvl/with_vl, compare lhs/rhs loads, `slt` compare-produced mask, true/false vector loads, generic select/merge, and output store.
+- Extended RVV route planning/provider, construction protocol, target artifact export tests, and generated-bundle script for `computed_mask_select` without moving semantics into common EmitC/export.
+- Added positive artifact/FileCheck coverage and fail-closed verifier coverage for stale route-id authority, bad predicate, bad true/false roles, bad mask provenance, and incomplete structures.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] Focused build: `cmake --build build --target tcrv-opt tcrv-translate`
+- [OK] Focused lit: computed-mask select tests, 3/3 passed.
+- [OK] Adjacent compare/select and computed-mask memory lit tests, 5/5 passed.
+- [OK] Real `ssh rvv` generated-bundle PASS for `computed_mask_select`, counts `7,16,23`, mixed true/false lanes, runtime n, and tail sentinel preservation.
+- [OK] `cmake --build build --target check-tianchenrv` - 248/248 passed.
+- [OK] Active-authority scan: no positive legacy route authority in the new computed-mask select path; remaining hits are negative/guardrail checks.
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -20,7 +20,8 @@ constexpr llvm::StringLiteral
     kEmitCLowerableOpInterfaceName("TCRVEmitCLowerableOpInterface");
 
 bool isRVVSelectedBodyCompareSelectRoute(RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::CmpSelect;
+  return op == RVVSelectedBodyOperationKind::CmpSelect ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskSelect;
 }
 
 bool isRVVSelectedBodyMaskedArithmeticRoute(RVVSelectedBodyOperationKind op) {
@@ -684,6 +685,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   }
   const bool isComputedMaskMemory =
       isRVVSelectedBodyComputedMaskMemoryMovementRoute(description.operation);
+  const bool isComputedMaskSelect =
+      description.operation == RVVSelectedBodyOperationKind::ComputedMaskSelect;
   const bool isComputedMaskStridedStore =
       isRVVSelectedBodyComputedMaskStridedStoreRoute(description.operation);
   const bool isRuntimeMaskMemory =
@@ -839,6 +842,34 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   }
+  if (isComputedMaskSelect) {
+    if (llvm::Error error = addLoopStep(
+            slice->trueValueLoadOperation, "load",
+            description.vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->trueValueABI.cName) + " + " +
+                  inductionName)
+                     .str(),
+                 slice->trueValueABI.cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"true_value_vec",
+                                      description.vectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->falseValueLoadOperation, "load",
+            description.vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->falseValueABI.cName) + " + " +
+                  inductionName)
+                     .str(),
+                 slice->falseValueABI.cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"false_value_vec",
+                                      description.vectorCType.str()}))
+      return error;
+  }
   if (isComputedMaskMemory) {
     if (llvm::Error error = addLoopStep(
             slice->sourceLoadOperation, "load", description.vectorLoadIntrinsic,
@@ -930,9 +961,13 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       return error;
     if (llvm::Error error = addLoopStep(
             slice->arithmeticOp, "compute", description.intrinsic,
-            {TCRVEmitCCallOpaqueOperand{"rhs_vec",
+            {TCRVEmitCCallOpaqueOperand{isComputedMaskSelect
+                                             ? "false_value_vec"
+                                             : "rhs_vec",
                                         description.vectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{"lhs_vec",
+             TCRVEmitCCallOpaqueOperand{isComputedMaskSelect
+                                             ? "true_value_vec"
+                                             : "lhs_vec",
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{description.maskName.str(),
                                         description.maskCType.str()},

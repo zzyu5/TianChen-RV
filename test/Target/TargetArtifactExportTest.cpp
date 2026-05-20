@@ -462,6 +462,8 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     return "tcrv_rvv.binary";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect:
     return "tcrv_rvv.i32_select";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSelect:
+    return "tcrv_rvv.select";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ReduceAdd:
     return "tcrv_rvv.reduce";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedAdd:
@@ -518,6 +520,8 @@ llvm::StringRef getRVVTestBinaryKind(
     return "mul";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect:
     return "cmp_select";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskSelect:
+    return "computed_mask_select";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ReduceAdd:
     return "reduce_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedAdd:

@@ -43,6 +43,7 @@ MIN_NON_ONE_VECTOR_SENTINEL_COUNT = 17
 DEFAULT_OP_KINDS = ("add", "sub", "mul")
 OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "cmp_select",
+    "computed_mask_select",
     "reduce_add",
     "masked_add",
     "macc_add",
@@ -170,6 +171,15 @@ COMPUTED_MASK_MEMORY_RUNTIME_ABI_ORDER = "cmp_lhs,cmp_rhs,src,dst,n"
 COMPUTED_MASK_MEMORY_LAYOUT = (
     "unit-stride-compare-source-old-destination-runtime-abi"
 )
+COMPUTED_MASK_SELECT_RUNTIME_ABI_ORDER = (
+    "cmp_lhs,cmp_rhs,true_value,false_value,out,n"
+)
+COMPUTED_MASK_SELECT_MEMORY_LAYOUT = (
+    "unit-stride-compare-true-false-select-output-runtime-abi"
+)
+COMPUTED_MASK_SELECT_SOURCE_MEMORY_FORM = "unit-stride-load"
+COMPUTED_MASK_SELECT_DESTINATION_MEMORY_FORM = "unit-stride-store"
+COMPUTED_MASK_SELECT_LAYOUT = "select-true-value-when-mask-else-false-value"
 COMPUTED_MASK_STRIDED_STORE_RUNTIME_ABI_ORDER = (
     "cmp_lhs,cmp_rhs,src,dst,n,dst_stride"
 )
@@ -233,6 +243,8 @@ class OpExpectation:
     expected_expression: str
     out_initializer: str = OUT_SENTINEL
     source_initializer: str = "(int32_t)(900 + (int32_t)(index * 13))"
+    true_value_initializer: str = "(int32_t)(1300 + (int32_t)(index * 11))"
+    false_value_initializer: str = "(int32_t)(-1700 - (int32_t)(index * 13))"
     lmul: str = "m1"
     sew: str = "32"
     element_c_type: str = "int32_t"
@@ -277,6 +289,12 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *cmp_lhs, "
                 "const int32_t *cmp_rhs, const int32_t *src, "
                 "int32_t *dst, size_t n);"
+            )
+        if self.is_computed_mask_select:
+            return (
+                f"void {self.function_name}(const int32_t *cmp_lhs, "
+                "const int32_t *cmp_rhs, const int32_t *true_value, "
+                "const int32_t *false_value, int32_t *out, size_t n);"
             )
         if self.is_computed_masked_strided_store:
             return (
@@ -358,6 +376,8 @@ class OpExpectation:
             return EXPECTED_MASKED_MEMORY_RUNTIME_PARAMETERS
         if self.is_computed_masked_unit_load_store:
             return EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS
+        if self.is_computed_mask_select:
+            return EXPECTED_COMPUTED_MASK_SELECT_RUNTIME_PARAMETERS
         if self.is_computed_masked_strided_store:
             return EXPECTED_COMPUTED_MASK_STRIDED_STORE_RUNTIME_PARAMETERS
         if self.is_computed_masked_widening_dot_reduce_add:
@@ -404,6 +424,8 @@ class OpExpectation:
             return MASKED_MEMORY_RUNTIME_ABI_ORDER
         if self.is_computed_masked_unit_load_store:
             return COMPUTED_MASK_MEMORY_RUNTIME_ABI_ORDER
+        if self.is_computed_mask_select:
+            return COMPUTED_MASK_SELECT_RUNTIME_ABI_ORDER
         if self.is_computed_masked_strided_store:
             return COMPUTED_MASK_STRIDED_STORE_RUNTIME_ABI_ORDER
         if self.is_segment2_deinterleave_unit_store:
@@ -445,6 +467,10 @@ class OpExpectation:
     @property
     def is_cmp_select(self) -> bool:
         return self.kind == "cmp_select"
+
+    @property
+    def is_computed_mask_select(self) -> bool:
+        return self.kind == "computed_mask_select"
 
     @property
     def is_masked_add(self) -> bool:
@@ -833,6 +859,33 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_cmp_select",
         function_name="tcrv_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select",
+    ),
+    "computed_mask_select": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["cmp_select"],
+        kind="computed_mask_select",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-select.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_computed_mask_select",
+        external_abi_name="rvv-generic-computed-mask-select-callable-c-abi.v1",
+        function_name="tcrv_emitc_pre_realized_body_computed_mask_select_kernel_pre_realized_body_rvv_computed_mask_select",
+        emitc_route="rvv-generic-computed-mask-select-emitc-route",
+        typed_compute_op="tcrv_rvv.select",
+        memory_form="computed-mask-vector-select",
+        lhs_initializer=(
+            "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
+            "? (int32_t)(10 + (int32_t)index) "
+            ": (int32_t)(100 + (int32_t)index))"
+        ),
+        rhs_initializer=(
+            "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
+            "? (int32_t)(50 + (int32_t)index) "
+            ": (int32_t)(20 + (int32_t)index))"
+        ),
+        true_value_initializer="(int32_t)(3000 + (int32_t)(index * 17))",
+        false_value_initializer="(int32_t)(-4100 - (int32_t)(index * 19))",
+        expected_expression=(
+            "(cmp_lhs[index] < cmp_rhs[index] ? true_value[index] : false_value[index])"
+        ),
     ),
     "masked_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_add"],
@@ -1424,6 +1477,44 @@ EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS = (
     },
     {
         "c_name": "dst",
+        "c_type": "int32_t *",
+        "role": "output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "n",
+        "c_type": "size_t",
+        "role": "runtime-element-count",
+        "ownership": "target-export-abi-owned",
+    },
+)
+EXPECTED_COMPUTED_MASK_SELECT_RUNTIME_PARAMETERS = (
+    {
+        "c_name": "cmp_lhs",
+        "c_type": "const int32_t *",
+        "role": "lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "cmp_rhs",
+        "c_type": "const int32_t *",
+        "role": "rhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "true_value",
+        "c_type": "const int32_t *",
+        "role": "true-value-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "false_value",
+        "c_type": "const int32_t *",
+        "role": "false-value-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "out",
         "c_type": "int32_t *",
         "role": "output-buffer",
         "ownership": "target-export-abi-owned",
@@ -2199,6 +2290,21 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.destination_memory_form": (
                     MASKED_MEMORY_DESTINATION_MEMORY_FORM
                 ),
+            }
+        )
+    if expectation.is_computed_mask_select:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "tcrv_rvv.source_memory_form": (
+                    COMPUTED_MASK_SELECT_SOURCE_MEMORY_FORM
+                ),
+                "tcrv_rvv.destination_memory_form": (
+                    COMPUTED_MASK_SELECT_DESTINATION_MEMORY_FORM
+                ),
+                "tcrv_rvv.select_layout": COMPUTED_MASK_SELECT_LAYOUT,
             }
         )
     if expectation.is_computed_masked_strided_store:
@@ -3180,6 +3286,52 @@ def verify_materialized_selected_body(
             "tcrv_rvv.indexed_store",
             "materialized selected-body MLIR masked memory movement",
         )
+    if expectation.is_computed_mask_select:
+        require_contains(
+            text,
+            "tcrv_rvv.compare",
+            "materialized selected-body MLIR computed-mask select compare",
+        )
+        require_contains(
+            text,
+            'kind = "slt"',
+            "materialized selected-body MLIR computed-mask select predicate",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.select",
+            "materialized selected-body MLIR computed-mask select op",
+        )
+        require_contains(
+            text,
+            'role = "true-value-input-buffer"',
+            "materialized selected-body MLIR true-value ABI role",
+        )
+        require_contains(
+            text,
+            'role = "false-value-input-buffer"',
+            "materialized selected-body MLIR false-value ABI role",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.store",
+            "materialized selected-body MLIR computed-mask select store",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.mask_load",
+            "materialized selected-body MLIR computed-mask select",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_move",
+            "materialized selected-body MLIR computed-mask select",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.binary",
+            "materialized selected-body MLIR computed-mask select",
+        )
     if expectation.is_computed_masked_strided_store:
         require_contains(
             text,
@@ -3409,6 +3561,11 @@ def verify_materialized_selected_body(
         require_not_contains(
             text,
             "tcrv_rvv.typed_compare_select_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_computed_mask_select_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
@@ -5518,6 +5675,119 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
+    if expectation.is_computed_mask_select:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n == 0 ? 1 : n;
+  size_t out_alloc_n = alloc_n + 8;
+  int32_t *cmp_lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *cmp_rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *true_value = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *false_value = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * out_alloc_n);
+  if (!cmp_lhs || !cmp_rhs || !true_value || !false_value || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(cmp_lhs);
+    free(cmp_rhs);
+    free(true_value);
+    free(false_value);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    cmp_lhs[index] = {expectation.lhs_initializer};
+    cmp_rhs[index] = {expectation.rhs_initializer};
+    true_value[index] = {expectation.true_value_initializer};
+    false_value[index] = {expectation.false_value_initializer};
+    out[index] = {expectation.out_initializer};
+  }}
+  for (size_t index = alloc_n; index < out_alloc_n; ++index)
+    out[index] = {OUT_SENTINEL};
+
+  {expectation.function_name}(cmp_lhs, cmp_rhs, true_value, false_value, out, n);
+
+  size_t true_lanes = 0;
+  size_t false_lanes = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    int predicate = cmp_lhs[index] < cmp_rhs[index];
+    if (predicate)
+      ++true_lanes;
+    else
+      ++false_lanes;
+
+    int32_t expected = {expectation.expected_expression};
+    if (out[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d cmp_lhs=%d cmp_rhs=%d true=%d false=%d predicate=%d\\n",
+              n, index, out[index], expected, cmp_lhs[index], cmp_rhs[index],
+              true_value[index], false_value[index], predicate);
+      free(cmp_lhs);
+      free(cmp_rhs);
+      free(true_value);
+      free(false_value);
+      free(out);
+      return 12;
+    }}
+  }}
+
+  for (size_t index = n; index < out_alloc_n; ++index) {{
+    if (out[index] != {OUT_SENTINEL}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
+              n, index, out[index], {OUT_SENTINEL});
+      free(cmp_lhs);
+      free(cmp_rhs);
+      free(true_value);
+      free(false_value);
+      free(out);
+      return 13;
+    }}
+  }}
+
+  if (n > 1 && (true_lanes == 0 || false_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} select coverage missing n=%zu true_lanes=%zu false_lanes=%zu\\n",
+            n, true_lanes, false_lanes);
+    free(cmp_lhs);
+    free(cmp_rhs);
+    free(true_value);
+    free(false_value);
+    free(out);
+    return 14;
+  }}
+
+  free(cmp_lhs);
+  free(cmp_rhs);
+  free(true_value);
+  free(false_value);
+  free(out);
+  printf("{expectation.kind} case n=%zu ok select_true_lanes=%zu select_false_lanes=%zu tail_preserved\\n",
+         n, true_lanes, false_lanes);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_cmp_select:
         return f"""
 #include <stddef.h>
@@ -6152,6 +6422,15 @@ def run_one_op_e2e(
             evidence["harness"][
                 "predicate_coverage_contract"
             ] = "multi-lane cmp_select cases require predicate true and false lanes"
+        if expectation.is_computed_mask_select:
+            evidence["harness"]["select_coverage_contract"] = (
+                "multi-lane computed_mask_select cases require compare-produced "
+                "true and false select lanes"
+            )
+            evidence["harness"]["tail_lane_contract"] = (
+                "runtime n must be honored and tail sentinel lanes must be "
+                "preserved"
+            )
         if expectation.is_masked_add:
             evidence["harness"]["mask_coverage_contract"] = (
                 "multi-lane masked_add cases require true and false mask lanes"

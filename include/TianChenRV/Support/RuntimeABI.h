@@ -28,6 +28,8 @@ enum class RuntimeABIParameterRole {
   RHSInputBuffer,
   AccumulatorInputBuffer,
   SourceInputBuffer,
+  TrueValueInputBuffer,
+  FalseValueInputBuffer,
   DotLHSInputBuffer,
   DotRHSInputBuffer,
   IndexInputBuffer,
@@ -84,6 +86,10 @@ inline llvm::StringRef stringifyRuntimeABIParameterRole(
     return "accumulator-input-buffer";
   case RuntimeABIParameterRole::SourceInputBuffer:
     return "source-input-buffer";
+  case RuntimeABIParameterRole::TrueValueInputBuffer:
+    return "true-value-input-buffer";
+  case RuntimeABIParameterRole::FalseValueInputBuffer:
+    return "false-value-input-buffer";
   case RuntimeABIParameterRole::DotLHSInputBuffer:
     return "dot-lhs-input-buffer";
   case RuntimeABIParameterRole::DotRHSInputBuffer:
@@ -130,6 +136,10 @@ symbolizeRuntimeABIParameterRole(llvm::StringRef role) {
     return RuntimeABIParameterRole::AccumulatorInputBuffer;
   if (role == "source-input-buffer")
     return RuntimeABIParameterRole::SourceInputBuffer;
+  if (role == "true-value-input-buffer")
+    return RuntimeABIParameterRole::TrueValueInputBuffer;
+  if (role == "false-value-input-buffer")
+    return RuntimeABIParameterRole::FalseValueInputBuffer;
   if (role == "dot-lhs-input-buffer")
     return RuntimeABIParameterRole::DotLHSInputBuffer;
   if (role == "dot-rhs-input-buffer")

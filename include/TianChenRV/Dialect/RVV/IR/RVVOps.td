@@ -440,6 +440,52 @@ def TypedCompareSelectPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedComputedMaskSelectPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_computed_mask_select_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV computed-mask vector select body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body where a
+    signed i32 vector compare produces an in-body mask SSA value and a vector
+    select consumes that mask to choose between explicit true-value and
+    false-value vector operands. The op is nested directly in a selected
+    tcrv.exec.variant and binds explicit runtime ABI values for compare lhs,
+    compare rhs, true value, false value, output, and runtime n/AVL together
+    with compare predicate, memory form, mask role/source/config, select
+    layout, compile-time RVV data/mask config, and policy.
+
+    This op is not a select framework, predicate matrix, route label,
+    descriptor, source-front-door marker, direct-C exporter, intrinsic wrapper,
+    runtime artifact, correctness evidence, or performance evidence. The RVV
+    plugin must realize it into explicit setvl/with_vl/load/load/load/load/
+    compare/select/store tcrv_rvv body structure before the provider may
+    construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$compare_lhs,
+    AnyType:$compare_rhs,
+    AnyType:$true_value,
+    AnyType:$false_value,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$predicate_kind,
+    StrAttr:$memory_form,
+    StrAttr:$mask_role,
+    StrAttr:$mask_source,
+    StrAttr:$mask_memory_form,
+    StrAttr:$select_layout,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$compare_lhs `,` $compare_rhs `,` $true_value `,` $false_value `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedReducePreRealizedBodyOp
     : TCRVRVV_Op<"typed_reduce_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV reduce selected body";

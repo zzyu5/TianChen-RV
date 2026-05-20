@@ -200,6 +200,15 @@ bool isAllowedTypedCompareSelectPreRealizedBodyAttr(llvm::StringRef name) {
          name == kLMULAttrName || name == kPolicyAttrName;
 }
 
+bool isAllowedTypedComputedMaskSelectPreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kPredicateKindAttrName ||
+         name == kMemoryFormAttrName || name == kMaskRoleAttrName ||
+         name == kMaskSourceAttrName || name == kMaskMemoryFormAttrName ||
+         name == kSelectLayoutAttrName || name == kSEWAttrName ||
+         name == kLMULAttrName || name == kPolicyAttrName;
+}
+
 bool isAllowedTypedReducePreRealizedBodyAttr(llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
          name == kAccumulatorRoleAttrName ||
@@ -507,6 +516,21 @@ bool isSupportedTypedCompareSelectPreRealizedMaskSource(
 bool isSupportedTypedCompareSelectPreRealizedSelectLayout(
     llvm::StringRef layout) {
   return layout == "select-lhs-when-mask-else-rhs";
+}
+
+bool isSupportedTypedComputedMaskSelectPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "computed_mask_select";
+}
+
+bool isSupportedTypedComputedMaskSelectPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "computed-mask-vector-select";
+}
+
+bool isSupportedTypedComputedMaskSelectPreRealizedSelectLayout(
+    llvm::StringRef layout) {
+  return layout == "select-true-value-when-mask-else-false-value";
 }
 
 bool isSupportedTypedReducePreRealizedBodyOpKind(llvm::StringRef opKind) {
@@ -1071,6 +1095,8 @@ bool isSupportedBoundedRuntimeABIValueCType(
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
   case Role::SourceInputBuffer:
+  case Role::TrueValueInputBuffer:
+  case Role::FalseValueInputBuffer:
   case Role::AccumulatorInputBuffer:
   case Role::DotLHSInputBuffer:
   case Role::DotRHSInputBuffer:
@@ -1107,6 +1133,8 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
   case Role::SourceInputBuffer:
+  case Role::TrueValueInputBuffer:
+  case Role::FalseValueInputBuffer:
   case Role::AccumulatorInputBuffer:
   case Role::DotLHSInputBuffer:
   case Role::DotRHSInputBuffer:
@@ -1140,6 +1168,8 @@ bool isBoundedInputBufferRole(
   using Role = tianchenrv::support::RuntimeABIParameterRole;
   return role == Role::LHSInputBuffer || role == Role::RHSInputBuffer ||
          role == Role::SourceInputBuffer || role == Role::MaskInputBuffer ||
+         role == Role::TrueValueInputBuffer ||
+         role == Role::FalseValueInputBuffer ||
          role == Role::DotLHSInputBuffer || role == Role::DotRHSInputBuffer ||
          role == Role::AccumulatorInputBuffer ||
          role == Role::SegmentField0InputBuffer ||
@@ -2567,6 +2597,112 @@ mlir::LogicalResult TypedCompareSelectPreRealizedBodyOp::verify() {
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getRhs(), "rhs",
           {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult TypedComputedMaskSelectPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected computed-mask select bodies carry "
+                "only typed RVV compare/select operand roles, predicate, "
+                "mask, config, policy, and runtime SSA facts and must be "
+                "realized by the RVV plugin before route construction";
+
+    if (!isAllowedTypedComputedMaskSelectPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kPredicateKindAttrName << "', '"
+             << kMemoryFormAttrName << "', '" << kMaskRoleAttrName << "', '"
+             << kMaskSourceAttrName << "', '" << kMaskMemoryFormAttrName
+             << "', '" << kSelectLayoutAttrName << "', '" << kSEWAttrName
+             << "', '" << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 6 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires compare lhs, compare rhs, true value, false value, "
+              "out, runtime n/AVL operands and no results";
+
+  if (!isSupportedTypedComputedMaskSelectPreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind \"computed_mask_select\" for "
+              "the bounded selected-body computed-mask select hook";
+  if (!isSupportedTypedComputedMaskMemoryPreRealizedPredicateKind(
+          getPredicateKind()))
+    return emitOpError()
+           << "currently supports only predicate_kind \"slt\" for the "
+              "bounded selected-body computed-mask select hook";
+  if (!isSupportedTypedComputedMaskSelectPreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"computed-mask-vector-select\" for the bounded "
+              "selected-body computed-mask select hook";
+  if (!isSupportedTypedComputedMaskMemoryRole(getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-produced-by-compare\" for the bounded "
+              "selected-body computed-mask select hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskSource(getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"compare-produced-mask-same-vl-scope\" for the bounded "
+              "selected-body computed-mask select hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskMemoryForm(getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"compare-produced-mask\" for the bounded selected-body "
+              "computed-mask select hook";
+  if (!isSupportedTypedComputedMaskSelectPreRealizedSelectLayout(
+          getSelectLayout()))
+    return emitOpError()
+           << "currently supports only select_layout "
+              "\"select-true-value-when-mask-else-false-value\" for the "
+              "bounded selected-body computed-mask select hook";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized computed-mask select data config "
+              "to be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body computed-mask select hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareLhs(), "compare lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareRhs(), "compare rhs",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getTrueValue(), "true value",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               TrueValueInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getFalseValue(), "false value",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               FalseValueInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
@@ -4438,6 +4574,10 @@ mlir::LogicalResult LoadOp::verify() {
            tianchenrv::support::RuntimeABIParameterRole::DotLHSInputBuffer,
            tianchenrv::support::RuntimeABIParameterRole::DotRHSInputBuffer,
            tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::
+               TrueValueInputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::
+               FalseValueInputBuffer,
            tianchenrv::support::RuntimeABIParameterRole::OutputBuffer,
            tianchenrv::support::RuntimeABIParameterRole::
                SegmentField0InputBuffer,
