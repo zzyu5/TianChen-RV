@@ -48,6 +48,71 @@ Implemented bounded i32 SEW32 LMUL m1 masked unit-stride memory movement with ty
 - None - task complete
 
 
+## Session 143: Stage2 RVV segment2 interleave memory executable slice
+
+**Date**: 2026-05-20
+**Task**: Stage2 RVV segment2 interleave memory executable slice
+**Branch**: `main`
+
+### Summary
+
+Implemented one bounded i32 SEW32 LMUL m1 RVV segment2 interleave route:
+`dst[2*i] = src0[i]` and `dst[2*i+1] = src1[i]`. The selected RVV path now
+carries typed source0/source1 field roles, interleaved destination role,
+segment count/order, memory forms, runtime n/AVL, config/policy, route
+planning metadata, generated artifact export, and real RVV correctness
+evidence.
+
+### Main Changes
+
+- Added runtime ABI roles for segment field input buffers and interleaved
+  segment output buffers, plus the segment2 interleave runtime ABI contract.
+- Added `typed_segment2_interleave_memory_pre_realized_body` and
+  `segment2_store` RVV dialect surfaces with verifier coverage for roles,
+  segment count, memory forms, config/policy, AVL, stale route metadata, and
+  field type/config matching.
+- Extended selected-body realization to lower the pre-realized interleave body
+  into `setvl`, two generic unit-stride `tcrv_rvv.load` ops, and one
+  `tcrv_rvv.segment2_store`.
+- Extended RVV route planning/provider/construction metadata to derive ABI
+  order `src0,src1,dst,n`, tuple type `vint32m1x2_t`, segment store leaf
+  `__riscv_vsseg2e32_v_i32m1x2`, tuple create leaf
+  `__riscv_vcreate_v_i32m1x2`, and segment metadata from typed body facts.
+- Added positive target/header/generated-bundle fixtures and fail-closed
+  tests for unsupported segment count, missing or duplicated source roles,
+  swapped field order, mismatched field config, missing destination/AVL role,
+  invalid memory form, stale route id, and incomplete typed store body.
+- Runtime evidence: generated bundle passed `ssh rvv` for counts `7,16,23`,
+  proving field0/source0 lanes land at even destination positions, field1/src1
+  lanes land at odd positions, and tail sentinels after `2*n` are preserved.
+
+### Git Commits
+
+- Final commit created after journal update in this session.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] generated-bundle dry-run for `segment2_interleave_unit_load`, counts `7,16,23`
+- [OK] `ssh rvv` generated-bundle harness PASS for counts `7,16,23`, with `field_order_distinguishing_lanes` and `tail_preserved`
+- [OK] `ninja -C build check-tianchenrv` - 221/221 passed
+- [OK] active-authority scan found no new positive `RVVI32M1`, `rvv-i32m1`,
+  `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`, source-front-door/source-seed,
+  descriptor/direct-C/source-export, or common/export semantic route authority;
+  the only new `rvv-i32m1` occurrence is the fail-closed negative `route_id`
+  diagnostic test.
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 142: Stage2 RVV computed-mask memory dataflow executable slice
 
 **Date**: 2026-05-20

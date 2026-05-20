@@ -53,6 +53,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "masked_unit_load_store",
     "computed_masked_unit_load_store",
     "segment2_deinterleave_unit_store",
+    "segment2_interleave_unit_load",
     "scalar_broadcast_add",
     "i64_add",
     "lmul_m2_add",
@@ -125,6 +126,18 @@ SEGMENT2_FIELD1_ROLE = "segment-field1-output-buffer"
 SEGMENT2_TUPLE_C_TYPE = "vint32m1x2_t"
 SEGMENT2_LOAD_INTRINSIC = "__riscv_vlseg2e32_v_i32m1x2"
 SEGMENT2_FIELD_EXTRACT_INTRINSIC = "__riscv_vget_v_i32m1x2_i32m1"
+SEGMENT2_INTERLEAVE_RUNTIME_ABI_ORDER = "src0,src1,dst,n"
+SEGMENT2_INTERLEAVE_MEMORY_LAYOUT = (
+    "dual-unit-stride-source-segment2-interleaved-destination-runtime-abi"
+)
+SEGMENT2_FIELD_SOURCE_MEMORY_FORM = "unit-stride-load"
+SEGMENT2_INTERLEAVED_DESTINATION_MEMORY_FORM = (
+    "segment2-interleaved-unit-stride-store"
+)
+SEGMENT2_FIELD0_INPUT_ROLE = "segment-field0-input-buffer"
+SEGMENT2_FIELD1_INPUT_ROLE = "segment-field1-input-buffer"
+SEGMENT2_STORE_INTRINSIC = "__riscv_vsseg2e32_v_i32m1x2"
+SEGMENT2_TUPLE_CREATE_INTRINSIC = "__riscv_vcreate_v_i32m1x2"
 OUT_SENTINEL = "(int32_t)0x5a5a5a5a"
 I64_OUT_SENTINEL = "(int64_t)0x5a5a5a5a5a5a5a5aLL"
 
@@ -201,6 +214,11 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *src, "
                 "int32_t *out0, int32_t *out1, size_t n);"
             )
+        if self.is_segment2_interleave_unit_load:
+            return (
+                f"void {self.function_name}(const int32_t *src0, "
+                "const int32_t *src1, int32_t *dst, size_t n);"
+            )
         if self.is_scalar_broadcast_add:
             return (
                 f"void {self.function_name}(const int32_t *lhs, "
@@ -233,6 +251,8 @@ class OpExpectation:
             return EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS
         if self.is_segment2_deinterleave_unit_store:
             return EXPECTED_SEGMENT2_RUNTIME_PARAMETERS
+        if self.is_segment2_interleave_unit_load:
+            return EXPECTED_SEGMENT2_INTERLEAVE_RUNTIME_PARAMETERS
         if self.is_scalar_broadcast_add:
             return EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS
         if self.is_widen_i32_to_i64:
@@ -263,6 +283,8 @@ class OpExpectation:
             return COMPUTED_MASK_MEMORY_RUNTIME_ABI_ORDER
         if self.is_segment2_deinterleave_unit_store:
             return SEGMENT2_RUNTIME_ABI_ORDER
+        if self.is_segment2_interleave_unit_load:
+            return SEGMENT2_INTERLEAVE_RUNTIME_ABI_ORDER
         if self.is_scalar_broadcast_add:
             return SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER
         if self.is_widen_i32_to_i64:
@@ -324,6 +346,10 @@ class OpExpectation:
     @property
     def is_segment2_deinterleave_unit_store(self) -> bool:
         return self.kind == "segment2_deinterleave_unit_store"
+
+    @property
+    def is_segment2_interleave_unit_load(self) -> bool:
+        return self.kind == "segment2_interleave_unit_load"
 
     @property
     def is_scalar_broadcast_add(self) -> bool:
@@ -723,6 +749,21 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         source_initializer="(int32_t)(1700 + (int32_t)(index * 23))",
         expected_expression="out0[index] == src[2 * index] && out1[index] == src[2 * index + 1]",
     ),
+    "segment2_interleave_unit_load": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["strided_load_unit_store"],
+        kind="segment2_interleave_unit_load",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-segment2-interleave-unit-load.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_segment2_interleave_unit_load",
+        external_abi_name="rvv-generic-segment2-interleave-unit-load-callable-c-abi.v1",
+        function_name="tcrv_emitc_pre_realized_body_segment2_interleave_unit_load_kernel_pre_realized_body_rvv_segment2_interleave_unit_load",
+        emitc_route="rvv-generic-segment2-interleave-unit-load-emitc-route",
+        typed_compute_op="tcrv_rvv.segment2_store",
+        memory_form="unit-load-segment2-store",
+        lhs_initializer="(int32_t)(1900 + (int32_t)(index * 29))",
+        rhs_initializer="(int32_t)(-2300 - (int32_t)(index * 31))",
+        expected_expression="dst[2 * index] == src0[index] && dst[2 * index + 1] == src1[index]",
+    ),
     "scalar_broadcast_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
         kind="scalar_broadcast_add",
@@ -1012,6 +1053,32 @@ EXPECTED_SEGMENT2_RUNTIME_PARAMETERS = (
         "c_name": "out1",
         "c_type": "int32_t *",
         "role": "segment-field1-output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "n",
+        "c_type": "size_t",
+        "role": "runtime-element-count",
+        "ownership": "target-export-abi-owned",
+    },
+)
+EXPECTED_SEGMENT2_INTERLEAVE_RUNTIME_PARAMETERS = (
+    {
+        "c_name": "src0",
+        "c_type": "const int32_t *",
+        "role": "segment-field0-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "src1",
+        "c_type": "const int32_t *",
+        "role": "segment-field1-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "dst",
+        "c_type": "int32_t *",
+        "role": "segment-interleaved-output-buffer",
         "ownership": "target-export-abi-owned",
     },
     {
@@ -1564,6 +1631,36 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
+    if expectation.is_segment2_interleave_unit_load:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.segment_memory_layout": (
+                    SEGMENT2_INTERLEAVE_MEMORY_LAYOUT
+                ),
+                "tcrv_rvv.segment_count": "2",
+                "tcrv_rvv.segment_tuple_c_type": SEGMENT2_TUPLE_C_TYPE,
+                "tcrv_rvv.segment_store_intrinsic": SEGMENT2_STORE_INTRINSIC,
+                "tcrv_rvv.segment_tuple_create_intrinsic": (
+                    SEGMENT2_TUPLE_CREATE_INTRINSIC
+                ),
+                "tcrv_rvv.source_memory_form": (
+                    SEGMENT2_FIELD_SOURCE_MEMORY_FORM
+                ),
+                "tcrv_rvv.destination_memory_form": (
+                    SEGMENT2_INTERLEAVED_DESTINATION_MEMORY_FORM
+                ),
+                "tcrv_rvv.field0_role": SEGMENT2_FIELD0_INPUT_ROLE,
+                "tcrv_rvv.field1_role": SEGMENT2_FIELD1_INPUT_ROLE,
+                "tcrv_rvv.field0_name": "field0_vec",
+                "tcrv_rvv.field1_name": "field1_vec",
+                "tcrv_rvv.field0_source_memory_form": (
+                    SEGMENT2_FIELD_SOURCE_MEMORY_FORM
+                ),
+                "tcrv_rvv.field1_source_memory_form": (
+                    SEGMENT2_FIELD_SOURCE_MEMORY_FORM
+                ),
+            }
+        )
     if expectation.is_widen_i32_to_i64:
         per_op_metadata.update(
             {
@@ -2063,6 +2160,62 @@ def verify_materialized_selected_body(
             "tcrv_rvv.indexed_store",
             "materialized selected-body MLIR segment2 memory movement",
         )
+    if expectation.is_segment2_interleave_unit_load:
+        require_contains(
+            text,
+            "tcrv_rvv.segment2_store",
+            "materialized selected-body MLIR segment2 store",
+        )
+        require_contains(
+            text,
+            'segment_count = 2',
+            "materialized selected-body MLIR segment count",
+        )
+        require_contains(
+            text,
+            'destination_memory_form = "segment2-interleaved-unit-stride-store"',
+            "materialized selected-body MLIR segment destination memory form",
+        )
+        require_contains(
+            text,
+            'field0_role = "segment-field0-input-buffer"',
+            "materialized selected-body MLIR field0 role",
+        )
+        require_contains(
+            text,
+            'field1_role = "segment-field1-input-buffer"',
+            "materialized selected-body MLIR field1 role",
+        )
+        require_contains(
+            text,
+            'role = "segment-field0-input-buffer"',
+            "materialized selected-body MLIR field0 source ABI role",
+        )
+        require_contains(
+            text,
+            'role = "segment-field1-input-buffer"',
+            "materialized selected-body MLIR field1 source ABI role",
+        )
+        require_contains(
+            text,
+            'role = "segment-interleaved-output-buffer"',
+            "materialized selected-body MLIR interleaved destination ABI role",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.segment2_load",
+            "materialized selected-body MLIR segment2 interleave movement",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.binary",
+            "materialized selected-body MLIR segment2 interleave movement",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.indexed_store",
+            "materialized selected-body MLIR segment2 interleave movement",
+        )
     if expectation.is_cmp_select:
         require_contains(
             text,
@@ -2150,6 +2303,11 @@ def verify_materialized_selected_body(
         require_not_contains(
             text,
             "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
     require_no_forbidden_public_residue(text, "materialized selected-body MLIR")
@@ -2243,6 +2401,94 @@ static int run_case(size_t n) {{
   free(src);
   free(out0);
   free(out1);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  for (size_t i = 0; i < sizeof(counts) / sizeof(counts[0]); ++i) {{
+    int rc = run_case(counts[i]);
+    if (rc != 0)
+      return rc;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+"""
+    if expectation.is_segment2_interleave_unit_load:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n == 0 ? 1 : n;
+  size_t dst_alloc_n = alloc_n * 2 + 8;
+  int32_t *src0 = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *src1 = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
+  if (!src0 || !src1 || !dst) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(src0);
+    free(src1);
+    free(dst);
+    return 11;
+  }}
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    src0[index] = (int32_t)(1900 + (int32_t)(index * 29));
+    src1[index] = (int32_t)(-2300 - (int32_t)(index * 31));
+  }}
+  for (size_t index = 0; index < dst_alloc_n; ++index)
+    dst[index] = {OUT_SENTINEL};
+
+  {expectation.function_name}(src0, src1, dst, n);
+
+  size_t field_order_distinguishing_lanes = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    int32_t expected0 = src0[index];
+    int32_t expected1 = src1[index];
+    if (expected0 != expected1)
+      ++field_order_distinguishing_lanes;
+    if (dst[2 * index] != expected0 || dst[2 * index + 1] != expected1) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got_even=%d expected_even=%d got_odd=%d expected_odd=%d src0=%d src1=%d\\n",
+              n, index, dst[2 * index], expected0,
+              dst[2 * index + 1], expected1, src0[index], src1[index]);
+      free(src0);
+      free(src1);
+      free(dst);
+      return 13;
+    }}
+  }}
+  for (size_t index = n * 2; index < dst_alloc_n; ++index) {{
+    if (dst[index] != {OUT_SENTINEL}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
+              n, index, dst[index], {OUT_SENTINEL});
+      free(src0);
+      free(src1);
+      free(dst);
+      return 17;
+    }}
+  }}
+  if (n > 1 && field_order_distinguishing_lanes == 0) {{
+    fprintf(stderr,
+            "{expectation.kind} field-order coverage missing n=%zu\\n", n);
+    free(src0);
+    free(src1);
+    free(dst);
+    return 19;
+  }}
+  printf("{expectation.kind} case n=%zu ok field_order_distinguishing_lanes=%zu tail_preserved\\n",
+         n, field_order_distinguishing_lanes);
+  free(src0);
+  free(src1);
+  free(dst);
   return 0;
 }}
 
@@ -3799,6 +4045,16 @@ def run_one_op_e2e(
                 "field0 and field1 output tail lanes must preserve sentinel "
                 "values past runtime n"
             )
+        if expectation.is_segment2_interleave_unit_load:
+            evidence["harness"]["field_order_contract"] = (
+                "multi-lane segment2_interleave_unit_load cases require "
+                "field0 and field1 source lanes to interleave into even and "
+                "odd destination lanes"
+            )
+            evidence["harness"]["tail_lane_contract"] = (
+                "interleaved destination tail lanes must preserve sentinel "
+                "values past runtime 2*n"
+            )
 
         if args.dry_run:
             evidence["status"] = "dry_run_success"
@@ -4273,6 +4529,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "indexed_gather_unit_store/indexed_scatter_unit_load/"
             "masked_unit_load_store/computed_masked_unit_load_store/"
             "segment2_deinterleave_unit_store/"
+            "segment2_interleave_unit_load/"
             "lmul_m2_add/widen_i32_to_i64 "
             "fixtures and run public selected lowering-boundary "
             "materialization before emission planning; mutually exclusive "

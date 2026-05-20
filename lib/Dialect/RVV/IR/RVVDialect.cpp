@@ -86,6 +86,10 @@ constexpr llvm::StringLiteral kSegmentCountAttrName("segment_count");
 constexpr llvm::StringLiteral kField0RoleAttrName("field0_role");
 constexpr llvm::StringLiteral kField1RoleAttrName("field1_role");
 constexpr llvm::StringLiteral kSourceMemoryFormAttrName("source_memory_form");
+constexpr llvm::StringLiteral kSource0MemoryFormAttrName(
+    "source0_memory_form");
+constexpr llvm::StringLiteral kSource1MemoryFormAttrName(
+    "source1_memory_form");
 constexpr llvm::StringLiteral kDestinationMemoryFormAttrName(
     "destination_memory_form");
 constexpr llvm::StringLiteral kVLenAttrName("vlen");
@@ -261,6 +265,16 @@ bool isAllowedTypedSegment2DeinterleaveMemoryPreRealizedBodyAttr(
          name == kLMULAttrName || name == kPolicyAttrName;
 }
 
+bool isAllowedTypedSegment2InterleaveMemoryPreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kSegmentCountAttrName || name == kField0RoleAttrName ||
+         name == kField1RoleAttrName || name == kSource0MemoryFormAttrName ||
+         name == kSource1MemoryFormAttrName ||
+         name == kDestinationMemoryFormAttrName || name == kSEWAttrName ||
+         name == kLMULAttrName || name == kPolicyAttrName;
+}
+
 bool isAllowedLoadAttr(llvm::StringRef) { return false; }
 
 bool isAllowedMaskLoadAttr(llvm::StringRef name) {
@@ -286,6 +300,12 @@ bool isAllowedIndexedStoreAttr(llvm::StringRef name) {
 
 bool isAllowedSegment2LoadAttr(llvm::StringRef name) {
   return name == kSegmentCountAttrName || name == kSourceMemoryFormAttrName ||
+         name == kField0RoleAttrName || name == kField1RoleAttrName;
+}
+
+bool isAllowedSegment2StoreAttr(llvm::StringRef name) {
+  return name == kSegmentCountAttrName ||
+         name == kDestinationMemoryFormAttrName ||
          name == kField0RoleAttrName || name == kField1RoleAttrName;
 }
 
@@ -549,18 +569,37 @@ bool isSupportedTypedSegment2DeinterleaveBodyOpKind(llvm::StringRef opKind) {
   return opKind == "segment2_deinterleave_unit_store";
 }
 
+bool isSupportedTypedSegment2InterleaveBodyOpKind(llvm::StringRef opKind) {
+  return opKind == "segment2_interleave_unit_load";
+}
+
 bool isSupportedTypedSegment2DeinterleaveMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "segment2-load-unit-store";
+}
+
+bool isSupportedTypedSegment2InterleaveMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-load-segment2-store";
 }
 
 bool isSupportedTypedSegment2SourceMemoryForm(llvm::StringRef memoryForm) {
   return memoryForm == "segment2-interleaved-unit-stride-load";
 }
 
+bool isSupportedTypedSegment2FieldSourceMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-stride-load";
+}
+
 bool isSupportedTypedSegment2DestinationMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "unit-stride-store";
+}
+
+bool isSupportedTypedSegment2InterleavedDestinationMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "segment2-interleaved-unit-stride-store";
 }
 
 bool isSupportedTypedSegment2Field0Role(llvm::StringRef role) {
@@ -569,6 +608,14 @@ bool isSupportedTypedSegment2Field0Role(llvm::StringRef role) {
 
 bool isSupportedTypedSegment2Field1Role(llvm::StringRef role) {
   return role == "segment-field1-output-buffer";
+}
+
+bool isSupportedTypedSegment2Field0InputRole(llvm::StringRef role) {
+  return role == "segment-field0-input-buffer";
+}
+
+bool isSupportedTypedSegment2Field1InputRole(llvm::StringRef role) {
+  return role == "segment-field1-input-buffer";
 }
 
 bool isSupportedGenericBinaryKind(llvm::StringRef kind) {
@@ -715,6 +762,8 @@ bool isSupportedBoundedRuntimeABIValueCType(
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
   case Role::SourceInputBuffer:
+  case Role::SegmentField0InputBuffer:
+  case Role::SegmentField1InputBuffer:
     return cType == "const int32_t *" || cType == "const int64_t *";
   case Role::IndexInputBuffer:
     return cType == "const uint32_t *";
@@ -725,6 +774,7 @@ bool isSupportedBoundedRuntimeABIValueCType(
   case Role::OutputBuffer:
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
+  case Role::SegmentInterleavedOutputBuffer:
     return cType == "int32_t *" || cType == "int64_t *";
   case Role::RuntimeElementCount:
   case Role::LHSInputStride:
@@ -744,6 +794,8 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
   case Role::SourceInputBuffer:
+  case Role::SegmentField0InputBuffer:
+  case Role::SegmentField1InputBuffer:
     return "'const int32_t *' or 'const int64_t *'";
   case Role::IndexInputBuffer:
     return "'const uint32_t *'";
@@ -754,6 +806,7 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::OutputBuffer:
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
+  case Role::SegmentInterleavedOutputBuffer:
     return "'int32_t *' or 'int64_t *'";
   case Role::RuntimeElementCount:
   case Role::LHSInputStride:
@@ -770,7 +823,9 @@ bool isBoundedInputBufferRole(
     tianchenrv::support::RuntimeABIParameterRole role) {
   using Role = tianchenrv::support::RuntimeABIParameterRole;
   return role == Role::LHSInputBuffer || role == Role::RHSInputBuffer ||
-         role == Role::SourceInputBuffer || role == Role::MaskInputBuffer;
+         role == Role::SourceInputBuffer || role == Role::MaskInputBuffer ||
+         role == Role::SegmentField0InputBuffer ||
+         role == Role::SegmentField1InputBuffer;
 }
 
 bool isBoundedScalarRole(tianchenrv::support::RuntimeABIParameterRole role) {
@@ -783,7 +838,8 @@ bool isBoundedBufferRole(tianchenrv::support::RuntimeABIParameterRole role) {
   return isBoundedInputBufferRole(role) || role == Role::IndexInputBuffer ||
          role == Role::OutputBuffer ||
          role == Role::SegmentField0OutputBuffer ||
-         role == Role::SegmentField1OutputBuffer;
+         role == Role::SegmentField1OutputBuffer ||
+         role == Role::SegmentInterleavedOutputBuffer;
 }
 
 bool isBoundedRuntimeIndexRole(
@@ -1446,6 +1502,14 @@ llvm::StringRef Segment2LoadOp::getTCRVEmitCLowerableSourceOpName() {
 
 llvm::StringRef Segment2LoadOp::getTCRVEmitCLowerableSourceRole() {
   return "load";
+}
+
+llvm::StringRef Segment2StoreOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef Segment2StoreOp::getTCRVEmitCLowerableSourceRole() {
+  return "store";
 }
 
 llvm::StringRef StoreOp::getTCRVEmitCLowerableSourceOpName() {
@@ -2815,6 +2879,109 @@ TypedSegment2DeinterleaveMemoryPreRealizedBodyOp::verify() {
   return verifyRuntimeElementCountOperand(op, getN());
 }
 
+mlir::LogicalResult
+TypedSegment2InterleaveMemoryPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected segment2 interleave memory bodies "
+                "carry only typed RVV source-field/destination, memory-form, "
+                "config, policy, and runtime SSA facts and must be realized "
+                "by the RVV plugin before route construction";
+
+    if (!isAllowedTypedSegment2InterleaveMemoryPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '"
+             << kSegmentCountAttrName << "', '" << kField0RoleAttrName
+             << "', '" << kField1RoleAttrName << "', '"
+             << kSource0MemoryFormAttrName << "', '"
+             << kSource1MemoryFormAttrName << "', '"
+             << kDestinationMemoryFormAttrName << "', '" << kSEWAttrName
+             << "', '" << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires field0 source, field1 source, interleaved "
+              "destination, runtime n/AVL operands and no results";
+
+  if (!isSupportedTypedSegment2InterleaveBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"segment2_interleave_unit_load\" for the bounded "
+              "selected-body segment2 interleave memory hook";
+  if (!isSupportedTypedSegment2InterleaveMemoryForm(getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"unit-load-segment2-store\" for the bounded selected-body "
+              "segment2 interleave memory hook";
+  if (static_cast<std::int64_t>(getSegmentCount()) != 2)
+    return emitOpError()
+           << "requires segment_count 2 for the bounded segment2 interleave "
+              "memory hook";
+  if (!isSupportedTypedSegment2Field0InputRole(getField0Role()))
+    return emitOpError()
+           << "requires field0_role \"segment-field0-input-buffer\"";
+  if (!isSupportedTypedSegment2Field1InputRole(getField1Role()))
+    return emitOpError()
+           << "requires field1_role \"segment-field1-input-buffer\"";
+  if (getField0Role() == getField1Role())
+    return emitOpError()
+           << "requires field0_role and field1_role to be distinct";
+  if (!isSupportedTypedSegment2FieldSourceMemoryForm(
+          getSource0MemoryForm()))
+    return emitOpError()
+           << "currently supports only source0_memory_form "
+              "\"unit-stride-load\"";
+  if (!isSupportedTypedSegment2FieldSourceMemoryForm(
+          getSource1MemoryForm()))
+    return emitOpError()
+           << "currently supports only source1_memory_form "
+              "\"unit-stride-load\"";
+  if (!isSupportedTypedSegment2InterleavedDestinationMemoryForm(
+          getDestinationMemoryForm()))
+    return emitOpError()
+           << "currently supports only destination_memory_form "
+              "\"segment2-interleaved-unit-stride-store\"";
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized segment2 interleave memory data "
+              "config to be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body segment2 interleave memory hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSrc0(), "field0 source",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               SegmentField0InputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSrc1(), "field1 source",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               SegmentField1InputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getDst(), "interleaved destination",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               SegmentInterleavedOutputBuffer})))
+    return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
 mlir::LogicalResult LoadOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -2831,7 +2998,11 @@ mlir::LogicalResult LoadOp::verify() {
           {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
            tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer,
            tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+           tianchenrv::support::RuntimeABIParameterRole::OutputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::
+               SegmentField0InputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::
+               SegmentField1InputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
@@ -3068,6 +3239,57 @@ mlir::LogicalResult Segment2LoadOp::verify() {
   if (getField0().getType() != getField1().getType())
     return emitOpError()
            << "requires field0 and field1 results to have matching generic "
+              "RVV vector types";
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getField0(), "field0")))
+    return mlir::failure();
+  return verifyGenericVectorTypeForWithVL(op, getField1(), "field1");
+}
+
+mlir::LogicalResult Segment2StoreOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.segment2_store",
+                                         isAllowedSegment2StoreAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires one explicit interleaved destination buffer ABI "
+              "operand, field0 and field1 generic RVV vector operands, one "
+              "!tcrv_rvv.vl operand, and no results";
+  if (static_cast<std::int64_t>(getSegmentCount()) != 2)
+    return emitOpError()
+           << "requires segment_count 2 for tcrv_rvv.segment2_store";
+  if (!isSupportedTypedSegment2InterleavedDestinationMemoryForm(
+          getDestinationMemoryForm()))
+    return emitOpError()
+           << "currently supports only destination_memory_form "
+              "\"segment2-interleaved-unit-stride-store\" for "
+              "tcrv_rvv.segment2_store";
+  if (!isSupportedTypedSegment2Field0InputRole(getField0Role()))
+    return emitOpError()
+           << "requires field0_role \"segment-field0-input-buffer\"";
+  if (!isSupportedTypedSegment2Field1InputRole(getField1Role()))
+    return emitOpError()
+           << "requires field1_role \"segment-field1-input-buffer\"";
+  if (getField0Role() == getField1Role())
+    return emitOpError()
+           << "requires field0_role and field1_role to be distinct";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getDestination(), "interleaved destination",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               SegmentInterleavedOutputBuffer})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (getField0().getType() != getField1().getType())
+    return emitOpError()
+           << "requires field0 and field1 operands to have matching generic "
               "RVV vector types";
   if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getField0(), "field0")))
     return mlir::failure();
@@ -3744,7 +3966,9 @@ mlir::LogicalResult StoreOp::verify() {
            tianchenrv::support::RuntimeABIParameterRole::
                SegmentField0OutputBuffer,
            tianchenrv::support::RuntimeABIParameterRole::
-               SegmentField1OutputBuffer})))
+               SegmentField1OutputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::
+               SegmentInterleavedOutputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "

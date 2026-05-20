@@ -30,9 +30,12 @@ bool isFiniteBinaryCallableRole(RuntimeABIParameterRole role) {
   case RuntimeABIParameterRole::SourceInputBuffer:
   case RuntimeABIParameterRole::IndexInputBuffer:
   case RuntimeABIParameterRole::MaskInputBuffer:
+  case RuntimeABIParameterRole::SegmentField0InputBuffer:
+  case RuntimeABIParameterRole::SegmentField1InputBuffer:
   case RuntimeABIParameterRole::RHSScalarValue:
   case RuntimeABIParameterRole::SegmentField0OutputBuffer:
   case RuntimeABIParameterRole::SegmentField1OutputBuffer:
+  case RuntimeABIParameterRole::SegmentInterleavedOutputBuffer:
   case RuntimeABIParameterRole::LHSInputStride:
   case RuntimeABIParameterRole::RHSInputStride:
   case RuntimeABIParameterRole::OutputStride:

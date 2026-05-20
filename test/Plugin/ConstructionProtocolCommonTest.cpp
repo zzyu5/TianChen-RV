@@ -1648,6 +1648,9 @@ int runRVVCommonValidationTest() {
                                                           route.operationMnemonic ==
                                                               "segment2_deinterleave_unit_store"
                                                       ? "tcrv_rvv.move"
+                                                      : route.operationMnemonic ==
+                                                                "segment2_interleave_unit_load"
+                                                            ? "tcrv_rvv.segment2_store"
                                                       : "tcrv_rvv.binary"))))));
     llvm::StringRef rhsSourceOp =
         route.operationMnemonic == "widen_i32_to_i64"
@@ -1670,9 +1673,12 @@ int runRVVCommonValidationTest() {
                                                  "segment2_deinterleave_unit_store"
                                              ? "tcrv_rvv.segment2_load"
                                        : (route.operationMnemonic ==
+                                                  "segment2_interleave_unit_load"
+                                              ? "tcrv_rvv.segment2_store"
+                                       : (route.operationMnemonic ==
                                                   "scalar_broadcast_add"
                                               ? "tcrv_rvv.splat"
-                                              : "tcrv_rvv.load"))))));
+                                              : "tcrv_rvv.load")))))));
     llvm::Expected<llvm::SmallVector<
         rvv::RVVSelectedBodyExecutableRoleStep, 10>>
         steps = rvv::getRVVSelectedBodyExecutableRoleSteps(
@@ -1697,6 +1703,8 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "computed_masked_unit_load_store";
     const bool hasSegment2Deinterleave =
         route.operationMnemonic == "segment2_deinterleave_unit_store";
+    const bool hasSegment2Interleave =
+        route.operationMnemonic == "segment2_interleave_unit_load";
     const bool hasConversion = route.operationMnemonic == "widen_i32_to_i64";
     unsigned expectedStepCount =
         hasConversion          ? 8u
@@ -1705,6 +1713,7 @@ int runRVVCommonValidationTest() {
         : hasMaskedMemory                        ? 11u
         : hasComputedMaskMemory                  ? 14u
         : hasSegment2Deinterleave                ? 11u
+        : hasSegment2Interleave                  ? 9u
         : hasStridedMemory         ? 13u
         : ((hasMaskProducer || hasAccumulatorLoad) ? 11u : 10u);
     if (steps->size() != expectedStepCount)
@@ -1773,6 +1782,13 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodySegment2DeinterleaveRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
+               "segment2_interleave_unit_load") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodySegment2InterleaveRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "scalar_broadcast_add") {

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, authority, and RVV Stage1/Stage2 invariants for this segment2 interleave executable slice."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body authority, selected-body realization, route provider, and fail-closed diagnostics rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute boundary for RVV segment routes."}
+{"file": ".trellis/tasks/05-20-05-20-stage2-rvv-segment2-interleave-memory-executable-slice/prd.md", "reason": "Current task goal, boundaries, acceptance criteria, and validation plan."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-05-20-stage2-rvv-segment2-deinterleave-memory-executable-slice/prd.md", "reason": "Immediately prior segment2 route shape, selected-body, route planning, generated-bundle, and ssh evidence baseline to mirror in the opposite direction."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-strided-memory-slice/prd.md", "reason": "Existing bounded memory-movement PRD shape and validation expectations for typed memory facts."}

@@ -793,6 +793,49 @@ def TypedSegment2DeinterleaveMemoryPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedSegment2InterleaveMemoryPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_segment2_interleave_memory_pre_realized_body"> {
+  let summary = "generic typed pre-realized RVV segment2 interleave memory body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body for a
+    signed i32 pair of unit-stride field sources into one interleaved segment2
+    destination. The op is nested directly in a selected tcrv.exec.variant and
+    binds explicit runtime ABI values for field0 source, field1 source,
+    interleaved destination, and runtime n/AVL together with segment_count,
+    field roles/order, source/destination memory forms, compile-time RVV
+    config, and policy.
+
+    This op is not a segmented-memory framework, descriptor, source-front-door
+    marker, route id, artifact name, direct-C exporter, intrinsic wrapper,
+    runtime artifact, correctness evidence, or performance evidence. The RVV
+    plugin must realize it into explicit setvl/with_vl/load/load/
+    segment2_store tcrv_rvv body structure before the provider may construct a
+    TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$src0,
+    AnyType:$src1,
+    AnyType:$dst,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    I64Attr:$segment_count,
+    StrAttr:$field0_role,
+    StrAttr:$field1_role,
+    StrAttr:$source0_memory_form,
+    StrAttr:$source1_memory_form,
+    StrAttr:$destination_memory_form,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$src0 `,` $src1 `,` $dst `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def LoadOp : TCRVRVV_Op<"load",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",
@@ -1072,6 +1115,42 @@ def Segment2LoadOp : TCRVRVV_Op<"segment2_load",
 
   let assemblyFormat =
     "$source `,` $vl attr-dict `:` type($source) `,` type($vl) `->` type($field0) `,` type($field1)";
+  let hasVerifier = 1;
+}
+
+def Segment2StoreOp : TCRVRVV_Op<"segment2_store",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV segment2 interleaved store dataflow op";
+  let description = [{
+    Records one bounded plugin-local RVV segment2 destination store dataflow
+    step. The op is nested directly under tcrv_rvv.with_vl, consumes one
+    explicit interleaved destination-buffer runtime ABI value, field0 and
+    field1 !tcrv_rvv.vector values, and the active !tcrv_rvv.vl token. It
+    carries segment_count = 2, destination memory form, and field0/field1
+    source role facts.
+
+    Segment count, field order, destination memory form, dtype/config, and
+    runtime ABI provenance come from this typed body fact. The RVV plugin
+    derives the tuple C type and segmented-store leaf from these facts; route
+    ids, artifact names, ABI strings, exact intrinsic spellings, descriptors,
+    and common EmitC/export code must not infer segmented memory semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$destination,
+    AnyType:$field0,
+    AnyType:$field1,
+    AnyType:$vl,
+    I64Attr:$segment_count,
+    StrAttr:$destination_memory_form,
+    StrAttr:$field0_role,
+    StrAttr:$field1_role
+  );
+
+  let assemblyFormat =
+    "$destination `,` $field0 `,` $field1 `,` $vl attr-dict `:` type($destination) `,` type($field0) `,` type($field1) `,` type($vl)";
   let hasVerifier = 1;
 }
 

@@ -620,6 +620,24 @@ getRVVSelectedBodySegment2DeinterleaveRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVSelectedBodySegment2InterleaveRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src0", "const int32_t *",
+      support::RuntimeABIParameterRole::SegmentField0InputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src1", "const int32_t *",
+      support::RuntimeABIParameterRole::SegmentField1InputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "dst", "int32_t *",
+      support::RuntimeABIParameterRole::SegmentInterleavedOutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
     llvm::StringRef context) {
@@ -668,6 +686,11 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, segment2))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 4> segment2Interleave =
+      getRVVSelectedBodySegment2InterleaveRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, segment2Interleave))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 4> scalarBroadcastExpected =
       getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, scalarBroadcastExpected))
@@ -693,7 +716,8 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "ABI mask input; or cmp_lhs, cmp_rhs, src, dst, n for the bounded "
       "int32_t computed-mask masked unit-load/store route with compare "
       "producer; or src, out0, out1, n for the bounded int32_t segment2 "
-      "deinterleave route; all with "
+      "deinterleave route; or src0, src1, dst, n for the bounded int32_t "
+      "segment2 interleave route; all with "
       "stable C types, roles, and target-export ownership");
 }
 

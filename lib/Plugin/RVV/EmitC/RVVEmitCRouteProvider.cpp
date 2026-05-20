@@ -52,7 +52,8 @@ bool isRVVSelectedBodyComputedMaskMemoryMovementRoute(
 
 bool isRVVSelectedBodySegmentedMemoryMovementRoute(
     RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore;
+  return op == RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore ||
+         op == RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
 }
 
 bool isRVVSelectedBodyMemoryMovementRoute(RVVSelectedBodyOperationKind op) {
@@ -201,6 +202,61 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return error;
 
   if (isRVVSelectedBodySegmentedMemoryMovementRoute(description.operation)) {
+    const bool isSegment2Interleave =
+        description.operation ==
+        RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
+    if (isSegment2Interleave) {
+      if (llvm::Error error = addLoopStep(
+              slice->lhsLoadOperation, "load", description.vectorLoadIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{
+                   (llvm::StringRef(slice->lhsABI.cName) + " + " +
+                    inductionName)
+                       .str(),
+                   slice->lhsABI.cType},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          description.vlCType.str()}},
+              TCRVEmitCCallOpaqueResult{description.field0Name.str(),
+                                        description.vectorCType.str()}))
+        return error;
+      if (llvm::Error error = addLoopStep(
+              slice->rhsLoadOperation, "load", description.vectorLoadIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{
+                   (llvm::StringRef(slice->rhsABI.cName) + " + " +
+                    inductionName)
+                       .str(),
+                   slice->rhsABI.cType},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          description.vlCType.str()}},
+              TCRVEmitCCallOpaqueResult{description.field1Name.str(),
+                                        description.vectorCType.str()}))
+        return error;
+      if (llvm::Error error = addLoopStep(
+              slice->segment2StoreOperation, "store",
+              description.segmentFieldExtractIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{description.field0Name.str(),
+                                          description.vectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{description.field1Name.str(),
+                                          description.vectorCType.str()}},
+              TCRVEmitCCallOpaqueResult{"segment2_tuple",
+                                        description.segmentTupleCType.str()}))
+        return error;
+      if (llvm::Error error = addLoopStep(
+              slice->segment2StoreOperation, "store",
+              description.segmentStoreIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{
+                   (llvm::StringRef(slice->outABI.cName) + " + (" +
+                    inductionName + " * 2)")
+                       .str(),
+                   slice->outABI.cType},
+               TCRVEmitCCallOpaqueOperand{"segment2_tuple",
+                                          description.segmentTupleCType.str()},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          description.vlCType.str()}}))
+        return error;
+      route.addForLoop(std::move(loop));
+      out = std::move(route);
+      return llvm::Error::success();
+    }
     if (llvm::Error error = addLoopStep(
             slice->segment2LoadOperation, "load",
             description.segmentLoadIntrinsic,

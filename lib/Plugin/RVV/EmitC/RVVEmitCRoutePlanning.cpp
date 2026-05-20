@@ -69,6 +69,8 @@ constexpr llvm::StringLiteral kRVVComputedMaskMemoryRuntimeABIOrder(
     "cmp_lhs,cmp_rhs,src,dst,n");
 constexpr llvm::StringLiteral kRVVSegment2RuntimeABIOrder(
     "src,out0,out1,n");
+constexpr llvm::StringLiteral kRVVSegment2InterleaveRuntimeABIOrder(
+    "src0,src1,dst,n");
 constexpr llvm::StringLiteral kRVVScalarBroadcastRuntimeABIOrder(
     "lhs,rhs_scalar,out,n");
 constexpr llvm::StringLiteral kRVVWideningConversionRuntimeABIOrder(
@@ -87,6 +89,8 @@ constexpr llvm::StringLiteral kRVVComputedMaskMemoryLayout(
     "unit-stride-compare-source-old-destination-runtime-abi");
 constexpr llvm::StringLiteral kRVVSegment2MemoryLayout(
     "segment2-interleaved-source-dual-unit-stride-destination-runtime-abi");
+constexpr llvm::StringLiteral kRVVSegment2InterleaveMemoryLayout(
+    "dual-unit-stride-source-segment2-interleaved-destination-runtime-abi");
 constexpr llvm::StringLiteral kRVVLHSStrideSource("runtime_abi:lhs_stride");
 constexpr llvm::StringLiteral kRVVRHSStrideSource("runtime_abi:rhs_stride");
 constexpr llvm::StringLiteral kRVVOutStrideSource("runtime_abi:out_stride");
@@ -114,11 +118,21 @@ constexpr llvm::StringLiteral kRVVSegment2Field0Role(
     "segment-field0-output-buffer");
 constexpr llvm::StringLiteral kRVVSegment2Field1Role(
     "segment-field1-output-buffer");
+constexpr llvm::StringLiteral kRVVSegment2Field0InputRole(
+    "segment-field0-input-buffer");
+constexpr llvm::StringLiteral kRVVSegment2Field1InputRole(
+    "segment-field1-input-buffer");
 constexpr llvm::StringLiteral kRVVSegment2TupleCType("vint32m1x2_t");
 constexpr llvm::StringLiteral kRVVSegment2LoadIntrinsic(
     "__riscv_vlseg2e32_v_i32m1x2");
+constexpr llvm::StringLiteral kRVVSegment2StoreIntrinsic(
+    "__riscv_vsseg2e32_v_i32m1x2");
 constexpr llvm::StringLiteral kRVVSegment2FieldExtractIntrinsic(
     "__riscv_vget_v_i32m1x2_i32m1");
+constexpr llvm::StringLiteral kRVVSegment2TupleCreateIntrinsic(
+    "__riscv_vcreate_v_i32m1x2");
+constexpr llvm::StringLiteral kRVVSegment2InterleavedDestinationMemoryForm(
+    "segment2-interleaved-unit-stride-store");
 constexpr llvm::StringLiteral kRVVIndexedGatherOffsetUnit("element");
 constexpr llvm::StringLiteral kRVVIndexedScatterIndexUniqueness("unique");
 constexpr llvm::StringLiteral kRVVDestinationMemoryForm("unit-stride-store");
@@ -198,6 +212,7 @@ constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::MaskedUnitLoadStore,
     RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore,
     RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore,
+    RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad,
     RVVSelectedBodyOperationKind::ScalarBroadcastAdd,
     RVVSelectedBodyOperationKind::WidenI32ToI64};
 
@@ -324,6 +339,15 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
       /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
       /*isSegmentedMemoryMovement=*/true,
       /*isWideningConversion=*/false};
+  static const RVVSelectedBodyOperationProfile kSegment2InterleaveUnitLoad = {
+      RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad,
+      "segment2_interleave_unit_load", "segment2_tuple", "",
+      /*isCompareSelect=*/false, /*isReduction=*/false,
+      /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
+      /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
+      /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+      /*isSegmentedMemoryMovement=*/true,
+      /*isWideningConversion=*/false};
   static const RVVSelectedBodyOperationProfile kScalarBroadcastAdd = {
       RVVSelectedBodyOperationKind::ScalarBroadcastAdd,
       "scalar_broadcast_add", "sum_vec", "",
@@ -371,6 +395,8 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
     return kComputedMaskUnitLoadStore;
   case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
     return kSegment2DeinterleaveUnitStore;
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return kSegment2InterleaveUnitLoad;
   case RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
     return kScalarBroadcastAdd;
   case RVVSelectedBodyOperationKind::WidenI32ToI64:
@@ -573,6 +599,9 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
   case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
     llvm_unreachable(
         "segment2 memory movement uses segment load/extract/store leaves only");
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    llvm_unreachable(
+        "segment2 memory movement uses load/tuple/store leaves only");
   case RVVSelectedBodyOperationKind::WidenI32ToI64:
     llvm_unreachable("widening conversion uses dedicated conversion leaf");
   }
@@ -701,7 +730,9 @@ deriveRVVSelectedBodyTargetLeafProfile(
 
   if (operationProfile.isSegmentedMemoryMovement) {
     if (description.memoryForm !=
-        RVVSelectedBodyMemoryForm::Segment2LoadUnitStore)
+            RVVSelectedBodyMemoryForm::Segment2LoadUnitStore &&
+        description.memoryForm !=
+            RVVSelectedBodyMemoryForm::UnitLoadSegment2Store)
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     if (configProfile.lmul != tcrv::rvv::getRVVLMULM1() ||
         configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits())
@@ -1111,6 +1142,17 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     return llvm::Error::success();
   }
 
+  if (slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad) {
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.field0Value, "segment2 field0 source vector", config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.field1Value, "segment2 field1 source vector", config))
+      return error;
+    return llvm::Error::success();
+  }
+
   if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
           slice.lhsValue, "lhs vector", config))
     return error;
@@ -1239,6 +1281,34 @@ assignRVVGenericLoadBinding(RVVSelectedBodyRouteSlice &slice,
     slice.accumulatorBuffer = load.getBuffer();
     slice.accumulatorValue = load.getLoaded();
     slice.accumulatorABI = parameter;
+    return llvm::Error::success();
+  }
+  if (parameter.role ==
+      support::RuntimeABIParameterRole::SegmentField0InputBuffer) {
+    if (slice.lhsLoadOperation)
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV segment2 interleave route requires a unique field0 "
+          "source load");
+    slice.lhsGenericLoad = load;
+    slice.lhsLoadOperation = load.getOperation();
+    slice.lhsBuffer = load.getBuffer();
+    slice.lhsValue = load.getLoaded();
+    slice.field0Value = load.getLoaded();
+    slice.lhsABI = parameter;
+    return llvm::Error::success();
+  }
+  if (parameter.role ==
+      support::RuntimeABIParameterRole::SegmentField1InputBuffer) {
+    if (slice.rhsLoadOperation)
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV segment2 interleave route requires a unique field1 "
+          "source load");
+    slice.rhsGenericLoad = load;
+    slice.rhsLoadOperation = load.getOperation();
+    slice.rhsBuffer = load.getBuffer();
+    slice.rhsValue = load.getLoaded();
+    slice.field1Value = load.getLoaded();
+    slice.rhsABI = parameter;
     return llvm::Error::success();
   }
 
@@ -1514,6 +1584,51 @@ llvm::Error assignRVVGenericSegment2LoadBinding(
   return llvm::Error::success();
 }
 
+llvm::Error assignRVVGenericSegment2StoreBinding(
+    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::Segment2StoreOp store,
+    const support::RuntimeABIParameter &parameter) {
+  if (parameter.role !=
+      support::RuntimeABIParameterRole::SegmentInterleavedOutputBuffer)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported RVV segment2 store runtime ABI role '") +
+        support::stringifyRuntimeABIParameterRole(parameter.role) + "'");
+  if (slice.segment2StoreOperation)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV segment2 interleave route requires a unique "
+        "tcrv_rvv.segment2_store op");
+  if (static_cast<std::int64_t>(store.getSegmentCount()) != 2)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV segment2 interleave route requires "
+        "segment_count 2");
+  if (store.getDestinationMemoryForm() !=
+      kRVVSegment2InterleavedDestinationMemoryForm)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV segment2 interleave route requires "
+        "destination_memory_form "
+        "'segment2-interleaved-unit-stride-store'");
+  if (store.getField0Role() != kRVVSegment2Field0InputRole ||
+      store.getField1Role() != kRVVSegment2Field1InputRole)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV segment2 interleave route requires field0_role "
+        "'segment-field0-input-buffer' and field1_role "
+        "'segment-field1-input-buffer'");
+  if (store.getField0Role() == store.getField1Role())
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV segment2 interleave route requires distinct "
+        "field roles");
+
+  slice.segment2Store = store;
+  slice.segment2StoreOperation = store.getOperation();
+  slice.storeOperation = store.getOperation();
+  slice.outBuffer = store.getDestination();
+  slice.outABI = parameter;
+  slice.field0Value = store.getField0();
+  slice.field1Value = store.getField1();
+  slice.storeValue = store.getField0();
+  slice.memoryForm = RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     RVVSelectedBodyRouteSlice &slice,
     const RVVSelectedBodyConstructionRoute &constructionRoute,
@@ -1534,6 +1649,18 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
                 ordered,
                 "selected RVV EmitC route explicit segment2 runtime ABI "
                 "values"))
+      return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
+    return llvm::Error::success();
+  }
+  if (slice.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadSegment2Store) {
+    ordered.push_back(slice.rhsABI);
+    ordered.push_back(slice.outABI);
+    ordered.push_back(slice.runtimeElementCountABI);
+    if (llvm::Error error =
+            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+                ordered,
+                "selected RVV EmitC route explicit segment2 interleave "
+                "runtime ABI values"))
       return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
     return llvm::Error::success();
   }
@@ -1902,6 +2029,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   llvm::SmallVector<tcrv::rvv::IndexedStoreOp, 1> genericIndexedStores;
   llvm::SmallVector<tcrv::rvv::MaskLoadOp, 1> genericMaskLoads;
   llvm::SmallVector<tcrv::rvv::Segment2LoadOp, 1> genericSegment2Loads;
+  llvm::SmallVector<tcrv::rvv::Segment2StoreOp, 1> genericSegment2Stores;
   llvm::SmallVector<tcrv::rvv::BroadcastLoadOp, 1> genericBroadcastLoads;
   llvm::SmallVector<tcrv::rvv::SplatOp, 1> genericScalarSplats;
   llvm::SmallVector<tcrv::rvv::StoreOp, 2> genericStores;
@@ -1934,6 +2062,10 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     }
     if (auto segment2Load = llvm::dyn_cast<tcrv::rvv::Segment2LoadOp>(op)) {
       genericSegment2Loads.push_back(segment2Load);
+      continue;
+    }
+    if (auto segment2Store = llvm::dyn_cast<tcrv::rvv::Segment2StoreOp>(op)) {
+      genericSegment2Stores.push_back(segment2Store);
       continue;
     }
     if (auto broadcast = llvm::dyn_cast<tcrv::rvv::BroadcastLoadOp>(op)) {
@@ -2017,6 +2149,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "tcrv_rvv.load, tcrv_rvv.broadcast_load, "
           "tcrv_rvv.splat, tcrv_rvv.strided_load, tcrv_rvv.binary, "
           "tcrv_rvv.index_load, tcrv_rvv.indexed_load, tcrv_rvv.segment2_load, "
+          "tcrv_rvv.segment2_store, "
           "tcrv_rvv.indexed_store, tcrv_rvv.mask_load, tcrv_rvv.compare, "
           "tcrv_rvv.masked_binary, tcrv_rvv.select, tcrv_rvv.reduce, "
           "tcrv_rvv.macc, tcrv_rvv.widening_convert, tcrv_rvv.move, "
@@ -2027,7 +2160,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         op.getName().getStringRef() +
         "' inside tcrv_rvv.with_vl; expected generic load, broadcast_load, "
         "splat, strided_load, index_load, indexed_load, indexed_store, "
-        "mask_load, segment2_load, binary, compare, masked_binary, select, reduce, macc, "
+        "mask_load, segment2_load, segment2_store, binary, compare, "
+        "masked_binary, select, reduce, macc, "
         "widening_convert, move, masked_move, store, and strided_store only");
   }
 
@@ -2037,6 +2171,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   const bool hasMaskedMemory =
       !genericMaskLoads.empty() || static_cast<bool>(slice.maskedMoveOp);
   const bool hasSegmentedMemory = !genericSegment2Loads.empty() ||
+                                  !genericSegment2Stores.empty() ||
                                   static_cast<bool>(slice.field0MoveOp) ||
                                   static_cast<bool>(slice.field1MoveOp);
   if (hasIndexedMemory) {
@@ -2048,6 +2183,11 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         genericIndexedStores.empty()
             ? RVVSelectedBodyOperationKind::IndexedGatherUnitStore
             : RVVSelectedBodyOperationKind::IndexedScatterUnitLoad;
+  }
+  if (!genericSegment2Stores.empty()) {
+    slice.arithmeticKind =
+        RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
+    slice.arithmeticOp = genericSegment2Stores.front().getOperation();
   }
 
   const bool isCompareSelect =
@@ -2085,6 +2225,10 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       slice.arithmeticOp &&
       slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore;
+  const bool isSegment2InterleaveUnitLoad =
+      slice.arithmeticOp &&
+      slice.arithmeticKind ==
+          RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
   const bool isWidenI32ToI64 =
       slice.arithmeticOp &&
       slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI32ToI64;
@@ -2215,10 +2359,11 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "unit-stride load/mask_load/old-destination-load/masked_move/store "
         "or computed-mask compare/source/old-destination/masked_move/store "
         "memory movement in this slice");
-  if (hasSegmentedMemory &&
-      (!isSegment2DeinterleaveUnitStore || hasIndexedMemory ||
+  if (hasSegmentedMemory && isSegment2DeinterleaveUnitStore &&
+      (hasIndexedMemory ||
        hasStridedMemory || hasMaskedMemory || !genericLoads.empty() ||
        !genericBroadcastLoads.empty() || hasScalarBroadcast ||
+       !genericSegment2Stores.empty() ||
        stridedStoreCount != 0 || genericIndexedStores.size() != 0 ||
        slice.maskedBinaryOp || slice.selectOp || slice.reduceOp ||
        slice.maccOp || slice.compareOp || isWidenI32ToI64))
@@ -2226,6 +2371,22 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "bounded generic RVV segment2 deinterleave route supports only "
         "segment2_load/field0 move/field1 move/field0 store/field1 store "
         "memory movement in this slice");
+  if (hasSegmentedMemory && isSegment2InterleaveUnitLoad &&
+      (hasIndexedMemory || hasStridedMemory || hasMaskedMemory ||
+       !genericSegment2Loads.empty() || !genericBroadcastLoads.empty() ||
+       hasScalarBroadcast || stridedStoreCount != 0 ||
+       genericIndexedStores.size() != 0 || storeCount != 0 ||
+       slice.maskedBinaryOp || slice.selectOp || slice.reduceOp ||
+       slice.maccOp || slice.compareOp || isWidenI32ToI64))
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV segment2 interleave route supports only "
+        "field0 load/field1 load/segment2_store memory movement in this "
+        "slice");
+  if (hasSegmentedMemory && !isSegment2DeinterleaveUnitStore &&
+      !isSegment2InterleaveUnitLoad)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV segment2 route requires either deinterleave "
+        "segment2_load or interleave segment2_store typed body structure");
   if (isSegment2DeinterleaveUnitStore && genericSegment2Loads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 deinterleave route requires exactly "
@@ -2239,6 +2400,14 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 deinterleave route requires exactly two "
         "unit-stride tcrv_rvv.store ops for field0 and field1");
+  if (isSegment2InterleaveUnitLoad && genericSegment2Stores.size() != 1)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV segment2 interleave route requires exactly one "
+        "tcrv_rvv.segment2_store op");
+  if (isSegment2InterleaveUnitLoad && genericLoads.size() != 2)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV segment2 interleave route requires exactly two "
+        "unit-stride tcrv_rvv.load ops for field0 and field1");
   if (isMaskedUnitLoadStore && slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime-mask memory route must not contain "
@@ -2373,6 +2542,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           ? 8
       : isSegment2DeinterleaveUnitStore
           ? 11
+      : isSegment2InterleaveUnitLoad
+          ? 9
       : isComputedMaskUnitLoadStore
           ? 14
       : isMaskedUnitLoadStore
@@ -2391,9 +2562,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "and optional strided runtime_abi_value/runtime_abi_value/"
         "runtime_abi_value, "
         "setvl/with_vl, and generic load/broadcast_load/splat/strided_load/"
-        "index_load/indexed_load/mask_load/segment2_load/binary/compare/select/"
-        "masked_binary/reduce/macc/widening_convert/move/masked_move/store/"
-        "strided_store body structure");
+        "index_load/indexed_load/mask_load/segment2_load/segment2_store/"
+        "binary/compare/select/masked_binary/reduce/macc/widening_convert/"
+        "move/masked_move/store/strided_store body structure");
 
   for (tcrv::rvv::LoadOp load : genericLoads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
@@ -2402,7 +2573,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
             {support::RuntimeABIParameterRole::LHSInputBuffer,
              support::RuntimeABIParameterRole::RHSInputBuffer,
              support::RuntimeABIParameterRole::SourceInputBuffer,
-             support::RuntimeABIParameterRole::OutputBuffer});
+             support::RuntimeABIParameterRole::OutputBuffer,
+             support::RuntimeABIParameterRole::SegmentField0InputBuffer,
+             support::RuntimeABIParameterRole::SegmentField1InputBuffer});
     if (!parameter)
       return parameter.takeError();
     if (llvm::Error error = assignRVVGenericLoadBinding(slice, load, *parameter))
@@ -2504,6 +2677,19 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
             assignRVVGenericSegment2LoadBinding(slice, load, *parameter))
       return error;
   }
+  for (tcrv::rvv::Segment2StoreOp store : genericSegment2Stores) {
+    llvm::Expected<support::RuntimeABIParameter> parameter =
+        getRuntimeABIParameterBindingFromValue(
+            store.getDestination(),
+            "tcrv_rvv.segment2_store destination operand",
+            {support::RuntimeABIParameterRole::
+                 SegmentInterleavedOutputBuffer});
+    if (!parameter)
+      return parameter.takeError();
+    if (llvm::Error error =
+            assignRVVGenericSegment2StoreBinding(slice, store, *parameter))
+      return error;
+  }
   if (isIndexedGatherUnitStore) {
     if (slice.indexedLoad.getIndices() != slice.indexValue)
       return makeRVVEmitCRouteProviderError(
@@ -2566,6 +2752,20 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "bounded generic RVV segment2 deinterleave route requires field0 "
           "and field1 moves to consume matching segment2_load field results");
   }
+  if (isSegment2InterleaveUnitLoad) {
+    if (slice.lhsGenericLoad.getVl() != slice.setvl.getVl() ||
+        slice.rhsGenericLoad.getVl() != slice.setvl.getVl() ||
+        slice.segment2Store.getVl() != slice.setvl.getVl())
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV segment2 interleave route requires field0 "
+          "load, field1 load, and segment2_store to consume the selected "
+          "!tcrv_rvv.vl token");
+    if (slice.segment2Store.getField0() != slice.field0Value ||
+        slice.segment2Store.getField1() != slice.field1Value)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV segment2 interleave route requires "
+          "segment2_store to consume matching field0 and field1 load results");
+  }
 
   if (!slice.lhsLoadOperation ||
       (!isWidenI32ToI64 && !isStridedLoadUnitStore &&
@@ -2573,6 +2773,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        !isMaskedUnitLoadStore &&
        !isComputedMaskUnitLoadStore &&
        !isSegment2DeinterleaveUnitStore &&
+       !isSegment2InterleaveUnitLoad &&
        !slice.rhsLoadOperation))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route requires lhs-input-buffer and "
@@ -2615,6 +2816,12 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "and field1 destination stores with explicit segment field ABI "
           "roles");
     resolvedOutABI = slice.field0ABI;
+  } else if (isSegment2InterleaveUnitLoad) {
+    if (!slice.segment2StoreOperation)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV segment2 interleave route requires "
+          "interleaved destination segment2_store with explicit ABI role");
+    resolvedOutABI = slice.outABI;
   } else {
     llvm::Expected<support::RuntimeABIParameter> outABI =
         hasStridedMemory && !isStridedLoadUnitStore
@@ -2677,6 +2884,11 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     slice.outBuffer = slice.field0Buffer;
     slice.storeValue = slice.field0Store.getValue();
     slice.memoryForm = RVVSelectedBodyMemoryForm::Segment2LoadUnitStore;
+  } else if (isSegment2InterleaveUnitLoad) {
+    slice.storeOperation = slice.segment2StoreOperation;
+    slice.outBuffer = slice.segment2Store.getDestination();
+    slice.storeValue = slice.segment2Store.getField0();
+    slice.memoryForm = RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
   } else {
     slice.storeOperation = slice.genericStore.getOperation();
     slice.outBuffer = slice.genericStore.getBuffer();
@@ -2846,6 +3058,18 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV segment2 deinterleave route does not support "
           "RHS, source, index, mask, or accumulator loads");
+  } else if (isSegment2InterleaveUnitLoad) {
+    if (slice.segment2Store.getField0() != slice.field0Value ||
+        slice.segment2Store.getField1() != slice.field1Value)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV segment2 interleave route requires "
+          "segment2_store to consume its matching field source load results");
+    if (slice.accumulatorLoadOperation || slice.sourceLoadOperation ||
+        slice.indexLoadOperation || slice.maskLoadOperation ||
+        slice.segment2LoadOperation)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV segment2 interleave route does not support "
+          "source, index, mask, accumulator, or segment2_load inputs");
   } else if (slice.arithmeticLhs != slice.lhsValue ||
              slice.arithmeticRhs != slice.rhsValue) {
     if (slice.accumulatorLoadOperation)
@@ -2857,7 +3081,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         operationMnemonic +
         " to consume lhs/rhs generic load or broadcast results");
   }
-  if (!isSegment2DeinterleaveUnitStore &&
+  if (!isSegment2DeinterleaveUnitStore && !isSegment2InterleaveUnitLoad &&
       slice.storeValue != slice.arithmeticResult)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route requires selected-body store to "
@@ -2924,10 +3148,31 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore;
   const bool isSegment2DeinterleaveUnitStore =
       slice.memoryForm == RVVSelectedBodyMemoryForm::Segment2LoadUnitStore;
+  const bool isSegment2InterleaveUnitLoad =
+      slice.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
   const bool isConversion =
       slice.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideConversion;
   if (lhsABI && op == lhsABI.getOperation())
     return 0;
+  if (isSegment2InterleaveUnitLoad) {
+    if (rhsABI && op == rhsABI.getOperation())
+      return 1;
+    if (outABI && op == outABI.getOperation())
+      return 2;
+    if (nABI && op == nABI.getOperation())
+      return 3;
+    if (op == slice.setvl.getOperation())
+      return 4;
+    if (op == slice.withVL.getOperation())
+      return 5;
+    if (op == slice.lhsLoadOperation)
+      return 6;
+    if (op == slice.rhsLoadOperation)
+      return 7;
+    if (op == slice.segment2StoreOperation)
+      return 8;
+    return 9;
+  }
   if (isSegment2DeinterleaveUnitStore) {
     if (field0ABI && op == field0ABI.getOperation())
       return 1;
@@ -3196,20 +3441,24 @@ llvm::Error verifySelectedRVVRoleSequence(
       RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore;
   const bool isSegment2DeinterleaveUnitStore =
       slice.memoryForm == RVVSelectedBodyMemoryForm::Segment2LoadUnitStore;
+  const bool isSegment2InterleaveUnitLoad =
+      slice.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
   const bool isConversion =
       slice.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideConversion;
   if (!lhsABI ||
       (!isConversion && !isStridedLoadUnitStore &&
        !isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
        !isMaskedUnitLoadStore && !isComputedMaskUnitLoadStore &&
-       !isSegment2DeinterleaveUnitStore && !rhsABI) ||
+       !isSegment2DeinterleaveUnitStore && !isSegment2InterleaveUnitLoad &&
+       !rhsABI) ||
       (!isSegment2DeinterleaveUnitStore && !outABI) ||
       !nABI || (isStrided && (!lhsStrideABI || !rhsStrideABI || !outStrideABI)) ||
       (isStridedLoadUnitStore && !lhsStrideABI) ||
       ((isIndexedGatherUnitStore || isIndexedScatterUnitLoad) && !indexABI) ||
       (isMaskedUnitLoadStore && !maskABI) ||
       (isComputedMaskUnitLoadStore && (!rhsABI || !sourceABI)) ||
-      (isSegment2DeinterleaveUnitStore && (!field0ABI || !field1ABI)))
+      (isSegment2DeinterleaveUnitStore && (!field0ABI || !field1ABI)) ||
+      (isSegment2InterleaveUnitLoad && (!rhsABI || !outABI)))
     return makeRVVEmitCRouteProviderError(
         "selected RVV construction role sequence requires runtime ABI values "
         "to be explicit tcrv_rvv.runtime_abi_value ops");
@@ -3239,6 +3488,8 @@ llvm::Error verifySelectedRVVRoleSequence(
           ? slice.compareOp.getOperation()->getName().getStringRef()
       : isSegment2DeinterleaveUnitStore
           ? slice.segment2LoadOperation->getName().getStringRef()
+      : isSegment2InterleaveUnitLoad
+          ? slice.segment2StoreOperation->getName().getStringRef()
       : isStridedLoadUnitStore
           ? slice.lhsLoadOperation->getName().getStringRef()
           : (slice.rhsLoadOperation
@@ -3311,12 +3562,15 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
                  RVVSelectedBodyMemoryForm::Segment2LoadUnitStore
              ? kRVVSegment2RuntimeABIOrder
       : (analysis.slice.memoryForm ==
+                 RVVSelectedBodyMemoryForm::UnitLoadSegment2Store
+             ? kRVVSegment2InterleaveRuntimeABIOrder
+      : (analysis.slice.memoryForm ==
                  RVVSelectedBodyMemoryForm::UnitStrideConversion
              ? kRVVWideningConversionRuntimeABIOrder
              : (analysis.slice.memoryForm ==
                  RVVSelectedBodyMemoryForm::RHSScalarBroadcast
              ? kRVVScalarBroadcastRuntimeABIOrder
-             : configContract.runtimeABIOrder))))))));
+             : configContract.runtimeABIOrder)))))))));
   analysis.description.vlDefOpName = configContract.vlDefOpName;
   analysis.description.vlScopeOpName = configContract.vlScopeOpName;
   analysis.description.vlUses = configContract.vlUses;
@@ -3574,24 +3828,57 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
   }
   if (routeProfile->operation.isSegmentedMemoryMovement) {
-    analysis.description.segmentMemoryLayout = kRVVSegment2MemoryLayout;
-    analysis.description.segmentCount = static_cast<std::int64_t>(
-        analysis.slice.segment2Load.getSegmentCount());
+    const bool isInterleave =
+        routeProfile->operation.operation ==
+        RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
+    analysis.description.segmentMemoryLayout =
+        isInterleave ? kRVVSegment2InterleaveMemoryLayout
+                     : kRVVSegment2MemoryLayout;
+    analysis.description.segmentCount =
+        isInterleave
+            ? static_cast<std::int64_t>(
+                  analysis.slice.segment2Store.getSegmentCount())
+            : static_cast<std::int64_t>(
+                  analysis.slice.segment2Load.getSegmentCount());
     analysis.description.segmentTupleCType = kRVVSegment2TupleCType;
-    analysis.description.segmentLoadIntrinsic = kRVVSegment2LoadIntrinsic;
+    analysis.description.segmentLoadIntrinsic =
+        isInterleave ? llvm::StringRef()
+                     : llvm::StringRef(kRVVSegment2LoadIntrinsic);
+    analysis.description.segmentStoreIntrinsic =
+        isInterleave ? llvm::StringRef(kRVVSegment2StoreIntrinsic)
+                     : llvm::StringRef();
     analysis.description.segmentFieldExtractIntrinsic =
-        kRVVSegment2FieldExtractIntrinsic;
-    analysis.description.sourceMemoryForm =
-        analysis.slice.segment2Load.getSourceMemoryForm();
-    analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
-    analysis.description.field0Role = analysis.slice.segment2Load.getField0Role();
-    analysis.description.field1Role = analysis.slice.segment2Load.getField1Role();
-    analysis.description.field0Name = "field0_vec";
-    analysis.description.field1Name = "field1_vec";
-    analysis.description.field0DestinationMemoryForm =
-        kRVVDestinationMemoryForm;
-    analysis.description.field1DestinationMemoryForm =
-        kRVVDestinationMemoryForm;
+        isInterleave ? kRVVSegment2TupleCreateIntrinsic
+                     : kRVVSegment2FieldExtractIntrinsic;
+    if (isInterleave) {
+      analysis.description.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
+      analysis.description.destinationMemoryForm =
+          analysis.slice.segment2Store.getDestinationMemoryForm();
+      analysis.description.field0Role =
+          analysis.slice.segment2Store.getField0Role();
+      analysis.description.field1Role =
+          analysis.slice.segment2Store.getField1Role();
+      analysis.description.field0Name = "field0_vec";
+      analysis.description.field1Name = "field1_vec";
+      analysis.description.field0SourceMemoryForm =
+          kRVVUnitStrideSourceMemoryForm;
+      analysis.description.field1SourceMemoryForm =
+          kRVVUnitStrideSourceMemoryForm;
+    } else {
+      analysis.description.sourceMemoryForm =
+          analysis.slice.segment2Load.getSourceMemoryForm();
+      analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
+      analysis.description.field0Role =
+          analysis.slice.segment2Load.getField0Role();
+      analysis.description.field1Role =
+          analysis.slice.segment2Load.getField1Role();
+      analysis.description.field0Name = "field0_vec";
+      analysis.description.field1Name = "field1_vec";
+      analysis.description.field0DestinationMemoryForm =
+          kRVVDestinationMemoryForm;
+      analysis.description.field1DestinationMemoryForm =
+          kRVVDestinationMemoryForm;
+    }
   }
 
   if (llvm::Error error = validateRVVSelectedBodyRuntimeABIParameters(
@@ -3647,6 +3934,8 @@ stringifyRVVSelectedBodyMemoryForm(RVVSelectedBodyMemoryForm form) {
     return "computed-mask-unit-load-store";
   case RVVSelectedBodyMemoryForm::Segment2LoadUnitStore:
     return "segment2-load-unit-store";
+  case RVVSelectedBodyMemoryForm::UnitLoadSegment2Store:
+    return "unit-load-segment2-store";
   case RVVSelectedBodyMemoryForm::UnitStrideConversion:
     return "unit-stride-conversion";
   }
@@ -3792,7 +4081,11 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           operationProfile.operation == RVVSelectedBodyOperationKind::StridedAdd
               ? kRVVStridedRuntimeABIOrder
           : (operationProfile.isSegmentedMemoryMovement
-              ? kRVVSegment2RuntimeABIOrder
+              ? (operationProfile.operation ==
+                         RVVSelectedBodyOperationKind::
+                             Segment2InterleaveUnitLoad
+                     ? kRVVSegment2InterleaveRuntimeABIOrder
+                     : kRVVSegment2RuntimeABIOrder)
           : (operationProfile.isMemoryMovement
               ? kRVVStridedLoadUnitStoreRuntimeABIOrder
           : (operationProfile.isMaskedMemoryMovement
@@ -4304,6 +4597,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             description.indexedDestinationMemoryForm, ""))
       return error;
   } else if (operationProfile.isSegmentedMemoryMovement) {
+    const bool isSegmentInterleave =
+        operationProfile.operation ==
+        RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "strided memory layout", description.stridedMemoryLayout,
             ""))
@@ -4327,12 +4623,15 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "source memory form", description.sourceMemoryForm,
-            kRVVSegment2SourceMemoryForm))
+            isSegmentInterleave ? kRVVUnitStrideSourceMemoryForm
+                                : kRVVSegment2SourceMemoryForm))
       return error;
     if (llvm::Error error =
             requireRouteDescriptionField(context, "destination memory form",
                                          description.destinationMemoryForm,
-                                         kRVVDestinationMemoryForm))
+                                         isSegmentInterleave
+                                             ? kRVVSegment2InterleavedDestinationMemoryForm
+                                             : kRVVDestinationMemoryForm))
       return error;
     if (description.indexEEW != 0)
       return makeRVVEmitCRouteProviderError(
@@ -4522,35 +4821,49 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
   }
   if (operationProfile.isSegmentedMemoryMovement) {
+    const bool isSegmentInterleave =
+        operationProfile.operation ==
+        RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "segment memory layout",
-            description.segmentMemoryLayout, kRVVSegment2MemoryLayout))
+            description.segmentMemoryLayout,
+            isSegmentInterleave ? kRVVSegment2InterleaveMemoryLayout
+                                : kRVVSegment2MemoryLayout))
       return error;
     if (description.segmentCount != 2)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " segment count must be provider-derived as 2 for segment2 "
-          "deinterleave memory");
+          "memory");
     if (llvm::Error error = requireRouteDescriptionField(
             context, "segment tuple C type", description.segmentTupleCType,
             kRVVSegment2TupleCType))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "segment-load intrinsic",
-            description.segmentLoadIntrinsic, kRVVSegment2LoadIntrinsic))
+            description.segmentLoadIntrinsic,
+            isSegmentInterleave ? "" : kRVVSegment2LoadIntrinsic))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "segment-store intrinsic",
+            description.segmentStoreIntrinsic,
+            isSegmentInterleave ? kRVVSegment2StoreIntrinsic : ""))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "segment field extract intrinsic",
             description.segmentFieldExtractIntrinsic,
-            kRVVSegment2FieldExtractIntrinsic))
+            isSegmentInterleave ? kRVVSegment2TupleCreateIntrinsic
+                                : kRVVSegment2FieldExtractIntrinsic))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "field0 role", description.field0Role,
-            kRVVSegment2Field0Role))
+            isSegmentInterleave ? kRVVSegment2Field0InputRole
+                                : kRVVSegment2Field0Role))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "field1 role", description.field1Role,
-            kRVVSegment2Field1Role))
+            isSegmentInterleave ? kRVVSegment2Field1InputRole
+                                : kRVVSegment2Field1Role))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "field0 result name", description.field0Name,
@@ -4561,14 +4874,24 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             "field1_vec"))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
+            context, "field0 source memory form",
+            description.field0SourceMemoryForm,
+            isSegmentInterleave ? kRVVUnitStrideSourceMemoryForm : ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "field1 source memory form",
+            description.field1SourceMemoryForm,
+            isSegmentInterleave ? kRVVUnitStrideSourceMemoryForm : ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
             context, "field0 destination memory form",
             description.field0DestinationMemoryForm,
-            kRVVDestinationMemoryForm))
+            isSegmentInterleave ? "" : kRVVDestinationMemoryForm))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "field1 destination memory form",
             description.field1DestinationMemoryForm,
-            kRVVDestinationMemoryForm))
+            isSegmentInterleave ? "" : kRVVDestinationMemoryForm))
       return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -4588,6 +4911,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             description.segmentLoadIntrinsic, ""))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
+            context, "segment-store intrinsic",
+            description.segmentStoreIntrinsic, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
             context, "segment field extract intrinsic",
             description.segmentFieldExtractIntrinsic, ""))
       return error;
@@ -4602,6 +4929,14 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "field1 result name", description.field1Name, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "field0 source memory form",
+            description.field0SourceMemoryForm, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "field1 source memory form",
+            description.field1SourceMemoryForm, ""))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "field0 destination memory form",
@@ -4782,6 +5117,31 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         description.field0DestinationMemoryForm});
     metadata.push_back({"tcrv_rvv.field1_destination_memory_form",
                         description.field1DestinationMemoryForm});
+  }
+  if (description.operation ==
+      RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad) {
+    metadata.push_back({"tcrv_rvv.segment_memory_layout",
+                        description.segmentMemoryLayout});
+    metadata.push_back({"tcrv_rvv.segment_count",
+                        llvm::Twine(description.segmentCount).str()});
+    metadata.push_back({"tcrv_rvv.segment_tuple_c_type",
+                        description.segmentTupleCType});
+    metadata.push_back({"tcrv_rvv.segment_store_intrinsic",
+                        description.segmentStoreIntrinsic});
+    metadata.push_back({"tcrv_rvv.segment_tuple_create_intrinsic",
+                        description.segmentFieldExtractIntrinsic});
+    metadata.push_back(
+        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
+    metadata.push_back({"tcrv_rvv.destination_memory_form",
+                        description.destinationMemoryForm});
+    metadata.push_back({"tcrv_rvv.field0_role", description.field0Role});
+    metadata.push_back({"tcrv_rvv.field1_role", description.field1Role});
+    metadata.push_back({"tcrv_rvv.field0_name", description.field0Name});
+    metadata.push_back({"tcrv_rvv.field1_name", description.field1Name});
+    metadata.push_back({"tcrv_rvv.field0_source_memory_form",
+                        description.field0SourceMemoryForm});
+    metadata.push_back({"tcrv_rvv.field1_source_memory_form",
+                        description.field1SourceMemoryForm});
   }
   if (description.operation == RVVSelectedBodyOperationKind::WidenI32ToI64) {
     metadata.push_back(

@@ -37,6 +37,7 @@ enum class RVVSelectedBodyOperationKind {
   MaskedUnitLoadStore,
   ComputedMaskUnitLoadStore,
   Segment2DeinterleaveUnitStore,
+  Segment2InterleaveUnitLoad,
   ScalarBroadcastAdd,
   WidenI32ToI64,
 };
@@ -52,6 +53,7 @@ enum class RVVSelectedBodyMemoryForm {
   MaskedUnitLoadStore,
   ComputedMaskUnitLoadStore,
   Segment2LoadUnitStore,
+  UnitLoadSegment2Store,
   UnitStrideConversion,
 };
 
@@ -130,11 +132,14 @@ struct RVVSelectedBodyEmitCRouteDescription {
   std::int64_t segmentCount = 0;
   llvm::StringRef segmentTupleCType;
   llvm::StringRef segmentLoadIntrinsic;
+  llvm::StringRef segmentStoreIntrinsic;
   llvm::StringRef segmentFieldExtractIntrinsic;
   llvm::StringRef field0Role;
   llvm::StringRef field1Role;
   llvm::StringRef field0Name;
   llvm::StringRef field1Name;
+  llvm::StringRef field0SourceMemoryForm;
+  llvm::StringRef field1SourceMemoryForm;
   llvm::StringRef field0DestinationMemoryForm;
   llvm::StringRef field1DestinationMemoryForm;
   std::int64_t indexEEW = 0;
