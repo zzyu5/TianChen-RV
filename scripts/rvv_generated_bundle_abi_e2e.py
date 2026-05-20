@@ -48,6 +48,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "macc_add",
     "widening_macc_add",
     "widening_dot_reduce_add",
+    "strided_input_widening_dot_reduce_add",
     "computed_masked_widening_dot_reduce_add",
     "strided_add",
     "strided_load_unit_store",
@@ -85,6 +86,17 @@ WIDENING_DOT_RESULT_LAYOUT = "store-dot-reduction-lane0-to-output-scalar"
 WIDENING_DOT_RELATION = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"
 WIDENING_DOT_REDUCTION_STORE_VL = "1"
 WIDENING_DOT_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
+STRIDED_INPUT_WIDENING_DOT_RUNTIME_ABI_ORDER = (
+    "lhs,rhs,acc,out,n,lhs_stride,rhs_stride"
+)
+STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT = (
+    "element-strided-lhs-rhs-dot-source-unit-stride-output-runtime-abi"
+)
+STRIDED_INPUT_WIDENING_DOT_LHS_STRIDE_SOURCE = "runtime_abi:lhs_stride"
+STRIDED_INPUT_WIDENING_DOT_RHS_STRIDE_SOURCE = "runtime_abi:rhs_stride"
+STRIDED_INPUT_WIDENING_DOT_SOURCE_MEMORY_FORM = "strided-load"
+STRIDED_INPUT_WIDENING_DOT_DESTINATION_MEMORY_FORM = "unit-stride-store"
+STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC = "__riscv_vlse16_v_i16mf2"
 COMPUTED_MASK_WIDENING_DOT_RUNTIME_ABI_ORDER = (
     "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n"
 )
@@ -261,6 +273,12 @@ class OpExpectation:
                 "const int16_t *rhs, const int32_t *acc, "
                 "int32_t *out, size_t n);"
             )
+        if self.is_strided_input_widening_dot_reduce_add:
+            return (
+                f"void {self.function_name}(const int16_t *lhs, "
+                "const int16_t *rhs, const int32_t *acc, int32_t *out, "
+                "size_t n, size_t lhs_stride, size_t rhs_stride);"
+            )
         if self.is_segment2_deinterleave_unit_store:
             return (
                 f"void {self.function_name}(const int32_t *src, "
@@ -318,6 +336,8 @@ class OpExpectation:
             return EXPECTED_COMPUTED_MASK_STRIDED_STORE_RUNTIME_PARAMETERS
         if self.is_computed_masked_widening_dot_reduce_add:
             return EXPECTED_COMPUTED_MASK_WIDENING_DOT_RUNTIME_PARAMETERS
+        if self.is_strided_input_widening_dot_reduce_add:
+            return EXPECTED_STRIDED_INPUT_WIDENING_DOT_RUNTIME_PARAMETERS
         if self.is_segment2_deinterleave_unit_store:
             return EXPECTED_SEGMENT2_RUNTIME_PARAMETERS
         if self.is_segment2_interleave_unit_load:
@@ -370,6 +390,8 @@ class OpExpectation:
             return WIDENING_MACC_RUNTIME_ABI_ORDER
         if self.is_widening_dot_reduce_add:
             return WIDENING_DOT_RUNTIME_ABI_ORDER
+        if self.is_strided_input_widening_dot_reduce_add:
+            return STRIDED_INPUT_WIDENING_DOT_RUNTIME_ABI_ORDER
         if self.is_computed_masked_widening_dot_reduce_add:
             return COMPUTED_MASK_WIDENING_DOT_RUNTIME_ABI_ORDER
         return "lhs,rhs,out,n"
@@ -413,6 +435,10 @@ class OpExpectation:
     @property
     def is_computed_masked_widening_dot_reduce_add(self) -> bool:
         return self.kind == "computed_masked_widening_dot_reduce_add"
+
+    @property
+    def is_strided_input_widening_dot_reduce_add(self) -> bool:
+        return self.kind == "strided_input_widening_dot_reduce_add"
 
     @property
     def is_strided_add(self) -> bool:
@@ -1047,6 +1073,31 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
     ),
+    "strided_input_widening_dot_reduce_add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
+        kind="strided_input_widening_dot_reduce_add",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-strided-input-widening-dot-reduce-add.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="rvv_strided_input_dot",
+        external_abi_name="rvv-generic-strided-input-widening-dot-reduce-add-callable-c-abi.v1",
+        function_name="tcrv_emitc_pre_realized_strided_dot_kernel_rvv_strided_input_dot",
+        emitc_route="rvv-generic-strided-input-widening-dot-reduce-add-emitc-route",
+        typed_compute_op="tcrv_rvv.widening_dot_reduce",
+        memory_form="strided-input-widening-dot-reduce",
+        lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 59) + 3) : ((int)(index % 59) + 6))",
+        rhs_initializer="(int16_t)(((index % 5) == 0) ? -((int)(index % 43) + 4) : ((int)(index % 43) + 9))",
+        source_initializer="(int32_t)31",
+        expected_expression=(
+            "(int32_t)(acc[0] + sum_i((int32_t)lhs[i * lhs_stride] * "
+            "(int32_t)rhs[i * rhs_stride]))"
+        ),
+        out_initializer=OUT_SENTINEL,
+        lmul="m1",
+        sew="32",
+        element_c_type="int32_t",
+        config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
+    ),
     "computed_masked_widening_dot_reduce_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
         kind="computed_masked_widening_dot_reduce_add",
@@ -1439,6 +1490,45 @@ EXPECTED_WIDENING_MACC_RUNTIME_PARAMETERS = (
         "ownership": "target-export-abi-owned",
     },
     EXPECTED_RUNTIME_PARAMETERS[3],
+)
+EXPECTED_STRIDED_INPUT_WIDENING_DOT_RUNTIME_PARAMETERS = (
+    {
+        "c_name": "lhs",
+        "c_type": "const int16_t *",
+        "role": "lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "rhs",
+        "c_type": "const int16_t *",
+        "role": "rhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "acc",
+        "c_type": "const int32_t *",
+        "role": "accumulator-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "out",
+        "c_type": "int32_t *",
+        "role": "output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_RUNTIME_PARAMETERS[3],
+    {
+        "c_name": "lhs_stride",
+        "c_type": "size_t",
+        "role": "lhs-input-stride",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "rhs_stride",
+        "c_type": "size_t",
+        "role": "rhs-input-stride",
+        "ownership": "target-export-abi-owned",
+    },
 )
 EXPECTED_COMPUTED_MASK_WIDENING_DOT_RUNTIME_PARAMETERS = (
     {
@@ -2133,6 +2223,44 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
+    if expectation.is_strided_input_widening_dot_reduce_add:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.source_sew": "16",
+                "tcrv_rvv.source_lmul": "mf2",
+                "tcrv_rvv.accumulator_sew": "32",
+                "tcrv_rvv.accumulator_lmul": "m1",
+                "tcrv_rvv.result_sew": "32",
+                "tcrv_rvv.result_lmul": "m1",
+                "tcrv_rvv.strided_memory_layout": (
+                    STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT
+                ),
+                "tcrv_rvv.lhs_stride_source": (
+                    STRIDED_INPUT_WIDENING_DOT_LHS_STRIDE_SOURCE
+                ),
+                "tcrv_rvv.rhs_stride_source": (
+                    STRIDED_INPUT_WIDENING_DOT_RHS_STRIDE_SOURCE
+                ),
+                "tcrv_rvv.source_memory_form": (
+                    STRIDED_INPUT_WIDENING_DOT_SOURCE_MEMORY_FORM
+                ),
+                "tcrv_rvv.destination_memory_form": (
+                    STRIDED_INPUT_WIDENING_DOT_DESTINATION_MEMORY_FORM
+                ),
+                "tcrv_rvv.widening_dot_accumulator_layout": (
+                    WIDENING_DOT_ACCUMULATOR_LAYOUT
+                ),
+                "tcrv_rvv.widening_dot_result_layout": WIDENING_DOT_RESULT_LAYOUT,
+                "tcrv_rvv.widening_dot_relation": WIDENING_DOT_RELATION,
+                "tcrv_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i32m1",
+                "tcrv_rvv.strided_load_intrinsic": (
+                    STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
+                ),
+                "tcrv_rvv.widening_dot_reduction_store_vl": (
+                    WIDENING_DOT_REDUCTION_STORE_VL
+                ),
+            }
+        )
     if expectation.is_computed_masked_widening_dot_reduce_add:
         per_op_metadata.update(
             {
@@ -2446,6 +2574,37 @@ def verify_materialized_selected_body(
             text,
             f'dot_product_relation = "{WIDENING_DOT_RELATION}"',
             "materialized selected-body MLIR widening dot relation",
+        )
+    if expectation.is_strided_input_widening_dot_reduce_add:
+        require_contains(
+            text,
+            'role = "lhs-input-stride"',
+            "materialized selected-body MLIR strided dot lhs stride ABI role",
+        )
+        require_contains(
+            text,
+            'role = "rhs-input-stride"',
+            "materialized selected-body MLIR strided dot rhs stride ABI role",
+        )
+        require_contains(
+            text,
+            '!tcrv_rvv.vector<i16, "mf2">',
+            "materialized selected-body MLIR strided dot source vector type",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.strided_load",
+            "materialized selected-body MLIR strided dot source loads",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.widening_dot_reduce",
+            "materialized selected-body MLIR strided dot compute op",
+        )
+        require_contains(
+            text,
+            f'dot_product_relation = "{WIDENING_DOT_RELATION}"',
+            "materialized selected-body MLIR strided dot relation",
         )
     if expectation.is_computed_masked_widening_dot_reduce_add:
         require_contains(
@@ -4449,6 +4608,131 @@ int main(void) {{
   return 0;
 	}}
 	""".lstrip()
+    if expectation.is_strided_input_widening_dot_reduce_add:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  const size_t lhs_stride = 2;
+  const size_t rhs_stride = 3;
+  size_t lhs_alloc = n * lhs_stride + 8;
+  size_t rhs_alloc = n * rhs_stride + 8;
+  size_t out_alloc = n + 5;
+  if (out_alloc == 5 && n == 0)
+    out_alloc = 6;
+  int16_t *lhs = (int16_t *)malloc(sizeof(int16_t) * lhs_alloc);
+  int16_t *rhs = (int16_t *)malloc(sizeof(int16_t) * rhs_alloc);
+  int32_t *acc = (int32_t *)malloc(sizeof(int32_t) * out_alloc);
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * out_alloc);
+  if (!lhs || !rhs || !acc || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(lhs);
+    free(rhs);
+    free(acc);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < lhs_alloc; ++index)
+    lhs[index] = {expectation.lhs_initializer};
+  for (size_t index = 0; index < rhs_alloc; ++index)
+    rhs[index] = {expectation.rhs_initializer};
+  for (size_t index = 0; index < out_alloc; ++index) {{
+    acc[index] = {expectation.source_initializer};
+    out[index] = {expectation.out_initializer};
+  }}
+
+  {expectation.function_name}(lhs, rhs, acc, out, n, lhs_stride, rhs_stride);
+
+  int32_t expected = acc[0];
+  size_t positive_products = 0;
+  size_t negative_products = 0;
+  size_t lhs_skipped_nonzero = 0;
+  size_t rhs_skipped_nonzero = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    size_t lhs_index = index * lhs_stride;
+    size_t rhs_index = index * rhs_stride;
+    int32_t product = (int32_t)lhs[lhs_index] * (int32_t)rhs[rhs_index];
+    if (product > 0)
+      ++positive_products;
+    if (product < 0)
+      ++negative_products;
+    expected = (int32_t)(expected + product);
+  }}
+  for (size_t index = 0; index < n * lhs_stride; ++index)
+    if ((index % lhs_stride) != 0 && lhs[index] != 0)
+      ++lhs_skipped_nonzero;
+  for (size_t index = 0; index < n * rhs_stride; ++index)
+    if ((index % rhs_stride) != 0 && rhs[index] != 0)
+      ++rhs_skipped_nonzero;
+
+  if (out[0] != expected) {{
+    fprintf(stderr,
+            "{expectation.kind} scalar mismatch n=%zu got=%d expected=%d seed=%d lhs_stride=%zu rhs_stride=%zu positive_products=%zu negative_products=%zu lhs_skipped_nonzero=%zu rhs_skipped_nonzero=%zu\\n",
+            n, out[0], expected, acc[0], lhs_stride, rhs_stride,
+            positive_products, negative_products, lhs_skipped_nonzero,
+            rhs_skipped_nonzero);
+    free(lhs);
+    free(rhs);
+    free(acc);
+    free(out);
+    return 12;
+  }}
+
+  for (size_t index = 1; index < out_alloc; ++index) {{
+    if (out[index] != {expectation.out_initializer}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched non-scalar/tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
+              n, index, out[index], {expectation.out_initializer});
+      free(lhs);
+      free(rhs);
+      free(acc);
+      free(out);
+      return 13;
+    }}
+  }}
+
+  if (n > 3 && (positive_products == 0 || negative_products == 0 ||
+                lhs_skipped_nonzero == 0 || rhs_skipped_nonzero == 0 ||
+                acc[0] == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} coverage missing n=%zu positive_products=%zu negative_products=%zu lhs_skipped_nonzero=%zu rhs_skipped_nonzero=%zu seed=%d\\n",
+            n, positive_products, negative_products, lhs_skipped_nonzero,
+            rhs_skipped_nonzero, acc[0]);
+    free(lhs);
+    free(rhs);
+    free(acc);
+    free(out);
+    return 14;
+  }}
+
+  free(lhs);
+  free(rhs);
+  free(acc);
+  free(out);
+  printf("{expectation.kind} case n=%zu ok strided_signed_horizontal_dot seed_added source_strides=2,3 skipped_source_elements_ignored scalar_output tail_preserved\\n", n);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} lhs_stride=2 rhs_stride=3\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} lhs_stride=2 rhs_stride=3\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_computed_masked_widening_dot_reduce_add:
         return f"""
 #include <stddef.h>
@@ -5983,6 +6267,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "segment2_interleave_unit_load/"
             "lmul_m2_add/widen_i32_to_i64/widen_i16_to_i32/"
             "widening_macc_add/widening_dot_reduce_add/"
+            "strided_input_widening_dot_reduce_add/"
             "computed_masked_widening_dot_reduce_add "
             "fixtures and run public selected lowering-boundary "
             "materialization before emission planning; mutually exclusive "

@@ -608,6 +608,59 @@ def TypedWideningDotReducePreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedStridedInputWideningDotReducePreRealizedBodyOp
+    : TCRVRVV_Op<"typed_strided_input_widening_dot_reduce_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV strided-input widening dot-product reduction body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body for signed
+    horizontal widening dot-product reduction whose lhs and rhs source windows
+    are addressed through explicit runtime element strides. The op is nested
+    directly in a selected tcrv.exec.variant and binds explicit runtime ABI
+    values for i16 lhs, i16 rhs, i32 accumulator seed input, i32 scalar output,
+    runtime n/AVL, lhs element stride, and rhs element stride together with
+    operation kind, strided-input memory form, stride unit, accumulator
+    role/layout, result layout, source and accumulator/result SEW+LMUL facts,
+    dot-product relation, and policy.
+
+    This op is not matmul, masked dot-reduction, a broad contraction
+    framework, dtype-prefixed helper namespace, descriptor, source-front-door
+    marker, direct-C exporter, route id, intrinsic wrapper, runtime artifact,
+    correctness evidence, or performance evidence. The RVV plugin must realize
+    it into explicit typed strided_load/strided_load/widening_dot_reduce/store
+    tcrv_rvv body structure before the provider may construct a
+    TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$acc,
+    AnyType:$out,
+    AnyType:$n,
+    Index:$lhs_stride,
+    Index:$rhs_stride,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    StrAttr:$stride_unit,
+    StrAttr:$accumulator_role,
+    StrAttr:$accumulator_layout,
+    StrAttr:$result_layout,
+    I64Attr:$source_sew,
+    StrAttr:$source_lmul,
+    I64Attr:$accumulator_sew,
+    StrAttr:$accumulator_lmul,
+    I64Attr:$result_sew,
+    StrAttr:$result_lmul,
+    StrAttr:$dot_product_relation,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $acc `,` $out `,` $n `,` $lhs_stride `,` $rhs_stride attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedComputedMaskWideningDotReducePreRealizedBodyOp
     : TCRVRVV_Op<"typed_computed_mask_widening_dot_reduce_pre_realized_body"> {
   let summary =

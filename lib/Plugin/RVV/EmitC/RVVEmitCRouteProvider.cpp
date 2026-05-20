@@ -38,12 +38,19 @@ bool isRVVSelectedBodyWideningMAccRoute(RVVSelectedBodyOperationKind op) {
 bool isRVVSelectedBodyWideningDotReductionRoute(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
+         op == RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd ||
          op == RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd;
 }
 
 bool isRVVSelectedBodyComputedMaskWideningDotReductionRoute(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd;
+}
+
+bool isRVVSelectedBodyStridedInputWideningDotReductionRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op ==
+         RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd;
 }
 
 bool isRVVSelectedBodyReductionRoute(RVVSelectedBodyOperationKind op) {
@@ -560,6 +567,24 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{lhsResultName.str(),
                                       description.vectorCType.str()}))
       return error;
+  } else if (isRVVSelectedBodyStridedInputWideningDotReductionRoute(
+                 description.operation)) {
+    if (llvm::Error error = addLoopStep(
+            slice->lhsLoadOperation, "load",
+            description.stridedLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->lhsABI.cName) + " + (" +
+                  inductionName + " * " + slice->lhsStrideABI.cName + ")")
+                     .str(),
+                 slice->lhsABI.cType},
+             TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->lhsStrideABI.cName) + " * 2").str(),
+                 "ptrdiff_t"},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"lhs_vec",
+                                      description.sourceVectorCType.str()}))
+      return error;
   } else if (isRVVSelectedBodyWideningConversionRoute(description.operation) ||
              isRVVSelectedBodyWideningMAccRoute(description.operation) ||
              isRVVSelectedBodyWideningDotReductionRoute(
@@ -662,6 +687,24 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       isRuntimeMaskMemory ||
       isRVVSelectedBodyMemoryMovementRoute(description.operation)) {
     // These bounded routes have no RHS dataflow.
+  } else if (isRVVSelectedBodyStridedInputWideningDotReductionRoute(
+                 description.operation)) {
+    if (llvm::Error error = addLoopStep(
+            slice->rhsLoadOperation, "load",
+            description.stridedLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->rhsABI.cName) + " + (" +
+                  inductionName + " * " + slice->rhsStrideABI.cName + ")")
+                     .str(),
+                 slice->rhsABI.cType},
+             TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->rhsStrideABI.cName) + " * 2").str(),
+                 "ptrdiff_t"},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"rhs_vec",
+                                      description.sourceVectorCType.str()}))
+      return error;
   } else if (isRVVSelectedBodyWideningMAccRoute(description.operation) ||
              isRVVSelectedBodyWideningDotReductionRoute(
                  description.operation)) {

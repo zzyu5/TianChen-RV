@@ -97,6 +97,9 @@ constexpr llvm::StringLiteral kRVVWideningMAccRuntimeABIOrder(
 constexpr llvm::StringLiteral kRVVWideningDotProductRuntimeABIOrder(
     "lhs,rhs,acc,out,n");
 constexpr llvm::StringLiteral
+    kRVVStridedInputWideningDotProductRuntimeABIOrder(
+        "lhs,rhs,acc,out,n,lhs_stride,rhs_stride");
+constexpr llvm::StringLiteral
     kRVVComputedMaskWideningDotProductRuntimeABIOrder(
         "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n");
 constexpr llvm::StringLiteral kRVVStridedMemoryLayout(
@@ -115,6 +118,8 @@ constexpr llvm::StringLiteral kRVVComputedMaskMemoryLayout(
     "unit-stride-compare-source-old-destination-runtime-abi");
 constexpr llvm::StringLiteral kRVVComputedMaskStridedStoreMemoryLayout(
     "unit-stride-compare-source-element-strided-old-destination-runtime-abi");
+constexpr llvm::StringLiteral kRVVStridedInputWideningDotMemoryLayout(
+    "element-strided-lhs-rhs-dot-source-unit-stride-output-runtime-abi");
 constexpr llvm::StringLiteral kRVVSegment2MemoryLayout(
     "segment2-interleaved-source-dual-unit-stride-destination-runtime-abi");
 constexpr llvm::StringLiteral kRVVSegment2InterleaveMemoryLayout(
@@ -127,6 +132,8 @@ constexpr llvm::StringLiteral kRVVSourceStrideSource(
 constexpr llvm::StringLiteral kRVVDestinationStrideSource(
     "runtime_abi:dst_stride");
 constexpr llvm::StringLiteral kRVVSourceMemoryForm("strided-load");
+constexpr llvm::StringLiteral kRVVStridedInputDotSourceMemoryForm(
+    "strided-load");
 constexpr llvm::StringLiteral kRVVUnitStrideSourceMemoryForm(
     "unit-stride-load");
 constexpr llvm::StringLiteral kRVVIndexedDataMemoryForm("indexed-load");
@@ -252,6 +259,7 @@ constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::WidenI16ToI32,
     RVVSelectedBodyOperationKind::WideningMAccAdd,
     RVVSelectedBodyOperationKind::WideningDotReduceAdd,
+    RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd,
     RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd};
 
 const RVVSelectedBodyOperationProfile &
@@ -448,6 +456,17 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
       /*isSegmentedMemoryMovement=*/false,
       /*isWideningConversion=*/false};
   static const RVVSelectedBodyOperationProfile
+      kStridedInputWideningDotReduceAdd = {
+          RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd,
+          "strided_input_widening_dot_reduce_add",
+          "strided_input_widening_dot_reduced_vec", "",
+          /*isCompareSelect=*/false, /*isReduction=*/false,
+          /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
+          /*isStridedMemory=*/true, /*isMemoryMovement=*/false,
+          /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+          /*isSegmentedMemoryMovement=*/false,
+          /*isWideningConversion=*/false};
+  static const RVVSelectedBodyOperationProfile
       kComputedMaskWideningDotReduceAdd = {
           RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd,
           "computed_masked_widening_dot_reduce_add",
@@ -504,6 +523,8 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
     return kWideningMAccAdd;
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return kWideningDotReduceAdd;
+  case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
+    return kStridedInputWideningDotReduceAdd;
   case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
     return kComputedMaskWideningDotReduceAdd;
   }
@@ -686,6 +707,7 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
   case RVVSelectedBodyOperationKind::ReduceAdd:
     llvm_unreachable("reduction uses dedicated reduction intrinsic leaf");
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
+  case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
     llvm_unreachable(
         "widening dot-product reduction uses dedicated widening product and "
@@ -852,12 +874,20 @@ deriveRVVSelectedBodyTargetLeafProfile(
   if (description.operation ==
           RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
       description.operation ==
+          RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd ||
+      description.operation ==
           RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd) {
     const bool isComputedMaskDotReduce =
         description.operation ==
         RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd;
-    if ((!isComputedMaskDotReduce &&
+    const bool isStridedInputDotReduce =
+        description.operation ==
+        RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd;
+    if ((!isComputedMaskDotReduce && !isStridedInputDotReduce &&
          description.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad) ||
+        (isStridedInputDotReduce &&
+         description.memoryForm !=
+             RVVSelectedBodyMemoryForm::StridedInputWideningDotReduce) ||
         (isComputedMaskDotReduce &&
          description.memoryForm != RVVSelectedBodyMemoryForm::
                                        ComputedMaskUnitStrideWideningDotReduce))
@@ -1287,6 +1317,31 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
       return error;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.storeValue, "widening dot-reduction stored vector", config))
+      return error;
+    return llvm::Error::success();
+  }
+
+  if (slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd) {
+    tcrv::rvv::RVVCompileTimeConfig sourceConfig;
+    sourceConfig.sew = tcrv::rvv::getRVVSEW16Bits();
+    sourceConfig.lmul = tcrv::rvv::getRVVLMULMF2();
+    sourceConfig.policy = config.policy;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.lhsValue,
+            "strided-input dot-reduction lhs source vector", sourceConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.rhsValue,
+            "strided-input dot-reduction rhs source vector", sourceConfig))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.arithmeticResult,
+            "strided-input dot-reduction result vector", config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.storeValue, "strided-input dot-reduction stored vector",
+            config))
       return error;
     return llvm::Error::success();
   }
@@ -2047,6 +2102,9 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
   const bool isWideningDotReduce =
       slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::WideningDotReduceAdd;
+  const bool isStridedInputWideningDotReduce =
+      slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd;
   const bool isComputedMaskWideningDotReduce =
       slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd;
@@ -2104,7 +2162,8 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
       slice.memoryForm != RVVSelectedBodyMemoryForm::UnitLoadIndexedStore &&
       slice.memoryForm != RVVSelectedBodyMemoryForm::MaskedUnitLoadStore)
     ordered.push_back(slice.rhsABI);
-  if (isWideningMAcc || isWideningDotReduce)
+  if (isWideningMAcc || isWideningDotReduce ||
+      isStridedInputWideningDotReduce)
     ordered.push_back(slice.accumulatorABI);
   if (slice.memoryForm ==
           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore ||
@@ -2117,6 +2176,17 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.lhsStrideABI);
     ordered.push_back(slice.rhsStrideABI);
     ordered.push_back(slice.outStrideABI);
+  } else if (slice.memoryForm ==
+             RVVSelectedBodyMemoryForm::StridedInputWideningDotReduce) {
+    ordered.push_back(slice.lhsStrideABI);
+    ordered.push_back(slice.rhsStrideABI);
+    if (llvm::Error error =
+            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+                ordered,
+                "selected RVV EmitC route explicit strided-input widening "
+                "dot-product reduction runtime ABI values"))
+      return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
+    return llvm::Error::success();
   } else if (slice.memoryForm ==
              RVVSelectedBodyMemoryForm::StridedLoadUnitStore) {
     ordered.push_back(slice.lhsStrideABI);
@@ -2842,6 +2912,14 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       genericLoads.size() == 3)
     slice.arithmeticKind =
         RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
+  if (hasStridedMemory && genericStridedLoads.size() == 2 &&
+      stridedStoreCount == 0 && storeCount == 1 &&
+      slice.wideningDotReduceOp && genericLoads.empty()) {
+    slice.arithmeticKind =
+        RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd;
+    slice.memoryForm =
+        RVVSelectedBodyMemoryForm::StridedInputWideningDotReduce;
+  }
 
   const bool isCompareSelect =
       slice.arithmeticOp &&
@@ -2862,6 +2940,10 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       slice.arithmeticOp &&
       slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::WideningDotReduceAdd;
+  const bool isStridedInputWideningDotReduceAdd =
+      slice.arithmeticOp &&
+      slice.arithmeticKind ==
+          RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd;
   const bool isComputedMaskWideningDotReduceAdd =
       slice.arithmeticOp &&
       slice.arithmeticKind ==
@@ -2938,6 +3020,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   if (hasStridedMemory && !isStridedLoadUnitStore &&
       !isUnitLoadStridedStore &&
       !isComputedMaskStridedStore &&
+      !isStridedInputWideningDotReduceAdd &&
       (!genericBroadcastLoads.empty() || hasScalarBroadcast ||
        !genericLoads.empty() || slice.genericStore))
     return makeRVVEmitCRouteProviderError(
@@ -2970,6 +3053,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   if (hasStridedMemory && !isStridedLoadUnitStore &&
       !isUnitLoadStridedStore &&
       !isComputedMaskStridedStore &&
+      !isStridedInputWideningDotReduceAdd &&
       (!slice.arithmeticOp ||
                            slice.arithmeticKind !=
                                RVVSelectedBodyOperationKind::Add))
@@ -2979,6 +3063,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   if (hasStridedMemory && !isStridedLoadUnitStore &&
       !isUnitLoadStridedStore &&
       !isComputedMaskStridedStore &&
+      !isStridedInputWideningDotReduceAdd &&
       genericStridedLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided route requires exactly two "
@@ -2999,6 +3084,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "exactly one tcrv_rvv.strided_load source op");
   if (hasStridedMemory && !isStridedLoadUnitStore &&
       !isUnitLoadStridedStore && !isComputedMaskStridedStore &&
+      !isStridedInputWideningDotReduceAdd &&
       stridedStoreCount != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided route requires exactly one "
@@ -3015,6 +3101,15 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided-load to unit-stride-store route requires "
         "exactly one unit-stride tcrv_rvv.store op");
+  if (isStridedInputWideningDotReduceAdd && stridedStoreCount != 0)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV strided-input widening dot-product reduction "
+        "route must use unit-stride scalar tcrv_rvv.store, not "
+        "tcrv_rvv.strided_store");
+  if (isStridedInputWideningDotReduceAdd && storeCount != 1)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV strided-input widening dot-product reduction "
+        "route requires exactly one unit-stride scalar tcrv_rvv.store op");
   if (hasStridedMemory && isUnitLoadStridedStore && storeCount != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV unit-load to strided-store route must use "
@@ -3196,6 +3291,12 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "explicit lhs/rhs unit-stride vector loads and an accumulator seed "
         "runtime ABI boundary; broadcast/splat dot-reduction is not in this "
         "bounded slice");
+  if (isStridedInputWideningDotReduceAdd && hasRHSBroadcastLike)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV strided-input widening dot-product reduction "
+        "route requires explicit lhs/rhs strided vector loads and an "
+        "accumulator seed runtime ABI boundary; broadcast/splat "
+        "dot-reduction is not in this bounded slice");
   if (isComputedMaskWideningDotReduceAdd && hasRHSBroadcastLike)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask widening dot-product reduction "
@@ -3219,6 +3320,16 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "bounded generic RVV widening dot-product reduction route requires "
         "exactly two tcrv_rvv.load ops for lhs and rhs; the accumulator seed "
         "is a scalar runtime ABI boundary");
+  if (isStridedInputWideningDotReduceAdd && genericLoads.size() != 0)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV strided-input widening dot-product reduction "
+        "route must use tcrv_rvv.strided_load for lhs/rhs sources, not "
+        "unit-stride tcrv_rvv.load");
+  if (isStridedInputWideningDotReduceAdd && genericStridedLoads.size() != 2)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV strided-input widening dot-product reduction "
+        "route requires exactly two tcrv_rvv.strided_load ops for lhs and rhs; "
+        "the accumulator seed is a scalar runtime ABI boundary");
   if (isComputedMaskWideningDotReduceAdd && genericLoads.size() != 4)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask widening dot-product reduction "
@@ -3298,7 +3409,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route requires exactly one tcrv_rvv.store "
         "op");
-  if (hasStridedMemory && !isStridedLoadUnitStore && storeCount != 0)
+  if (hasStridedMemory && !isStridedLoadUnitStore &&
+      !isStridedInputWideningDotReduceAdd && storeCount != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided route must use tcrv_rvv.strided_store "
         "instead of tcrv_rvv.store");
@@ -3337,6 +3449,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           ? 9
       : isWideningDotReduceAdd
           ? 11
+      : isStridedInputWideningDotReduceAdd
+          ? 13
       : isComputedMaskWideningDotReduceAdd
           ? 16
       : isWideningMAccAdd
@@ -3646,7 +3760,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     resolvedOutABI = slice.outABI;
   } else {
     llvm::Expected<support::RuntimeABIParameter> outABI =
-        hasStridedMemory && !isStridedLoadUnitStore
+        hasStridedMemory && !isStridedLoadUnitStore &&
+                !isStridedInputWideningDotReduceAdd
             ? getRuntimeABIParameterBindingFromValue(
                   slice.stridedStore.getBuffer(),
                   "tcrv_rvv.strided_store buffer operand",
@@ -3664,7 +3779,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return outABI.takeError();
     resolvedOutABI = *outABI;
   }
-  if (hasStridedMemory && !isStridedLoadUnitStore) {
+  if (hasStridedMemory && !isStridedLoadUnitStore &&
+      !isStridedInputWideningDotReduceAdd) {
     llvm::Expected<support::RuntimeABIParameter> outStrideABI =
         getRuntimeABIParameterBindingFromValue(
             slice.stridedStore.getStride(),
@@ -3687,6 +3803,12 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     slice.outBuffer = slice.genericStore.getBuffer();
     slice.storeValue = slice.genericStore.getValue();
     slice.memoryForm = RVVSelectedBodyMemoryForm::StridedLoadUnitStore;
+  } else if (isStridedInputWideningDotReduceAdd) {
+    slice.storeOperation = slice.genericStore.getOperation();
+    slice.outBuffer = slice.genericStore.getBuffer();
+    slice.storeValue = slice.genericStore.getValue();
+    slice.memoryForm =
+        RVVSelectedBodyMemoryForm::StridedInputWideningDotReduce;
   } else if (isIndexedGatherUnitStore) {
     slice.storeOperation = slice.genericStore.getOperation();
     slice.outBuffer = slice.genericStore.getBuffer();
@@ -3729,7 +3851,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       stringifyRVVSelectedBodyOperationKind(slice.arithmeticKind);
   slice.runtimeElementCountABI = *runtimeElementCountABI;
   slice.outABI = resolvedOutABI;
-  if (isWideningDotReduceAdd) {
+  if (isWideningDotReduceAdd || isStridedInputWideningDotReduceAdd) {
     llvm::Expected<support::RuntimeABIParameter> accumulatorABI =
         getRuntimeABIParameterBindingFromValue(
             slice.wideningDotReduceOp.getAccumulatorSeed(),
@@ -3827,7 +3949,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "bounded generic RVV widening multiply-accumulate route requires "
           "tcrv_rvv.widening_macc to consume lhs/rhs source loads and the "
           "accumulator-input-buffer load result");
-  } else if (isWideningDotReduceAdd) {
+  } else if (isWideningDotReduceAdd || isStridedInputWideningDotReduceAdd) {
     if (slice.accumulatorABI.role !=
         support::RuntimeABIParameterRole::AccumulatorInputBuffer)
       return makeRVVEmitCRouteProviderError(
@@ -3849,6 +3971,13 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "bounded generic RVV widening dot-product reduction route does not "
           "load the accumulator seed as a vector; it must remain a scalar "
           "runtime ABI boundary");
+    if (isStridedInputWideningDotReduceAdd &&
+        (slice.lhsStridedLoad.getVl() != slice.setvl.getVl() ||
+         slice.rhsStridedLoad.getVl() != slice.setvl.getVl()))
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV strided-input widening dot-product reduction "
+          "route requires both strided source loads to consume the selected "
+          "!tcrv_rvv.vl token");
   } else if (isComputedMaskWideningDotReduceAdd) {
     if (slice.accumulatorABI.role !=
         support::RuntimeABIParameterRole::AccumulatorInputBuffer)
@@ -4180,6 +4309,9 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
   const bool isWideningDotReduce =
       slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::WideningDotReduceAdd;
+  const bool isStridedInputWideningDotReduce =
+      slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd;
   const bool isComputedMaskWideningDotReduce =
       slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd;
@@ -4265,6 +4397,33 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
     if (op == slice.storeOperation)
       return 10;
     return 11;
+  }
+  if (isStridedInputWideningDotReduce) {
+    if (rhsABI && op == rhsABI.getOperation())
+      return 1;
+    if (accumulatorABI && op == accumulatorABI.getOperation())
+      return 2;
+    if (outABI && op == outABI.getOperation())
+      return 3;
+    if (nABI && op == nABI.getOperation())
+      return 4;
+    if (lhsStrideABI && op == lhsStrideABI.getOperation())
+      return 5;
+    if (rhsStrideABI && op == rhsStrideABI.getOperation())
+      return 6;
+    if (op == slice.setvl.getOperation())
+      return 7;
+    if (op == slice.withVL.getOperation())
+      return 8;
+    if (op == slice.lhsLoadOperation)
+      return 9;
+    if (op == slice.rhsLoadOperation)
+      return 10;
+    if (op == slice.arithmeticOp)
+      return 11;
+    if (op == slice.storeOperation)
+      return 12;
+    return 13;
   }
   if (isSegment2InterleaveUnitLoad) {
     if (rhsABI && op == rhsABI.getOperation())
@@ -4623,6 +4782,9 @@ llvm::Error verifySelectedRVVRoleSequence(
   const bool isWideningDotReduce =
       slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::WideningDotReduceAdd;
+  const bool isStridedInputWideningDotReduce =
+      slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd;
   const bool isComputedMaskWideningDotReduce =
       slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd;
@@ -4645,6 +4807,8 @@ llvm::Error verifySelectedRVVRoleSequence(
        (!rhsABI || !sourceABI || !outStrideABI)) ||
       (isWideningMAcc && (!rhsABI || !accumulatorABI)) ||
       (isWideningDotReduce && (!rhsABI || !accumulatorABI)) ||
+      (isStridedInputWideningDotReduce &&
+       (!rhsABI || !accumulatorABI || !lhsStrideABI || !rhsStrideABI)) ||
       (isComputedMaskWideningDotReduce &&
        (!rhsABI || !dotLHSABI || !dotRHSABI || !accumulatorABI)) ||
       (isSegment2DeinterleaveUnitStore && (!field0ABI || !field1ABI)) ||
@@ -4680,6 +4844,8 @@ llvm::Error verifySelectedRVVRoleSequence(
           ? slice.compareOp.getOperation()->getName().getStringRef()
       : isComputedMaskWideningDotReduce
           ? slice.compareOp.getOperation()->getName().getStringRef()
+      : isStridedInputWideningDotReduce
+          ? slice.rhsLoadOperation->getName().getStringRef()
       : isSegment2DeinterleaveUnitStore
           ? slice.segment2LoadOperation->getName().getStringRef()
       : isSegment2InterleaveUnitLoad
@@ -4787,6 +4953,10 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     analysis.description.runtimeABIOrder =
         kRVVComputedMaskWideningDotProductRuntimeABIOrder;
     break;
+  case RVVSelectedBodyMemoryForm::StridedInputWideningDotReduce:
+    analysis.description.runtimeABIOrder =
+        kRVVStridedInputWideningDotProductRuntimeABIOrder;
+    break;
   }
   if (analysis.slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::WideningMAccAdd)
@@ -4795,6 +4965,10 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       RVVSelectedBodyOperationKind::WideningDotReduceAdd)
     analysis.description.runtimeABIOrder =
         kRVVWideningDotProductRuntimeABIOrder;
+  if (analysis.slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd)
+    analysis.description.runtimeABIOrder =
+        kRVVStridedInputWideningDotProductRuntimeABIOrder;
   if (analysis.slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd)
     analysis.description.runtimeABIOrder =
@@ -4850,6 +5024,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     analysis.description.wideningMAccRelation = kRVVWideningMAccRelation;
   } else if (analysis.slice.arithmeticKind ==
                  RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
+             analysis.slice.arithmeticKind ==
+                 RVVSelectedBodyOperationKind::
+                     StridedInputWideningDotReduceAdd ||
              analysis.slice.arithmeticKind ==
                  RVVSelectedBodyOperationKind::
                      ComputedMaskWideningDotReduceAdd) {
@@ -4957,6 +5134,21 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     analysis.description.runtimeABIParameters.push_back(
         analysis.slice.runtimeElementCountABI);
   }
+  if (analysis.slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd) {
+    analysis.description.runtimeABIParameters.clear();
+    analysis.description.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+    analysis.description.runtimeABIParameters.push_back(analysis.slice.rhsABI);
+    analysis.description.runtimeABIParameters.push_back(
+        analysis.slice.accumulatorABI);
+    analysis.description.runtimeABIParameters.push_back(analysis.slice.outABI);
+    analysis.description.runtimeABIParameters.push_back(
+        analysis.slice.runtimeElementCountABI);
+    analysis.description.runtimeABIParameters.push_back(
+        analysis.slice.lhsStrideABI);
+    analysis.description.runtimeABIParameters.push_back(
+        analysis.slice.rhsStrideABI);
+  }
 
   llvm::Expected<RVVSelectedBodyRouteProfile> routeProfile =
       deriveRVVSelectedBodyRouteProfile(analysis.description);
@@ -5034,6 +5226,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
            RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore)
           ? routeProfile->config.stridedLoadIntrinsic
           : "";
+  if (analysis.slice.memoryForm ==
+      RVVSelectedBodyMemoryForm::StridedInputWideningDotReduce)
+    analysis.description.stridedLoadIntrinsic = "__riscv_vlse16_v_i16mf2";
   analysis.description.rhsBroadcastIntrinsic =
       routeProfile->targetLeaves.rhsBroadcastIntrinsic;
   analysis.description.storeIntrinsic =
@@ -5115,6 +5310,27 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     analysis.description.scalarSeedSplatIntrinsic =
         routeProfile->config.rhsBroadcastIntrinsic;
     analysis.description.reductionStoreVL = kRVVWideningDotProductStoreVL;
+  }
+  if (routeProfile->operation.operation ==
+      RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd) {
+    analysis.description.wideningDotProductAccumulatorLayout =
+        analysis.slice.wideningDotReduceOp.getAccumulatorLayout();
+    analysis.description.wideningDotProductResultLayout =
+        analysis.slice.wideningDotReduceOp.getResultLayout();
+    analysis.description.wideningDotProductRelation =
+        analysis.slice.wideningDotReduceOp.getDotProductRelation();
+    analysis.description.wideningProductIntrinsic =
+        getRVVSelectedBodyWideningProductIntrinsic(analysis.description);
+    analysis.description.scalarSeedSplatIntrinsic =
+        routeProfile->config.rhsBroadcastIntrinsic;
+    analysis.description.reductionStoreVL = kRVVWideningDotProductStoreVL;
+    analysis.description.stridedMemoryLayout =
+        kRVVStridedInputWideningDotMemoryLayout;
+    analysis.description.lhsStrideSource = kRVVLHSStrideSource;
+    analysis.description.rhsStrideSource = kRVVRHSStrideSource;
+    analysis.description.sourceMemoryForm =
+        kRVVStridedInputDotSourceMemoryForm;
+    analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
   }
   if (routeProfile->operation.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd) {
@@ -5328,6 +5544,8 @@ stringifyRVVSelectedBodyMemoryForm(RVVSelectedBodyMemoryForm form) {
     return "unit-stride-conversion";
   case RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideWideningDotReduce:
     return "computed-mask-unit-stride-widening-dot-reduce";
+  case RVVSelectedBodyMemoryForm::StridedInputWideningDotReduce:
+    return "strided-input-widening-dot-reduce";
   }
   llvm_unreachable("unknown RVV selected-body memory form");
 }
@@ -5401,6 +5619,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   const bool isComputedMaskWideningDotReduce =
       operationProfile.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd;
+  const bool isStridedInputWideningDotReduce =
+      operationProfile.operation ==
+      RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd;
 
   llvm::Expected<const RVVSelectedBodyConstructionRoute *> route =
       lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
@@ -5470,7 +5691,61 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           configContract.runtimeAVLASource))
     return error;
   llvm::StringRef expectedRuntimeABIOrder = configContract.runtimeABIOrder;
-  if (operationProfile.operation == RVVSelectedBodyOperationKind::StridedAdd) {
+  if (isStridedInputWideningDotReduce) {
+    expectedRuntimeABIOrder = kRVVStridedInputWideningDotProductRuntimeABIOrder;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "strided memory layout",
+            description.stridedMemoryLayout,
+            kRVVStridedInputWideningDotMemoryLayout))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed memory layout", description.indexedMemoryLayout,
+            ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "lhs stride source", description.lhsStrideSource,
+            kRVVLHSStrideSource))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "rhs stride source", description.rhsStrideSource,
+            kRVVRHSStrideSource))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "out stride source", description.outStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source stride source", description.sourceStrideSource,
+            ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source memory form", description.sourceMemoryForm,
+            kRVVStridedInputDotSourceMemoryForm))
+      return error;
+    if (llvm::Error error =
+            requireRouteDescriptionField(context, "destination memory form",
+                                         description.destinationMemoryForm,
+                                         kRVVDestinationMemoryForm))
+      return error;
+    if (description.indexEEW != 0)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " index EEW must be empty for strided-input dot-reduction routes");
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "offset unit", description.offsetUnit, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "index source", description.indexSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed data memory form",
+            description.indexedDataMemoryForm, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed destination memory form",
+            description.indexedDestinationMemoryForm, ""))
+      return error;
+  } else if (operationProfile.operation ==
+             RVVSelectedBodyOperationKind::StridedAdd) {
     expectedRuntimeABIOrder = kRVVStridedRuntimeABIOrder;
   } else if (operationProfile.isSegmentedMemoryMovement) {
     expectedRuntimeABIOrder =
@@ -5507,6 +5782,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   } else if (operationProfile.operation ==
              RVVSelectedBodyOperationKind::WideningDotReduceAdd) {
     expectedRuntimeABIOrder = kRVVWideningDotProductRuntimeABIOrder;
+  } else if (isStridedInputWideningDotReduce) {
+    expectedRuntimeABIOrder = kRVVStridedInputWideningDotProductRuntimeABIOrder;
   } else if (isComputedMaskWideningDotReduce) {
     expectedRuntimeABIOrder = kRVVComputedMaskWideningDotProductRuntimeABIOrder;
   } else if (description.memoryForm ==
@@ -5593,6 +5870,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           RVVSelectedBodyOperationKind::WideningMAccAdd ||
       operationProfile.operation ==
           RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
+      isStridedInputWideningDotReduce ||
       isComputedMaskWideningDotReduce) {
     if (description.sourceSEW != tcrv::rvv::getRVVSEW16Bits())
       return makeRVVEmitCRouteProviderError(
@@ -5778,6 +6056,11 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "strided-load intrinsic",
             description.stridedLoadIntrinsic,
             configProfile.stridedLoadIntrinsic))
+      return error;
+  } else if (isStridedInputWideningDotReduce) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "strided-load intrinsic",
+            description.stridedLoadIntrinsic, "__riscv_vlse16_v_i16mf2"))
       return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -5972,6 +6255,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
     if (operationProfile.operation !=
             RVVSelectedBodyOperationKind::WideningDotReduceAdd &&
+        !isStridedInputWideningDotReduce &&
         !isComputedMaskWideningDotReduce)
       if (llvm::Error error = requireRouteDescriptionField(
               context, "reduction store VL", description.reductionStoreVL, ""))
@@ -6027,6 +6311,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   }
   if (operationProfile.operation ==
           RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
+      isStridedInputWideningDotReduce ||
       isComputedMaskWideningDotReduce) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "widening dot-product accumulator layout",
@@ -6090,7 +6375,62 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             description.scalarSeedSplatIntrinsic, ""))
       return error;
   }
-  if (operationProfile.operation == RVVSelectedBodyOperationKind::StridedAdd) {
+  if (isStridedInputWideningDotReduce) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "strided memory layout", description.stridedMemoryLayout,
+            kRVVStridedInputWideningDotMemoryLayout))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed memory layout", description.indexedMemoryLayout,
+            ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "lhs stride source", description.lhsStrideSource,
+            kRVVLHSStrideSource))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "rhs stride source", description.rhsStrideSource,
+            kRVVRHSStrideSource))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "out stride source", description.outStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source stride source", description.sourceStrideSource,
+            ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source memory form", description.sourceMemoryForm,
+            kRVVStridedInputDotSourceMemoryForm))
+      return error;
+    if (llvm::Error error =
+            requireRouteDescriptionField(context, "destination memory form",
+                                         description.destinationMemoryForm,
+                                         kRVVDestinationMemoryForm))
+      return error;
+    if (description.indexEEW != 0)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " index EEW must be empty for strided-input dot-reduction routes");
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "offset unit", description.offsetUnit, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "index source", description.indexSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "index uniqueness", description.indexUniqueness, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed data memory form",
+            description.indexedDataMemoryForm, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed destination memory form",
+            description.indexedDestinationMemoryForm, ""))
+      return error;
+  } else if (operationProfile.operation ==
+             RVVSelectedBodyOperationKind::StridedAdd) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "strided memory layout",
             description.stridedMemoryLayout, kRVVStridedMemoryLayout))
@@ -6708,6 +7048,40 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         description.wideningDotProductRelation});
     metadata.push_back({"tcrv_rvv.widening_product_intrinsic",
                         description.wideningProductIntrinsic});
+    metadata.push_back({"tcrv_rvv.widening_dot_reduction_store_vl",
+                        description.reductionStoreVL});
+  }
+  if (description.operation ==
+      RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd) {
+    metadata.push_back(
+        {"tcrv_rvv.source_sew", llvm::Twine(description.sourceSEW).str()});
+    metadata.push_back({"tcrv_rvv.source_lmul", description.sourceLMUL});
+    metadata.push_back(
+        {"tcrv_rvv.accumulator_sew", llvm::Twine(description.sew).str()});
+    metadata.push_back({"tcrv_rvv.accumulator_lmul", description.lmul});
+    metadata.push_back(
+        {"tcrv_rvv.result_sew", llvm::Twine(description.sew).str()});
+    metadata.push_back({"tcrv_rvv.result_lmul", description.lmul});
+    metadata.push_back({"tcrv_rvv.strided_memory_layout",
+                        description.stridedMemoryLayout});
+    metadata.push_back(
+        {"tcrv_rvv.lhs_stride_source", description.lhsStrideSource});
+    metadata.push_back(
+        {"tcrv_rvv.rhs_stride_source", description.rhsStrideSource});
+    metadata.push_back(
+        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
+    metadata.push_back({"tcrv_rvv.destination_memory_form",
+                        description.destinationMemoryForm});
+    metadata.push_back({"tcrv_rvv.widening_dot_accumulator_layout",
+                        description.wideningDotProductAccumulatorLayout});
+    metadata.push_back({"tcrv_rvv.widening_dot_result_layout",
+                        description.wideningDotProductResultLayout});
+    metadata.push_back({"tcrv_rvv.widening_dot_relation",
+                        description.wideningDotProductRelation});
+    metadata.push_back({"tcrv_rvv.widening_product_intrinsic",
+                        description.wideningProductIntrinsic});
+    metadata.push_back(
+        {"tcrv_rvv.strided_load_intrinsic", description.stridedLoadIntrinsic});
     metadata.push_back({"tcrv_rvv.widening_dot_reduction_store_vl",
                         description.reductionStoreVL});
   }

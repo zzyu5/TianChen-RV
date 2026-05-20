@@ -1,0 +1,72 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-strided-input-widening-dot-reduce-add --overwrite --op-kind strided_input_widening_dot_reduce_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-strided-input-widening-dot-reduce-add/evidence.json
+# RUN: FileCheck %s --check-prefix=SDOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-strided-input-widening-dot-reduce-add/strided_input_widening_dot_reduce_add/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-strided-input-widening-dot-reduce-add/strided_input_widening_dot_reduce_add/rvv_generated_bundle_abi_strided_input_widening_dot_reduce_add_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "pre-realized-selected-body"
+# ROOT: "strided_input_widening_dot_reduce_add"
+# ROOT: "pre_realized_selected_body": true
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# SDOT-DAG: "input_mode": "pre-realized-selected-body"
+# SDOT-DAG: "op_kind": "strided_input_widening_dot_reduce_add"
+# SDOT-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-strided-input-widening-dot-reduce-add.mlir"
+# SDOT-DAG: "prototype": "void tcrv_emitc_pre_realized_strided_dot_kernel_rvv_strided_input_dot(const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n, size_t lhs_stride, size_t rhs_stride);"
+# SDOT-DAG: "expected_function": "tcrv_emitc_pre_realized_strided_dot_kernel_rvv_strided_input_dot"
+# SDOT-DAG: "expected_runtime_abi_name": "rvv-generic-strided-input-widening-dot-reduce-add-callable-c-abi.v1"
+# SDOT-DAG: "expected_selected_variant": "rvv_strided_input_dot"
+# SDOT-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# SDOT-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# SDOT-DAG: --tcrv-materialize-selected-lowering-boundaries
+# SDOT-DAG: "pre_realized_body_consumed": true
+# SDOT-DAG: "key": "rvv_emitc_lowerable_route"
+# SDOT-DAG: "value": "rvv-generic-strided-input-widening-dot-reduce-add-emitc-route"
+# SDOT-DAG: "key": "rvv_selected_body_operation"
+# SDOT-DAG: "value": "strided_input_widening_dot_reduce_add"
+# SDOT-DAG: "key": "rvv_selected_body_typed_compute_op"
+# SDOT-DAG: "value": "tcrv_rvv.widening_dot_reduce"
+# SDOT-DAG: "key": "tcrv_rvv.memory_form"
+# SDOT-DAG: "value": "strided-input-widening-dot-reduce"
+# SDOT-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# SDOT-DAG: "value": "lhs,rhs,acc,out,n,lhs_stride,rhs_stride"
+# SDOT-DAG: "key": "tcrv_rvv.strided_memory_layout"
+# SDOT-DAG: "value": "element-strided-lhs-rhs-dot-source-unit-stride-output-runtime-abi"
+# SDOT-DAG: "key": "tcrv_rvv.lhs_stride_source"
+# SDOT-DAG: "value": "runtime_abi:lhs_stride"
+# SDOT-DAG: "key": "tcrv_rvv.rhs_stride_source"
+# SDOT-DAG: "value": "runtime_abi:rhs_stride"
+# SDOT-DAG: "key": "tcrv_rvv.source_memory_form"
+# SDOT-DAG: "value": "strided-load"
+# SDOT-DAG: "key": "tcrv_rvv.destination_memory_form"
+# SDOT-DAG: "value": "unit-stride-store"
+# SDOT-DAG: "key": "tcrv_rvv.source_sew"
+# SDOT-DAG: "value": "16"
+# SDOT-DAG: "key": "tcrv_rvv.source_lmul"
+# SDOT-DAG: "value": "mf2"
+# SDOT-DAG: "key": "tcrv_rvv.accumulator_sew"
+# SDOT-DAG: "value": "32"
+# SDOT-DAG: "key": "tcrv_rvv.result_lmul"
+# SDOT-DAG: "value": "m1"
+# SDOT-DAG: "key": "tcrv_rvv.widening_dot_relation"
+# SDOT-DAG: "value": "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"
+# SDOT-DAG: "key": "tcrv_rvv.strided_load_intrinsic"
+# SDOT-DAG: "value": "__riscv_vlse16_v_i16mf2"
+# SDOT-DAG: "typed_compute_op": "tcrv_rvv.widening_dot_reduce"
+# SDOT-DAG: "memory_form": "strided-input-widening-dot-reduce"
+# SDOT-DAG: "status": "dry_run_success"
+
+# HARNESS: const size_t lhs_stride = 2;
+# HARNESS: const size_t rhs_stride = 3;
+# HARNESS: tcrv_emitc_pre_realized_strided_dot_kernel_rvv_strided_input_dot(lhs, rhs, acc, out, n, lhs_stride, rhs_stride);
+# HARNESS: size_t lhs_index = index * lhs_stride;
+# HARNESS: size_t rhs_index = index * rhs_stride;
+# HARNESS: int32_t product = (int32_t)lhs[lhs_index] * (int32_t)rhs[rhs_index];
+# HARNESS: skipped_source_elements_ignored scalar_output tail_preserved
+# HARNESS: tcrv_rvv_generated_bundle_abi_strided_input_widening_dot_reduce_add_ok counts=7,16,23 lhs_stride=2 rhs_stride=3
+# HARNESS: PASS op=strided_input_widening_dot_reduce_add counts=7,16,23 lhs_stride=2 rhs_stride=3
