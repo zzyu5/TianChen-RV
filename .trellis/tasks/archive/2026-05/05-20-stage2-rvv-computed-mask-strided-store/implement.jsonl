@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV authority chain and RVV Stage1/Stage2 boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body, selected-body realization, route provider, legacy fail-closed, and ssh evidence rules"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider-built TCRVEmitCLowerableRoute and common EmitC neutrality contract"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "ensure masked strided-store semantics remain RVV-plugin-owned"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "ensure tcrv.exec stays an envelope and compute stays in tcrv_rvv"}
+{"file": ".trellis/spec/testing/index.md", "reason": "focused lit/C++/runtime evidence requirements for RVV claims"}
+{"file": ".trellis/tasks/05-20-stage2-rvv-computed-mask-strided-store/prd.md", "reason": "bounded task goal, requirements, non-goals, acceptance criteria, and validation plan"}

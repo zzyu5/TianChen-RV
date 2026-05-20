@@ -789,6 +789,54 @@ def TypedComputedMaskMemoryPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedComputedMaskStridedStorePreRealizedBodyOp
+    : TCRVRVV_Op<"typed_computed_mask_strided_store_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV computed-mask strided-store body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body where a
+    signed i32 vector compare produces an in-body mask SSA value and masked
+    memory movement stores active source lanes to a runtime-strided
+    destination. The op is nested directly in a selected tcrv.exec.variant and
+    binds explicit runtime ABI values for compare lhs, compare rhs, active
+    source, destination, runtime n/AVL, and destination element stride together
+    with compare predicate, memory form, mask role/source/config,
+    inactive-lane preservation policy, stride unit, compile-time RVV data/mask
+    config, and policy.
+
+    This op is not a fusion framework, route label, descriptor, source-front
+    door marker, direct-C exporter, intrinsic wrapper, runtime artifact,
+    correctness evidence, or performance evidence. The RVV plugin must realize
+    it into explicit setvl/with_vl/load/load/load/strided_load/compare/
+    masked_move/strided_store tcrv_rvv body structure before the provider may
+    construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$compare_lhs,
+    AnyType:$compare_rhs,
+    AnyType:$source,
+    AnyType:$destination,
+    AnyType:$n,
+    Index:$destination_stride,
+    StrAttr:$op_kind,
+    StrAttr:$predicate_kind,
+    StrAttr:$memory_form,
+    StrAttr:$stride_unit,
+    StrAttr:$mask_role,
+    StrAttr:$mask_source,
+    StrAttr:$mask_memory_form,
+    StrAttr:$inactive_lane_policy,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$compare_lhs `,` $compare_rhs `,` $source `,` $destination `,` $n `,` $destination_stride attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedSegment2DeinterleaveMemoryPreRealizedBodyOp
     : TCRVRVV_Op<"typed_segment2_deinterleave_memory_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV segment2 deinterleave memory body";

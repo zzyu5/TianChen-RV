@@ -356,14 +356,14 @@ module {
 // -----
 
 module {
-  tcrv.exec.kernel @rvv_generic_strided_load_reject_output_stride_role {
+  tcrv.exec.kernel @rvv_generic_strided_load_reject_element_count_stride_role {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
     %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-    %out_stride = tcrv_rvv.runtime_abi_value {c_name = "out_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "output-stride"} : index
+    %bad_stride = tcrv_rvv.runtime_abi_value {c_name = "bad_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
     %vl = tcrv_rvv.setvl %avl {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
     tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-      // expected-error@+1 {{requires strided load stride operand to bind runtime ABI role 'lhs-input-stride' or 'rhs-input-stride'}}
-      %lhs = tcrv_rvv.strided_load %lhs_ptr, %out_stride, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      // expected-error@+1 {{requires strided load stride operand to bind runtime ABI role 'lhs-input-stride' or 'rhs-input-stride' or 'output-stride'}}
+      %lhs = tcrv_rvv.strided_load %lhs_ptr, %bad_stride, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
     } : !tcrv_rvv.vl
   }
 }

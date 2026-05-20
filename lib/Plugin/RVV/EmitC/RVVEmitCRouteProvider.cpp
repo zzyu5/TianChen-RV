@@ -42,12 +42,19 @@ bool isRVVSelectedBodyWideningConversionRoute(RVVSelectedBodyOperationKind op) {
 bool isRVVSelectedBodyMaskedMemoryMovementRoute(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::MaskedUnitLoadStore ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore;
+         op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
 }
 
 bool isRVVSelectedBodyComputedMaskMemoryMovementRoute(
     RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore;
+  return op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
+}
+
+bool isRVVSelectedBodyComputedMaskStridedStoreRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
 }
 
 bool isRVVSelectedBodySegmentedMemoryMovementRoute(
@@ -406,6 +413,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   }
   const bool isComputedMaskMemory =
       isRVVSelectedBodyComputedMaskMemoryMovementRoute(description.operation);
+  const bool isComputedMaskStridedStore =
+      isRVVSelectedBodyComputedMaskStridedStoreRoute(description.operation);
   const bool isRuntimeMaskMemory =
       description.operation == RVVSelectedBodyOperationKind::MaskedUnitLoadStore;
   if (isRuntimeMaskMemory) {
@@ -543,18 +552,39 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{"source_vec",
                                       description.vectorCType.str()}))
       return error;
-    if (llvm::Error error = addLoopStep(
-            slice->accumulatorLoadOperation, "load",
-            description.vectorLoadIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->outABI.cName) + " + " + inductionName)
-                     .str(),
-                 slice->outABI.cType},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                        description.vlCType.str()}},
-            TCRVEmitCCallOpaqueResult{"old_dst_vec",
-                                      description.vectorCType.str()}))
-      return error;
+    if (isComputedMaskStridedStore) {
+      if (llvm::Error error = addLoopStep(
+              slice->accumulatorLoadOperation, "load",
+              description.stridedLoadIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{
+                   (llvm::StringRef(slice->outABI.cName) + " + (" +
+                    inductionName + " * " + slice->outStrideABI.cName + ")")
+                       .str(),
+                   slice->outABI.cType},
+               TCRVEmitCCallOpaqueOperand{
+                   (llvm::StringRef(slice->outStrideABI.cName) + " * 4")
+                       .str(),
+                   "ptrdiff_t"},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          description.vlCType.str()}},
+              TCRVEmitCCallOpaqueResult{"old_dst_vec",
+                                        description.vectorCType.str()}))
+        return error;
+    } else {
+      if (llvm::Error error = addLoopStep(
+              slice->accumulatorLoadOperation, "load",
+              description.vectorLoadIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{
+                   (llvm::StringRef(slice->outABI.cName) + " + " +
+                    inductionName)
+                       .str(),
+                   slice->outABI.cType},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          description.vlCType.str()}},
+              TCRVEmitCCallOpaqueResult{"old_dst_vec",
+                                        description.vectorCType.str()}))
+        return error;
+    }
   }
   if (isRVVSelectedBodyMAccRoute(description.operation)) {
     if (llvm::Error error = addLoopStep(
@@ -708,7 +738,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           ? description.reductionStoreVL
           : loopVLName;
   if (description.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore ||
-      description.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadStridedStore) {
+      description.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadStridedStore ||
+      description.memoryForm ==
+          RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore) {
     if (llvm::Error error = addLoopStep(
             slice->storeOperation, "store", description.stridedStoreIntrinsic,
             {TCRVEmitCCallOpaqueOperand{

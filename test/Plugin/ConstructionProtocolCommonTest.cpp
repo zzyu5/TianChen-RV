@@ -1637,7 +1637,9 @@ int runRVVCommonValidationTest() {
                                         : (route.operationMnemonic ==
                                                   "masked_unit_load_store" ||
                                            route.operationMnemonic ==
-                                               "computed_masked_unit_load_store"
+                                               "computed_masked_unit_load_store" ||
+                                           route.operationMnemonic ==
+                                               "computed_masked_strided_store"
                                                ? "tcrv_rvv.masked_move"
                                                : (route.operationMnemonic ==
                                                               "strided_load_unit_store" ||
@@ -1672,6 +1674,8 @@ int runRVVCommonValidationTest() {
                                        ? "tcrv_rvv.mask_load"
                                        : (route.operationMnemonic ==
                                                   "computed_masked_unit_load_store"
+                                          || route.operationMnemonic ==
+                                                 "computed_masked_strided_store"
                                               ? "tcrv_rvv.compare"
                                       : (route.operationMnemonic ==
                                                  "segment2_deinterleave_unit_store"
@@ -1707,6 +1711,8 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "masked_unit_load_store";
     const bool hasComputedMaskMemory =
         route.operationMnemonic == "computed_masked_unit_load_store";
+    const bool hasComputedMaskStridedStore =
+        route.operationMnemonic == "computed_masked_strided_store";
     const bool hasSegment2Deinterleave =
         route.operationMnemonic == "segment2_deinterleave_unit_store";
     const bool hasSegment2Interleave =
@@ -1718,6 +1724,7 @@ int runRVVCommonValidationTest() {
         : (hasIndexedGather || hasIndexedScatter) ? 10u
         : hasMaskedMemory                        ? 11u
         : hasComputedMaskMemory                  ? 14u
+        : hasComputedMaskStridedStore            ? 15u
         : hasSegment2Deinterleave                ? 11u
         : hasSegment2Interleave                  ? 9u
         : hasStridedMemory         ? 13u
@@ -1787,6 +1794,13 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyComputedMaskMemoryRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
+               "computed_masked_strided_store") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyComputedMaskStridedStoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==

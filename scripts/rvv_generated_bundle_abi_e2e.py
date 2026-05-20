@@ -53,6 +53,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "indexed_scatter_unit_load",
     "masked_unit_load_store",
     "computed_masked_unit_load_store",
+    "computed_masked_strided_store",
     "segment2_deinterleave_unit_store",
     "segment2_interleave_unit_load",
     "scalar_broadcast_add",
@@ -119,6 +120,12 @@ MASKED_MEMORY_DESTINATION_MEMORY_FORM = "unit-stride-store"
 COMPUTED_MASK_MEMORY_RUNTIME_ABI_ORDER = "cmp_lhs,cmp_rhs,src,dst,n"
 COMPUTED_MASK_MEMORY_LAYOUT = (
     "unit-stride-compare-source-old-destination-runtime-abi"
+)
+COMPUTED_MASK_STRIDED_STORE_RUNTIME_ABI_ORDER = (
+    "cmp_lhs,cmp_rhs,src,dst,n,dst_stride"
+)
+COMPUTED_MASK_STRIDED_STORE_MEMORY_LAYOUT = (
+    "unit-stride-compare-source-element-strided-old-destination-runtime-abi"
 )
 COMPUTED_MASK_MEMORY_MASK_ROLE = "predicate-mask-produced-by-compare"
 COMPUTED_MASK_MEMORY_MASK_SOURCE = "compare-produced-mask-same-vl-scope"
@@ -222,6 +229,12 @@ class OpExpectation:
                 "const int32_t *cmp_rhs, const int32_t *src, "
                 "int32_t *dst, size_t n);"
             )
+        if self.is_computed_masked_strided_store:
+            return (
+                f"void {self.function_name}(const int32_t *cmp_lhs, "
+                "const int32_t *cmp_rhs, const int32_t *src, "
+                "int32_t *dst, size_t n, size_t dst_stride);"
+            )
         if self.is_segment2_deinterleave_unit_store:
             return (
                 f"void {self.function_name}(const int32_t *src, "
@@ -264,6 +277,8 @@ class OpExpectation:
             return EXPECTED_MASKED_MEMORY_RUNTIME_PARAMETERS
         if self.is_computed_masked_unit_load_store:
             return EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS
+        if self.is_computed_masked_strided_store:
+            return EXPECTED_COMPUTED_MASK_STRIDED_STORE_RUNTIME_PARAMETERS
         if self.is_segment2_deinterleave_unit_store:
             return EXPECTED_SEGMENT2_RUNTIME_PARAMETERS
         if self.is_segment2_interleave_unit_load:
@@ -298,6 +313,8 @@ class OpExpectation:
             return MASKED_MEMORY_RUNTIME_ABI_ORDER
         if self.is_computed_masked_unit_load_store:
             return COMPUTED_MASK_MEMORY_RUNTIME_ABI_ORDER
+        if self.is_computed_masked_strided_store:
+            return COMPUTED_MASK_STRIDED_STORE_RUNTIME_ABI_ORDER
         if self.is_segment2_deinterleave_unit_store:
             return SEGMENT2_RUNTIME_ABI_ORDER
         if self.is_segment2_interleave_unit_load:
@@ -363,6 +380,10 @@ class OpExpectation:
     @property
     def is_computed_masked_unit_load_store(self) -> bool:
         return self.kind == "computed_masked_unit_load_store"
+
+    @property
+    def is_computed_masked_strided_store(self) -> bool:
+        return self.kind == "computed_masked_strided_store"
 
     @property
     def is_segment2_deinterleave_unit_store(self) -> bool:
@@ -778,6 +799,33 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
             "(cmp_lhs[index] < cmp_rhs[index] ? src[index] : old_dst[index])"
         ),
     ),
+    "computed_masked_strided_store": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_unit_load_store"],
+        kind="computed_masked_strided_store",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-strided-store.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_computed_masked_strided_store",
+        external_abi_name="rvv-generic-computed-masked-strided-store-callable-c-abi.v1",
+        function_name="tcrv_emitc_pre_realized_body_computed_masked_strided_store_kernel_pre_realized_body_rvv_computed_masked_strided_store",
+        emitc_route="rvv-generic-computed-masked-strided-store-emitc-route",
+        typed_compute_op="tcrv_rvv.masked_move",
+        memory_form="computed-mask-unit-load-strided-store",
+        lhs_initializer=(
+            "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
+            "? (int32_t)(10 + (int32_t)index) "
+            ": (int32_t)(100 + (int32_t)index))"
+        ),
+        rhs_initializer=(
+            "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
+            "? (int32_t)(50 + (int32_t)index) "
+            ": (int32_t)(20 + (int32_t)index))"
+        ),
+        source_initializer="(int32_t)(2200 + (int32_t)(index * 23))",
+        out_initializer="(int32_t)(-9000 - (int32_t)(index * 29))",
+        expected_expression=(
+            "(cmp_lhs[index] < cmp_rhs[index] ? src[index] : old_dst[index * dst_stride])"
+        ),
+    ),
     "segment2_deinterleave_unit_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["strided_load_unit_store"],
         kind="segment2_deinterleave_unit_store",
@@ -1102,6 +1150,15 @@ EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS = (
         "c_name": "n",
         "c_type": "size_t",
         "role": "runtime-element-count",
+        "ownership": "target-export-abi-owned",
+    },
+)
+EXPECTED_COMPUTED_MASK_STRIDED_STORE_RUNTIME_PARAMETERS = (
+    *EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS,
+    {
+        "c_name": "dst_stride",
+        "c_type": "size_t",
+        "role": "output-stride",
         "ownership": "target-export-abi-owned",
     },
 )
@@ -1691,6 +1748,33 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
+    if expectation.is_computed_masked_strided_store:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.masked_memory_layout": (
+                    COMPUTED_MASK_STRIDED_STORE_MEMORY_LAYOUT
+                ),
+                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "tcrv_rvv.inactive_lane_contract": (
+                    MASKED_MEMORY_INACTIVE_LANE_CONTRACT
+                ),
+                "tcrv_rvv.masked_passthrough_layout": (
+                    MASKED_MEMORY_PASSTHROUGH_LAYOUT
+                ),
+                "tcrv_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
+                "tcrv_rvv.destination_memory_form": (
+                    UNIT_LOAD_STRIDED_STORE_DESTINATION_MEMORY_FORM
+                ),
+                "tcrv_rvv.strided_memory_layout": (
+                    COMPUTED_MASK_STRIDED_STORE_MEMORY_LAYOUT
+                ),
+                "tcrv_rvv.destination_stride_source": (
+                    UNIT_LOAD_STRIDED_STORE_DESTINATION_STRIDE_SOURCE
+                ),
+            }
+        )
     if expectation.is_segment2_deinterleave_unit_store:
         per_op_metadata.update(
             {
@@ -2231,6 +2315,47 @@ def verify_materialized_selected_body(
             "tcrv_rvv.indexed_store",
             "materialized selected-body MLIR masked memory movement",
         )
+    if expectation.is_computed_masked_strided_store:
+        require_contains(
+            text,
+            "tcrv_rvv.compare",
+            "materialized selected-body MLIR computed-mask strided-store compare",
+        )
+        require_contains(
+            text,
+            'kind = "slt"',
+            "materialized selected-body MLIR computed-mask strided-store predicate",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.masked_move",
+            "materialized selected-body MLIR computed-mask strided-store movement op",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.strided_load",
+            "materialized selected-body MLIR old-destination strided load",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.strided_store",
+            "materialized selected-body MLIR computed-mask strided store",
+        )
+        require_contains(
+            text,
+            'role = "output-stride"',
+            "materialized selected-body MLIR destination stride ABI role",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.mask_load",
+            "materialized selected-body MLIR computed-mask strided-store",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.binary",
+            "materialized selected-body MLIR computed-mask strided-store",
+        )
     if expectation.is_segment2_deinterleave_unit_store:
         require_contains(
             text,
@@ -2621,6 +2746,153 @@ int main(void) {{
   return 0;
 }}
 """
+    if expectation.is_computed_masked_strided_store:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  const size_t dst_stride = 3;
+  size_t alloc_n = n == 0 ? 1 : n;
+  size_t dst_alloc_n = alloc_n * dst_stride + 8;
+  int32_t *cmp_lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *cmp_rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *src = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
+  int32_t *old_dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
+  if (!cmp_lhs || !cmp_rhs || !src || !dst || !old_dst) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(cmp_lhs);
+    free(cmp_rhs);
+    free(src);
+    free(dst);
+    free(old_dst);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    cmp_lhs[index] = {expectation.lhs_initializer};
+    cmp_rhs[index] = {expectation.rhs_initializer};
+    src[index] = {expectation.source_initializer};
+  }}
+  for (size_t index = 0; index < dst_alloc_n; ++index) {{
+    dst[index] = {expectation.out_initializer};
+    old_dst[index] = dst[index];
+  }}
+
+  {expectation.function_name}(cmp_lhs, cmp_rhs, src, dst, n, dst_stride);
+
+  size_t active_lanes = 0;
+  size_t inactive_lanes = 0;
+  size_t inactive_preserved_lanes = 0;
+  size_t skipped_preserved_slots = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    size_t dst_index = index * dst_stride;
+    int active = cmp_lhs[index] < cmp_rhs[index];
+    if (active)
+      ++active_lanes;
+    else
+      ++inactive_lanes;
+
+    int32_t expected = {expectation.expected_expression};
+    if (dst[dst_index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu dst_index=%zu got=%d expected=%d cmp_lhs=%d cmp_rhs=%d src=%d old_dst=%d\\n",
+              n, index, dst_index, dst[dst_index], expected, cmp_lhs[index],
+              cmp_rhs[index], src[index], old_dst[dst_index]);
+      free(cmp_lhs);
+      free(cmp_rhs);
+      free(src);
+      free(dst);
+      free(old_dst);
+      return 12;
+    }}
+
+    if (!active) {{
+      if (dst[dst_index] != old_dst[dst_index]) {{
+        fprintf(stderr,
+                "{expectation.kind} inactive strided lane did not preserve old destination n=%zu index=%zu dst_index=%zu got=%d old_dst=%d\\n",
+                n, index, dst_index, dst[dst_index], old_dst[dst_index]);
+        free(cmp_lhs);
+        free(cmp_rhs);
+        free(src);
+        free(dst);
+        free(old_dst);
+        return 13;
+      }}
+      ++inactive_preserved_lanes;
+    }}
+  }}
+
+  for (size_t raw = 0; raw < dst_alloc_n; ++raw) {{
+    int is_logical_strided_slot = (raw % dst_stride) == 0 && (raw / dst_stride) < n;
+    if (!is_logical_strided_slot && dst[raw] != old_dst[raw]) {{
+      fprintf(stderr,
+              "{expectation.kind} touched skipped/tail destination slot n=%zu raw_index=%zu got=%d old_dst=%d\\n",
+              n, raw, dst[raw], old_dst[raw]);
+      free(cmp_lhs);
+      free(cmp_rhs);
+      free(src);
+      free(dst);
+      free(old_dst);
+      return 14;
+    }}
+    if (!is_logical_strided_slot)
+      ++skipped_preserved_slots;
+  }}
+
+  if (n > 1 && (active_lanes == 0 || inactive_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} compare mask coverage missing n=%zu active_lanes=%zu inactive_lanes=%zu\\n",
+            n, active_lanes, inactive_lanes);
+    free(cmp_lhs);
+    free(cmp_rhs);
+    free(src);
+    free(dst);
+    free(old_dst);
+    return 15;
+  }}
+  if (inactive_lanes != inactive_preserved_lanes) {{
+    fprintf(stderr,
+            "{expectation.kind} inactive preservation coverage mismatch n=%zu inactive_lanes=%zu preserved_lanes=%zu\\n",
+            n, inactive_lanes, inactive_preserved_lanes);
+    free(cmp_lhs);
+    free(cmp_rhs);
+    free(src);
+    free(dst);
+    free(old_dst);
+    return 16;
+  }}
+
+  free(cmp_lhs);
+  free(cmp_rhs);
+  free(src);
+  free(dst);
+  free(old_dst);
+  printf("{expectation.kind} case n=%zu ok dst_stride=%zu compare_active_lanes=%zu compare_inactive_lanes=%zu inactive_preserved_lanes=%zu skipped_preserved_slots=%zu\\n",
+         n, dst_stride, active_lanes, inactive_lanes, inactive_preserved_lanes,
+         skipped_preserved_slots);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} dst_stride=3\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} dst_stride=3\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_computed_masked_unit_load_store:
         return f"""
 #include <stddef.h>
@@ -4241,6 +4513,19 @@ def run_one_op_e2e(
                 "compare-false lanes and tail lanes must preserve old "
                 "destination sentinel values"
             )
+        if expectation.is_computed_masked_strided_store:
+            evidence["harness"]["mask_coverage_contract"] = (
+                "multi-lane computed_masked_strided_store cases require "
+                "compare-produced active and inactive mask lanes"
+            )
+            evidence["harness"]["inactive_lane_contract"] = (
+                "compare-false strided lanes must preserve old destination "
+                "sentinel values"
+            )
+            evidence["harness"]["stride_preservation_contract"] = (
+                "active writes land at dst[index * dst_stride] while skipped "
+                "destination slots and tail slots preserve sentinels"
+            )
         if expectation.is_segment2_deinterleave_unit_store:
             evidence["harness"]["field_order_contract"] = (
                 "multi-lane segment2_deinterleave_unit_store cases require "
@@ -4734,6 +5019,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "unit_load_strided_store/indexed_gather_unit_store/"
             "indexed_scatter_unit_load/"
             "masked_unit_load_store/computed_masked_unit_load_store/"
+            "computed_masked_strided_store/"
             "segment2_deinterleave_unit_store/"
             "segment2_interleave_unit_load/"
             "lmul_m2_add/widen_i32_to_i64 "

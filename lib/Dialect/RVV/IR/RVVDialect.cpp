@@ -263,6 +263,16 @@ bool isAllowedTypedComputedMaskMemoryPreRealizedBodyAttr(
          name == kLMULAttrName || name == kPolicyAttrName;
 }
 
+bool isAllowedTypedComputedMaskStridedStorePreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kPredicateKindAttrName ||
+         name == kMemoryFormAttrName || name == kStrideUnitAttrName ||
+         name == kMaskRoleAttrName || name == kMaskSourceAttrName ||
+         name == kMaskMemoryFormAttrName ||
+         name == kInactiveLanePolicyAttrName || name == kSEWAttrName ||
+         name == kLMULAttrName || name == kPolicyAttrName;
+}
+
 bool isAllowedTypedSegment2DeinterleaveMemoryPreRealizedBodyAttr(
     llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
@@ -572,6 +582,21 @@ bool isSupportedTypedComputedMaskMemoryPreRealizedPredicateKind(
 bool isSupportedTypedComputedMaskMemoryPreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-unit-load-store";
+}
+
+bool isSupportedTypedComputedMaskStridedStorePreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "computed_masked_strided_store";
+}
+
+bool isSupportedTypedComputedMaskStridedStorePreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "computed-mask-unit-load-strided-store";
+}
+
+bool isSupportedTypedComputedMaskStridedStoreStrideUnit(
+    llvm::StringRef strideUnit) {
+  return strideUnit == "element";
 }
 
 bool isSupportedTypedComputedMaskMemoryRole(llvm::StringRef role) {
@@ -2880,6 +2905,121 @@ mlir::LogicalResult TypedComputedMaskMemoryPreRealizedBodyOp::verify() {
 }
 
 mlir::LogicalResult
+TypedComputedMaskStridedStorePreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected computed-mask strided-store bodies "
+                "carry only typed RVV compare/source/destination, stride, "
+                "mask, memory-form, inactive-lane policy, config, policy, "
+                "and runtime SSA facts and must be realized by the RVV "
+                "plugin before route construction";
+
+    if (!isAllowedTypedComputedMaskStridedStorePreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kPredicateKindAttrName << "', '"
+             << kMemoryFormAttrName << "', '" << kStrideUnitAttrName
+             << "', '" << kMaskRoleAttrName << "', '" << kMaskSourceAttrName
+             << "', '" << kMaskMemoryFormAttrName << "', '"
+             << kInactiveLanePolicyAttrName << "', '" << kSEWAttrName
+             << "', '" << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 6 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires compare lhs, compare rhs, active source, "
+              "destination, runtime n/AVL, destination stride operands and "
+              "no results";
+
+  if (!isSupportedTypedComputedMaskStridedStorePreRealizedBodyOpKind(
+          getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"computed_masked_strided_store\" for the bounded "
+              "selected-body computed-mask strided-store hook";
+  if (!isSupportedTypedComputedMaskMemoryPreRealizedPredicateKind(
+          getPredicateKind()))
+    return emitOpError()
+           << "currently supports only predicate_kind \"slt\" for the "
+              "bounded selected-body computed-mask strided-store hook";
+  if (!isSupportedTypedComputedMaskStridedStorePreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"computed-mask-unit-load-strided-store\" for the bounded "
+              "selected-body computed-mask strided-store hook";
+  if (!isSupportedTypedComputedMaskStridedStoreStrideUnit(getStrideUnit()))
+    return emitOpError()
+           << "currently supports only stride_unit \"element\" for the "
+              "bounded selected-body computed-mask strided-store hook";
+  if (!isSupportedTypedComputedMaskMemoryRole(getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-produced-by-compare\" for the bounded "
+              "selected-body computed-mask strided-store hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskSource(getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"compare-produced-mask-same-vl-scope\" for the bounded "
+              "selected-body computed-mask strided-store hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskMemoryForm(getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"compare-produced-mask\" for the bounded selected-body "
+              "computed-mask strided-store hook";
+  if (!isSupportedTypedMaskedMemoryInactiveLanePolicy(
+          getInactiveLanePolicy()))
+    return emitOpError()
+           << "requires inactive_lane_policy "
+              "\"preserve-old-destination\" because compare-false, masked-off "
+              "lanes, and skipped destination slots must preserve the old "
+              "destination value in this bounded slice";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized computed-mask strided-store data "
+              "config to be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body computed-mask strided-store hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareLhs(), "compare lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareRhs(), "compare rhs",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSource(), "active source",
+          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getDestination(), "destination",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeElementCountOperand(op, getN())))
+    return mlir::failure();
+  return verifyRuntimeABIIndexOperandRole(
+      op, getDestinationStride(), "destination stride",
+      {tianchenrv::support::RuntimeABIParameterRole::OutputStride});
+}
+
+mlir::LogicalResult
 TypedSegment2DeinterleaveMemoryPreRealizedBodyOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -3456,12 +3596,14 @@ mlir::LogicalResult StridedLoadOp::verify() {
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getBuffer(), "strided load buffer",
           {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
-           tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+           tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIIndexOperandRole(
           op, getStride(), "strided load stride",
           {tianchenrv::support::RuntimeABIParameterRole::LHSInputStride,
-           tianchenrv::support::RuntimeABIParameterRole::RHSInputStride})))
+           tianchenrv::support::RuntimeABIParameterRole::RHSInputStride,
+           tianchenrv::support::RuntimeABIParameterRole::OutputStride})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "

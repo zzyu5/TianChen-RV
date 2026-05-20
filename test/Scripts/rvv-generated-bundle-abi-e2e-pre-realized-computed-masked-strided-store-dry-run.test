@@ -1,0 +1,70 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-computed-mask-strided-store --overwrite --op-kind computed_masked_strided_store --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-computed-mask-strided-store/evidence.json
+# RUN: FileCheck %s --check-prefix=CMSTRIDED --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-computed-mask-strided-store/computed_masked_strided_store/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-computed-mask-strided-store/computed_masked_strided_store/rvv_generated_bundle_abi_computed_masked_strided_store_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "pre-realized-selected-body"
+# ROOT: "computed_masked_strided_store"
+# ROOT: "pre_realized_selected_body": true
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# CMSTRIDED-DAG: "input_mode": "pre-realized-selected-body"
+# CMSTRIDED-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-strided-store.mlir"
+# CMSTRIDED-DAG: "prototype": "void tcrv_emitc_pre_realized_body_computed_masked_strided_store_kernel_pre_realized_body_rvv_computed_masked_strided_store(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *src, int32_t *dst, size_t n, size_t dst_stride);"
+# CMSTRIDED-DAG: "expected_function": "tcrv_emitc_pre_realized_body_computed_masked_strided_store_kernel_pre_realized_body_rvv_computed_masked_strided_store"
+# CMSTRIDED-DAG: "expected_runtime_abi_name": "rvv-generic-computed-masked-strided-store-callable-c-abi.v1"
+# CMSTRIDED-DAG: "expected_selected_variant": "pre_realized_body_rvv_computed_masked_strided_store"
+# CMSTRIDED-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# CMSTRIDED-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# CMSTRIDED-DAG: --tcrv-materialize-selected-lowering-boundaries
+# CMSTRIDED-DAG: "pre_realized_body_consumed": true
+# CMSTRIDED-DAG: "key": "rvv_emitc_lowerable_route"
+# CMSTRIDED-DAG: "value": "rvv-generic-computed-masked-strided-store-emitc-route"
+# CMSTRIDED-DAG: "key": "rvv_selected_body_operation"
+# CMSTRIDED-DAG: "value": "computed_masked_strided_store"
+# CMSTRIDED-DAG: "key": "rvv_selected_body_typed_compute_op"
+# CMSTRIDED-DAG: "value": "tcrv_rvv.masked_move"
+# CMSTRIDED-DAG: "key": "tcrv_rvv.memory_form"
+# CMSTRIDED-DAG: "value": "computed-mask-unit-load-strided-store"
+# CMSTRIDED-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# CMSTRIDED-DAG: "value": "cmp_lhs,cmp_rhs,src,dst,n,dst_stride"
+# CMSTRIDED-DAG: "key": "tcrv_rvv.masked_memory_layout"
+# CMSTRIDED-DAG: "value": "unit-stride-compare-source-element-strided-old-destination-runtime-abi"
+# CMSTRIDED-DAG: "key": "tcrv_rvv.mask_role"
+# CMSTRIDED-DAG: "value": "predicate-mask-produced-by-compare"
+# CMSTRIDED-DAG: "key": "tcrv_rvv.mask_source"
+# CMSTRIDED-DAG: "value": "compare-produced-mask-same-vl-scope"
+# CMSTRIDED-DAG: "key": "tcrv_rvv.mask_memory_form"
+# CMSTRIDED-DAG: "value": "compare-produced-mask"
+# CMSTRIDED-DAG: "key": "tcrv_rvv.inactive_lane_contract"
+# CMSTRIDED-DAG: "value": "masked-off-lanes-preserve-old-destination"
+# CMSTRIDED-DAG: "key": "tcrv_rvv.masked_passthrough_layout"
+# CMSTRIDED-DAG: "value": "old-destination-vector-preserves-inactive-lanes"
+# CMSTRIDED-DAG: "key": "tcrv_rvv.source_memory_form"
+# CMSTRIDED-DAG: "value": "unit-stride-load"
+# CMSTRIDED-DAG: "key": "tcrv_rvv.destination_memory_form"
+# CMSTRIDED-DAG: "value": "strided-store"
+# CMSTRIDED-DAG: "key": "tcrv_rvv.strided_memory_layout"
+# CMSTRIDED-DAG: "value": "unit-stride-compare-source-element-strided-old-destination-runtime-abi"
+# CMSTRIDED-DAG: "key": "tcrv_rvv.destination_stride_source"
+# CMSTRIDED-DAG: "value": "runtime_abi:dst_stride"
+# CMSTRIDED-DAG: "typed_compute_op": "tcrv_rvv.masked_move"
+# CMSTRIDED-DAG: "memory_form": "computed-mask-unit-load-strided-store"
+# CMSTRIDED-DAG: "mask_coverage_contract": "multi-lane computed_masked_strided_store cases require compare-produced active and inactive mask lanes"
+# CMSTRIDED-DAG: "inactive_lane_contract": "compare-false strided lanes must preserve old destination sentinel values"
+# CMSTRIDED-DAG: "stride_preservation_contract": "active writes land at dst[index * dst_stride] while skipped destination slots and tail slots preserve sentinels"
+# CMSTRIDED-DAG: "status": "dry_run_success"
+
+# HARNESS: const size_t dst_stride = 3;
+# HARNESS: tcrv_emitc_pre_realized_body_computed_masked_strided_store_kernel_pre_realized_body_rvv_computed_masked_strided_store(cmp_lhs, cmp_rhs, src, dst, n, dst_stride);
+# HARNESS: int32_t expected = (cmp_lhs[index] < cmp_rhs[index] ? src[index] : old_dst[index * dst_stride]);
+# HARNESS: inactive strided lane did not preserve old destination
+# HARNESS: touched skipped/tail destination slot
+# HARNESS: compare mask coverage missing
+# HARNESS: PASS op=computed_masked_strided_store counts=7,16,23 dst_stride=3
