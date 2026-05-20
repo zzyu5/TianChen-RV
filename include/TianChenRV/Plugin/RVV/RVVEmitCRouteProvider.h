@@ -42,6 +42,7 @@ enum class RVVSelectedBodyOperationKind {
   Segment2InterleaveUnitLoad,
   ScalarBroadcastAdd,
   WidenI32ToI64,
+  WidenI16ToI32,
 };
 
 enum class RVVSelectedBodyMemoryForm {

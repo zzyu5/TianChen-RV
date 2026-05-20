@@ -115,7 +115,8 @@ bool isPreRealizedMAccResultLayout(llvm::StringRef layout) {
 }
 
 bool isPreRealizedWideningConversionOpKind(llvm::StringRef opKind) {
-  return opKind == "widen_i32_to_i64";
+  return opKind == "widen_i32_to_i64" ||
+         opKind == "sign_extend_widen_vf2";
 }
 
 bool isPreRealizedWideningConversionMemoryForm(llvm::StringRef memoryForm) {
@@ -123,7 +124,27 @@ bool isPreRealizedWideningConversionMemoryForm(llvm::StringRef memoryForm) {
 }
 
 bool isPreRealizedWideningConversionRelation(llvm::StringRef relation) {
-  return relation == "signed-i32m1-to-i64m2";
+  return relation == "signed-i32m1-to-i64m2" ||
+         relation == "signed-i16mf2-to-i32m1";
+}
+
+bool isPreRealizedWideningConversionSignature(
+    llvm::StringRef opKind, std::int64_t sourceSEW,
+    llvm::StringRef sourceLMUL, std::int64_t destSEW,
+    llvm::StringRef destLMUL, llvm::StringRef relation) {
+  if (opKind == "widen_i32_to_i64")
+    return sourceSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+           sourceLMUL == tcrv::rvv::getRVVLMULM1() &&
+           destSEW == tcrv::rvv::getRVVSEW64Bits() &&
+           destLMUL == tcrv::rvv::getRVVLMULM2() &&
+           relation == "signed-i32m1-to-i64m2";
+  if (opKind == "sign_extend_widen_vf2")
+    return sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
+           sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
+           destSEW == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+           destLMUL == tcrv::rvv::getRVVLMULM1() &&
+           relation == "signed-i16mf2-to-i32m1";
+  return false;
 }
 
 bool isPreRealizedStridedMemoryMovementOpKind(llvm::StringRef opKind) {
@@ -911,27 +932,27 @@ llvm::Error validatePreRealizedRVVSelectedWideningConversionBody(
   if (!isPreRealizedWideningConversionOpKind(body.getOpKind()))
     return makeRVVPluginError(
         "pre-realized RVV selected widening conversion body currently "
-        "supports only op_kind 'widen_i32_to_i64'");
+        "supports only op_kind 'widen_i32_to_i64' or "
+        "'sign_extend_widen_vf2'");
   if (!isPreRealizedWideningConversionMemoryForm(body.getMemoryForm()))
     return makeRVVPluginError(
         "pre-realized RVV selected widening conversion body currently "
         "supports only memory_form 'unit-stride-conversion'");
-  if (static_cast<std::int64_t>(body.getSourceSew()) !=
-          tcrv::rvv::getRVVFirstSliceSEWBits() ||
-      body.getSourceLmul() != tcrv::rvv::getRVVLMULM1())
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening conversion source config must be "
-        "SEW32 LMUL m1");
-  if (static_cast<std::int64_t>(body.getDestSew()) !=
-          tcrv::rvv::getRVVSEW64Bits() ||
-      body.getDestLmul() != tcrv::rvv::getRVVLMULM2())
-    return makeRVVPluginError(
-        "pre-realized RVV selected widening conversion destination config "
-        "must be SEW64 LMUL m2");
   if (!isPreRealizedWideningConversionRelation(body.getConversionRelation()))
     return makeRVVPluginError(
         "pre-realized RVV selected widening conversion currently supports "
-        "only conversion_relation 'signed-i32m1-to-i64m2'");
+        "only conversion_relation 'signed-i32m1-to-i64m2' or "
+        "'signed-i16mf2-to-i32m1'");
+  if (!isPreRealizedWideningConversionSignature(
+          body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
+          body.getSourceLmul(), static_cast<std::int64_t>(body.getDestSew()),
+          body.getDestLmul(), body.getConversionRelation()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected widening conversion config/relation must "
+        "match either op_kind 'widen_i32_to_i64' with source SEW32 LMUL m1, "
+        "destination SEW64 LMUL m2, and relation 'signed-i32m1-to-i64m2', or "
+        "op_kind 'sign_extend_widen_vf2' with source SEW16 LMUL mf2, "
+        "destination SEW32 LMUL m1, and relation 'signed-i16mf2-to-i32m1'");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVPluginError(
         "pre-realized RVV selected widening conversion body requires tail "
@@ -1966,9 +1987,7 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
 
 mlir::Type getGenericVectorType(mlir::OpBuilder &builder, std::int64_t sew,
                                 llvm::StringRef lmul) {
-  mlir::Type elementType = sew == tcrv::rvv::getRVVSEW64Bits()
-                               ? builder.getI64Type()
-                               : builder.getI32Type();
+  mlir::Type elementType = builder.getIntegerType(sew);
   return tcrv::rvv::VectorType::get(
       builder.getContext(), elementType, lmul);
 }
@@ -2211,13 +2230,20 @@ llvm::Expected<mlir::Operation *> createRealizedGenericWideningConvert(
   if (!isPreRealizedWideningConversionOpKind(opKind))
     return makeRVVPluginError(
         "pre-realized RVV selected-body widening conversion realization "
-        "supports only op_kind 'widen_i32_to_i64'");
+        "supports only op_kind 'widen_i32_to_i64' or "
+        "'sign_extend_widen_vf2'");
 
   mlir::OperationState state(loc, "tcrv_rvv.widening_convert");
   state.addOperands({source, vl});
   state.addAttribute("kind", builder.getStringAttr(opKind));
-  state.addTypes(getGenericVectorType(builder, tcrv::rvv::getRVVSEW64Bits(),
-                                      tcrv::rvv::getRVVLMULM2()));
+  std::int64_t resultSEW =
+      opKind == "sign_extend_widen_vf2"
+          ? tcrv::rvv::getRVVFirstSliceSEWBits()
+          : tcrv::rvv::getRVVSEW64Bits();
+  llvm::StringRef resultLMUL =
+      opKind == "sign_extend_widen_vf2" ? tcrv::rvv::getRVVLMULM1()
+                                        : tcrv::rvv::getRVVLMULM2();
+  state.addTypes(getGenericVectorType(builder, resultSEW, resultLMUL));
   return builder.create(state);
 }
 
@@ -2526,20 +2552,23 @@ realizePreRealizedRVVSelectedBody(
 
     auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
         createRealizedSetVL(builder, loc, conversionBody.getN(),
-                            tcrv::rvv::getRVVSEW64Bits(),
-                            tcrv::rvv::getRVVLMULM2(),
+                            static_cast<std::int64_t>(
+                                conversionBody.getDestSew()),
+                            conversionBody.getDestLmul(),
                             conversionBody.getPolicy()));
     tcrv::rvv::WithVLOp withVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                              request.getRole(), requires,
-                             tcrv::rvv::getRVVSEW64Bits(),
-                             tcrv::rvv::getRVVLMULM2(),
+                             static_cast<std::int64_t>(
+                                 conversionBody.getDestSew()),
+                             conversionBody.getDestLmul(),
                              conversionBody.getPolicy());
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
     auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
         builder, loc, conversionBody.getLhs(), setvl.getVl(),
-        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+        static_cast<std::int64_t>(conversionBody.getSourceSew()),
+        conversionBody.getSourceLmul()));
     llvm::Expected<mlir::Operation *> convert =
         createRealizedGenericWideningConvert(
             builder, loc, conversionBody.getOpKind(), lhsLoad.getLoaded(),

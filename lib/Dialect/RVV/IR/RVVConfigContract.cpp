@@ -12,7 +12,9 @@ namespace tianchenrv::tcrv::rvv {
 namespace {
 
 constexpr std::int64_t kRVVFirstSliceSEWBits = 32;
+constexpr std::int64_t kRVVSEW16Bits = 16;
 constexpr std::int64_t kRVVSEW64Bits = 64;
+constexpr llvm::StringLiteral kRVVLMULMF2("mf2");
 constexpr llvm::StringLiteral kRVVLMULM1("m1");
 constexpr llvm::StringLiteral kRVVLMULM2("m2");
 constexpr llvm::StringLiteral kRVVSelectedBodyM1ConfigContract(
@@ -178,7 +180,11 @@ RVVConfigContractDiagnostic::failure(llvm::StringRef message) {
 
 std::int64_t getRVVFirstSliceSEWBits() { return kRVVFirstSliceSEWBits; }
 
+std::int64_t getRVVSEW16Bits() { return kRVVSEW16Bits; }
+
 std::int64_t getRVVSEW64Bits() { return kRVVSEW64Bits; }
+
+llvm::StringRef getRVVLMULMF2() { return kRVVLMULMF2; }
 
 llvm::StringRef getRVVLMULM1() { return kRVVLMULM1; }
 
@@ -496,6 +502,20 @@ getRVVSelectedBodyWideningConversionRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 3>
+getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 3> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int16_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 7>
 getRVVSelectedBodyStridedRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 7> parameters;
@@ -753,13 +773,19 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, conversionExpected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 3> widenI16ToI32Expected =
+      getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, widenI16ToI32Expected))
+    return llvm::Error::success();
+
   return makeRuntimeABIError(
       llvm::Twine(context) +
       " must use ordered runtime ABI parameters lhs, rhs, out, n for "
       "int32_t or int64_t buffers; lhs, rhs_scalar, out, n for the bounded "
       "int32_t scalar-broadcast route; lhs, out, n for the bounded i32-to-i64 "
-      "widening conversion route; or lhs, rhs, out, n, lhs_stride, "
-      "rhs_stride, out_stride for the bounded int32_t strided add route; or "
+      "or i16-to-i32 widening conversion routes; or lhs, rhs, out, n, "
+      "lhs_stride, rhs_stride, out_stride for the bounded int32_t strided add "
+      "route; or "
       "src, out, n, src_stride for the bounded int32_t strided-load to "
       "unit-stride-store route; or src, dst, n, dst_stride for the bounded "
       "int32_t unit-load to strided-store route; or data, index, out, n for the bounded "

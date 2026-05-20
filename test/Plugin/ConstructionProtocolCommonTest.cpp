@@ -1622,6 +1622,9 @@ int runRVVCommonValidationTest() {
                 route.emitCRouteID, route.runtimeABIName),
             "RVV selected-body construction route validates"))
       return result;
+    const bool isConversionRoute =
+        route.operationMnemonic == "widen_i32_to_i64" ||
+        route.operationMnemonic == "widen_i16_to_i32";
     llvm::StringRef executableComputeOp =
         route.operationMnemonic == "cmp_select"
             ? "tcrv_rvv.select"
@@ -1631,8 +1634,7 @@ int runRVVCommonValidationTest() {
                           ? "tcrv_rvv.masked_binary"
                           : (route.operationMnemonic == "macc_add"
                                  ? "tcrv_rvv.macc"
-                                 : (route.operationMnemonic ==
-                                           "widen_i32_to_i64"
+                                 : (isConversionRoute
                                         ? "tcrv_rvv.widening_convert"
                                         : (route.operationMnemonic ==
                                                   "masked_unit_load_store" ||
@@ -1657,7 +1659,7 @@ int runRVVCommonValidationTest() {
                                                             ? "tcrv_rvv.segment2_store"
                                                       : "tcrv_rvv.binary"))))));
     llvm::StringRef rhsSourceOp =
-        route.operationMnemonic == "widen_i32_to_i64"
+        isConversionRoute
             ? ""
             : route.operationMnemonic == "unit_load_strided_store"
                   ? "tcrv_rvv.strided_store"
@@ -1717,7 +1719,7 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "segment2_deinterleave_unit_store";
     const bool hasSegment2Interleave =
         route.operationMnemonic == "segment2_interleave_unit_load";
-    const bool hasConversion = route.operationMnemonic == "widen_i32_to_i64";
+    const bool hasConversion = isConversionRoute;
     unsigned expectedStepCount =
         hasConversion          ? 8u
         : (hasStridedMemoryMovement || hasUnitLoadStridedStore) ? 9u
@@ -1827,6 +1829,12 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyWideningConversionRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "widen_i16_to_i32") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else {

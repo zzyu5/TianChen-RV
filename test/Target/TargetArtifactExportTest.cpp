@@ -491,6 +491,7 @@ llvm::StringRef getRVVTestArithmeticOperationName(
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
     return "tcrv_rvv.binary";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WidenI32ToI64:
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WidenI16ToI32:
     return "tcrv_rvv.widening_convert";
   }
   llvm_unreachable("unknown RVV test arithmetic op");
@@ -537,6 +538,8 @@ llvm::StringRef getRVVTestBinaryKind(
     return "scalar_broadcast_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WidenI32ToI64:
     return "widen_i32_to_i64";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WidenI16ToI32:
+    return "widen_i16_to_i32";
   }
   llvm_unreachable("unknown RVV test binary kind");
 }

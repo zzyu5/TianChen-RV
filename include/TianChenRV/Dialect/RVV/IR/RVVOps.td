@@ -1431,7 +1431,8 @@ def WideningConvertOp : TCRVRVV_Op<"widening_convert",
     source !tcrv_rvv.vector and the active !tcrv_rvv.vl token, carries an
     explicit conversion kind, and produces one destination !tcrv_rvv.vector.
 
-    The current executable slice supports only i32 LMUL m1 to i64 LMUL m2.
+    The current executable slices support bounded signed widening conversions
+    i32 LMUL m1 to i64 LMUL m2 and i16 LMUL mf2 to i32 LMUL m1.
     Source/destination dtype, SEW, LMUL, VL, policy, and operation kind are
     structural typed-body facts consumed by the RVV plugin. Route ids, helper
     names, ABI strings, artifact names, status fields, exact intrinsic

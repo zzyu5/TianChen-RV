@@ -417,6 +417,12 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-widen-i32-to-i64-emitc-route",
      "rvv-generic-widen-i32-to-i64-callable-c-abi.v1",
      "rvv-generic-widen-i32-to-i64-callable-c-abi"},
+    {"widen_i16_to_i32",
+     "tcrv_rvv.widening_convert",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-widen-i16-to-i32-emitc-route",
+     "rvv-generic-widen-i16-to-i32-callable-c-abi.v1",
+     "rvv-generic-widen-i16-to-i32-callable-c-abi"},
 };
 
 const RVVSelectedBodyTargetArtifactMapping kTargetArtifactMapping = {
@@ -533,7 +539,7 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 19)
+          .size() != 20)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
         "cmp_select, reduce_add, masked_add, macc_add, strided_add, "
@@ -542,8 +548,8 @@ llvm::Error verifySelectedBodyRoutes() {
         "masked_unit_load_store, "
         "computed_masked_unit_load_store, computed_masked_strided_store, "
         "segment2_deinterleave_unit_store, "
-        "segment2_interleave_unit_load, scalar_broadcast_add, and "
-        "widen_i32_to_i64");
+        "segment2_interleave_unit_load, scalar_broadcast_add, "
+        "widen_i32_to_i64, and widen_i16_to_i32");
   return llvm::Error::success();
 }
 
@@ -676,6 +682,9 @@ buildRVVSelectedBodyExecutableRoleSteps(
       route->operationMnemonic == "scalar_broadcast_add";
   const bool isWidenI32ToI64 =
       route->operationMnemonic == "widen_i32_to_i64";
+  const bool isWidenI16ToI32 =
+      route->operationMnemonic == "widen_i16_to_i32";
+  const bool isWideningConversion = isWidenI32ToI64 || isWidenI16ToI32;
   if (isCompareSelect && typedComputeOpName != "tcrv_rvv.select")
     return makeRVVConstructionError(
         "RVV compare/select construction requires generic tcrv_rvv.select");
@@ -690,7 +699,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return makeRVVConstructionError(
         "RVV multiply-accumulate construction requires generic "
         "tcrv_rvv.macc");
-  if (isWidenI32ToI64 && typedComputeOpName != "tcrv_rvv.widening_convert")
+  if (isWideningConversion && typedComputeOpName != "tcrv_rvv.widening_convert")
     return makeRVVConstructionError(
         "RVV widening conversion construction requires generic "
         "tcrv_rvv.widening_convert");
@@ -735,13 +744,13 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isMaskedUnitLoadStore && !isComputedMaskUnitLoadStore &&
       !isComputedMaskStridedStore &&
       !isSegment2DeinterleaveUnitStore && !isSegment2InterleaveUnitLoad &&
-      !isWidenI32ToI64 &&
+      !isWideningConversion &&
       !usesGenericBinary)
     return makeRVVConstructionError(
         llvm::Twine("RVV arithmetic construction requires generic "
                     "tcrv_rvv.binary, not legacy typed compute op '") +
         typedComputeOpName + "'");
-  if (!isWidenI32ToI64 && !isStridedLoadUnitStore &&
+  if (!isWideningConversion && !isStridedLoadUnitStore &&
       !isUnitLoadStridedStore &&
       !isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
       !isMaskedUnitLoadStore && !isComputedMaskUnitLoadStore &&
@@ -871,7 +880,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "RVV generic multiply-accumulate construction requires explicit "
         "vector lhs, rhs, and accumulator loads; broadcast macc is not in this "
         "bounded slice");
-  if (isWidenI32ToI64 && !rhsSourceOperationName.empty())
+  if (isWideningConversion && !rhsSourceOperationName.empty())
     return makeRVVConstructionError(
         "RVV widening conversion construction must not carry an RHS source "
         "operation");
@@ -890,7 +899,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
                                      ? "src"
                                      : "lhs")),
                    0});
-  if (isWidenI32ToI64) {
+  if (isWideningConversion) {
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
                      "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
@@ -901,7 +910,9 @@ buildRVVSelectedBodyExecutableRoleSteps(
                      "n", 2});
     steps.push_back({"configure", "tcrv_rvv.setvl",
                      "rvv.role.configure.setvl", "TCRVConfigOpInterface",
-                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e64m2",
+                     "TCRVEmitCLowerableInterface",
+                     isWidenI16ToI32 ? "__riscv_vsetvl_e32m1"
+                                     : "__riscv_vsetvl_e64m2",
                      3});
     steps.push_back({"scope", "tcrv_rvv.with_vl",
                      "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
@@ -1714,6 +1725,12 @@ llvm::Error verifyRVVConstructionProtocolReady() {
               getRVVSelectedBodyWideningConversionRuntimeABIParameters();
       routeRuntimeABIParameters.append(conversionParameters.begin(),
                                        conversionParameters.end());
+    } else if (route.operationMnemonic == "widen_i16_to_i32") {
+      llvm::SmallVector<support::RuntimeABIParameter, 3> conversionParameters =
+          tcrv::rvv::
+              getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
+      routeRuntimeABIParameters.append(conversionParameters.begin(),
+                                       conversionParameters.end());
     } else {
       routeRuntimeABIParameters.append(runtimeABIParameters.begin(),
                                        runtimeABIParameters.end());
@@ -1841,7 +1858,8 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " multiply-accumulate cannot use generic tcrv_rvv.binary");
-  if (usesGenericBinary && route->operationMnemonic == "widen_i32_to_i64")
+  if (usesGenericBinary && (route->operationMnemonic == "widen_i32_to_i64" ||
+                            route->operationMnemonic == "widen_i16_to_i32"))
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " widening conversion cannot use generic tcrv_rvv.binary");
@@ -1903,6 +1921,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                  route->operationMnemonic == "masked_add" ||
                  route->operationMnemonic == "macc_add" ||
                  route->operationMnemonic == "widen_i32_to_i64" ||
+                 route->operationMnemonic == "widen_i16_to_i32" ||
                  route->operationMnemonic == "strided_load_unit_store" ||
                  route->operationMnemonic == "indexed_gather_unit_store" ||
                  route->operationMnemonic == "indexed_scatter_unit_load" ||
@@ -2021,6 +2040,11 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
   } else if (route->operationMnemonic == "widen_i32_to_i64") {
     llvm::SmallVector<support::RuntimeABIParameter, 3> conversionParameters =
         tcrv::rvv::getRVVSelectedBodyWideningConversionRuntimeABIParameters();
+    expectedParameters.append(conversionParameters.begin(),
+                              conversionParameters.end());
+  } else if (route->operationMnemonic == "widen_i16_to_i32") {
+    llvm::SmallVector<support::RuntimeABIParameter, 3> conversionParameters =
+        tcrv::rvv::getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
     expectedParameters.append(conversionParameters.begin(),
                               conversionParameters.end());
   } else {
@@ -2247,7 +2271,8 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
     return makeRVVConstructionError(
         "selected-body multiply-accumulate cannot use generic "
         "tcrv_rvv.binary");
-  if (usesGenericBinary && expected.operationMnemonic == "widen_i32_to_i64")
+  if (usesGenericBinary && (expected.operationMnemonic == "widen_i32_to_i64" ||
+                            expected.operationMnemonic == "widen_i16_to_i32"))
     return makeRVVConstructionError(
         "selected-body widening conversion cannot use generic "
         "tcrv_rvv.binary");
@@ -2300,6 +2325,7 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
                  expected.operationMnemonic == "masked_add" ||
                  expected.operationMnemonic == "macc_add" ||
                  expected.operationMnemonic == "widen_i32_to_i64" ||
+                 expected.operationMnemonic == "widen_i16_to_i32" ||
                  expected.operationMnemonic == "strided_load_unit_store" ||
                  expected.operationMnemonic == "indexed_gather_unit_store" ||
                  expected.operationMnemonic == "indexed_scatter_unit_load" ||

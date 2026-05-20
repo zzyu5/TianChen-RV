@@ -471,7 +471,8 @@ bool isSupportedTypedMAccPreRealizedResultLayout(llvm::StringRef layout) {
 
 bool isSupportedTypedWideningConversionPreRealizedBodyOpKind(
     llvm::StringRef opKind) {
-  return opKind == "widen_i32_to_i64";
+  return opKind == "widen_i32_to_i64" ||
+         opKind == "sign_extend_widen_vf2";
 }
 
 bool isSupportedTypedWideningConversionPreRealizedMemoryForm(
@@ -480,7 +481,26 @@ bool isSupportedTypedWideningConversionPreRealizedMemoryForm(
 }
 
 bool isSupportedTypedWideningConversionRelation(llvm::StringRef relation) {
-  return relation == "signed-i32m1-to-i64m2";
+  return relation == "signed-i32m1-to-i64m2" ||
+         relation == "signed-i16mf2-to-i32m1";
+}
+
+bool isSupportedTypedWideningConversionPreRealizedSignature(
+    llvm::StringRef opKind, std::int64_t sourceSEW,
+    llvm::StringRef sourceLMUL, std::int64_t destSEW,
+    llvm::StringRef destLMUL, llvm::StringRef relation) {
+  if (opKind == "widen_i32_to_i64")
+    return sourceSEW == getRVVFirstSliceSEWBits() &&
+           sourceLMUL == getRVVLMULM1() && destSEW == getRVVSEW64Bits() &&
+           destLMUL == getRVVLMULM2() &&
+           relation == "signed-i32m1-to-i64m2";
+  if (opKind == "sign_extend_widen_vf2")
+    return sourceSEW == getRVVSEW16Bits() &&
+           sourceLMUL == getRVVLMULMF2() &&
+           destSEW == getRVVFirstSliceSEWBits() &&
+           destLMUL == getRVVLMULM1() &&
+           relation == "signed-i16mf2-to-i32m1";
+  return false;
 }
 
 bool isSupportedTypedStridedMemoryPreRealizedBodyOpKind(
@@ -702,7 +722,8 @@ bool isSupportedGenericMAccResultLayout(llvm::StringRef layout) {
 }
 
 bool isSupportedGenericWideningConvertKind(llvm::StringRef kind) {
-  return kind == "widen_i32_to_i64";
+  return kind == "widen_i32_to_i64" ||
+         kind == "sign_extend_widen_vf2";
 }
 
 bool isSupportedGenericMoveKind(llvm::StringRef kind) {
@@ -811,7 +832,8 @@ bool isSupportedBoundedRuntimeABIValueCType(
   case Role::SourceInputBuffer:
   case Role::SegmentField0InputBuffer:
   case Role::SegmentField1InputBuffer:
-    return cType == "const int32_t *" || cType == "const int64_t *";
+    return cType == "const int16_t *" || cType == "const int32_t *" ||
+           cType == "const int64_t *";
   case Role::IndexInputBuffer:
     return cType == "const uint32_t *";
   case Role::MaskInputBuffer:
@@ -843,7 +865,7 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::SourceInputBuffer:
   case Role::SegmentField0InputBuffer:
   case Role::SegmentField1InputBuffer:
-    return "'const int32_t *' or 'const int64_t *'";
+    return "'const int16_t *', 'const int32_t *', or 'const int64_t *'";
   case Role::IndexInputBuffer:
     return "'const uint32_t *'";
   case Role::MaskInputBuffer:
@@ -1117,6 +1139,10 @@ bool isGenericRVVVectorI32M1(mlir::Type type) {
                                 getRVVLMULM1());
 }
 
+bool isGenericRVVVectorI16MF2(mlir::Type type) {
+  return isGenericRVVVectorType(type, getRVVSEW16Bits(), getRVVLMULMF2());
+}
+
 bool isGenericRVVVectorI64M2(mlir::Type type) {
   return isGenericRVVVectorType(type, getRVVSEW64Bits(), getRVVLMULM2());
 }
@@ -1332,11 +1358,16 @@ bool isBoundedWideningConversionSourceLoad(LoadOp load, WithVLOp withVL) {
   auto sew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
   auto lmul = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
   auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
-  if (!sew || !lmul || !policy ||
-      !isRVVSelectedBodyI64M2Config(sew.getInt(), lmul.getValue()) ||
-      !isRVVAgnosticPolicy(policy))
+  if (!sew || !lmul || !policy || !isRVVAgnosticPolicy(policy))
     return false;
-  if (!isGenericRVVVectorI32M1(load.getLoaded().getType()))
+
+  bool supportsOldI32ToI64 =
+      isRVVSelectedBodyI64M2Config(sew.getInt(), lmul.getValue()) &&
+      isGenericRVVVectorI32M1(load.getLoaded().getType());
+  bool supportsI16ToI32 =
+      isRVVSelectedBodyM1Config(sew.getInt(), lmul.getValue()) &&
+      isGenericRVVVectorI16MF2(load.getLoaded().getType());
+  if (!supportsOldI32ToI64 && !supportsI16ToI32)
     return false;
 
   bool hasWideningUse = false;
@@ -1344,8 +1375,12 @@ bool isBoundedWideningConversionSourceLoad(LoadOp load, WithVLOp withVL) {
     auto conversion = llvm::dyn_cast<WideningConvertOp>(user);
     if (!conversion || conversion->getParentOp() != withVL.getOperation() ||
         conversion.getSource() != load.getLoaded() ||
-        conversion.getVl() != load.getVl() ||
-        conversion.getKind() != "widen_i32_to_i64")
+        conversion.getVl() != load.getVl())
+      return false;
+    if (supportsOldI32ToI64 && conversion.getKind() != "widen_i32_to_i64")
+      return false;
+    if (supportsI16ToI32 &&
+        conversion.getKind() != "sign_extend_widen_vf2")
       return false;
     hasWideningUse = true;
   }
@@ -2372,30 +2407,33 @@ mlir::LogicalResult TypedWideningConversionPreRealizedBodyOp::verify() {
 
   if (!isSupportedTypedWideningConversionPreRealizedBodyOpKind(getOpKind()))
     return emitOpError()
-           << "currently supports only op_kind \"widen_i32_to_i64\" for the "
-              "bounded selected-body widening conversion hook";
+           << "currently supports only op_kind \"widen_i32_to_i64\" or "
+              "\"sign_extend_widen_vf2\" for the bounded selected-body "
+              "widening conversion hook";
   if (!isSupportedTypedWideningConversionPreRealizedMemoryForm(
           getMemoryForm()))
     return emitOpError()
            << "currently supports only memory_form "
               "\"unit-stride-conversion\" for the bounded selected-body "
               "widening conversion hook";
-  if (static_cast<std::int64_t>(getSourceSew()) !=
-          getRVVFirstSliceSEWBits() ||
-      getSourceLmul() != getRVVLMULM1())
-    return emitOpError()
-           << "requires source config to be SEW32 LMUL m1 for the bounded "
-              "i32-to-i64 widening conversion hook";
-  if (static_cast<std::int64_t>(getDestSew()) != getRVVSEW64Bits() ||
-      getDestLmul() != getRVVLMULM2())
-    return emitOpError()
-           << "requires destination config to be SEW64 LMUL m2 for the "
-              "bounded i32-to-i64 widening conversion hook";
   if (!isSupportedTypedWideningConversionRelation(getConversionRelation()))
     return emitOpError()
            << "currently supports only conversion_relation "
-              "\"signed-i32m1-to-i64m2\" for the bounded selected-body "
+              "\"signed-i32m1-to-i64m2\" or "
+              "\"signed-i16mf2-to-i32m1\" for the bounded selected-body "
               "widening conversion hook";
+  if (!isSupportedTypedWideningConversionPreRealizedSignature(
+          getOpKind(), static_cast<std::int64_t>(getSourceSew()),
+          getSourceLmul(), static_cast<std::int64_t>(getDestSew()),
+          getDestLmul(), getConversionRelation()))
+    return emitOpError()
+           << "requires typed widening conversion config/relation to match "
+              "either op_kind \"widen_i32_to_i64\" with source SEW32 LMUL "
+              "m1, destination SEW64 LMUL m2, and relation "
+              "\"signed-i32m1-to-i64m2\", or op_kind "
+              "\"sign_extend_widen_vf2\" with source SEW16 LMUL mf2, "
+              "destination SEW32 LMUL m1, and relation "
+              "\"signed-i16mf2-to-i32m1\"";
   if (!isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "
@@ -2409,6 +2447,21 @@ mlir::LogicalResult TypedWideningConversionPreRealizedBodyOp::verify() {
           op, getOut(), "out",
           {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
+  llvm::StringRef expectedLhsCType =
+      getOpKind() == "sign_extend_widen_vf2" ? "const int16_t *"
+                                             : "const int32_t *";
+  llvm::StringRef expectedOutCType =
+      getOpKind() == "sign_extend_widen_vf2" ? "int32_t *" : "int64_t *";
+  if (!lhsBinding || lhsBinding.getCType() != expectedLhsCType)
+    return emitOpError()
+           << "requires lhs operand C type '" << expectedLhsCType
+           << "' to match typed widening conversion source dtype";
+  if (!outBinding || outBinding.getCType() != expectedOutCType)
+    return emitOpError()
+           << "requires out operand C type '" << expectedOutCType
+           << "' to match typed widening conversion result dtype";
   return verifyRuntimeElementCountOperand(op, getN());
 }
 
@@ -4003,8 +4056,9 @@ mlir::LogicalResult WideningConvertOp::verify() {
 
   if (!isSupportedGenericWideningConvertKind(getKind()))
     return emitOpError()
-           << "currently supports only kind \"widen_i32_to_i64\" for the "
-              "bounded Stage 2 widening conversion route";
+           << "currently supports only kind \"widen_i32_to_i64\" or "
+              "\"sign_extend_widen_vf2\" for the bounded Stage 2 widening "
+              "conversion routes";
 
   if (op->getNumOperands() != 2 || op->getNumResults() != 1)
     return emitOpError()
@@ -4020,17 +4074,6 @@ mlir::LogicalResult WideningConvertOp::verify() {
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
 
-  if (!isGenericRVVVectorI32M1(getSource().getType()))
-    return emitOpError()
-           << "requires source vector type to be "
-              "!tcrv_rvv.vector<i32, \"m1\"> for the bounded signed "
-              "i32-to-i64 widening conversion route";
-  if (!isGenericRVVVectorI64M2(getResult().getType()))
-    return emitOpError()
-           << "requires result vector type to be "
-              "!tcrv_rvv.vector<i64, \"m2\"> for the bounded signed "
-              "i32-to-i64 widening conversion route";
-
   auto expectedSEW =
       (*withVL)->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
   auto expectedLMUL =
@@ -4039,12 +4082,42 @@ mlir::LogicalResult WideningConvertOp::verify() {
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit "
               "destination SEW/LMUL metadata for widening conversion";
-  if (!isRVVSelectedBodyI64M2Config(expectedSEW.getInt(),
-                                    expectedLMUL.getValue()))
-    return emitOpError()
-           << "requires enclosing tcrv_rvv.with_vl destination config to be "
-              "SEW64 LMUL m2 for the bounded signed i32-to-i64 widening "
-              "conversion route";
+
+  if (getKind() == "widen_i32_to_i64") {
+    if (!isGenericRVVVectorI32M1(getSource().getType()))
+      return emitOpError()
+             << "requires source vector type to be "
+                "!tcrv_rvv.vector<i32, \"m1\"> for the bounded signed "
+                "i32-to-i64 widening conversion route";
+    if (!isGenericRVVVectorI64M2(getResult().getType()))
+      return emitOpError()
+             << "requires result vector type to be "
+                "!tcrv_rvv.vector<i64, \"m2\"> for the bounded signed "
+                "i32-to-i64 widening conversion route";
+    if (!isRVVSelectedBodyI64M2Config(expectedSEW.getInt(),
+                                      expectedLMUL.getValue()))
+      return emitOpError()
+             << "requires enclosing tcrv_rvv.with_vl destination config to "
+                "be SEW64 LMUL m2 for the bounded signed i32-to-i64 "
+                "widening conversion route";
+  } else {
+    if (!isGenericRVVVectorI16MF2(getSource().getType()))
+      return emitOpError()
+             << "requires source vector type to be "
+                "!tcrv_rvv.vector<i16, \"mf2\"> for the bounded signed "
+                "i16-to-i32 widening conversion route";
+    if (!isGenericRVVVectorI32M1(getResult().getType()))
+      return emitOpError()
+             << "requires result vector type to be "
+                "!tcrv_rvv.vector<i32, \"m1\"> for the bounded signed "
+                "i16-to-i32 widening conversion route";
+    if (!isRVVSelectedBodyM1Config(expectedSEW.getInt(),
+                                   expectedLMUL.getValue()))
+      return emitOpError()
+             << "requires enclosing tcrv_rvv.with_vl destination config to "
+                "be SEW32 LMUL m1 for the bounded signed i16-to-i32 "
+                "widening conversion route";
+  }
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "

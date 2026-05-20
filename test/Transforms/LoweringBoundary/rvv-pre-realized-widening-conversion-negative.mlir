@@ -8,7 +8,7 @@ module {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int64_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      // expected-error@+1 {{currently supports only op_kind "widen_i32_to_i64"}}
+      // expected-error@+1 {{currently supports only op_kind "widen_i32_to_i64" or "sign_extend_widen_vf2"}}
       tcrv_rvv.typed_widening_conversion_pre_realized_body %lhs, %out, %n {conversion_relation = "signed-i32m1-to-i64m2", dest_lmul = "m2", dest_sew = 64 : i64, memory_form = "unit-stride-conversion", op_kind = "extend_i16_to_i32", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, source_lmul = "m1", source_sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @pre_realized_widen_reject_operation_scalar attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
@@ -52,7 +52,7 @@ module {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int64_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      // expected-error@+1 {{requires source config to be SEW32 LMUL m1}}
+      // expected-error@+1 {{requires typed widening conversion config/relation to match either op_kind "widen_i32_to_i64" with source SEW32 LMUL m1, destination SEW64 LMUL m2, and relation "signed-i32m1-to-i64m2", or op_kind "sign_extend_widen_vf2" with source SEW16 LMUL mf2, destination SEW32 LMUL m1, and relation "signed-i16mf2-to-i32m1"}}
       tcrv_rvv.typed_widening_conversion_pre_realized_body %lhs, %out, %n {conversion_relation = "signed-i32m1-to-i64m2", dest_lmul = "m2", dest_sew = 64 : i64, memory_form = "unit-stride-conversion", op_kind = "widen_i32_to_i64", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, source_lmul = "m2", source_sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @pre_realized_widen_reject_source_config_scalar attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
@@ -74,7 +74,7 @@ module {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int64_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      // expected-error@+1 {{requires destination config to be SEW64 LMUL m2}}
+      // expected-error@+1 {{requires typed widening conversion config/relation to match either op_kind "widen_i32_to_i64" with source SEW32 LMUL m1, destination SEW64 LMUL m2, and relation "signed-i32m1-to-i64m2", or op_kind "sign_extend_widen_vf2" with source SEW16 LMUL mf2, destination SEW32 LMUL m1, and relation "signed-i16mf2-to-i32m1"}}
       tcrv_rvv.typed_widening_conversion_pre_realized_body %lhs, %out, %n {conversion_relation = "signed-i32m1-to-i64m2", dest_lmul = "m1", dest_sew = 64 : i64, memory_form = "unit-stride-conversion", op_kind = "widen_i32_to_i64", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, source_lmul = "m1", source_sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @pre_realized_widen_reject_dest_config_scalar attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
@@ -96,7 +96,7 @@ module {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int64_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      // expected-error@+1 {{currently supports only conversion_relation "signed-i32m1-to-i64m2"}}
+      // expected-error@+1 {{currently supports only conversion_relation "signed-i32m1-to-i64m2" or "signed-i16mf2-to-i32m1"}}
       tcrv_rvv.typed_widening_conversion_pre_realized_body %lhs, %out, %n {conversion_relation = "unsigned-i32m1-to-i64m2", dest_lmul = "m2", dest_sew = 64 : i64, memory_form = "unit-stride-conversion", op_kind = "widen_i32_to_i64", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, source_lmul = "m1", source_sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @pre_realized_widen_reject_relation_scalar attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
@@ -126,6 +126,72 @@ module {
     tcrv.exec.dispatch {
       tcrv.exec.case @pre_realized_widen_reject_policy {origin = "rvv-plugin"}
       tcrv.exec.fallback @pre_realized_widen_reject_policy_scalar {origin = "scalar-plugin"}
+    }
+  }
+}
+
+// -----
+
+module {
+  tcrv.exec.kernel @pre_realized_widen_i16_to_i32_reject_config_pair_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @pre_realized_widen_i16_to_i32_reject_config_pair attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      // expected-error@+1 {{requires typed widening conversion config/relation to match either op_kind "widen_i32_to_i64" with source SEW32 LMUL m1, destination SEW64 LMUL m2, and relation "signed-i32m1-to-i64m2", or op_kind "sign_extend_widen_vf2" with source SEW16 LMUL mf2, destination SEW32 LMUL m1, and relation "signed-i16mf2-to-i32m1"}}
+      tcrv_rvv.typed_widening_conversion_pre_realized_body %lhs, %out, %n {conversion_relation = "signed-i16mf2-to-i32m1", dest_lmul = "m1", dest_sew = 32 : i64, memory_form = "unit-stride-conversion", op_kind = "sign_extend_widen_vf2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, source_lmul = "m1", source_sew = 16 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @pre_realized_widen_i16_to_i32_reject_config_pair_scalar attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @pre_realized_widen_i16_to_i32_reject_config_pair {origin = "rvv-plugin"}
+      tcrv.exec.fallback @pre_realized_widen_i16_to_i32_reject_config_pair_scalar {origin = "scalar-plugin"}
+    }
+  }
+}
+
+// -----
+
+module {
+  tcrv.exec.kernel @pre_realized_widen_i16_to_i32_reject_lhs_ctype_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @pre_realized_widen_i16_to_i32_reject_lhs_ctype attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      // expected-error@+1 {{requires lhs operand C type 'const int16_t *' to match typed widening conversion source dtype}}
+      tcrv_rvv.typed_widening_conversion_pre_realized_body %lhs, %out, %n {conversion_relation = "signed-i16mf2-to-i32m1", dest_lmul = "m1", dest_sew = 32 : i64, memory_form = "unit-stride-conversion", op_kind = "sign_extend_widen_vf2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, source_lmul = "mf2", source_sew = 16 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @pre_realized_widen_i16_to_i32_reject_lhs_ctype_scalar attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @pre_realized_widen_i16_to_i32_reject_lhs_ctype {origin = "rvv-plugin"}
+      tcrv.exec.fallback @pre_realized_widen_i16_to_i32_reject_lhs_ctype_scalar {origin = "scalar-plugin"}
+    }
+  }
+}
+
+// -----
+
+module {
+  tcrv.exec.kernel @pre_realized_widen_i16_to_i32_reject_out_ctype_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @pre_realized_widen_i16_to_i32_reject_out_ctype attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int64_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      // expected-error@+1 {{requires out operand C type 'int32_t *' to match typed widening conversion result dtype}}
+      tcrv_rvv.typed_widening_conversion_pre_realized_body %lhs, %out, %n {conversion_relation = "signed-i16mf2-to-i32m1", dest_lmul = "m1", dest_sew = 32 : i64, memory_form = "unit-stride-conversion", op_kind = "sign_extend_widen_vf2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, source_lmul = "mf2", source_sew = 16 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @pre_realized_widen_i16_to_i32_reject_out_ctype_scalar attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @pre_realized_widen_i16_to_i32_reject_out_ctype {origin = "rvv-plugin"}
+      tcrv.exec.fallback @pre_realized_widen_i16_to_i32_reject_out_ctype_scalar {origin = "scalar-plugin"}
     }
   }
 }

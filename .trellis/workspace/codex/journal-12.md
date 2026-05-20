@@ -48,6 +48,57 @@ Implemented bounded i32 SEW32 LMUL m1 masked unit-stride memory movement with ty
 - None - task complete
 
 
+## Session 144: Stage2 RVV widening integer conversion executable slice
+
+**Date**: 2026-05-20
+**Task**: Stage2 RVV widening integer conversion executable slice
+**Branch**: `main`
+
+### Summary
+
+Implemented one bounded signed `i16mf2 -> i32m1` RVV widening sign-extension
+slice through typed pre-realized body facts, selected-body realization,
+provider-owned route planning, generated bundle emission, and real `ssh rvv`
+correctness evidence.
+
+### Main Changes
+
+- Added SEW16/LMUL mf2 config helpers and the `lhs: const int16_t *`, `out:
+  int32_t *`, `n: size_t` runtime ABI triplet for the new widening slice.
+- Extended RVV dialect verification and selected-body realization for
+  `sign_extend_widen_vf2` / `signed-i16mf2-to-i32m1`, including explicit C type
+  checks for source/result ABI dtype mismatch.
+- Extended RVV construction metadata, route planning/provider classification,
+  conversion intrinsic derivation, source vector type/load intrinsic metadata,
+  and generated-bundle script expectations for `widen_i16_to_i32`.
+- Added positive MLIR/script fixtures and fail-closed tests for unsupported
+  kind, invalid SEW/LMUL relation, source/result C type mismatch, missing
+  runtime role, stale route-id authority, and route/materialization metadata.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-construction-protocol-common-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `./build/bin/tianchenrv-construction-protocol-common-test && ./build/bin/tianchenrv-target-artifact-export-test && ./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused `tcrv-opt` verifier/materialization checks for the new
+  generic/pre-realized widening fixtures.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 232/232 passed
+- [OK] Generated-bundle dry-run for `widen_i16_to_i32`, counts `7,16,23`
+- [OK] `ssh rvv` generated-bundle harness PASS for counts `7,16,23`, with
+  `sign_extension_checked tail_preserved`
+- [OK] New SSH evidence active-authority scan returned no forbidden
+  legacy/source/descriptor/direct-C/source-export tokens
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 144: Stage2 RVV runtime scalar broadcast current-head validation
 
 **Date**: 2026-05-20

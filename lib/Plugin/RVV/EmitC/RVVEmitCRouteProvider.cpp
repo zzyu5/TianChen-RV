@@ -36,7 +36,8 @@ bool isRVVSelectedBodyReductionRoute(RVVSelectedBodyOperationKind op) {
 }
 
 bool isRVVSelectedBodyWideningConversionRoute(RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::WidenI32ToI64;
+  return op == RVVSelectedBodyOperationKind::WidenI32ToI64 ||
+         op == RVVSelectedBodyOperationKind::WidenI16ToI32;
 }
 
 bool isRVVSelectedBodyMaskedMemoryMovementRoute(

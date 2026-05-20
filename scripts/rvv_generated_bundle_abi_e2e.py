@@ -60,6 +60,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "i64_add",
     "lmul_m2_add",
     "widen_i32_to_i64",
+    "widen_i16_to_i32",
 )
 REDUCE_ADD_ACCUMULATOR_LAYOUT = "rhs-vector-seed-lane0-per-vl-chunk"
 REDUCE_ADD_RESULT_LAYOUT = "store-reduction-lane0-to-output-chunk-base"
@@ -76,6 +77,7 @@ UNIT_LOAD_STRIDED_STORE_RUNTIME_ABI_ORDER = "src,dst,n,dst_stride"
 SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,out,n"
 WIDENING_CONVERSION_RUNTIME_ABI_ORDER = "lhs,out,n"
 WIDENING_CONVERSION_RELATION = "signed-i32m1-to-i64m2"
+WIDEN_I16_TO_I32_CONVERSION_RELATION = "signed-i16mf2-to-i32m1"
 STRIDED_ADD_MEMORY_LAYOUT = "element-strided-lhs-rhs-output-runtime-abi"
 STRIDED_ADD_LHS_STRIDE_SOURCE = "runtime_abi:lhs_stride"
 STRIDED_ADD_RHS_STRIDE_SOURCE = "runtime_abi:rhs_stride"
@@ -255,6 +257,11 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *lhs, "
                 "int64_t *out, size_t n);"
             )
+        if self.is_widen_i16_to_i32:
+            return (
+                f"void {self.function_name}(const int16_t *lhs, "
+                "int32_t *out, size_t n);"
+            )
         return (
             f"void {self.function_name}(const {self.element_c_type} *lhs, "
             f"const {self.element_c_type} *rhs, "
@@ -287,6 +294,8 @@ class OpExpectation:
             return EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS
         if self.is_widen_i32_to_i64:
             return EXPECTED_WIDENING_CONVERSION_RUNTIME_PARAMETERS
+        if self.is_widen_i16_to_i32:
+            return EXPECTED_WIDEN_I16_TO_I32_RUNTIME_PARAMETERS
         if self.is_i64_add:
             return EXPECTED_I64_RUNTIME_PARAMETERS
         return EXPECTED_RUNTIME_PARAMETERS
@@ -321,7 +330,7 @@ class OpExpectation:
             return SEGMENT2_INTERLEAVE_RUNTIME_ABI_ORDER
         if self.is_scalar_broadcast_add:
             return SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER
-        if self.is_widen_i32_to_i64:
+        if self.is_widen_i32_to_i64 or self.is_widen_i16_to_i32:
             return WIDENING_CONVERSION_RUNTIME_ABI_ORDER
         return "lhs,rhs,out,n"
 
@@ -408,6 +417,10 @@ class OpExpectation:
     @property
     def is_widen_i32_to_i64(self) -> bool:
         return self.kind == "widen_i32_to_i64"
+
+    @property
+    def is_widen_i16_to_i32(self) -> bool:
+        return self.kind == "widen_i16_to_i32"
 
 
 EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
@@ -917,6 +930,27 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         config_contract="rvv-selected-body-sew64-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew64-lmul-m2",
     ),
+    "widen_i16_to_i32": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
+        kind="widen_i16_to_i32",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-widen-i16-to-i32.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_widen_i16_to_i32",
+        external_abi_name="rvv-generic-widen-i16-to-i32-callable-c-abi.v1",
+        function_name="tcrv_emitc_pre_realized_body_widen_i16_to_i32_kernel_pre_realized_body_rvv_widen_i16_to_i32",
+        emitc_route="rvv-generic-widen-i16-to-i32-emitc-route",
+        typed_compute_op="tcrv_rvv.widening_convert",
+        memory_form="unit-stride-conversion",
+        lhs_initializer="(int16_t)(((index % 2) == 0) ? -((int)(index % 127) + 1) : ((int)(index % 127) + 1))",
+        rhs_initializer="unused",
+        expected_expression="(int32_t)lhs[index]",
+        out_initializer=OUT_SENTINEL,
+        lmul="m1",
+        sew="32",
+        element_c_type="int32_t",
+        config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
+    ),
 }
 
 EXPECTED_RUNTIME_PARAMETERS = (
@@ -1230,6 +1264,21 @@ EXPECTED_WIDENING_CONVERSION_RUNTIME_PARAMETERS = (
     {
         "c_name": "out",
         "c_type": "int64_t *",
+        "role": "output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_RUNTIME_PARAMETERS[3],
+)
+EXPECTED_WIDEN_I16_TO_I32_RUNTIME_PARAMETERS = (
+    {
+        "c_name": "lhs",
+        "c_type": "const int16_t *",
+        "role": "lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "out",
+        "c_type": "int32_t *",
         "role": "output-buffer",
         "ownership": "target-export-abi-owned",
     },
@@ -1841,6 +1890,16 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.conversion_relation": WIDENING_CONVERSION_RELATION,
             }
         )
+    if expectation.is_widen_i16_to_i32:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.source_sew": "16",
+                "tcrv_rvv.source_lmul": "mf2",
+                "tcrv_rvv.dest_sew": "32",
+                "tcrv_rvv.dest_lmul": "m1",
+                "tcrv_rvv.conversion_relation": WIDEN_I16_TO_I32_CONVERSION_RELATION,
+            }
+        )
     return {**per_op_metadata, **common_metadata}
 
 
@@ -2050,6 +2109,22 @@ def verify_materialized_selected_body(
             text,
             "tcrv_rvv.widening_convert",
             "materialized selected-body MLIR widening conversion compute op",
+        )
+    if expectation.is_widen_i16_to_i32:
+        require_contains(
+            text,
+            '!tcrv_rvv.vector<i16, "mf2">',
+            "materialized selected-body MLIR i16mf2 widening conversion source vector type",
+        )
+        require_contains(
+            text,
+            '!tcrv_rvv.vector<i32, "m1">',
+            "materialized selected-body MLIR i32m1 widening conversion result vector type",
+        )
+        require_contains(
+            text,
+            'kind = "sign_extend_widen_vf2"',
+            "materialized selected-body MLIR sign-extend widening conversion kind",
         )
     if expectation.is_rhs_broadcast:
         require_contains(
@@ -3854,6 +3929,101 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
+    if expectation.is_widen_i16_to_i32:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n + 5;
+  if (alloc_n == 5 && n == 0)
+    alloc_n = 6;
+  int16_t *lhs = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  if (!lhs || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(lhs);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    lhs[index] = {expectation.lhs_initializer};
+    out[index] = {expectation.out_initializer};
+  }}
+
+  {expectation.function_name}(lhs, out, n);
+
+  size_t negative_lanes = 0;
+  size_t positive_lanes = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    int32_t expected = {expectation.expected_expression};
+    if (lhs[index] < 0)
+      ++negative_lanes;
+    if (lhs[index] > 0)
+      ++positive_lanes;
+    if (out[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d lhs=%d\\n",
+              n, index, out[index], expected, lhs[index]);
+      free(lhs);
+      free(out);
+      return 12;
+    }}
+    if (lhs[index] < 0 && out[index] >= 0) {{
+      fprintf(stderr,
+              "{expectation.kind} sign-extension failed n=%zu index=%zu lhs=%d out=%d\\n",
+              n, index, lhs[index], out[index]);
+      free(lhs);
+      free(out);
+      return 13;
+    }}
+  }}
+
+  for (size_t index = n; index < alloc_n; ++index) {{
+    if (out[index] != {expectation.out_initializer}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
+              n, index, out[index], {expectation.out_initializer});
+      free(lhs);
+      free(out);
+      return 14;
+    }}
+  }}
+
+  if (n > 1 && (negative_lanes == 0 || positive_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} sign-extension coverage missing n=%zu negative_lanes=%zu positive_lanes=%zu\\n",
+            n, negative_lanes, positive_lanes);
+    free(lhs);
+    free(out);
+    return 15;
+  }}
+
+  free(lhs);
+  free(out);
+  printf("{expectation.kind} case n=%zu ok sign_extension_checked tail_preserved\\n", n);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_cmp_select:
         return f"""
 #include <stddef.h>
@@ -5022,7 +5192,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "computed_masked_strided_store/"
             "segment2_deinterleave_unit_store/"
             "segment2_interleave_unit_load/"
-            "lmul_m2_add/widen_i32_to_i64 "
+            "lmul_m2_add/widen_i32_to_i64/widen_i16_to_i32 "
             "fixtures and run public selected lowering-boundary "
             "materialization before emission planning; mutually exclusive "
             "with --rhs-broadcast-selected-body and --lmul-m2-selected-body"

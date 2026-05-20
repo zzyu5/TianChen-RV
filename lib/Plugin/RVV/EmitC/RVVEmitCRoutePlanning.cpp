@@ -148,6 +148,8 @@ constexpr llvm::StringLiteral kRVVIndexedScatterIndexUniqueness("unique");
 constexpr llvm::StringLiteral kRVVDestinationMemoryForm("unit-stride-store");
 constexpr llvm::StringLiteral kRVVWideningConversionRelation(
     "signed-i32m1-to-i64m2");
+constexpr llvm::StringLiteral kRVVWidenI16ToI32ConversionRelation(
+    "signed-i16mf2-to-i32m1");
 
 struct RVVSelectedBodyOperationProfile {
   RVVSelectedBodyOperationKind operation;
@@ -226,7 +228,8 @@ constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore,
     RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad,
     RVVSelectedBodyOperationKind::ScalarBroadcastAdd,
-    RVVSelectedBodyOperationKind::WidenI32ToI64};
+    RVVSelectedBodyOperationKind::WidenI32ToI64,
+    RVVSelectedBodyOperationKind::WidenI16ToI32};
 
 const RVVSelectedBodyOperationProfile &
 getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
@@ -396,6 +399,14 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
       /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
       /*isSegmentedMemoryMovement=*/false,
       /*isWideningConversion=*/true};
+  static const RVVSelectedBodyOperationProfile kWidenI16ToI32 = {
+      RVVSelectedBodyOperationKind::WidenI16ToI32, "widen_i16_to_i32",
+      "widened_vec", "", /*isCompareSelect=*/false, /*isReduction=*/false,
+      /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
+      /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
+      /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+      /*isSegmentedMemoryMovement=*/false,
+      /*isWideningConversion=*/true};
 
   switch (op) {
   case RVVSelectedBodyOperationKind::Add:
@@ -436,6 +447,8 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
     return kScalarBroadcastAdd;
   case RVVSelectedBodyOperationKind::WidenI32ToI64:
     return kWidenI32ToI64;
+  case RVVSelectedBodyOperationKind::WidenI16ToI32:
+    return kWidenI16ToI32;
   }
   llvm_unreachable("unknown RVV selected-body operation");
 }
@@ -641,6 +654,7 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
     llvm_unreachable(
         "segment2 memory movement uses load/tuple/store leaves only");
   case RVVSelectedBodyOperationKind::WidenI32ToI64:
+  case RVVSelectedBodyOperationKind::WidenI16ToI32:
     llvm_unreachable("widening conversion uses dedicated conversion leaf");
   }
   llvm_unreachable("unknown RVV selected-body operation");
@@ -654,6 +668,12 @@ llvm::StringRef getRVVSelectedBodyWideningConversionIntrinsic(
       description.lmul == tcrv::rvv::getRVVLMULM2() &&
       description.conversionRelation == kRVVWideningConversionRelation)
     return "__riscv_vwcvt_x_x_v_i64m2";
+  if (description.sourceSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      description.sourceLMUL == tcrv::rvv::getRVVLMULMF2() &&
+      description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      description.lmul == tcrv::rvv::getRVVLMULM1() &&
+      description.conversionRelation == kRVVWidenI16ToI32ConversionRelation)
+    return "__riscv_vwcvt_x_x_v_i32m1";
   return {};
 }
 
@@ -1061,10 +1081,16 @@ llvm::Error validateRVVSelectedBodyIndexVectorTypeAgainstConfig(
 llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     const RVVSelectedBodyRouteSlice &slice,
     const tcrv::rvv::RVVCompileTimeConfig &config) {
-  if (slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI32ToI64) {
+  if (slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI32ToI64 ||
+      slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI16ToI32) {
     tcrv::rvv::RVVCompileTimeConfig sourceConfig;
-    sourceConfig.sew = tcrv::rvv::getRVVFirstSliceSEWBits();
-    sourceConfig.lmul = tcrv::rvv::getRVVLMULM1();
+    if (slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI16ToI32) {
+      sourceConfig.sew = tcrv::rvv::getRVVSEW16Bits();
+      sourceConfig.lmul = tcrv::rvv::getRVVLMULMF2();
+    } else {
+      sourceConfig.sew = tcrv::rvv::getRVVFirstSliceSEWBits();
+      sourceConfig.lmul = tcrv::rvv::getRVVLMULM1();
+    }
     sourceConfig.policy = config.policy;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.lhsValue, "conversion source vector", sourceConfig))
@@ -2005,13 +2031,17 @@ llvm::Error recordRVVSelectedBodyWideningConvert(
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
-  if (conversion.getKind() != "widen_i32_to_i64")
+  if (conversion.getKind() != "widen_i32_to_i64" &&
+      conversion.getKind() != "sign_extend_widen_vf2")
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic tcrv_rvv.widening_convert kind '") +
         conversion.getKind() + "' for bounded RVV widening conversion route");
   slice.wideningConvertOp = conversion;
   slice.arithmeticOp = conversion.getOperation();
-  slice.arithmeticKind = RVVSelectedBodyOperationKind::WidenI32ToI64;
+  slice.arithmeticKind =
+      conversion.getKind() == "sign_extend_widen_vf2"
+          ? RVVSelectedBodyOperationKind::WidenI16ToI32
+          : RVVSelectedBodyOperationKind::WidenI32ToI64;
   slice.conversionSource = conversion.getSource();
   slice.arithmeticLhs = conversion.getSource();
   slice.arithmeticResult = conversion.getResult();
@@ -2380,9 +2410,10 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       slice.arithmeticOp &&
       slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
-  const bool isWidenI32ToI64 =
+  const bool isWideningConversion =
       slice.arithmeticOp &&
-      slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI32ToI64;
+      (slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI32ToI64 ||
+       slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI16ToI32);
   const bool hasScalarBroadcast = !genericScalarSplats.empty();
   if (hasIndexedMemory && isIndexedGatherUnitStore &&
       (!genericStridedLoads.empty() || stridedStoreCount != 0 ||
@@ -2439,7 +2470,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided route supports only add in this slice, "
         "not multiply-accumulate");
-  if (hasStridedMemory && isWidenI32ToI64)
+  if (hasStridedMemory && isWideningConversion)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV widening conversion route requires unit-stride "
         "source load and destination store");
@@ -2523,7 +2554,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed scatter route requires exactly one "
         "tcrv_rvv.indexed_store op");
-  if (hasIndexedMemory && (isMAccAdd || isWidenI32ToI64 || isCompareSelect ||
+  if (hasIndexedMemory && (isMAccAdd || isWideningConversion || isCompareSelect ||
                            isMaskedAdd || isReduction))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed memory route supports only "
@@ -2536,7 +2567,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        !genericBroadcastLoads.empty() ||
        hasScalarBroadcast || hasSegmentedMemory || slice.maskedBinaryOp ||
        slice.selectOp ||
-       slice.reduceOp || slice.maccOp || isWidenI32ToI64))
+       slice.reduceOp || slice.maccOp || isWideningConversion))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV masked memory route supports only runtime-mask "
         "unit-stride load/mask_load/old-destination-load/masked_move/store "
@@ -2549,7 +2580,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        !genericSegment2Stores.empty() ||
        stridedStoreCount != 0 || genericIndexedStores.size() != 0 ||
        slice.maskedBinaryOp || slice.selectOp || slice.reduceOp ||
-       slice.maccOp || slice.compareOp || isWidenI32ToI64))
+       slice.maccOp || slice.compareOp || isWideningConversion))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 deinterleave route supports only "
         "segment2_load/field0 move/field1 move/field0 store/field1 store "
@@ -2560,7 +2591,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        hasScalarBroadcast || stridedStoreCount != 0 ||
        genericIndexedStores.size() != 0 || storeCount != 0 ||
        slice.maskedBinaryOp || slice.selectOp || slice.reduceOp ||
-       slice.maccOp || slice.compareOp || isWidenI32ToI64))
+       slice.maccOp || slice.compareOp || isWideningConversion))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 interleave route supports only "
         "field0 load/field1 load/segment2_store memory movement in this "
@@ -2653,7 +2684,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "bounded generic RVV multiply-accumulate route requires explicit "
         "vector lhs, rhs, and accumulator loads; broadcast/splat macc is not "
         "in this bounded slice");
-  if (isWidenI32ToI64 && hasRHSBroadcastLike)
+  if (isWideningConversion && hasRHSBroadcastLike)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV widening conversion route does not consume an "
         "RHS broadcast or scalar splat");
@@ -2667,12 +2698,13 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV scalar-broadcast route currently requires "
         "exactly one tcrv_rvv.binary {kind = \"add\"} compute op");
-  if (isWidenI32ToI64 && genericLoads.size() != 1)
+  if (isWideningConversion && genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV widening conversion route requires exactly one "
         "tcrv_rvv.load source op");
-  if (isWidenI32ToI64 && (slice.compareOp || slice.maskedBinaryOp ||
-                          slice.selectOp || slice.reduceOp || slice.maccOp))
+  if (isWideningConversion &&
+      (slice.compareOp || slice.maskedBinaryOp || slice.selectOp ||
+       slice.reduceOp || slice.maccOp))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV widening conversion route cannot mix "
         "compare/select/masked/reduce/macc compute ops");
@@ -2682,7 +2714,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       !isComputedMaskUnitLoadStore &&
       !isComputedMaskStridedStore &&
       !hasRHSBroadcastLike &&
-      !isWidenI32ToI64 &&
+      !isWideningConversion &&
       genericLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV vector-load route requires exactly two "
@@ -2752,7 +2784,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "and accumulator loads; broadcast/splat reduction is not in this "
         "bounded slice");
   const unsigned expectedRVVOps =
-      isWidenI32ToI64
+      isWideningConversion
           ? 8
       : isSegment2DeinterleaveUnitStore
           ? 11
@@ -3001,7 +3033,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   }
 
   if (!slice.lhsLoadOperation ||
-      (!isWidenI32ToI64 && !isStridedLoadUnitStore &&
+      (!isWideningConversion && !isStridedLoadUnitStore &&
        !isUnitLoadStridedStore &&
        !isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
        !isMaskedUnitLoadStore &&
@@ -3194,7 +3226,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "bounded generic RVV multiply-accumulate route requires "
           "tcrv_rvv.macc to consume lhs/rhs generic load results and the "
           "output-buffer accumulator load result");
-  } else if (isWidenI32ToI64) {
+  } else if (isWideningConversion) {
     if (slice.conversionSource != slice.lhsValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV widening conversion route requires "
@@ -3964,12 +3996,27 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.multiVL = configContract.multiVL;
   if (analysis.slice.memoryForm ==
       RVVSelectedBodyMemoryForm::UnitStrideConversion) {
-    analysis.description.sourceSEW = tcrv::rvv::getRVVFirstSliceSEWBits();
-    analysis.description.sourceLMUL = tcrv::rvv::getRVVLMULM1();
-    analysis.description.sourceVectorTypeName = "!tcrv_rvv.vector<i32, \"m1\">";
-    analysis.description.sourceVectorCType = "vint32m1_t";
-    analysis.description.sourceVectorLoadIntrinsic = "__riscv_vle32_v_i32m1";
-    analysis.description.conversionRelation = kRVVWideningConversionRelation;
+    if (analysis.slice.arithmeticKind ==
+        RVVSelectedBodyOperationKind::WidenI16ToI32) {
+      analysis.description.sourceSEW = tcrv::rvv::getRVVSEW16Bits();
+      analysis.description.sourceLMUL = tcrv::rvv::getRVVLMULMF2();
+      analysis.description.sourceVectorTypeName =
+          "!tcrv_rvv.vector<i16, \"mf2\">";
+      analysis.description.sourceVectorCType = "vint16mf2_t";
+      analysis.description.sourceVectorLoadIntrinsic =
+          "__riscv_vle16_v_i16mf2";
+      analysis.description.conversionRelation =
+          kRVVWidenI16ToI32ConversionRelation;
+    } else {
+      analysis.description.sourceSEW = tcrv::rvv::getRVVFirstSliceSEWBits();
+      analysis.description.sourceLMUL = tcrv::rvv::getRVVLMULM1();
+      analysis.description.sourceVectorTypeName =
+          "!tcrv_rvv.vector<i32, \"m1\">";
+      analysis.description.sourceVectorCType = "vint32m1_t";
+      analysis.description.sourceVectorLoadIntrinsic =
+          "__riscv_vle32_v_i32m1";
+      analysis.description.conversionRelation = kRVVWideningConversionRelation;
+    }
   }
   analysis.description.boundaryOpName = kRVVSelectedBodyLoweringBoundaryOpName;
   analysis.description.targetArtifactRouteID =
@@ -4610,31 +4657,50 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
   }
   if (operationProfile.isWideningConversion) {
-    if (description.sourceSEW != tcrv::rvv::getRVVFirstSliceSEWBits())
+    const bool isI16ToI32 =
+        operationProfile.operation == RVVSelectedBodyOperationKind::WidenI16ToI32;
+    std::int64_t expectedSourceSEW =
+        isI16ToI32 ? tcrv::rvv::getRVVSEW16Bits()
+                   : tcrv::rvv::getRVVFirstSliceSEWBits();
+    llvm::StringRef expectedSourceLMUL =
+        isI16ToI32 ? tcrv::rvv::getRVVLMULMF2()
+                   : tcrv::rvv::getRVVLMULM1();
+    llvm::StringRef expectedSourceVectorType =
+        isI16ToI32 ? "!tcrv_rvv.vector<i16, \"mf2\">"
+                   : "!tcrv_rvv.vector<i32, \"m1\">";
+    llvm::StringRef expectedSourceVectorCType =
+        isI16ToI32 ? "vint16mf2_t" : "vint32m1_t";
+    llvm::StringRef expectedSourceLoadIntrinsic =
+        isI16ToI32 ? "__riscv_vle16_v_i16mf2"
+                   : "__riscv_vle32_v_i32m1";
+    llvm::StringRef expectedConversionRelation =
+        isI16ToI32 ? kRVVWidenI16ToI32ConversionRelation
+                   : kRVVWideningConversionRelation;
+    if (description.sourceSEW != expectedSourceSEW)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
-          " source SEW must be provider-derived as 32 for i32-to-i64 "
+          " source SEW must be provider-derived from typed source vector for "
           "widening conversion");
     if (llvm::Error error = requireRouteDescriptionField(
             context, "source LMUL", description.sourceLMUL,
-            tcrv::rvv::getRVVLMULM1()))
+            expectedSourceLMUL))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "source vector type", description.sourceVectorTypeName,
-            "!tcrv_rvv.vector<i32, \"m1\">"))
+            expectedSourceVectorType))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "source vector C type", description.sourceVectorCType,
-            "vint32m1_t"))
+            expectedSourceVectorCType))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "source vector-load intrinsic",
             description.sourceVectorLoadIntrinsic,
-            "__riscv_vle32_v_i32m1"))
+            expectedSourceLoadIntrinsic))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "conversion relation", description.conversionRelation,
-            kRVVWideningConversionRelation))
+            expectedConversionRelation))
       return error;
   } else {
     if (description.sourceSEW != 0)
@@ -5634,7 +5700,8 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back({"tcrv_rvv.field1_source_memory_form",
                         description.field1SourceMemoryForm});
   }
-  if (description.operation == RVVSelectedBodyOperationKind::WidenI32ToI64) {
+  if (description.operation == RVVSelectedBodyOperationKind::WidenI32ToI64 ||
+      description.operation == RVVSelectedBodyOperationKind::WidenI16ToI32) {
     metadata.push_back(
         {"tcrv_rvv.source_sew", llvm::Twine(description.sourceSEW).str()});
     metadata.push_back({"tcrv_rvv.source_lmul", description.sourceLMUL});
