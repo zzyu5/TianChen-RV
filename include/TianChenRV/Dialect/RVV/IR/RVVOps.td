@@ -561,6 +561,53 @@ def TypedWideningMAccPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedWideningDotReducePreRealizedBodyOp
+    : TCRVRVV_Op<"typed_widening_dot_reduce_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV widening dot-product reduction body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body for signed
+    horizontal widening dot-product reduction. The op is nested directly in a
+    selected tcrv.exec.variant and binds explicit runtime ABI values for i16
+    lhs, i16 rhs, i32 accumulator seed input, i32 scalar output, and runtime
+    n/AVL together with operation kind, unit-stride memory form, accumulator
+    role/layout, result layout, source and accumulator/result SEW+LMUL facts,
+    dot-product relation, and policy.
+
+    This op is not matmul, a broad contraction framework, dtype-prefixed helper
+    namespace, descriptor, source-front-door marker, direct-C exporter, route
+    id, intrinsic wrapper, runtime artifact, correctness evidence, or
+    performance evidence. The RVV plugin must realize it into explicit typed
+    tcrv_rvv body structure before the provider may construct a
+    TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$acc,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    StrAttr:$accumulator_role,
+    StrAttr:$accumulator_layout,
+    StrAttr:$result_layout,
+    I64Attr:$source_sew,
+    StrAttr:$source_lmul,
+    I64Attr:$accumulator_sew,
+    StrAttr:$accumulator_lmul,
+    I64Attr:$result_sew,
+    StrAttr:$result_lmul,
+    StrAttr:$dot_product_relation,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $acc `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedWideningConversionPreRealizedBodyOp
     : TCRVRVV_Op<"typed_widening_conversion_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV widening conversion body";
@@ -1502,6 +1549,47 @@ def WideningMAccOp : TCRVRVV_Op<"widening_macc",
 
   let assemblyFormat =
     "$lhs `,` $rhs `,` $accumulator `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($accumulator) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def WideningDotReduceOp : TCRVRVV_Op<"widening_dot_reduce",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV widening dot-product reduction dataflow op";
+  let description = [{
+    Records one bounded generic plugin-local RVV signed widening dot-product
+    reduction dataflow step. The op is nested directly under tcrv_rvv.with_vl,
+    consumes two i16 !tcrv_rvv.vector source operands, an explicit i32
+    accumulator seed runtime ABI value, and the active !tcrv_rvv.vl token. It
+    carries explicit operation kind, accumulator layout, scalar result layout,
+    and dot-product relation facts, and produces one i32 !tcrv_rvv.vector
+    token whose lane 0 is the scalar reduction result boundary.
+
+    For the current bounded Stage 2 scalar-reduction slice, kind is limited to
+    signed_widening_dot_reduce_add, representing
+    acc_seed + sum(sign_extend(lhs) * sign_extend(rhs)) over runtime n.
+    Lhs, rhs, accumulator seed boundary, result, VL, source/result SEW/LMUL,
+    policy, accumulator layout, result layout, and memory-form facts are
+    structural in the selected RVV body. Route ids, helper names, ABI strings,
+    artifact names, status fields, exact intrinsic spellings, and common
+    EmitC/export code must not infer or choose widening dot-product reduction
+    semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$accumulator_seed,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$accumulator_layout,
+    StrAttr:$result_layout,
+    StrAttr:$dot_product_relation
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $accumulator_seed `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($accumulator_seed) `,` type($vl) `->` type($result)";
   let hasVerifier = 1;
 }
 

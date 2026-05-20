@@ -83,6 +83,8 @@ constexpr llvm::StringLiteral kAccumulatorLMULAttrName("accumulator_lmul");
 constexpr llvm::StringLiteral kResultSEWAttrName("result_sew");
 constexpr llvm::StringLiteral kResultLMULAttrName("result_lmul");
 constexpr llvm::StringLiteral kMAccRelationAttrName("macc_relation");
+constexpr llvm::StringLiteral kDotProductRelationAttrName(
+    "dot_product_relation");
 constexpr llvm::StringLiteral kStrideUnitAttrName("stride_unit");
 constexpr llvm::StringLiteral kIndexEEWAttrName("index_eew");
 constexpr llvm::StringLiteral kOffsetUnitAttrName("offset_unit");
@@ -222,6 +224,17 @@ bool isAllowedTypedWideningMAccPreRealizedBodyAttr(llvm::StringRef name) {
          name == kAccumulatorSEWAttrName || name == kAccumulatorLMULAttrName ||
          name == kResultSEWAttrName || name == kResultLMULAttrName ||
          name == kMAccRelationAttrName || name == kPolicyAttrName;
+}
+
+bool isAllowedTypedWideningDotReducePreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kAccumulatorRoleAttrName ||
+         name == kAccumulatorLayoutAttrName || name == kResultLayoutAttrName ||
+         name == kSourceSEWAttrName || name == kSourceLMULAttrName ||
+         name == kAccumulatorSEWAttrName || name == kAccumulatorLMULAttrName ||
+         name == kResultSEWAttrName || name == kResultLMULAttrName ||
+         name == kDotProductRelationAttrName || name == kPolicyAttrName;
 }
 
 bool isAllowedTypedWideningConversionPreRealizedBodyAttr(
@@ -368,6 +381,11 @@ bool isAllowedWideningMAccAttr(llvm::StringRef name) {
          name == kResultLayoutAttrName || name == kMAccRelationAttrName;
 }
 
+bool isAllowedWideningDotReduceAttr(llvm::StringRef name) {
+  return name == "kind" || name == kAccumulatorLayoutAttrName ||
+         name == kResultLayoutAttrName || name == kDotProductRelationAttrName;
+}
+
 bool isAllowedWideningConvertAttr(llvm::StringRef name) {
   return name == "kind";
 }
@@ -494,12 +512,27 @@ bool isSupportedTypedWideningMAccPreRealizedBodyOpKind(
   return opKind == "signed_widening_macc_add";
 }
 
+bool isSupportedTypedWideningDotReducePreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "signed_widening_dot_reduce_add";
+}
+
 bool isSupportedTypedWideningMAccPreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "unit-stride-widening-macc";
 }
 
+bool isSupportedTypedWideningDotReducePreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-stride-widening-dot-reduce";
+}
+
 bool isSupportedTypedWideningMAccPreRealizedAccumulatorRole(
+    llvm::StringRef role) {
+  return role == "accumulator-input-buffer";
+}
+
+bool isSupportedTypedWideningDotReducePreRealizedAccumulatorRole(
     llvm::StringRef role) {
   return role == "accumulator-input-buffer";
 }
@@ -509,13 +542,27 @@ bool isSupportedTypedWideningMAccPreRealizedAccumulatorLayout(
   return layout == "separate-i32-vector-accumulator-input";
 }
 
+bool isSupportedTypedWideningDotReducePreRealizedAccumulatorLayout(
+    llvm::StringRef layout) {
+  return layout == "scalar-i32-seed-lane0-from-accumulator-input";
+}
+
 bool isSupportedTypedWideningMAccPreRealizedResultLayout(
     llvm::StringRef layout) {
   return layout == "store-widening-multiply-accumulate-result-to-output-buffer";
 }
 
+bool isSupportedTypedWideningDotReducePreRealizedResultLayout(
+    llvm::StringRef layout) {
+  return layout == "store-dot-reduction-lane0-to-output-scalar";
+}
+
 bool isSupportedTypedWideningMAccRelation(llvm::StringRef relation) {
   return relation == "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1";
+}
+
+bool isSupportedTypedWideningDotProductRelation(llvm::StringRef relation) {
+  return relation == "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32";
 }
 
 bool isSupportedTypedWideningMAccPreRealizedSignature(
@@ -531,6 +578,20 @@ bool isSupportedTypedWideningMAccPreRealizedSignature(
          resultSEW == getRVVFirstSliceSEWBits() &&
          resultLMUL == getRVVLMULM1() &&
          relation == "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1";
+}
+
+bool isSupportedTypedWideningDotReducePreRealizedSignature(
+    llvm::StringRef opKind, std::int64_t sourceSEW,
+    llvm::StringRef sourceLMUL, std::int64_t accumulatorSEW,
+    llvm::StringRef accumulatorLMUL, std::int64_t resultSEW,
+    llvm::StringRef resultLMUL, llvm::StringRef relation) {
+  return opKind == "signed_widening_dot_reduce_add" &&
+         sourceSEW == getRVVSEW16Bits() && sourceLMUL == getRVVLMULMF2() &&
+         accumulatorSEW == getRVVFirstSliceSEWBits() &&
+         accumulatorLMUL == getRVVLMULM1() &&
+         resultSEW == getRVVFirstSliceSEWBits() &&
+         resultLMUL == getRVVLMULM1() &&
+         relation == "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32";
 }
 
 bool isSupportedTypedWideningConversionPreRealizedBodyOpKind(
@@ -789,17 +850,34 @@ bool isSupportedGenericWideningMAccKind(llvm::StringRef kind) {
   return kind == "signed_widening_macc_add";
 }
 
+bool isSupportedGenericWideningDotReduceKind(llvm::StringRef kind) {
+  return kind == "signed_widening_dot_reduce_add";
+}
+
 bool isSupportedGenericWideningMAccAccumulatorLayout(
     llvm::StringRef layout) {
   return layout == "separate-i32-vector-accumulator-input";
+}
+
+bool isSupportedGenericWideningDotReduceAccumulatorLayout(
+    llvm::StringRef layout) {
+  return layout == "scalar-i32-seed-lane0-from-accumulator-input";
 }
 
 bool isSupportedGenericWideningMAccResultLayout(llvm::StringRef layout) {
   return layout == "store-widening-multiply-accumulate-result-to-output-buffer";
 }
 
+bool isSupportedGenericWideningDotReduceResultLayout(llvm::StringRef layout) {
+  return layout == "store-dot-reduction-lane0-to-output-scalar";
+}
+
 bool isSupportedGenericWideningMAccRelation(llvm::StringRef relation) {
   return relation == "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1";
+}
+
+bool isSupportedGenericWideningDotProductRelation(llvm::StringRef relation) {
+  return relation == "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32";
 }
 
 bool isSupportedGenericWideningConvertKind(llvm::StringRef kind) {
@@ -1497,6 +1575,34 @@ bool isBoundedWideningMAccSourceLoad(LoadOp load, WithVLOp withVL) {
     hasWideningMAccUse = true;
   }
   return hasWideningMAccUse;
+}
+
+bool isBoundedWideningDotReduceSourceLoad(LoadOp load, WithVLOp withVL) {
+  if (!load || !withVL)
+    return false;
+  auto sew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto lmul = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!sew || !lmul || !policy || !isRVVAgnosticPolicy(policy))
+    return false;
+  if (!isRVVSelectedBodyM1Config(sew.getInt(), lmul.getValue()))
+    return false;
+  if (!isGenericRVVVectorI16MF2(load.getLoaded().getType()))
+    return false;
+
+  bool hasWideningDotReduceUse = false;
+  for (mlir::Operation *user : load.getLoaded().getUsers()) {
+    auto dotReduce = llvm::dyn_cast<WideningDotReduceOp>(user);
+    if (!dotReduce || dotReduce->getParentOp() != withVL.getOperation() ||
+        dotReduce.getVl() != load.getVl() ||
+        (dotReduce.getLhs() != load.getLoaded() &&
+         dotReduce.getRhs() != load.getLoaded()))
+      return false;
+    if (dotReduce.getKind() != "signed_widening_dot_reduce_add")
+      return false;
+    hasWideningDotReduceUse = true;
+  }
+  return hasWideningDotReduceUse;
 }
 
 mlir::LogicalResult verifyI32VectorTypeForWithVL(mlir::Operation *op,
@@ -2611,6 +2717,135 @@ mlir::LogicalResult TypedWideningMAccPreRealizedBodyOp::verify() {
   return verifyRuntimeElementCountOperand(op, getN());
 }
 
+mlir::LogicalResult TypedWideningDotReducePreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected widening dot-reduction bodies carry "
+                "only typed RVV source/seed/result config, operation, memory, "
+                "policy, and runtime SSA facts and must be realized by the "
+                "RVV plugin before route construction";
+
+    if (!isAllowedTypedWideningDotReducePreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '"
+             << kAccumulatorRoleAttrName << "', '"
+             << kAccumulatorLayoutAttrName << "', '" << kResultLayoutAttrName
+             << "', '" << kSourceSEWAttrName << "', '"
+             << kSourceLMULAttrName << "', '" << kAccumulatorSEWAttrName
+             << "', '" << kAccumulatorLMULAttrName << "', '"
+             << kResultSEWAttrName << "', '" << kResultLMULAttrName
+             << "', '" << kDotProductRelationAttrName << "', and '"
+             << kPolicyAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires lhs, rhs, accumulator seed, out, runtime n/AVL "
+              "operands and no results";
+
+  if (!isSupportedTypedWideningDotReducePreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"signed_widening_dot_reduce_add\" for the bounded "
+              "selected-body widening dot-product reduction hook";
+  if (!isSupportedTypedWideningDotReducePreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"unit-stride-widening-dot-reduce\" for the bounded "
+              "selected-body widening dot-product reduction hook";
+  if (!isSupportedTypedWideningDotReducePreRealizedAccumulatorRole(
+          getAccumulatorRole()))
+    return emitOpError()
+           << "currently supports only accumulator_role "
+              "\"accumulator-input-buffer\" for the bounded selected-body "
+              "widening dot-product reduction hook";
+  if (!isSupportedTypedWideningDotReducePreRealizedAccumulatorLayout(
+          getAccumulatorLayout()))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"scalar-i32-seed-lane0-from-accumulator-input\" for the "
+              "bounded selected-body widening dot-product reduction hook";
+  if (!isSupportedTypedWideningDotReducePreRealizedResultLayout(
+          getResultLayout()))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-dot-reduction-lane0-to-output-scalar\" for the "
+              "bounded selected-body widening dot-product reduction hook";
+  if (!isSupportedTypedWideningDotProductRelation(getDotProductRelation()))
+    return emitOpError()
+           << "currently supports only dot_product_relation "
+              "\"signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32\" for "
+              "the bounded selected-body widening dot-product reduction hook";
+  if (!isSupportedTypedWideningDotReducePreRealizedSignature(
+          getOpKind(), static_cast<std::int64_t>(getSourceSew()),
+          getSourceLmul(), static_cast<std::int64_t>(getAccumulatorSew()),
+          getAccumulatorLmul(), static_cast<std::int64_t>(getResultSew()),
+          getResultLmul(), getDotProductRelation()))
+    return emitOpError()
+           << "requires typed widening dot-product reduction "
+              "config/relation to match op_kind "
+              "\"signed_widening_dot_reduce_add\" with source SEW16 LMUL "
+              "mf2, accumulator/result SEW32 LMUL m1, and relation "
+              "\"signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32\"";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body widening dot-product reduction hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getRhs(), "rhs",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getAcc(), "accumulator seed",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               AccumulatorInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsBinding = getRhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp accBinding = getAcc().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
+  if (!lhsBinding || lhsBinding.getCType() != "const int16_t *")
+    return emitOpError()
+           << "requires lhs operand C type 'const int16_t *' to match typed "
+              "widening dot-product source dtype";
+  if (!rhsBinding || rhsBinding.getCType() != "const int16_t *")
+    return emitOpError()
+           << "requires rhs operand C type 'const int16_t *' to match typed "
+              "widening dot-product source dtype";
+  if (!accBinding || accBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires accumulator seed operand C type 'const int32_t *' "
+              "to match typed widening dot-product scalar seed dtype";
+  if (!outBinding || outBinding.getCType() != "int32_t *")
+    return emitOpError()
+           << "requires out operand C type 'int32_t *' to match typed "
+              "widening dot-product scalar result dtype";
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
 mlir::LogicalResult TypedWideningConversionPreRealizedBodyOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -3541,7 +3776,8 @@ mlir::LogicalResult LoadOp::verify() {
     return mlir::failure();
   if (auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp()))
     if (isBoundedWideningConversionSourceLoad(*this, withVL) ||
-        isBoundedWideningMAccSourceLoad(*this, withVL))
+        isBoundedWideningMAccSourceLoad(*this, withVL) ||
+        isBoundedWideningDotReduceSourceLoad(*this, withVL))
       return mlir::success();
   return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
 }
@@ -4362,6 +4598,112 @@ mlir::LogicalResult WideningMAccOp::verify() {
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
               "metadata for widening macc";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult WideningDotReduceOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.widening_dot_reduce keeps source/result "
+                "SEW/LMUL/policy on typed vector values and setvl/with_vl, "
+                "runtime n/AVL/VL in the surrounding control-plane IR, and "
+                "rejects deleted local element_count metadata";
+
+    if (!isAllowedWideningDotReduceAttr(attrName))
+      return emitOpError()
+             << "only accepts generic widening dot-product reduction "
+                "attributes 'kind', 'accumulator_layout', 'result_layout', "
+                "and 'dot_product_relation'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!isSupportedGenericWideningDotReduceKind(getKind()))
+    return emitOpError()
+           << "currently supports only kind "
+              "\"signed_widening_dot_reduce_add\" for the bounded Stage 2 "
+              "widening dot-product reduction route";
+  if (!isSupportedGenericWideningDotReduceAccumulatorLayout(
+          getAccumulatorLayout()))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"scalar-i32-seed-lane0-from-accumulator-input\" for the "
+              "bounded Stage 2 widening dot-product reduction route";
+  if (!isSupportedGenericWideningDotReduceResultLayout(getResultLayout()))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-dot-reduction-lane0-to-output-scalar\" for the "
+              "bounded Stage 2 widening dot-product reduction route";
+  if (!isSupportedGenericWideningDotProductRelation(
+          getDotProductRelation()))
+    return emitOpError()
+           << "currently supports only dot_product_relation "
+              "\"signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32\" for "
+              "the bounded Stage 2 widening dot-product reduction route";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires lhs and rhs i16 generic RVV vector operands, one i32 "
+              "accumulator seed runtime ABI operand, one !tcrv_rvv.vl "
+              "operand, and one i32 generic RVV vector result";
+  if (!isGenericRVVVectorI16MF2(getLhs().getType()) ||
+      !isGenericRVVVectorI16MF2(getRhs().getType()))
+    return emitOpError()
+           << "requires lhs and rhs source vectors to have type "
+              "!tcrv_rvv.vector<i16, \"mf2\"> for the bounded signed "
+              "widening dot-product reduction route";
+  if (!isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type "
+              "!tcrv_rvv.vector<i32, \"m1\"> for the bounded signed "
+              "widening dot-product reduction route";
+  if (!llvm::isa<RuntimeABIValueType>(getAccumulatorSeed().getType()))
+    return emitOpError()
+           << "requires accumulator seed operand to have "
+              "!tcrv_rvv.runtime_abi_value type";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getAccumulatorSeed(), "accumulator seed",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               AccumulatorInputBuffer})))
+    return mlir::failure();
+  RuntimeABIValueOp seedBinding =
+      getAccumulatorSeed().getDefiningOp<RuntimeABIValueOp>();
+  if (!seedBinding || seedBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires accumulator seed operand C type 'const int32_t *' "
+              "for the bounded signed widening dot-product reduction route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto expectedSEW =
+      (*withVL)->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto expectedLMUL =
+      (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  if (!expectedSEW || !expectedLMUL)
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit "
+              "result SEW/LMUL metadata for widening dot-product reduction";
+  if (!isRVVSelectedBodyM1Config(expectedSEW.getInt(),
+                                 expectedLMUL.getValue()))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl result config to be "
+              "SEW32 LMUL m1 for the bounded signed widening dot-product "
+              "reduction route";
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for widening dot-product reduction";
 
   return mlir::success();
 }

@@ -1,0 +1,74 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widening-dot-reduce-add --overwrite --op-kind widening_dot_reduce_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-widening-dot-reduce-add/evidence.json
+# RUN: FileCheck %s --check-prefix=WDOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-widening-dot-reduce-add/widening_dot_reduce_add/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-widening-dot-reduce-add/widening_dot_reduce_add/rvv_generated_bundle_abi_widening_dot_reduce_add_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "pre-realized-selected-body"
+# ROOT: "widening_dot_reduce_add"
+# ROOT: "pre_realized_selected_body": true
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# WDOT-DAG: "input_mode": "pre-realized-selected-body"
+# WDOT-DAG: "op_kind": "widening_dot_reduce_add"
+# WDOT-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-widening-dot-reduce-add.mlir"
+# WDOT-DAG: "prototype": "void tcrv_emitc_pre_realized_body_widening_dot_reduce_add_kernel_pre_realized_body_rvv_widening_dot_reduce_add(const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n);"
+# WDOT-DAG: "expected_function": "tcrv_emitc_pre_realized_body_widening_dot_reduce_add_kernel_pre_realized_body_rvv_widening_dot_reduce_add"
+# WDOT-DAG: "expected_runtime_abi_name": "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1"
+# WDOT-DAG: "expected_selected_variant": "pre_realized_body_rvv_widening_dot_reduce_add"
+# WDOT-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# WDOT-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# WDOT-DAG: --tcrv-materialize-selected-lowering-boundaries
+# WDOT-DAG: "pre_realized_body_consumed": true
+# WDOT-DAG: "key": "rvv_emitc_lowerable_route"
+# WDOT-DAG: "value": "rvv-generic-widening-dot-reduce-add-emitc-route"
+# WDOT-DAG: "key": "rvv_selected_body_operation"
+# WDOT-DAG: "value": "widening_dot_reduce_add"
+# WDOT-DAG: "key": "rvv_selected_body_typed_compute_op"
+# WDOT-DAG: "value": "tcrv_rvv.widening_dot_reduce"
+# WDOT-DAG: "key": "tcrv_rvv.memory_form"
+# WDOT-DAG: "value": "vector-rhs-load"
+# WDOT-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# WDOT-DAG: "value": "lhs,rhs,acc,out,n"
+# WDOT-DAG: "key": "tcrv_rvv.source_sew"
+# WDOT-DAG: "value": "16"
+# WDOT-DAG: "key": "tcrv_rvv.source_lmul"
+# WDOT-DAG: "value": "mf2"
+# WDOT-DAG: "key": "tcrv_rvv.accumulator_sew"
+# WDOT-DAG: "value": "32"
+# WDOT-DAG: "key": "tcrv_rvv.accumulator_lmul"
+# WDOT-DAG: "value": "m1"
+# WDOT-DAG: "key": "tcrv_rvv.result_sew"
+# WDOT-DAG: "value": "32"
+# WDOT-DAG: "key": "tcrv_rvv.result_lmul"
+# WDOT-DAG: "value": "m1"
+# WDOT-DAG: "key": "tcrv_rvv.widening_dot_accumulator_layout"
+# WDOT-DAG: "value": "scalar-i32-seed-lane0-from-accumulator-input"
+# WDOT-DAG: "key": "tcrv_rvv.widening_dot_result_layout"
+# WDOT-DAG: "value": "store-dot-reduction-lane0-to-output-scalar"
+# WDOT-DAG: "key": "tcrv_rvv.widening_dot_relation"
+# WDOT-DAG: "value": "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"
+# WDOT-DAG: "key": "tcrv_rvv.widening_product_intrinsic"
+# WDOT-DAG: "value": "__riscv_vwmul_vv_i32m1"
+# WDOT-DAG: "key": "tcrv_rvv.widening_dot_reduction_store_vl"
+# WDOT-DAG: "value": "1"
+# WDOT-DAG: "typed_compute_op": "tcrv_rvv.widening_dot_reduce"
+# WDOT-DAG: "memory_form": "vector-rhs-load"
+# WDOT-DAG: "lmul": "m1"
+# WDOT-DAG: "status": "dry_run_success"
+
+# HARNESS: int16_t *lhs = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
+# HARNESS: int16_t *rhs = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
+# HARNESS: int32_t *acc = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+# HARNESS: int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+# HARNESS: tcrv_emitc_pre_realized_body_widening_dot_reduce_add_kernel_pre_realized_body_rvv_widening_dot_reduce_add(lhs, rhs, acc, out, n);
+# HARNESS: int32_t expected = acc[0];
+# HARNESS: expected = (int32_t)(expected + product);
+# HARNESS: signed_horizontal_dot seed_added scalar_output tail_preserved
+# HARNESS: tcrv_rvv_generated_bundle_abi_widening_dot_reduce_add_ok counts=7,16,23
+# HARNESS: PASS op=widening_dot_reduce_add counts=7,16,23

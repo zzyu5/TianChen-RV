@@ -1627,41 +1627,35 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "widen_i16_to_i32";
     const bool isWideningMAccRoute =
         route.operationMnemonic == "widening_macc_add";
-    llvm::StringRef executableComputeOp =
-        route.operationMnemonic == "cmp_select"
-            ? "tcrv_rvv.select"
-            : (route.operationMnemonic == "reduce_add"
-                   ? "tcrv_rvv.reduce"
-                   : (route.operationMnemonic == "masked_add"
-                          ? "tcrv_rvv.masked_binary"
-                          : (route.operationMnemonic == "macc_add"
-                                 ? "tcrv_rvv.macc"
-                                 : (isWideningMAccRoute
-                                        ? "tcrv_rvv.widening_macc"
-                                    : (isConversionRoute
-                                           ? "tcrv_rvv.widening_convert"
-                                        : (route.operationMnemonic ==
-                                                  "masked_unit_load_store" ||
-                                           route.operationMnemonic ==
-                                               "computed_masked_unit_load_store" ||
-                                           route.operationMnemonic ==
-                                               "computed_masked_strided_store"
-                                               ? "tcrv_rvv.masked_move"
-                                               : (route.operationMnemonic ==
-                                                              "strided_load_unit_store" ||
-                                                          route.operationMnemonic ==
-                                                              "unit_load_strided_store" ||
-                                                          route.operationMnemonic ==
-                                                              "indexed_gather_unit_store" ||
-                                                          route.operationMnemonic ==
-                                                              "indexed_scatter_unit_load" ||
-                                                          route.operationMnemonic ==
-                                                              "segment2_deinterleave_unit_store"
-                                                      ? "tcrv_rvv.move"
-                                                      : route.operationMnemonic ==
-                                                                "segment2_interleave_unit_load"
-                                                            ? "tcrv_rvv.segment2_store"
-                                                      : "tcrv_rvv.binary")))))));
+    const bool isWideningDotReduceRoute =
+        route.operationMnemonic == "widening_dot_reduce_add";
+    llvm::StringRef executableComputeOp = "tcrv_rvv.binary";
+    if (route.operationMnemonic == "cmp_select")
+      executableComputeOp = "tcrv_rvv.select";
+    else if (route.operationMnemonic == "reduce_add")
+      executableComputeOp = "tcrv_rvv.reduce";
+    else if (route.operationMnemonic == "masked_add")
+      executableComputeOp = "tcrv_rvv.masked_binary";
+    else if (route.operationMnemonic == "macc_add")
+      executableComputeOp = "tcrv_rvv.macc";
+    else if (isWideningMAccRoute)
+      executableComputeOp = "tcrv_rvv.widening_macc";
+    else if (isWideningDotReduceRoute)
+      executableComputeOp = "tcrv_rvv.widening_dot_reduce";
+    else if (isConversionRoute)
+      executableComputeOp = "tcrv_rvv.widening_convert";
+    else if (route.operationMnemonic == "masked_unit_load_store" ||
+             route.operationMnemonic == "computed_masked_unit_load_store" ||
+             route.operationMnemonic == "computed_masked_strided_store")
+      executableComputeOp = "tcrv_rvv.masked_move";
+    else if (route.operationMnemonic == "strided_load_unit_store" ||
+             route.operationMnemonic == "unit_load_strided_store" ||
+             route.operationMnemonic == "indexed_gather_unit_store" ||
+             route.operationMnemonic == "indexed_scatter_unit_load" ||
+             route.operationMnemonic == "segment2_deinterleave_unit_store")
+      executableComputeOp = "tcrv_rvv.move";
+    else if (route.operationMnemonic == "segment2_interleave_unit_load")
+      executableComputeOp = "tcrv_rvv.segment2_store";
     llvm::StringRef rhsSourceOp =
         isConversionRoute
             ? ""
@@ -1725,9 +1719,11 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "segment2_interleave_unit_load";
     const bool hasConversion = isConversionRoute;
     const bool hasWideningMAcc = isWideningMAccRoute;
+    const bool hasWideningDotReduce = isWideningDotReduceRoute;
     unsigned expectedStepCount =
         hasConversion          ? 8u
         : hasWideningMAcc                       ? 12u
+        : hasWideningDotReduce                  ? 11u
         : (hasStridedMemoryMovement || hasUnitLoadStridedStore) ? 9u
         : (hasIndexedGather || hasIndexedScatter) ? 10u
         : hasMaskedMemory                        ? 11u
@@ -1843,7 +1839,8 @@ int runRVVCommonValidationTest() {
               getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
-    } else if (route.operationMnemonic == "widening_macc_add") {
+    } else if (route.operationMnemonic == "widening_macc_add" ||
+               route.operationMnemonic == "widening_dot_reduce_add") {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyWideningMAccRuntimeABIParameters();

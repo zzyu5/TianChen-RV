@@ -1225,7 +1225,8 @@ module {
        "tcrv_rvv.mask_load, tcrv_rvv.compare, tcrv_rvv.masked_binary, "
        "tcrv_rvv.select, tcrv_rvv.reduce, tcrv_rvv.macc, "
        "tcrv_rvv.widening_convert, tcrv_rvv.move, "
-       "tcrv_rvv.masked_move, tcrv_rvv.store, and "
+       "tcrv_rvv.widening_dot_reduce, tcrv_rvv.masked_move, "
+       "tcrv_rvv.store, and "
        "tcrv_rvv.strided_store"});
 }
 

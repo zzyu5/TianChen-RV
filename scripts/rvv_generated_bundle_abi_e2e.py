@@ -47,6 +47,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "masked_add",
     "macc_add",
     "widening_macc_add",
+    "widening_dot_reduce_add",
     "strided_add",
     "strided_load_unit_store",
     "unit_load_strided_store",
@@ -78,6 +79,11 @@ WIDENING_MACC_RESULT_LAYOUT = (
 )
 WIDENING_MACC_RELATION = "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1"
 WIDENING_MACC_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
+WIDENING_DOT_ACCUMULATOR_LAYOUT = "scalar-i32-seed-lane0-from-accumulator-input"
+WIDENING_DOT_RESULT_LAYOUT = "store-dot-reduction-lane0-to-output-scalar"
+WIDENING_DOT_RELATION = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"
+WIDENING_DOT_REDUCTION_STORE_VL = "1"
+WIDENING_DOT_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
 STRIDED_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride"
 STRIDED_LOAD_UNIT_STORE_RUNTIME_ABI_ORDER = "src,out,n,src_stride"
 UNIT_LOAD_STRIDED_STORE_RUNTIME_ABI_ORDER = "src,dst,n,dst_stride"
@@ -269,7 +275,7 @@ class OpExpectation:
                 f"void {self.function_name}(const int16_t *lhs, "
                 "int32_t *out, size_t n);"
             )
-        if self.is_widening_macc_add:
+        if self.is_widening_macc_add or self.is_widening_dot_reduce_add:
             return (
                 f"void {self.function_name}(const int16_t *lhs, "
                 "const int16_t *rhs, const int32_t *acc, "
@@ -309,7 +315,7 @@ class OpExpectation:
             return EXPECTED_WIDENING_CONVERSION_RUNTIME_PARAMETERS
         if self.is_widen_i16_to_i32:
             return EXPECTED_WIDEN_I16_TO_I32_RUNTIME_PARAMETERS
-        if self.is_widening_macc_add:
+        if self.is_widening_macc_add or self.is_widening_dot_reduce_add:
             return EXPECTED_WIDENING_MACC_RUNTIME_PARAMETERS
         if self.is_i64_add:
             return EXPECTED_I64_RUNTIME_PARAMETERS
@@ -349,6 +355,8 @@ class OpExpectation:
             return WIDENING_CONVERSION_RUNTIME_ABI_ORDER
         if self.is_widening_macc_add:
             return WIDENING_MACC_RUNTIME_ABI_ORDER
+        if self.is_widening_dot_reduce_add:
+            return WIDENING_DOT_RUNTIME_ABI_ORDER
         return "lhs,rhs,out,n"
 
     @property
@@ -382,6 +390,10 @@ class OpExpectation:
     @property
     def is_widening_macc_add(self) -> bool:
         return self.kind == "widening_macc_add"
+
+    @property
+    def is_widening_dot_reduce_add(self) -> bool:
+        return self.kind == "widening_dot_reduce_add"
 
     @property
     def is_strided_add(self) -> bool:
@@ -987,6 +999,28 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         rhs_initializer="(int16_t)(((index % 3) == 0) ? -((int)(index % 41) + 5) : ((int)(index % 41) + 7))",
         source_initializer="(int32_t)(300 + (int32_t)(index * 11))",
         expected_expression="(int32_t)(acc[index] + (int32_t)lhs[index] * (int32_t)rhs[index])",
+        out_initializer=OUT_SENTINEL,
+        lmul="m1",
+        sew="32",
+        element_c_type="int32_t",
+        config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
+    ),
+    "widening_dot_reduce_add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
+        kind="widening_dot_reduce_add",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-widening-dot-reduce-add.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_widening_dot_reduce_add",
+        external_abi_name="rvv-generic-widening-dot-reduce-add-callable-c-abi.v1",
+        function_name="tcrv_emitc_pre_realized_body_widening_dot_reduce_add_kernel_pre_realized_body_rvv_widening_dot_reduce_add",
+        emitc_route="rvv-generic-widening-dot-reduce-add-emitc-route",
+        typed_compute_op="tcrv_rvv.widening_dot_reduce",
+        memory_form="vector-rhs-load",
+        lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 53) + 2) : ((int)(index % 53) + 5))",
+        rhs_initializer="(int16_t)(((index % 5) == 0) ? -((int)(index % 37) + 3) : ((int)(index % 37) + 7))",
+        source_initializer="(int32_t)17",
+        expected_expression="(int32_t)(acc[0] + sum_i((int32_t)lhs[i] * (int32_t)rhs[i]))",
         out_initializer=OUT_SENTINEL,
         lmul="m1",
         sew="32",
@@ -1988,6 +2022,26 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.widening_macc_relation": WIDENING_MACC_RELATION,
             }
         )
+    if expectation.is_widening_dot_reduce_add:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.source_sew": "16",
+                "tcrv_rvv.source_lmul": "mf2",
+                "tcrv_rvv.accumulator_sew": "32",
+                "tcrv_rvv.accumulator_lmul": "m1",
+                "tcrv_rvv.result_sew": "32",
+                "tcrv_rvv.result_lmul": "m1",
+                "tcrv_rvv.widening_dot_accumulator_layout": (
+                    WIDENING_DOT_ACCUMULATOR_LAYOUT
+                ),
+                "tcrv_rvv.widening_dot_result_layout": WIDENING_DOT_RESULT_LAYOUT,
+                "tcrv_rvv.widening_dot_relation": WIDENING_DOT_RELATION,
+                "tcrv_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i32m1",
+                "tcrv_rvv.widening_dot_reduction_store_vl": (
+                    WIDENING_DOT_REDUCTION_STORE_VL
+                ),
+            }
+        )
     return {**per_op_metadata, **common_metadata}
 
 
@@ -2244,6 +2298,37 @@ def verify_materialized_selected_body(
             text,
             f'macc_relation = "{WIDENING_MACC_RELATION}"',
             "materialized selected-body MLIR widening macc relation",
+        )
+    if expectation.is_widening_dot_reduce_add:
+        require_contains(
+            text,
+            'role = "accumulator-input-buffer"',
+            "materialized selected-body MLIR widening dot accumulator seed ABI role",
+        )
+        require_contains(
+            text,
+            '!tcrv_rvv.vector<i16, "mf2">',
+            "materialized selected-body MLIR widening dot source vector type",
+        )
+        require_contains(
+            text,
+            '!tcrv_rvv.vector<i32, "m1">',
+            "materialized selected-body MLIR widening dot result vector type",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.widening_dot_reduce",
+            "materialized selected-body MLIR widening dot compute op",
+        )
+        require_contains(
+            text,
+            'kind = "signed_widening_dot_reduce_add"',
+            "materialized selected-body MLIR widening dot kind",
+        )
+        require_contains(
+            text,
+            f'dot_product_relation = "{WIDENING_DOT_RELATION}"',
+            "materialized selected-body MLIR widening dot relation",
         )
     if expectation.is_rhs_broadcast:
         require_contains(
@@ -2691,6 +2776,17 @@ def verify_materialized_selected_body(
             f'result_layout = "{WIDENING_MACC_RESULT_LAYOUT}"',
             "materialized selected-body MLIR widening macc result layout",
         )
+    if expectation.is_widening_dot_reduce_add:
+        require_contains(
+            text,
+            f'accumulator_layout = "{WIDENING_DOT_ACCUMULATOR_LAYOUT}"',
+            "materialized selected-body MLIR widening dot accumulator layout",
+        )
+        require_contains(
+            text,
+            f'result_layout = "{WIDENING_DOT_RESULT_LAYOUT}"',
+            "materialized selected-body MLIR widening dot result layout",
+        )
     if expectation.is_pre_realized:
         require_not_contains(
             text,
@@ -2725,6 +2821,11 @@ def verify_materialized_selected_body(
         require_not_contains(
             text,
             "tcrv_rvv.typed_widening_macc_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_widening_dot_reduce_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
@@ -4159,6 +4260,111 @@ int main(void) {{
   return 0;
 	}}
 	""".lstrip()
+    if expectation.is_widening_dot_reduce_add:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n + 5;
+  if (alloc_n == 5 && n == 0)
+    alloc_n = 6;
+  int16_t *lhs = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
+  int16_t *rhs = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
+  int32_t *acc = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  if (!lhs || !rhs || !acc || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(lhs);
+    free(rhs);
+    free(acc);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    lhs[index] = {expectation.lhs_initializer};
+    rhs[index] = {expectation.rhs_initializer};
+    acc[index] = {expectation.source_initializer};
+    out[index] = {expectation.out_initializer};
+  }}
+
+  {expectation.function_name}(lhs, rhs, acc, out, n);
+
+  int32_t expected = acc[0];
+  size_t positive_products = 0;
+  size_t negative_products = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    int32_t product = (int32_t)lhs[index] * (int32_t)rhs[index];
+    if (product > 0)
+      ++positive_products;
+    if (product < 0)
+      ++negative_products;
+    expected = (int32_t)(expected + product);
+  }}
+
+  if (out[0] != expected) {{
+    fprintf(stderr,
+            "{expectation.kind} scalar mismatch n=%zu got=%d expected=%d seed=%d positive_products=%zu negative_products=%zu\\n",
+            n, out[0], expected, acc[0], positive_products, negative_products);
+    free(lhs);
+    free(rhs);
+    free(acc);
+    free(out);
+    return 12;
+  }}
+
+  for (size_t index = 1; index < alloc_n; ++index) {{
+    if (out[index] != {expectation.out_initializer}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched non-scalar/tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
+              n, index, out[index], {expectation.out_initializer});
+      free(lhs);
+      free(rhs);
+      free(acc);
+      free(out);
+      return 13;
+    }}
+  }}
+
+  if (n > 3 && (positive_products == 0 || negative_products == 0 ||
+                acc[0] == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} coverage missing n=%zu positive_products=%zu negative_products=%zu seed=%d\\n",
+            n, positive_products, negative_products, acc[0]);
+    free(lhs);
+    free(rhs);
+    free(acc);
+    free(out);
+    return 14;
+  }}
+
+  free(lhs);
+  free(rhs);
+  free(acc);
+  free(out);
+  printf("{expectation.kind} case n=%zu ok signed_horizontal_dot seed_added scalar_output tail_preserved\\n", n);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_widening_macc_add:
         return f"""
 #include <stddef.h>
@@ -5435,7 +5641,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "segment2_deinterleave_unit_store/"
             "segment2_interleave_unit_load/"
             "lmul_m2_add/widen_i32_to_i64/widen_i16_to_i32/"
-            "widening_macc_add "
+            "widening_macc_add/widening_dot_reduce_add "
             "fixtures and run public selected lowering-boundary "
             "materialization before emission planning; mutually exclusive "
             "with --rhs-broadcast-selected-body and --lmul-m2-selected-body"

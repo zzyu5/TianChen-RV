@@ -46,7 +46,8 @@ constexpr llvm::StringLiteral kRVVSelectedBodyVLScopeOpName(
 constexpr llvm::StringLiteral
     kRVVSelectedBodyVLUses("emitc_for,with_vl,load,(load|broadcast_load),"
                            "(binary|compare->select|reduce|macc|"
-                           "widening_convert|widening_macc),store");
+                           "widening_convert|widening_macc|"
+                           "widening_dot_reduce),store");
 constexpr llvm::StringLiteral kRVVSelectedBodyEmitCLoopKind("emitc.for");
 constexpr llvm::StringLiteral kRVVSelectedBodyEmitCLoopInduction("offset");
 constexpr llvm::StringLiteral kRVVSelectedBodyEmitCFullChunkVL(

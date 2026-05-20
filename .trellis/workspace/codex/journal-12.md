@@ -449,3 +449,69 @@ Implemented bounded RVV unit-load to runtime destination-strided-store route, ad
 ### Next Steps
 
 - None - task complete
+
+
+## Session 144: Stage2 RVV widening dot-product reduction executable slice
+
+**Date**: 2026-05-20
+**Task**: Stage2 RVV widening dot-product reduction executable slice
+**Branch**: `main`
+
+### Summary
+
+Implemented bounded signed i16mf2 x i16mf2 widening dot-product reduction with i32 scalar seed/result, generated-bundle evidence, and ssh rvv correctness.
+
+### Main Changes
+
+### Summary
+
+Implemented one bounded Stage2 RVV signed widening dot-product reduction executable slice:
+`out_i32[0] = acc_seed_i32 + sum_i sign_extend(lhs_i16[i]) * sign_extend(rhs_i16[i])`.
+
+### Main Changes
+
+- Added typed pre-realized `tcrv_rvv.typed_widening_dot_reduce_pre_realized_body` and realized `tcrv_rvv.widening_dot_reduce` dataflow surface for i16mf2 lhs/rhs plus i32 scalar seed/result boundary.
+- Extended RVV selected-body realization to lower the pre-realized body into setvl/with_vl, two i16mf2 loads, widening dot-reduction compute, and scalar-result store boundary.
+- Extended RVV route planning/provider to derive ABI order `lhs,rhs,acc,out,n`, source/result vector facts, scalar seed/result layout, widening product/reduction leaves, metadata mirrors, and fail-closed diagnostics from typed body/config/runtime facts.
+- Extended construction protocol, target export metadata, generated-bundle script, and C++/MLIR tests for the new route without adding source-front-door, descriptor, direct-C, or dtype-prefixed helper authority.
+
+### Testing
+
+- [OK] Focused build: `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-dialect-test tianchenrv-rvv-extension-plugin-test tianchenrv-construction-protocol-common-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-dialect-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Manual FileCheck RUNs for `test/Target/RVV/pre-realized-selected-body-artifact-widening-dot-reduce-add.mlir` realization, emission plan, and header export.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Generated-bundle dry-run for `widening_dot_reduce_add`, counts `7,16,23`.
+- [OK] Real `ssh rvv` generated-bundle harness PASS for counts `7,16,23`, proving signed horizontal dot product, nonzero seed addition, scalar `out[0]`, and tail sentinel preservation.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 237/237 passed.
+- [OK] Active-authority scan found no new positive `RVVI32M1`, `rvv-i32m1`, finite positive `tcrv_rvv.i32_reduction_*`, `tcrv_rvv.i32_accumulator_*`, `tcrv_rvv.i32_macc`, source-seed, descriptor, direct-C, or source-export authority; remaining hits are existing fail-closed/negative tests or unsupported-mode diagnostics.
+- [OK] `git diff --check`
+
+### Status
+
+[OK] Completed and ready to archive.
+
+### Next Steps
+
+- None for this bounded slice.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

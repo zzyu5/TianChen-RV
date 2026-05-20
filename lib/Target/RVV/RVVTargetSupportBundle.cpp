@@ -533,6 +533,17 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"widening_macc_relation", "tcrv_rvv.widening_macc_relation", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"widening_dot_accumulator_layout",
+       "tcrv_rvv.widening_dot_accumulator_layout", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"widening_dot_result_layout", "tcrv_rvv.widening_dot_result_layout",
+       "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"widening_dot_relation", "tcrv_rvv.widening_dot_relation", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"widening_dot_reduction_store_vl",
+       "tcrv_rvv.widening_dot_reduction_store_vl", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
   });
   return evidence;
 }
