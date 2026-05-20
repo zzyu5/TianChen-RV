@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV Stage order for this implementation round."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, typed body, selected-body realization, and Stage1/Stage2 route constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality boundary."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/envelope boundary; compute and RVV semantics stay plugin-owned."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected RVV variant, realization, provider route, and metadata mirror constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/C++/runtime evidence and fail-closed testing policy."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review guardrail for keeping RVV-specific mapping plugin-local."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review guardrail for keeping compute out of tcrv.exec/core/common layers."}

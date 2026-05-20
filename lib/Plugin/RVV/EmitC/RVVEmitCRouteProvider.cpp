@@ -37,7 +37,13 @@ bool isRVVSelectedBodyWideningMAccRoute(RVVSelectedBodyOperationKind op) {
 
 bool isRVVSelectedBodyWideningDotReductionRoute(
     RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::WideningDotReduceAdd;
+  return op == RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd;
+}
+
+bool isRVVSelectedBodyComputedMaskWideningDotReductionRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd;
 }
 
 bool isRVVSelectedBodyReductionRoute(RVVSelectedBodyOperationKind op) {
@@ -241,6 +247,143 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           TCRVEmitCCallOpaqueResult{loopVLName.str(),
                                     description.vlCType.str()}))
     return error;
+
+  if (isRVVSelectedBodyComputedMaskWideningDotReductionRoute(
+          description.operation)) {
+    if (llvm::Error error = addLoopStep(
+            slice->lhsLoadOperation, "load", description.vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->lhsABI.cName) + " + " +
+                  inductionName)
+                     .str(),
+                 slice->lhsABI.cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"cmp_lhs_vec",
+                                      description.vectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->rhsLoadOperation, "load", description.vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->rhsABI.cName) + " + " +
+                  inductionName)
+                     .str(),
+                 slice->rhsABI.cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"cmp_rhs_vec",
+                                      description.vectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->compareOp.getOperation(), "compute",
+            description.compareIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{"cmp_lhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"cmp_rhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.maskName.str(),
+                                      description.maskCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->dotLHSLoadOperation, "load",
+            description.sourceVectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->dotLHSABI.cName) + " + " +
+                  inductionName)
+                     .str(),
+                 slice->dotLHSABI.cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"dot_lhs_vec",
+                                      description.sourceVectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->dotRHSLoadOperation, "load",
+            description.sourceVectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->dotRHSABI.cName) + " + " +
+                  inductionName)
+                     .str(),
+                 slice->dotRHSABI.cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"dot_rhs_vec",
+                                      description.sourceVectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute",
+            description.scalarSeedSplatIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{"0", "int32_t"},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"dot_zero_vec",
+                                      description.vectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute",
+            description.maskedWideningProductIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        description.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{"dot_lhs_vec",
+                                        description.sourceVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"dot_rhs_vec",
+                                        description.sourceVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"active_dot_product_vec",
+                                      description.vectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute",
+            description.maskedMergeIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{"dot_zero_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"active_dot_product_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        description.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"dot_product_vec",
+                                      description.vectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute",
+            description.scalarSeedSplatIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->outABI.cName) + "[0]").str(),
+                 "int32_t"},
+             TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"dot_acc_vec",
+                                      description.vectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", description.intrinsic,
+            {TCRVEmitCCallOpaqueOperand{"dot_product_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"dot_acc_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                      description.vectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->storeOperation, "store", description.storeIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{slice->outABI.cName,
+                                        slice->outABI.cType},
+             TCRVEmitCCallOpaqueOperand{description.resultName.str(),
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                        description.vlCType.str()}}))
+      return error;
+    route.addForLoop(std::move(loop));
+    out = std::move(route);
+    return llvm::Error::success();
+  }
 
   if (isRVVSelectedBodySegmentedMemoryMovementRoute(description.operation)) {
     const bool isSegment2Interleave =

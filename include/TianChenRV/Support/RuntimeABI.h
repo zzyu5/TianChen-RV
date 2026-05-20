@@ -28,6 +28,8 @@ enum class RuntimeABIParameterRole {
   RHSInputBuffer,
   AccumulatorInputBuffer,
   SourceInputBuffer,
+  DotLHSInputBuffer,
+  DotRHSInputBuffer,
   IndexInputBuffer,
   MaskInputBuffer,
   RHSScalarValue,
@@ -82,6 +84,10 @@ inline llvm::StringRef stringifyRuntimeABIParameterRole(
     return "accumulator-input-buffer";
   case RuntimeABIParameterRole::SourceInputBuffer:
     return "source-input-buffer";
+  case RuntimeABIParameterRole::DotLHSInputBuffer:
+    return "dot-lhs-input-buffer";
+  case RuntimeABIParameterRole::DotRHSInputBuffer:
+    return "dot-rhs-input-buffer";
   case RuntimeABIParameterRole::IndexInputBuffer:
     return "index-input-buffer";
   case RuntimeABIParameterRole::MaskInputBuffer:
@@ -124,6 +130,10 @@ symbolizeRuntimeABIParameterRole(llvm::StringRef role) {
     return RuntimeABIParameterRole::AccumulatorInputBuffer;
   if (role == "source-input-buffer")
     return RuntimeABIParameterRole::SourceInputBuffer;
+  if (role == "dot-lhs-input-buffer")
+    return RuntimeABIParameterRole::DotLHSInputBuffer;
+  if (role == "dot-rhs-input-buffer")
+    return RuntimeABIParameterRole::DotRHSInputBuffer;
   if (role == "index-input-buffer")
     return RuntimeABIParameterRole::IndexInputBuffer;
   if (role == "mask-input-buffer")

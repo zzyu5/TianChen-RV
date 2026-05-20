@@ -19,6 +19,8 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::WithVLOp withVL;
   tcrv::rvv::LoadOp lhsGenericLoad;
   tcrv::rvv::LoadOp rhsGenericLoad;
+  tcrv::rvv::LoadOp dotLHSGenericLoad;
+  tcrv::rvv::LoadOp dotRHSGenericLoad;
   tcrv::rvv::LoadOp sourceGenericLoad;
   tcrv::rvv::StridedLoadOp lhsStridedLoad;
   tcrv::rvv::StridedLoadOp rhsStridedLoad;
@@ -37,6 +39,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::MAccOp maccOp;
   tcrv::rvv::WideningMAccOp wideningMAccOp;
   tcrv::rvv::WideningDotReduceOp wideningDotReduceOp;
+  tcrv::rvv::MaskedWideningDotReduceOp maskedWideningDotReduceOp;
   tcrv::rvv::WideningConvertOp wideningConvertOp;
   tcrv::rvv::MoveOp moveOp;
   tcrv::rvv::MoveOp field0MoveOp;
@@ -55,6 +58,8 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value maskedActiveValue;
   mlir::Value maskedInactivePassthrough;
   mlir::Value conversionSource;
+  mlir::Value dotLHSValue;
+  mlir::Value dotRHSValue;
   RVVSelectedBodyOperationKind arithmeticKind;
   RVVSelectedBodyMemoryForm memoryForm =
       RVVSelectedBodyMemoryForm::VectorRHSLoad;
@@ -76,6 +81,8 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Operation *field0StoreOperation = nullptr;
   mlir::Operation *field1StoreOperation = nullptr;
   mlir::Operation *accumulatorLoadOperation = nullptr;
+  mlir::Operation *dotLHSLoadOperation = nullptr;
+  mlir::Operation *dotRHSLoadOperation = nullptr;
   mlir::Operation *storeOperation = nullptr;
   mlir::Value lhsBuffer;
   mlir::Value rhsBuffer;
@@ -88,6 +95,8 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value indexedDataBuffer;
   mlir::Value indexedDestinationBuffer;
   mlir::Value accumulatorBuffer;
+  mlir::Value dotLHSBuffer;
+  mlir::Value dotRHSBuffer;
   mlir::Value outBuffer;
   mlir::Value lhsStride;
   mlir::Value rhsStride;
@@ -109,6 +118,8 @@ struct RVVSelectedBodyRouteSlice {
   support::RuntimeABIParameter field0ABI;
   support::RuntimeABIParameter field1ABI;
   support::RuntimeABIParameter accumulatorABI;
+  support::RuntimeABIParameter dotLHSABI;
+  support::RuntimeABIParameter dotRHSABI;
   support::RuntimeABIParameter outABI;
   support::RuntimeABIParameter runtimeElementCountABI;
   support::RuntimeABIParameter lhsStrideABI;

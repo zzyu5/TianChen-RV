@@ -45,6 +45,7 @@ enum class RVVSelectedBodyOperationKind {
   WidenI16ToI32,
   WideningMAccAdd,
   WideningDotReduceAdd,
+  ComputedMaskWideningDotReduceAdd,
 };
 
 enum class RVVSelectedBodyMemoryForm {
@@ -62,6 +63,7 @@ enum class RVVSelectedBodyMemoryForm {
   Segment2LoadUnitStore,
   UnitLoadSegment2Store,
   UnitStrideConversion,
+  ComputedMaskUnitStrideWideningDotReduce,
 };
 
 struct RVVSelectedBodyEmitCRouteDescription {
@@ -140,6 +142,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef wideningDotProductResultLayout;
   llvm::StringRef wideningDotProductRelation;
   llvm::StringRef wideningProductIntrinsic;
+  llvm::StringRef maskedWideningProductIntrinsic;
   llvm::StringRef scalarSeedSplatIntrinsic;
   llvm::StringRef stridedMemoryLayout;
   llvm::StringRef indexedMemoryLayout;

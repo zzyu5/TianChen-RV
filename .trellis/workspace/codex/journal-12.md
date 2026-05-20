@@ -515,3 +515,34 @@ Implemented one bounded Stage2 RVV signed widening dot-product reduction executa
 ### Next Steps
 
 - None - task complete
+
+
+## Session 145: Stage2 RVV computed-mask widening dot reduction
+
+**Date**: 2026-05-20
+**Task**: Stage2 RVV computed-mask widening dot reduction
+**Branch**: `main`
+
+### Summary
+
+Implemented bounded computed-mask signed i16 widening dot reduction through RVV typed body, selected-body realization, route planning/provider, generated bundle harness, fail-closed tests, ssh rvv counts 7/16/23, and check-tianchenrv 239/239.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

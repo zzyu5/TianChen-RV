@@ -538,6 +538,32 @@ getRVVSelectedBodyWideningMAccRuntimeABIParameters() {
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 7>
+getRVVSelectedBodyComputedMaskWideningDotReduceRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 7> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "cmp_lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "cmp_rhs", "const int32_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int16_t *",
+      support::RuntimeABIParameterRole::DotLHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs", "const int16_t *",
+      support::RuntimeABIParameterRole::DotRHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "acc", "const int32_t *",
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 7>
 getRVVSelectedBodyStridedRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 7> parameters;
   llvm::SmallVector<support::RuntimeABIParameter, 4> base =
@@ -802,6 +828,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   llvm::SmallVector<support::RuntimeABIParameter, 5> wideningMAccExpected =
       getRVVSelectedBodyWideningMAccRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, wideningMAccExpected))
+    return llvm::Error::success();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 7>
+      computedMaskWideningDotExpected =
+          getRVVSelectedBodyComputedMaskWideningDotReduceRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters,
+                                         computedMaskWideningDotExpected))
     return llvm::Error::success();
 
   return makeRuntimeABIError(

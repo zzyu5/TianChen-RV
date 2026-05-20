@@ -608,6 +608,62 @@ def TypedWideningDotReducePreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedComputedMaskWideningDotReducePreRealizedBodyOp
+    : TCRVRVV_Op<"typed_computed_mask_widening_dot_reduce_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV computed-mask widening dot-product reduction body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body where a
+    signed i32 vector compare produces an in-body mask SSA value and a signed
+    i16mf2 x i16mf2 widening dot-product reduction consumes that mask. The op
+    is nested directly in a selected tcrv.exec.variant and binds explicit
+    runtime ABI values for compare lhs/rhs, i16 dot lhs/rhs, i32 accumulator
+    seed input, i32 scalar output, and runtime n/AVL together with compare
+    predicate, mask role/source/config, operation kind, unit-stride memory
+    form, accumulator role/layout, scalar result layout, source and
+    accumulator/result SEW+LMUL facts, dot-product relation, and policy.
+
+    This op is not matmul, a broad contraction framework, dtype-prefixed helper
+    namespace, descriptor, source-front-door marker, direct-C exporter, route
+    id, intrinsic wrapper, runtime artifact, correctness evidence, or
+    performance evidence. The RVV plugin must realize it into explicit
+    setvl/with_vl/load/load/compare/load/load/masked_widening_dot_reduce/store
+    tcrv_rvv body structure before the provider may construct a
+    TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$compare_lhs,
+    AnyType:$compare_rhs,
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$acc,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$predicate_kind,
+    StrAttr:$memory_form,
+    StrAttr:$mask_role,
+    StrAttr:$mask_source,
+    StrAttr:$mask_memory_form,
+    StrAttr:$accumulator_role,
+    StrAttr:$accumulator_layout,
+    StrAttr:$result_layout,
+    I64Attr:$source_sew,
+    StrAttr:$source_lmul,
+    I64Attr:$accumulator_sew,
+    StrAttr:$accumulator_lmul,
+    I64Attr:$result_sew,
+    StrAttr:$result_lmul,
+    StrAttr:$dot_product_relation,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$compare_lhs `,` $compare_rhs `,` $lhs `,` $rhs `,` $acc `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedWideningConversionPreRealizedBodyOp
     : TCRVRVV_Op<"typed_widening_conversion_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV widening conversion body";
@@ -1590,6 +1646,53 @@ def WideningDotReduceOp : TCRVRVV_Op<"widening_dot_reduce",
 
   let assemblyFormat =
     "$lhs `,` $rhs `,` $accumulator_seed `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($accumulator_seed) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def MaskedWideningDotReduceOp : TCRVRVV_Op<"masked_widening_dot_reduce",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary =
+      "generic typed RVV masked widening dot-product reduction dataflow op";
+  let description = [{
+    Records one bounded generic plugin-local RVV signed masked widening
+    dot-product reduction dataflow step. The op is nested directly under
+    tcrv_rvv.with_vl, consumes a compare-produced !tcrv_rvv.mask, two i16
+    !tcrv_rvv.vector source operands, an explicit i32 accumulator seed runtime
+    ABI value, and the active !tcrv_rvv.vl token. It carries explicit
+    operation kind, accumulator layout, scalar result layout, dot-product
+    relation, mask role/source/config facts, and produces one i32
+    !tcrv_rvv.vector token whose lane 0 is the scalar reduction result
+    boundary.
+
+    For the current bounded Stage 2 scalar-reduction slice, kind is limited to
+    signed_masked_widening_dot_reduce_add, representing
+    acc_seed + sum(mask ? sign_extend(lhs) * sign_extend(rhs) : 0) over
+    runtime n. Mask provenance, lhs/rhs source facts, accumulator seed
+    boundary, result, VL, source/result SEW/LMUL, policy, accumulator layout,
+    result layout, and memory-form facts are structural in the selected RVV
+    body. Route ids, helper names, ABI strings, artifact names, status fields,
+    exact intrinsic spellings, and common EmitC/export code must not infer or
+    choose masked widening dot-product reduction semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$mask,
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$accumulator_seed,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$mask_role,
+    StrAttr:$mask_source,
+    StrAttr:$mask_memory_form,
+    StrAttr:$accumulator_layout,
+    StrAttr:$result_layout,
+    StrAttr:$dot_product_relation
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$mask `,` $lhs `,` $rhs `,` $accumulator_seed `,` $vl attr-dict `:` type($mask) `,` type($lhs) `,` type($rhs) `,` type($accumulator_seed) `,` type($vl) `->` type($result)";
   let hasVerifier = 1;
 }
 

@@ -507,6 +507,12 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
   evidence.append({
       {"memory_form", "tcrv_rvv.memory_form", "",
        /*allowDynamicValue=*/true},
+      {"mask_role", "tcrv_rvv.mask_role", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"mask_source", "tcrv_rvv.mask_source", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"mask_memory_form", "tcrv_rvv.mask_memory_form", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"source_sew", "tcrv_rvv.source_sew", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"source_lmul", "tcrv_rvv.source_lmul", "",
