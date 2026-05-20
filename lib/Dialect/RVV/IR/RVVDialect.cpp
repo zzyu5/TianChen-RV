@@ -77,6 +77,7 @@ constexpr llvm::StringLiteral kConversionRelationAttrName(
 constexpr llvm::StringLiteral kStrideUnitAttrName("stride_unit");
 constexpr llvm::StringLiteral kIndexEEWAttrName("index_eew");
 constexpr llvm::StringLiteral kOffsetUnitAttrName("offset_unit");
+constexpr llvm::StringLiteral kIndexUniquenessAttrName("index_uniqueness");
 constexpr llvm::StringLiteral kVLenAttrName("vlen");
 constexpr llvm::StringLiteral kVLenBAttrName("vlenb");
 constexpr llvm::StringLiteral kRVVVariantRequiredMarchAttrName(
@@ -216,6 +217,15 @@ bool isAllowedTypedIndexedGatherMemoryPreRealizedBodyAttr(
          name == kPolicyAttrName;
 }
 
+bool isAllowedTypedIndexedScatterMemoryPreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kIndexEEWAttrName || name == kOffsetUnitAttrName ||
+         name == kIndexUniquenessAttrName ||
+         name == kSEWAttrName || name == kLMULAttrName ||
+         name == kPolicyAttrName;
+}
+
 bool isAllowedLoadAttr(llvm::StringRef) { return false; }
 
 bool isAllowedBroadcastLoadAttr(llvm::StringRef) { return false; }
@@ -228,6 +238,11 @@ bool isAllowedIndexLoadAttr(llvm::StringRef name) {
 
 bool isAllowedIndexedLoadAttr(llvm::StringRef name) {
   return name == kIndexEEWAttrName || name == kOffsetUnitAttrName;
+}
+
+bool isAllowedIndexedStoreAttr(llvm::StringRef name) {
+  return name == kIndexEEWAttrName || name == kOffsetUnitAttrName ||
+         name == kIndexUniquenessAttrName;
 }
 
 bool isAllowedBinaryAttr(llvm::StringRef name) {
@@ -405,9 +420,19 @@ bool isSupportedTypedIndexedGatherPreRealizedBodyOpKind(
   return opKind == "indexed_gather_unit_store";
 }
 
+bool isSupportedTypedIndexedScatterPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "indexed_scatter_unit_load";
+}
+
 bool isSupportedTypedIndexedGatherPreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "indexed-load-unit-store";
+}
+
+bool isSupportedTypedIndexedScatterPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-load-indexed-store";
 }
 
 bool isSupportedTypedIndexedGatherIndexEEW(std::int64_t indexEEW) {
@@ -416,6 +441,11 @@ bool isSupportedTypedIndexedGatherIndexEEW(std::int64_t indexEEW) {
 
 bool isSupportedTypedIndexedGatherOffsetUnit(llvm::StringRef offsetUnit) {
   return offsetUnit == "element";
+}
+
+bool isSupportedTypedIndexedScatterIndexUniqueness(
+    llvm::StringRef indexUniqueness) {
+  return indexUniqueness == "unique";
 }
 
 bool isSupportedGenericBinaryKind(llvm::StringRef kind) {
@@ -1252,6 +1282,14 @@ llvm::StringRef IndexedLoadOp::getTCRVEmitCLowerableSourceOpName() {
 
 llvm::StringRef IndexedLoadOp::getTCRVEmitCLowerableSourceRole() {
   return "load";
+}
+
+llvm::StringRef IndexedStoreOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef IndexedStoreOp::getTCRVEmitCLowerableSourceRole() {
+  return "store";
 }
 
 llvm::StringRef StoreOp::getTCRVEmitCLowerableSourceOpName() {
@@ -2196,8 +2234,9 @@ mlir::LogicalResult TypedIndexedGatherMemoryPreRealizedBodyOp::verify() {
       return emitOpError()
              << "only accepts pre-realization attributes '" << kOpKindAttrName
              << "', '" << kMemoryFormAttrName << "', '" << kIndexEEWAttrName
-             << "', '" << kOffsetUnitAttrName << "', '" << kSEWAttrName
-             << "', '" << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "', '" << kOffsetUnitAttrName << "', '"
+             << kIndexUniquenessAttrName << "', '" << kSEWAttrName << "', '"
+             << kLMULAttrName << "', and '" << kPolicyAttrName
              << "'; unexpected attribute '" << attr.getName() << "'";
   }
 
@@ -2249,6 +2288,87 @@ mlir::LogicalResult TypedIndexedGatherMemoryPreRealizedBodyOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult TypedIndexedScatterMemoryPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected indexed scatter bodies carry only "
+                "typed RVV memory-form, index-EEW, offset-unit, config, "
+                "policy, and runtime SSA facts and must be realized by the "
+                "RVV plugin before route construction";
+
+    if (!isAllowedTypedIndexedScatterMemoryPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '" << kIndexEEWAttrName
+             << "', '" << kOffsetUnitAttrName << "', '" << kSEWAttrName
+             << "', '" << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires source input, index input, destination output, "
+              "runtime n/AVL operands and no results";
+
+  if (!isSupportedTypedIndexedScatterPreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"indexed_scatter_unit_load\" for the bounded selected-body "
+              "indexed scatter hook";
+  if (!isSupportedTypedIndexedScatterPreRealizedMemoryForm(getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"unit-load-indexed-store\" for the bounded selected-body "
+              "indexed scatter hook";
+  if (!isSupportedTypedIndexedGatherIndexEEW(
+          static_cast<std::int64_t>(getIndexEew())))
+    return emitOpError()
+           << "currently supports only index_eew 32 for the bounded "
+              "selected-body indexed scatter hook";
+  if (!isSupportedTypedIndexedGatherOffsetUnit(getOffsetUnit()))
+    return emitOpError()
+           << "currently supports only offset_unit \"element\" for the "
+              "bounded selected-body indexed scatter hook";
+  if (!isSupportedTypedIndexedScatterIndexUniqueness(getIndexUniqueness()))
+    return emitOpError()
+           << "requires index_uniqueness \"unique\" because duplicate-index "
+              "scatter policy is unsupported for the bounded selected-body "
+              "indexed scatter hook";
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized indexed scatter data config to "
+              "be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body indexed scatter hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSource(), "source",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getIndex(), "index",
+          {tianchenrv::support::RuntimeABIParameterRole::IndexInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getDestination(), "destination",
           {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   return verifyRuntimeElementCountOperand(op, getN());
@@ -2368,6 +2488,67 @@ mlir::LogicalResult IndexedLoadOp::verify() {
           verifyGenericIndexVectorTypeForWithVL(op, getIndices(), "indices")))
     return mlir::failure();
   return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
+}
+
+mlir::LogicalResult IndexedStoreOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.indexed_store",
+                                         isAllowedIndexedStoreAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires one explicit destination buffer ABI operand, one "
+              "generic RVV index vector operand, one generic RVV data vector "
+              "value operand, one !tcrv_rvv.vl operand, and no results";
+  if (!isSupportedTypedIndexedGatherIndexEEW(
+          static_cast<std::int64_t>(getIndexEew())))
+    return emitOpError()
+           << "currently supports only index_eew 32 for "
+              "tcrv_rvv.indexed_store";
+  if (!isSupportedTypedIndexedGatherOffsetUnit(getOffsetUnit()))
+    return emitOpError()
+           << "currently supports only offset_unit \"element\" for "
+              "tcrv_rvv.indexed_store";
+  if (!isSupportedTypedIndexedScatterIndexUniqueness(getIndexUniqueness()))
+    return emitOpError()
+           << "requires index_uniqueness \"unique\" because duplicate-index "
+              "scatter policy is unsupported for tcrv_rvv.indexed_store";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getDestination(), "destination",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto indexLoad = getIndices().getDefiningOp<IndexLoadOp>();
+  if (!indexLoad)
+    return emitOpError()
+           << "requires indices operand to be produced by "
+              "tcrv_rvv.index_load inside the selected RVV typed body";
+  if (indexLoad.getVl() != getVl())
+    return emitOpError()
+           << "requires index-producing tcrv_rvv.index_load to consume the "
+              "same !tcrv_rvv.vl token as tcrv_rvv.indexed_store";
+  if (indexLoad->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires index-producing tcrv_rvv.index_load to be in the "
+              "same tcrv_rvv.with_vl body as tcrv_rvv.indexed_store";
+  if (static_cast<std::int64_t>(indexLoad.getIndexEew()) !=
+      static_cast<std::int64_t>(getIndexEew()))
+    return emitOpError()
+           << "requires index_eew to match the producing tcrv_rvv.index_load";
+
+  if (mlir::failed(
+          verifyGenericIndexVectorTypeForWithVL(op, getIndices(), "indices")))
+    return mlir::failure();
+  return verifyGenericVectorTypeForWithVL(op, getValue(), "stored value");
 }
 
 mlir::LogicalResult BroadcastLoadOp::verify() {

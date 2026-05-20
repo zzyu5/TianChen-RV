@@ -176,9 +176,9 @@ def TCRVRVV_IndexVectorType : TCRVRVV_Type<"IndexVector", "index_vector"> {
   let description = [{
     A generic plugin-local RVV index vector token for bounded indexed memory
     movement. The type carries the index element dtype and LMUL. For the
-    current executable slice it is an unsigned 32-bit index/offset vector with
-    LMUL m1, produced by tcrv_rvv.index_load and consumed by
-    tcrv_rvv.indexed_load.
+    current executable slices it is an unsigned 32-bit index/offset vector
+    with LMUL m1, produced by tcrv_rvv.index_load and consumed by
+    tcrv_rvv.indexed_load or tcrv_rvv.indexed_store.
 
     This type is not a route id, descriptor, artifact name, source front door
     marker, intrinsic spelling, runtime evidence, or performance claim. The
@@ -628,6 +628,46 @@ def TypedIndexedGatherMemoryPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedIndexedScatterMemoryPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_indexed_scatter_memory_pre_realized_body"> {
+  let summary = "generic typed pre-realized RVV indexed scatter memory body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body for
+    unit-stride source memory movement into an indexed destination. The op is
+    nested directly in a selected tcrv.exec.variant and binds explicit runtime
+    ABI values for source data, index source, indexed destination, and runtime
+    n/AVL together with selected memory movement operation kind, memory form,
+    index EEW, offset unit, explicit unique-index policy, compile-time RVV
+    data vector config, and policy.
+
+    This op is not a gather/scatter framework, masked scatter route,
+    duplicate-index resolver, descriptor, source-front-door marker, direct-C
+    exporter, route id, intrinsic wrapper, runtime artifact, correctness
+    evidence, or performance evidence. The RVV plugin must realize it into
+    explicit setvl/with_vl/load/index_load/move/indexed_store tcrv_rvv body
+    structure before the provider may construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$source,
+    AnyType:$index,
+    AnyType:$destination,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    I64Attr:$index_eew,
+    StrAttr:$offset_unit,
+    StrAttr:$index_uniqueness,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$source `,` $index `,` $destination `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def LoadOp : TCRVRVV_Op<"load",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",
@@ -804,6 +844,41 @@ def IndexedLoadOp : TCRVRVV_Op<"indexed_load",
 
   let assemblyFormat =
     "$data `,` $indices `,` $vl attr-dict `:` type($data) `,` type($indices) `,` type($vl) `->` type($loaded)";
+  let hasVerifier = 1;
+}
+
+def IndexedStoreOp : TCRVRVV_Op<"indexed_store",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV indexed data store dataflow op";
+  let description = [{
+    Records one bounded plugin-local RVV indexed destination store step. The
+    op is nested directly under tcrv_rvv.with_vl, consumes one explicit output
+    buffer runtime ABI value, one !tcrv_rvv.index_vector produced by
+    tcrv_rvv.index_load, one typed data !tcrv_rvv.vector value, and the active
+    !tcrv_rvv.vl token. It carries the explicit index EEW, offset unit, and
+    unique-index policy required by this bounded scatter slice.
+
+    Data dtype/config, index EEW/offset unit, destination memory role, and
+    indexed-store form come from this typed body. The RVV plugin derives the
+    concrete indexed-store intrinsic and any element-to-byte offset conversion
+    after legality validation. Duplicate-index resolution is not modeled by
+    this bounded slice, so only explicitly unique index vectors are accepted.
+  }];
+
+  let arguments = (ins
+    AnyType:$destination,
+    AnyType:$indices,
+    AnyType:$value,
+    AnyType:$vl,
+    I64Attr:$index_eew,
+    StrAttr:$offset_unit,
+    StrAttr:$index_uniqueness
+  );
+
+  let assemblyFormat =
+    "$destination `,` $indices `,` $value `,` $vl attr-dict `:` type($destination) `,` type($indices) `,` type($value) `,` type($vl)";
   let hasVerifier = 1;
 }
 

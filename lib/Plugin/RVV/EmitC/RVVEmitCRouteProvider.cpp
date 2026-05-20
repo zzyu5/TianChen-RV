@@ -41,7 +41,8 @@ bool isRVVSelectedBodyWideningConversionRoute(RVVSelectedBodyOperationKind op) {
 
 bool isRVVSelectedBodyMemoryMovementRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::StridedLoadUnitStore ||
-         op == RVVSelectedBodyOperationKind::IndexedGatherUnitStore;
+         op == RVVSelectedBodyOperationKind::IndexedGatherUnitStore ||
+         op == RVVSelectedBodyOperationKind::IndexedScatterUnitLoad;
 }
 
 llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance>
@@ -264,8 +265,34 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                  slice->lhsABI.cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
-            TCRVEmitCCallOpaqueResult{"lhs_vec",
+            TCRVEmitCCallOpaqueResult{lhsResultName.str(),
                                       description.vectorCType.str()}))
+      return error;
+  }
+  if (description.memoryForm ==
+      RVVSelectedBodyMemoryForm::UnitLoadIndexedStore) {
+    if (llvm::Error error = addLoopStep(
+            slice->indexLoadOperation, "load", description.indexLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->indexABI.cName) + " + " +
+                  inductionName)
+                     .str(),
+                 slice->indexABI.cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"index_vec",
+                                      description.indexVectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->indexedStoreOperation, "store",
+            description.indexScaleIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{"index_vec",
+                                        description.indexVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"4", "uint32_t"},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"byte_offsets",
+                                      description.indexVectorCType.str()}))
       return error;
   }
   if (isRVVSelectedBodyWideningConversionRoute(description.operation) ||
@@ -460,6 +487,20 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
              TCRVEmitCCallOpaqueOperand{
                  (llvm::StringRef(slice->outStrideABI.cName) + " * 4").str(),
                  "ptrdiff_t"},
+             TCRVEmitCCallOpaqueOperand{description.resultName.str(),
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{storeVLName.str(),
+                                        description.vlCType.str()}}))
+      return error;
+  } else if (description.memoryForm ==
+             RVVSelectedBodyMemoryForm::UnitLoadIndexedStore) {
+    if (llvm::Error error = addLoopStep(
+            slice->indexedStoreOperation, "store",
+            description.indexedStoreIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{slice->outABI.cName,
+                                        slice->outABI.cType},
+             TCRVEmitCCallOpaqueOperand{"byte_offsets",
+                                        description.indexVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{description.resultName.str(),
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{storeVLName.str(),

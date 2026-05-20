@@ -49,6 +49,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "strided_add",
     "strided_load_unit_store",
     "indexed_gather_unit_store",
+    "indexed_scatter_unit_load",
     "scalar_broadcast_add",
     "i64_add",
     "lmul_m2_add",
@@ -85,6 +86,15 @@ INDEXED_GATHER_INDEX_EEW = "32"
 INDEXED_GATHER_OFFSET_UNIT = "element"
 INDEXED_GATHER_DATA_MEMORY_FORM = "indexed-load"
 INDEXED_GATHER_DESTINATION_MEMORY_FORM = "unit-stride-store"
+INDEXED_SCATTER_RUNTIME_ABI_ORDER = "src,index,dst,n"
+INDEXED_SCATTER_MEMORY_LAYOUT = "unit-stride-source-indexed-destination-index-runtime-abi"
+INDEXED_SCATTER_INDEX_SOURCE = "runtime_abi:index"
+INDEXED_SCATTER_INDEX_EEW = "32"
+INDEXED_SCATTER_OFFSET_UNIT = "element"
+INDEXED_SCATTER_INDEX_UNIQUENESS = "unique"
+INDEXED_SCATTER_SOURCE_MEMORY_FORM = "unit-stride-load"
+INDEXED_SCATTER_INDEXED_DESTINATION_MEMORY_FORM = "indexed-store"
+INDEXED_SCATTER_DESTINATION_MEMORY_FORM = "indexed-store"
 OUT_SENTINEL = "(int32_t)0x5a5a5a5a"
 I64_OUT_SENTINEL = "(int64_t)0x5a5a5a5a5a5a5a5aLL"
 
@@ -139,6 +149,11 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *data, "
                 "const uint32_t *index, int32_t *out, size_t n);"
             )
+        if self.is_indexed_scatter_unit_load:
+            return (
+                f"void {self.function_name}(const int32_t *src, "
+                "const uint32_t *index, int32_t *dst, size_t n);"
+            )
         if self.is_scalar_broadcast_add:
             return (
                 f"void {self.function_name}(const int32_t *lhs, "
@@ -163,6 +178,8 @@ class OpExpectation:
             return EXPECTED_STRIDED_LOAD_UNIT_STORE_RUNTIME_PARAMETERS
         if self.is_indexed_gather_unit_store:
             return EXPECTED_INDEXED_GATHER_RUNTIME_PARAMETERS
+        if self.is_indexed_scatter_unit_load:
+            return EXPECTED_INDEXED_SCATTER_RUNTIME_PARAMETERS
         if self.is_scalar_broadcast_add:
             return EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS
         if self.is_widen_i32_to_i64:
@@ -185,6 +202,8 @@ class OpExpectation:
             return STRIDED_LOAD_UNIT_STORE_RUNTIME_ABI_ORDER
         if self.is_indexed_gather_unit_store:
             return INDEXED_GATHER_RUNTIME_ABI_ORDER
+        if self.is_indexed_scatter_unit_load:
+            return INDEXED_SCATTER_RUNTIME_ABI_ORDER
         if self.is_scalar_broadcast_add:
             return SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER
         if self.is_widen_i32_to_i64:
@@ -230,6 +249,10 @@ class OpExpectation:
     @property
     def is_indexed_gather_unit_store(self) -> bool:
         return self.kind == "indexed_gather_unit_store"
+
+    @property
+    def is_indexed_scatter_unit_load(self) -> bool:
+        return self.kind == "indexed_scatter_unit_load"
 
     @property
     def is_scalar_broadcast_add(self) -> bool:
@@ -404,6 +427,21 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         rhs_initializer="unused",
         expected_expression="data[indices[index]]",
     ),
+    "indexed_scatter_unit_load": OpExpectation(
+        kind="indexed_scatter_unit_load",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-indexed-scatter-unit-load.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_indexed_scatter_unit_load",
+        external_abi_name="rvv-generic-indexed-scatter-unit-load-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_indexed_scatter_unit_load_kernel_explicit_selected_body_rvv_indexed_scatter_unit_load",
+        emitc_route="rvv-generic-indexed-scatter-unit-load-emitc-route",
+        typed_compute_op="tcrv_rvv.move",
+        memory_form="unit-load-indexed-store",
+        lhs_initializer="(int32_t)(503 + (int32_t)(index * 11))",
+        rhs_initializer="unused",
+        expected_expression="src[logical_index]",
+    ),
 }
 
 RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS = {
@@ -542,6 +580,13 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_indexed_gather_unit_store",
         function_name="tcrv_emitc_pre_realized_body_indexed_gather_unit_store_kernel_pre_realized_body_rvv_indexed_gather_unit_store",
+    ),
+    "indexed_scatter_unit_load": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["indexed_scatter_unit_load"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-indexed-scatter-unit-load.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_indexed_scatter_unit_load",
+        function_name="tcrv_emitc_pre_realized_body_indexed_scatter_unit_load_kernel_pre_realized_body_rvv_indexed_scatter_unit_load",
     ),
     "scalar_broadcast_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
@@ -720,6 +765,32 @@ EXPECTED_INDEXED_GATHER_RUNTIME_PARAMETERS = (
     },
     {
         "c_name": "out",
+        "c_type": "int32_t *",
+        "role": "output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "n",
+        "c_type": "size_t",
+        "role": "runtime-element-count",
+        "ownership": "target-export-abi-owned",
+    },
+)
+EXPECTED_INDEXED_SCATTER_RUNTIME_PARAMETERS = (
+    {
+        "c_name": "src",
+        "c_type": "const int32_t *",
+        "role": "lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "index",
+        "c_type": "const uint32_t *",
+        "role": "index-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "dst",
         "c_type": "int32_t *",
         "role": "output-buffer",
         "ownership": "target-export-abi-owned",
@@ -1191,6 +1262,25 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
+    if expectation.is_indexed_scatter_unit_load:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.indexed_memory_layout": INDEXED_SCATTER_MEMORY_LAYOUT,
+                "tcrv_rvv.index_source": INDEXED_SCATTER_INDEX_SOURCE,
+                "tcrv_rvv.index_eew": INDEXED_SCATTER_INDEX_EEW,
+                "tcrv_rvv.offset_unit": INDEXED_SCATTER_OFFSET_UNIT,
+                "tcrv_rvv.index_uniqueness": INDEXED_SCATTER_INDEX_UNIQUENESS,
+                "tcrv_rvv.source_memory_form": (
+                    INDEXED_SCATTER_SOURCE_MEMORY_FORM
+                ),
+                "tcrv_rvv.indexed_destination_memory_form": (
+                    INDEXED_SCATTER_INDEXED_DESTINATION_MEMORY_FORM
+                ),
+                "tcrv_rvv.destination_memory_form": (
+                    INDEXED_SCATTER_DESTINATION_MEMORY_FORM
+                ),
+            }
+        )
     if expectation.is_widen_i32_to_i64:
         per_op_metadata.update(
             {
@@ -1506,6 +1596,52 @@ def verify_materialized_selected_body(
             "tcrv_rvv.binary",
             "materialized selected-body MLIR indexed gather unit store",
         )
+    if expectation.is_indexed_scatter_unit_load:
+        require_contains(
+            text,
+            "tcrv_rvv.load",
+            "materialized selected-body MLIR unit-stride source load",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.index_load",
+            "materialized selected-body MLIR index vector load",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.move",
+            "materialized selected-body MLIR indexed scatter movement op",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.indexed_store",
+            "materialized selected-body MLIR indexed destination store",
+        )
+        require_contains(
+            text,
+            'role = "index-input-buffer"',
+            "materialized selected-body MLIR index ABI role",
+        )
+        require_contains(
+            text,
+            'index_uniqueness = "unique"',
+            "materialized selected-body MLIR indexed scatter uniqueness",
+        )
+        require_contains(
+            text,
+            'offset_unit = "element"',
+            "materialized selected-body MLIR indexed scatter offset unit",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.indexed_load",
+            "materialized selected-body MLIR indexed scatter unit load",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.binary",
+            "materialized selected-body MLIR indexed scatter unit load",
+        )
     if expectation.is_cmp_select:
         require_contains(
             text,
@@ -1575,6 +1711,11 @@ def verify_materialized_selected_body(
             "tcrv_rvv.typed_indexed_gather_memory_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_indexed_scatter_memory_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
     require_no_forbidden_public_residue(text, "materialized selected-body MLIR")
     return {
         "path": str(materialized_path),
@@ -1592,6 +1733,134 @@ def harness_source(
     header_file_name: str, runtime_counts: list[int], expectation: OpExpectation
 ) -> str:
     counts = ", ".join(str(count) for count in runtime_counts)
+    if expectation.is_indexed_scatter_unit_load:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static uint32_t make_unique_index(size_t logical_index, size_t n) {{
+  if (n == 0)
+    return 0;
+  return (uint32_t)((logical_index * 5 + 3) % n);
+}}
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n == 0 ? 1 : n;
+  size_t dst_alloc_n = alloc_n + 8;
+  int32_t *src = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  uint32_t *indices = (uint32_t *)malloc(sizeof(uint32_t) * alloc_n);
+  int32_t *dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
+  uint8_t *seen = (uint8_t *)calloc(alloc_n, sizeof(uint8_t));
+  if (!src || !indices || !dst || !seen) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(src);
+    free(indices);
+    free(dst);
+    free(seen);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    src[index] = {expectation.lhs_initializer};
+    indices[index] = make_unique_index(index, alloc_n);
+    dst[index] = {OUT_SENTINEL};
+  }}
+  for (size_t index = alloc_n; index < dst_alloc_n; ++index)
+    dst[index] = {OUT_SENTINEL};
+
+  for (size_t logical_index = 0; logical_index < n; ++logical_index) {{
+    uint32_t dst_index = indices[logical_index];
+    if ((size_t)dst_index >= n) {{
+      fprintf(stderr,
+              "{expectation.kind} generated out-of-range index n=%zu logical_index=%zu dst_index=%u\\n",
+              n, logical_index, dst_index);
+      free(src);
+      free(indices);
+      free(dst);
+      free(seen);
+      return 12;
+    }}
+    if (seen[dst_index] != 0) {{
+      fprintf(stderr,
+              "{expectation.kind} duplicate index unsupported n=%zu logical_index=%zu dst_index=%u\\n",
+              n, logical_index, dst_index);
+      free(src);
+      free(indices);
+      free(dst);
+      free(seen);
+      return 13;
+    }}
+    seen[dst_index] = 1;
+  }}
+
+  {expectation.function_name}(src, indices, dst, n);
+
+  for (size_t logical_index = 0; logical_index < n; ++logical_index) {{
+    uint32_t dst_index = indices[logical_index];
+    int32_t expected = {expectation.expected_expression};
+    if (dst[dst_index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu logical_index=%zu scatter_index=%u got=%d expected=%d src=%d\\n",
+              n, logical_index, dst_index, dst[dst_index], expected,
+              src[logical_index]);
+      free(src);
+      free(indices);
+      free(dst);
+      free(seen);
+      return 14;
+    }}
+  }}
+
+  for (size_t index = n; index < dst_alloc_n; ++index) {{
+    if (dst[index] != {OUT_SENTINEL}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
+              n, index, dst[index], {OUT_SENTINEL});
+      free(src);
+      free(indices);
+      free(dst);
+      free(seen);
+      return 15;
+    }}
+  }}
+
+  if (n > 3 && indices[0] == 0 && indices[1] == 1 && indices[2] == 2) {{
+    fprintf(stderr,
+            "{expectation.kind} vacuous indexed scatter check failed n=%zu indices=[%u,%u,%u]\\n",
+            n, indices[0], indices[1], indices[2]);
+    free(src);
+    free(indices);
+    free(dst);
+    free(seen);
+    return 16;
+  }}
+
+  free(src);
+  free(indices);
+  free(dst);
+  free(seen);
+  printf("{expectation.kind} case n=%zu ok unique_non_monotonic_indexed_scatter\\n", n);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_indexed_gather_unit_store:
         return f"""
 #include <stddef.h>
@@ -3174,7 +3443,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=(
             "use the pre-realized selected-body add/sub/mul/masked_add/"
             "reduce_add/macc_add/strided_add/strided_load_unit_store/"
-            "indexed_gather_unit_store/"
+            "indexed_gather_unit_store/indexed_scatter_unit_load/"
             "lmul_m2_add/"
             "widen_i32_to_i64 "
             "fixtures and run public selected lowering-boundary "

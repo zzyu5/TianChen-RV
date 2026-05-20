@@ -1895,3 +1895,85 @@ slice; no performance claim is made.
 ### Next Steps
 
 - None - task complete
+
+---
+
+## Session 140: Stage2 RVV indexed scatter memory executable slice
+
+**Date:** 2026-05-20
+**Branch:** main
+**Task:** `stage2-rvv-indexed-scatter-memory-slice`
+
+### Summary
+
+Implemented the bounded Stage2 RVV indexed scatter executable slice:
+`dst[index[i]] = src[i]` for signed i32 / SEW32 / LMUL m1. The route now
+carries source data, index vector, destination buffer, runtime n/AVL, index EEW,
+element offset unit, unique-index policy, RVV config, and policy as typed
+selected-body facts through realization, RVV route planning/provider output,
+generated artifact emission, and real `ssh rvv` correctness evidence.
+
+### Main Changes
+
+- Added `tcrv_rvv.typed_indexed_scatter_memory_pre_realized_body` and generic
+  `tcrv_rvv.indexed_store`.
+- Added the selected-body indexed scatter ABI contract `src,index,dst,n`.
+- Extended selected-body realization to materialize the pre-realized scatter
+  body into `setvl`, `with_vl`, unit-stride `load`, `index_load`, `move`, and
+  `indexed_store`.
+- Extended RVV EmitC route planning/provider to derive ABI order, metadata,
+  unit-load leaf, element-to-byte index scaling, indexed-store leaf, and target
+  artifact facts from typed route structure.
+- Extended construction-protocol summaries and generated-bundle evidence for
+  explicit and pre-realized `indexed_scatter_unit_load`.
+- Added positive artifact tests, verifier/dataflow negative tests, generated
+  dry-run tests, and updated stale generic route-slice diagnostics.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] focused RVV dialect/config/plugin build targets plus `tcrv-opt` and
+  `tcrv-translate`.
+- [OK] focused indexed scatter lit filter: 5/5 passed.
+- [OK] focused C++ unit and script self-tests.
+- [OK] generated-bundle dry-run for explicit and pre-realized
+  `indexed_scatter_unit_load` counts `7,16,23`.
+- [OK] real `ssh rvv` generated-bundle correctness for explicit and
+  pre-realized paths: `PASS op=indexed_scatter_unit_load counts=7,16,23`, with
+  `unique_non_monotonic_indexed_scatter` for `n=7,16,23`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 205/205 passed.
+- [OK] `git diff --check`
+- [OK] active-authority scan: no diff-added positive `RVVI32M1*`,
+  `rvv-i32m1`, finite positive `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`,
+  source-front-door/source-seed, descriptor/direct-C/source-export, or
+  common/export RVV semantic authority. The scan surfaced one negative
+  description string and the provider-derived indexed-store intrinsic leaf; the
+  latter is not route authority.
+
+### Self-Repair
+
+- Fixed selected-body ABI validation so indexed scatter uses
+  `src,index,dst,n` instead of finite binary RHS binding.
+- Fixed the provider materializer's unit-load result naming so memory movement
+  routes use the planned route result name.
+- Updated stale legacy fail-closed FileCheck expectations after adding
+  `tcrv_rvv.indexed_store` to the generic Stage2 op list.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round claims route-supported and
+executable correctness only for the bounded indexed scatter slice; no
+performance claim is made.
+
+### Next Steps
+
+- Future continuation, if requested: expand additional RVV memory classes only
+  under a new PRD, without converting this bounded slice into a broad
+  gather/scatter framework or dtype/LMUL clone matrix.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |

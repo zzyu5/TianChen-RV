@@ -1,0 +1,22 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, compiler stack boundary, Stage1/Stage2 RVV ordering, and forbidden legacy/source/descriptor authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, memory-form route support, and ssh-rvv evidence contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute rules."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected variant and Stage2 typed-body route authority checklist."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Positive typed RVV route tests, fail-closed stale-authority tests, and runtime evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-indexed-gather-memory-slice/prd.md", "reason": "Immediate sibling indexed memory slice pattern for index roles, index vector ABI, route planning, artifacts, dry-run, and ssh-rvv evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-strided-memory-slice/prd.md", "reason": "Memory movement executable slice pattern and validation scope."}
+{"file": ".trellis/workspace/codex/journal-11.md", "reason": "Recent completion notes for indexed gather and sibling Stage2 RVV executable slices."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Added bounded typed indexed scatter pre-realized body and generic indexed_store op surface."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Implemented indexed scatter pre-realized body and indexed_store verification for roles, config, index EEW, offset unit, and uniqueness policy."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVConfigContract.h", "reason": "Declared indexed scatter selected-body runtime ABI contract."}
+{"file": "lib/Dialect/RVV/IR/RVVConfigContract.cpp", "reason": "Added src,index,dst,n runtime ABI contract for indexed scatter."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Realized pre-realized indexed scatter into setvl, with_vl, load, index_load, move, and indexed_store typed body structure."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Extended route slice to carry indexed_store and indexed destination buffer facts."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Extended route description for indexed scatter operation, memory form, indexed-store leaf, destination form, and uniqueness."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Derived indexed scatter ABI order, route slice, metadata, diagnostics, and indexed-store planning from typed facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Materialized provider-derived unit-load, index-load, element-offset scaling, and indexed-store EmitC route payload."}
+{"file": "lib/Plugin/RVV/Construction/RVVConstructionProtocol.cpp", "reason": "Registered bounded indexed_scatter_unit_load construction route and role steps."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Added explicit/pre-realized indexed scatter generated-bundle dry-run and ssh-rvv correctness harness with unique non-monotonic index coverage."}
+{"file": "test/Dialect/RVV/indexed-scatter-memory-dataflow.mlir", "reason": "Added positive and fail-closed typed indexed scatter verifier/dataflow tests."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-indexed-scatter-unit-load.mlir", "reason": "Added explicit selected-body indexed scatter target artifact fixture."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-indexed-scatter-unit-load.mlir", "reason": "Added pre-realized selected-body indexed scatter target artifact fixture."}

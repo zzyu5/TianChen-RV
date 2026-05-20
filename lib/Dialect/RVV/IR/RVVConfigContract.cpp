@@ -548,6 +548,23 @@ getRVVSelectedBodyIndexedGatherRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVSelectedBodyIndexedScatterRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "index", "const uint32_t *",
+      support::RuntimeABIParameterRole::IndexInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "dst", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
     llvm::StringRef context) {
@@ -574,6 +591,11 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   llvm::SmallVector<support::RuntimeABIParameter, 4> indexedGather =
       getRVVSelectedBodyIndexedGatherRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, indexedGather))
+    return llvm::Error::success();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 4> indexedScatter =
+      getRVVSelectedBodyIndexedScatterRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, indexedScatter))
     return llvm::Error::success();
 
   llvm::SmallVector<support::RuntimeABIParameter, 4> scalarBroadcastExpected =

@@ -1,0 +1,45 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id indexed-scatter-unit-load --overwrite --op-kind indexed_scatter_unit_load --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/indexed-scatter-unit-load/evidence.json
+# RUN: FileCheck %s --check-prefix=SCATTER --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/indexed-scatter-unit-load/indexed_scatter_unit_load/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/indexed-scatter-unit-load/indexed_scatter_unit_load/rvv_generated_bundle_abi_indexed_scatter_unit_load_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "indexed_scatter_unit_load"
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# SCATTER-DAG: "input_mode": "explicit-selected-body"
+# SCATTER-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-indexed-scatter-unit-load.mlir"
+# SCATTER-DAG: "prototype": "void tcrv_emitc_explicit_selected_body_indexed_scatter_unit_load_kernel_explicit_selected_body_rvv_indexed_scatter_unit_load(const int32_t *src, const uint32_t *index, int32_t *dst, size_t n);"
+# SCATTER-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_indexed_scatter_unit_load_kernel_explicit_selected_body_rvv_indexed_scatter_unit_load"
+# SCATTER-DAG: "expected_runtime_abi_name": "rvv-generic-indexed-scatter-unit-load-callable-c-abi.v1"
+# SCATTER-DAG: "expected_selected_variant": "explicit_selected_body_rvv_indexed_scatter_unit_load"
+# SCATTER-DAG: "key": "rvv_emitc_lowerable_route"
+# SCATTER-DAG: "value": "rvv-generic-indexed-scatter-unit-load-emitc-route"
+# SCATTER-DAG: "key": "rvv_selected_body_operation"
+# SCATTER-DAG: "value": "indexed_scatter_unit_load"
+# SCATTER-DAG: "key": "rvv_selected_body_typed_compute_op"
+# SCATTER-DAG: "value": "tcrv_rvv.move"
+# SCATTER-DAG: "key": "tcrv_rvv.memory_form"
+# SCATTER-DAG: "value": "unit-load-indexed-store"
+# SCATTER-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# SCATTER-DAG: "value": "src,index,dst,n"
+# SCATTER-DAG: "key": "tcrv_rvv.indexed_memory_layout"
+# SCATTER-DAG: "value": "unit-stride-source-indexed-destination-index-runtime-abi"
+# SCATTER-DAG: "key": "tcrv_rvv.index_uniqueness"
+# SCATTER-DAG: "value": "unique"
+# SCATTER-DAG: "key": "tcrv_rvv.indexed_destination_memory_form"
+# SCATTER-DAG: "value": "indexed-store"
+# SCATTER-DAG: "typed_compute_op": "tcrv_rvv.move"
+# SCATTER-DAG: "memory_form": "unit-load-indexed-store"
+# SCATTER-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_explicit_selected_body_indexed_scatter_unit_load_kernel_explicit_selected_body_rvv_indexed_scatter_unit_load(src, indices, dst, n);
+# HARNESS: uint32_t dst_index = indices[logical_index];
+# HARNESS: int32_t expected = src[logical_index];
+# HARNESS: unique_non_monotonic_indexed_scatter
+# HARNESS: PASS op=indexed_scatter_unit_load counts=7,16,23

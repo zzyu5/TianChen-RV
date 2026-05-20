@@ -145,9 +145,19 @@ bool isPreRealizedIndexedGatherMemoryMovementOpKind(
   return opKind == "indexed_gather_unit_store";
 }
 
+bool isPreRealizedIndexedScatterMemoryMovementOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "indexed_scatter_unit_load";
+}
+
 bool isPreRealizedIndexedGatherMemoryMovementMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "indexed-load-unit-store";
+}
+
+bool isPreRealizedIndexedScatterMemoryMovementMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-load-indexed-store";
 }
 
 bool isPreRealizedIndexedGatherMemoryMovementIndexEEW(
@@ -158,6 +168,11 @@ bool isPreRealizedIndexedGatherMemoryMovementIndexEEW(
 bool isPreRealizedIndexedGatherMemoryMovementOffsetUnit(
     llvm::StringRef offsetUnit) {
   return offsetUnit == "element";
+}
+
+bool isPreRealizedIndexedScatterIndexUniqueness(
+    llvm::StringRef indexUniqueness) {
+  return indexUniqueness == "unique";
 }
 
 mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
@@ -204,7 +219,8 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedMAccPreRealizedBodyOp,
                   tcrv::rvv::TypedWideningConversionPreRealizedBodyOp,
                   tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp>(op))
+                  tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp,
+                  tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp>(op))
       bodies.push_back(op);
   });
 
@@ -218,7 +234,8 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.typed_macc_pre_realized_body or "
         "tcrv_rvv.typed_widening_conversion_pre_realized_body or "
         "tcrv_rvv.typed_strided_memory_pre_realized_body or "
-        "tcrv_rvv.typed_indexed_gather_memory_pre_realized_body op when no "
+        "tcrv_rvv.typed_indexed_gather_memory_pre_realized_body or "
+        "tcrv_rvv.typed_indexed_scatter_memory_pre_realized_body op when no "
         "realized setvl/with_vl body is present");
   return bodies.front();
 }
@@ -1001,6 +1018,105 @@ llvm::Error validatePreRealizedRVVSelectedIndexedGatherMemoryBody(
   return llvm::Error::success();
 }
 
+llvm::Error validatePreRealizedRVVSelectedIndexedScatterMemoryBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVPluginError(
+        "selected RVV indexed scatter realization requires a pre-realized "
+        "indexed scatter body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVPluginError(
+        "pre-realized RVV selected indexed scatter body must be a direct "
+        "child of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedIndexedScatterMemoryMovementOpKind(body.getOpKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected indexed scatter body currently supports "
+        "only op_kind 'indexed_scatter_unit_load'");
+  if (!isPreRealizedIndexedScatterMemoryMovementMemoryForm(
+          body.getMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected indexed scatter body currently supports "
+        "only memory_form 'unit-load-indexed-store'");
+  if (!isPreRealizedIndexedGatherMemoryMovementIndexEEW(
+          static_cast<std::int64_t>(body.getIndexEew())))
+    return makeRVVPluginError(
+        "pre-realized RVV selected indexed scatter body currently supports "
+        "only index_eew 32");
+  if (!isPreRealizedIndexedGatherMemoryMovementOffsetUnit(
+          body.getOffsetUnit()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected indexed scatter body currently supports "
+        "only offset_unit 'element'");
+  if (!isPreRealizedIndexedScatterIndexUniqueness(
+          body.getIndexUniqueness()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected indexed scatter body requires "
+        "index_uniqueness unique because duplicate-index scatter policy is "
+        "unsupported");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVPluginError(
+        "pre-realized RVV selected indexed scatter body requires SEW32 LMUL "
+        "m1 data config");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected indexed scatter body requires tail "
+        "agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+      requirePreRealizedRuntimeABIValue(
+          body.getSource(), "pre-realized RVV indexed scatter source operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!source)
+    return source.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> index =
+      requirePreRealizedRuntimeABIValue(
+          body.getIndex(), "pre-realized RVV indexed scatter index operand",
+          support::RuntimeABIParameterRole::IndexInputBuffer);
+  if (!index)
+    return index.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+      requirePreRealizedRuntimeABIValue(
+          body.getDestination(),
+          "pre-realized RVV indexed scatter destination operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!destination)
+    return destination.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(), "pre-realized RVV indexed scatter runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
+                  tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp>(op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected indexed scatter body must not "
+                    "be mixed with already realized RVV route body op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVPluginError(
+        "pre-realized RVV selected indexed scatter realization requires "
+        "non-empty selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
                                      mlir::Location loc, mlir::Value nValue,
                                      std::int64_t sew, llvm::StringRef lmul,
@@ -1099,6 +1215,20 @@ mlir::Operation *createRealizedGenericIndexedLoad(
   state.addAttribute("offset_unit", builder.getStringAttr(offsetUnit));
   state.addTypes(getGenericVectorType(builder, dataSEW, lmul));
   return builder.create(state);
+}
+
+void createRealizedGenericIndexedStore(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value destination,
+    mlir::Value indices, mlir::Value value, mlir::Value vl,
+    std::int64_t indexEEW, llvm::StringRef offsetUnit,
+    llvm::StringRef indexUniqueness) {
+  mlir::OperationState state(loc, "tcrv_rvv.indexed_store");
+  state.addOperands({destination, indices, value, vl});
+  state.addAttribute("index_eew", builder.getI64IntegerAttr(indexEEW));
+  state.addAttribute("offset_unit", builder.getStringAttr(offsetUnit));
+  state.addAttribute("index_uniqueness",
+                     builder.getStringAttr(indexUniqueness));
+  (void)builder.create(state);
 }
 
 mlir::Operation *createRealizedGenericSplat(mlir::OpBuilder &builder,
@@ -1285,7 +1415,8 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedMAccPreRealizedBodyOp,
                   tcrv::rvv::TypedWideningConversionPreRealizedBodyOp,
                   tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp,
-                  tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp>(op))
+                  tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp,
+                  tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp>(op))
       found = true;
   });
   return found;
@@ -1618,6 +1749,49 @@ realizePreRealizedRVVSelectedBody(
     createRealizedGenericStore(builder, loc, indexedGatherBody.getOut(),
                                (*move)->getResult(0), setvl.getVl());
     indexedGatherBody->erase();
+    return withVL;
+  }
+
+  if (auto indexedScatterBody = llvm::dyn_cast<
+          tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp>(*bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedIndexedScatterMemoryBody(
+                request, indexedScatterBody))
+      return std::move(error);
+
+    mlir::Location loc = indexedScatterBody->getLoc();
+    builder.setInsertionPoint(indexedScatterBody.getOperation());
+
+    std::int64_t sew = static_cast<std::int64_t>(indexedScatterBody.getSew());
+    llvm::StringRef lmul = indexedScatterBody.getLmul();
+    std::int64_t indexEEW =
+        static_cast<std::int64_t>(indexedScatterBody.getIndexEew());
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc, indexedScatterBody.getN(), sew, lmul,
+                            indexedScatterBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires, sew, lmul,
+                             indexedScatterBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
+        createRealizedGenericLoad(builder, loc, indexedScatterBody.getSource(),
+                                  setvl.getVl(), sew, lmul));
+    auto indexLoad = llvm::cast<tcrv::rvv::IndexLoadOp>(
+        createRealizedGenericIndexLoad(builder, loc,
+                                       indexedScatterBody.getIndex(),
+                                       setvl.getVl(), indexEEW, lmul));
+    llvm::Expected<mlir::Operation *> move = createRealizedGenericMove(
+        builder, loc, "copy", sourceLoad.getLoaded(), setvl.getVl());
+    if (!move)
+      return move.takeError();
+    createRealizedGenericIndexedStore(
+        builder, loc, indexedScatterBody.getDestination(),
+        indexLoad.getLoaded(), (*move)->getResult(0), setvl.getVl(), indexEEW,
+        indexedScatterBody.getOffsetUnit(),
+        indexedScatterBody.getIndexUniqueness());
+    indexedScatterBody->erase();
     return withVL;
   }
 

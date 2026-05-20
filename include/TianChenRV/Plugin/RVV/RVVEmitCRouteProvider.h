@@ -33,6 +33,7 @@ enum class RVVSelectedBodyOperationKind {
   StridedAdd,
   StridedLoadUnitStore,
   IndexedGatherUnitStore,
+  IndexedScatterUnitLoad,
   ScalarBroadcastAdd,
   WidenI32ToI64,
 };
@@ -44,6 +45,7 @@ enum class RVVSelectedBodyMemoryForm {
   StridedLoadStore,
   StridedLoadUnitStore,
   IndexedLoadUnitStore,
+  UnitLoadIndexedStore,
   UnitStrideConversion,
 };
 
@@ -96,6 +98,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef indexLoadIntrinsic;
   llvm::StringRef indexScaleIntrinsic;
   llvm::StringRef indexedLoadIntrinsic;
+  llvm::StringRef indexedStoreIntrinsic;
   llvm::StringRef stridedLoadIntrinsic;
   llvm::StringRef rhsBroadcastIntrinsic;
   llvm::StringRef storeIntrinsic;
@@ -118,8 +121,10 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef indexedMemoryLayout;
   std::int64_t indexEEW = 0;
   llvm::StringRef offsetUnit;
+  llvm::StringRef indexUniqueness;
   llvm::StringRef indexSource;
   llvm::StringRef indexedDataMemoryForm;
+  llvm::StringRef indexedDestinationMemoryForm;
   llvm::StringRef lhsStrideSource;
   llvm::StringRef rhsStrideSource;
   llvm::StringRef outStrideSource;

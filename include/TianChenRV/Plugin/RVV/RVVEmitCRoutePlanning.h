@@ -23,6 +23,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::StridedLoadOp rhsStridedLoad;
   tcrv::rvv::IndexLoadOp indexLoad;
   tcrv::rvv::IndexedLoadOp indexedLoad;
+  tcrv::rvv::IndexedStoreOp indexedStore;
   tcrv::rvv::BroadcastLoadOp rhsBroadcastLoad;
   tcrv::rvv::SplatOp rhsScalarSplat;
   tcrv::rvv::CompareOp compareOp;
@@ -51,6 +52,7 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Operation *rhsLoadOperation = nullptr;
   mlir::Operation *indexLoadOperation = nullptr;
   mlir::Operation *indexedLoadOperation = nullptr;
+  mlir::Operation *indexedStoreOperation = nullptr;
   mlir::Operation *accumulatorLoadOperation = nullptr;
   mlir::Operation *storeOperation = nullptr;
   mlir::Value lhsBuffer;
@@ -58,6 +60,7 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value indexBuffer;
   mlir::Value indexValue;
   mlir::Value indexedDataBuffer;
+  mlir::Value indexedDestinationBuffer;
   mlir::Value accumulatorBuffer;
   mlir::Value outBuffer;
   mlir::Value lhsStride;
