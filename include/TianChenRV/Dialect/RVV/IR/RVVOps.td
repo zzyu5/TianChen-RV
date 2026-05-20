@@ -590,6 +590,44 @@ def TypedStridedMemoryPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedStridedStoreMemoryPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_strided_store_memory_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV strided destination-store body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body for
+    unit-stride source memory movement into a runtime-strided destination. The
+    op is nested directly in a selected tcrv.exec.variant and binds explicit
+    runtime ABI values for source input, destination output, runtime n/AVL, and
+    destination element stride together with selected memory movement operation
+    kind, memory form, stride unit, compile-time RVV config, and policy.
+
+    This op is not a layout framework, gather/scatter route, masked route,
+    descriptor, source-front-door marker, direct-C exporter, route id,
+    intrinsic wrapper, runtime artifact, correctness evidence, or performance
+    evidence. The RVV plugin must realize it into explicit
+    setvl/with_vl/load/move/strided_store tcrv_rvv body structure before the
+    provider may construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$source,
+    AnyType:$dst,
+    AnyType:$n,
+    Index:$destination_stride,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    StrAttr:$stride_unit,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$source `,` $dst `,` $n `,` $destination_stride attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedIndexedGatherMemoryPreRealizedBodyOp
     : TCRVRVV_Op<"typed_indexed_gather_memory_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV indexed gather memory body";

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global invariants, Stage order, and source-of-truth boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-local ownership, typed body authority, legacy fail-closed handling, and runtime evidence boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export stays neutral and consumes provider-built routes only."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected-body realization and route construction use structural typed facts, not metadata mirrors."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check positive/negative tests, generated-bundle evidence, ssh rvv evidence, and legacy/source authority scans."}

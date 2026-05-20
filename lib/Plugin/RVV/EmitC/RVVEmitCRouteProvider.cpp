@@ -58,6 +58,7 @@ bool isRVVSelectedBodySegmentedMemoryMovementRoute(
 
 bool isRVVSelectedBodyMemoryMovementRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::StridedLoadUnitStore ||
+         op == RVVSelectedBodyOperationKind::UnitLoadStridedStore ||
          op == RVVSelectedBodyOperationKind::IndexedGatherUnitStore ||
          op == RVVSelectedBodyOperationKind::IndexedScatterUnitLoad;
 }
@@ -706,7 +707,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       isRVVSelectedBodyReductionRoute(description.operation)
           ? description.reductionStoreVL
           : loopVLName;
-  if (description.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore) {
+  if (description.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore ||
+      description.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadStridedStore) {
     if (llvm::Error error = addLoopStep(
             slice->storeOperation, "store", description.stridedStoreIntrinsic,
             {TCRVEmitCCallOpaqueOperand{

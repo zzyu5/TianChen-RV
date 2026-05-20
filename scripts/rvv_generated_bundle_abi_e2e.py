@@ -48,6 +48,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "macc_add",
     "strided_add",
     "strided_load_unit_store",
+    "unit_load_strided_store",
     "indexed_gather_unit_store",
     "indexed_scatter_unit_load",
     "masked_unit_load_store",
@@ -70,6 +71,7 @@ MACC_ADD_ACCUMULATOR_LAYOUT = "output-buffer-vector-accumulator-input"
 MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
 STRIDED_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride"
 STRIDED_LOAD_UNIT_STORE_RUNTIME_ABI_ORDER = "src,out,n,src_stride"
+UNIT_LOAD_STRIDED_STORE_RUNTIME_ABI_ORDER = "src,dst,n,dst_stride"
 SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,out,n"
 WIDENING_CONVERSION_RUNTIME_ABI_ORDER = "lhs,out,n"
 WIDENING_CONVERSION_RELATION = "signed-i32m1-to-i64m2"
@@ -83,6 +85,12 @@ STRIDED_LOAD_UNIT_STORE_MEMORY_LAYOUT = (
 STRIDED_LOAD_UNIT_STORE_SOURCE_STRIDE_SOURCE = "runtime_abi:src_stride"
 STRIDED_LOAD_UNIT_STORE_SOURCE_MEMORY_FORM = "strided-load"
 STRIDED_LOAD_UNIT_STORE_DESTINATION_MEMORY_FORM = "unit-stride-store"
+UNIT_LOAD_STRIDED_STORE_MEMORY_LAYOUT = (
+    "unit-stride-source-element-strided-destination-runtime-abi"
+)
+UNIT_LOAD_STRIDED_STORE_DESTINATION_STRIDE_SOURCE = "runtime_abi:dst_stride"
+UNIT_LOAD_STRIDED_STORE_SOURCE_MEMORY_FORM = "unit-stride-load"
+UNIT_LOAD_STRIDED_STORE_DESTINATION_MEMORY_FORM = "strided-store"
 INDEXED_GATHER_RUNTIME_ABI_ORDER = "data,index,out,n"
 INDEXED_GATHER_MEMORY_LAYOUT = "element-indexed-data-index-unit-stride-output-runtime-abi"
 INDEXED_GATHER_INDEX_SOURCE = "runtime_abi:index"
@@ -188,6 +196,11 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *src, "
                 "int32_t *out, size_t n, size_t src_stride);"
             )
+        if self.is_unit_load_strided_store:
+            return (
+                f"void {self.function_name}(const int32_t *src, "
+                "int32_t *dst, size_t n, size_t dst_stride);"
+            )
         if self.is_indexed_gather_unit_store:
             return (
                 f"void {self.function_name}(const int32_t *data, "
@@ -241,6 +254,8 @@ class OpExpectation:
             return EXPECTED_STRIDED_RUNTIME_PARAMETERS
         if self.is_strided_load_unit_store:
             return EXPECTED_STRIDED_LOAD_UNIT_STORE_RUNTIME_PARAMETERS
+        if self.is_unit_load_strided_store:
+            return EXPECTED_UNIT_LOAD_STRIDED_STORE_RUNTIME_PARAMETERS
         if self.is_indexed_gather_unit_store:
             return EXPECTED_INDEXED_GATHER_RUNTIME_PARAMETERS
         if self.is_indexed_scatter_unit_load:
@@ -273,6 +288,8 @@ class OpExpectation:
             return STRIDED_ADD_RUNTIME_ABI_ORDER
         if self.is_strided_load_unit_store:
             return STRIDED_LOAD_UNIT_STORE_RUNTIME_ABI_ORDER
+        if self.is_unit_load_strided_store:
+            return UNIT_LOAD_STRIDED_STORE_RUNTIME_ABI_ORDER
         if self.is_indexed_gather_unit_store:
             return INDEXED_GATHER_RUNTIME_ABI_ORDER
         if self.is_indexed_scatter_unit_load:
@@ -326,6 +343,10 @@ class OpExpectation:
     @property
     def is_strided_load_unit_store(self) -> bool:
         return self.kind == "strided_load_unit_store"
+
+    @property
+    def is_unit_load_strided_store(self) -> bool:
+        return self.kind == "unit_load_strided_store"
 
     @property
     def is_indexed_gather_unit_store(self) -> bool:
@@ -509,6 +530,21 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         rhs_initializer="unused",
         expected_expression="src[index * src_stride]",
     ),
+    "unit_load_strided_store": OpExpectation(
+        kind="unit_load_strided_store",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-unit-load-strided-store.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_unit_load_strided_store",
+        external_abi_name="rvv-generic-unit-load-strided-store-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_unit_load_strided_store_kernel_explicit_selected_body_rvv_unit_load_strided_store",
+        emitc_route="rvv-generic-unit-load-strided-store-emitc-route",
+        typed_compute_op="tcrv_rvv.move",
+        memory_form="unit-load-strided-store",
+        lhs_initializer="(int32_t)(131 + (int32_t)(index * 11))",
+        rhs_initializer="unused",
+        expected_expression="src[index]",
+    ),
     "indexed_gather_unit_store": OpExpectation(
         kind="indexed_gather_unit_store",
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-indexed-gather-unit-store.mlir"),
@@ -686,6 +722,13 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_strided_load_unit_store",
         function_name="tcrv_emitc_pre_realized_body_strided_load_unit_store_kernel_pre_realized_body_rvv_strided_load_unit_store",
+    ),
+    "unit_load_strided_store": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["unit_load_strided_store"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-unit-load-strided-store.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_unit_load_strided_store",
+        function_name="tcrv_emitc_pre_realized_body_unit_load_strided_store_kernel_pre_realized_body_rvv_unit_load_strided_store",
     ),
     "indexed_gather_unit_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["indexed_gather_unit_store"],
@@ -923,6 +966,32 @@ EXPECTED_STRIDED_LOAD_UNIT_STORE_RUNTIME_PARAMETERS = (
         "c_name": "src_stride",
         "c_type": "size_t",
         "role": "lhs-input-stride",
+        "ownership": "target-export-abi-owned",
+    },
+)
+EXPECTED_UNIT_LOAD_STRIDED_STORE_RUNTIME_PARAMETERS = (
+    {
+        "c_name": "src",
+        "c_type": "const int32_t *",
+        "role": "lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "dst",
+        "c_type": "int32_t *",
+        "role": "output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "n",
+        "c_type": "size_t",
+        "role": "runtime-element-count",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "dst_stride",
+        "c_type": "size_t",
+        "role": "output-stride",
         "ownership": "target-export-abi-owned",
     },
 )
@@ -1535,6 +1604,23 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
+    if expectation.is_unit_load_strided_store:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.strided_memory_layout": (
+                    UNIT_LOAD_STRIDED_STORE_MEMORY_LAYOUT
+                ),
+                "tcrv_rvv.destination_stride_source": (
+                    UNIT_LOAD_STRIDED_STORE_DESTINATION_STRIDE_SOURCE
+                ),
+                "tcrv_rvv.source_memory_form": (
+                    UNIT_LOAD_STRIDED_STORE_SOURCE_MEMORY_FORM
+                ),
+                "tcrv_rvv.destination_memory_form": (
+                    UNIT_LOAD_STRIDED_STORE_DESTINATION_MEMORY_FORM
+                ),
+            }
+        )
     if expectation.is_indexed_gather_unit_store:
         per_op_metadata.update(
             {
@@ -1939,6 +2025,37 @@ def verify_materialized_selected_body(
             text,
             "tcrv_rvv.binary",
             "materialized selected-body MLIR strided load unit store",
+        )
+    if expectation.is_unit_load_strided_store:
+        require_contains(
+            text,
+            "tcrv_rvv.load",
+            "materialized selected-body MLIR unit-stride source load",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.move",
+            "materialized selected-body MLIR unit load movement op",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.strided_store",
+            "materialized selected-body MLIR destination strided store",
+        )
+        require_contains(
+            text,
+            'role = "output-stride"',
+            "materialized selected-body MLIR destination stride ABI role",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.strided_load",
+            "materialized selected-body MLIR unit load strided store",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.binary",
+            "materialized selected-body MLIR unit load strided store",
         )
     if expectation.is_indexed_gather_unit_store:
         require_contains(
@@ -3060,6 +3177,94 @@ static int run_case(size_t n) {{
   free(src);
   free(out);
   printf("{expectation.kind} case n=%zu ok src_stride=%zu\\n", n, src_stride);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
+    if expectation.is_unit_load_strided_store:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  const size_t dst_stride = 3;
+  size_t src_alloc_n = (n == 0 ? 1 : n) + 8;
+  size_t dst_alloc_n = (n == 0 ? 1 : n) * dst_stride + 8;
+  int32_t *src = (int32_t *)malloc(sizeof(int32_t) * src_alloc_n);
+  int32_t *dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
+  if (!src || !dst) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(src);
+    free(dst);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < src_alloc_n; ++index)
+    src[index] = (int32_t)(-900000 - (int32_t)index);
+  for (size_t index = 0; index < dst_alloc_n; ++index)
+    dst[index] = {OUT_SENTINEL};
+
+  for (size_t index = 0; index < n; ++index)
+    src[index] = {expectation.lhs_initializer};
+
+  {expectation.function_name}(src, dst, n, dst_stride);
+
+  for (size_t index = 0; index < n; ++index) {{
+    int32_t expected = {expectation.expected_expression};
+    size_t dst_index = index * dst_stride;
+    if (dst[dst_index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu dst_index=%zu got=%d expected=%d src=%d dst_stride=%zu\\n",
+              n, index, dst_index, dst[dst_index], expected, src[index],
+              dst_stride);
+      free(src);
+      free(dst);
+      return 12;
+    }}
+  }}
+
+  for (size_t index = 0; index < dst_alloc_n; ++index) {{
+    if ((index % dst_stride) == 0 && (index / dst_stride) < n)
+      continue;
+    if (dst[index] != {OUT_SENTINEL}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched skipped/tail destination sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
+              n, index, dst[index], {OUT_SENTINEL});
+      free(src);
+      free(dst);
+      return 13;
+    }}
+  }}
+
+  if (n > 1 && dst[1] != {OUT_SENTINEL}) {{
+    fprintf(stderr,
+            "{expectation.kind} vacuous strided-store check failed n=%zu dst_stride=%zu dst[1]=%d sentinel=%d\\n",
+            n, dst_stride, dst[1], {OUT_SENTINEL});
+    free(src);
+    free(dst);
+    return 14;
+  }}
+
+  free(src);
+  free(dst);
+  printf("{expectation.kind} case n=%zu ok dst_stride=%zu\\n", n, dst_stride);
   return 0;
 }}
 
@@ -4526,7 +4731,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=(
             "use the pre-realized selected-body add/sub/mul/masked_add/"
             "reduce_add/macc_add/strided_add/strided_load_unit_store/"
-            "indexed_gather_unit_store/indexed_scatter_unit_load/"
+            "unit_load_strided_store/indexed_gather_unit_store/"
+            "indexed_scatter_unit_load/"
             "masked_unit_load_store/computed_masked_unit_load_store/"
             "segment2_deinterleave_unit_store/"
             "segment2_interleave_unit_load/"

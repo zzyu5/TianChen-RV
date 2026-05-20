@@ -1635,12 +1635,14 @@ int runRVVCommonValidationTest() {
                                            "widen_i32_to_i64"
                                         ? "tcrv_rvv.widening_convert"
                                         : (route.operationMnemonic ==
-                                                   "masked_unit_load_store" ||
+                                                  "masked_unit_load_store" ||
                                            route.operationMnemonic ==
                                                "computed_masked_unit_load_store"
                                                ? "tcrv_rvv.masked_move"
                                                : (route.operationMnemonic ==
                                                               "strided_load_unit_store" ||
+                                                          route.operationMnemonic ==
+                                                              "unit_load_strided_store" ||
                                                           route.operationMnemonic ==
                                                               "indexed_gather_unit_store" ||
                                                           route.operationMnemonic ==
@@ -1655,6 +1657,8 @@ int runRVVCommonValidationTest() {
     llvm::StringRef rhsSourceOp =
         route.operationMnemonic == "widen_i32_to_i64"
             ? ""
+            : route.operationMnemonic == "unit_load_strided_store"
+                  ? "tcrv_rvv.strided_store"
             : (route.operationMnemonic == "strided_add" ||
                route.operationMnemonic == "strided_load_unit_store")
                   ? "tcrv_rvv.strided_load"
@@ -1693,6 +1697,8 @@ int runRVVCommonValidationTest() {
     const bool hasStridedMemory = route.operationMnemonic == "strided_add";
     const bool hasStridedMemoryMovement =
         route.operationMnemonic == "strided_load_unit_store";
+    const bool hasUnitLoadStridedStore =
+        route.operationMnemonic == "unit_load_strided_store";
     const bool hasIndexedGather =
         route.operationMnemonic == "indexed_gather_unit_store";
     const bool hasIndexedScatter =
@@ -1708,7 +1714,7 @@ int runRVVCommonValidationTest() {
     const bool hasConversion = route.operationMnemonic == "widen_i32_to_i64";
     unsigned expectedStepCount =
         hasConversion          ? 8u
-        : hasStridedMemoryMovement ? 9u
+        : (hasStridedMemoryMovement || hasUnitLoadStridedStore) ? 9u
         : (hasIndexedGather || hasIndexedScatter) ? 10u
         : hasMaskedMemory                        ? 11u
         : hasComputedMaskMemory                  ? 14u
@@ -1750,6 +1756,12 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "unit_load_strided_store") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyUnitLoadStridedStoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "indexed_gather_unit_store") {

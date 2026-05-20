@@ -223,6 +223,13 @@ bool isAllowedTypedStridedMemoryPreRealizedBodyAttr(llvm::StringRef name) {
          name == kLMULAttrName || name == kPolicyAttrName;
 }
 
+bool isAllowedTypedStridedStoreMemoryPreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kStrideUnitAttrName || name == kSEWAttrName ||
+         name == kLMULAttrName || name == kPolicyAttrName;
+}
+
 bool isAllowedTypedIndexedGatherMemoryPreRealizedBodyAttr(
     llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
@@ -477,6 +484,21 @@ bool isSupportedTypedStridedMemoryPreRealizedMemoryForm(
 }
 
 bool isSupportedTypedStridedMemoryPreRealizedStrideUnit(
+    llvm::StringRef strideUnit) {
+  return strideUnit == "element";
+}
+
+bool isSupportedTypedStridedStoreMemoryPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "unit_load_strided_store";
+}
+
+bool isSupportedTypedStridedStoreMemoryPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-load-strided-store";
+}
+
+bool isSupportedTypedStridedStoreMemoryPreRealizedStrideUnit(
     llvm::StringRef strideUnit) {
   return strideUnit == "element";
 }
@@ -2434,6 +2456,79 @@ mlir::LogicalResult TypedStridedMemoryPreRealizedBodyOp::verify() {
   return verifyRuntimeABIIndexOperandRole(
       op, getSourceStride(), "source stride",
       {tianchenrv::support::RuntimeABIParameterRole::LHSInputStride});
+}
+
+mlir::LogicalResult TypedStridedStoreMemoryPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected strided-store bodies carry only "
+                "typed RVV memory-form, stride-unit, config, policy, and "
+                "runtime SSA facts and must be realized by the RVV plugin "
+                "before route construction";
+
+    if (!isAllowedTypedStridedStoreMemoryPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '"
+             << kStrideUnitAttrName << "', '" << kSEWAttrName << "', '"
+             << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires source input, destination output, runtime n/AVL, "
+              "destination stride operands and no results";
+
+  if (!isSupportedTypedStridedStoreMemoryPreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"unit_load_strided_store\" for the bounded selected-body "
+              "strided-store memory movement hook";
+  if (!isSupportedTypedStridedStoreMemoryPreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"unit-load-strided-store\" for the bounded selected-body "
+              "strided-store memory movement hook";
+  if (!isSupportedTypedStridedStoreMemoryPreRealizedStrideUnit(
+          getStrideUnit()))
+    return emitOpError()
+           << "currently supports only stride_unit \"element\" for the "
+              "bounded selected-body strided-store memory movement hook";
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized strided-store memory config to "
+              "be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body strided-store memory movement hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSource(), "source",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getDst(), "destination",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeElementCountOperand(op, getN())))
+    return mlir::failure();
+  return verifyRuntimeABIIndexOperandRole(
+      op, getDestinationStride(), "destination stride",
+      {tianchenrv::support::RuntimeABIParameterRole::OutputStride});
 }
 
 mlir::LogicalResult TypedIndexedGatherMemoryPreRealizedBodyOp::verify() {

@@ -140,6 +140,20 @@ bool isPreRealizedStridedMemoryMovementStrideUnit(
   return strideUnit == "element";
 }
 
+bool isPreRealizedStridedStoreMemoryMovementOpKind(llvm::StringRef opKind) {
+  return opKind == "unit_load_strided_store";
+}
+
+bool isPreRealizedStridedStoreMemoryMovementMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-load-strided-store";
+}
+
+bool isPreRealizedStridedStoreMemoryMovementStrideUnit(
+    llvm::StringRef strideUnit) {
+  return strideUnit == "element";
+}
+
 bool isPreRealizedIndexedGatherMemoryMovementOpKind(
     llvm::StringRef opKind) {
   return opKind == "indexed_gather_unit_store";
@@ -325,6 +339,7 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedMAccPreRealizedBodyOp,
                   tcrv::rvv::TypedWideningConversionPreRealizedBodyOp,
                   tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp,
+                  tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp,
@@ -345,6 +360,7 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.typed_macc_pre_realized_body or "
         "tcrv_rvv.typed_widening_conversion_pre_realized_body or "
         "tcrv_rvv.typed_strided_memory_pre_realized_body or "
+        "tcrv_rvv.typed_strided_store_memory_pre_realized_body or "
         "tcrv_rvv.typed_indexed_gather_memory_pre_realized_body or "
         "tcrv_rvv.typed_indexed_scatter_memory_pre_realized_body or "
         "tcrv_rvv.typed_masked_memory_pre_realized_body or "
@@ -1036,6 +1052,93 @@ llvm::Error validatePreRealizedRVVSelectedStridedMemoryBody(
   if (!variantRequires || variantRequires.empty())
     return makeRVVPluginError(
         "pre-realized RVV selected strided memory realization requires "
+        "non-empty selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
+llvm::Error validatePreRealizedRVVSelectedStridedStoreMemoryBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVPluginError(
+        "selected RVV strided-store realization requires a pre-realized "
+        "strided-store body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVPluginError(
+        "pre-realized RVV selected strided-store body must be a direct child "
+        "of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedStridedStoreMemoryMovementOpKind(body.getOpKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected strided-store body currently supports "
+        "only op_kind 'unit_load_strided_store'");
+  if (!isPreRealizedStridedStoreMemoryMovementMemoryForm(body.getMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected strided-store body currently supports "
+        "only memory_form 'unit-load-strided-store'");
+  if (!isPreRealizedStridedStoreMemoryMovementStrideUnit(
+          body.getStrideUnit()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected strided-store body currently supports "
+        "only stride_unit 'element'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVPluginError(
+        "pre-realized RVV selected strided-store body requires SEW32 LMUL "
+        "m1");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected strided-store body requires tail "
+        "agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+      requirePreRealizedRuntimeABIValue(
+          body.getSource(), "pre-realized RVV strided-store source operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!source)
+    return source.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> dst =
+      requirePreRealizedRuntimeABIValue(
+          body.getDst(), "pre-realized RVV strided-store destination operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!dst)
+    return dst.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(), "pre-realized RVV strided-store runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destinationStride =
+      requirePreRealizedRuntimeABIValue(
+          body.getDestinationStride(),
+          "pre-realized RVV destination stride operand",
+          support::RuntimeABIParameterRole::OutputStride);
+  if (!destinationStride)
+    return destinationStride.takeError();
+
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
+                  tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp>(op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected strided-store body must not "
+                    "be mixed with already realized RVV route body op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVPluginError(
+        "pre-realized RVV selected strided-store realization requires "
         "non-empty selected variant requires metadata");
 
   return llvm::Error::success();
@@ -2040,6 +2143,7 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedMAccPreRealizedBodyOp,
                   tcrv::rvv::TypedWideningConversionPreRealizedBodyOp,
                   tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp,
+                  tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp,
@@ -2338,6 +2442,46 @@ realizePreRealizedRVVSelectedBody(
     createRealizedGenericStore(builder, loc, stridedMemoryBody.getOut(),
                                (*move)->getResult(0), setvl.getVl());
     stridedMemoryBody->erase();
+    return withVL;
+  }
+
+  if (auto stridedStoreBody =
+          llvm::dyn_cast<tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp>(
+              *bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedStridedStoreMemoryBody(
+                request, stridedStoreBody))
+      return std::move(error);
+
+    mlir::Location loc = stridedStoreBody->getLoc();
+    builder.setInsertionPoint(stridedStoreBody.getOperation());
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc, stridedStoreBody.getN(),
+                            tcrv::rvv::getRVVFirstSliceSEWBits(),
+                            tcrv::rvv::getRVVLMULM1(),
+                            stridedStoreBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             tcrv::rvv::getRVVFirstSliceSEWBits(),
+                             tcrv::rvv::getRVVLMULM1(),
+                             stridedStoreBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
+        createRealizedGenericLoad(builder, loc, stridedStoreBody.getSource(),
+                                  setvl.getVl(),
+                                  tcrv::rvv::getRVVFirstSliceSEWBits(),
+                                  tcrv::rvv::getRVVLMULM1()));
+    llvm::Expected<mlir::Operation *> move = createRealizedGenericMove(
+        builder, loc, "copy", sourceLoad.getLoaded(), setvl.getVl());
+    if (!move)
+      return move.takeError();
+    createRealizedGenericStridedStore(
+        builder, loc, stridedStoreBody.getDst(), (*move)->getResult(0),
+        stridedStoreBody.getDestinationStride(), setvl.getVl());
+    stridedStoreBody->erase();
     return withVL;
   }
 

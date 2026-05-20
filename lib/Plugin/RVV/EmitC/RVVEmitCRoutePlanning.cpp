@@ -59,6 +59,8 @@ constexpr llvm::StringLiteral kRVVStridedRuntimeABIOrder(
     "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride");
 constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreRuntimeABIOrder(
     "src,out,n,src_stride");
+constexpr llvm::StringLiteral kRVVUnitLoadStridedStoreRuntimeABIOrder(
+    "src,dst,n,dst_stride");
 constexpr llvm::StringLiteral kRVVIndexedGatherRuntimeABIOrder(
     "data,index,out,n");
 constexpr llvm::StringLiteral kRVVIndexedScatterRuntimeABIOrder(
@@ -79,6 +81,8 @@ constexpr llvm::StringLiteral kRVVStridedMemoryLayout(
     "element-strided-lhs-rhs-output-runtime-abi");
 constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreMemoryLayout(
     "element-strided-source-unit-stride-output-runtime-abi");
+constexpr llvm::StringLiteral kRVVUnitLoadStridedStoreMemoryLayout(
+    "unit-stride-source-element-strided-destination-runtime-abi");
 constexpr llvm::StringLiteral kRVVIndexedGatherMemoryLayout(
     "element-indexed-data-index-unit-stride-output-runtime-abi");
 constexpr llvm::StringLiteral kRVVIndexedScatterMemoryLayout(
@@ -96,6 +100,8 @@ constexpr llvm::StringLiteral kRVVRHSStrideSource("runtime_abi:rhs_stride");
 constexpr llvm::StringLiteral kRVVOutStrideSource("runtime_abi:out_stride");
 constexpr llvm::StringLiteral kRVVSourceStrideSource(
     "runtime_abi:src_stride");
+constexpr llvm::StringLiteral kRVVDestinationStrideSource(
+    "runtime_abi:dst_stride");
 constexpr llvm::StringLiteral kRVVSourceMemoryForm("strided-load");
 constexpr llvm::StringLiteral kRVVUnitStrideSourceMemoryForm(
     "unit-stride-load");
@@ -207,6 +213,7 @@ constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::MAccAdd,
     RVVSelectedBodyOperationKind::StridedAdd,
     RVVSelectedBodyOperationKind::StridedLoadUnitStore,
+    RVVSelectedBodyOperationKind::UnitLoadStridedStore,
     RVVSelectedBodyOperationKind::IndexedGatherUnitStore,
     RVVSelectedBodyOperationKind::IndexedScatterUnitLoad,
     RVVSelectedBodyOperationKind::MaskedUnitLoadStore,
@@ -287,6 +294,15 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
   static const RVVSelectedBodyOperationProfile kStridedLoadUnitStore = {
       RVVSelectedBodyOperationKind::StridedLoadUnitStore,
       "strided_load_unit_store", "loaded_vec", "",
+      /*isCompareSelect=*/false, /*isReduction=*/false,
+      /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
+      /*isStridedMemory=*/true, /*isMemoryMovement=*/true,
+      /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+      /*isSegmentedMemoryMovement=*/false,
+      /*isWideningConversion=*/false};
+  static const RVVSelectedBodyOperationProfile kUnitLoadStridedStore = {
+      RVVSelectedBodyOperationKind::UnitLoadStridedStore,
+      "unit_load_strided_store", "loaded_vec", "",
       /*isCompareSelect=*/false, /*isReduction=*/false,
       /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
       /*isStridedMemory=*/true, /*isMemoryMovement=*/true,
@@ -385,6 +401,8 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
     return kStridedAdd;
   case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
     return kStridedLoadUnitStore;
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    return kUnitLoadStridedStore;
   case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
     return kIndexedGatherUnitStore;
   case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
@@ -586,6 +604,8 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
     llvm_unreachable("multiply-accumulate uses dedicated macc intrinsic leaf");
   case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
     llvm_unreachable("strided memory movement uses load/store leaves only");
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    llvm_unreachable("strided memory movement uses load/store leaves only");
   case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
     llvm_unreachable("indexed memory movement uses load/store leaves only");
   case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
@@ -720,8 +740,18 @@ deriveRVVSelectedBodyTargetLeafProfile(
   }
 
   if (operationProfile.isMemoryMovement) {
-    if (description.memoryForm !=
-        RVVSelectedBodyMemoryForm::StridedLoadUnitStore)
+    const bool isStridedLoadUnitStore =
+        operationProfile.operation ==
+        RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+    const bool isUnitLoadStridedStore =
+        operationProfile.operation ==
+        RVVSelectedBodyOperationKind::UnitLoadStridedStore;
+    if ((isStridedLoadUnitStore &&
+         description.memoryForm !=
+             RVVSelectedBodyMemoryForm::StridedLoadUnitStore) ||
+        (isUnitLoadStridedStore &&
+         description.memoryForm !=
+             RVVSelectedBodyMemoryForm::UnitLoadStridedStore))
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     if (configProfile.lmul != tcrv::rvv::getRVVLMULM1())
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
@@ -1037,6 +1067,20 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
       return error;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.storeValue, "unit-stride stored vector", config))
+      return error;
+    return llvm::Error::success();
+  }
+
+  if (slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::UnitLoadStridedStore) {
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.lhsValue, "unit-load source vector", config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.arithmeticResult, "movement result vector", config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.storeValue, "strided-store stored vector", config))
       return error;
     return llvm::Error::success();
   }
@@ -1671,6 +1715,7 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     ordered.push_back(slice.maskABI);
   if (slice.memoryForm != RVVSelectedBodyMemoryForm::UnitStrideConversion &&
       slice.memoryForm != RVVSelectedBodyMemoryForm::StridedLoadUnitStore &&
+      slice.memoryForm != RVVSelectedBodyMemoryForm::UnitLoadStridedStore &&
       slice.memoryForm != RVVSelectedBodyMemoryForm::IndexedLoadUnitStore &&
       slice.memoryForm != RVVSelectedBodyMemoryForm::UnitLoadIndexedStore &&
       slice.memoryForm != RVVSelectedBodyMemoryForm::MaskedUnitLoadStore)
@@ -1687,12 +1732,17 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
   } else if (slice.memoryForm ==
              RVVSelectedBodyMemoryForm::StridedLoadUnitStore) {
     ordered.push_back(slice.lhsStrideABI);
+  } else if (slice.memoryForm ==
+             RVVSelectedBodyMemoryForm::UnitLoadStridedStore) {
+    ordered.push_back(slice.outStrideABI);
   } else if (slice.memoryForm !=
                  RVVSelectedBodyMemoryForm::RHSScalarBroadcast &&
              slice.memoryForm !=
                  RVVSelectedBodyMemoryForm::UnitStrideConversion &&
              slice.memoryForm !=
                  RVVSelectedBodyMemoryForm::StridedLoadUnitStore &&
+             slice.memoryForm !=
+                 RVVSelectedBodyMemoryForm::UnitLoadStridedStore &&
              slice.memoryForm !=
                  RVVSelectedBodyMemoryForm::IndexedLoadUnitStore &&
              slice.memoryForm !=
@@ -2189,6 +2239,12 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
     slice.arithmeticOp = genericSegment2Stores.front().getOperation();
   }
+  const bool hasStridedMemory =
+      !genericStridedLoads.empty() || static_cast<bool>(slice.stridedStore);
+  if (hasStridedMemory && genericStridedLoads.empty() &&
+      stridedStoreCount == 1 && slice.moveOp)
+    slice.arithmeticKind =
+        RVVSelectedBodyOperationKind::UnitLoadStridedStore;
 
   const bool isCompareSelect =
       slice.arithmeticOp &&
@@ -2206,6 +2262,10 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       slice.arithmeticOp &&
       slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+  const bool isUnitLoadStridedStore =
+      slice.arithmeticOp &&
+      slice.arithmeticKind ==
+          RVVSelectedBodyOperationKind::UnitLoadStridedStore;
   const bool isIndexedGatherUnitStore =
       slice.arithmeticOp &&
       slice.arithmeticKind ==
@@ -2232,8 +2292,6 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   const bool isWidenI32ToI64 =
       slice.arithmeticOp &&
       slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI32ToI64;
-  const bool hasStridedMemory =
-      !genericStridedLoads.empty() || static_cast<bool>(slice.stridedStore);
   const bool hasScalarBroadcast = !genericScalarSplats.empty();
   if (hasIndexedMemory && isIndexedGatherUnitStore &&
       (!genericStridedLoads.empty() || stridedStoreCount != 0 ||
@@ -2265,11 +2323,19 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "bounded generic RVV EmitC route cannot mix RHS buffer broadcast and "
         "RHS scalar splat in one slice");
   if (hasStridedMemory && !isStridedLoadUnitStore &&
+      !isUnitLoadStridedStore &&
       (!genericBroadcastLoads.empty() || hasScalarBroadcast ||
        !genericLoads.empty() || slice.genericStore))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided route cannot mix strided memory ops with "
         "unit-stride load/store, broadcast, or scalar-splat memory forms");
+  if (hasStridedMemory && isUnitLoadStridedStore &&
+      (!genericBroadcastLoads.empty() || hasScalarBroadcast ||
+       !genericStridedLoads.empty() || slice.genericStore))
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV unit-load to strided-store route cannot mix "
+        "unit-stride source memory with strided source loads, unit-stride "
+        "stores, broadcast, or scalar-splat memory forms");
   if (hasStridedMemory && isStridedLoadUnitStore &&
       (!genericBroadcastLoads.empty() || hasScalarBroadcast ||
        !genericLoads.empty()))
@@ -2286,6 +2352,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "bounded generic RVV widening conversion route requires unit-stride "
         "source load and destination store");
   if (hasStridedMemory && !isStridedLoadUnitStore &&
+      !isUnitLoadStridedStore &&
       (!slice.arithmeticOp ||
                            slice.arithmeticKind !=
                                RVVSelectedBodyOperationKind::Add))
@@ -2293,19 +2360,34 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "bounded generic RVV strided route requires exactly one "
         "tcrv_rvv.binary {kind = \"add\"} compute op");
   if (hasStridedMemory && !isStridedLoadUnitStore &&
+      !isUnitLoadStridedStore &&
       genericStridedLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided route requires exactly two "
         "tcrv_rvv.strided_load ops for lhs and rhs");
+  if (hasStridedMemory && isUnitLoadStridedStore &&
+      genericStridedLoads.size() != 0)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV unit-load to strided-store route must use "
+        "unit-stride tcrv_rvv.load source, not tcrv_rvv.strided_load");
+  if (hasStridedMemory && isUnitLoadStridedStore && genericLoads.size() != 1)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV unit-load to strided-store route requires "
+        "exactly one unit-stride tcrv_rvv.load source op");
   if (hasStridedMemory && isStridedLoadUnitStore &&
       genericStridedLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided-load to unit-stride-store route requires "
         "exactly one tcrv_rvv.strided_load source op");
-  if (hasStridedMemory && !isStridedLoadUnitStore && stridedStoreCount != 1)
+  if (hasStridedMemory && !isStridedLoadUnitStore &&
+      !isUnitLoadStridedStore && stridedStoreCount != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided route requires exactly one "
         "tcrv_rvv.strided_store op");
+  if (hasStridedMemory && isUnitLoadStridedStore && stridedStoreCount != 1)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV unit-load to strided-store route requires "
+        "exactly one tcrv_rvv.strided_store op");
   if (hasStridedMemory && isStridedLoadUnitStore && stridedStoreCount != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided-load to unit-stride-store route must use "
@@ -2314,6 +2396,10 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided-load to unit-stride-store route requires "
         "exactly one unit-stride tcrv_rvv.store op");
+  if (hasStridedMemory && isUnitLoadStridedStore && storeCount != 0)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV unit-load to strided-store route must use "
+        "tcrv_rvv.strided_store, not unit-stride tcrv_rvv.store");
   if (hasIndexedMemory && genericIndexLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV indexed memory route requires exactly one "
@@ -2550,7 +2636,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           ? 11
           : (isIndexedGatherUnitStore || isIndexedScatterUnitLoad
                  ? 10
-                 : (isStridedLoadUnitStore
+                 : (isStridedLoadUnitStore || isUnitLoadStridedStore
                         ? 9
           : (hasStridedMemory
                  ? 13
@@ -2769,6 +2855,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
 
   if (!slice.lhsLoadOperation ||
       (!isWidenI32ToI64 && !isStridedLoadUnitStore &&
+       !isUnitLoadStridedStore &&
        !isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
        !isMaskedUnitLoadStore &&
        !isComputedMaskUnitLoadStore &&
@@ -2853,7 +2940,10 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     if (llvm::Error error = assignRVVGenericStridedStoreBinding(
             slice, slice.stridedStore, resolvedOutABI, *outStrideABI))
       return error;
-    slice.arithmeticKind = RVVSelectedBodyOperationKind::StridedAdd;
+    if (isUnitLoadStridedStore)
+      slice.memoryForm = RVVSelectedBodyMemoryForm::UnitLoadStridedStore;
+    else
+      slice.arithmeticKind = RVVSelectedBodyOperationKind::StridedAdd;
   } else if (isStridedLoadUnitStore) {
     slice.storeOperation = slice.genericStore.getOperation();
     slice.outBuffer = slice.genericStore.getBuffer();
@@ -2971,6 +3061,15 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV strided-load to unit-stride-store route does "
           "not support RHS or accumulator loads");
+  } else if (isUnitLoadStridedStore) {
+    if (slice.arithmeticLhs != slice.lhsValue)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV unit-load to strided-store route requires "
+          "tcrv_rvv.move to consume the unit-stride source load result");
+    if (slice.rhsLoadOperation || slice.accumulatorLoadOperation)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV unit-load to strided-store route does not "
+          "support RHS or accumulator loads");
   } else if (isIndexedGatherUnitStore) {
     if (slice.arithmeticLhs != slice.lhsValue)
       return makeRVVEmitCRouteProviderError(
@@ -3137,6 +3236,8 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       slice.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore;
   const bool isStridedLoadUnitStore =
       slice.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadUnitStore;
+  const bool isUnitLoadStridedStore =
+      slice.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadStridedStore;
   const bool isIndexedGatherUnitStore =
       slice.memoryForm == RVVSelectedBodyMemoryForm::IndexedLoadUnitStore;
   const bool isIndexedScatterUnitLoad =
@@ -3309,6 +3410,25 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       return 8;
     return 9;
   }
+  if (isUnitLoadStridedStore) {
+    if (outABI && op == outABI.getOperation())
+      return 1;
+    if (nABI && op == nABI.getOperation())
+      return 2;
+    if (outStrideABI && op == outStrideABI.getOperation())
+      return 3;
+    if (op == slice.setvl.getOperation())
+      return 4;
+    if (op == slice.withVL.getOperation())
+      return 5;
+    if (op == slice.lhsLoadOperation)
+      return 6;
+    if (op == slice.arithmeticOp)
+      return 7;
+    if (op == slice.storeOperation)
+      return 8;
+    return 9;
+  }
   if (isConversion) {
     if (outABI && op == outABI.getOperation())
       return 1;
@@ -3430,6 +3550,8 @@ llvm::Error verifySelectedRVVRoleSequence(
       slice.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore;
   const bool isStridedLoadUnitStore =
       slice.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadUnitStore;
+  const bool isUnitLoadStridedStore =
+      slice.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadStridedStore;
   const bool isIndexedGatherUnitStore =
       slice.memoryForm == RVVSelectedBodyMemoryForm::IndexedLoadUnitStore;
   const bool isIndexedScatterUnitLoad =
@@ -3450,10 +3572,12 @@ llvm::Error verifySelectedRVVRoleSequence(
        !isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
        !isMaskedUnitLoadStore && !isComputedMaskUnitLoadStore &&
        !isSegment2DeinterleaveUnitStore && !isSegment2InterleaveUnitLoad &&
+       !isUnitLoadStridedStore &&
        !rhsABI) ||
       (!isSegment2DeinterleaveUnitStore && !outABI) ||
       !nABI || (isStrided && (!lhsStrideABI || !rhsStrideABI || !outStrideABI)) ||
       (isStridedLoadUnitStore && !lhsStrideABI) ||
+      (isUnitLoadStridedStore && !outStrideABI) ||
       ((isIndexedGatherUnitStore || isIndexedScatterUnitLoad) && !indexABI) ||
       (isMaskedUnitLoadStore && !maskABI) ||
       (isComputedMaskUnitLoadStore && (!rhsABI || !sourceABI)) ||
@@ -3492,6 +3616,8 @@ llvm::Error verifySelectedRVVRoleSequence(
           ? slice.segment2StoreOperation->getName().getStringRef()
       : isStridedLoadUnitStore
           ? slice.lhsLoadOperation->getName().getStringRef()
+      : isUnitLoadStridedStore
+          ? slice.storeOperation->getName().getStringRef()
           : (slice.rhsLoadOperation
                  ? slice.rhsLoadOperation->getName().getStringRef()
                  : llvm::StringRef()),
@@ -3540,37 +3666,50 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.configContractID = configContract.configContractID;
   analysis.description.runtimeVLContractID = configContract.runtimeVLContractID;
   analysis.description.runtimeAVLASource = configContract.runtimeAVLASource;
-  analysis.description.runtimeABIOrder =
-      analysis.slice.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore
-      ? kRVVStridedRuntimeABIOrder
-      : (analysis.slice.memoryForm ==
-                 RVVSelectedBodyMemoryForm::StridedLoadUnitStore
-             ? kRVVStridedLoadUnitStoreRuntimeABIOrder
-      : (analysis.slice.memoryForm ==
-                 RVVSelectedBodyMemoryForm::IndexedLoadUnitStore
-             ? kRVVIndexedGatherRuntimeABIOrder
-      : (analysis.slice.memoryForm ==
-                 RVVSelectedBodyMemoryForm::UnitLoadIndexedStore
-             ? kRVVIndexedScatterRuntimeABIOrder
-      : (analysis.slice.memoryForm ==
-                 RVVSelectedBodyMemoryForm::MaskedUnitLoadStore
-             ? kRVVMaskedMemoryRuntimeABIOrder
-      : (analysis.slice.memoryForm ==
-                 RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore
-             ? kRVVComputedMaskMemoryRuntimeABIOrder
-      : (analysis.slice.memoryForm ==
-                 RVVSelectedBodyMemoryForm::Segment2LoadUnitStore
-             ? kRVVSegment2RuntimeABIOrder
-      : (analysis.slice.memoryForm ==
-                 RVVSelectedBodyMemoryForm::UnitLoadSegment2Store
-             ? kRVVSegment2InterleaveRuntimeABIOrder
-      : (analysis.slice.memoryForm ==
-                 RVVSelectedBodyMemoryForm::UnitStrideConversion
-             ? kRVVWideningConversionRuntimeABIOrder
-             : (analysis.slice.memoryForm ==
-                 RVVSelectedBodyMemoryForm::RHSScalarBroadcast
-             ? kRVVScalarBroadcastRuntimeABIOrder
-             : configContract.runtimeABIOrder)))))))));
+  switch (analysis.slice.memoryForm) {
+  case RVVSelectedBodyMemoryForm::VectorRHSLoad:
+  case RVVSelectedBodyMemoryForm::RHSBroadcastLoad:
+    analysis.description.runtimeABIOrder = configContract.runtimeABIOrder;
+    break;
+  case RVVSelectedBodyMemoryForm::RHSScalarBroadcast:
+    analysis.description.runtimeABIOrder = kRVVScalarBroadcastRuntimeABIOrder;
+    break;
+  case RVVSelectedBodyMemoryForm::StridedLoadStore:
+    analysis.description.runtimeABIOrder = kRVVStridedRuntimeABIOrder;
+    break;
+  case RVVSelectedBodyMemoryForm::StridedLoadUnitStore:
+    analysis.description.runtimeABIOrder =
+        kRVVStridedLoadUnitStoreRuntimeABIOrder;
+    break;
+  case RVVSelectedBodyMemoryForm::UnitLoadStridedStore:
+    analysis.description.runtimeABIOrder =
+        kRVVUnitLoadStridedStoreRuntimeABIOrder;
+    break;
+  case RVVSelectedBodyMemoryForm::IndexedLoadUnitStore:
+    analysis.description.runtimeABIOrder = kRVVIndexedGatherRuntimeABIOrder;
+    break;
+  case RVVSelectedBodyMemoryForm::UnitLoadIndexedStore:
+    analysis.description.runtimeABIOrder = kRVVIndexedScatterRuntimeABIOrder;
+    break;
+  case RVVSelectedBodyMemoryForm::MaskedUnitLoadStore:
+    analysis.description.runtimeABIOrder = kRVVMaskedMemoryRuntimeABIOrder;
+    break;
+  case RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore:
+    analysis.description.runtimeABIOrder =
+        kRVVComputedMaskMemoryRuntimeABIOrder;
+    break;
+  case RVVSelectedBodyMemoryForm::Segment2LoadUnitStore:
+    analysis.description.runtimeABIOrder = kRVVSegment2RuntimeABIOrder;
+    break;
+  case RVVSelectedBodyMemoryForm::UnitLoadSegment2Store:
+    analysis.description.runtimeABIOrder =
+        kRVVSegment2InterleaveRuntimeABIOrder;
+    break;
+  case RVVSelectedBodyMemoryForm::UnitStrideConversion:
+    analysis.description.runtimeABIOrder =
+        kRVVWideningConversionRuntimeABIOrder;
+    break;
+  }
   analysis.description.vlDefOpName = configContract.vlDefOpName;
   analysis.description.vlScopeOpName = configContract.vlScopeOpName;
   analysis.description.vlUses = configContract.vlUses;
@@ -3625,6 +3764,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       analysis.slice.memoryForm !=
           RVVSelectedBodyMemoryForm::StridedLoadUnitStore &&
       analysis.slice.memoryForm !=
+          RVVSelectedBodyMemoryForm::UnitLoadStridedStore &&
+      analysis.slice.memoryForm !=
           RVVSelectedBodyMemoryForm::IndexedLoadUnitStore &&
       analysis.slice.memoryForm !=
           RVVSelectedBodyMemoryForm::UnitLoadIndexedStore &&
@@ -3654,6 +3795,10 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
              RVVSelectedBodyMemoryForm::StridedLoadUnitStore) {
     analysis.description.runtimeABIParameters.push_back(
         analysis.slice.lhsStrideABI);
+  } else if (analysis.slice.memoryForm ==
+             RVVSelectedBodyMemoryForm::UnitLoadStridedStore) {
+    analysis.description.runtimeABIParameters.push_back(
+        analysis.slice.outStrideABI);
   }
 
   llvm::Expected<RVVSelectedBodyRouteProfile> routeProfile =
@@ -3731,7 +3876,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.storeIntrinsic =
       routeProfile->config.storeIntrinsic;
   analysis.description.stridedStoreIntrinsic =
-      analysis.slice.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore
+      (analysis.slice.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore ||
+       analysis.slice.memoryForm ==
+           RVVSelectedBodyMemoryForm::UnitLoadStridedStore)
           ? routeProfile->config.stridedStoreIntrinsic
           : "";
   analysis.description.intrinsic = routeProfile->targetLeaves.intrinsic;
@@ -3786,11 +3933,21 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     analysis.description.outStrideSource = kRVVOutStrideSource;
   }
   if (routeProfile->operation.isMemoryMovement) {
+    const bool isUnitLoadStridedStore =
+        routeProfile->operation.operation ==
+        RVVSelectedBodyOperationKind::UnitLoadStridedStore;
     analysis.description.stridedMemoryLayout =
-        kRVVStridedLoadUnitStoreMemoryLayout;
-    analysis.description.sourceStrideSource = kRVVSourceStrideSource;
-    analysis.description.sourceMemoryForm = kRVVSourceMemoryForm;
-    analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
+        isUnitLoadStridedStore ? kRVVUnitLoadStridedStoreMemoryLayout
+                               : kRVVStridedLoadUnitStoreMemoryLayout;
+    if (isUnitLoadStridedStore) {
+      analysis.description.outStrideSource = kRVVDestinationStrideSource;
+      analysis.description.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
+      analysis.description.destinationMemoryForm = "strided-store";
+    } else {
+      analysis.description.sourceStrideSource = kRVVSourceStrideSource;
+      analysis.description.sourceMemoryForm = kRVVSourceMemoryForm;
+      analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
+    }
   }
   if (routeProfile->operation.isIndexedMemoryMovement) {
     const bool isScatter =
@@ -3924,6 +4081,8 @@ stringifyRVVSelectedBodyMemoryForm(RVVSelectedBodyMemoryForm form) {
     return "strided-load-store";
   case RVVSelectedBodyMemoryForm::StridedLoadUnitStore:
     return "strided-load-unit-store";
+  case RVVSelectedBodyMemoryForm::UnitLoadStridedStore:
+    return "unit-load-strided-store";
   case RVVSelectedBodyMemoryForm::IndexedLoadUnitStore:
     return "indexed-load-unit-store";
   case RVVSelectedBodyMemoryForm::UnitLoadIndexedStore:
@@ -4076,35 +4235,42 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           context, "runtime AVL source", description.runtimeAVLASource,
           configContract.runtimeAVLASource))
     return error;
+  llvm::StringRef expectedRuntimeABIOrder = configContract.runtimeABIOrder;
+  if (operationProfile.operation == RVVSelectedBodyOperationKind::StridedAdd) {
+    expectedRuntimeABIOrder = kRVVStridedRuntimeABIOrder;
+  } else if (operationProfile.isSegmentedMemoryMovement) {
+    expectedRuntimeABIOrder =
+        operationProfile.operation ==
+                RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad
+            ? kRVVSegment2InterleaveRuntimeABIOrder
+            : kRVVSegment2RuntimeABIOrder;
+  } else if (operationProfile.isMemoryMovement) {
+    expectedRuntimeABIOrder =
+        operationProfile.operation ==
+                RVVSelectedBodyOperationKind::UnitLoadStridedStore
+            ? kRVVUnitLoadStridedStoreRuntimeABIOrder
+            : kRVVStridedLoadUnitStoreRuntimeABIOrder;
+  } else if (operationProfile.isMaskedMemoryMovement) {
+    expectedRuntimeABIOrder =
+        description.memoryForm ==
+                RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore
+            ? kRVVComputedMaskMemoryRuntimeABIOrder
+            : kRVVMaskedMemoryRuntimeABIOrder;
+  } else if (operationProfile.isIndexedMemoryMovement) {
+    expectedRuntimeABIOrder =
+        operationProfile.operation ==
+                RVVSelectedBodyOperationKind::IndexedScatterUnitLoad
+            ? kRVVIndexedScatterRuntimeABIOrder
+            : kRVVIndexedGatherRuntimeABIOrder;
+  } else if (operationProfile.isWideningConversion) {
+    expectedRuntimeABIOrder = kRVVWideningConversionRuntimeABIOrder;
+  } else if (description.memoryForm ==
+             RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
+    expectedRuntimeABIOrder = kRVVScalarBroadcastRuntimeABIOrder;
+  }
   if (llvm::Error error = requireRouteDescriptionField(
           context, "runtime ABI order", description.runtimeABIOrder,
-          operationProfile.operation == RVVSelectedBodyOperationKind::StridedAdd
-              ? kRVVStridedRuntimeABIOrder
-          : (operationProfile.isSegmentedMemoryMovement
-              ? (operationProfile.operation ==
-                         RVVSelectedBodyOperationKind::
-                             Segment2InterleaveUnitLoad
-                     ? kRVVSegment2InterleaveRuntimeABIOrder
-                     : kRVVSegment2RuntimeABIOrder)
-          : (operationProfile.isMemoryMovement
-              ? kRVVStridedLoadUnitStoreRuntimeABIOrder
-          : (operationProfile.isMaskedMemoryMovement
-              ? (description.memoryForm ==
-                         RVVSelectedBodyMemoryForm::
-                             ComputedMaskUnitLoadStore
-                     ? kRVVComputedMaskMemoryRuntimeABIOrder
-                     : kRVVMaskedMemoryRuntimeABIOrder)
-          : (operationProfile.isIndexedMemoryMovement
-              ? (operationProfile.operation ==
-                         RVVSelectedBodyOperationKind::IndexedScatterUnitLoad
-                     ? kRVVIndexedScatterRuntimeABIOrder
-                     : kRVVIndexedGatherRuntimeABIOrder)
-              : (operationProfile.isWideningConversion
-                     ? kRVVWideningConversionRuntimeABIOrder
-                     : (description.memoryForm ==
-                         RVVSelectedBodyMemoryForm::RHSScalarBroadcast
-                     ? kRVVScalarBroadcastRuntimeABIOrder
-                     : configContract.runtimeABIOrder))))))))
+          expectedRuntimeABIOrder))
     return error;
   if (llvm::Error error = requireRouteDescriptionField(
           context, "VL def op", description.vlDefOpName,
@@ -4307,7 +4473,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             description.indexedStoreIntrinsic, ""))
       return error;
   }
-  if (operationProfile.isStridedMemory) {
+  if (operationProfile.operation == RVVSelectedBodyOperationKind::StridedAdd ||
+      operationProfile.operation ==
+          RVVSelectedBodyOperationKind::StridedLoadUnitStore) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "strided-load intrinsic",
             description.stridedLoadIntrinsic,
@@ -4323,7 +4491,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           context, "store intrinsic", description.storeIntrinsic,
           configProfile.storeIntrinsic))
     return error;
-  if (operationProfile.operation == RVVSelectedBodyOperationKind::StridedAdd) {
+  if (operationProfile.operation == RVVSelectedBodyOperationKind::StridedAdd ||
+      operationProfile.operation ==
+          RVVSelectedBodyOperationKind::UnitLoadStridedStore) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "strided-store intrinsic",
             description.stridedStoreIntrinsic,
@@ -4548,10 +4718,14 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             description.indexedDestinationMemoryForm, ""))
       return error;
   } else if (operationProfile.isMemoryMovement) {
+    const bool isUnitLoadStridedStore =
+        operationProfile.operation ==
+        RVVSelectedBodyOperationKind::UnitLoadStridedStore;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "strided memory layout",
             description.stridedMemoryLayout,
-            kRVVStridedLoadUnitStoreMemoryLayout))
+            isUnitLoadStridedStore ? kRVVUnitLoadStridedStoreMemoryLayout
+                                   : kRVVStridedLoadUnitStoreMemoryLayout))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "indexed memory layout", description.indexedMemoryLayout,
@@ -4563,20 +4737,34 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "rhs stride source", description.rhsStrideSource, ""))
       return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "out stride source", description.outStrideSource, ""))
-      return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "source stride source", description.sourceStrideSource,
-            kRVVSourceStrideSource))
-      return error;
+    if (isUnitLoadStridedStore) {
+      if (llvm::Error error = requireRouteDescriptionField(
+              context, "out stride source", description.outStrideSource,
+              kRVVDestinationStrideSource))
+        return error;
+      if (llvm::Error error = requireRouteDescriptionField(
+              context, "source stride source", description.sourceStrideSource,
+              ""))
+        return error;
+    } else {
+      if (llvm::Error error = requireRouteDescriptionField(
+              context, "out stride source", description.outStrideSource, ""))
+        return error;
+      if (llvm::Error error = requireRouteDescriptionField(
+              context, "source stride source", description.sourceStrideSource,
+              kRVVSourceStrideSource))
+        return error;
+    }
     if (llvm::Error error = requireRouteDescriptionField(
             context, "source memory form", description.sourceMemoryForm,
-            kRVVSourceMemoryForm))
+            isUnitLoadStridedStore ? kRVVUnitStrideSourceMemoryForm
+                                   : kRVVSourceMemoryForm))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "destination memory form",
-            description.destinationMemoryForm, kRVVDestinationMemoryForm))
+            description.destinationMemoryForm,
+            isUnitLoadStridedStore ? "strided-store"
+                                   : kRVVDestinationMemoryForm))
       return error;
     if (description.indexEEW != 0)
       return makeRVVEmitCRouteProviderError(
@@ -5056,6 +5244,17 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         description.stridedMemoryLayout});
     metadata.push_back(
         {"tcrv_rvv.source_stride_source", description.sourceStrideSource});
+    metadata.push_back(
+        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
+    metadata.push_back({"tcrv_rvv.destination_memory_form",
+                        description.destinationMemoryForm});
+  }
+  if (description.operation ==
+      RVVSelectedBodyOperationKind::UnitLoadStridedStore) {
+    metadata.push_back({"tcrv_rvv.strided_memory_layout",
+                        description.stridedMemoryLayout});
+    metadata.push_back(
+        {"tcrv_rvv.destination_stride_source", description.outStrideSource});
     metadata.push_back(
         {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
     metadata.push_back({"tcrv_rvv.destination_memory_form",

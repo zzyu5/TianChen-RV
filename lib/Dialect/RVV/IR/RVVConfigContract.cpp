@@ -532,6 +532,23 @@ getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters() {
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVSelectedBodyUnitLoadStridedStoreRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "dst", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "dst_stride", "size_t",
+      support::RuntimeABIParameterRole::OutputStride));
+  return parameters;
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 4>
 getRVVSelectedBodyIndexedGatherRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
   parameters.push_back(support::makeTargetExportABIParameter(
@@ -661,6 +678,11 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, stridedLoadUnitStore))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 4> unitLoadStridedStore =
+      getRVVSelectedBodyUnitLoadStridedStoreRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, unitLoadStridedStore))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 4> indexedGather =
       getRVVSelectedBodyIndexedGatherRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, indexedGather))
@@ -709,7 +731,8 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "widening conversion route; or lhs, rhs, out, n, lhs_stride, "
       "rhs_stride, out_stride for the bounded int32_t strided add route; or "
       "src, out, n, src_stride for the bounded int32_t strided-load to "
-      "unit-stride-store route; or data, index, out, n for the bounded "
+      "unit-stride-store route; or src, dst, n, dst_stride for the bounded "
+      "int32_t unit-load to strided-store route; or data, index, out, n for the bounded "
       "int32_t indexed-gather to unit-stride-store route; or src, index, "
       "dst, n for the bounded int32_t indexed-scatter route; or src, mask, "
       "dst, n for the bounded int32_t masked unit-load/store route with "
