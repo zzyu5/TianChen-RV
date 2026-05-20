@@ -171,6 +171,28 @@ def TCRVRVV_VectorType : TCRVRVV_Type<"Vector", "vector"> {
   let assemblyFormat = "`<` $elementType `,` $lmul `>`";
 }
 
+def TCRVRVV_IndexVectorType : TCRVRVV_Type<"IndexVector", "index_vector"> {
+  let summary = "generic typed RVV index vector dataflow token type";
+  let description = [{
+    A generic plugin-local RVV index vector token for bounded indexed memory
+    movement. The type carries the index element dtype and LMUL. For the
+    current executable slice it is an unsigned 32-bit index/offset vector with
+    LMUL m1, produced by tcrv_rvv.index_load and consumed by
+    tcrv_rvv.indexed_load.
+
+    This type is not a route id, descriptor, artifact name, source front door
+    marker, intrinsic spelling, runtime evidence, or performance claim. The
+    RVV plugin derives indexed memory legality and intrinsic mapping from this
+    typed body/config fact plus explicit runtime ABI roles.
+  }];
+
+  let parameters = (ins
+    "mlir::Type":$elementType,
+    StringRefParameter<"LMUL string">:$lmul
+  );
+  let assemblyFormat = "`<` $elementType `,` $lmul `>`";
+}
+
 def TCRVRVV_MaskType : TCRVRVV_Type<"Mask", "mask"> {
   let summary = "generic typed RVV predicate mask dataflow token type";
   let description = [{
@@ -568,6 +590,44 @@ def TypedStridedMemoryPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedIndexedGatherMemoryPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_indexed_gather_memory_pre_realized_body"> {
+  let summary = "generic typed pre-realized RVV indexed gather memory body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body for
+    indexed source gather memory movement into a unit-stride destination. The
+    op is nested directly in a selected tcrv.exec.variant and binds explicit
+    runtime ABI values for data source, index source, output, and runtime
+    n/AVL together with selected memory movement operation kind, memory form,
+    index EEW, offset unit, compile-time RVV data vector config, and policy.
+
+    This op is not a gather/scatter framework, descriptor, source-front-door
+    marker, direct-C exporter, route id, intrinsic wrapper, runtime artifact,
+    correctness evidence, or performance evidence. The RVV plugin must realize
+    it into explicit setvl/with_vl/index_load/indexed_load/move/store
+    tcrv_rvv body structure before the provider may construct a
+    TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$data,
+    AnyType:$index,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    I64Attr:$index_eew,
+    StrAttr:$offset_unit,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$data `,` $index `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def LoadOp : TCRVRVV_Op<"load",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",
@@ -683,6 +743,67 @@ def StridedLoadOp : TCRVRVV_Op<"strided_load",
 
   let assemblyFormat =
     "$buffer `,` $stride `,` $vl attr-dict `:` type($buffer) `,` type($stride) `,` type($vl) `->` type($loaded)";
+  let hasVerifier = 1;
+}
+
+def IndexLoadOp : TCRVRVV_Op<"index_load",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV index-vector load dataflow op";
+  let description = [{
+    Records one bounded plugin-local RVV index-vector load dataflow step. The
+    op is nested directly under tcrv_rvv.with_vl, consumes one explicit index
+    input-buffer runtime ABI value plus the active !tcrv_rvv.vl token, carries
+    the explicit index EEW, and produces one !tcrv_rvv.index_vector token.
+
+    The index buffer role and index EEW are structural body authority for the
+    bounded indexed gather slice. Common EmitC/export code must not infer
+    index semantics from route ids, ABI strings, artifact names, or intrinsic
+    spellings.
+  }];
+
+  let arguments = (ins
+    AnyType:$index,
+    AnyType:$vl,
+    I64Attr:$index_eew
+  );
+  let results = (outs AnyType:$loaded);
+
+  let assemblyFormat =
+    "$index `,` $vl attr-dict `:` type($index) `,` type($vl) `->` type($loaded)";
+  let hasVerifier = 1;
+}
+
+def IndexedLoadOp : TCRVRVV_Op<"indexed_load",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV indexed data load dataflow op";
+  let description = [{
+    Records one bounded plugin-local RVV indexed data load step. The op is
+    nested directly under tcrv_rvv.with_vl, consumes one explicit data input
+    buffer runtime ABI value, one !tcrv_rvv.index_vector produced by
+    tcrv_rvv.index_load, and the active !tcrv_rvv.vl token. It carries the
+    explicit index EEW and offset unit and produces one data
+    !tcrv_rvv.vector token.
+
+    Data dtype/config, index EEW/offset unit, and memory roles come from this
+    typed body. The RVV plugin derives the concrete indexed-load intrinsic and
+    any element-to-byte offset conversion after legality validation.
+  }];
+
+  let arguments = (ins
+    AnyType:$data,
+    AnyType:$indices,
+    AnyType:$vl,
+    I64Attr:$index_eew,
+    StrAttr:$offset_unit
+  );
+  let results = (outs AnyType:$loaded);
+
+  let assemblyFormat =
+    "$data `,` $indices `,` $vl attr-dict `:` type($data) `,` type($indices) `,` type($vl) `->` type($loaded)";
   let hasVerifier = 1;
 }
 

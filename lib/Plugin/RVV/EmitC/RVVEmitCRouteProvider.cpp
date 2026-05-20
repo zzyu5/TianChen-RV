@@ -40,7 +40,8 @@ bool isRVVSelectedBodyWideningConversionRoute(RVVSelectedBodyOperationKind op) {
 }
 
 bool isRVVSelectedBodyMemoryMovementRoute(RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+  return op == RVVSelectedBodyOperationKind::StridedLoadUnitStore ||
+         op == RVVSelectedBodyOperationKind::IndexedGatherUnitStore;
 }
 
 llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance>
@@ -119,6 +120,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   route.addHeader("riscv_vector.h");
   route.addTypeMapping("!tcrv_rvv.vl", description.vlCType);
   route.addTypeMapping(description.vectorTypeName, description.vectorCType);
+  if (!description.indexVectorTypeName.empty())
+    route.addTypeMapping(description.indexVectorTypeName,
+                         description.indexVectorCType);
   if (!description.sourceVectorTypeName.empty())
     route.addTypeMapping(description.sourceVectorTypeName,
                          description.sourceVectorCType);
@@ -182,7 +186,43 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       isRVVSelectedBodyMemoryMovementRoute(description.operation)
           ? description.resultName
           : "lhs_vec";
-  if (description.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore ||
+  if (description.memoryForm == RVVSelectedBodyMemoryForm::IndexedLoadUnitStore) {
+    if (llvm::Error error = addLoopStep(
+            slice->indexLoadOperation, "load", description.indexLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->indexABI.cName) + " + " +
+                  inductionName)
+                     .str(),
+                 slice->indexABI.cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"index_vec",
+                                      description.indexVectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->indexedLoadOperation, "load",
+            description.indexScaleIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{"index_vec",
+                                        description.indexVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"4", "uint32_t"},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"byte_offsets",
+                                      description.indexVectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->indexedLoadOperation, "load",
+            description.indexedLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{slice->lhsABI.cName,
+                                        slice->lhsABI.cType},
+             TCRVEmitCCallOpaqueOperand{"byte_offsets",
+                                        description.indexVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                      description.vectorCType.str()}))
+      return error;
+  } else if (description.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore ||
       description.memoryForm ==
           RVVSelectedBodyMemoryForm::StridedLoadUnitStore) {
     if (llvm::Error error = addLoopStep(
@@ -389,9 +429,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   } else if (isRVVSelectedBodyMemoryMovementRoute(description.operation)) {
-    // The bounded memory movement route forwards the strided-load vector into
-    // the unit-stride store. tcrv_rvv.move is structural body authority and
-    // does not require an extra RVV intrinsic leaf.
+    // Bounded memory movement routes forward the loaded vector into the
+    // unit-stride store. tcrv_rvv.move is structural body authority and does
+    // not require an extra RVV intrinsic leaf.
   } else {
     if (llvm::Error error = addLoopStep(
             slice->arithmeticOp, "compute", description.intrinsic,

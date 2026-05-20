@@ -75,6 +75,8 @@ constexpr llvm::StringLiteral kDestLMULAttrName("dest_lmul");
 constexpr llvm::StringLiteral kConversionRelationAttrName(
     "conversion_relation");
 constexpr llvm::StringLiteral kStrideUnitAttrName("stride_unit");
+constexpr llvm::StringLiteral kIndexEEWAttrName("index_eew");
+constexpr llvm::StringLiteral kOffsetUnitAttrName("offset_unit");
 constexpr llvm::StringLiteral kVLenAttrName("vlen");
 constexpr llvm::StringLiteral kVLenBAttrName("vlenb");
 constexpr llvm::StringLiteral kRVVVariantRequiredMarchAttrName(
@@ -206,11 +208,27 @@ bool isAllowedTypedStridedMemoryPreRealizedBodyAttr(llvm::StringRef name) {
          name == kLMULAttrName || name == kPolicyAttrName;
 }
 
+bool isAllowedTypedIndexedGatherMemoryPreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kIndexEEWAttrName || name == kOffsetUnitAttrName ||
+         name == kSEWAttrName || name == kLMULAttrName ||
+         name == kPolicyAttrName;
+}
+
 bool isAllowedLoadAttr(llvm::StringRef) { return false; }
 
 bool isAllowedBroadcastLoadAttr(llvm::StringRef) { return false; }
 
 bool isAllowedStridedLoadAttr(llvm::StringRef) { return false; }
+
+bool isAllowedIndexLoadAttr(llvm::StringRef name) {
+  return name == kIndexEEWAttrName;
+}
+
+bool isAllowedIndexedLoadAttr(llvm::StringRef name) {
+  return name == kIndexEEWAttrName || name == kOffsetUnitAttrName;
+}
 
 bool isAllowedBinaryAttr(llvm::StringRef name) {
   return name == "kind";
@@ -382,6 +400,24 @@ bool isSupportedTypedStridedMemoryPreRealizedStrideUnit(
   return strideUnit == "element";
 }
 
+bool isSupportedTypedIndexedGatherPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "indexed_gather_unit_store";
+}
+
+bool isSupportedTypedIndexedGatherPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "indexed-load-unit-store";
+}
+
+bool isSupportedTypedIndexedGatherIndexEEW(std::int64_t indexEEW) {
+  return indexEEW == 32;
+}
+
+bool isSupportedTypedIndexedGatherOffsetUnit(llvm::StringRef offsetUnit) {
+  return offsetUnit == "element";
+}
+
 bool isSupportedGenericBinaryKind(llvm::StringRef kind) {
   return kind == "add" || kind == "sub" || kind == "mul";
 }
@@ -522,6 +558,8 @@ bool isSupportedBoundedRuntimeABIValueCType(
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
     return cType == "const int32_t *" || cType == "const int64_t *";
+  case Role::IndexInputBuffer:
+    return cType == "const uint32_t *";
   case Role::RHSScalarValue:
     return cType == "int32_t";
   case Role::OutputBuffer:
@@ -544,6 +582,8 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
     return "'const int32_t *' or 'const int64_t *'";
+  case Role::IndexInputBuffer:
+    return "'const uint32_t *'";
   case Role::RHSScalarValue:
     return "'int32_t'";
   case Role::OutputBuffer:
@@ -572,7 +612,8 @@ bool isBoundedScalarRole(tianchenrv::support::RuntimeABIParameterRole role) {
 
 bool isBoundedBufferRole(tianchenrv::support::RuntimeABIParameterRole role) {
   using Role = tianchenrv::support::RuntimeABIParameterRole;
-  return isBoundedInputBufferRole(role) || role == Role::OutputBuffer;
+  return isBoundedInputBufferRole(role) || role == Role::IndexInputBuffer ||
+         role == Role::OutputBuffer;
 }
 
 bool isBoundedRuntimeIndexRole(
@@ -878,6 +919,63 @@ mlir::LogicalResult verifyGenericVectorTypeForWithVL(mlir::Operation *op,
   return mlir::success();
 }
 
+mlir::LogicalResult verifyGenericIndexVectorTypeForWithVL(
+    mlir::Operation *op, mlir::Value value, llvm::StringRef role) {
+  auto vector =
+      llvm::dyn_cast<tianchenrv::tcrv::rvv::IndexVectorType>(
+          value.getType());
+  if (!vector)
+    return op->emitOpError()
+           << "requires " << role
+           << " type to be generic !tcrv_rvv.index_vector";
+  auto integerType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
+  if (!integerType)
+    return op->emitOpError()
+           << "currently requires " << role
+           << " element type to be an integer for the bounded indexed "
+              "memory route";
+  if (!isSupportedTypedIndexedGatherIndexEEW(integerType.getWidth()) ||
+      vector.getLmul() != getRVVLMULM1())
+    return op->emitOpError()
+           << "requires " << role
+           << " config to be index EEW32 LMUL \"m1\" for the bounded "
+              "indexed gather route";
+
+  auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
+  if (!withVL)
+    return mlir::success();
+
+  auto expectedSEW =
+      withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  if (!expectedSEW)
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
+              "metadata for indexed memory dataflow";
+  if (expectedSEW.getInt() != getRVVFirstSliceSEWBits())
+    return op->emitOpError()
+           << "requires indexed gather data SEW32 in the enclosing "
+              "tcrv_rvv.with_vl metadata";
+
+  auto expectedLMUL =
+      withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  if (!expectedLMUL)
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit LMUL "
+              "metadata for indexed memory dataflow";
+  if (expectedLMUL.getValue() != vector.getLmul())
+    return op->emitOpError()
+           << "requires " << role << " type " << value.getType()
+           << " to agree with enclosing tcrv_rvv.with_vl LMUL metadata '"
+           << expectedLMUL.getValue() << "'";
+
+  if (!withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for indexed memory dataflow";
+
+  return mlir::success();
+}
+
 mlir::LogicalResult verifyGenericMaskTypeForWithVL(mlir::Operation *op,
                                                    mlir::Value value,
                                                    llvm::StringRef role) {
@@ -1137,6 +1235,22 @@ llvm::StringRef StridedLoadOp::getTCRVEmitCLowerableSourceOpName() {
 }
 
 llvm::StringRef StridedLoadOp::getTCRVEmitCLowerableSourceRole() {
+  return "load";
+}
+
+llvm::StringRef IndexLoadOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef IndexLoadOp::getTCRVEmitCLowerableSourceRole() {
+  return "load";
+}
+
+llvm::StringRef IndexedLoadOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef IndexedLoadOp::getTCRVEmitCLowerableSourceRole() {
   return "load";
 }
 
@@ -2064,6 +2178,82 @@ mlir::LogicalResult TypedStridedMemoryPreRealizedBodyOp::verify() {
       {tianchenrv::support::RuntimeABIParameterRole::LHSInputStride});
 }
 
+mlir::LogicalResult TypedIndexedGatherMemoryPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected indexed gather bodies carry only "
+                "typed RVV memory-form, index-EEW, offset-unit, config, "
+                "policy, and runtime SSA facts and must be realized by the "
+                "RVV plugin before route construction";
+
+    if (!isAllowedTypedIndexedGatherMemoryPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '" << kIndexEEWAttrName
+             << "', '" << kOffsetUnitAttrName << "', '" << kSEWAttrName
+             << "', '" << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires data input, index input, out, runtime n/AVL "
+              "operands and no results";
+
+  if (!isSupportedTypedIndexedGatherPreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"indexed_gather_unit_store\" for the bounded selected-body "
+              "indexed gather hook";
+  if (!isSupportedTypedIndexedGatherPreRealizedMemoryForm(getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"indexed-load-unit-store\" for the bounded selected-body "
+              "indexed gather hook";
+  if (!isSupportedTypedIndexedGatherIndexEEW(
+          static_cast<std::int64_t>(getIndexEew())))
+    return emitOpError()
+           << "currently supports only index_eew 32 for the bounded "
+              "selected-body indexed gather hook";
+  if (!isSupportedTypedIndexedGatherOffsetUnit(getOffsetUnit()))
+    return emitOpError()
+           << "currently supports only offset_unit \"element\" for the "
+              "bounded selected-body indexed gather hook";
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized indexed gather data config to "
+              "be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body indexed gather hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getData(), "data",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getIndex(), "index",
+          {tianchenrv::support::RuntimeABIParameterRole::IndexInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
 mlir::LogicalResult LoadOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -2091,6 +2281,92 @@ mlir::LogicalResult LoadOp::verify() {
   if (auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp()))
     if (isBoundedWideningConversionSourceLoad(*this, withVL))
       return mlir::success();
+  return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
+}
+
+mlir::LogicalResult IndexLoadOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.index_load",
+                                         isAllowedIndexLoadAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 2 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires exactly one explicit index buffer ABI operand, one "
+              "!tcrv_rvv.vl operand, and one generic RVV index vector result";
+  if (!isSupportedTypedIndexedGatherIndexEEW(
+          static_cast<std::int64_t>(getIndexEew())))
+    return emitOpError()
+           << "currently supports only index_eew 32 for tcrv_rvv.index_load";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getIndex(), "index",
+          {tianchenrv::support::RuntimeABIParameterRole::IndexInputBuffer})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  return verifyGenericIndexVectorTypeForWithVL(op, getLoaded(), "result");
+}
+
+mlir::LogicalResult IndexedLoadOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.indexed_load",
+                                         isAllowedIndexedLoadAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one explicit data buffer ABI operand, one generic "
+              "RVV index vector operand, one !tcrv_rvv.vl operand, and one "
+              "generic RVV data vector result";
+  if (!isSupportedTypedIndexedGatherIndexEEW(
+          static_cast<std::int64_t>(getIndexEew())))
+    return emitOpError()
+           << "currently supports only index_eew 32 for "
+              "tcrv_rvv.indexed_load";
+  if (!isSupportedTypedIndexedGatherOffsetUnit(getOffsetUnit()))
+    return emitOpError()
+           << "currently supports only offset_unit \"element\" for "
+              "tcrv_rvv.indexed_load";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getData(), "data",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto indexLoad = getIndices().getDefiningOp<IndexLoadOp>();
+  if (!indexLoad)
+    return emitOpError()
+           << "requires indices operand to be produced by "
+              "tcrv_rvv.index_load inside the selected RVV typed body";
+  if (indexLoad.getVl() != getVl())
+    return emitOpError()
+           << "requires index-producing tcrv_rvv.index_load to consume the "
+              "same !tcrv_rvv.vl token as tcrv_rvv.indexed_load";
+  if (indexLoad->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires index-producing tcrv_rvv.index_load to be in the "
+              "same tcrv_rvv.with_vl body as tcrv_rvv.indexed_load";
+  if (static_cast<std::int64_t>(indexLoad.getIndexEew()) !=
+      static_cast<std::int64_t>(getIndexEew()))
+    return emitOpError()
+           << "requires index_eew to match the producing tcrv_rvv.index_load";
+
+  if (mlir::failed(
+          verifyGenericIndexVectorTypeForWithVL(op, getIndices(), "indices")))
+    return mlir::failure();
   return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
 }
 

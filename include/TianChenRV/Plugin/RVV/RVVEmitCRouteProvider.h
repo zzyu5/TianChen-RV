@@ -32,6 +32,7 @@ enum class RVVSelectedBodyOperationKind {
   MAccAdd,
   StridedAdd,
   StridedLoadUnitStore,
+  IndexedGatherUnitStore,
   ScalarBroadcastAdd,
   WidenI32ToI64,
 };
@@ -42,6 +43,7 @@ enum class RVVSelectedBodyMemoryForm {
   RHSScalarBroadcast,
   StridedLoadStore,
   StridedLoadUnitStore,
+  IndexedLoadUnitStore,
   UnitStrideConversion,
 };
 
@@ -84,11 +86,16 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef runtimeABIContractName;
   llvm::StringRef vlCType;
   llvm::StringRef vectorTypeName;
+  llvm::StringRef indexVectorTypeName;
   llvm::StringRef maskTypeName;
   llvm::StringRef vectorCType;
+  llvm::StringRef indexVectorCType;
   llvm::StringRef maskCType;
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef indexLoadIntrinsic;
+  llvm::StringRef indexScaleIntrinsic;
+  llvm::StringRef indexedLoadIntrinsic;
   llvm::StringRef stridedLoadIntrinsic;
   llvm::StringRef rhsBroadcastIntrinsic;
   llvm::StringRef storeIntrinsic;
@@ -108,6 +115,11 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef maccAccumulatorLayout;
   llvm::StringRef maccResultLayout;
   llvm::StringRef stridedMemoryLayout;
+  llvm::StringRef indexedMemoryLayout;
+  std::int64_t indexEEW = 0;
+  llvm::StringRef offsetUnit;
+  llvm::StringRef indexSource;
+  llvm::StringRef indexedDataMemoryForm;
   llvm::StringRef lhsStrideSource;
   llvm::StringRef rhsStrideSource;
   llvm::StringRef outStrideSource;

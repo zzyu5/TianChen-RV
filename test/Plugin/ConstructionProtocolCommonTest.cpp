@@ -1625,26 +1625,32 @@ int runRVVCommonValidationTest() {
     llvm::StringRef executableComputeOp =
         route.operationMnemonic == "cmp_select"
             ? "tcrv_rvv.select"
-            : (route.operationMnemonic == "reduce_add" ? "tcrv_rvv.reduce"
-               : (route.operationMnemonic == "masked_add"
-                      ? "tcrv_rvv.masked_binary"
-	                  : (route.operationMnemonic == "macc_add"
-	                         ? "tcrv_rvv.macc"
-	                    : (route.operationMnemonic == "widen_i32_to_i64"
-	                           ? "tcrv_rvv.widening_convert"
-	                       : (route.operationMnemonic ==
-	                                  "strided_load_unit_store"
-	                              ? "tcrv_rvv.move"
-	                              : "tcrv_rvv.binary")))));
+            : (route.operationMnemonic == "reduce_add"
+                   ? "tcrv_rvv.reduce"
+                   : (route.operationMnemonic == "masked_add"
+                          ? "tcrv_rvv.masked_binary"
+                          : (route.operationMnemonic == "macc_add"
+                                 ? "tcrv_rvv.macc"
+                                 : (route.operationMnemonic ==
+                                            "widen_i32_to_i64"
+                                        ? "tcrv_rvv.widening_convert"
+                                        : (route.operationMnemonic ==
+                                                       "strided_load_unit_store" ||
+                                                   route.operationMnemonic ==
+                                                       "indexed_gather_unit_store"
+                                               ? "tcrv_rvv.move"
+                                               : "tcrv_rvv.binary")))));
     llvm::StringRef rhsSourceOp =
-	        route.operationMnemonic == "widen_i32_to_i64"
-	            ? ""
-	        : (route.operationMnemonic == "strided_add" ||
-	           route.operationMnemonic == "strided_load_unit_store")
-	            ? "tcrv_rvv.strided_load"
-	            : (route.operationMnemonic == "scalar_broadcast_add"
-	                   ? "tcrv_rvv.splat"
-                   : "tcrv_rvv.load");
+        route.operationMnemonic == "widen_i32_to_i64"
+            ? ""
+            : (route.operationMnemonic == "strided_add" ||
+               route.operationMnemonic == "strided_load_unit_store")
+                  ? "tcrv_rvv.strided_load"
+                  : (route.operationMnemonic == "indexed_gather_unit_store"
+                         ? "tcrv_rvv.indexed_load"
+                         : (route.operationMnemonic == "scalar_broadcast_add"
+                                ? "tcrv_rvv.splat"
+                                : "tcrv_rvv.load"));
     llvm::Expected<llvm::SmallVector<
         rvv::RVVSelectedBodyExecutableRoleStep, 10>>
         steps = rvv::getRVVSelectedBodyExecutableRoleSteps(
@@ -1655,16 +1661,19 @@ int runRVVCommonValidationTest() {
                   llvm::toString(steps.takeError()));
     const bool hasMaskProducer = route.operationMnemonic == "cmp_select" ||
                                  route.operationMnemonic == "masked_add";
-	    const bool hasAccumulatorLoad = route.operationMnemonic == "macc_add";
-	    const bool hasStridedMemory = route.operationMnemonic == "strided_add";
-	    const bool hasStridedMemoryMovement =
-	        route.operationMnemonic == "strided_load_unit_store";
-	    const bool hasConversion = route.operationMnemonic == "widen_i32_to_i64";
-	    unsigned expectedStepCount =
-	        hasConversion ? 8u :
-	        hasStridedMemoryMovement ? 9u :
-	        (hasStridedMemory ? 13u :
-	         ((hasMaskProducer || hasAccumulatorLoad) ? 11u : 10u));
+    const bool hasAccumulatorLoad = route.operationMnemonic == "macc_add";
+    const bool hasStridedMemory = route.operationMnemonic == "strided_add";
+    const bool hasStridedMemoryMovement =
+        route.operationMnemonic == "strided_load_unit_store";
+    const bool hasIndexedGather =
+        route.operationMnemonic == "indexed_gather_unit_store";
+    const bool hasConversion = route.operationMnemonic == "widen_i32_to_i64";
+    unsigned expectedStepCount =
+        hasConversion          ? 8u
+        : hasStridedMemoryMovement ? 9u
+        : hasIndexedGather         ? 10u
+        : hasStridedMemory         ? 13u
+        : ((hasMaskProducer || hasAccumulatorLoad) ? 11u : 10u);
     if (steps->size() != expectedStepCount)
       return fail("RVV executable role sequence must include explicit ABI, "
                   "config, scope, load, compute, optional mask-producing "
@@ -1687,23 +1696,42 @@ int runRVVCommonValidationTest() {
     facts.targetArtifactKind = manifest.emitcRoute.artifactKind;
     facts.runtimeABIName = route.runtimeABIName;
     facts.runtimeABIContractName = route.runtimeABIContractName;
-	    if (route.operationMnemonic == "strided_add")
-	      facts.runtimeABIParameters =
-	          tianchenrv::tcrv::rvv::getRVVSelectedBodyStridedRuntimeABIParameters();
-	    else if (route.operationMnemonic == "strided_load_unit_store")
-	      facts.runtimeABIParameters =
-	          tianchenrv::tcrv::rvv::
-	              getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters();
-	    else if (route.operationMnemonic == "scalar_broadcast_add")
-      facts.runtimeABIParameters =
+    llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>
+        routeRuntimeABIParameters;
+    if (route.operationMnemonic == "strided_add") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyStridedRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "strided_load_unit_store") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "indexed_gather_unit_store") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyIndexedGatherRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "scalar_broadcast_add") {
+      auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
-    else if (route.operationMnemonic == "widen_i32_to_i64")
-      facts.runtimeABIParameters =
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "widen_i32_to_i64") {
+      auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyWideningConversionRuntimeABIParameters();
-    else
-      facts.runtimeABIParameters = parameters;
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else {
+      routeRuntimeABIParameters.append(parameters.begin(), parameters.end());
+    }
+    facts.runtimeABIParameters = routeRuntimeABIParameters;
 
     llvm::Expected<llvm::SmallVector<
         tianchenrv::support::ArtifactMetadataEntry, 16>>

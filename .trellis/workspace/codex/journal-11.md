@@ -1796,3 +1796,102 @@ claim is made.
 | Hash | Message |
 |------|---------|
 | `this commit` | (see git log) |
+
+
+## Session 139: Stage2 RVV indexed gather memory executable slice
+
+**Date**: 2026-05-20
+**Task**: Stage2 RVV indexed gather memory executable slice
+**Branch**: `main`
+
+### Summary
+
+Implemented bounded i32 SEW32 LMUL m1 indexed gather load to unit-stride store through typed RVV body facts, plugin-owned realization, route planning/provider emission, generated-bundle dry-run, and ssh rvv correctness for counts 7,16,23.
+
+### Main Changes
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and implemented one
+bounded Stage2 indexed gather memory movement executable slice. The selected
+boundary now carries `data`, `index`, `out`, and `n` ABI/runtime roles; the RVV
+body carries explicit index vector, indexed data load, offset EEW, element offset
+unit, i32/SEW32/LMUL m1 config, policy, and unit-stride destination facts.
+
+### Main Changes
+
+- Added the `index-input-buffer` runtime ABI role and bounded indexed gather ABI
+  contract `data,index,out,n`.
+- Added generic typed `!tcrv_rvv.index_vector`, `tcrv_rvv.index_load`,
+  `tcrv_rvv.indexed_load`, and the bounded pre-realized indexed gather body.
+- Extended RVV selected-body realization to materialize the pre-realized form to
+  `setvl`, `with_vl`, `index_load`, `indexed_load`, `move`, and `store`.
+- Extended RVV EmitC route planning/provider metadata, ABI order, index/vector C
+  types, indexed-load leaf, byte-offset scale leaf, and unit-store handoff from
+  typed facts.
+- Extended construction-protocol summaries and generated-bundle evidence harness
+  for explicit and pre-realized indexed gather artifacts.
+- Added positive artifact tests, verifier/dataflow negative tests, and adjusted
+  legacy fail-closed checks to include the new generic indexed ops.
+
+### Testing
+
+- [OK] Trellis task context validation.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] focused RVV dialect/config/plugin build targets and `tcrv-opt` /
+  `tcrv-translate`.
+- [OK] focused positive/negative `tcrv-opt` indexed gather verifier and artifact
+  materialization checks.
+- [OK] generated-bundle dry-run for explicit and pre-realized
+  `indexed_gather_unit_store` counts `7,16,23`.
+- [OK] real `ssh rvv` generated-bundle correctness for explicit and
+  pre-realized paths: `PASS op=indexed_gather_unit_store counts=7,16,23`, with
+  `non_monotonic_indexed_gather` cases for `n=7,16,23`.
+- [OK] `cmake --build build --target check-tianchenrv`: 200/200 passed.
+- [OK] `git diff --check`
+- [OK] active-authority scan: no diff-added positive `RVVI32M1*`, `rvv-i32m1`
+  route id, finite positive `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`,
+  source-front-door, descriptor, direct-C, or source-export authority. The one
+  diff-added exact i32m1 intrinsic is the provider-derived indexed-load leaf,
+  not route authority.
+
+### Self-Repair
+
+- Repaired the route planner runtime ABI validator so indexed and strided memory
+  movement routes do not require finite-binary RHS ABI binding.
+- Repaired `check-tianchenrv` expectation drift in legacy fail-closed tests after
+  adding `index_load` / `indexed_load` to the generic Stage2 op list.
+- Repaired the construction-protocol common test so indexed gather role-step and
+  metadata checks use `move`, `indexed_load`, and `data,index,out,n` without
+  dangling `ArrayRef` temporaries.
+
+### Status
+
+[OK] **Completed and ready to archive**. This round claims route-supported and
+executable correctness only for the bounded i32 SEW32 LMUL m1 indexed gather
+slice; no performance claim is made.
+
+### Next Steps
+
+- Future continuation, if requested: expand indirect memory movement only under a
+  new PRD, for example scatter or masked/indexed variants, without turning this
+  into a gather/scatter framework or dtype/LMUL clone matrix.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
