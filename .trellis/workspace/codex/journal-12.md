@@ -48,6 +48,86 @@ Implemented bounded i32 SEW32 LMUL m1 masked unit-stride memory movement with ty
 - None - task complete
 
 
+## Session 144: Stage2 RVV runtime scalar broadcast current-head validation
+
+**Date**: 2026-05-20
+**Task**: `stage2-rvv-runtime-scalar-broadcast`
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes Direction Brief and checked the
+bounded runtime scalar broadcast executable slice against current HEAD
+`77f9f098`. The brief was stale as an implementation selector: commit
+`a4cac384 rvv: add scalar broadcast executable path` already added the
+production path for explicit runtime `rhs_scalar` -> generic `tcrv_rvv.splat`
+-> binary add -> provider-built route -> generated artifact -> `ssh rvv`
+evidence. Fresh current-head validation showed the path still works after the
+later Stage2 memory movement commits, so no production code repair was needed.
+
+### Main Findings
+
+- Current HEAD still has `rhs-scalar-value`, generic `tcrv_rvv.splat`,
+  `memory_form = "rhs-scalar-broadcast"`, selected-body realization into
+  `setvl/with_vl/load/splat/binary/store`, route planning/provider metadata,
+  and generated-bundle script support for `scalar_broadcast_add`.
+- The generated header still exposes the provider-derived ABI:
+  `const int32_t *lhs, int32_t rhs_scalar, int32_t *out, size_t n`.
+- Generated-bundle harness uses non-default `rhs_scalar = -37` and checks
+  `expected = lhs[index] + rhs_scalar`, proving scalar-driven active-lane
+  updates for counts `7,16,23`.
+- No production files were changed in this round.
+
+### Testing
+
+- [OK] Trellis task context validation and start.
+- [OK] Focused build for `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-rvv-dialect-test`, `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-construction-protocol-common-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] Focused C++ tests:
+  `tianchenrv-rvv-dialect-test`,
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-construction-protocol-common-test`,
+  `tianchenrv-target-artifact-export-test`.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Focused FileCheck pipelines for scalar-broadcast selected-body
+  realization, emission plan, header export, EmitC materialization, negative
+  fail-closed route cases, dialect dataflow, and pre-realized selected-body
+  diagnostics.
+- [OK] Generated-bundle dry-run:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/current-head-scalar-broadcast-dryrun`.
+- [OK] Fresh real `ssh rvv` evidence:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/current-head-scalar-broadcast-ssh`
+  printed `PASS op=scalar_broadcast_add counts=7,16,23` with
+  `rhs_scalar=-37` for every case.
+- [OK] `git diff --check`
+- [OK] Diff authority scan excluding the task directory found no newly
+  introduced positive `RVVI32M1`, `rvv-i32m1`, finite positive
+  `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`, source-front-door/source-seed,
+  descriptor/direct-C/source-export, or common/export RVV semantic authority.
+
+### Self-Repair
+
+- Re-ran manual FileCheck commands with `/usr/lib/llvm-20/bin/FileCheck` after
+  first trying nonexistent `build/bin/FileCheck`.
+- Re-ran generated-bundle dry-run with `/usr/lib/llvm-20/bin/llvm-readobj`
+  after `llvm-readobj` was not found on PATH.
+
+### Status
+
+[OK] **Completed as current-head validation / stale-brief closure**. The
+module behavior is complete in existing production code; this round refreshed
+evidence and recorded the task truthfully.
+
+### Next Steps
+
+- None for runtime scalar broadcast. Future work should move to the next
+  genuinely missing Stage2 RVV coverage class instead of duplicating this
+  already-complete slice.
+
+
 ## Session 143: Stage2 RVV segment2 interleave memory executable slice
 
 **Date**: 2026-05-20

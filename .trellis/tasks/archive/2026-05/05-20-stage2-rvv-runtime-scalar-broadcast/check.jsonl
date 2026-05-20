@@ -1,0 +1,10 @@
+{"file": ".trellis/tasks/05-20-stage2-rvv-runtime-scalar-broadcast/prd.md", "reason": "Verify stale-brief finding, acceptance criteria, and final evidence are truthful."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check scalar broadcast remains RVV plugin/typed-body owned and does not revive legacy authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remains neutral and consumes provider-built route payloads only."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI and ssh evidence claims are supported by generated artifact execution."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check selected-body realization and route provider boundaries remain plugin-local."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused validation and runtime evidence are attached to changed behavior."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-scalar-broadcast-add.mlir", "reason": "Positive current-head selected-body, plan, and header fixture for scalar broadcast."}
+{"file": "test/Conversion/EmitC/rvv-generic-stage2-scalar-broadcast-add-materialization.mlir", "reason": "Positive current-head route materialization fixture for scalar splat."}
+{"file": "test/Conversion/EmitC/rvv-generic-stage2-scalar-broadcast-negative.mlir", "reason": "Negative current-head fail-closed scalar broadcast route fixtures."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-scalar-broadcast-add-dry-run.test", "reason": "Current-head generated-bundle dry-run fixture and non-default rhs_scalar harness checks."}
