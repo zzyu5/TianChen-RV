@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, source of truth, and RVV Stage1/Stage2 order for this implementation round."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, typed body, selected-body realization, Stage1 fail-closed and Stage2 route constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC/export neutrality boundary."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/envelope boundary; compute, dtype, mask, stride, and RVV semantics stay plugin-owned."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected RVV variant, selected-body realization, provider route, and metadata mirror constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/C++/runtime evidence and fail-closed testing policy."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review guardrail for keeping RVV-specific mapping plugin-local."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review guardrail for keeping compute out of tcrv.exec/core/common layers."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Added the typed computed-mask strided-input widening dot-reduction pre-realized body surface."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Realizes the typed body into compare-produced mask, strided i16mf2 dot loads, masked widening dot reduction, and scalar store."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Derives and validates the combined mask/source/stride/seed/result route facts from typed RVV structure."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Emits provider-owned strided source loads, masked widening products, horizontal reduction, and scalar store for the new route."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Adds generated-bundle dry-run and ssh rvv harness support for the bounded executable slice."}

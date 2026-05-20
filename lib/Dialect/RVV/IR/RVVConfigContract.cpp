@@ -589,6 +589,21 @@ getRVVSelectedBodyComputedMaskWideningDotReduceRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 9>
+getRVVSelectedBodyComputedMaskStridedInputWideningDotReduceRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 9> parameters;
+  llvm::SmallVector<support::RuntimeABIParameter, 7> base =
+      getRVVSelectedBodyComputedMaskWideningDotReduceRuntimeABIParameters();
+  parameters.append(base.begin(), base.end());
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs_stride", "size_t",
+      support::RuntimeABIParameterRole::LHSInputStride));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs_stride", "size_t",
+      support::RuntimeABIParameterRole::RHSInputStride));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 7>
 getRVVSelectedBodyStridedRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 7> parameters;
@@ -870,6 +885,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
                                          computedMaskWideningDotExpected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 9>
+      computedMaskStridedInputWideningDotExpected =
+          getRVVSelectedBodyComputedMaskStridedInputWideningDotReduceRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(
+          parameters, computedMaskStridedInputWideningDotExpected))
+    return llvm::Error::success();
+
   return makeRuntimeABIError(
       llvm::Twine(context) +
       " must use ordered runtime ABI parameters lhs, rhs, out, n for "
@@ -880,7 +902,9 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "route; lhs, rhs, acc, out, n, lhs_stride, rhs_stride for the bounded "
       "i16 strided-input widening dot-reduction route; or lhs, rhs, out, n, "
       "lhs_stride, rhs_stride, out_stride for the bounded int32_t strided add "
-      "route; or "
+      "route; or cmp_lhs, cmp_rhs, lhs, rhs, acc, out, n, lhs_stride, "
+      "rhs_stride for the bounded i16 computed-mask strided-input widening "
+      "dot-reduction route; or "
       "src, out, n, src_stride for the bounded int32_t strided-load to "
       "unit-stride-store route; or src, dst, n, dst_stride for the bounded "
       "int32_t unit-load to strided-store route; or data, index, out, n for the bounded "

@@ -1633,6 +1633,9 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "strided_input_widening_dot_reduce_add";
     const bool isComputedMaskWideningDotReduceRoute =
         route.operationMnemonic == "computed_masked_widening_dot_reduce_add";
+    const bool isComputedMaskStridedInputWideningDotReduceRoute =
+        route.operationMnemonic ==
+        "computed_masked_strided_input_widening_dot_reduce_add";
     llvm::StringRef executableComputeOp = "tcrv_rvv.binary";
     if (route.operationMnemonic == "cmp_select")
       executableComputeOp = "tcrv_rvv.select";
@@ -1646,7 +1649,8 @@ int runRVVCommonValidationTest() {
       executableComputeOp = "tcrv_rvv.widening_macc";
     else if (isWideningDotReduceRoute || isStridedInputWideningDotReduceRoute)
       executableComputeOp = "tcrv_rvv.widening_dot_reduce";
-    else if (isComputedMaskWideningDotReduceRoute)
+    else if (isComputedMaskWideningDotReduceRoute ||
+             isComputedMaskStridedInputWideningDotReduceRoute)
       executableComputeOp = "tcrv_rvv.masked_widening_dot_reduce";
     else if (isConversionRoute)
       executableComputeOp = "tcrv_rvv.widening_convert";
@@ -1685,7 +1689,9 @@ int runRVVCommonValidationTest() {
                                           || route.operationMnemonic ==
                                                  "computed_masked_strided_store" ||
                                              route.operationMnemonic ==
-                                                 "computed_masked_widening_dot_reduce_add"
+                                                 "computed_masked_widening_dot_reduce_add" ||
+                                             route.operationMnemonic ==
+                                                 "computed_masked_strided_input_widening_dot_reduce_add"
                                               ? "tcrv_rvv.compare"
                                       : (route.operationMnemonic ==
                                                  "segment2_deinterleave_unit_store"
@@ -1734,12 +1740,15 @@ int runRVVCommonValidationTest() {
         isStridedInputWideningDotReduceRoute;
     const bool hasComputedMaskWideningDotReduce =
         isComputedMaskWideningDotReduceRoute;
+    const bool hasComputedMaskStridedInputWideningDotReduce =
+        isComputedMaskStridedInputWideningDotReduceRoute;
     unsigned expectedStepCount =
         hasConversion          ? 8u
         : hasWideningMAcc                       ? 12u
         : hasWideningDotReduce                  ? 11u
         : hasStridedInputWideningDotReduce      ? 13u
         : hasComputedMaskWideningDotReduce       ? 16u
+        : hasComputedMaskStridedInputWideningDotReduce ? 18u
         : (hasStridedMemoryMovement || hasUnitLoadStridedStore) ? 9u
         : (hasIndexedGather || hasIndexedScatter) ? 10u
         : hasMaskedMemory                        ? 11u
@@ -1874,6 +1883,13 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyComputedMaskWideningDotReduceRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
+               "computed_masked_strided_input_widening_dot_reduce_add") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyComputedMaskStridedInputWideningDotReduceRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else {

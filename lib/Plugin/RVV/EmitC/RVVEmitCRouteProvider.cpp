@@ -39,18 +39,24 @@ bool isRVVSelectedBodyWideningDotReductionRoute(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
          op == RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd;
+         op == RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd ||
+         op == RVVSelectedBodyOperationKind::
+                   ComputedMaskStridedInputWideningDotReduceAdd;
 }
 
 bool isRVVSelectedBodyComputedMaskWideningDotReductionRoute(
     RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd;
+  return op == RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd ||
+         op == RVVSelectedBodyOperationKind::
+                   ComputedMaskStridedInputWideningDotReduceAdd;
 }
 
 bool isRVVSelectedBodyStridedInputWideningDotReductionRoute(
     RVVSelectedBodyOperationKind op) {
   return op ==
-         RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd;
+             RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd ||
+         op == RVVSelectedBodyOperationKind::
+                   ComputedMaskStridedInputWideningDotReduceAdd;
 }
 
 bool isRVVSelectedBodyReductionRoute(RVVSelectedBodyOperationKind op) {
@@ -257,6 +263,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
 
   if (isRVVSelectedBodyComputedMaskWideningDotReductionRoute(
           description.operation)) {
+    const bool isStridedDotSource =
+        isRVVSelectedBodyStridedInputWideningDotReductionRoute(
+            description.operation);
     if (llvm::Error error = addLoopStep(
             slice->lhsLoadOperation, "load", description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
@@ -295,27 +304,59 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       return error;
     if (llvm::Error error = addLoopStep(
             slice->dotLHSLoadOperation, "load",
-            description.sourceVectorLoadIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->dotLHSABI.cName) + " + " +
-                  inductionName)
-                     .str(),
-                 slice->dotLHSABI.cType},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                        description.vlCType.str()}},
+            isStridedDotSource ? description.stridedLoadIntrinsic
+                               : description.sourceVectorLoadIntrinsic,
+            isStridedDotSource
+                ? llvm::ArrayRef<TCRVEmitCCallOpaqueOperand>(
+                      {TCRVEmitCCallOpaqueOperand{
+                           (llvm::StringRef(slice->dotLHSABI.cName) + " + (" +
+                            inductionName + " * " + slice->lhsStrideABI.cName +
+                            ")")
+                               .str(),
+                           slice->dotLHSABI.cType},
+                       TCRVEmitCCallOpaqueOperand{
+                           (llvm::StringRef(slice->lhsStrideABI.cName) + " * 2")
+                               .str(),
+                           "ptrdiff_t"},
+                       TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                                  description.vlCType.str()}})
+                : llvm::ArrayRef<TCRVEmitCCallOpaqueOperand>(
+                      {TCRVEmitCCallOpaqueOperand{
+                           (llvm::StringRef(slice->dotLHSABI.cName) + " + " +
+                            inductionName)
+                               .str(),
+                           slice->dotLHSABI.cType},
+                       TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                                  description.vlCType.str()}}),
             TCRVEmitCCallOpaqueResult{"dot_lhs_vec",
                                       description.sourceVectorCType.str()}))
       return error;
     if (llvm::Error error = addLoopStep(
             slice->dotRHSLoadOperation, "load",
-            description.sourceVectorLoadIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->dotRHSABI.cName) + " + " +
-                  inductionName)
-                     .str(),
-                 slice->dotRHSABI.cType},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                        description.vlCType.str()}},
+            isStridedDotSource ? description.stridedLoadIntrinsic
+                               : description.sourceVectorLoadIntrinsic,
+            isStridedDotSource
+                ? llvm::ArrayRef<TCRVEmitCCallOpaqueOperand>(
+                      {TCRVEmitCCallOpaqueOperand{
+                           (llvm::StringRef(slice->dotRHSABI.cName) + " + (" +
+                            inductionName + " * " + slice->rhsStrideABI.cName +
+                            ")")
+                               .str(),
+                           slice->dotRHSABI.cType},
+                       TCRVEmitCCallOpaqueOperand{
+                           (llvm::StringRef(slice->rhsStrideABI.cName) + " * 2")
+                               .str(),
+                           "ptrdiff_t"},
+                       TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                                  description.vlCType.str()}})
+                : llvm::ArrayRef<TCRVEmitCCallOpaqueOperand>(
+                      {TCRVEmitCCallOpaqueOperand{
+                           (llvm::StringRef(slice->dotRHSABI.cName) + " + " +
+                            inductionName)
+                               .str(),
+                           slice->dotRHSABI.cType},
+                       TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                                  description.vlCType.str()}}),
             TCRVEmitCCallOpaqueResult{"dot_rhs_vec",
                                       description.sourceVectorCType.str()}))
       return error;

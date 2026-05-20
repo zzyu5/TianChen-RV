@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global boundary, source-of-truth, and RVV Stage1/Stage2 invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV typed body and plugin-owned legality/realization/provider ownership."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remain neutral and route payload is provider-built."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec does not gain RVV compute, dtype, mask, stride, route, or intrinsic authority."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected-body realization consumes code-affecting facts before route construction."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused compiler tests and real ssh rvv evidence support any correctness claim."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check no core/common RVV semantic branch is introduced."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check new constructs stay in RVV extension-family execution body, not core compute IR."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Positive realization, route-plan, and header evidence for the new typed masked strided dot-reduction slice."}
+{"file": "test/Dialect/RVV/computed-mask-strided-input-widening-dot-reduction-negative.mlir", "reason": "Fail-closed verifier evidence for mask provenance, stride unit, dot roles, and stale route_id authority."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Generated-bundle dry-run regression for metadata, prototype, and harness coverage."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/masked_strided_dot_ssh/", "type": "directory", "reason": "Real ssh rvv evidence for counts 7,16,23 with lhs_stride=2, rhs_stride=3, mixed active/inactive mask lanes, signed products, seed, scalar output, and tail preservation."}

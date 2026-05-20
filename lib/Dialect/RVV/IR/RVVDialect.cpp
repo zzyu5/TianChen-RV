@@ -261,6 +261,19 @@ bool isAllowedTypedComputedMaskWideningDotReducePreRealizedBodyAttr(
          name == kDotProductRelationAttrName || name == kPolicyAttrName;
 }
 
+bool isAllowedTypedComputedMaskStridedInputWideningDotReducePreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kPredicateKindAttrName ||
+         name == kMemoryFormAttrName || name == kStrideUnitAttrName ||
+         name == kMaskRoleAttrName || name == kMaskSourceAttrName ||
+         name == kMaskMemoryFormAttrName || name == kAccumulatorRoleAttrName ||
+         name == kAccumulatorLayoutAttrName || name == kResultLayoutAttrName ||
+         name == kSourceSEWAttrName || name == kSourceLMULAttrName ||
+         name == kAccumulatorSEWAttrName || name == kAccumulatorLMULAttrName ||
+         name == kResultSEWAttrName || name == kResultLMULAttrName ||
+         name == kDotProductRelationAttrName || name == kPolicyAttrName;
+}
+
 bool isAllowedTypedWideningConversionPreRealizedBodyAttr(
     llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
@@ -571,6 +584,11 @@ bool isSupportedTypedStridedInputWideningDotReducePreRealizedMemoryForm(
 bool isSupportedTypedComputedMaskWideningDotReducePreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-unit-stride-widening-dot-reduce";
+}
+
+bool isSupportedTypedComputedMaskStridedInputWideningDotReducePreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "computed-mask-strided-input-widening-dot-reduce";
 }
 
 bool isSupportedTypedWideningMAccPreRealizedAccumulatorRole(
@@ -1706,15 +1724,31 @@ bool isBoundedWideningDotReduceSourceStridedLoad(StridedLoadOp load,
 
   bool hasWideningDotReduceUse = false;
   for (mlir::Operation *user : load.getLoaded().getUsers()) {
-    auto dotReduce = llvm::dyn_cast<WideningDotReduceOp>(user);
-    if (!dotReduce || dotReduce->getParentOp() != withVL.getOperation() ||
-        dotReduce.getVl() != load.getVl() ||
-        (dotReduce.getLhs() != load.getLoaded() &&
-         dotReduce.getRhs() != load.getLoaded()))
-      return false;
-    if (dotReduce.getKind() != "signed_widening_dot_reduce_add")
-      return false;
-    hasWideningDotReduceUse = true;
+    if (auto dotReduce = llvm::dyn_cast<WideningDotReduceOp>(user)) {
+      if (dotReduce->getParentOp() != withVL.getOperation() ||
+          dotReduce.getVl() != load.getVl() ||
+          (dotReduce.getLhs() != load.getLoaded() &&
+           dotReduce.getRhs() != load.getLoaded()))
+        return false;
+      if (dotReduce.getKind() != "signed_widening_dot_reduce_add")
+        return false;
+      hasWideningDotReduceUse = true;
+      continue;
+    }
+    if (auto maskedDotReduce =
+            llvm::dyn_cast<MaskedWideningDotReduceOp>(user)) {
+      if (maskedDotReduce->getParentOp() != withVL.getOperation() ||
+          maskedDotReduce.getVl() != load.getVl() ||
+          (maskedDotReduce.getLhs() != load.getLoaded() &&
+           maskedDotReduce.getRhs() != load.getLoaded()))
+        return false;
+      if (maskedDotReduce.getKind() !=
+          "signed_masked_widening_dot_reduce_add")
+        return false;
+      hasWideningDotReduceUse = true;
+      continue;
+    }
+    return false;
   }
   return hasWideningDotReduceUse;
 }
@@ -3289,6 +3323,204 @@ TypedComputedMaskWideningDotReducePreRealizedBodyOp::verify() {
   return verifyRuntimeElementCountOperand(op, getN());
 }
 
+mlir::LogicalResult
+TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected computed-mask strided-input "
+                "widening dot-reduction bodies carry only typed RVV "
+                "compare/mask, source/stride/seed/result config, operation, "
+                "memory, policy, and runtime SSA facts and must be realized "
+                "by the RVV plugin before route construction";
+
+    if (!isAllowedTypedComputedMaskStridedInputWideningDotReducePreRealizedBodyAttr(
+            attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kPredicateKindAttrName << "', '"
+             << kMemoryFormAttrName << "', '" << kStrideUnitAttrName
+             << "', '" << kMaskRoleAttrName << "', '" << kMaskSourceAttrName
+             << "', '" << kMaskMemoryFormAttrName << "', '"
+             << kAccumulatorRoleAttrName << "', '"
+             << kAccumulatorLayoutAttrName << "', '" << kResultLayoutAttrName
+             << "', '" << kSourceSEWAttrName << "', '" << kSourceLMULAttrName
+             << "', '" << kAccumulatorSEWAttrName << "', '"
+             << kAccumulatorLMULAttrName << "', '" << kResultSEWAttrName
+             << "', '" << kResultLMULAttrName << "', '"
+             << kDotProductRelationAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 9 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires compare lhs, compare rhs, dot lhs, dot rhs, "
+              "accumulator seed, out, runtime n/AVL, lhs_stride, rhs_stride "
+              "operands and no results";
+
+  if (!isSupportedTypedComputedMaskWideningDotReducePreRealizedBodyOpKind(
+          getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"signed_masked_widening_dot_reduce_add\" for the bounded "
+              "selected-body computed-mask strided-input widening "
+              "dot-product reduction hook";
+  if (!isSupportedTypedComputedMaskMemoryPreRealizedPredicateKind(
+          getPredicateKind()))
+    return emitOpError()
+           << "currently supports only predicate_kind \"slt\" for the "
+              "bounded selected-body computed-mask strided-input widening "
+              "dot-product reduction hook";
+  if (!isSupportedTypedComputedMaskStridedInputWideningDotReducePreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"computed-mask-strided-input-widening-dot-reduce\" for the "
+              "bounded selected-body computed-mask strided-input widening "
+              "dot-product reduction hook";
+  if (!isSupportedTypedStridedMemoryPreRealizedStrideUnit(getStrideUnit()))
+    return emitOpError()
+           << "currently supports only stride_unit \"element\" for the "
+              "bounded selected-body computed-mask strided-input widening "
+              "dot-product reduction hook";
+  if (!isSupportedTypedComputedMaskMemoryRole(getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-produced-by-compare\" for the bounded "
+              "computed-mask strided-input widening dot-product reduction "
+              "hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskSource(getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"compare-produced-mask-same-vl-scope\" for the bounded "
+              "computed-mask strided-input widening dot-product reduction "
+              "hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskMemoryForm(getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"compare-produced-mask\" for the bounded computed-mask "
+              "strided-input widening dot-product reduction hook";
+  if (!isSupportedTypedWideningDotReducePreRealizedAccumulatorRole(
+          getAccumulatorRole()))
+    return emitOpError()
+           << "currently supports only accumulator_role "
+              "\"accumulator-input-buffer\" for the bounded computed-mask "
+              "strided-input widening dot-product reduction hook";
+  if (!isSupportedTypedWideningDotReducePreRealizedAccumulatorLayout(
+          getAccumulatorLayout()))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"scalar-i32-seed-lane0-from-accumulator-input\" for the "
+              "bounded computed-mask strided-input widening dot-product "
+              "reduction hook";
+  if (!isSupportedTypedWideningDotReducePreRealizedResultLayout(
+          getResultLayout()))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-dot-reduction-lane0-to-output-scalar\" for the "
+              "bounded computed-mask strided-input widening dot-product "
+              "reduction hook";
+  if (!isSupportedTypedWideningDotProductRelation(getDotProductRelation()))
+    return emitOpError()
+           << "currently supports only dot_product_relation "
+              "\"signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32\" for "
+              "the bounded computed-mask strided-input widening "
+              "dot-product reduction hook";
+  if (!isSupportedTypedComputedMaskWideningDotReducePreRealizedSignature(
+          getOpKind(), static_cast<std::int64_t>(getSourceSew()),
+          getSourceLmul(), static_cast<std::int64_t>(getAccumulatorSew()),
+          getAccumulatorLmul(), static_cast<std::int64_t>(getResultSew()),
+          getResultLmul(), getDotProductRelation()))
+    return emitOpError()
+           << "requires typed computed-mask strided-input widening "
+              "dot-product reduction config/relation to match op_kind "
+              "\"signed_masked_widening_dot_reduce_add\" with source SEW16 "
+              "LMUL mf2, accumulator/result SEW32 LMUL m1, and relation "
+              "\"signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32\"";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "computed-mask strided-input widening dot-product reduction "
+              "hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareLhs(), "compare lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareRhs(), "compare rhs",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "dot lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::DotLHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getRhs(), "dot rhs",
+          {tianchenrv::support::RuntimeABIParameterRole::DotRHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getAcc(), "accumulator seed",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               AccumulatorInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+
+  RuntimeABIValueOp cmpLhsBinding =
+      getCompareLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp cmpRhsBinding =
+      getCompareRhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsBinding = getRhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp accBinding = getAcc().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
+  if (!cmpLhsBinding || cmpLhsBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires compare lhs operand C type 'const int32_t *' to "
+              "match typed compare source dtype";
+  if (!cmpRhsBinding || cmpRhsBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires compare rhs operand C type 'const int32_t *' to "
+              "match typed compare source dtype";
+  if (!lhsBinding || lhsBinding.getCType() != "const int16_t *")
+    return emitOpError()
+           << "requires dot lhs operand C type 'const int16_t *' to match "
+              "typed strided widening dot-product source dtype";
+  if (!rhsBinding || rhsBinding.getCType() != "const int16_t *")
+    return emitOpError()
+           << "requires dot rhs operand C type 'const int16_t *' to match "
+              "typed strided widening dot-product source dtype";
+  if (!accBinding || accBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires accumulator seed operand C type 'const int32_t *' "
+              "to match typed widening dot-product scalar seed dtype";
+  if (!outBinding || outBinding.getCType() != "int32_t *")
+    return emitOpError()
+           << "requires out operand C type 'int32_t *' to match typed "
+              "widening dot-product scalar result dtype";
+  if (mlir::failed(verifyRuntimeElementCountOperand(op, getN())))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIIndexOperandRole(
+          op, getLhsStride(), "lhs stride",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputStride})))
+    return mlir::failure();
+  return verifyRuntimeABIIndexOperandRole(
+      op, getRhsStride(), "rhs stride",
+      {tianchenrv::support::RuntimeABIParameterRole::RHSInputStride});
+}
+
 mlir::LogicalResult TypedWideningConversionPreRealizedBodyOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -4572,6 +4804,8 @@ mlir::LogicalResult StridedLoadOp::verify() {
           op, getBuffer(), "strided load buffer",
           {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
            tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::DotLHSInputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::DotRHSInputBuffer,
            tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIIndexOperandRole(

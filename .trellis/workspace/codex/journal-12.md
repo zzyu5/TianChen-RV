@@ -6,6 +6,88 @@
 ---
 
 
+## Session 146: Stage2 RVV masked strided-input widening dot-reduction executable slice
+
+**Date**: 2026-05-20
+**Task**: `05-20-stage2-rvv-masked-strided-widening-dot-reduction`
+**Branch**: `main`
+
+### Summary
+
+Implemented one bounded signed i16mf2 computed-mask plus runtime-strided-input
+widening dot-product reduction slice:
+
+```text
+out_i32[0] = acc_i32[0] + sum_i(
+  (cmp_lhs_i32[i] < cmp_rhs_i32[i])
+    ? sign_extend(lhs_i16[i * lhs_stride]) *
+      sign_extend(rhs_i16[i * rhs_stride])
+    : 0)
+```
+
+The production path now carries compare mask provenance, dot lhs/rhs source
+mem_windows, explicit lhs/rhs element stride ABI roles, scalar seed/result
+boundary, source/result config, signed masked widening dot-reduction kind,
+mask/tail policy, runtime n/AVL, route metadata, generated bundle emission, and
+real `ssh rvv` correctness evidence.
+
+### Main Changes
+
+- Added `typed_computed_mask_strided_input_widening_dot_reduce_pre_realized_body`
+  and verifier diagnostics for mask source, stride unit, dot input roles,
+  source/accumulator/result config, scalar layouts, and stale route-id residue.
+- Extended RVV selected-body realization to produce
+  `setvl/with_vl/load/load/strided_load/strided_load/compare/
+  masked_widening_dot_reduce/store` from typed facts.
+- Extended RVV route planning/provider and construction protocol to derive
+  compare loads, strided source loads, byte-stride derivation, masked widening
+  product, horizontal reduction, scalar store, ABI order, metadata, and
+  fail-closed diagnostics from the typed body.
+- Added generated-bundle script support and a harness that checks active and
+  inactive mask lanes, skipped strided source elements, positive/negative
+  signed products, nonzero seed, scalar-only output, and tail sentinels.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate`
+- [OK] Focused lit:
+  `pre-realized-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir`
+- [OK] Focused negative lit:
+  `computed-mask-strided-input-widening-dot-reduction-negative.mlir`
+- [OK] Adjacent regression lit for computed-mask dot and strided-input dot.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Generated-bundle dry-run:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/masked_strided_dot_dry`
+- [OK] Real `ssh rvv` generated-bundle evidence:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/masked_strided_dot_ssh`,
+  counts `7,16,23`, `lhs_stride=2`, `rhs_stride=3`, each reporting
+  `compare_masked_strided_signed_horizontal_dot seed_added inactive_lanes_skipped source_strides=2,3 skipped_source_elements_ignored scalar_output tail_preserved`
+- [OK] Script dry-run lit:
+  `rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test`
+- [OK] `cmake --build build --target check-tianchenrv` - 245/245 passed
+- [OK] `git diff --check`
+- [OK] Active-authority scan found no newly introduced positive RVV legacy
+  route authority. New hits are a negative `route_id = "rvv-i32m1"` verifier
+  test and `implicit-check-not` residue guards in the generated-bundle dry-run
+  test.
+
+### Self-Repair
+
+- Fixed a route-description verifier placement mistake caught by focused build.
+- Added the combined route profile memory facts after lit exposed a missing
+  profile mirror.
+- Updated construction-protocol common tests after `check-tianchenrv` exposed
+  stale executable role-step expectations.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 145: Stage2 RVV widening multiply-accumulate executable slice
 
 **Date**: 2026-05-20
