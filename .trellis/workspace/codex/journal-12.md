@@ -1470,3 +1470,67 @@ cluster left outside the previous operand-binding tasks.
 - Continue with a separate bounded PRD only if adopting operand binding for a
   later Stage2 cluster such as indexed, segmented, widening, contraction, or
   conversion routes.
+
+
+## Session 154: Stage2 RVV segmented movement operand binding adoption
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV segmented movement operand binding adoption
+**Branch**: `main`
+
+### Summary
+
+Adopted `RVVRouteOperandBindingPlan` for the current active segment2 movement
+cluster: `segment2_deinterleave_unit_store` and
+`segment2_interleave_unit_load`.
+
+### Main Changes
+
+- Added segmented binding-plan IDs, logical operand role validation, and route
+  binding summaries for `segment2_deinterleave_unit_store` and
+  `segment2_interleave_unit_load`.
+- Rewired provider materialization so segment2 source load, field0/field1
+  load/store bases, interleaved destination store, setvl/control, route
+  metadata, and generated header mirrors consume the binding plan.
+- Updated generated-bundle metadata expectations and target artifact/header
+  FileCheck fixtures so segmented plan mirrors match materialized operands.
+- Added negative coverage for source/output ABI swaps and segment field-source
+  swaps.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tcrv-opt tcrv-translate -j2`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused PLAN/HEADER FileCheck for both pre-realized segment2 target
+  artifact fixtures.
+- [OK] Focused negative FileCheck for segment2 deinterleave ABI name swap and
+  segment2 interleave field-source swap.
+- [OK] Generated-bundle dry-run for pre-realized segment2 deinterleave and
+  interleave, counts `7,16,23`.
+- [OK] Real `ssh rvv` PASS for both routes, counts `7,16,23`, with
+  field-order distinguishing lanes and tail preservation.
+- [OK] Diff-level active-authority scan: no newly introduced positive
+  `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`,
+  descriptor/direct-C/source-export/source-front-door, public exact intrinsic,
+  route-id, artifact-name, or common/export RVV semantic authority.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 267/267 passed.
+
+### Self-Repair
+
+- The first interleave negative test exposed that
+  `assignRVVGenericSegment2StoreBinding` overwrote field values previously
+  bound from field0/field1 source loads. That made the field-order dataflow
+  check tautological. The planner now preserves load-owned field values and
+  rejects swapped segment2-store field consumption.
+
+### Status
+
+[OK] Completed and archived.
+
+### Next Steps
+
+- Continue with a separate bounded PRD only for another route cluster such as
+  widening, contraction, or conversion operand binding adoption.

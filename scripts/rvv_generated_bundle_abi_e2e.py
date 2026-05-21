@@ -189,6 +189,26 @@ INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS = (
     "dst=output-buffer:dst:runtime-abi-mirror|materialized-indexed-store-base|header-mirror;"
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
 )
+SEGMENT2_DEINTERLEAVE_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1"
+)
+SEGMENT2_DEINTERLEAVE_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1;"
+    "src=lhs-input-buffer:src:runtime-abi-mirror|seg-load-base|src-mem|header;"
+    "out0=segment-field0-output-buffer:out0:runtime-abi-mirror|field0-store-base|field0-role|dst-mem|header;"
+    "out1=segment-field1-output-buffer:out1:runtime-abi-mirror|field1-store-base|field1-role|dst-mem|header;"
+    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header"
+)
+SEGMENT2_INTERLEAVE_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:segment2_interleave_unit_load.v1"
+)
+SEGMENT2_INTERLEAVE_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:segment2_interleave_unit_load.v1;"
+    "src0=segment-field0-input-buffer:src0:runtime-abi-mirror|field0-load-base|field0-role|src0-mem|tuple-field0|header;"
+    "src1=segment-field1-input-buffer:src1:runtime-abi-mirror|field1-load-base|field1-role|src1-mem|tuple-field1|header;"
+    "dst=segment-interleaved-output-buffer:dst:runtime-abi-mirror|seg-store-base|dst-mem|header;"
+    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header"
+)
 SCALAR_BROADCAST_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:scalar_broadcast_add.v1"
 )
@@ -2776,6 +2796,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.field1_destination_memory_form": (
                     SEGMENT2_DESTINATION_MEMORY_FORM
                 ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    SEGMENT2_DEINTERLEAVE_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    SEGMENT2_DEINTERLEAVE_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if expectation.is_segment2_interleave_unit_load:
@@ -2805,6 +2831,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.field1_source_memory_form": (
                     SEGMENT2_FIELD_SOURCE_MEMORY_FORM
+                ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    SEGMENT2_INTERLEAVE_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    SEGMENT2_INTERLEAVE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
         )

@@ -1784,6 +1784,97 @@ int runRouteOperandBindingPlanValidationTest() {
           {"logical operand 'dst'", "output-buffer", "lhs-input-buffer"}))
     return result;
 
+  RVVRouteOperandBindingPlan segment2DeinterleavePlan;
+  segment2DeinterleavePlan.planID =
+      "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1";
+  addBinding(segment2DeinterleavePlan, "src",
+             makeTargetExportABIParameter(
+                 "src", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"runtime-abi-mirror", "seg-load-base", "src-mem"});
+  addBinding(segment2DeinterleavePlan, "out0",
+             makeTargetExportABIParameter(
+                 "out0", "int32_t *",
+                 RuntimeABIParameterRole::SegmentField0OutputBuffer),
+             {"runtime-abi-mirror", "field0-store-base", "field0-role",
+              "dst-mem"});
+  addBinding(segment2DeinterleavePlan, "out1",
+             makeTargetExportABIParameter(
+                 "out1", "int32_t *",
+                 RuntimeABIParameterRole::SegmentField1OutputBuffer),
+             {"runtime-abi-mirror", "field1-store-base", "field1-role",
+              "dst-mem"});
+  addBinding(segment2DeinterleavePlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"runtime-abi-mirror", "setvl-avl", "loop-control"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              segment2DeinterleavePlan,
+              "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1",
+              "src,out0,out1,n",
+              "valid segment2 deinterleave binding plan"),
+          "valid segment2 deinterleave route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedDeinterleaveField = segment2DeinterleavePlan;
+  swappedDeinterleaveField.bindings[1].parameter.role =
+      RuntimeABIParameterRole::SegmentField1OutputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedDeinterleaveField,
+              "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1",
+              "src,out0,out1,n", "route operand binding unit test"),
+          {"logical operand 'out0'", "segment-field0-output-buffer",
+           "segment-field1-output-buffer"}))
+    return result;
+
+  RVVRouteOperandBindingPlan segment2InterleavePlan;
+  segment2InterleavePlan.planID =
+      "rvv-route-operand-binding:segment2_interleave_unit_load.v1";
+  addBinding(segment2InterleavePlan, "src0",
+             makeTargetExportABIParameter(
+                 "src0", "const int32_t *",
+                 RuntimeABIParameterRole::SegmentField0InputBuffer),
+             {"runtime-abi-mirror", "field0-load-base", "field0-role",
+              "src0-mem", "tuple-field0"});
+  addBinding(segment2InterleavePlan, "src1",
+             makeTargetExportABIParameter(
+                 "src1", "const int32_t *",
+                 RuntimeABIParameterRole::SegmentField1InputBuffer),
+             {"runtime-abi-mirror", "field1-load-base", "field1-role",
+              "src1-mem", "tuple-field1"});
+  addBinding(segment2InterleavePlan, "dst",
+             makeTargetExportABIParameter(
+                 "dst", "int32_t *",
+                 RuntimeABIParameterRole::SegmentInterleavedOutputBuffer),
+             {"runtime-abi-mirror", "seg-store-base", "dst-mem"});
+  addBinding(segment2InterleavePlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"runtime-abi-mirror", "setvl-avl", "loop-control"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              segment2InterleavePlan,
+              "rvv-route-operand-binding:segment2_interleave_unit_load.v1",
+              "src0,src1,dst,n", "valid segment2 interleave binding plan"),
+          "valid segment2 interleave route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedInterleaveField = segment2InterleavePlan;
+  swappedInterleaveField.bindings[0].parameter.role =
+      RuntimeABIParameterRole::SegmentField1InputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedInterleaveField,
+              "rvv-route-operand-binding:segment2_interleave_unit_load.v1",
+              "src0,src1,dst,n", "route operand binding unit test"),
+          {"logical operand 'src0'", "segment-field0-input-buffer",
+           "segment-field1-input-buffer"}))
+    return result;
+
   RVVRouteOperandBindingPlan scalarBroadcastPlan;
   scalarBroadcastPlan.planID =
       "rvv-route-operand-binding:scalar_broadcast_add.v1";

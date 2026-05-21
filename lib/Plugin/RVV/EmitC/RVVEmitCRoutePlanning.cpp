@@ -62,6 +62,10 @@ constexpr llvm::StringLiteral kRVVIndexedGatherOperandBindingPlanID(
     "rvv-route-operand-binding:indexed_gather_unit_store.v1");
 constexpr llvm::StringLiteral kRVVIndexedScatterOperandBindingPlanID(
     "rvv-route-operand-binding:indexed_scatter_unit_load.v1");
+constexpr llvm::StringLiteral kRVVSegment2DeinterleaveOperandBindingPlanID(
+    "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1");
+constexpr llvm::StringLiteral kRVVSegment2InterleaveOperandBindingPlanID(
+    "rvv-route-operand-binding:segment2_interleave_unit_load.v1");
 
 bool isRVVFourOperandPlanID(llvm::StringRef planID) {
   return planID == kRVVAddOperandBindingPlanID ||
@@ -209,6 +213,26 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
       return RuntimeABIParameterRole::IndexInputBuffer;
     if (logicalOperand == "dst")
       return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVSegment2DeinterleaveOperandBindingPlanID) {
+    if (logicalOperand == "src")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "out0")
+      return RuntimeABIParameterRole::SegmentField0OutputBuffer;
+    if (logicalOperand == "out1")
+      return RuntimeABIParameterRole::SegmentField1OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVSegment2InterleaveOperandBindingPlanID) {
+    if (logicalOperand == "src0")
+      return RuntimeABIParameterRole::SegmentField0InputBuffer;
+    if (logicalOperand == "src1")
+      return RuntimeABIParameterRole::SegmentField1InputBuffer;
+    if (logicalOperand == "dst")
+      return RuntimeABIParameterRole::SegmentInterleavedOutputBuffer;
     if (logicalOperand == "n")
       return RuntimeABIParameterRole::RuntimeElementCount;
   }
@@ -3944,8 +3968,6 @@ llvm::Error assignRVVGenericSegment2StoreBinding(
   slice.storeOperation = store.getOperation();
   slice.outBuffer = store.getDestination();
   slice.outABI = parameter;
-  slice.field0Value = store.getField0();
-  slice.field1Value = store.getField1();
   slice.storeValue = store.getField0();
   slice.memoryForm = RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
   return llvm::Error::success();
@@ -4390,6 +4412,44 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
         plan, "n", slice.runtimeElementCountABI,
         {"runtime-abi-mirror", "setvl-avl", "loop-control",
          "header-mirror"});
+  } else if (slice.memoryForm ==
+             RVVSelectedBodyMemoryForm::Segment2LoadUnitStore) {
+    plan.planID = kRVVSegment2DeinterleaveOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVSegment2RuntimeABIOrder;
+    context = "segment2_deinterleave_unit_store route";
+    addRouteOperandBinding(
+        plan, "src", slice.lhsABI,
+        {"runtime-abi-mirror", "seg-load-base", "src-mem", "header"});
+    addRouteOperandBinding(
+        plan, "out0", slice.field0ABI,
+        {"runtime-abi-mirror", "field0-store-base", "field0-role", "dst-mem",
+         "header"});
+    addRouteOperandBinding(
+        plan, "out1", slice.field1ABI,
+        {"runtime-abi-mirror", "field1-store-base", "field1-role", "dst-mem",
+         "header"});
+    addRouteOperandBinding(plan, "n", slice.runtimeElementCountABI,
+                           {"runtime-abi-mirror", "setvl-avl",
+                            "loop-control", "header"});
+  } else if (slice.memoryForm ==
+             RVVSelectedBodyMemoryForm::UnitLoadSegment2Store) {
+    plan.planID = kRVVSegment2InterleaveOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVSegment2InterleaveRuntimeABIOrder;
+    context = "segment2_interleave_unit_load route";
+    addRouteOperandBinding(
+        plan, "src0", slice.lhsABI,
+        {"runtime-abi-mirror", "field0-load-base", "field0-role", "src0-mem",
+         "tuple-field0", "header"});
+    addRouteOperandBinding(
+        plan, "src1", slice.rhsABI,
+        {"runtime-abi-mirror", "field1-load-base", "field1-role", "src1-mem",
+         "tuple-field1", "header"});
+    addRouteOperandBinding(
+        plan, "dst", slice.outABI,
+        {"runtime-abi-mirror", "seg-store-base", "dst-mem", "header"});
+    addRouteOperandBinding(plan, "n", slice.runtimeElementCountABI,
+                           {"runtime-abi-mirror", "setvl-avl",
+                            "loop-control", "header"});
   } else if (slice.memoryForm ==
              RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
     plan.planID = kRVVScalarBroadcastOperandBindingPlanID.str();
@@ -8838,6 +8898,13 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   else if (operationProfile.operation ==
            RVVSelectedBodyOperationKind::IndexedScatterUnitLoad)
     expectedOperandBindingPlanID = kRVVIndexedScatterOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore)
+    expectedOperandBindingPlanID =
+        kRVVSegment2DeinterleaveOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad)
+    expectedOperandBindingPlanID = kRVVSegment2InterleaveOperandBindingPlanID;
   if (!expectedOperandBindingPlanID.empty()) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "route operand ABI binding plan",

@@ -57,6 +57,8 @@ module {
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.segment2_store"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "unit-load-segment2-store"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "src0,src1,dst,n"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:segment2_interleave_unit_load.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:segment2_interleave_unit_load.v1;src0=segment-field0-input-buffer:src0:runtime-abi-mirror|field0-load-base|field0-role|src0-mem|tuple-field0|header;src1=segment-field1-input-buffer:src1:runtime-abi-mirror|field1-load-base|field1-role|src1-mem|tuple-field1|header;dst=segment-interleaved-output-buffer:dst:runtime-abi-mirror|seg-store-base|dst-mem|header;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header"}
 // PLAN-SAME: {key = "tcrv_rvv.segment_memory_layout", value = "dual-unit-stride-source-segment2-interleaved-destination-runtime-abi"}
 // PLAN-SAME: {key = "tcrv_rvv.segment_count", value = "2"}
 // PLAN-SAME: {key = "tcrv_rvv.segment_tuple_c_type", value = "vint32m1x2_t"}
@@ -81,4 +83,6 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-segment2-interleave-unit-load-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.runtime_abi_order: src0,src1,dst,n
+// HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:segment2_interleave_unit_load.v1
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:segment2_interleave_unit_load.v1;src0=segment-field0-input-buffer:src0:runtime-abi-mirror|field0-load-base|field0-role|src0-mem|tuple-field0|header;src1=segment-field1-input-buffer:src1:runtime-abi-mirror|field1-load-base|field1-role|src1-mem|tuple-field1|header;dst=segment-interleaved-output-buffer:dst:runtime-abi-mirror|seg-store-base|dst-mem|header;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header
 // HEADER: void tcrv_emitc_pre_realized_body_segment2_interleave_unit_load_kernel_pre_realized_body_rvv_segment2_interleave_unit_load(const int32_t *src0, const int32_t *src1, int32_t *dst, size_t n);

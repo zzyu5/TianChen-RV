@@ -59,6 +59,8 @@ module {
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.move"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "segment2-load-unit-store"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "src,out0,out1,n"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|seg-load-base|src-mem|header;out0=segment-field0-output-buffer:out0:runtime-abi-mirror|field0-store-base|field0-role|dst-mem|header;out1=segment-field1-output-buffer:out1:runtime-abi-mirror|field1-store-base|field1-role|dst-mem|header;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header"}
 // PLAN-SAME: {key = "tcrv_rvv.segment_memory_layout", value = "segment2-interleaved-source-dual-unit-stride-destination-runtime-abi"}
 // PLAN-SAME: {key = "tcrv_rvv.segment_count", value = "2"}
 // PLAN-SAME: {key = "tcrv_rvv.segment_tuple_c_type", value = "vint32m1x2_t"}
@@ -83,4 +85,6 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-segment2-deinterleave-unit-store-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.runtime_abi_order: src,out0,out1,n
+// HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:segment2_deinterleave_unit_store.v1
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:segment2_deinterleave_unit_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|seg-load-base|src-mem|header;out0=segment-field0-output-buffer:out0:runtime-abi-mirror|field0-store-base|field0-role|dst-mem|header;out1=segment-field1-output-buffer:out1:runtime-abi-mirror|field1-store-base|field1-role|dst-mem|header;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header
 // HEADER: void tcrv_emitc_pre_realized_body_segment2_deinterleave_unit_store_kernel_pre_realized_body_rvv_segment2_deinterleave_unit_store(const int32_t *src, int32_t *out0, int32_t *out1, size_t n);

@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage1/Stage2 RVV order, and source-of-truth boundaries for this segmented operand binding migration."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, route provider, selected-body realization, mirrors, and ssh-rvv evidence contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute boundary for segmented materialization."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-indexed-movement-operand-binding/prd.md", "reason": "Immediate predecessor pattern for movement-route RouteOperandBindingPlan adoption, evidence, and validation."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-05-20-stage2-rvv-segment2-deinterleave-memory-executable-slice/prd.md", "reason": "Segment2 deinterleave route semantics, field roles, generated-bundle evidence, and prior ssh rvv proof."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-05-20-stage2-rvv-segment2-interleave-memory-executable-slice/prd.md", "reason": "Segment2 interleave route semantics, field roles, generated-bundle evidence, and prior ssh rvv proof."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-route-operand-abi-binding/prd.md", "reason": "Original RouteOperandBindingPlan contract and fail-closed validation baseline."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-05-21-stage2-rvv-arithmetic-select-operand-binding/prd.md", "reason": "Recent completed operand-binding adoption pattern across active route clusters."}
+{"file": ".trellis/workspace/codex/journal-12.md", "reason": "Recent session notes and continuation point for operand binding clusters."}

@@ -306,6 +306,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       &slice->falseValueABI;
   const support::RuntimeABIParameter *boundIndexABI = &slice->indexABI;
   const support::RuntimeABIParameter *boundMaskABI = &slice->maskABI;
+  const support::RuntimeABIParameter *boundField0ABI = &slice->field0ABI;
+  const support::RuntimeABIParameter *boundField1ABI = &slice->field1ABI;
   const support::RuntimeABIParameter *boundOutABI = &slice->outABI;
   const support::RuntimeABIParameter *boundRuntimeElementCountABI =
       &slice->runtimeElementCountABI;
@@ -636,6 +638,82 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               bindOperand(boundOutABI, "dst",
                           "materialized-indexed-store-base",
                           "indexed scatter destination store operand"))
+        return error;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore) {
+      if (llvm::Error error =
+              bindOperand(boundLHSABI, "src", "seg-load-base",
+                          "segment2 deinterleave source load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "src", "src-mem",
+              "segment2 deinterleave source memory form mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundField0ABI, "out0", "field0-store-base",
+                          "segment2 deinterleave field0 output store operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out0", "field0-role",
+              "segment2 deinterleave field0 role mirror"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out0", "dst-mem",
+              "segment2 deinterleave field0 destination memory mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundField1ABI, "out1", "field1-store-base",
+                          "segment2 deinterleave field1 output store operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out1", "field1-role",
+              "segment2 deinterleave field1 role mirror"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out1", "dst-mem",
+              "segment2 deinterleave field1 destination memory mirror"))
+        return error;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad) {
+      if (llvm::Error error =
+              bindOperand(boundLHSABI, "src0", "field0-load-base",
+                          "segment2 interleave field0 source load operand"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("src0", "field0-role",
+                                "segment2 interleave field0 role mirror"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("src0", "src0-mem",
+                                "segment2 interleave field0 memory mirror"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("src0", "tuple-field0",
+                                "segment2 interleave tuple field0 operand"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundRHSABI, "src1", "field1-load-base",
+                          "segment2 interleave field1 source load operand"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("src1", "field1-role",
+                                "segment2 interleave field1 role mirror"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("src1", "src1-mem",
+                                "segment2 interleave field1 memory mirror"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("src1", "tuple-field1",
+                                "segment2 interleave tuple field1 operand"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundOutABI, "dst", "seg-store-base",
+                          "segment2 interleave destination store operand"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("dst", "dst-mem",
+                                "segment2 interleave destination memory mirror"))
         return error;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::ScalarBroadcastAdd) {
@@ -1097,10 +1175,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addLoopStep(
             slice->field0StoreOperation, "store", description.storeIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->field0ABI.cName) + " + " +
+                 (llvm::StringRef(boundField0ABI->cName) + " + " +
                   inductionName)
                      .str(),
-                 slice->field0ABI.cType},
+                 boundField0ABI->cType},
              TCRVEmitCCallOpaqueOperand{description.field0Name.str(),
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
@@ -1109,10 +1187,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addLoopStep(
             slice->field1StoreOperation, "store", description.storeIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->field1ABI.cName) + " + " +
+                 (llvm::StringRef(boundField1ABI->cName) + " + " +
                   inductionName)
                      .str(),
-                 slice->field1ABI.cType},
+                 boundField1ABI->cType},
              TCRVEmitCCallOpaqueOperand{description.field1Name.str(),
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
