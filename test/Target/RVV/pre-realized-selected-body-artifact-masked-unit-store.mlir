@@ -45,6 +45,8 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.mask_policy", value = "undisturbed"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "masked-unit-store"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "src,mask,dst,n"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:masked_unit_store.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:masked_unit_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|masked-store-source-call;mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-store-mask-call;dst=output-buffer:dst:runtime-abi-mirror|materialized-masked-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"}
 // PLAN-SAME: {key = "tcrv_rvv.masked_memory_layout", value = "unit-stride-source-mask-destination-masked-store-runtime-abi"}
 // PLAN-SAME: {key = "tcrv_rvv.inactive_lane_contract", value = "masked-store-false-lanes-preserve-output-buffer"}
 // PLAN-SAME: {key = "tcrv_rvv.masked_passthrough_layout", value = "masked-store-has-no-passthrough-load"}
@@ -56,4 +58,6 @@ module {
 // HEADER: tianchenrv.rvv.selected_variant: @pre_realized_body_rvv_masked_unit_store
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-masked-unit-store-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.runtime_abi_order: src,mask,dst,n
+// HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:masked_unit_store.v1
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:masked_unit_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|masked-store-source-call;mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-store-mask-call;dst=output-buffer:dst:runtime-abi-mirror|materialized-masked-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror
 // HEADER: void tcrv_emitc_pre_realized_body_masked_unit_store_kernel_pre_realized_body_rvv_masked_unit_store(const int32_t *src, const int32_t *mask, int32_t *dst, size_t n);

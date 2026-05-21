@@ -299,6 +299,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const support::RuntimeABIParameter *boundRHSABI = &slice->rhsABI;
   const support::RuntimeABIParameter *boundAccumulatorABI =
       &slice->accumulatorABI;
+  const support::RuntimeABIParameter *boundSourceABI = &slice->sourceABI;
+  const support::RuntimeABIParameter *boundMaskABI = &slice->maskABI;
   const support::RuntimeABIParameter *boundOutABI = &slice->outABI;
   const support::RuntimeABIParameter *boundRuntimeElementCountABI =
       &slice->runtimeElementCountABI;
@@ -386,6 +388,120 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (!stride)
         return stride.takeError();
       boundOutStrideABI = *stride;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::ScalarBroadcastAdd) {
+      llvm::Expected<const support::RuntimeABIParameter *> lhs =
+          getRequiredBinding(bindingPlan, "lhs", "materialized-load-base",
+                             "scalar broadcast lhs load operand");
+      if (!lhs)
+        return lhs.takeError();
+      boundLHSABI = *lhs;
+      llvm::Expected<const support::RuntimeABIParameter *> rhsScalar =
+          getRequiredBinding(bindingPlan, "rhs_scalar",
+                             "scalar-broadcast-rhs-call",
+                             "scalar broadcast RHS scalar operand");
+      if (!rhsScalar)
+        return rhsScalar.takeError();
+      boundRHSABI = *rhsScalar;
+      llvm::Expected<const support::RuntimeABIParameter *> out =
+          getRequiredBinding(bindingPlan, "out", "materialized-store-base",
+                             "scalar broadcast output store operand");
+      if (!out)
+        return out.takeError();
+      boundOutABI = *out;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::StandaloneReduceAdd) {
+      llvm::Expected<const support::RuntimeABIParameter *> lhs =
+          getRequiredBinding(bindingPlan, "lhs", "materialized-load-base",
+                             "standalone reduction input load operand");
+      if (!lhs)
+        return lhs.takeError();
+      boundLHSABI = *lhs;
+      llvm::Expected<const support::RuntimeABIParameter *> acc =
+          getRequiredBinding(bindingPlan, "acc",
+                             "standalone-initial-accumulator-call",
+                             "standalone reduction accumulator operand");
+      if (!acc)
+        return acc.takeError();
+      boundAccumulatorABI = *acc;
+      llvm::Expected<const support::RuntimeABIParameter *> outState =
+          getRequiredBinding(bindingPlan, "out",
+                             "standalone-accumulator-state-load",
+                             "standalone reduction output accumulator state");
+      if (!outState)
+        return outState.takeError();
+      llvm::Expected<const support::RuntimeABIParameter *> outStore =
+          getRequiredBinding(bindingPlan, "out", "materialized-store-base",
+                             "standalone reduction output store operand");
+      if (!outStore)
+        return outStore.takeError();
+      boundOutABI = *outStore;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::MaskedUnitStore) {
+      llvm::Expected<const support::RuntimeABIParameter *> src =
+          getRequiredBinding(bindingPlan, "src", "materialized-load-base",
+                             "masked unit-store source load operand");
+      if (!src)
+        return src.takeError();
+      boundLHSABI = *src;
+      llvm::Expected<const support::RuntimeABIParameter *> mask =
+          getRequiredBinding(bindingPlan, "mask",
+                             "materialized-mask-load-base",
+                             "masked unit-store mask load operand");
+      if (!mask)
+        return mask.takeError();
+      boundMaskABI = *mask;
+      llvm::Expected<const support::RuntimeABIParameter *> dst =
+          getRequiredBinding(bindingPlan, "dst",
+                             "materialized-masked-store-base",
+                             "masked unit-store destination operand");
+      if (!dst)
+        return dst.takeError();
+      boundOutABI = *dst;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::ComputedMaskStridedStore) {
+      llvm::Expected<const support::RuntimeABIParameter *> cmpLHS =
+          getRequiredBinding(bindingPlan, "cmp_lhs", "cmp-lhs-load",
+                             "computed-mask compare lhs load operand");
+      if (!cmpLHS)
+        return cmpLHS.takeError();
+      boundLHSABI = *cmpLHS;
+      llvm::Expected<const support::RuntimeABIParameter *> cmpRHS =
+          getRequiredBinding(bindingPlan, "cmp_rhs", "cmp-rhs-load",
+                             "computed-mask compare rhs load operand");
+      if (!cmpRHS)
+        return cmpRHS.takeError();
+      boundRHSABI = *cmpRHS;
+      llvm::Expected<const support::RuntimeABIParameter *> src =
+          getRequiredBinding(bindingPlan, "src", "src-load",
+                             "computed-mask payload source operand");
+      if (!src)
+        return src.takeError();
+      boundSourceABI = *src;
+      llvm::Expected<const support::RuntimeABIParameter *> oldDst =
+          getRequiredBinding(bindingPlan, "dst", "old-dst-load",
+                             "computed-mask old destination load operand");
+      if (!oldDst)
+        return oldDst.takeError();
+      llvm::Expected<const support::RuntimeABIParameter *> dst =
+          getRequiredBinding(bindingPlan, "dst", "strided-store",
+                             "computed-mask strided destination operand");
+      if (!dst)
+        return dst.takeError();
+      boundOutABI = *dst;
+      llvm::Expected<const support::RuntimeABIParameter *> oldDstStride =
+          getRequiredBinding(bindingPlan, "dst_stride_bytes",
+                             "old-dst-stride",
+                             "computed-mask old destination byte stride");
+      if (!oldDstStride)
+        return oldDstStride.takeError();
+      llvm::Expected<const support::RuntimeABIParameter *> dstStride =
+          getRequiredBinding(bindingPlan, "dst_stride_bytes",
+                             "store-stride",
+                             "computed-mask strided destination byte stride");
+      if (!dstStride)
+        return dstStride.takeError();
+      boundOutStrideABI = *dstStride;
     }
   }
 
@@ -892,10 +1008,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addLoopStep(
             slice->maskLoadOperation, "load", description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->maskABI.cName) + " + " +
+                 (llvm::StringRef(boundMaskABI->cName) + " + " +
                   inductionName)
                      .str(),
-                 slice->maskABI.cType},
+                 boundMaskABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"mask_i32_vec",
@@ -1076,10 +1192,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addLoopStep(
             slice->sourceLoadOperation, "load", description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->sourceABI.cName) + " + " +
+                 (llvm::StringRef(boundSourceABI->cName) + " + " +
                   inductionName)
                      .str(),
-                 slice->sourceABI.cType},
+                 boundSourceABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"source_vec",

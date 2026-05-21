@@ -34,6 +34,14 @@ constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreOperandBindingPlanID(
     "rvv-route-operand-binding:strided_load_unit_store.v1");
 constexpr llvm::StringLiteral kRVVUnitLoadStridedStoreOperandBindingPlanID(
     "rvv-route-operand-binding:unit_load_strided_store.v1");
+constexpr llvm::StringLiteral kRVVScalarBroadcastOperandBindingPlanID(
+    "rvv-route-operand-binding:scalar_broadcast_add.v1");
+constexpr llvm::StringLiteral kRVVStandaloneReductionOperandBindingPlanID(
+    "rvv-route-operand-binding:standalone_reduce_add.v1");
+constexpr llvm::StringLiteral kRVVMaskedUnitStoreOperandBindingPlanID(
+    "rvv-route-operand-binding:masked_unit_store.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskStridedStoreOperandBindingPlanID(
+    "rvv-route-operand-binding:computed_masked_strided_store.v1");
 
 std::optional<support::RuntimeABIParameterRole>
 getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
@@ -64,6 +72,50 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
   if (planID == kRVVUnitLoadStridedStoreOperandBindingPlanID) {
     if (logicalOperand == "src")
       return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "dst")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+    if (logicalOperand == "dst_stride_bytes")
+      return RuntimeABIParameterRole::DestinationByteStride;
+  }
+  if (planID == kRVVScalarBroadcastOperandBindingPlanID) {
+    if (logicalOperand == "lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "rhs_scalar")
+      return RuntimeABIParameterRole::RHSScalarValue;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVStandaloneReductionOperandBindingPlanID) {
+    if (logicalOperand == "lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "acc")
+      return RuntimeABIParameterRole::AccumulatorInputBuffer;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVMaskedUnitStoreOperandBindingPlanID) {
+    if (logicalOperand == "src")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "mask")
+      return RuntimeABIParameterRole::MaskInputBuffer;
+    if (logicalOperand == "dst")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVComputedMaskStridedStoreOperandBindingPlanID) {
+    if (logicalOperand == "cmp_lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "cmp_rhs")
+      return RuntimeABIParameterRole::RHSInputBuffer;
+    if (logicalOperand == "src")
+      return RuntimeABIParameterRole::SourceInputBuffer;
     if (logicalOperand == "dst")
       return RuntimeABIParameterRole::OutputBuffer;
     if (logicalOperand == "n")
@@ -4093,6 +4145,90 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
         plan, "dst_stride_bytes", slice.outStrideABI,
         {"runtime-abi-mirror", "materialized-strided-store-stride",
          "materialized-byte-address", "header-mirror"});
+  } else if (slice.memoryForm ==
+             RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
+    plan.planID = kRVVScalarBroadcastOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVScalarBroadcastRuntimeABIOrder;
+    context = "scalar_broadcast_add route";
+    addRouteOperandBinding(
+        plan, "lhs", slice.lhsABI,
+        {"runtime-abi-mirror", "materialized-load-base",
+         "scalar-broadcast-lhs-call"});
+    addRouteOperandBinding(
+        plan, "rhs_scalar", slice.rhsABI,
+        {"runtime-abi-mirror", "scalar-broadcast-rhs-call"});
+    addRouteOperandBinding(
+        plan, "out", slice.outABI,
+        {"runtime-abi-mirror", "materialized-store-base",
+         "header-mirror"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
+  } else if (slice.memoryForm ==
+             RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction) {
+    plan.planID = kRVVStandaloneReductionOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVStandaloneReductionRuntimeABIOrder;
+    context = "standalone_reduce_add route";
+    addRouteOperandBinding(
+        plan, "lhs", slice.lhsABI,
+        {"runtime-abi-mirror", "materialized-load-base",
+         "standalone-reduction-input-call"});
+    addRouteOperandBinding(
+        plan, "acc", slice.accumulatorABI,
+        {"runtime-abi-mirror", "standalone-initial-accumulator-call"});
+    addRouteOperandBinding(
+        plan, "out", slice.outABI,
+        {"runtime-abi-mirror", "standalone-accumulator-state-load",
+         "materialized-store-base", "header-mirror"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
+  } else if (slice.memoryForm == RVVSelectedBodyMemoryForm::MaskedUnitStore) {
+    plan.planID = kRVVMaskedUnitStoreOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVMaskedStoreRuntimeABIOrder;
+    context = "masked_unit_store route";
+    addRouteOperandBinding(
+        plan, "src", slice.lhsABI,
+        {"runtime-abi-mirror", "materialized-load-base",
+         "masked-store-source-call"});
+    addRouteOperandBinding(
+        plan, "mask", slice.maskABI,
+        {"runtime-abi-mirror", "materialized-mask-load-base",
+         "masked-store-mask-call"});
+    addRouteOperandBinding(
+        plan, "dst", slice.outABI,
+        {"runtime-abi-mirror", "materialized-masked-store-base",
+         "header-mirror"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
+  } else if (slice.arithmeticKind ==
+             RVVSelectedBodyOperationKind::ComputedMaskStridedStore) {
+    plan.planID = kRVVComputedMaskStridedStoreOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVComputedMaskStridedStoreRuntimeABIOrder;
+    context = "computed_masked_strided_store route";
+    addRouteOperandBinding(
+        plan, "cmp_lhs", slice.lhsABI,
+        {"abi-mirror", "cmp-lhs-load"});
+    addRouteOperandBinding(
+        plan, "cmp_rhs", slice.rhsABI,
+        {"abi-mirror", "cmp-rhs-load"});
+    addRouteOperandBinding(
+        plan, "src", slice.sourceABI,
+        {"abi-mirror", "src-load", "active-source"});
+    addRouteOperandBinding(
+        plan, "dst", slice.outABI,
+        {"abi-mirror", "old-dst-load", "strided-store", "header-mirror"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"abi-mirror", "setvl-avl", "loop-control", "header-mirror"});
+    addRouteOperandBinding(
+        plan, "dst_stride_bytes", slice.outStrideABI,
+        {"abi-mirror", "old-dst-stride", "store-stride", "byte-addr",
+         "header-mirror"});
   }
 
   if (plan.planID.empty())
@@ -8416,6 +8552,19 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
            RVVSelectedBodyOperationKind::UnitLoadStridedStore)
     expectedOperandBindingPlanID =
         kRVVUnitLoadStridedStoreOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::ScalarBroadcastAdd)
+    expectedOperandBindingPlanID = kRVVScalarBroadcastOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::StandaloneReduceAdd)
+    expectedOperandBindingPlanID = kRVVStandaloneReductionOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::MaskedUnitStore)
+    expectedOperandBindingPlanID = kRVVMaskedUnitStoreOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::ComputedMaskStridedStore)
+    expectedOperandBindingPlanID =
+        kRVVComputedMaskStridedStoreOperandBindingPlanID;
   if (!expectedOperandBindingPlanID.empty()) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "route operand ABI binding plan",

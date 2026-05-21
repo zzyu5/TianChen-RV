@@ -169,6 +169,48 @@ UNIT_LOAD_STRIDED_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror;"
     "dst_stride_bytes=destination-byte-stride:dst_stride_bytes:runtime-abi-mirror|materialized-strided-store-stride|materialized-byte-address|header-mirror"
 )
+SCALAR_BROADCAST_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:scalar_broadcast_add.v1"
+)
+SCALAR_BROADCAST_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:scalar_broadcast_add.v1;"
+    "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|scalar-broadcast-lhs-call;"
+    "rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call;"
+    "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
+    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+)
+STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:standalone_reduce_add.v1"
+)
+STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:standalone_reduce_add.v1;"
+    "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|standalone-reduction-input-call;"
+    "acc=accumulator-input-buffer:acc:runtime-abi-mirror|standalone-initial-accumulator-call;"
+    "out=output-buffer:out:runtime-abi-mirror|standalone-accumulator-state-load|materialized-store-base|header-mirror;"
+    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+)
+MASKED_UNIT_STORE_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:masked_unit_store.v1"
+)
+MASKED_UNIT_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:masked_unit_store.v1;"
+    "src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|masked-store-source-call;"
+    "mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-store-mask-call;"
+    "dst=output-buffer:dst:runtime-abi-mirror|materialized-masked-store-base|header-mirror;"
+    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+)
+COMPUTED_MASK_STRIDED_STORE_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:computed_masked_strided_store.v1"
+)
+COMPUTED_MASK_STRIDED_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:computed_masked_strided_store.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi-mirror|cmp-lhs-load;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi-mirror|cmp-rhs-load;"
+    "src=source-input-buffer:src:abi-mirror|src-load|active-source;"
+    "dst=output-buffer:dst:abi-mirror|old-dst-load|strided-store|header-mirror;"
+    "n=runtime-element-count:n:abi-mirror|setvl-avl|loop-control|header-mirror;"
+    "dst_stride_bytes=destination-byte-stride:dst_stride_bytes:abi-mirror|old-dst-stride|store-stride|byte-addr|header-mirror"
+)
 SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,out,n"
 WIDENING_CONVERSION_RUNTIME_ABI_ORDER = "lhs,out,n"
 WIDENING_CONVERSION_RELATION = "signed-i32m1-to-i64m2"
@@ -2328,6 +2370,23 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     STANDALONE_REDUCE_REQUIRED_HEADER_DECLARATIONS
                 ),
                 "tcrv_rvv.c_type_mapping": STANDALONE_REDUCE_C_TYPE_MAPPING,
+                "tcrv_rvv.route_operand_binding_plan": (
+                    STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+            }
+        )
+    if expectation.is_scalar_broadcast_add:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.route_operand_binding_plan": (
+                    SCALAR_BROADCAST_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    SCALAR_BROADCAST_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if expectation.is_scalar_broadcast_add or expectation.is_standalone_reduce_add:
@@ -2479,6 +2538,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.destination_memory_form": (
                     MASKED_STORE_DESTINATION_MEMORY_FORM
                 ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    MASKED_UNIT_STORE_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    MASKED_UNIT_STORE_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if expectation.is_computed_masked_unit_load_store:
@@ -2539,6 +2604,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.destination_stride_source": (
                     COMPUTED_MASK_STRIDED_STORE_DESTINATION_STRIDE_SOURCE
+                ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    COMPUTED_MASK_STRIDED_STORE_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    COMPUTED_MASK_STRIDED_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
         )

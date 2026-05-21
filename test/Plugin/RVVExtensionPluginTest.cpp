@@ -1698,6 +1698,164 @@ int runRouteOperandBindingPlanValidationTest() {
            "source-byte-stride"}))
     return result;
 
+  RVVRouteOperandBindingPlan scalarBroadcastPlan;
+  scalarBroadcastPlan.planID =
+      "rvv-route-operand-binding:scalar_broadcast_add.v1";
+  addBinding(scalarBroadcastPlan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"runtime-abi-mirror", "materialized-load-base"});
+  addBinding(scalarBroadcastPlan, "rhs_scalar",
+             makeTargetExportABIParameter("rhs_scalar", "int32_t",
+                                          RuntimeABIParameterRole::RHSScalarValue),
+             {"runtime-abi-mirror", "scalar-broadcast-rhs-call"});
+  addBinding(scalarBroadcastPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"runtime-abi-mirror", "materialized-store-base"});
+  addBinding(scalarBroadcastPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"runtime-abi-mirror", "setvl-avl", "loop-control"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              scalarBroadcastPlan,
+              "rvv-route-operand-binding:scalar_broadcast_add.v1",
+              "lhs,rhs_scalar,out,n", "route operand binding unit test"),
+          "valid scalar broadcast route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan badScalarRole = scalarBroadcastPlan;
+  badScalarRole.bindings[1].parameter.role =
+      RuntimeABIParameterRole::RHSInputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              badScalarRole,
+              "rvv-route-operand-binding:scalar_broadcast_add.v1",
+              "lhs,rhs_scalar,out,n", "route operand binding unit test"),
+          {"logical operand 'rhs_scalar'", "rhs-scalar-value",
+           "rhs-input-buffer"}))
+    return result;
+
+  RVVRouteOperandBindingPlan standaloneReductionPlan;
+  standaloneReductionPlan.planID =
+      "rvv-route-operand-binding:standalone_reduce_add.v1";
+  addBinding(standaloneReductionPlan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"runtime-abi-mirror", "materialized-load-base"});
+  addBinding(standaloneReductionPlan, "acc",
+             makeTargetExportABIParameter(
+                 "acc", "const int32_t *",
+                 RuntimeABIParameterRole::AccumulatorInputBuffer),
+             {"runtime-abi-mirror", "standalone-initial-accumulator-call"});
+  addBinding(standaloneReductionPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"runtime-abi-mirror", "standalone-accumulator-state-load",
+              "materialized-store-base"});
+  addBinding(standaloneReductionPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"runtime-abi-mirror", "setvl-avl", "loop-control"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              standaloneReductionPlan,
+              "rvv-route-operand-binding:standalone_reduce_add.v1",
+              "lhs,acc,out,n", "route operand binding unit test"),
+          "valid standalone reduction route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan maskedStorePlan;
+  maskedStorePlan.planID = "rvv-route-operand-binding:masked_unit_store.v1";
+  addBinding(maskedStorePlan, "src",
+             makeTargetExportABIParameter(
+                 "src", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"runtime-abi-mirror", "materialized-load-base"});
+  addBinding(maskedStorePlan, "mask",
+             makeTargetExportABIParameter(
+                 "mask", "const int32_t *",
+                 RuntimeABIParameterRole::MaskInputBuffer),
+             {"runtime-abi-mirror", "materialized-mask-load-base"});
+  addBinding(maskedStorePlan, "dst",
+             makeTargetExportABIParameter("dst", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"runtime-abi-mirror", "materialized-masked-store-base"});
+  addBinding(maskedStorePlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"runtime-abi-mirror", "setvl-avl", "loop-control"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              maskedStorePlan,
+              "rvv-route-operand-binding:masked_unit_store.v1",
+              "src,mask,dst,n", "route operand binding unit test"),
+          "valid masked store route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan computedMaskStridedStorePlan;
+  computedMaskStridedStorePlan.planID =
+      "rvv-route-operand-binding:computed_masked_strided_store.v1";
+  addBinding(computedMaskStridedStorePlan, "cmp_lhs",
+             makeTargetExportABIParameter(
+                 "cmp_lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi-mirror", "cmp-lhs-load"});
+  addBinding(computedMaskStridedStorePlan, "cmp_rhs",
+             makeTargetExportABIParameter(
+                 "cmp_rhs", "const int32_t *",
+                 RuntimeABIParameterRole::RHSInputBuffer),
+             {"abi-mirror", "cmp-rhs-load"});
+  addBinding(computedMaskStridedStorePlan, "src",
+             makeTargetExportABIParameter(
+                 "src", "const int32_t *",
+                 RuntimeABIParameterRole::SourceInputBuffer),
+             {"abi-mirror", "src-load"});
+  addBinding(computedMaskStridedStorePlan, "dst",
+             makeTargetExportABIParameter("dst", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"abi-mirror", "old-dst-load", "strided-store"});
+  addBinding(computedMaskStridedStorePlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi-mirror", "setvl-avl", "loop-control"});
+  addBinding(computedMaskStridedStorePlan, "dst_stride_bytes",
+             makeTargetExportABIParameter(
+                 "dst_stride_bytes", "size_t",
+                 RuntimeABIParameterRole::DestinationByteStride),
+             {"abi-mirror", "old-dst-stride", "store-stride"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              computedMaskStridedStorePlan,
+              "rvv-route-operand-binding:computed_masked_strided_store.v1",
+              "cmp_lhs,cmp_rhs,src,dst,n,dst_stride_bytes",
+              "route operand binding unit test"),
+          "valid computed-mask strided store route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedComputedStrideAndN =
+      computedMaskStridedStorePlan;
+  swappedComputedStrideAndN.bindings[4].parameter.role =
+      RuntimeABIParameterRole::DestinationByteStride;
+  swappedComputedStrideAndN.bindings[5].parameter.role =
+      RuntimeABIParameterRole::RuntimeElementCount;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedComputedStrideAndN,
+              "rvv-route-operand-binding:computed_masked_strided_store.v1",
+              "cmp_lhs,cmp_rhs,src,dst,n,dst_stride_bytes",
+              "route operand binding unit test"),
+          {"logical operand 'n'", "runtime-element-count",
+           "destination-byte-stride"}))
+    return result;
+
   return 0;
 }
 
