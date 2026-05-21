@@ -169,6 +169,26 @@ UNIT_LOAD_STRIDED_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror;"
     "dst_stride_bytes=destination-byte-stride:dst_stride_bytes:runtime-abi-mirror|materialized-strided-store-stride|materialized-byte-address|header-mirror"
 )
+INDEXED_GATHER_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:indexed_gather_unit_store.v1"
+)
+INDEXED_GATHER_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:indexed_gather_unit_store.v1;"
+    "data=lhs-input-buffer:data:runtime-abi-mirror|materialized-indexed-data-base|indexed-load-base|header-mirror;"
+    "index=index-input-buffer:index:runtime-abi-mirror|materialized-index-load-base|index-offset-scale|index-source-mirror|header-mirror;"
+    "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
+    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+)
+INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:indexed_scatter_unit_load.v1"
+)
+INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:indexed_scatter_unit_load.v1;"
+    "src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|move-source|header-mirror;"
+    "index=index-input-buffer:index:runtime-abi-mirror|materialized-index-load-base|index-offset-scale|index-source-mirror|header-mirror;"
+    "dst=output-buffer:dst:runtime-abi-mirror|materialized-indexed-store-base|header-mirror;"
+    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+)
 SCALAR_BROADCAST_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:scalar_broadcast_add.v1"
 )
@@ -2582,6 +2602,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.destination_memory_form": (
                     INDEXED_GATHER_DESTINATION_MEMORY_FORM
                 ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    INDEXED_GATHER_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    INDEXED_GATHER_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if expectation.is_indexed_scatter_unit_load:
@@ -2600,6 +2626,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.destination_memory_form": (
                     INDEXED_SCATTER_DESTINATION_MEMORY_FORM
+                ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
         )

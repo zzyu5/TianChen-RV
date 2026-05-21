@@ -1,0 +1,52 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-indexed-gather-unit-store --overwrite --op-kind indexed_gather_unit_store --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-indexed-gather-unit-store/evidence.json
+# RUN: FileCheck %s --check-prefix=GATHER --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-indexed-gather-unit-store/indexed_gather_unit_store/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-indexed-gather-unit-store/indexed_gather_unit_store/rvv_generated_bundle_abi_indexed_gather_unit_store_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "pre-realized-selected-body"
+# ROOT: "indexed_gather_unit_store"
+# ROOT: "pre_realized_selected_body": true
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# GATHER-DAG: "input_mode": "pre-realized-selected-body"
+# GATHER-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-indexed-gather-unit-store.mlir"
+# GATHER-DAG: "prototype": "void tcrv_emitc_pre_realized_body_indexed_gather_unit_store_kernel_pre_realized_body_rvv_indexed_gather_unit_store(const int32_t *data, const uint32_t *index, int32_t *out, size_t n);"
+# GATHER-DAG: "expected_function": "tcrv_emitc_pre_realized_body_indexed_gather_unit_store_kernel_pre_realized_body_rvv_indexed_gather_unit_store"
+# GATHER-DAG: "expected_runtime_abi_name": "rvv-generic-indexed-gather-unit-store-callable-c-abi.v1"
+# GATHER-DAG: "expected_selected_variant": "pre_realized_body_rvv_indexed_gather_unit_store"
+# GATHER-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# GATHER-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# GATHER-DAG: --tcrv-materialize-selected-lowering-boundaries
+# GATHER-DAG: "pre_realized_body_consumed": true
+# GATHER-DAG: "key": "rvv_emitc_lowerable_route"
+# GATHER-DAG: "value": "rvv-generic-indexed-gather-unit-store-emitc-route"
+# GATHER-DAG: "key": "rvv_selected_body_operation"
+# GATHER-DAG: "value": "indexed_gather_unit_store"
+# GATHER-DAG: "key": "rvv_selected_body_typed_compute_op"
+# GATHER-DAG: "value": "tcrv_rvv.move"
+# GATHER-DAG: "key": "tcrv_rvv.memory_form"
+# GATHER-DAG: "value": "indexed-load-unit-store"
+# GATHER-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# GATHER-DAG: "value": "data,index,out,n"
+# GATHER-DAG: "key": "tcrv_rvv.indexed_memory_layout"
+# GATHER-DAG: "value": "element-indexed-data-index-unit-stride-output-runtime-abi"
+# GATHER-DAG: "key": "tcrv_rvv.indexed_data_memory_form"
+# GATHER-DAG: "value": "indexed-load"
+# GATHER-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# GATHER-DAG: "value": "rvv-route-operand-binding:indexed_gather_unit_store.v1"
+# GATHER-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# GATHER-DAG: "value": "rvv-route-operand-binding:indexed_gather_unit_store.v1;data=lhs-input-buffer:data:runtime-abi-mirror|materialized-indexed-data-base|indexed-load-base|header-mirror;index=index-input-buffer:index:runtime-abi-mirror|materialized-index-load-base|index-offset-scale|index-source-mirror|header-mirror;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+# GATHER-DAG: "typed_compute_op": "tcrv_rvv.move"
+# GATHER-DAG: "memory_form": "indexed-load-unit-store"
+# GATHER-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_pre_realized_body_indexed_gather_unit_store_kernel_pre_realized_body_rvv_indexed_gather_unit_store(data, indices, out, n);
+# HARNESS: int32_t expected = data[indices[index]];
+# HARNESS: non_monotonic_indexed_gather
+# HARNESS: PASS op=indexed_gather_unit_store counts=7,16,23

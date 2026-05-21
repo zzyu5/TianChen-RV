@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV authority chain and Stage1/Stage2 boundaries for this RVV route-binding task"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed-body authority, parameter flow, and Stage2 coverage constraints"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC neutrality and provider-built TCRVEmitCLowerableRoute rules"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck, generated artifact, fail-closed, and ssh rvv evidence requirements"}
+{"file": ".trellis/tasks/05-21-stage2-rvv-indexed-movement-operand-binding/prd.md", "reason": "bounded implementation scope, acceptance criteria, and validation plan for indexed movement operand binding adoption"}

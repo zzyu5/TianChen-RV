@@ -52,6 +52,8 @@ module {
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.move"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "unit-load-indexed-store"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "src,index,dst,n"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:indexed_scatter_unit_load.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:indexed_scatter_unit_load.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|move-source|header-mirror;index=index-input-buffer:index:runtime-abi-mirror|materialized-index-load-base|index-offset-scale|index-source-mirror|header-mirror;dst=output-buffer:dst:runtime-abi-mirror|materialized-indexed-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"}
 // PLAN-SAME: {key = "tcrv_rvv.indexed_memory_layout", value = "unit-stride-source-indexed-destination-index-runtime-abi"}
 // PLAN-SAME: {key = "tcrv_rvv.index_source", value = "runtime_abi:index"}
 // PLAN-SAME: {key = "tcrv_rvv.index_eew", value = "32"}
@@ -73,4 +75,6 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-indexed-scatter-unit-load-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.runtime_abi_order: src,index,dst,n
+// HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:indexed_scatter_unit_load.v1
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:indexed_scatter_unit_load.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|move-source|header-mirror;index=index-input-buffer:index:runtime-abi-mirror|materialized-index-load-base|index-offset-scale|index-source-mirror|header-mirror;dst=output-buffer:dst:runtime-abi-mirror|materialized-indexed-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror
 // HEADER: void tcrv_emitc_pre_realized_body_indexed_scatter_unit_load_kernel_pre_realized_body_rvv_indexed_scatter_unit_load(const int32_t *src, const uint32_t *index, int32_t *dst, size_t n);

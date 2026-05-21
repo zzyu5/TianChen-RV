@@ -1698,6 +1698,92 @@ int runRouteOperandBindingPlanValidationTest() {
            "source-byte-stride"}))
     return result;
 
+  RVVRouteOperandBindingPlan indexedGatherPlan;
+  indexedGatherPlan.planID =
+      "rvv-route-operand-binding:indexed_gather_unit_store.v1";
+  addBinding(indexedGatherPlan, "data",
+             makeTargetExportABIParameter(
+                 "data", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"runtime-abi-mirror", "materialized-indexed-data-base",
+              "indexed-load-base"});
+  addBinding(indexedGatherPlan, "index",
+             makeTargetExportABIParameter(
+                 "index", "const uint32_t *",
+                 RuntimeABIParameterRole::IndexInputBuffer),
+             {"runtime-abi-mirror", "materialized-index-load-base",
+              "index-offset-scale"});
+  addBinding(indexedGatherPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"runtime-abi-mirror", "materialized-store-base"});
+  addBinding(indexedGatherPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"runtime-abi-mirror", "setvl-avl", "loop-control"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              indexedGatherPlan,
+              "rvv-route-operand-binding:indexed_gather_unit_store.v1",
+              "data,index,out,n", "valid indexed gather binding plan"),
+          "valid indexed gather route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedGatherIndexAndData = indexedGatherPlan;
+  swappedGatherIndexAndData.bindings[1].parameter.role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedGatherIndexAndData,
+              "rvv-route-operand-binding:indexed_gather_unit_store.v1",
+              "data,index,out,n", "route operand binding unit test"),
+          {"logical operand 'index'", "index-input-buffer",
+           "lhs-input-buffer"}))
+    return result;
+
+  RVVRouteOperandBindingPlan indexedScatterPlan;
+  indexedScatterPlan.planID =
+      "rvv-route-operand-binding:indexed_scatter_unit_load.v1";
+  addBinding(indexedScatterPlan, "src",
+             makeTargetExportABIParameter(
+                 "src", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"runtime-abi-mirror", "materialized-load-base", "move-source"});
+  addBinding(indexedScatterPlan, "index",
+             makeTargetExportABIParameter(
+                 "index", "const uint32_t *",
+                 RuntimeABIParameterRole::IndexInputBuffer),
+             {"runtime-abi-mirror", "materialized-index-load-base",
+              "index-offset-scale"});
+  addBinding(indexedScatterPlan, "dst",
+             makeTargetExportABIParameter("dst", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"runtime-abi-mirror", "materialized-indexed-store-base"});
+  addBinding(indexedScatterPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"runtime-abi-mirror", "setvl-avl", "loop-control"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              indexedScatterPlan,
+              "rvv-route-operand-binding:indexed_scatter_unit_load.v1",
+              "src,index,dst,n", "valid indexed scatter binding plan"),
+          "valid indexed scatter route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedScatterDestination = indexedScatterPlan;
+  swappedScatterDestination.bindings[2].parameter.role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedScatterDestination,
+              "rvv-route-operand-binding:indexed_scatter_unit_load.v1",
+              "src,index,dst,n", "route operand binding unit test"),
+          {"logical operand 'dst'", "output-buffer", "lhs-input-buffer"}))
+    return result;
+
   RVVRouteOperandBindingPlan scalarBroadcastPlan;
   scalarBroadcastPlan.planID =
       "rvv-route-operand-binding:scalar_broadcast_add.v1";

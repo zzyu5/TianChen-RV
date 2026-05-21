@@ -304,6 +304,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       &slice->trueValueABI;
   const support::RuntimeABIParameter *boundFalseValueABI =
       &slice->falseValueABI;
+  const support::RuntimeABIParameter *boundIndexABI = &slice->indexABI;
   const support::RuntimeABIParameter *boundMaskABI = &slice->maskABI;
   const support::RuntimeABIParameter *boundOutABI = &slice->outABI;
   const support::RuntimeABIParameter *boundRuntimeElementCountABI =
@@ -580,6 +581,62 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (!stride)
         return stride.takeError();
       boundOutStrideABI = *stride;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::IndexedGatherUnitStore) {
+      if (llvm::Error error =
+              bindOperand(boundLHSABI, "data",
+                          "materialized-indexed-data-base",
+                          "indexed gather data base operand"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("data", "indexed-load-base",
+                                "indexed gather data load base operand"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundIndexABI, "index",
+                          "materialized-index-load-base",
+                          "indexed gather index load operand"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("index", "index-offset-scale",
+                                "indexed gather offset scaling operand"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("index", "index-source-mirror",
+                                "indexed gather index source mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundOutABI, "out", "materialized-store-base",
+                          "indexed gather output store operand"))
+        return error;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::IndexedScatterUnitLoad) {
+      if (llvm::Error error = bindOperand(boundLHSABI, "src",
+                                          "materialized-load-base",
+                                          "indexed scatter source load operand"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("src", "move-source",
+                                "indexed scatter moved source operand"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundIndexABI, "index",
+                          "materialized-index-load-base",
+                          "indexed scatter index load operand"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("index", "index-offset-scale",
+                                "indexed scatter offset scaling operand"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("index", "index-source-mirror",
+                                "indexed scatter index source mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundOutABI, "dst",
+                          "materialized-indexed-store-base",
+                          "indexed scatter destination store operand"))
+        return error;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::ScalarBroadcastAdd) {
       llvm::Expected<const support::RuntimeABIParameter *> lhs =
@@ -1074,10 +1131,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addLoopStep(
             slice->indexLoadOperation, "load", description.indexLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->indexABI.cName) + " + " +
+                 (llvm::StringRef(boundIndexABI->cName) + " + " +
                   inductionName)
                      .str(),
-                 slice->indexABI.cType},
+                 boundIndexABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"index_vec",
@@ -1240,10 +1297,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addLoopStep(
             slice->indexLoadOperation, "load", description.indexLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->indexABI.cName) + " + " +
+                 (llvm::StringRef(boundIndexABI->cName) + " + " +
                   inductionName)
                      .str(),
-                 slice->indexABI.cType},
+                 boundIndexABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"index_vec",
