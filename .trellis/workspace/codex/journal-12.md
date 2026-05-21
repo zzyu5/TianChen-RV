@@ -1400,3 +1400,73 @@ Implemented a bounded RVV plugin-owned route operand binding contract consumed b
 ### Next Steps
 
 - None for this bounded operand-binding contract.
+
+
+## Session 153: Stage2 RVV arithmetic and select operand binding adoption
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV arithmetic and select operand binding adoption
+**Branch**: `main`
+
+### Summary
+
+Adopted `RVVRouteOperandBindingPlan` for the active ordinary arithmetic,
+compare/select, masked arithmetic, reduction, and strided arithmetic route
+cluster left outside the previous operand-binding tasks.
+
+### Main Changes
+
+- Added binding-plan IDs, logical-operand role validation, and binding summaries
+  for `add`, `sub`, `mul`, `cmp_select`, `computed_mask_select`, `masked_add`,
+  `reduce_add`, and `strided_add`.
+- Rewired RVV provider materialization so the converted routes consume bound
+  ABI operands and materialized-use checks for loads, compares, select values,
+  masked arithmetic, reductions, strided operands, stores, setvl/control, and
+  header mirrors.
+- Extended generated-bundle metadata expectations and target artifact/header
+  FileCheck fixtures so plan mirrors and header mirrors match materialized
+  operands.
+- Added C++ binding-plan validation coverage for binary lhs/rhs swaps,
+  computed-mask true/false swaps, and strided rhs/out stride swaps.
+
+### Testing
+
+- [OK] Focused `PLAN`/`HEADER` FileCheck for 15 converted explicit and
+  pre-realized target artifact fixtures.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Generated-bundle dry-run for pre-realized `add`, `sub`, `mul`,
+  `cmp_select`, `computed_mask_select`, `masked_add`, `reduce_add`, and
+  `strided_add`, counts `7,16,23`.
+- [OK] Real `ssh rvv` PASS for the same eight routes, counts `7,16,23`;
+  predicate true/false lanes, computed-mask select tail preservation,
+  masked-add passthrough lanes, reduction output, and strided-add runtime
+  operands were exercised.
+- [OK] Diff-level active-authority scan: no newly introduced positive
+  `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`,
+  descriptor/direct-C/source-export/source-front-door, public exact intrinsic,
+  route-id, artifact-name, or common/export RVV semantic authority.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 261/261 passed.
+
+### Self-Repair
+
+- Fixed target artifact `PLAN` check ordering after FileCheck showed route
+  operand binding metadata is emitted before runtime ABI name and before some
+  reduction/strided layout metadata.
+- Re-ran the generated-bundle evidence without `--stride-bytes` after checking
+  the script contract: `strided_add` uses its own runtime element-stride ABI
+  operands, while `--stride-bytes` is reserved for byte-strided load/store
+  slices.
+
+### Status
+
+[OK] Completed and archived.
+
+### Next Steps
+
+- Continue with a separate bounded PRD only if adopting operand binding for a
+  later Stage2 cluster such as indexed, segmented, widening, contraction, or
+  conversion routes.

@@ -37,6 +37,8 @@ module {
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "reduce_add"}
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.reduce"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "vector-rhs-load"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:reduce_add.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:reduce_add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|reduction-input-call;rhs=rhs-input-buffer:rhs:abi|load-base|reduction-accumulator-call;out=output-buffer:out:abi|store-base|reduction-result-store|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header"}
 // PLAN-SAME: {key = "tcrv_rvv.reduction_accumulator_layout", value = "rhs-vector-seed-lane0-per-vl-chunk"}
 // PLAN-SAME: {key = "tcrv_rvv.reduction_result_layout", value = "store-reduction-lane0-to-output-chunk-base"}
 // PLAN-SAME: {key = "tcrv_rvv.reduction_store_vl", value = "1"}
@@ -49,4 +51,6 @@ module {
 // HEADER: tianchenrv.rvv.selected_variant: @explicit_selected_body_rvv_reduce_add
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-reduce-add-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
+// HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:reduce_add.v1
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:reduce_add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|reduction-input-call;rhs=rhs-input-buffer:rhs:abi|load-base|reduction-accumulator-call;out=output-buffer:out:abi|store-base|reduction-result-store|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header
 // HEADER: void tcrv_emitc_explicit_selected_body_reduce_add_kernel_explicit_selected_body_rvv_reduce_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

@@ -42,11 +42,46 @@ constexpr llvm::StringLiteral kRVVMaskedUnitStoreOperandBindingPlanID(
     "rvv-route-operand-binding:masked_unit_store.v1");
 constexpr llvm::StringLiteral kRVVComputedMaskStridedStoreOperandBindingPlanID(
     "rvv-route-operand-binding:computed_masked_strided_store.v1");
+constexpr llvm::StringLiteral kRVVAddOperandBindingPlanID(
+    "rvv-route-operand-binding:add.v1");
+constexpr llvm::StringLiteral kRVVSubOperandBindingPlanID(
+    "rvv-route-operand-binding:sub.v1");
+constexpr llvm::StringLiteral kRVVMulOperandBindingPlanID(
+    "rvv-route-operand-binding:mul.v1");
+constexpr llvm::StringLiteral kRVVCmpSelectOperandBindingPlanID(
+    "rvv-route-operand-binding:cmp_select.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskSelectOperandBindingPlanID(
+    "rvv-route-operand-binding:computed_mask_select.v1");
+constexpr llvm::StringLiteral kRVVMaskedAddOperandBindingPlanID(
+    "rvv-route-operand-binding:masked_add.v1");
+constexpr llvm::StringLiteral kRVVReduceAddOperandBindingPlanID(
+    "rvv-route-operand-binding:reduce_add.v1");
+constexpr llvm::StringLiteral kRVVStridedAddOperandBindingPlanID(
+    "rvv-route-operand-binding:strided_add.v1");
+
+bool isRVVFourOperandPlanID(llvm::StringRef planID) {
+  return planID == kRVVAddOperandBindingPlanID ||
+         planID == kRVVSubOperandBindingPlanID ||
+         planID == kRVVMulOperandBindingPlanID ||
+         planID == kRVVCmpSelectOperandBindingPlanID ||
+         planID == kRVVMaskedAddOperandBindingPlanID ||
+         planID == kRVVReduceAddOperandBindingPlanID;
+}
 
 std::optional<support::RuntimeABIParameterRole>
 getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
                                       llvm::StringRef logicalOperand) {
   using support::RuntimeABIParameterRole;
+  if (isRVVFourOperandPlanID(planID)) {
+    if (logicalOperand == "lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "rhs")
+      return RuntimeABIParameterRole::RHSInputBuffer;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
   if (planID == kRVVMAccOperandBindingPlanID) {
     if (logicalOperand == "lhs")
       return RuntimeABIParameterRole::LHSInputBuffer;
@@ -122,6 +157,36 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
       return RuntimeABIParameterRole::RuntimeElementCount;
     if (logicalOperand == "dst_stride_bytes")
       return RuntimeABIParameterRole::DestinationByteStride;
+  }
+  if (planID == kRVVComputedMaskSelectOperandBindingPlanID) {
+    if (logicalOperand == "cmp_lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "cmp_rhs")
+      return RuntimeABIParameterRole::RHSInputBuffer;
+    if (logicalOperand == "true_value")
+      return RuntimeABIParameterRole::TrueValueInputBuffer;
+    if (logicalOperand == "false_value")
+      return RuntimeABIParameterRole::FalseValueInputBuffer;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVStridedAddOperandBindingPlanID) {
+    if (logicalOperand == "lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "rhs")
+      return RuntimeABIParameterRole::RHSInputBuffer;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+    if (logicalOperand == "lhs_stride")
+      return RuntimeABIParameterRole::LHSInputStride;
+    if (logicalOperand == "rhs_stride")
+      return RuntimeABIParameterRole::RHSInputStride;
+    if (logicalOperand == "out_stride")
+      return RuntimeABIParameterRole::OutputStride;
   }
   return std::nullopt;
 }
@@ -634,6 +699,8 @@ constexpr llvm::StringLiteral kRVVContractionCTypeMappingSummary(
 constexpr llvm::StringLiteral
     kRVVContractionMaskedInactiveLaneZeroingRequirement(
         "masked-widening-products-zero-inactive-lanes-before-reduction");
+constexpr llvm::StringLiteral kRVVGenericBinaryRuntimeABIOrder(
+    "lhs,rhs,out,n");
 constexpr llvm::StringLiteral kRVVStridedRuntimeABIOrder(
     "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride");
 constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreRuntimeABIOrder(
@@ -4082,7 +4149,119 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
   llvm::StringRef expectedRuntimeABIOrder;
   llvm::StringRef context;
 
-  if (slice.arithmeticKind == RVVSelectedBodyOperationKind::MAccAdd) {
+  if (slice.arithmeticKind == RVVSelectedBodyOperationKind::Add ||
+      slice.arithmeticKind == RVVSelectedBodyOperationKind::Sub ||
+      slice.arithmeticKind == RVVSelectedBodyOperationKind::Mul) {
+    if (slice.arithmeticKind == RVVSelectedBodyOperationKind::Add) {
+      plan.planID = kRVVAddOperandBindingPlanID.str();
+      context = "add route";
+    } else if (slice.arithmeticKind == RVVSelectedBodyOperationKind::Sub) {
+      plan.planID = kRVVSubOperandBindingPlanID.str();
+      context = "sub route";
+    } else {
+      plan.planID = kRVVMulOperandBindingPlanID.str();
+      context = "mul route";
+    }
+    expectedRuntimeABIOrder = kRVVGenericBinaryRuntimeABIOrder;
+    addRouteOperandBinding(
+        plan, "lhs", slice.lhsABI,
+        {"abi", "load-base", "binary-lhs-call"});
+    addRouteOperandBinding(
+        plan, "rhs", slice.rhsABI,
+        {"abi", "load-base", "binary-rhs-call"});
+    addRouteOperandBinding(plan, "out", slice.outABI,
+                           {"abi", "store-base", "header"});
+    addRouteOperandBinding(plan, "n", slice.runtimeElementCountABI,
+                           {"abi", "setvl-avl", "loop-control", "header"});
+  } else if (slice.arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect) {
+    plan.planID = kRVVCmpSelectOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVGenericBinaryRuntimeABIOrder;
+    context = "cmp_select route";
+    addRouteOperandBinding(
+        plan, "lhs", slice.lhsABI,
+        {"abi", "load-base", "compare-lhs-call", "select-true-call"});
+    addRouteOperandBinding(
+        plan, "rhs", slice.rhsABI,
+        {"abi", "load-base", "compare-rhs-call", "select-false-call"});
+    addRouteOperandBinding(plan, "out", slice.outABI,
+                           {"abi", "store-base", "header"});
+    addRouteOperandBinding(plan, "n", slice.runtimeElementCountABI,
+                           {"abi", "setvl-avl", "loop-control", "header"});
+  } else if (slice.arithmeticKind ==
+             RVVSelectedBodyOperationKind::ComputedMaskSelect) {
+    plan.planID = kRVVComputedMaskSelectOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVComputedMaskSelectRuntimeABIOrder;
+    context = "computed_mask_select route";
+    addRouteOperandBinding(
+        plan, "cmp_lhs", slice.lhsABI,
+        {"abi", "cmp-lhs-load", "compare-lhs-call"});
+    addRouteOperandBinding(
+        plan, "cmp_rhs", slice.rhsABI,
+        {"abi", "cmp-rhs-load", "compare-rhs-call"});
+    addRouteOperandBinding(
+        plan, "true_value", slice.trueValueABI,
+        {"abi", "true-load", "select-true-call"});
+    addRouteOperandBinding(
+        plan, "false_value", slice.falseValueABI,
+        {"abi", "false-load", "select-false-call"});
+    addRouteOperandBinding(plan, "out", slice.outABI,
+                           {"abi", "store-base", "header"});
+    addRouteOperandBinding(plan, "n", slice.runtimeElementCountABI,
+                           {"abi", "setvl-avl", "loop-control", "header"});
+  } else if (slice.arithmeticKind == RVVSelectedBodyOperationKind::ReduceAdd) {
+    plan.planID = kRVVReduceAddOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVGenericBinaryRuntimeABIOrder;
+    context = "reduce_add route";
+    addRouteOperandBinding(
+        plan, "lhs", slice.lhsABI,
+        {"abi", "load-base", "reduction-input-call"});
+    addRouteOperandBinding(
+        plan, "rhs", slice.rhsABI,
+        {"abi", "load-base", "reduction-accumulator-call"});
+    addRouteOperandBinding(
+        plan, "out", slice.outABI,
+        {"abi", "store-base", "reduction-result-store", "header"});
+    addRouteOperandBinding(plan, "n", slice.runtimeElementCountABI,
+                           {"abi", "setvl-avl", "loop-control", "header"});
+  } else if (slice.arithmeticKind == RVVSelectedBodyOperationKind::MaskedAdd) {
+    plan.planID = kRVVMaskedAddOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVGenericBinaryRuntimeABIOrder;
+    context = "masked_add route";
+    addRouteOperandBinding(
+        plan, "lhs", slice.lhsABI,
+        {"abi", "load-base", "compare-lhs-call", "masked-add-lhs-call",
+         "masked-merge-passthrough-call"});
+    addRouteOperandBinding(
+        plan, "rhs", slice.rhsABI,
+        {"abi", "load-base", "compare-rhs-call", "masked-add-rhs-call"});
+    addRouteOperandBinding(plan, "out", slice.outABI,
+                           {"abi", "store-base", "header"});
+    addRouteOperandBinding(plan, "n", slice.runtimeElementCountABI,
+                           {"abi", "setvl-avl", "loop-control", "header"});
+  } else if (slice.arithmeticKind == RVVSelectedBodyOperationKind::StridedAdd) {
+    plan.planID = kRVVStridedAddOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVStridedRuntimeABIOrder;
+    context = "strided_add route";
+    addRouteOperandBinding(
+        plan, "lhs", slice.lhsABI,
+        {"abi", "lhs-load-base", "binary-lhs-call"});
+    addRouteOperandBinding(
+        plan, "rhs", slice.rhsABI,
+        {"abi", "rhs-load-base", "binary-rhs-call"});
+    addRouteOperandBinding(plan, "out", slice.outABI,
+                           {"abi", "store-base", "header"});
+    addRouteOperandBinding(plan, "n", slice.runtimeElementCountABI,
+                           {"abi", "setvl-avl", "loop-control", "header"});
+    addRouteOperandBinding(
+        plan, "lhs_stride", slice.lhsStrideABI,
+        {"abi", "lhs-load-stride", "lhs-byte-addr", "header"});
+    addRouteOperandBinding(
+        plan, "rhs_stride", slice.rhsStrideABI,
+        {"abi", "rhs-load-stride", "rhs-byte-addr", "header"});
+    addRouteOperandBinding(
+        plan, "out_stride", slice.outStrideABI,
+        {"abi", "store-stride", "out-byte-addr", "header"});
+  } else if (slice.arithmeticKind == RVVSelectedBodyOperationKind::MAccAdd) {
     plan.planID = kRVVMAccOperandBindingPlanID.str();
     expectedRuntimeABIOrder = kRVVMAccRuntimeABIOrder;
     context = "macc_add route";
@@ -8542,7 +8721,29 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           expectedRuntimeABIOrder))
     return error;
   llvm::StringRef expectedOperandBindingPlanID;
-  if (operationProfile.operation == RVVSelectedBodyOperationKind::MAccAdd)
+  if (operationProfile.operation == RVVSelectedBodyOperationKind::Add)
+    expectedOperandBindingPlanID = kRVVAddOperandBindingPlanID;
+  else if (operationProfile.operation == RVVSelectedBodyOperationKind::Sub)
+    expectedOperandBindingPlanID = kRVVSubOperandBindingPlanID;
+  else if (operationProfile.operation == RVVSelectedBodyOperationKind::Mul)
+    expectedOperandBindingPlanID = kRVVMulOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::CmpSelect)
+    expectedOperandBindingPlanID = kRVVCmpSelectOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::ComputedMaskSelect)
+    expectedOperandBindingPlanID =
+        kRVVComputedMaskSelectOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::ReduceAdd)
+    expectedOperandBindingPlanID = kRVVReduceAddOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::MaskedAdd)
+    expectedOperandBindingPlanID = kRVVMaskedAddOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::StridedAdd)
+    expectedOperandBindingPlanID = kRVVStridedAddOperandBindingPlanID;
+  else if (operationProfile.operation == RVVSelectedBodyOperationKind::MAccAdd)
     expectedOperandBindingPlanID = kRVVMAccOperandBindingPlanID;
   else if (operationProfile.operation ==
            RVVSelectedBodyOperationKind::StridedLoadUnitStore)

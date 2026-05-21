@@ -1856,6 +1856,155 @@ int runRouteOperandBindingPlanValidationTest() {
            "destination-byte-stride"}))
     return result;
 
+  RVVRouteOperandBindingPlan addPlan;
+  addPlan.planID = "rvv-route-operand-binding:add.v1";
+  addBinding(addPlan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi", "load-base", "binary-lhs-call"});
+  addBinding(addPlan, "rhs",
+             makeTargetExportABIParameter(
+                 "rhs", "const int32_t *",
+                 RuntimeABIParameterRole::RHSInputBuffer),
+             {"abi", "load-base", "binary-rhs-call"});
+  addBinding(addPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"abi", "store-base", "header"});
+  addBinding(addPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi", "setvl-avl", "loop-control", "header"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              addPlan, "rvv-route-operand-binding:add.v1", "lhs,rhs,out,n",
+              "valid add route operand binding plan"),
+          "valid add route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedAddLHSRHS = addPlan;
+  swappedAddLHSRHS.bindings[0].parameter.role =
+      RuntimeABIParameterRole::RHSInputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedAddLHSRHS, "rvv-route-operand-binding:add.v1",
+              "lhs,rhs,out,n", "route operand binding unit test"),
+          {"logical operand 'lhs'", "lhs-input-buffer", "rhs-input-buffer"}))
+    return result;
+
+  RVVRouteOperandBindingPlan computedMaskSelectPlan;
+  computedMaskSelectPlan.planID =
+      "rvv-route-operand-binding:computed_mask_select.v1";
+  addBinding(computedMaskSelectPlan, "cmp_lhs",
+             makeTargetExportABIParameter(
+                 "cmp_lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi", "cmp-lhs-load", "compare-lhs-call"});
+  addBinding(computedMaskSelectPlan, "cmp_rhs",
+             makeTargetExportABIParameter(
+                 "cmp_rhs", "const int32_t *",
+                 RuntimeABIParameterRole::RHSInputBuffer),
+             {"abi", "cmp-rhs-load", "compare-rhs-call"});
+  addBinding(computedMaskSelectPlan, "true_value",
+             makeTargetExportABIParameter(
+                 "true_value", "const int32_t *",
+                 RuntimeABIParameterRole::TrueValueInputBuffer),
+             {"abi", "true-load", "select-true-call"});
+  addBinding(computedMaskSelectPlan, "false_value",
+             makeTargetExportABIParameter(
+                 "false_value", "const int32_t *",
+                 RuntimeABIParameterRole::FalseValueInputBuffer),
+             {"abi", "false-load", "select-false-call"});
+  addBinding(computedMaskSelectPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"abi", "store-base", "header"});
+  addBinding(computedMaskSelectPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi", "setvl-avl", "loop-control", "header"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              computedMaskSelectPlan,
+              "rvv-route-operand-binding:computed_mask_select.v1",
+              "cmp_lhs,cmp_rhs,true_value,false_value,out,n",
+              "valid computed-mask select route operand binding plan"),
+          "valid computed-mask select route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedTrueFalse = computedMaskSelectPlan;
+  swappedTrueFalse.bindings[2].parameter.role =
+      RuntimeABIParameterRole::FalseValueInputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedTrueFalse,
+              "rvv-route-operand-binding:computed_mask_select.v1",
+              "cmp_lhs,cmp_rhs,true_value,false_value,out,n",
+              "route operand binding unit test"),
+          {"logical operand 'true_value'", "true-value-input-buffer",
+           "false-value-input-buffer"}))
+    return result;
+
+  RVVRouteOperandBindingPlan stridedAddPlan;
+  stridedAddPlan.planID = "rvv-route-operand-binding:strided_add.v1";
+  addBinding(stridedAddPlan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi", "lhs-load-base", "binary-lhs-call"});
+  addBinding(stridedAddPlan, "rhs",
+             makeTargetExportABIParameter(
+                 "rhs", "const int32_t *",
+                 RuntimeABIParameterRole::RHSInputBuffer),
+             {"abi", "rhs-load-base", "binary-rhs-call"});
+  addBinding(stridedAddPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"abi", "store-base", "header"});
+  addBinding(stridedAddPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi", "setvl-avl", "loop-control", "header"});
+  addBinding(stridedAddPlan, "lhs_stride",
+             makeTargetExportABIParameter(
+                 "lhs_stride", "size_t",
+                 RuntimeABIParameterRole::LHSInputStride),
+             {"abi", "lhs-load-stride", "lhs-byte-addr", "header"});
+  addBinding(stridedAddPlan, "rhs_stride",
+             makeTargetExportABIParameter(
+                 "rhs_stride", "size_t",
+                 RuntimeABIParameterRole::RHSInputStride),
+             {"abi", "rhs-load-stride", "rhs-byte-addr", "header"});
+  addBinding(stridedAddPlan, "out_stride",
+             makeTargetExportABIParameter(
+                 "out_stride", "size_t",
+                 RuntimeABIParameterRole::OutputStride),
+             {"abi", "store-stride", "out-byte-addr", "header"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              stridedAddPlan, "rvv-route-operand-binding:strided_add.v1",
+              "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride",
+              "valid strided add route operand binding plan"),
+          "valid strided add route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedStridedRHSAndOutStride = stridedAddPlan;
+  swappedStridedRHSAndOutStride.bindings[5].parameter.role =
+      RuntimeABIParameterRole::OutputStride;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedStridedRHSAndOutStride,
+              "rvv-route-operand-binding:strided_add.v1",
+              "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride",
+              "route operand binding unit test"),
+          {"logical operand 'rhs_stride'", "rhs-input-stride",
+           "output-stride"}))
+    return result;
+
   return 0;
 }
 

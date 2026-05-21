@@ -300,12 +300,18 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const support::RuntimeABIParameter *boundAccumulatorABI =
       &slice->accumulatorABI;
   const support::RuntimeABIParameter *boundSourceABI = &slice->sourceABI;
+  const support::RuntimeABIParameter *boundTrueValueABI =
+      &slice->trueValueABI;
+  const support::RuntimeABIParameter *boundFalseValueABI =
+      &slice->falseValueABI;
   const support::RuntimeABIParameter *boundMaskABI = &slice->maskABI;
   const support::RuntimeABIParameter *boundOutABI = &slice->outABI;
   const support::RuntimeABIParameter *boundRuntimeElementCountABI =
       &slice->runtimeElementCountABI;
   const support::RuntimeABIParameter *boundLHSStrideABI =
       &slice->lhsStrideABI;
+  const support::RuntimeABIParameter *boundRHSStrideABI =
+      &slice->rhsStrideABI;
   const support::RuntimeABIParameter *boundOutStrideABI =
       &slice->outStrideABI;
   const RVVRouteOperandBindingPlan &bindingPlan =
@@ -318,7 +324,193 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       return boundN.takeError();
     boundRuntimeElementCountABI = *boundN;
 
-    if (description.operation == RVVSelectedBodyOperationKind::MAccAdd) {
+    auto bindOperand =
+        [&](const support::RuntimeABIParameter *&target,
+            llvm::StringRef logicalOperand, llvm::StringRef materializedUse,
+            llvm::StringRef context) -> llvm::Error {
+      llvm::Expected<const support::RuntimeABIParameter *> parameter =
+          getRequiredBinding(bindingPlan, logicalOperand, materializedUse,
+                             context);
+      if (!parameter)
+        return parameter.takeError();
+      target = *parameter;
+      return llvm::Error::success();
+    };
+    auto requireOperandUse = [&](llvm::StringRef logicalOperand,
+                                 llvm::StringRef materializedUse,
+                                 llvm::StringRef context) -> llvm::Error {
+      llvm::Expected<const support::RuntimeABIParameter *> parameter =
+          getRequiredBinding(bindingPlan, logicalOperand, materializedUse,
+                             context);
+      if (!parameter)
+        return parameter.takeError();
+      return llvm::Error::success();
+    };
+
+    if (description.operation == RVVSelectedBodyOperationKind::Add ||
+        description.operation == RVVSelectedBodyOperationKind::Sub ||
+        description.operation == RVVSelectedBodyOperationKind::Mul) {
+      if (llvm::Error error = bindOperand(boundLHSABI, "lhs", "load-base",
+                                          "ordinary binary lhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "binary-lhs-call", "ordinary binary lhs compute operand"))
+        return error;
+      if (llvm::Error error = bindOperand(boundRHSABI, "rhs", "load-base",
+                                          "ordinary binary rhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "binary-rhs-call", "ordinary binary rhs compute operand"))
+        return error;
+      if (llvm::Error error = bindOperand(boundOutABI, "out", "store-base",
+                                          "ordinary binary output store"))
+        return error;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::CmpSelect) {
+      if (llvm::Error error = bindOperand(boundLHSABI, "lhs", "load-base",
+                                          "cmp_select lhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "compare-lhs-call", "cmp_select compare lhs operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "select-true-call", "cmp_select true-value operand"))
+        return error;
+      if (llvm::Error error = bindOperand(boundRHSABI, "rhs", "load-base",
+                                          "cmp_select rhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "compare-rhs-call", "cmp_select compare rhs operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "select-false-call", "cmp_select false-value operand"))
+        return error;
+      if (llvm::Error error = bindOperand(boundOutABI, "out", "store-base",
+                                          "cmp_select output store"))
+        return error;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::ComputedMaskSelect) {
+      if (llvm::Error error =
+              bindOperand(boundLHSABI, "cmp_lhs", "cmp-lhs-load",
+                          "computed_mask_select compare lhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "compare-lhs-call",
+              "computed_mask_select compare lhs operand"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundRHSABI, "cmp_rhs", "cmp-rhs-load",
+                          "computed_mask_select compare rhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_rhs", "compare-rhs-call",
+              "computed_mask_select compare rhs operand"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundTrueValueABI, "true_value", "true-load",
+                          "computed_mask_select true-value load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "true_value", "select-true-call",
+              "computed_mask_select selected true-value operand"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundFalseValueABI, "false_value", "false-load",
+                          "computed_mask_select false-value load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "false_value", "select-false-call",
+              "computed_mask_select selected false-value operand"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundOutABI, "out", "store-base",
+                          "computed_mask_select output store"))
+        return error;
+    } else if (description.operation == RVVSelectedBodyOperationKind::ReduceAdd) {
+      if (llvm::Error error = bindOperand(boundLHSABI, "lhs", "load-base",
+                                          "reduce_add input load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "reduction-input-call", "reduce_add input operand"))
+        return error;
+      if (llvm::Error error = bindOperand(boundRHSABI, "rhs", "load-base",
+                                          "reduce_add accumulator load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "reduction-accumulator-call",
+              "reduce_add accumulator operand"))
+        return error;
+      if (llvm::Error error = bindOperand(boundOutABI, "out", "store-base",
+                                          "reduce_add output store"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out", "reduction-result-store", "reduce_add result store"))
+        return error;
+    } else if (description.operation == RVVSelectedBodyOperationKind::MaskedAdd) {
+      if (llvm::Error error = bindOperand(boundLHSABI, "lhs", "load-base",
+                                          "masked_add lhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "compare-lhs-call", "masked_add compare lhs operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "masked-add-lhs-call", "masked_add active lhs operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "masked-merge-passthrough-call",
+              "masked_add inactive passthrough operand"))
+        return error;
+      if (llvm::Error error = bindOperand(boundRHSABI, "rhs", "load-base",
+                                          "masked_add rhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "compare-rhs-call", "masked_add compare rhs operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "masked-add-rhs-call", "masked_add active rhs operand"))
+        return error;
+      if (llvm::Error error = bindOperand(boundOutABI, "out", "store-base",
+                                          "masked_add output store"))
+        return error;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::StridedAdd) {
+      if (llvm::Error error = bindOperand(boundLHSABI, "lhs", "lhs-load-base",
+                                          "strided_add lhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "binary-lhs-call", "strided_add lhs compute operand"))
+        return error;
+      if (llvm::Error error = bindOperand(boundRHSABI, "rhs", "rhs-load-base",
+                                          "strided_add rhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "binary-rhs-call", "strided_add rhs compute operand"))
+        return error;
+      if (llvm::Error error = bindOperand(boundOutABI, "out", "store-base",
+                                          "strided_add output store"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundLHSStrideABI, "lhs_stride", "lhs-load-stride",
+                          "strided_add lhs stride operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs_stride", "lhs-byte-addr", "strided_add lhs byte address"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundRHSStrideABI, "rhs_stride", "rhs-load-stride",
+                          "strided_add rhs stride operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs_stride", "rhs-byte-addr", "strided_add rhs byte address"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundOutStrideABI, "out_stride", "store-stride",
+                          "strided_add output stride operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out_stride", "out-byte-addr", "strided_add output byte address"))
+        return error;
+    } else if (description.operation == RVVSelectedBodyOperationKind::MAccAdd) {
       llvm::Expected<const support::RuntimeABIParameter *> lhs =
           getRequiredBinding(bindingPlan, "lhs", "materialized-load-base",
                              "macc lhs load operand");
@@ -664,12 +856,12 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                 ? llvm::ArrayRef<TCRVEmitCCallOpaqueOperand>(
                       {TCRVEmitCCallOpaqueOperand{
                            (llvm::StringRef(slice->dotRHSABI.cName) + " + (" +
-                            inductionName + " * " + slice->rhsStrideABI.cName +
-                            ")")
+                            inductionName + " * " +
+                            boundRHSStrideABI->cName + ")")
                                .str(),
                            slice->dotRHSABI.cType},
                        TCRVEmitCCallOpaqueOperand{
-                           (llvm::StringRef(slice->rhsStrideABI.cName) + " * 2")
+                           (llvm::StringRef(boundRHSStrideABI->cName) + " * 2")
                                .str(),
                            "ptrdiff_t"},
                        TCRVEmitCCallOpaqueOperand{loopVLName.str(),
@@ -1082,11 +1274,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             stridedSourceLoadLeaf,
             {TCRVEmitCCallOpaqueOperand{
                  (llvm::StringRef(boundRHSABI->cName) + " + (" +
-                  inductionName + " * " + slice->rhsStrideABI.cName + ")")
+                  inductionName + " * " + boundRHSStrideABI->cName + ")")
                      .str(),
                  boundRHSABI->cType},
              TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->rhsStrideABI.cName) + " * 2").str(),
+                 (llvm::StringRef(boundRHSStrideABI->cName) + " * 2").str(),
                  "ptrdiff_t"},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"rhs_vec",
@@ -1136,11 +1328,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             description.stridedLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
                  (llvm::StringRef(boundRHSABI->cName) + " + (" +
-                  inductionName + " * " + slice->rhsStrideABI.cName + ")")
+                  inductionName + " * " + boundRHSStrideABI->cName + ")")
                      .str(),
                  boundRHSABI->cType},
              TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->rhsStrideABI.cName) + " * 4").str(),
+                 (llvm::StringRef(boundRHSStrideABI->cName) + " * 4").str(),
                  "ptrdiff_t"},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
@@ -1165,10 +1357,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->trueValueLoadOperation, "load",
             description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->trueValueABI.cName) + " + " +
+                 (llvm::StringRef(boundTrueValueABI->cName) + " + " +
                   inductionName)
                      .str(),
-                 slice->trueValueABI.cType},
+                 boundTrueValueABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"true_value_vec",
@@ -1178,10 +1370,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->falseValueLoadOperation, "load",
             description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->falseValueABI.cName) + " + " +
+                 (llvm::StringRef(boundFalseValueABI->cName) + " + " +
                   inductionName)
                      .str(),
-                 slice->falseValueABI.cType},
+                 boundFalseValueABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"false_value_vec",

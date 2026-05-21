@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage1/Stage2 RVV order, and source-of-truth boundaries for this operand binding migration."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, route provider, fail-closed legacy/i32 authority, and ssh rvv evidence requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract for RVV route materialization."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-route-operand-abi-binding/prd.md", "reason": "Original RouteOperandBindingPlan contract, converted route baseline, and validation pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-operand-binding-coverage-closure/prd.md", "reason": "Current HEAD binding coverage inventory and follow-up route cluster left intentionally unconverted."}

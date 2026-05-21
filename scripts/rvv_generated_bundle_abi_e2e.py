@@ -211,6 +211,68 @@ COMPUTED_MASK_STRIDED_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "n=runtime-element-count:n:abi-mirror|setvl-avl|loop-control|header-mirror;"
     "dst_stride_bytes=destination-byte-stride:dst_stride_bytes:abi-mirror|old-dst-stride|store-stride|byte-addr|header-mirror"
 )
+BINARY_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "{plan};"
+    "lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;"
+    "rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;"
+    "out=output-buffer:out:abi|store-base|header;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|header"
+)
+CMP_SELECT_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:cmp_select.v1"
+)
+CMP_SELECT_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:cmp_select.v1;"
+    "lhs=lhs-input-buffer:lhs:abi|load-base|compare-lhs-call|select-true-call;"
+    "rhs=rhs-input-buffer:rhs:abi|load-base|compare-rhs-call|select-false-call;"
+    "out=output-buffer:out:abi|store-base|header;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|header"
+)
+COMPUTED_MASK_SELECT_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:computed_mask_select.v1"
+)
+COMPUTED_MASK_SELECT_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:computed_mask_select.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|compare-lhs-call;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|compare-rhs-call;"
+    "true_value=true-value-input-buffer:true_value:abi|true-load|select-true-call;"
+    "false_value=false-value-input-buffer:false_value:abi|false-load|select-false-call;"
+    "out=output-buffer:out:abi|store-base|header;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|header"
+)
+MASKED_ADD_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:masked_add.v1"
+)
+MASKED_ADD_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:masked_add.v1;"
+    "lhs=lhs-input-buffer:lhs:abi|load-base|compare-lhs-call|masked-add-lhs-call|masked-merge-passthrough-call;"
+    "rhs=rhs-input-buffer:rhs:abi|load-base|compare-rhs-call|masked-add-rhs-call;"
+    "out=output-buffer:out:abi|store-base|header;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|header"
+)
+REDUCE_ADD_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:reduce_add.v1"
+)
+REDUCE_ADD_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:reduce_add.v1;"
+    "lhs=lhs-input-buffer:lhs:abi|load-base|reduction-input-call;"
+    "rhs=rhs-input-buffer:rhs:abi|load-base|reduction-accumulator-call;"
+    "out=output-buffer:out:abi|store-base|reduction-result-store|header;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|header"
+)
+STRIDED_ADD_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:strided_add.v1"
+)
+STRIDED_ADD_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:strided_add.v1;"
+    "lhs=lhs-input-buffer:lhs:abi|lhs-load-base|binary-lhs-call;"
+    "rhs=rhs-input-buffer:rhs:abi|rhs-load-base|binary-rhs-call;"
+    "out=output-buffer:out:abi|store-base|header;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|header;"
+    "lhs_stride=lhs-input-stride:lhs_stride:abi|lhs-load-stride|lhs-byte-addr|header;"
+    "rhs_stride=rhs-input-stride:rhs_stride:abi|rhs-load-stride|rhs-byte-addr|header;"
+    "out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|header"
+)
 SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,out,n"
 WIDENING_CONVERSION_RUNTIME_ABI_ORDER = "lhs,out,n"
 WIDENING_CONVERSION_RELATION = "signed-i32m1-to-i64m2"
@@ -2348,6 +2410,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.reduction_accumulator_layout": REDUCE_ADD_ACCUMULATOR_LAYOUT,
                 "tcrv_rvv.reduction_result_layout": REDUCE_ADD_RESULT_LAYOUT,
                 "tcrv_rvv.reduction_store_vl": REDUCE_ADD_STORE_VL,
+                "tcrv_rvv.route_operand_binding_plan": (
+                    REDUCE_ADD_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    REDUCE_ADD_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if expectation.is_standalone_reduce_add:
@@ -2389,6 +2457,16 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
+    if expectation.kind in {"add", "sub", "mul"}:
+        plan = f"rvv-route-operand-binding:{expectation.kind}.v1"
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.route_operand_binding_plan": plan,
+                "tcrv_rvv.route_operand_binding_operands": (
+                    BINARY_ROUTE_OPERAND_BINDING_OPERANDS.format(plan=plan)
+                ),
+            }
+        )
     if expectation.is_scalar_broadcast_add or expectation.is_standalone_reduce_add:
         per_op_metadata["tcrv_rvv.runtime_control_plan"] = (
             RUNTIME_AVL_VL_CONTROL_PLAN
@@ -2400,6 +2478,23 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.mask_source": MASKED_ADD_MASK_SOURCE,
                 "tcrv_rvv.inactive_lane_contract": MASKED_ADD_INACTIVE_LANE_CONTRACT,
                 "tcrv_rvv.masked_passthrough_layout": MASKED_ADD_PASSTHROUGH_LAYOUT,
+                "tcrv_rvv.route_operand_binding_plan": (
+                    MASKED_ADD_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    MASKED_ADD_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+            }
+        )
+    if expectation.is_cmp_select:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.route_operand_binding_plan": (
+                    CMP_SELECT_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    CMP_SELECT_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if expectation.is_macc_add:
@@ -2422,6 +2517,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.lhs_stride_source": STRIDED_ADD_LHS_STRIDE_SOURCE,
                 "tcrv_rvv.rhs_stride_source": STRIDED_ADD_RHS_STRIDE_SOURCE,
                 "tcrv_rvv.out_stride_source": STRIDED_ADD_OUT_STRIDE_SOURCE,
+                "tcrv_rvv.route_operand_binding_plan": (
+                    STRIDED_ADD_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    STRIDED_ADD_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if expectation.is_strided_load_unit_store:
@@ -2578,6 +2679,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     COMPUTED_MASK_SELECT_DESTINATION_MEMORY_FORM
                 ),
                 "tcrv_rvv.select_layout": COMPUTED_MASK_SELECT_LAYOUT,
+                "tcrv_rvv.route_operand_binding_plan": (
+                    COMPUTED_MASK_SELECT_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    COMPUTED_MASK_SELECT_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if expectation.is_computed_masked_strided_store:
