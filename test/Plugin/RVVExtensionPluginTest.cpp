@@ -1699,6 +1699,264 @@ int runRouteOperandBindingPlanValidationTest() {
                                         "res-i32m1"}))
     return result;
 
+  RVVRouteOperandBindingPlan wideningDotPlan;
+  wideningDotPlan.planID =
+      "rvv-route-operand-binding:widening_dot_reduce.v1";
+  addBinding(wideningDotPlan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int16_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi", "ld", "dot-lhs", "i16"});
+  addBinding(wideningDotPlan, "rhs",
+             makeTargetExportABIParameter(
+                 "rhs", "const int16_t *",
+                 RuntimeABIParameterRole::RHSInputBuffer),
+             {"abi", "ld", "dot-rhs", "i16"});
+  addBinding(wideningDotPlan, "acc",
+             makeTargetExportABIParameter(
+                 "acc", "const int32_t *",
+                 RuntimeABIParameterRole::AccumulatorInputBuffer),
+             {"abi", "seed", "red", "i32"});
+  addBinding(wideningDotPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"abi", "store", "i32"});
+  addBinding(wideningDotPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi", "setvl-avl", "loop"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              wideningDotPlan,
+              "rvv-route-operand-binding:widening_dot_reduce.v1",
+              "lhs,rhs,acc,out,n", "valid widening dot binding plan"),
+          "valid widening dot route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedDotAccumulator = wideningDotPlan;
+  swappedDotAccumulator.bindings[2].parameter.role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedDotAccumulator,
+              "rvv-route-operand-binding:widening_dot_reduce.v1",
+              "lhs,rhs,acc,out,n", "route operand binding unit test"),
+          {"logical operand 'acc'", "accumulator-input-buffer",
+           "output-buffer"}))
+    return result;
+
+  llvm::Expected<const tianchenrv::support::RuntimeABIParameter *>
+      wrongDotWidthUse = tianchenrv::plugin::rvv::
+          getRVVRouteOperandBindingParameter(
+              wideningDotPlan, "lhs", "i32",
+              "route operand binding unit test");
+  if (int result =
+          expectErrorContains(wrongDotWidthUse.takeError(),
+                              {"materialized use", "i32"}))
+    return result;
+
+  RVVRouteOperandBindingPlan stridedWideningDotPlan;
+  stridedWideningDotPlan.planID =
+      "rvv-route-operand-binding:strided_widening_dot_reduce.v1";
+  addBinding(stridedWideningDotPlan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int16_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi", "sld", "dot-lhs", "i16"});
+  addBinding(stridedWideningDotPlan, "rhs",
+             makeTargetExportABIParameter(
+                 "rhs", "const int16_t *",
+                 RuntimeABIParameterRole::RHSInputBuffer),
+             {"abi", "sld", "dot-rhs", "i16"});
+  addBinding(stridedWideningDotPlan, "acc",
+             makeTargetExportABIParameter(
+                 "acc", "const int32_t *",
+                 RuntimeABIParameterRole::AccumulatorInputBuffer),
+             {"abi", "seed", "red", "i32"});
+  addBinding(stridedWideningDotPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"abi", "store", "i32"});
+  addBinding(stridedWideningDotPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi", "setvl-avl", "loop"});
+  addBinding(stridedWideningDotPlan, "lhs_stride",
+             makeTargetExportABIParameter(
+                 "lhs_stride", "size_t",
+                 RuntimeABIParameterRole::LHSInputStride),
+             {"abi", "str", "addr"});
+  addBinding(stridedWideningDotPlan, "rhs_stride",
+             makeTargetExportABIParameter(
+                 "rhs_stride", "size_t",
+                 RuntimeABIParameterRole::RHSInputStride),
+             {"abi", "str", "addr"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              stridedWideningDotPlan,
+              "rvv-route-operand-binding:strided_widening_dot_reduce.v1",
+              "lhs,rhs,acc,out,n,lhs_stride,rhs_stride",
+              "valid strided widening dot binding plan"),
+          "valid strided widening dot route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedDotStride = stridedWideningDotPlan;
+  swappedDotStride.bindings[6].parameter.role =
+      RuntimeABIParameterRole::LHSInputStride;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedDotStride,
+              "rvv-route-operand-binding:strided_widening_dot_reduce.v1",
+              "lhs,rhs,acc,out,n,lhs_stride,rhs_stride",
+              "route operand binding unit test"),
+          {"logical operand 'rhs_stride'", "rhs-input-stride",
+           "lhs-input-stride"}))
+    return result;
+
+  RVVRouteOperandBindingPlan maskedWideningDotPlan;
+  maskedWideningDotPlan.planID =
+      "rvv-route-operand-binding:masked_widening_dot_reduce.v1";
+  addBinding(maskedWideningDotPlan, "cmp_lhs",
+             makeTargetExportABIParameter(
+                 "cmp_lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi", "cmp", "mask"});
+  addBinding(maskedWideningDotPlan, "cmp_rhs",
+             makeTargetExportABIParameter(
+                 "cmp_rhs", "const int32_t *",
+                 RuntimeABIParameterRole::RHSInputBuffer),
+             {"abi", "cmp", "mask"});
+  addBinding(maskedWideningDotPlan, "dot_lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int16_t *",
+                 RuntimeABIParameterRole::DotLHSInputBuffer),
+             {"abi", "ld", "mlhs", "i16"});
+  addBinding(maskedWideningDotPlan, "dot_rhs",
+             makeTargetExportABIParameter(
+                 "rhs", "const int16_t *",
+                 RuntimeABIParameterRole::DotRHSInputBuffer),
+             {"abi", "ld", "mrhs", "i16"});
+  addBinding(maskedWideningDotPlan, "acc",
+             makeTargetExportABIParameter(
+                 "acc", "const int32_t *",
+                 RuntimeABIParameterRole::AccumulatorInputBuffer),
+             {"abi", "seed", "red", "i32"});
+  addBinding(maskedWideningDotPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"abi", "store", "i32"});
+  addBinding(maskedWideningDotPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi", "setvl-avl", "loop"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              maskedWideningDotPlan,
+              "rvv-route-operand-binding:masked_widening_dot_reduce.v1",
+              "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n",
+              "valid computed-mask widening dot binding plan"),
+          "valid computed-mask widening dot route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedMaskedDotLHS = maskedWideningDotPlan;
+  swappedMaskedDotLHS.bindings[2].parameter.role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedMaskedDotLHS,
+              "rvv-route-operand-binding:masked_widening_dot_reduce.v1",
+              "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n",
+              "route operand binding unit test"),
+          {"logical operand 'dot_lhs'", "dot-lhs-input-buffer",
+           "lhs-input-buffer"}))
+    return result;
+
+  llvm::Expected<const tianchenrv::support::RuntimeABIParameter *>
+      maskedMirrorMismatch = tianchenrv::plugin::rvv::
+          getRVVRouteOperandBindingParameter(
+              maskedWideningDotPlan, "cmp_lhs", "mlhs",
+              "route operand binding unit test");
+  if (int result =
+          expectErrorContains(maskedMirrorMismatch.takeError(),
+                              {"materialized use", "mlhs"}))
+    return result;
+
+  RVVRouteOperandBindingPlan maskedStridedWideningDotPlan;
+  maskedStridedWideningDotPlan.planID =
+      "rvv-route-operand-binding:masked_strided_wdot.v1";
+  addBinding(maskedStridedWideningDotPlan, "cmp_lhs",
+             makeTargetExportABIParameter(
+                 "cmp_lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi", "cmp", "mask"});
+  addBinding(maskedStridedWideningDotPlan, "cmp_rhs",
+             makeTargetExportABIParameter(
+                 "cmp_rhs", "const int32_t *",
+                 RuntimeABIParameterRole::RHSInputBuffer),
+             {"abi", "cmp", "mask"});
+  addBinding(maskedStridedWideningDotPlan, "dot_lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int16_t *",
+                 RuntimeABIParameterRole::DotLHSInputBuffer),
+             {"abi", "sld", "mlhs", "i16"});
+  addBinding(maskedStridedWideningDotPlan, "dot_rhs",
+             makeTargetExportABIParameter(
+                 "rhs", "const int16_t *",
+                 RuntimeABIParameterRole::DotRHSInputBuffer),
+             {"abi", "sld", "mrhs", "i16"});
+  addBinding(maskedStridedWideningDotPlan, "acc",
+             makeTargetExportABIParameter(
+                 "acc", "const int32_t *",
+                 RuntimeABIParameterRole::AccumulatorInputBuffer),
+             {"abi", "seed", "red", "i32"});
+  addBinding(maskedStridedWideningDotPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"abi", "store", "i32"});
+  addBinding(maskedStridedWideningDotPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi", "setvl-avl", "loop"});
+  addBinding(maskedStridedWideningDotPlan, "lhs_stride",
+             makeTargetExportABIParameter(
+                 "lhs_stride", "size_t",
+                 RuntimeABIParameterRole::LHSInputStride),
+             {"abi", "str", "addr"});
+  addBinding(maskedStridedWideningDotPlan, "rhs_stride",
+             makeTargetExportABIParameter(
+                 "rhs_stride", "size_t",
+                 RuntimeABIParameterRole::RHSInputStride),
+             {"abi", "str", "addr"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              maskedStridedWideningDotPlan,
+              "rvv-route-operand-binding:"
+              "masked_strided_wdot.v1",
+              "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride",
+              "valid computed-mask strided widening dot binding plan"),
+          "valid computed-mask strided widening dot route operand binding "
+          "plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedMaskedStridedDotStride =
+      maskedStridedWideningDotPlan;
+  swappedMaskedStridedDotStride.bindings[8].parameter.role =
+      RuntimeABIParameterRole::LHSInputStride;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedMaskedStridedDotStride,
+              "rvv-route-operand-binding:"
+              "masked_strided_wdot.v1",
+              "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride",
+              "route operand binding unit test"),
+          {"logical operand 'rhs_stride'", "rhs-input-stride",
+           "lhs-input-stride"}))
+    return result;
+
   llvm::Expected<const tianchenrv::support::RuntimeABIParameter *> missingUse =
       tianchenrv::plugin::rvv::getRVVRouteOperandBindingParameter(
           plan, "acc", "materialized-store-base",

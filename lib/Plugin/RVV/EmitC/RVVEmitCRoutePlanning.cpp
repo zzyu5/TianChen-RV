@@ -32,6 +32,17 @@ constexpr llvm::StringLiteral kRVVMAccOperandBindingPlanID(
     "rvv-route-operand-binding:macc_add.v1");
 constexpr llvm::StringLiteral kRVVWideningMAccOperandBindingPlanID(
     "rvv-route-operand-binding:widening_macc_add.v1");
+constexpr llvm::StringLiteral kRVVWideningDotReduceOperandBindingPlanID(
+    "rvv-route-operand-binding:widening_dot_reduce.v1");
+constexpr llvm::StringLiteral
+    kRVVStridedInputWideningDotReduceOperandBindingPlanID(
+        "rvv-route-operand-binding:strided_widening_dot_reduce.v1");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskWideningDotReduceOperandBindingPlanID(
+        "rvv-route-operand-binding:masked_widening_dot_reduce.v1");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskStridedInputWideningDotReduceOperandBindingPlanID(
+        "rvv-route-operand-binding:masked_strided_wdot.v1");
 constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreOperandBindingPlanID(
     "rvv-route-operand-binding:strided_load_unit_store.v1");
 constexpr llvm::StringLiteral kRVVUnitLoadStridedStoreOperandBindingPlanID(
@@ -115,6 +126,71 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
       return RuntimeABIParameterRole::OutputBuffer;
     if (logicalOperand == "n")
       return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVWideningDotReduceOperandBindingPlanID) {
+    if (logicalOperand == "lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "rhs")
+      return RuntimeABIParameterRole::RHSInputBuffer;
+    if (logicalOperand == "acc")
+      return RuntimeABIParameterRole::AccumulatorInputBuffer;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVStridedInputWideningDotReduceOperandBindingPlanID) {
+    if (logicalOperand == "lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "rhs")
+      return RuntimeABIParameterRole::RHSInputBuffer;
+    if (logicalOperand == "acc")
+      return RuntimeABIParameterRole::AccumulatorInputBuffer;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+    if (logicalOperand == "lhs_stride")
+      return RuntimeABIParameterRole::LHSInputStride;
+    if (logicalOperand == "rhs_stride")
+      return RuntimeABIParameterRole::RHSInputStride;
+  }
+  if (planID == kRVVComputedMaskWideningDotReduceOperandBindingPlanID) {
+    if (logicalOperand == "cmp_lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "cmp_rhs")
+      return RuntimeABIParameterRole::RHSInputBuffer;
+    if (logicalOperand == "dot_lhs")
+      return RuntimeABIParameterRole::DotLHSInputBuffer;
+    if (logicalOperand == "dot_rhs")
+      return RuntimeABIParameterRole::DotRHSInputBuffer;
+    if (logicalOperand == "acc")
+      return RuntimeABIParameterRole::AccumulatorInputBuffer;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID ==
+      kRVVComputedMaskStridedInputWideningDotReduceOperandBindingPlanID) {
+    if (logicalOperand == "cmp_lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "cmp_rhs")
+      return RuntimeABIParameterRole::RHSInputBuffer;
+    if (logicalOperand == "dot_lhs")
+      return RuntimeABIParameterRole::DotLHSInputBuffer;
+    if (logicalOperand == "dot_rhs")
+      return RuntimeABIParameterRole::DotRHSInputBuffer;
+    if (logicalOperand == "acc")
+      return RuntimeABIParameterRole::AccumulatorInputBuffer;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+    if (logicalOperand == "lhs_stride")
+      return RuntimeABIParameterRole::LHSInputStride;
+    if (logicalOperand == "rhs_stride")
+      return RuntimeABIParameterRole::RHSInputStride;
   }
   if (planID == kRVVStridedLoadUnitStoreOperandBindingPlanID) {
     if (logicalOperand == "src")
@@ -4363,6 +4439,119 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     addRouteOperandBinding(
         plan, "n", slice.runtimeElementCountABI,
         {"abi", "setvl-avl", "loop", "hdr"});
+  } else if (slice.arithmeticKind ==
+             RVVSelectedBodyOperationKind::WideningDotReduceAdd) {
+    plan.planID = kRVVWideningDotReduceOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVWideningDotProductRuntimeABIOrder;
+    context = "widening_dot_reduce_add route";
+    addRouteOperandBinding(
+        plan, "lhs", slice.lhsABI,
+        {"abi", "ld", "dot-lhs", "i16", "hdr"});
+    addRouteOperandBinding(
+        plan, "rhs", slice.rhsABI,
+        {"abi", "ld", "dot-rhs", "i16", "hdr"});
+    addRouteOperandBinding(
+        plan, "acc", slice.accumulatorABI,
+        {"abi", "seed", "red", "i32", "hdr"});
+    addRouteOperandBinding(
+        plan, "out", slice.outABI,
+        {"abi", "store", "i32", "hdr"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"abi", "setvl-avl", "loop", "hdr"});
+  } else if (slice.arithmeticKind ==
+             RVVSelectedBodyOperationKind::
+                 StridedInputWideningDotReduceAdd) {
+    plan.planID =
+        kRVVStridedInputWideningDotReduceOperandBindingPlanID.str();
+    expectedRuntimeABIOrder =
+        kRVVStridedInputWideningDotProductRuntimeABIOrder;
+    context = "strided_input_widening_dot_reduce_add route";
+    addRouteOperandBinding(
+        plan, "lhs", slice.lhsABI,
+        {"abi", "sld", "dot-lhs", "i16", "hdr"});
+    addRouteOperandBinding(
+        plan, "rhs", slice.rhsABI,
+        {"abi", "sld", "dot-rhs", "i16", "hdr"});
+    addRouteOperandBinding(
+        plan, "acc", slice.accumulatorABI,
+        {"abi", "seed", "red", "i32", "hdr"});
+    addRouteOperandBinding(
+        plan, "out", slice.outABI,
+        {"abi", "store", "i32", "hdr"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"abi", "setvl-avl", "loop", "hdr"});
+    addRouteOperandBinding(
+        plan, "lhs_stride", slice.lhsStrideABI,
+        {"abi", "str", "addr", "hdr"});
+    addRouteOperandBinding(
+        plan, "rhs_stride", slice.rhsStrideABI,
+        {"abi", "str", "addr", "hdr"});
+  } else if (slice.arithmeticKind ==
+             RVVSelectedBodyOperationKind::
+                 ComputedMaskWideningDotReduceAdd) {
+    plan.planID = kRVVComputedMaskWideningDotReduceOperandBindingPlanID.str();
+    expectedRuntimeABIOrder =
+        kRVVComputedMaskWideningDotProductRuntimeABIOrder;
+    context = "computed_masked_widening_dot_reduce_add route";
+    addRouteOperandBinding(
+        plan, "cmp_lhs", slice.lhsABI,
+        {"abi", "cmp", "mask", "hdr"});
+    addRouteOperandBinding(
+        plan, "cmp_rhs", slice.rhsABI,
+        {"abi", "cmp", "mask", "hdr"});
+    addRouteOperandBinding(
+        plan, "dot_lhs", slice.dotLHSABI,
+        {"abi", "ld", "mlhs", "i16", "hdr"});
+    addRouteOperandBinding(
+        plan, "dot_rhs", slice.dotRHSABI,
+        {"abi", "ld", "mrhs", "i16", "hdr"});
+    addRouteOperandBinding(
+        plan, "acc", slice.accumulatorABI,
+        {"abi", "seed", "red", "i32", "hdr"});
+    addRouteOperandBinding(
+        plan, "out", slice.outABI,
+        {"abi", "store", "i32", "hdr"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"abi", "setvl-avl", "loop", "hdr"});
+  } else if (slice.arithmeticKind ==
+             RVVSelectedBodyOperationKind::
+                 ComputedMaskStridedInputWideningDotReduceAdd) {
+    plan.planID =
+        kRVVComputedMaskStridedInputWideningDotReduceOperandBindingPlanID
+            .str();
+    expectedRuntimeABIOrder =
+        kRVVComputedMaskStridedInputWideningDotProductRuntimeABIOrder;
+    context = "computed_masked_strided_input_widening_dot_reduce_add route";
+    addRouteOperandBinding(
+        plan, "cmp_lhs", slice.lhsABI,
+        {"abi", "cmp", "mask"});
+    addRouteOperandBinding(
+        plan, "cmp_rhs", slice.rhsABI,
+        {"abi", "cmp", "mask"});
+    addRouteOperandBinding(
+        plan, "dot_lhs", slice.dotLHSABI,
+        {"abi", "sld", "mlhs", "i16"});
+    addRouteOperandBinding(
+        plan, "dot_rhs", slice.dotRHSABI,
+        {"abi", "sld", "mrhs", "i16"});
+    addRouteOperandBinding(
+        plan, "acc", slice.accumulatorABI,
+        {"abi", "seed", "red", "i32", "hdr"});
+    addRouteOperandBinding(
+        plan, "out", slice.outABI,
+        {"abi", "store", "i32", "hdr"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"abi", "setvl-avl", "loop", "hdr"});
+    addRouteOperandBinding(
+        plan, "lhs_stride", slice.lhsStrideABI,
+        {"abi", "str", "addr"});
+    addRouteOperandBinding(
+        plan, "rhs_stride", slice.rhsStrideABI,
+        {"abi", "str", "addr"});
   } else if (slice.memoryForm ==
              RVVSelectedBodyMemoryForm::StridedLoadUnitStore) {
     plan.planID = kRVVStridedLoadUnitStoreOperandBindingPlanID.str();
@@ -8908,6 +9097,23 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   else if (operationProfile.operation ==
            RVVSelectedBodyOperationKind::WideningMAccAdd)
     expectedOperandBindingPlanID = kRVVWideningMAccOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::WideningDotReduceAdd)
+    expectedOperandBindingPlanID = kRVVWideningDotReduceOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::
+               StridedInputWideningDotReduceAdd)
+    expectedOperandBindingPlanID =
+        kRVVStridedInputWideningDotReduceOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd)
+    expectedOperandBindingPlanID =
+        kRVVComputedMaskWideningDotReduceOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::
+               ComputedMaskStridedInputWideningDotReduceAdd)
+    expectedOperandBindingPlanID =
+        kRVVComputedMaskStridedInputWideningDotReduceOperandBindingPlanID;
   else if (operationProfile.operation ==
            RVVSelectedBodyOperationKind::StridedLoadUnitStore)
     expectedOperandBindingPlanID =

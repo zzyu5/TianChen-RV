@@ -299,6 +299,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const support::RuntimeABIParameter *boundRHSABI = &slice->rhsABI;
   const support::RuntimeABIParameter *boundAccumulatorABI =
       &slice->accumulatorABI;
+  const support::RuntimeABIParameter *boundDotLHSABI = &slice->dotLHSABI;
+  const support::RuntimeABIParameter *boundDotRHSABI = &slice->dotRHSABI;
   const support::RuntimeABIParameter *boundSourceABI = &slice->sourceABI;
   const support::RuntimeABIParameter *boundTrueValueABI =
       &slice->trueValueABI;
@@ -590,6 +592,297 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
         return error;
       if (llvm::Error error = requireOperandUse(
               "n", "hdr", "widening_macc runtime header mirror"))
+        return error;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::WideningDotReduceAdd) {
+      if (llvm::Error error =
+              bindOperand(boundLHSABI, "lhs", "ld",
+                          "widening_dot_reduce lhs i16 source load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "dot-lhs",
+              "widening_dot_reduce lhs dot-product operand"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("lhs", "i16",
+                                "widening_dot_reduce lhs source width mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundRHSABI, "rhs", "ld",
+                          "widening_dot_reduce rhs i16 source load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "dot-rhs",
+              "widening_dot_reduce rhs dot-product operand"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("rhs", "i16",
+                                "widening_dot_reduce rhs source width mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundAccumulatorABI, "acc", "seed",
+                          "widening_dot_reduce scalar seed operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "red",
+              "widening_dot_reduce reduction accumulator operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "i32",
+              "widening_dot_reduce accumulator/result width mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundOutABI, "out", "store",
+                          "widening_dot_reduce scalar output store operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out", "i32", "widening_dot_reduce result width mirror"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "n", "loop", "widening_dot_reduce runtime loop control"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "n", "hdr", "widening_dot_reduce runtime header mirror"))
+        return error;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::
+                   StridedInputWideningDotReduceAdd) {
+      if (llvm::Error error = bindOperand(
+              boundLHSABI, "lhs", "sld",
+              "strided_input_widening_dot_reduce lhs strided source load"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "dot-lhs",
+              "strided_input_widening_dot_reduce lhs dot-product operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "i16",
+              "strided_input_widening_dot_reduce lhs source width mirror"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundRHSABI, "rhs", "sld",
+              "strided_input_widening_dot_reduce rhs strided source load"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "dot-rhs",
+              "strided_input_widening_dot_reduce rhs dot-product operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "i16",
+              "strided_input_widening_dot_reduce rhs source width mirror"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundAccumulatorABI, "acc", "seed",
+              "strided_input_widening_dot_reduce scalar seed operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "red",
+              "strided_input_widening_dot_reduce reduction accumulator operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "i32",
+              "strided_input_widening_dot_reduce accumulator/result width "
+              "mirror"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundOutABI, "out", "store",
+              "strided_input_widening_dot_reduce scalar output store operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out", "i32",
+              "strided_input_widening_dot_reduce result width mirror"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundLHSStrideABI, "lhs_stride", "str",
+              "strided_input_widening_dot_reduce lhs stride operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs_stride", "addr",
+              "strided_input_widening_dot_reduce lhs address operand"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundRHSStrideABI, "rhs_stride", "str",
+              "strided_input_widening_dot_reduce rhs stride operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs_stride", "addr",
+              "strided_input_widening_dot_reduce rhs address operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "n", "loop",
+              "strided_input_widening_dot_reduce runtime loop control"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "n", "hdr",
+              "strided_input_widening_dot_reduce runtime header mirror"))
+        return error;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::
+                   ComputedMaskWideningDotReduceAdd) {
+      if (llvm::Error error =
+              bindOperand(boundLHSABI, "cmp_lhs", "cmp",
+                          "computed_masked_widening_dot_reduce compare lhs"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("cmp_lhs", "mask",
+                                "computed_masked_widening_dot_reduce mask lhs"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundRHSABI, "cmp_rhs", "cmp",
+                          "computed_masked_widening_dot_reduce compare rhs"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("cmp_rhs", "mask",
+                                "computed_masked_widening_dot_reduce mask rhs"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundDotLHSABI, "dot_lhs", "ld",
+              "computed_masked_widening_dot_reduce dot lhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "dot_lhs", "mlhs",
+              "computed_masked_widening_dot_reduce masked dot lhs operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "dot_lhs", "i16",
+              "computed_masked_widening_dot_reduce dot lhs width mirror"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundDotRHSABI, "dot_rhs", "ld",
+              "computed_masked_widening_dot_reduce dot rhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "dot_rhs", "mrhs",
+              "computed_masked_widening_dot_reduce masked dot rhs operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "dot_rhs", "i16",
+              "computed_masked_widening_dot_reduce dot rhs width mirror"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundAccumulatorABI, "acc", "seed",
+              "computed_masked_widening_dot_reduce scalar seed operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "red",
+              "computed_masked_widening_dot_reduce reduction accumulator"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "i32",
+              "computed_masked_widening_dot_reduce accumulator/result width"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundOutABI, "out", "store",
+              "computed_masked_widening_dot_reduce scalar output store"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out", "i32",
+              "computed_masked_widening_dot_reduce result width mirror"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "n", "loop",
+              "computed_masked_widening_dot_reduce runtime loop control"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "n", "hdr",
+              "computed_masked_widening_dot_reduce runtime header mirror"))
+        return error;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::
+                   ComputedMaskStridedInputWideningDotReduceAdd) {
+      if (llvm::Error error = bindOperand(
+              boundLHSABI, "cmp_lhs", "cmp",
+              "computed_masked_strided_input_widening_dot_reduce compare lhs"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "mask",
+              "computed_masked_strided_input_widening_dot_reduce mask lhs"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundRHSABI, "cmp_rhs", "cmp",
+              "computed_masked_strided_input_widening_dot_reduce compare rhs"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_rhs", "mask",
+              "computed_masked_strided_input_widening_dot_reduce mask rhs"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundDotLHSABI, "dot_lhs", "sld",
+              "computed_masked_strided_input_widening_dot_reduce dot lhs "
+              "strided load"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "dot_lhs", "mlhs",
+              "computed_masked_strided_input_widening_dot_reduce masked dot "
+              "lhs operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "dot_lhs", "i16",
+              "computed_masked_strided_input_widening_dot_reduce dot lhs "
+              "width mirror"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundDotRHSABI, "dot_rhs", "sld",
+              "computed_masked_strided_input_widening_dot_reduce dot rhs "
+              "strided load"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "dot_rhs", "mrhs",
+              "computed_masked_strided_input_widening_dot_reduce masked dot "
+              "rhs operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "dot_rhs", "i16",
+              "computed_masked_strided_input_widening_dot_reduce dot rhs "
+              "width mirror"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundAccumulatorABI, "acc", "seed",
+              "computed_masked_strided_input_widening_dot_reduce scalar seed"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "red",
+              "computed_masked_strided_input_widening_dot_reduce reduction "
+              "accumulator"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "i32",
+              "computed_masked_strided_input_widening_dot_reduce "
+              "accumulator/result width"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundOutABI, "out", "store",
+              "computed_masked_strided_input_widening_dot_reduce scalar output "
+              "store"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out", "i32",
+              "computed_masked_strided_input_widening_dot_reduce result width"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundLHSStrideABI, "lhs_stride", "str",
+              "computed_masked_strided_input_widening_dot_reduce lhs stride"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs_stride", "addr",
+              "computed_masked_strided_input_widening_dot_reduce lhs address"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundRHSStrideABI, "rhs_stride", "str",
+              "computed_masked_strided_input_widening_dot_reduce rhs stride"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs_stride", "addr",
+              "computed_masked_strided_input_widening_dot_reduce rhs address"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "n", "loop",
+              "computed_masked_strided_input_widening_dot_reduce runtime loop"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "n", "hdr",
+              "computed_masked_strided_input_widening_dot_reduce runtime "
+              "header mirror"))
         return error;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::StridedLoadUnitStore) {
@@ -1014,11 +1307,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             isStridedDotSource
                 ? llvm::ArrayRef<TCRVEmitCCallOpaqueOperand>(
                       {TCRVEmitCCallOpaqueOperand{
-                           (llvm::StringRef(slice->dotLHSABI.cName) + " + (" +
+                           (llvm::StringRef(boundDotLHSABI->cName) + " + (" +
                             inductionName + " * " + boundLHSStrideABI->cName +
                             ")")
                                .str(),
-                           slice->dotLHSABI.cType},
+                           boundDotLHSABI->cType},
                        TCRVEmitCCallOpaqueOperand{
                            (llvm::StringRef(boundLHSStrideABI->cName) + " * 2")
                                .str(),
@@ -1027,10 +1320,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                                   vlCType.str()}})
                 : llvm::ArrayRef<TCRVEmitCCallOpaqueOperand>(
                       {TCRVEmitCCallOpaqueOperand{
-                           (llvm::StringRef(slice->dotLHSABI.cName) + " + " +
+                           (llvm::StringRef(boundDotLHSABI->cName) + " + " +
                             inductionName)
                                .str(),
-                           slice->dotLHSABI.cType},
+                           boundDotLHSABI->cType},
                        TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                                   vlCType.str()}}),
             TCRVEmitCCallOpaqueResult{"dot_lhs_vec",
@@ -1042,11 +1335,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             isStridedDotSource
                 ? llvm::ArrayRef<TCRVEmitCCallOpaqueOperand>(
                       {TCRVEmitCCallOpaqueOperand{
-                           (llvm::StringRef(slice->dotRHSABI.cName) + " + (" +
+                           (llvm::StringRef(boundDotRHSABI->cName) + " + (" +
                             inductionName + " * " +
                             boundRHSStrideABI->cName + ")")
                                .str(),
-                           slice->dotRHSABI.cType},
+                           boundDotRHSABI->cType},
                        TCRVEmitCCallOpaqueOperand{
                            (llvm::StringRef(boundRHSStrideABI->cName) + " * 2")
                                .str(),
@@ -1055,10 +1348,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                                   vlCType.str()}})
                 : llvm::ArrayRef<TCRVEmitCCallOpaqueOperand>(
                       {TCRVEmitCCallOpaqueOperand{
-                           (llvm::StringRef(slice->dotRHSABI.cName) + " + " +
+                           (llvm::StringRef(boundDotRHSABI->cName) + " + " +
                             inductionName)
                                .str(),
-                           slice->dotRHSABI.cType},
+                           boundDotRHSABI->cType},
                        TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                                   vlCType.str()}}),
             TCRVEmitCCallOpaqueResult{"dot_rhs_vec",

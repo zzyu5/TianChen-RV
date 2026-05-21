@@ -1598,3 +1598,76 @@ routes or widening conversion routes.
 - Continue with a separate bounded PRD for contraction dot-reduction operand
   binding adoption or widening conversion operand binding adoption. Do not
   treat either deferred cluster as completed by this widening-macc round.
+
+
+## Session 156: Stage2 RVV contraction dot-reduction operand binding adoption
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV contraction dot-reduction operand binding adoption
+**Branch**: `main`
+
+### Summary
+
+Adopted `RVVRouteOperandBindingPlan` for the active contraction
+dot-reduction cluster. The converted routes are `widening_dot_reduce_add`,
+`strided_input_widening_dot_reduce_add`,
+`computed_masked_widening_dot_reduce_add`, and
+`computed_masked_strided_input_widening_dot_reduce_add`. No inactive scoped
+dot-reduction route was found, and `widening_macc_add` remained an already
+converted predecessor from commit `4db6013d`.
+
+### Main Changes
+
+- Added compact route operand binding plan IDs and role validation for the four
+  scoped dot-reduction routes.
+- Rewired RVV route provider materialization so dot lhs/rhs values, optional
+  compare/mask values, scalar accumulator seed, scalar output, runtime `n`, and
+  optional lhs/rhs stride roles are consumed through the binding plan.
+- Updated target artifact/header FileCheck fixtures and generated-bundle
+  metadata expectations so materialized operands and mirrors use the same
+  contract.
+- Added structural positive/negative plugin coverage for role swaps,
+  accumulator/output swaps, dot-source swaps, mask/materialized-use mismatch,
+  stride-role swaps, and source/result-width materialized-use mismatch.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused target artifact lit for the four scoped dot-reduction MLIR
+  tests: 4/4 passed.
+- [OK] Focused generated-bundle dry-run lit for existing dot-reduction script
+  tests: 3/3 passed.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Generated-bundle dry-run for all four scoped routes at counts
+  `7,16,23`: `rvv_generated_bundle_abi_e2e: dry_run_success`, artifact root
+  `artifacts/tmp/stage2_contraction_operand_binding/dry-run-all`.
+- [OK] Real `ssh rvv` generated-bundle run for all four scoped routes at
+  counts `7,16,23`: PASS for ordinary dot, strided dot, computed-mask dot, and
+  computed-mask strided dot, including signed dot correctness, accumulator seed
+  addition, mask/stride checks where applicable, and tail preservation.
+- [OK] Diff-level active-authority scan: no newly added positive `RVVI32M1`,
+  `rvv-i32m1`, finite `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`,
+  descriptor/direct-C/source-export, source-front-door, public exact intrinsic,
+  stale route-id, artifact-name, or common/export RVV semantic authority.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 267/267 passed.
+
+### Self-Repair
+
+- Reordered new HEADER FileCheck assertions after the existing contraction
+  relation/profile/provider mirrors to match the production header writer.
+- Compactified the computed-mask strided dot binding mirror after the first
+  target artifact run exposed the bounded single-line metadata limit, while
+  preserving provider-checked ABI, mask, stride, width, accumulator, output,
+  runtime, and header facts.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+### Next Steps
+
+- None for the bounded active dot-reduction operand binding cluster. A future
+  task may handle widening conversion operand binding separately.
