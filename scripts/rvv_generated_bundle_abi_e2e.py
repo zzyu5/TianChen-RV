@@ -79,8 +79,9 @@ MASKED_ADD_MASK_SOURCE = "compare-produced-mask-same-vl-scope"
 MASKED_ADD_MASK_ROLE = "predicate-mask-produced-by-compare"
 MASKED_ADD_INACTIVE_LANE_CONTRACT = "masked-off-lanes-preserve-passthrough-vector"
 MASKED_ADD_PASSTHROUGH_LAYOUT = "passthrough-vector-preserves-inactive-lanes"
-MACC_ADD_ACCUMULATOR_LAYOUT = "output-buffer-vector-accumulator-input"
+MACC_ADD_ACCUMULATOR_LAYOUT = "separate-i32-vector-accumulator-input"
 MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
+MACC_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
 WIDENING_MACC_ACCUMULATOR_LAYOUT = "separate-i32-vector-accumulator-input"
 WIDENING_MACC_RESULT_LAYOUT = (
     "store-widening-multiply-accumulate-result-to-output-buffer"
@@ -369,6 +370,12 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *lhs, "
                 "const int32_t *acc, int32_t *out, size_t n);"
             )
+        if self.is_macc_add:
+            return (
+                f"void {self.function_name}(const int32_t *lhs, "
+                "const int32_t *rhs, const int32_t *acc, "
+                "int32_t *out, size_t n);"
+            )
         if self.is_widen_i32_to_i64:
             return (
                 f"void {self.function_name}(const int32_t *lhs, "
@@ -429,6 +436,8 @@ class OpExpectation:
             return EXPECTED_WIDENING_CONVERSION_RUNTIME_PARAMETERS
         if self.is_widen_i16_to_i32:
             return EXPECTED_WIDEN_I16_TO_I32_RUNTIME_PARAMETERS
+        if self.is_macc_add:
+            return EXPECTED_MACC_RUNTIME_PARAMETERS
         if self.is_widening_macc_add or self.is_widening_dot_reduce_add:
             return EXPECTED_WIDENING_MACC_RUNTIME_PARAMETERS
         if self.is_i64_add:
@@ -469,6 +478,8 @@ class OpExpectation:
             return SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER
         if self.is_standalone_reduce_add:
             return STANDALONE_REDUCE_RUNTIME_ABI_ORDER
+        if self.is_macc_add:
+            return MACC_ADD_RUNTIME_ABI_ORDER
         if self.is_widen_i32_to_i64 or self.is_widen_i16_to_i32:
             return WIDENING_CONVERSION_RUNTIME_ABI_ORDER
         if self.is_widening_macc_add:
@@ -710,10 +721,10 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         emitc_route="rvv-generic-macc-add-emitc-route",
         typed_compute_op="tcrv_rvv.macc",
         memory_form="vector-rhs-load",
-        lhs_initializer="(int32_t)((int)(index % 13) - 6)",
-        rhs_initializer="(int32_t)((int)(index % 17) - 8)",
-        out_initializer="(int32_t)(17 - (int32_t)(index % 9))",
-        expected_expression="(int32_t)((int32_t)(17 - (int32_t)(index % 9)) + (int32_t)(lhs[index] * rhs[index]))",
+        lhs_initializer="(int32_t)(((index % 2) == 0) ? ((int32_t)(index % 7) + 1) : -((int32_t)(index % 7) + 1))",
+        rhs_initializer="(int32_t)(((index % 3) == 0) ? -((int32_t)(index % 5) + 2) : ((int32_t)(index % 5) + 2))",
+        source_initializer="(int32_t)(((index % 2) == 0) ? (17 - (int32_t)(index % 9)) : -(17 - (int32_t)(index % 9)))",
+        expected_expression="(int32_t)(acc[index] + (int32_t)(lhs[index] * rhs[index]))",
     ),
     "strided_add": OpExpectation(
         kind="strided_add",
@@ -1679,6 +1690,18 @@ EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS = (
 )
 EXPECTED_STANDALONE_REDUCE_RUNTIME_PARAMETERS = (
     EXPECTED_RUNTIME_PARAMETERS[0],
+    {
+        "c_name": "acc",
+        "c_type": "const int32_t *",
+        "role": "accumulator-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_RUNTIME_PARAMETERS[2],
+    EXPECTED_RUNTIME_PARAMETERS[3],
+)
+EXPECTED_MACC_RUNTIME_PARAMETERS = (
+    EXPECTED_RUNTIME_PARAMETERS[0],
+    EXPECTED_RUNTIME_PARAMETERS[1],
     {
         "c_name": "acc",
         "c_type": "const int32_t *",
@@ -3725,7 +3748,12 @@ def verify_materialized_selected_body(
     if expectation.is_macc_add:
         require_contains(
             text,
-            'accumulator_layout = "output-buffer-vector-accumulator-input"',
+            'role = "accumulator-input-buffer"',
+            "materialized selected-body MLIR macc accumulator ABI role",
+        )
+        require_contains(
+            text,
+            f'accumulator_layout = "{MACC_ADD_ACCUMULATOR_LAYOUT}"',
             "materialized selected-body MLIR macc accumulator layout",
         )
         require_contains(
@@ -5849,6 +5877,135 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
+    if expectation.is_macc_add:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n + 5;
+  if (alloc_n == 5 && n == 0)
+    alloc_n = 6;
+  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *acc = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  if (!lhs || !rhs || !acc || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(lhs);
+    free(rhs);
+    free(acc);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    lhs[index] = {expectation.lhs_initializer};
+    rhs[index] = {expectation.rhs_initializer};
+    acc[index] = {expectation.source_initializer};
+    out[index] = {expectation.out_initializer};
+  }}
+
+  {expectation.function_name}(lhs, rhs, acc, out, n);
+
+  size_t positive_products = 0;
+  size_t negative_products = 0;
+  size_t positive_lhs = 0;
+  size_t negative_lhs = 0;
+  size_t positive_rhs = 0;
+  size_t negative_rhs = 0;
+  size_t positive_accumulators = 0;
+  size_t negative_accumulators = 0;
+  size_t nonzero_accumulators = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    int32_t product = (int32_t)lhs[index] * (int32_t)rhs[index];
+    int32_t expected = {expectation.expected_expression};
+    if (product > 0)
+      ++positive_products;
+    if (product < 0)
+      ++negative_products;
+    if (lhs[index] > 0)
+      ++positive_lhs;
+    if (lhs[index] < 0)
+      ++negative_lhs;
+    if (rhs[index] > 0)
+      ++positive_rhs;
+    if (rhs[index] < 0)
+      ++negative_rhs;
+    if (acc[index] > 0)
+      ++positive_accumulators;
+    if (acc[index] < 0)
+      ++negative_accumulators;
+    if (acc[index] != 0)
+      ++nonzero_accumulators;
+    if (out[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d lhs=%d rhs=%d acc=%d product=%d\\n",
+              n, index, out[index], expected, lhs[index], rhs[index], acc[index], product);
+      free(lhs);
+      free(rhs);
+      free(acc);
+      free(out);
+      return 12;
+    }}
+  }}
+
+  for (size_t index = n; index < alloc_n; ++index) {{
+    if (out[index] != {expectation.out_initializer}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
+              n, index, out[index], {expectation.out_initializer});
+      free(lhs);
+      free(rhs);
+      free(acc);
+      free(out);
+      return 13;
+    }}
+  }}
+
+  if (n > 3 && (positive_products == 0 || negative_products == 0 ||
+                positive_lhs == 0 || negative_lhs == 0 ||
+                positive_rhs == 0 || negative_rhs == 0 ||
+                positive_accumulators == 0 || negative_accumulators == 0 ||
+                nonzero_accumulators == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} coverage missing n=%zu positive_products=%zu negative_products=%zu positive_lhs=%zu negative_lhs=%zu positive_rhs=%zu negative_rhs=%zu positive_accumulators=%zu negative_accumulators=%zu nonzero_accumulators=%zu\\n",
+            n, positive_products, negative_products, positive_lhs, negative_lhs,
+            positive_rhs, negative_rhs, positive_accumulators,
+            negative_accumulators, nonzero_accumulators);
+    free(lhs);
+    free(rhs);
+    free(acc);
+    free(out);
+    return 14;
+  }}
+
+  free(lhs);
+  free(rhs);
+  free(acc);
+  free(out);
+  printf("{expectation.kind} case n=%zu ok explicit_accumulator signed_products tail_preserved\\n", n);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_widening_dot_reduce_add:
         return f"""
 #include <stddef.h>
@@ -6911,6 +7068,15 @@ def run_one_op_e2e(
             )
             evidence["harness"]["inactive_lane_contract"] = (
                 "masked-off lanes must preserve the explicit passthrough vector"
+            )
+        if expectation.is_macc_add:
+            evidence["harness"]["accumulator_contract"] = (
+                "macc_add cases use an explicit accumulator input buffer and "
+                "a separate output destination"
+            )
+            evidence["harness"]["tail_lane_contract"] = (
+                "runtime n controls active lanes and output tail sentinels are "
+                "preserved"
             )
         if expectation.is_masked_unit_load_store or expectation.is_masked_unit_store:
             evidence["harness"]["mask_coverage_contract"] = (

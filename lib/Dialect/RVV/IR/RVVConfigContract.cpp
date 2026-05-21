@@ -561,6 +561,26 @@ getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters() {
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 5>
+getRVVSelectedBodyMAccRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs", "const int32_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "acc", "const int32_t *",
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 5>
 getRVVSelectedBodyWideningMAccRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
   parameters.push_back(support::makeTargetExportABIParameter(
@@ -954,6 +974,11 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, widenI16ToI32Expected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 5> maccExpected =
+      getRVVSelectedBodyMAccRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, maccExpected))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 5> wideningMAccExpected =
       getRVVSelectedBodyWideningMAccRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, wideningMAccExpected))
@@ -993,8 +1018,9 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "int32_t or int64_t buffers; lhs, rhs_scalar, out, n for the bounded "
       "int32_t scalar-broadcast route; lhs, out, n for the bounded i32-to-i64 "
       "or i16-to-i32 widening conversion routes; lhs, rhs, acc, out, n for "
-      "the bounded i16 widening multiply-accumulate or unit-stride dot-reduction "
-      "route; lhs, acc, out, n for the bounded standalone i32 scalar "
+      "the bounded i32 multiply-add accumulator, i16 widening "
+      "multiply-accumulate, or unit-stride dot-reduction route; lhs, acc, "
+      "out, n for the bounded standalone i32 scalar "
       "add-reduction route; lhs, rhs, acc, out, n, lhs_stride, rhs_stride for "
       "the bounded "
       "i16 strided-input widening dot-reduction route; or lhs, rhs, out, n, "

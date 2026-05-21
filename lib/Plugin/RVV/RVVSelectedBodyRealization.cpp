@@ -136,11 +136,11 @@ bool isPreRealizedMAccMemoryForm(llvm::StringRef memoryForm) {
 }
 
 bool isPreRealizedMAccAccumulatorRole(llvm::StringRef role) {
-  return role == "output-buffer";
+  return role == "accumulator-input-buffer";
 }
 
 bool isPreRealizedMAccAccumulatorLayout(llvm::StringRef layout) {
-  return layout == "output-buffer-vector-accumulator-input";
+  return layout == "separate-i32-vector-accumulator-input";
 }
 
 bool isPreRealizedMAccResultLayout(llvm::StringRef layout) {
@@ -1258,11 +1258,11 @@ llvm::Error validatePreRealizedRVVSelectedMAccBody(
   if (!isPreRealizedMAccAccumulatorRole(body.getAccumulatorRole()))
     return makeRVVPluginError(
         "pre-realized RVV selected macc body currently supports only "
-        "accumulator_role 'output-buffer'");
+        "accumulator_role 'accumulator-input-buffer'");
   if (!isPreRealizedMAccAccumulatorLayout(body.getAccumulatorLayout()))
     return makeRVVPluginError(
         "pre-realized RVV selected macc body currently supports only "
-        "accumulator_layout 'output-buffer-vector-accumulator-input'");
+        "accumulator_layout 'separate-i32-vector-accumulator-input'");
   if (!isPreRealizedMAccResultLayout(body.getResultLayout()))
     return makeRVVPluginError(
         "pre-realized RVV selected macc body currently supports only "
@@ -1289,9 +1289,15 @@ llvm::Error validatePreRealizedRVVSelectedMAccBody(
           support::RuntimeABIParameterRole::RHSInputBuffer);
   if (!rhs)
     return rhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+      requirePreRealizedRuntimeABIValue(
+          body.getAcc(), "pre-realized RVV macc accumulator operand",
+          support::RuntimeABIParameterRole::AccumulatorInputBuffer);
+  if (!acc)
+    return acc.takeError();
   llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
       requirePreRealizedRuntimeABIValue(
-          body.getOut(), "pre-realized RVV macc out/accumulator operand",
+          body.getOut(), "pre-realized RVV macc out operand",
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!out)
     return out.takeError();
@@ -4272,7 +4278,7 @@ realizePreRealizedRVVSelectedBody(
         tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
     auto accumulatorLoad =
         llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-            builder, loc, maccBody.getOut(), setvl.getVl(),
+            builder, loc, maccBody.getAcc(), setvl.getVl(),
             tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
     llvm::Expected<mlir::Operation *> compute = createRealizedGenericMAccCompute(
         builder, loc, maccBody.getOpKind(), maccBody.getAccumulatorLayout(),

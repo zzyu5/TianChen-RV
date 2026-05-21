@@ -13,9 +13,10 @@ module {
     tcrv.exec.variant @pre_realized_body_rvv_macc_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-macc-add:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-macc-add:rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-macc-add:accumulator-out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-macc-add:accumulator", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-macc-add:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-macc-add:n", role = "runtime-element-count"} : index
-      tcrv_rvv.typed_macc_pre_realized_body %lhs, %rhs, %out, %n {accumulator_layout = "output-buffer-vector-accumulator-input", accumulator_role = "output-buffer", lmul = "m1", memory_form = "vector-rhs-load", op_kind = "macc_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+      tcrv_rvv.typed_macc_pre_realized_body %lhs, %rhs, %acc, %out, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", memory_form = "vector-rhs-load", op_kind = "macc_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @pre_realized_body_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
     }
@@ -36,7 +37,7 @@ module {
 // REALIZED: %[[RHS:.*]] = tcrv_rvv.load
 // REALIZED: %[[ACC:.*]] = tcrv_rvv.load
 // REALIZED: %[[SUM:.*]] = tcrv_rvv.macc %[[LHS]], %[[RHS]], %[[ACC]], %[[VL]]
-// REALIZED-SAME: accumulator_layout = "output-buffer-vector-accumulator-input"
+// REALIZED-SAME: accumulator_layout = "separate-i32-vector-accumulator-input"
 // REALIZED-SAME: kind = "add"
 // REALIZED-SAME: result_layout = "store-multiply-accumulate-result-to-output-buffer"
 // REALIZED: tcrv_rvv.store
@@ -47,7 +48,7 @@ module {
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "macc_add"}
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.macc"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "vector-rhs-load"}
-// PLAN-SAME: {key = "tcrv_rvv.macc_accumulator_layout", value = "output-buffer-vector-accumulator-input"}
+// PLAN-SAME: {key = "tcrv_rvv.macc_accumulator_layout", value = "separate-i32-vector-accumulator-input"}
 // PLAN-SAME: {key = "tcrv_rvv.macc_result_layout", value = "store-multiply-accumulate-result-to-output-buffer"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: lowering_boundary = "tcrv_rvv.with_vl"
@@ -61,4 +62,4 @@ module {
 // HEADER: tianchenrv.rvv.selected_variant: @pre_realized_body_rvv_macc_add
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-macc-add-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
-// HEADER: void tcrv_emitc_pre_realized_body_macc_add_kernel_pre_realized_body_rvv_macc_add(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);
+// HEADER: void tcrv_emitc_pre_realized_body_macc_add_kernel_pre_realized_body_rvv_macc_add(const int32_t *lhs, const int32_t *rhs, const int32_t *acc, int32_t *out, size_t n);

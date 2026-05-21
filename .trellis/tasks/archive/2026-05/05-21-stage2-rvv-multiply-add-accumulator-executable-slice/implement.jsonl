@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage order, and source-of-truth rules for this RVV Stage2 task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed body authority, selected-body realization, and Stage1/Stage2 guardrails."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required positive, negative, generated artifact, and ssh rvv evidence policy."}

@@ -604,6 +604,13 @@ module {
      << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "source-arg-0:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "source-arg-1:rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+)mlir";
+  if (op ==
+      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd)
+    os << R"mlir(
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "source-arg-2:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+)mlir";
+  os << R"mlir(
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "source-arg-2:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "source-arg-3:n", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = ")mlir" << lmul << R"mlir(", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
@@ -643,7 +650,7 @@ module {
   if (op ==
       tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd)
     os << R"mlir(
-        %acc_vec = tcrv_rvv.load %out, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
+        %acc_vec = tcrv_rvv.load %acc, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> )mlir"
        << vectorType << R"mlir(
 )mlir";
   if (op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::CmpSelect) {
@@ -676,7 +683,7 @@ module {
   } else if (op ==
              tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd) {
     os << R"mlir(
-        %result = tcrv_rvv.macc %lhs_vec, %rhs_vec, %acc_vec, %vl {accumulator_layout = "output-buffer-vector-accumulator-input", kind = "add", result_layout = "store-multiply-accumulate-result-to-output-buffer"} : )mlir"
+        %result = tcrv_rvv.macc %lhs_vec, %rhs_vec, %acc_vec, %vl {accumulator_layout = "separate-i32-vector-accumulator-input", kind = "add", result_layout = "store-multiply-accumulate-result-to-output-buffer"} : )mlir"
        << vectorType << R"mlir(, )mlir" << vectorType
        << R"mlir(, )mlir" << vectorType
        << R"mlir(, !tcrv_rvv.vl -> )mlir" << vectorType << R"mlir(

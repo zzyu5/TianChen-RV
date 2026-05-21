@@ -1200,6 +1200,47 @@ buildRVVSelectedBodyExecutableRoleSteps(
                      "store", 8});
     return steps;
   }
+  if (isMAccAdd) {
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "rhs", 1});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "acc", 2});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "out", 3});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "n", 4});
+    steps.push_back({"configure", "tcrv_rvv.setvl",
+                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+                     5});
+    steps.push_back({"scope", "tcrv_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "with_vl", 6});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "lhs_load", 7});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "rhs_load", 8});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "accumulator_load", 9});
+    steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
+                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     route->operationMnemonic, 10});
+    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "store", 11});
+    return steps;
+  }
   if (isWideningMAccAdd) {
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
@@ -2285,6 +2326,11 @@ llvm::Error verifyRVVConstructionProtocolReady() {
               getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(reductionParameters.begin(),
                                        reductionParameters.end());
+    } else if (route.operationMnemonic == "macc_add") {
+      llvm::SmallVector<support::RuntimeABIParameter, 5> maccParameters =
+          tcrv::rvv::getRVVSelectedBodyMAccRuntimeABIParameters();
+      routeRuntimeABIParameters.append(maccParameters.begin(),
+                                       maccParameters.end());
     } else if (route.operationMnemonic == "widen_i32_to_i64") {
       llvm::SmallVector<support::RuntimeABIParameter, 3> conversionParameters =
           tcrv::rvv::
@@ -2692,6 +2738,10 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
             getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
     expectedParameters.append(reductionParameters.begin(),
                               reductionParameters.end());
+  } else if (route->operationMnemonic == "macc_add") {
+    llvm::SmallVector<support::RuntimeABIParameter, 5> maccParameters =
+        tcrv::rvv::getRVVSelectedBodyMAccRuntimeABIParameters();
+    expectedParameters.append(maccParameters.begin(), maccParameters.end());
   } else if (route->operationMnemonic == "widen_i32_to_i64") {
     llvm::SmallVector<support::RuntimeABIParameter, 3> conversionParameters =
         tcrv::rvv::getRVVSelectedBodyWideningConversionRuntimeABIParameters();

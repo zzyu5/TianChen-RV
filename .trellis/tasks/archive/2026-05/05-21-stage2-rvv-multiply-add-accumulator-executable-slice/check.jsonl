@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the implementation still follows the global RVV-first authority chain and Stage2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check that RVV semantics remain plugin-owned and structural in typed tcrv_rvv body facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export neutrality and provider-built route ownership."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/C++/runtime evidence and fail-closed negative coverage expectations."}

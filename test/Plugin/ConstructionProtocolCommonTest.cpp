@@ -1774,7 +1774,9 @@ int runRVVCommonValidationTest() {
         : hasSegment2Deinterleave                ? 11u
         : hasSegment2Interleave                  ? 9u
         : hasStridedMemory         ? 13u
-        : ((hasMaskProducer || hasAccumulatorLoad) ? 11u : 10u);
+        : hasAccumulatorLoad                    ? 12u
+        : hasMaskProducer                       ? 11u
+                                                : 10u;
     if (steps->size() != expectedStepCount)
       return fail("RVV executable role sequence must include explicit ABI, "
                   "config, scope, load, compute, optional mask-producing "
@@ -1874,6 +1876,11 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "macc_add") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::getRVVSelectedBodyMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "widen_i32_to_i64") {

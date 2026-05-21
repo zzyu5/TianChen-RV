@@ -23,12 +23,14 @@
 # MACC-DAG: "key": "rvv_selected_body_typed_compute_op"
 # MACC-DAG: "value": "tcrv_rvv.macc"
 # MACC-DAG: "key": "tcrv_rvv.macc_accumulator_layout"
-# MACC-DAG: "value": "output-buffer-vector-accumulator-input"
+# MACC-DAG: "value": "separate-i32-vector-accumulator-input"
 # MACC-DAG: "key": "tcrv_rvv.macc_result_layout"
 # MACC-DAG: "value": "store-multiply-accumulate-result-to-output-buffer"
 # MACC-DAG: "typed_compute_op": "tcrv_rvv.macc"
 # MACC-DAG: "status": "dry_run_success"
 
-# HARNESS: out[index] = (int32_t)(17 - (int32_t)(index % 9));
-# HARNESS: tcrv_emitc_explicit_selected_body_macc_add_kernel_explicit_selected_body_rvv_macc_add(lhs, rhs, out, n);
-# HARNESS: int32_t expected = (int32_t)((int32_t)(17 - (int32_t)(index % 9)) + (int32_t)(lhs[index] * rhs[index]));
+# HARNESS: lhs[index] = (int32_t)(((index % 2) == 0) ? ((int32_t)(index % 7) + 1) : -((int32_t)(index % 7) + 1));
+# HARNESS: rhs[index] = (int32_t)(((index % 3) == 0) ? -((int32_t)(index % 5) + 2) : ((int32_t)(index % 5) + 2));
+# HARNESS: acc[index] = (int32_t)(((index % 2) == 0) ? (17 - (int32_t)(index % 9)) : -(17 - (int32_t)(index % 9)));
+# HARNESS: tcrv_emitc_explicit_selected_body_macc_add_kernel_explicit_selected_body_rvv_macc_add(lhs, rhs, acc, out, n);
+# HARNESS: int32_t expected = (int32_t)(acc[index] + (int32_t)(lhs[index] * rhs[index]));

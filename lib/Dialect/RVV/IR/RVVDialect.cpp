@@ -597,12 +597,12 @@ bool isSupportedTypedMAccPreRealizedMemoryForm(llvm::StringRef memoryForm) {
 }
 
 bool isSupportedTypedMAccPreRealizedAccumulatorRole(llvm::StringRef role) {
-  return role == "output-buffer";
+  return role == "accumulator-input-buffer";
 }
 
 bool isSupportedTypedMAccPreRealizedAccumulatorLayout(
     llvm::StringRef layout) {
-  return layout == "output-buffer-vector-accumulator-input";
+  return layout == "separate-i32-vector-accumulator-input";
 }
 
 bool isSupportedTypedMAccPreRealizedResultLayout(llvm::StringRef layout) {
@@ -996,7 +996,7 @@ bool isSupportedGenericMAccKind(llvm::StringRef kind) {
 }
 
 bool isSupportedGenericMAccAccumulatorLayout(llvm::StringRef layout) {
-  return layout == "output-buffer-vector-accumulator-input";
+  return layout == "separate-i32-vector-accumulator-input";
 }
 
 bool isSupportedGenericMAccResultLayout(llvm::StringRef layout) {
@@ -2993,9 +2993,9 @@ mlir::LogicalResult TypedMAccPreRealizedBodyOp::verify() {
     return emitOpError()
            << "must be nested directly in a selected tcrv.exec.variant";
 
-  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+  if (op->getNumOperands() != 5 || op->getNumResults() != 0)
     return emitOpError()
-           << "requires lhs, rhs, out/accumulator, runtime n/AVL operands "
+           << "requires lhs, rhs, accumulator, out, runtime n/AVL operands "
               "and no results";
 
   if (!isSupportedTypedMAccPreRealizedBodyOpKind(getOpKind()))
@@ -3008,13 +3008,14 @@ mlir::LogicalResult TypedMAccPreRealizedBodyOp::verify() {
               "the bounded selected-body macc realization hook";
   if (!isSupportedTypedMAccPreRealizedAccumulatorRole(getAccumulatorRole()))
     return emitOpError()
-           << "currently supports only accumulator_role \"output-buffer\" "
-              "for the bounded selected-body macc realization hook";
+           << "currently supports only accumulator_role "
+              "\"accumulator-input-buffer\" for the bounded selected-body "
+              "macc realization hook";
   if (!isSupportedTypedMAccPreRealizedAccumulatorLayout(
           getAccumulatorLayout()))
     return emitOpError()
            << "currently supports only accumulator_layout "
-              "\"output-buffer-vector-accumulator-input\" for the bounded "
+              "\"separate-i32-vector-accumulator-input\" for the bounded "
               "selected-body macc realization hook";
   if (!isSupportedTypedMAccPreRealizedResultLayout(getResultLayout()))
     return emitOpError()
@@ -3041,9 +3042,34 @@ mlir::LogicalResult TypedMAccPreRealizedBodyOp::verify() {
           {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
-          op, getOut(), "out/accumulator",
+          op, getAcc(), "accumulator",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               AccumulatorInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
           {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsBinding = getRhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp accBinding = getAcc().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
+  if (!lhsBinding || lhsBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires lhs operand C type 'const int32_t *' to match typed "
+              "macc source dtype";
+  if (!rhsBinding || rhsBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires rhs operand C type 'const int32_t *' to match typed "
+              "macc source dtype";
+  if (!accBinding || accBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires accumulator operand C type 'const int32_t *' to match "
+              "typed macc accumulator dtype";
+  if (!outBinding || outBinding.getCType() != "int32_t *")
+    return emitOpError()
+           << "requires out operand C type 'int32_t *' to match typed macc "
+              "result dtype";
   return verifyRuntimeElementCountOperand(op, getN());
 }
 
@@ -5585,12 +5611,12 @@ mlir::LogicalResult MAccOp::verify() {
   if (!accumulatorLayout)
     return emitOpError()
            << "requires accumulator_layout "
-              "\"output-buffer-vector-accumulator-input\" for the bounded "
+              "\"separate-i32-vector-accumulator-input\" for the bounded "
               "Stage 2 multiply-accumulate route";
   if (!isSupportedGenericMAccAccumulatorLayout(*accumulatorLayout))
     return emitOpError()
            << "currently supports only accumulator_layout "
-              "\"output-buffer-vector-accumulator-input\" for the bounded "
+              "\"separate-i32-vector-accumulator-input\" for the bounded "
               "Stage 2 multiply-accumulate route";
   std::optional<llvm::StringRef> resultLayout = getResultLayout();
   if (!resultLayout)

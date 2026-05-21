@@ -813,9 +813,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->accumulatorLoadOperation, "load",
             description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->outABI.cName) + " + " + inductionName)
+                 (llvm::StringRef(slice->accumulatorABI.cName) + " + " +
+                  inductionName)
                      .str(),
-                 slice->outABI.cType},
+                 slice->accumulatorABI.cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"old_dst_vec",
@@ -1018,9 +1019,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->accumulatorLoadOperation, "load",
             description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->outABI.cName) + " + " + inductionName)
+                 (llvm::StringRef(slice->accumulatorABI.cName) + " + " +
+                  inductionName)
                      .str(),
-                 slice->outABI.cType},
+                 slice->accumulatorABI.cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"acc_vec",

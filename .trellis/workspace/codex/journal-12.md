@@ -1297,3 +1297,62 @@ Implemented the bounded Stage2 RVV `unit_load_strided_store` executable slice fo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 151: Stage2 RVV multiply-add accumulator executable slice
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV multiply-add accumulator executable slice
+**Branch**: `main`
+
+### Summary
+
+Implemented bounded RVV macc_add with explicit accumulator input, provider-derived route facts, generated bundle evidence, and ssh rvv PASS.
+
+### Main Changes
+
+- Added explicit `lhs,rhs,acc,out,n` runtime ABI order for bounded `macc_add` and carried `accumulator-input-buffer` through RVV config/runtime ABI contracts.
+- Reworked `typed_macc_pre_realized_body` and selected-body realization so pre-realized macc materializes `setvl`, `with_vl`, lhs/rhs/acc loads, `tcrv_rvv.macc`, and output store.
+- Extended RVV route planning/provider/construction and target/export tests so macc route facts, header prototype, role sequence, and artifact metadata derive from typed body/config/runtime ABI facts.
+- Fixed a real ssh-rvv failure where provider materialization loaded the accumulator from `out` instead of the new `acc` argument; added an EmitC structural check that the third load uses the `acc` function argument and store uses `out`.
+- Updated generated-bundle evidence harness for explicit/pre-realized `macc_add` with signed positive/negative lhs/rhs/acc values, signed positive/negative products, active lane correctness, and tail sentinel preservation.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Focused lit for macc dialect/dataflow, pre-realized negatives, EmitC materialization, target header/plan, and generated-bundle dry-run: 8/8 passed.
+- [OK] C++ tests: `tianchenrv-rvv-dialect-test`, `tianchenrv-rvv-extension-plugin-test`, `tianchenrv-construction-protocol-common-test`, `tianchenrv-target-artifact-export-test`.
+- [OK] Generated-bundle dry-run for explicit and pre-realized `macc_add`, counts `7,16,23`.
+- [OK] Real `ssh rvv` PASS for pre-realized `macc_add`, counts `7,16,23`, explicit accumulator, signed products, tail preserved.
+- [OK] Real `ssh rvv` PASS for explicit selected-body `macc_add`, counts `7,16,23`, explicit accumulator, signed products, tail preserved.
+- [OK] Diff-level active-authority scan: no newly introduced positive `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`, descriptor/direct-C/source-export/source-front-door, or public exact intrinsic authority.
+- [OK] `git diff --check` / `git diff --cached --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 259/259 passed.
+
+### Status
+
+[OK] Completed and archived.
+
+### Next Steps
+
+- None for this bounded `macc_add` accumulator slice.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
