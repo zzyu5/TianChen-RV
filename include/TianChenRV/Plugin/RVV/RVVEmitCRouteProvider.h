@@ -143,6 +143,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef indexedLoadIntrinsic;
   llvm::StringRef indexedStoreIntrinsic;
   llvm::StringRef stridedLoadIntrinsic;
+  llvm::StringRef maskedLoadIntrinsic;
   llvm::StringRef rhsBroadcastIntrinsic;
   llvm::StringRef storeIntrinsic;
   llvm::StringRef stridedStoreIntrinsic;

@@ -4,7 +4,7 @@
 
 // Pre-realized selected-body input for one bounded Stage2 masked unit-stride
 // memory movement slice. The RVV plugin must realize source/mask/destination
-// ABI operands into explicit load/mask_load/load/masked_move/store typed
+// ABI operands into explicit mask_load/load/masked_load/store typed
 // structure before the provider may construct the EmitC route.
 
 module {
@@ -33,14 +33,15 @@ module {
 // REALIZED-SAME: origin = "rvv-plugin"
 // REALIZED-SAME: selected_path_role = "dispatch case"
 // REALIZED-SAME: selected_variant = @pre_realized_body_rvv_masked_unit_load_store
-// REALIZED: tcrv_rvv.load
 // REALIZED: tcrv_rvv.mask_load
 // REALIZED-SAME: mask_memory_form = "unit-stride-mask-load"
 // REALIZED-SAME: mask_role = "predicate-mask-input-buffer"
 // REALIZED: tcrv_rvv.load
-// REALIZED: tcrv_rvv.masked_move
-// REALIZED-SAME: kind = "active-source-preserve-old-destination"
+// REALIZED: tcrv_rvv.masked_load
+// REALIZED-SAME: inactive_lane_policy = "preserve-passthrough-on-false-lanes"
+// REALIZED-SAME: memory_form = "masked-unit-load"
 // REALIZED: tcrv_rvv.store
+// REALIZED-NOT: tcrv_rvv.masked_move
 // REALIZED-NOT: tcrv_rvv.strided_store
 // REALIZED-NOT: tcrv_rvv.indexed_store
 // REALIZED-NOT: tcrv_rvv.binary
@@ -49,11 +50,11 @@ module {
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "masked_unit_load_store"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.masked_move"}
+// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.masked_load"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "masked-unit-load-store"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "src,mask,dst,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:masked_unit_load_store.v1"}
-// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:masked_unit_load_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|masked-move-source-call;mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|mask-compare-call;dst=output-buffer:dst:runtime-abi-mirror|materialized-old-destination-load-base|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:masked_unit_load_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-masked-load-base|masked-load-source-call|header-mirror;mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-load-mask-call;dst=output-buffer:dst:runtime-abi-mirror|materialized-old-destination-load-base|masked-load-passthrough-call|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"}
 // PLAN-SAME: {key = "tcrv_rvv.masked_memory_layout", value = "unit-stride-source-mask-old-destination-runtime-abi"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_role", value = "predicate-mask-input-buffer"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_source", value = "runtime_abi:mask"}
@@ -76,5 +77,5 @@ module {
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.runtime_abi_order: src,mask,dst,n
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:masked_unit_load_store.v1
-// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:masked_unit_load_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|masked-move-source-call;mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|mask-compare-call;dst=output-buffer:dst:runtime-abi-mirror|materialized-old-destination-load-base|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:masked_unit_load_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-masked-load-base|masked-load-source-call|header-mirror;mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-load-mask-call;dst=output-buffer:dst:runtime-abi-mirror|materialized-old-destination-load-base|masked-load-passthrough-call|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror
 // HEADER: void tcrv_emitc_pre_realized_body_masked_unit_load_store_kernel_pre_realized_body_rvv_masked_unit_load_store(const int32_t *src, const int32_t *mask, int32_t *dst, size_t n);

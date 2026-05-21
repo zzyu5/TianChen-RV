@@ -1686,8 +1686,9 @@ int runRVVCommonValidationTest() {
     else if (isConversionRoute)
       executableComputeOp = "tcrv_rvv.widening_convert";
     else if (route.operationMnemonic == "masked_unit_load_store" ||
-             route.operationMnemonic == "computed_masked_unit_load_store" ||
-             route.operationMnemonic == "computed_masked_strided_store")
+             route.operationMnemonic == "computed_masked_unit_load_store")
+      executableComputeOp = "tcrv_rvv.masked_load";
+    else if (route.operationMnemonic == "computed_masked_strided_store")
       executableComputeOp = "tcrv_rvv.masked_move";
     else if (route.operationMnemonic == "masked_unit_store")
       executableComputeOp = "tcrv_rvv.masked_store";
@@ -1795,9 +1796,9 @@ int runRVVCommonValidationTest() {
         : hasComputedMaskStridedInputWideningDotReduce ? 18u
         : (hasStridedMemoryMovement || hasUnitLoadStridedStore) ? 9u
         : (hasIndexedGather || hasIndexedScatter) ? 10u
-        : hasMaskedMemory                        ? 11u
+        : hasMaskedMemory                        ? 10u
         : hasMaskedStore                         ? 9u
-        : hasComputedMaskMemory                  ? 14u
+        : hasComputedMaskMemory                  ? 13u
         : hasComputedMaskStridedStore            ? 15u
         : hasSegment2Deinterleave                ? 11u
         : hasSegment2Interleave                  ? 9u

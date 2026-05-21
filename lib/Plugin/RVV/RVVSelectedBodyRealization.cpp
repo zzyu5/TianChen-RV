@@ -3835,6 +3835,21 @@ createRealizedGenericMaskedMove(mlir::OpBuilder &builder, mlir::Location loc,
   return builder.create(state);
 }
 
+llvm::Expected<mlir::Operation *>
+createRealizedGenericMaskedLoad(mlir::OpBuilder &builder, mlir::Location loc,
+                                mlir::Value source, mlir::Value mask,
+                                mlir::Value passthrough, mlir::Value vl) {
+  mlir::OperationState state(loc, "tcrv_rvv.masked_load");
+  state.addOperands({source, mask, passthrough, vl});
+  state.addAttribute("memory_form",
+                     builder.getStringAttr("masked-unit-load"));
+  state.addAttribute(
+      "inactive_lane_policy",
+      builder.getStringAttr("preserve-passthrough-on-false-lanes"));
+  state.addTypes(passthrough.getType());
+  return builder.create(state);
+}
+
 void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
                                 mlir::Value out, mlir::Value value,
                                 mlir::Value vl) {
@@ -4890,15 +4905,15 @@ realizePreRealizedRVVSelectedBody(
                              maskedMemoryBody.getPolicy());
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
-    auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
-        createRealizedGenericLoad(builder, loc, maskedMemoryBody.getSource(),
-                                  setvl.getVl(), sew, lmul));
     auto maskLoad = llvm::cast<tcrv::rvv::MaskLoadOp>(
         createRealizedGenericMaskLoad(builder, loc, maskedMemoryBody.getMask(),
                                       setvl.getVl(),
                                       maskedMemoryBody.getMaskRole(),
                                       maskedMemoryBody.getMaskMemoryForm()));
     if (maskedMemoryBody.getOpKind() == "masked_unit_store") {
+      auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
+          createRealizedGenericLoad(builder, loc, maskedMemoryBody.getSource(),
+                                    setvl.getVl(), sew, lmul));
       createRealizedGenericMaskedStore(
           builder, loc, maskedMemoryBody.getDestination(),
           maskLoad.getLoaded(), sourceLoad.getLoaded(), setvl.getVl());
@@ -4907,16 +4922,15 @@ realizePreRealizedRVVSelectedBody(
           llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
               builder, loc, maskedMemoryBody.getDestination(), setvl.getVl(),
               sew, lmul));
-      llvm::Expected<mlir::Operation *> maskedMove =
-          createRealizedGenericMaskedMove(
-              builder, loc, "active-source-preserve-old-destination",
-              maskLoad.getLoaded(), sourceLoad.getLoaded(),
+      llvm::Expected<mlir::Operation *> maskedLoad =
+          createRealizedGenericMaskedLoad(
+              builder, loc, maskedMemoryBody.getSource(), maskLoad.getLoaded(),
               oldDestinationLoad.getLoaded(), setvl.getVl());
-      if (!maskedMove)
-        return maskedMove.takeError();
+      if (!maskedLoad)
+        return maskedLoad.takeError();
       createRealizedGenericStore(builder, loc,
                                  maskedMemoryBody.getDestination(),
-                                 (*maskedMove)->getResult(0), setvl.getVl());
+                                 (*maskedLoad)->getResult(0), setvl.getVl());
     }
     maskedMemoryBody->erase();
     return withVL;
@@ -4952,10 +4966,6 @@ realizePreRealizedRVVSelectedBody(
         llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, computedMaskMemoryBody.getCompareRhs(),
             setvl.getVl(), sew, lmul));
-    auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
-        createRealizedGenericLoad(builder, loc,
-                                  computedMaskMemoryBody.getSource(),
-                                  setvl.getVl(), sew, lmul));
     auto oldDestinationLoad =
         llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, computedMaskMemoryBody.getDestination(),
@@ -4965,16 +4975,15 @@ realizePreRealizedRVVSelectedBody(
             builder, loc, compareLhsLoad.getLoaded(),
             compareRhsLoad.getLoaded(), setvl.getVl(),
             computedMaskMemoryBody.getPredicateKind()));
-    llvm::Expected<mlir::Operation *> maskedMove =
-        createRealizedGenericMaskedMove(
-            builder, loc, "active-source-preserve-old-destination",
-            compare.getMask(), sourceLoad.getLoaded(),
-            oldDestinationLoad.getLoaded(), setvl.getVl());
-    if (!maskedMove)
-      return maskedMove.takeError();
+    llvm::Expected<mlir::Operation *> maskedLoad =
+        createRealizedGenericMaskedLoad(
+            builder, loc, computedMaskMemoryBody.getSource(),
+            compare.getMask(), oldDestinationLoad.getLoaded(), setvl.getVl());
+    if (!maskedLoad)
+      return maskedLoad.takeError();
     createRealizedGenericStore(builder, loc,
                                computedMaskMemoryBody.getDestination(),
-                               (*maskedMove)->getResult(0), setvl.getVl());
+                               (*maskedLoad)->getResult(0), setvl.getVl());
     computedMaskMemoryBody->erase();
     return withVL;
   }

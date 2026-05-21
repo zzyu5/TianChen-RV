@@ -1502,7 +1502,7 @@ module {
        "tcrv_rvv.macc, "
        "tcrv_rvv.widening_convert, tcrv_rvv.move, "
        "tcrv_rvv.widening_dot_reduce, tcrv_rvv.masked_widening_dot_reduce, "
-       "tcrv_rvv.masked_move, "
+       "tcrv_rvv.masked_move, tcrv_rvv.masked_load, "
        "tcrv_rvv.masked_store, "
        "tcrv_rvv.store, and "
        "tcrv_rvv.strided_store"});
@@ -2363,20 +2363,21 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "src", "const int32_t *",
                  RuntimeABIParameterRole::LHSInputBuffer),
-             {"runtime-abi-mirror", "materialized-load-base",
-              "masked-move-source-call"});
+             {"runtime-abi-mirror", "materialized-masked-load-base",
+              "masked-load-source-call", "header-mirror"});
   addBinding(maskedLoadStorePlan, "mask",
              makeTargetExportABIParameter(
                  "mask", "const int32_t *",
                  RuntimeABIParameterRole::MaskInputBuffer),
              {"runtime-abi-mirror", "materialized-mask-load-base",
-              "mask-compare-call"});
+              "masked-load-mask-call"});
   addBinding(maskedLoadStorePlan, "dst",
              makeTargetExportABIParameter(
                  "dst", "int32_t *",
                  RuntimeABIParameterRole::OutputBuffer),
              {"runtime-abi-mirror", "materialized-old-destination-load-base",
-              "materialized-store-base", "header-mirror"});
+              "masked-load-passthrough-call", "materialized-store-base",
+              "header-mirror"});
   addBinding(maskedLoadStorePlan, "n",
              makeTargetExportABIParameter(
                  "n", "size_t",
@@ -2504,13 +2505,14 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "src", "const int32_t *",
                  RuntimeABIParameterRole::SourceInputBuffer),
-             {"abi-mirror", "src-load", "active-source"});
+             {"abi-mirror", "materialized-masked-load-base",
+              "masked-load-source-call"});
   addBinding(computedMaskUnitLoadStorePlan, "dst",
              makeTargetExportABIParameter(
                  "dst", "int32_t *",
                  RuntimeABIParameterRole::OutputBuffer),
-             {"abi-mirror", "old-dst-load", "materialized-store-base",
-              "header-mirror"});
+             {"abi-mirror", "old-dst-load", "masked-load-passthrough-call",
+              "materialized-store-base", "header-mirror"});
   addBinding(computedMaskUnitLoadStorePlan, "n",
              makeTargetExportABIParameter(
                  "n", "size_t",

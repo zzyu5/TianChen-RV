@@ -5,7 +5,8 @@
 // Pre-realized selected-body input for one bounded Stage2 computed-mask
 // unit-stride memory movement slice. The RVV plugin must realize compare
 // lhs/rhs, active source, and old destination ABI operands into explicit
-// load/compare/load/masked_move/store typed structure. The mask is produced
+// compare loads/old-destination passthrough load/compare/masked_load/store
+// typed structure. The mask is produced
 // inside the selected RVV body, not supplied by runtime ABI or inferred from
 // route names.
 
@@ -38,16 +39,17 @@ module {
 // REALIZED-SAME: selected_variant = @pre_realized_body_rvv_computed_masked_unit_load_store
 // REALIZED: %[[CMP_LHS:.*]] = tcrv_rvv.load
 // REALIZED: %[[CMP_RHS:.*]] = tcrv_rvv.load
-// REALIZED: %[[SRC:.*]] = tcrv_rvv.load
 // REALIZED: %[[OLD_DST:.*]] = tcrv_rvv.load
 // REALIZED: %[[MASK:.*]] = tcrv_rvv.compare %[[CMP_LHS]], %[[CMP_RHS]], %[[VL]]
 // REALIZED-SAME: kind = "slt"
 // REALIZED-SAME: -> !tcrv_rvv.mask<i32, "m1">
-// REALIZED: %[[MOVED:.*]] = tcrv_rvv.masked_move %[[MASK]], %[[SRC]], %[[OLD_DST]], %[[VL]]
-// REALIZED-SAME: kind = "active-source-preserve-old-destination"
+// REALIZED: %[[LOADED:.*]] = tcrv_rvv.masked_load %{{.*}}, %[[MASK]], %[[OLD_DST]], %[[VL]]
+// REALIZED-SAME: inactive_lane_policy = "preserve-passthrough-on-false-lanes"
+// REALIZED-SAME: memory_form = "masked-unit-load"
 // REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m1">
 // REALIZED: tcrv_rvv.store
 // REALIZED-NOT: tcrv_rvv.mask_load
+// REALIZED-NOT: tcrv_rvv.masked_move
 // REALIZED-NOT: tcrv_rvv.strided_store
 // REALIZED-NOT: tcrv_rvv.indexed_store
 // REALIZED-NOT: tcrv_rvv.binary
@@ -56,11 +58,11 @@ module {
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "computed_masked_unit_load_store"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.masked_move"}
+// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.masked_load"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "computed-mask-unit-load-store"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "cmp_lhs,cmp_rhs,src,dst,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:computed_masked_unit_load_store.v1"}
-// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:computed_masked_unit_load_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi-mirror|cmp-lhs-load|compare-lhs-call;cmp_rhs=rhs-input-buffer:cmp_rhs:abi-mirror|cmp-rhs-load|compare-rhs-call;src=source-input-buffer:src:abi-mirror|src-load|active-source;dst=output-buffer:dst:abi-mirror|old-dst-load|materialized-store-base|header-mirror;n=runtime-element-count:n:abi-mirror|setvl-avl|loop-control|header-mirror"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:computed_masked_unit_load_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi-mirror|cmp-lhs-load|compare-lhs-call;cmp_rhs=rhs-input-buffer:cmp_rhs:abi-mirror|cmp-rhs-load|compare-rhs-call;src=source-input-buffer:src:abi-mirror|materialized-masked-load-base|masked-load-source-call;dst=output-buffer:dst:abi-mirror|old-dst-load|masked-load-passthrough-call|materialized-store-base|header-mirror;n=runtime-element-count:n:abi-mirror|setvl-avl|loop-control|header-mirror"}
 // PLAN-SAME: {key = "tcrv_rvv.masked_memory_layout", value = "unit-stride-compare-source-old-destination-runtime-abi"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_role", value = "predicate-mask-produced-by-compare"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
@@ -83,5 +85,5 @@ module {
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.runtime_abi_order: cmp_lhs,cmp_rhs,src,dst,n
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:computed_masked_unit_load_store.v1
-// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:computed_masked_unit_load_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi-mirror|cmp-lhs-load|compare-lhs-call;cmp_rhs=rhs-input-buffer:cmp_rhs:abi-mirror|cmp-rhs-load|compare-rhs-call;src=source-input-buffer:src:abi-mirror|src-load|active-source;dst=output-buffer:dst:abi-mirror|old-dst-load|materialized-store-base|header-mirror;n=runtime-element-count:n:abi-mirror|setvl-avl|loop-control|header-mirror
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:computed_masked_unit_load_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi-mirror|cmp-lhs-load|compare-lhs-call;cmp_rhs=rhs-input-buffer:cmp_rhs:abi-mirror|cmp-rhs-load|compare-rhs-call;src=source-input-buffer:src:abi-mirror|materialized-masked-load-base|masked-load-source-call;dst=output-buffer:dst:abi-mirror|old-dst-load|masked-load-passthrough-call|materialized-store-base|header-mirror;n=runtime-element-count:n:abi-mirror|setvl-avl|loop-control|header-mirror
 // HEADER: void tcrv_emitc_pre_realized_body_computed_masked_unit_load_store_kernel_pre_realized_body_rvv_computed_masked_unit_load_store(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *src, int32_t *dst, size_t n);

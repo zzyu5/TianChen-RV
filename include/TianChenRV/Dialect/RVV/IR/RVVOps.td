@@ -1118,8 +1118,10 @@ def TypedMaskedMemoryPreRealizedBodyOp
     This op is not a masked memory framework, masked gather/scatter route,
     descriptor, source-front-door marker, direct-C exporter, route id,
     intrinsic wrapper, runtime artifact, correctness evidence, or performance
-    evidence. The RVV plugin must realize it into explicit setvl/with_vl/load/
-    mask_load/load/masked_move/store tcrv_rvv body structure before the
+    evidence. The RVV plugin must realize masked_unit_load_store into explicit
+    setvl/with_vl/mask_load/load/masked_load/store and masked_unit_store into
+    explicit setvl/with_vl/load/mask_load/masked_store tcrv_rvv body structure
+    before the
     provider may construct a TCRVEmitCLowerableRoute.
   }];
 
@@ -1158,9 +1160,9 @@ def TypedComputedMaskMemoryPreRealizedBodyOp
 
     This op is not a fusion framework, route label, intrinsic wrapper,
     runtime artifact, correctness evidence, or performance evidence. The RVV
-    plugin must realize it into explicit setvl/with_vl/load/load/load/load/
-    compare/masked_move/store tcrv_rvv body structure before the provider may
-    construct a TCRVEmitCLowerableRoute.
+    plugin must realize it into explicit setvl/with_vl/load/load/load/compare/
+    masked_load/store tcrv_rvv body structure before the provider may construct
+    a TCRVEmitCLowerableRoute.
   }];
 
   let arguments = (ins
@@ -1379,6 +1381,44 @@ def MaskLoadOp : TCRVRVV_Op<"mask_load",
 
   let assemblyFormat =
     "$mask `,` $vl attr-dict `:` type($mask) `,` type($vl) `->` type($loaded)";
+  let hasVerifier = 1;
+}
+
+def MaskedLoadOp : TCRVRVV_Op<"masked_load",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV masked unit-stride data load op";
+  let description = [{
+    Records one bounded plugin-local RVV masked unit-stride data load step.
+    The op is nested directly under tcrv_rvv.with_vl, consumes one explicit
+    source runtime ABI buffer, one !tcrv_rvv.mask predicate produced by
+    tcrv_rvv.mask_load or tcrv_rvv.compare in the same VL scope, one
+    inactive-lane passthrough vector, and the active !tcrv_rvv.vl token. It
+    carries explicit masked-load memory form and inactive-lane preservation
+    facts, and produces the vector value to store.
+
+    For the current bounded Stage 2 masked memory movement slice, memory_form
+    is limited to masked-unit-load and inactive_lane_policy is limited to
+    preserve-passthrough-on-false-lanes. The RVV plugin derives the concrete
+    masked-load intrinsic from this typed body fact, dtype/config, mask, and
+    runtime ABI binding; common EmitC/export must not infer the masked load
+    from route ids, ABI names, artifact metadata, exact intrinsic spelling, or
+    harness sentinels.
+  }];
+
+  let arguments = (ins
+    AnyType:$buffer,
+    AnyType:$mask,
+    AnyType:$passthrough,
+    AnyType:$vl,
+    StrAttr:$memory_form,
+    StrAttr:$inactive_lane_policy
+  );
+  let results = (outs AnyType:$loaded);
+
+  let assemblyFormat =
+    "$buffer `,` $mask `,` $passthrough `,` $vl attr-dict `:` type($buffer) `,` type($mask) `,` type($passthrough) `,` type($vl) `->` type($loaded)";
   let hasVerifier = 1;
 }
 

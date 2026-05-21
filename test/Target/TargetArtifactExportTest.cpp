@@ -491,11 +491,11 @@ llvm::StringRef getRVVTestArithmeticOperationName(
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
     return "tcrv_rvv.move";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
-    return "tcrv_rvv.masked_move";
+    return "tcrv_rvv.masked_load";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedUnitStore:
     return "tcrv_rvv.masked_store";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
-    return "tcrv_rvv.masked_move";
+    return "tcrv_rvv.masked_load";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
     return "tcrv_rvv.masked_move";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:

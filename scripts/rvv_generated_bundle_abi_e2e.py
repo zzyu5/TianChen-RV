@@ -295,9 +295,9 @@ MASKED_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_PLAN = (
 )
 MASKED_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:masked_unit_load_store.v1;"
-    "src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|masked-move-source-call;"
-    "mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|mask-compare-call;"
-    "dst=output-buffer:dst:runtime-abi-mirror|materialized-old-destination-load-base|materialized-store-base|header-mirror;"
+    "src=lhs-input-buffer:src:runtime-abi-mirror|materialized-masked-load-base|masked-load-source-call|header-mirror;"
+    "mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-load-mask-call;"
+    "dst=output-buffer:dst:runtime-abi-mirror|materialized-old-destination-load-base|masked-load-passthrough-call|materialized-store-base|header-mirror;"
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
 )
 MASKED_UNIT_STORE_ROUTE_OPERAND_BINDING_PLAN = (
@@ -317,8 +317,8 @@ COMPUTED_MASK_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:computed_masked_unit_load_store.v1;"
     "cmp_lhs=lhs-input-buffer:cmp_lhs:abi-mirror|cmp-lhs-load|compare-lhs-call;"
     "cmp_rhs=rhs-input-buffer:cmp_rhs:abi-mirror|cmp-rhs-load|compare-rhs-call;"
-    "src=source-input-buffer:src:abi-mirror|src-load|active-source;"
-    "dst=output-buffer:dst:abi-mirror|old-dst-load|materialized-store-base|header-mirror;"
+    "src=source-input-buffer:src:abi-mirror|materialized-masked-load-base|masked-load-source-call;"
+    "dst=output-buffer:dst:abi-mirror|old-dst-load|masked-load-passthrough-call|materialized-store-base|header-mirror;"
     "n=runtime-element-count:n:abi-mirror|setvl-avl|loop-control|header-mirror"
 )
 COMPUTED_MASK_STRIDED_STORE_ROUTE_OPERAND_BINDING_PLAN = (
@@ -1522,7 +1522,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         external_abi_name="rvv-generic-masked-unit-load-store-callable-c-abi.v1",
         function_name="tcrv_emitc_explicit_selected_body_masked_unit_load_store_kernel_explicit_selected_body_rvv_masked_unit_load_store",
         emitc_route="rvv-generic-masked-unit-load-store-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_move",
+        typed_compute_op="tcrv_rvv.masked_load",
         memory_form="masked-unit-load-store",
         lhs_initializer="(int32_t)(900 + (int32_t)(index * 13))",
         rhs_initializer="(int32_t)(((index % 5) == 0 || (index % 5) == 2) ? 1 : 0)",
@@ -1794,7 +1794,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         external_abi_name="rvv-generic-computed-masked-unit-load-store-callable-c-abi.v1",
         function_name="tcrv_emitc_pre_realized_body_computed_masked_unit_load_store_kernel_pre_realized_body_rvv_computed_masked_unit_load_store",
         emitc_route="rvv-generic-computed-masked-unit-load-store-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_move",
+        typed_compute_op="tcrv_rvv.masked_load",
         memory_form="computed-mask-unit-load-store",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -4400,8 +4400,8 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_move",
-            "materialized selected-body MLIR masked movement op",
+            "tcrv_rvv.masked_load",
+            "materialized selected-body MLIR masked load op",
         )
         require_contains(
             text,
@@ -4420,8 +4420,13 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            'kind = "active-source-preserve-old-destination"',
-            "materialized selected-body MLIR inactive lane preservation kind",
+            'memory_form = "masked-unit-load"',
+            "materialized selected-body MLIR masked load memory form",
+        )
+        require_contains(
+            text,
+            'inactive_lane_policy = "preserve-passthrough-on-false-lanes"',
+            "materialized selected-body MLIR masked load inactive lane policy",
         )
         require_contains(
             text,
@@ -4431,6 +4436,11 @@ def verify_materialized_selected_body(
         require_no_op_invocation(
             text,
             "tcrv_rvv.binary",
+            "materialized selected-body MLIR masked memory movement",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_move",
             "materialized selected-body MLIR masked memory movement",
         )
     if expectation.is_masked_unit_store:
@@ -4497,8 +4507,8 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_move",
-            "materialized selected-body MLIR computed mask movement op",
+            "tcrv_rvv.masked_load",
+            "materialized selected-body MLIR computed mask masked load op",
         )
         require_contains(
             text,
@@ -4507,8 +4517,13 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            'kind = "active-source-preserve-old-destination"',
-            "materialized selected-body MLIR inactive lane preservation kind",
+            'memory_form = "masked-unit-load"',
+            "materialized selected-body MLIR computed mask masked load memory form",
+        )
+        require_contains(
+            text,
+            'inactive_lane_policy = "preserve-passthrough-on-false-lanes"',
+            "materialized selected-body MLIR computed mask inactive lane policy",
         )
         require_contains(
             text,
@@ -4523,6 +4538,11 @@ def verify_materialized_selected_body(
         require_no_op_invocation(
             text,
             "tcrv_rvv.binary",
+            "materialized selected-body MLIR computed mask memory movement",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_move",
             "materialized selected-body MLIR computed mask memory movement",
         )
         require_no_op_invocation(

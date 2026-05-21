@@ -26,10 +26,10 @@ module {
 // REALIZED: %[[VL:.*]] = tcrv_rvv.setvl %{{.*}} {lmul = "m1", policy = #tcrv_rvv.policy<tail = undisturbed, mask = undisturbed>, sew = 32 : i64}
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: selected_variant = @pre_realized_body_rvv_masked_unit_store
-// REALIZED: tcrv_rvv.load
 // REALIZED: tcrv_rvv.mask_load
 // REALIZED-SAME: mask_memory_form = "unit-stride-mask-load"
 // REALIZED-SAME: mask_role = "predicate-mask-input-buffer"
+// REALIZED: tcrv_rvv.load
 // REALIZED-NOT: tcrv_rvv.masked_move
 // REALIZED: tcrv_rvv.masked_store
 // REALIZED-SAME: inactive_lane_policy = "preserve-output-on-false-lanes"

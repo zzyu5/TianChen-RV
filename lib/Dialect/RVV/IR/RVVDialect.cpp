@@ -383,6 +383,10 @@ bool isAllowedMaskLoadAttr(llvm::StringRef name) {
   return name == kMaskRoleAttrName || name == kMaskMemoryFormAttrName;
 }
 
+bool isAllowedMaskedLoadAttr(llvm::StringRef name) {
+  return name == kMemoryFormAttrName || name == kInactiveLanePolicyAttrName;
+}
+
 bool isAllowedBroadcastLoadAttr(llvm::StringRef) { return false; }
 
 bool isAllowedStridedLoadAttr(llvm::StringRef) { return false; }
@@ -2025,6 +2029,14 @@ llvm::StringRef MaskLoadOp::getTCRVEmitCLowerableSourceOpName() {
 }
 
 llvm::StringRef MaskLoadOp::getTCRVEmitCLowerableSourceRole() {
+  return "load";
+}
+
+llvm::StringRef MaskedLoadOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef MaskedLoadOp::getTCRVEmitCLowerableSourceRole() {
   return "load";
 }
 
@@ -5036,6 +5048,83 @@ mlir::LogicalResult MaskLoadOp::verify() {
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
   return verifyGenericMaskTypeForWithVL(op, getLoaded(), "result");
+}
+
+mlir::LogicalResult MaskedLoadOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.masked_load",
+                                         isAllowedMaskedLoadAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one explicit source buffer ABI operand, one generic "
+              "RVV mask predicate, one inactive passthrough generic RVV "
+              "vector, one !tcrv_rvv.vl operand, and one generic RVV vector "
+              "result";
+  if (getMemoryForm() != "masked-unit-load")
+    return emitOpError()
+           << "currently supports only memory_form \"masked-unit-load\" for "
+              "the bounded Stage 2 masked load route";
+  if (getInactiveLanePolicy() != "preserve-passthrough-on-false-lanes")
+    return emitOpError()
+           << "requires inactive_lane_policy "
+              "\"preserve-passthrough-on-false-lanes\" because false mask "
+              "lanes must preserve the explicit passthrough vector";
+  if (getPassthrough().getType() != getLoaded().getType())
+    return emitOpError()
+           << "requires inactive passthrough and result to have the same "
+              "generic RVV vector type";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getBuffer(), "masked load source buffer",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto maskLoad = getMask().getDefiningOp<MaskLoadOp>();
+  if (maskLoad) {
+    if (maskLoad.getVl() != getVl())
+      return emitOpError()
+             << "requires mask-producing tcrv_rvv.mask_load to consume the "
+                "same !tcrv_rvv.vl token as tcrv_rvv.masked_load";
+    if (maskLoad->getParentOp() != op->getParentOp())
+      return emitOpError()
+             << "requires mask-producing tcrv_rvv.mask_load to be in the "
+                "same tcrv_rvv.with_vl body as tcrv_rvv.masked_load";
+  } else {
+    auto compare = getMask().getDefiningOp<CompareOp>();
+    if (!compare)
+      return emitOpError()
+             << "requires mask operand to be produced by tcrv_rvv.mask_load "
+                "or tcrv_rvv.compare inside the selected RVV typed body";
+    if (compare.getVl() != getVl())
+      return emitOpError()
+             << "requires mask-producing tcrv_rvv.compare to consume the "
+                "same !tcrv_rvv.vl token as tcrv_rvv.masked_load";
+    if (compare->getParentOp() != op->getParentOp())
+      return emitOpError()
+             << "requires mask-producing tcrv_rvv.compare to be in the same "
+                "tcrv_rvv.with_vl body as tcrv_rvv.masked_load";
+  }
+
+  if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getPassthrough(),
+                                                    "passthrough")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getLoaded(),
+                                                    "result")))
+    return mlir::failure();
+  return verifyGenericMaskMatchesVector(op, getMask(), getLoaded(), "mask",
+                                        "result");
 }
 
 mlir::LogicalResult IndexLoadOp::verify() {
