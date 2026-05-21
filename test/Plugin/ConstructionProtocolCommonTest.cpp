@@ -1640,6 +1640,14 @@ int runRVVCommonValidationTest() {
         "computed_masked_strided_input_widening_dot_reduce_add";
     const bool isComputedMaskSelectRoute =
         route.operationMnemonic == "computed_mask_select";
+    const bool isMaskedElementwiseRoute =
+        route.operationMnemonic == "masked_add" ||
+        route.operationMnemonic == "masked_sub" ||
+        route.operationMnemonic == "masked_mul";
+    const bool isScalarBroadcastElementwiseRoute =
+        route.operationMnemonic == "scalar_broadcast_add" ||
+        route.operationMnemonic == "scalar_broadcast_sub" ||
+        route.operationMnemonic == "scalar_broadcast_mul";
     llvm::StringRef executableComputeOp = "tcrv_rvv.binary";
     if (route.operationMnemonic == "cmp_select" || isComputedMaskSelectRoute)
       executableComputeOp = "tcrv_rvv.select";
@@ -1647,7 +1655,7 @@ int runRVVCommonValidationTest() {
       executableComputeOp = "tcrv_rvv.reduce";
     else if (isStandaloneReduceRoute)
       executableComputeOp = "tcrv_rvv.standalone_reduce";
-    else if (route.operationMnemonic == "masked_add")
+    else if (isMaskedElementwiseRoute)
       executableComputeOp = "tcrv_rvv.masked_binary";
     else if (route.operationMnemonic == "macc_add")
       executableComputeOp = "tcrv_rvv.macc";
@@ -1710,8 +1718,7 @@ int runRVVCommonValidationTest() {
                                        : (route.operationMnemonic ==
                                                   "segment2_interleave_unit_load"
                                               ? "tcrv_rvv.segment2_store"
-                                       : (route.operationMnemonic ==
-                                                  "scalar_broadcast_add"
+                                      : (isScalarBroadcastElementwiseRoute
                                               ? "tcrv_rvv.splat"
                                               : "tcrv_rvv.load")))))));
     llvm::Expected<llvm::SmallVector<
@@ -1723,7 +1730,7 @@ int runRVVCommonValidationTest() {
                               "route operation: ") +
                   llvm::toString(steps.takeError()));
     const bool hasMaskProducer = route.operationMnemonic == "cmp_select" ||
-                                 route.operationMnemonic == "masked_add";
+                                 isMaskedElementwiseRoute;
     const bool hasAccumulatorLoad = route.operationMnemonic == "macc_add";
     const bool hasStridedMemory = route.operationMnemonic == "strided_add";
     const bool hasStridedMemoryMovement =
@@ -1866,7 +1873,9 @@ int runRVVCommonValidationTest() {
               getRVVSelectedBodySegment2InterleaveRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
-    } else if (route.operationMnemonic == "scalar_broadcast_add") {
+    } else if (route.operationMnemonic == "scalar_broadcast_add" ||
+               route.operationMnemonic == "scalar_broadcast_sub" ||
+               route.operationMnemonic == "scalar_broadcast_mul") {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();

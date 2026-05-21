@@ -484,7 +484,8 @@ bool isSupportedTypedBinaryPreRealizedConfig(llvm::StringRef opKind,
 
 bool isSupportedTypedMaskedBinaryPreRealizedBodyOpKind(
     llvm::StringRef opKind) {
-  return opKind == "masked_add";
+  return opKind == "masked_add" || opKind == "masked_sub" ||
+         opKind == "masked_mul";
 }
 
 bool isSupportedTypedMaskedBinaryPreRealizedMemoryForm(
@@ -959,7 +960,7 @@ bool isSupportedGenericBinaryKind(llvm::StringRef kind) {
 }
 
 bool isSupportedGenericMaskedBinaryKind(llvm::StringRef kind) {
-  return kind == "add";
+  return kind == "add" || kind == "sub" || kind == "mul";
 }
 
 bool isSupportedGenericCompareKind(llvm::StringRef kind) {
@@ -2477,10 +2478,6 @@ mlir::LogicalResult TypedBinaryPreRealizedBodyOp::verify() {
   }
 
   if (getMemoryForm() == "rhs-scalar-broadcast") {
-    if (getOpKind() != "add")
-      return emitOpError()
-             << "requires op_kind \"add\" for memory_form "
-                "\"rhs-scalar-broadcast\"";
     if (mlir::failed(verifyRuntimeABIScalarOperandRole(
             op, getRhs(), "rhs scalar",
             {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
@@ -2549,8 +2546,9 @@ mlir::LogicalResult TypedMaskedBinaryPreRealizedBodyOp::verify() {
 
   if (!isSupportedTypedMaskedBinaryPreRealizedBodyOpKind(getOpKind()))
     return emitOpError()
-           << "currently supports only op_kind \"masked_add\" for the "
-              "bounded selected-body masked realization hook";
+           << "currently supports only op_kind \"masked_add\", "
+              "\"masked_sub\", or \"masked_mul\" for the bounded "
+              "selected-body masked realization hook";
   if (!isSupportedTypedMaskedBinaryPreRealizedMemoryForm(getMemoryForm()))
     return emitOpError()
            << "currently supports only memory_form "
@@ -5259,8 +5257,8 @@ mlir::LogicalResult MaskedBinaryOp::verify() {
 
   if (!isSupportedGenericMaskedBinaryKind(getKind()))
     return emitOpError()
-           << "currently supports only kind \"add\" for the bounded Stage 2 "
-              "masked arithmetic route";
+           << "currently supports only kind \"add\", \"sub\", or \"mul\" "
+              "for the bounded Stage 2 masked arithmetic route";
 
   if (op->getNumOperands() != 5 || op->getNumResults() != 1)
     return emitOpError()

@@ -41,7 +41,7 @@
 # MASKED-DAG: "typed_compute_op": "tcrv_rvv.masked_binary"
 # MASKED-DAG: "memory_form": "vector-rhs-load"
 # MASKED-DAG: "inactive_lane_contract": "masked-off lanes must preserve the explicit passthrough vector"
-# MASKED-DAG: "mask_coverage_contract": "multi-lane masked_add cases require true and false mask lanes"
+# MASKED-DAG: "mask_coverage_contract": "multi-lane masked elementwise cases require true and false mask lanes"
 # MASKED-DAG: "status": "dry_run_success"
 
 # HARNESS: tcrv_emitc_pre_realized_body_masked_add_kernel_pre_realized_body_rvv_masked_add(lhs, rhs, out, n);

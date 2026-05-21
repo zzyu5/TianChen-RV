@@ -1,0 +1,17 @@
+{"file": ".trellis/spec/index.md", "reason": "Check RVV Stage2 route expansion remains typed-body-driven and RVV-first."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check plugin ownership, selected-body realization, and fail-closed legacy/source-front-door boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export stays neutral and consumes provider-built route only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check positive/negative tests and ssh rvv evidence match claim type."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-binary-broadcast-masked-elementwise/prd.md", "reason": "Current task scope, non-goals, acceptance criteria, and validation plan."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Run focused C++ RVV plugin/provider tests after implementation."}
+{"file": "test/Target/RVV/", "type": "directory", "reason": "Run focused lit/FileCheck target tests for new scalar-broadcast and masked elementwise routes."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Run py_compile, self-test, generated-bundle dry-runs, and ssh rvv representative checks."}
+{"file": "build/test/lit.site.cfg.py", "reason": "Run check-tianchenrv before finish."}
+{"file": "test/Plugin/ConstructionProtocolCommonTest.cpp", "reason": "Focused construction protocol executable passed after scalar-broadcast and masked elementwise helper repair."}
+{"file": "test/Dialect/RVV/generic-stage2-dataflow.mlir", "reason": "Focused lit verify-diagnostics passed for generalized masked add/sub/mul negative boundary."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-masked-add-dry-run.test", "reason": "Focused lit dry-run check passed after generalized masked elementwise coverage text update."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-masked-add-dry-run.test", "reason": "Focused lit dry-run check passed after generalized masked elementwise coverage text update."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Dry-runs passed for explicit and pre-realized scalar_broadcast_sub, scalar_broadcast_mul, masked_sub, and masked_mul."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "py_compile and --self-test passed after op-kind and evidence updates."}
+{"file": "artifacts/tmp/rvv_stage2_binary_broadcast_masked/ssh-pre-realized/", "type": "directory", "reason": "Real ssh rvv PASS for scalar_broadcast_sub, scalar_broadcast_mul, masked_sub, and masked_mul with counts 7,16,23 and value-distinguishing RHS scalars."}
+{"file": "build/test/lit.site.cfg.py", "reason": "check-tianchenrv passed 275/275."}

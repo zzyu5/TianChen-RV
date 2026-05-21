@@ -188,8 +188,8 @@ module {
       %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       %rhs = tcrv_rvv.load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       %mask = tcrv_rvv.compare %lhs, %rhs, %vl {kind = "eq"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
-      // expected-error@+1 {{currently supports only kind "add" for the bounded Stage 2 masked arithmetic route}}
-      %masked = tcrv_rvv.masked_binary %mask, %lhs, %lhs, %rhs, %vl {kind = "mul"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+      // expected-error@+1 {{currently supports only kind "add", "sub", or "mul" for the bounded Stage 2 masked arithmetic route}}
+      %masked = tcrv_rvv.masked_binary %mask, %lhs, %lhs, %rhs, %vl {kind = "xor"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
     } : !tcrv_rvv.vl
   }
 }

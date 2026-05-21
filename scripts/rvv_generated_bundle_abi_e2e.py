@@ -43,11 +43,17 @@ DEFAULT_STRIDED_LOAD_BYTE_STRIDES = (4, 8, 12)
 MIN_RUNTIME_COUNT_CASES = 2
 MIN_NON_ONE_VECTOR_SENTINEL_COUNT = 17
 DEFAULT_OP_KINDS = ("add", "sub", "mul")
+MASKED_ELEMENTWISE_OP_KINDS = ("masked_add", "masked_sub", "masked_mul")
+SCALAR_BROADCAST_OP_KINDS = (
+    "scalar_broadcast_add",
+    "scalar_broadcast_sub",
+    "scalar_broadcast_mul",
+)
 OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "cmp_select",
     "computed_mask_select",
     "reduce_add",
-    "masked_add",
+    *MASKED_ELEMENTWISE_OP_KINDS,
     "macc_add",
     "widening_macc_add",
     "widening_dot_reduce_add",
@@ -65,7 +71,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "computed_masked_strided_store",
     "segment2_deinterleave_unit_store",
     "segment2_interleave_unit_load",
-    "scalar_broadcast_add",
+    *SCALAR_BROADCAST_OP_KINDS,
     "standalone_reduce_add",
     "i64_add",
     "lmul_m2_add",
@@ -322,6 +328,49 @@ MASKED_ADD_ROUTE_OPERAND_BINDING_OPERANDS = (
     "out=output-buffer:out:abi|store-base|header;"
     "n=runtime-element-count:n:abi|setvl-avl|loop-control|header"
 )
+
+
+def scalar_broadcast_route_operand_binding_plan(kind: str) -> str:
+    if kind not in SCALAR_BROADCAST_OP_KINDS:
+        raise EvidenceError(f"unsupported scalar broadcast op kind: {kind}")
+    return f"rvv-route-operand-binding:{kind}.v1"
+
+
+def scalar_broadcast_route_operand_binding_operands(kind: str) -> str:
+    plan = scalar_broadcast_route_operand_binding_plan(kind)
+    return (
+        f"{plan};"
+        "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|scalar-broadcast-lhs-call;"
+        "rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call;"
+        "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
+        "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+    )
+
+
+def masked_elementwise_route_operand_binding_plan(kind: str) -> str:
+    if kind not in MASKED_ELEMENTWISE_OP_KINDS:
+        raise EvidenceError(f"unsupported masked elementwise op kind: {kind}")
+    return f"rvv-route-operand-binding:{kind}.v1"
+
+
+def masked_elementwise_materialized_use_prefix(kind: str) -> str:
+    if kind not in MASKED_ELEMENTWISE_OP_KINDS:
+        raise EvidenceError(f"unsupported masked elementwise op kind: {kind}")
+    return kind.replace("_", "-")
+
+
+def masked_elementwise_route_operand_binding_operands(kind: str) -> str:
+    plan = masked_elementwise_route_operand_binding_plan(kind)
+    prefix = masked_elementwise_materialized_use_prefix(kind)
+    return (
+        f"{plan};"
+        f"lhs=lhs-input-buffer:lhs:abi|load-base|compare-lhs-call|{prefix}-lhs-call|masked-merge-passthrough-call;"
+        f"rhs=rhs-input-buffer:rhs:abi|load-base|compare-rhs-call|{prefix}-rhs-call;"
+        "out=output-buffer:out:abi|store-base|header;"
+        "n=runtime-element-count:n:abi|setvl-avl|loop-control|header"
+    )
+
+
 REDUCE_ADD_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:reduce_add.v1"
 )
@@ -583,7 +632,7 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *src0, "
                 "const int32_t *src1, int32_t *dst, size_t n);"
             )
-        if self.is_scalar_broadcast_add:
+        if self.is_scalar_broadcast_elementwise:
             return (
                 f"void {self.function_name}(const int32_t *lhs, "
                 "int32_t rhs_scalar, int32_t *out, size_t n);"
@@ -651,7 +700,7 @@ class OpExpectation:
             return EXPECTED_SEGMENT2_RUNTIME_PARAMETERS
         if self.is_segment2_interleave_unit_load:
             return EXPECTED_SEGMENT2_INTERLEAVE_RUNTIME_PARAMETERS
-        if self.is_scalar_broadcast_add:
+        if self.is_scalar_broadcast_elementwise:
             return EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS
         if self.is_standalone_reduce_add:
             return EXPECTED_STANDALONE_REDUCE_RUNTIME_PARAMETERS
@@ -697,7 +746,7 @@ class OpExpectation:
             return SEGMENT2_RUNTIME_ABI_ORDER
         if self.is_segment2_interleave_unit_load:
             return SEGMENT2_INTERLEAVE_RUNTIME_ABI_ORDER
-        if self.is_scalar_broadcast_add:
+        if self.is_scalar_broadcast_elementwise:
             return SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER
         if self.is_standalone_reduce_add:
             return STANDALONE_REDUCE_RUNTIME_ABI_ORDER
@@ -744,6 +793,10 @@ class OpExpectation:
     @property
     def is_masked_add(self) -> bool:
         return self.kind == "masked_add"
+
+    @property
+    def is_masked_elementwise(self) -> bool:
+        return self.kind in MASKED_ELEMENTWISE_OP_KINDS
 
     @property
     def is_macc_add(self) -> bool:
@@ -816,6 +869,10 @@ class OpExpectation:
     @property
     def is_scalar_broadcast_add(self) -> bool:
         return self.kind == "scalar_broadcast_add"
+
+    @property
+    def is_scalar_broadcast_elementwise(self) -> bool:
+        return self.kind in SCALAR_BROADCAST_OP_KINDS
 
     @property
     def is_standalone_reduce_add(self) -> bool:
@@ -932,6 +989,66 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         lhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(20 + (int32_t)index) : (int32_t)(3 + (int32_t)index))",
         rhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(20 + (int32_t)index) : (int32_t)(100 + (int32_t)index))",
         expected_expression="(lhs[index] == rhs[index] ? (int32_t)(lhs[index] + rhs[index]) : lhs[index])",
+    ),
+    "masked_sub": OpExpectation(
+        kind="masked_sub",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-masked-sub.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_i32_masked_sub",
+        external_abi_name="rvv-generic-masked-sub-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_masked_sub_kernel_explicit_selected_body_rvv_i32_masked_sub",
+        emitc_route="rvv-generic-masked-sub-emitc-route",
+        typed_compute_op="tcrv_rvv.masked_binary",
+        memory_form="vector-rhs-load",
+        lhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(200 + (int32_t)index) : (int32_t)(30 + (int32_t)index))",
+        rhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(200 + (int32_t)index) : (int32_t)(100 + (int32_t)index))",
+        expected_expression="(lhs[index] == rhs[index] ? (int32_t)(lhs[index] - rhs[index]) : lhs[index])",
+    ),
+    "masked_mul": OpExpectation(
+        kind="masked_mul",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-masked-mul.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_i32_masked_mul",
+        external_abi_name="rvv-generic-masked-mul-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_masked_mul_kernel_explicit_selected_body_rvv_i32_masked_mul",
+        emitc_route="rvv-generic-masked-mul-emitc-route",
+        typed_compute_op="tcrv_rvv.masked_binary",
+        memory_form="vector-rhs-load",
+        lhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(5 + (int32_t)(index % 7)) : (int32_t)(3 + (int32_t)index))",
+        rhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(5 + (int32_t)(index % 7)) : (int32_t)(100 + (int32_t)index))",
+        expected_expression="(lhs[index] == rhs[index] ? (int32_t)(lhs[index] * rhs[index]) : lhs[index])",
+    ),
+    "scalar_broadcast_sub": OpExpectation(
+        kind="scalar_broadcast_sub",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-scalar-broadcast-sub.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_scalar_broadcast_sub",
+        external_abi_name="rvv-generic-scalar-broadcast-sub-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_scalar_broadcast_sub_kernel_explicit_selected_body_rvv_scalar_broadcast_sub",
+        emitc_route="rvv-generic-scalar-broadcast-sub-emitc-route",
+        typed_compute_op="tcrv_rvv.binary",
+        memory_form="rhs-scalar-broadcast",
+        lhs_initializer="(int32_t)(500 - (int32_t)(index * 2))",
+        rhs_initializer="(int32_t)17",
+        expected_expression="lhs[index] - rhs_scalar",
+    ),
+    "scalar_broadcast_mul": OpExpectation(
+        kind="scalar_broadcast_mul",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-scalar-broadcast-mul.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_scalar_broadcast_mul",
+        external_abi_name="rvv-generic-scalar-broadcast-mul-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_scalar_broadcast_mul_kernel_explicit_selected_body_rvv_scalar_broadcast_mul",
+        emitc_route="rvv-generic-scalar-broadcast-mul-emitc-route",
+        typed_compute_op="tcrv_rvv.binary",
+        memory_form="rhs-scalar-broadcast",
+        lhs_initializer="(int32_t)((int)(index % 13) - 6)",
+        rhs_initializer="(int32_t)-3",
+        expected_expression="lhs[index] * rhs_scalar",
     ),
     "macc_add": OpExpectation(
         kind="macc_add",
@@ -1174,6 +1291,20 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="pre_realized_body_rvv_masked_add",
         function_name="tcrv_emitc_pre_realized_body_masked_add_kernel_pre_realized_body_rvv_masked_add",
     ),
+    "masked_sub": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_sub"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-masked-sub.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_masked_sub",
+        function_name="tcrv_emitc_pre_realized_body_masked_sub_kernel_pre_realized_body_rvv_masked_sub",
+    ),
+    "masked_mul": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_mul"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-masked-mul.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_masked_mul",
+        function_name="tcrv_emitc_pre_realized_body_masked_mul_kernel_pre_realized_body_rvv_masked_mul",
+    ),
     "reduce_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["reduce_add"],
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-reduce-add.mlir"),
@@ -1343,6 +1474,20 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         memory_form="rhs-scalar-broadcast",
         rhs_initializer="(int32_t)-37",
         expected_expression="lhs[index] + rhs_scalar",
+    ),
+    "scalar_broadcast_sub": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["scalar_broadcast_sub"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-scalar-broadcast-sub.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_scalar_broadcast_sub",
+        function_name="tcrv_emitc_pre_realized_body_scalar_broadcast_sub_kernel_pre_realized_body_rvv_scalar_broadcast_sub",
+    ),
+    "scalar_broadcast_mul": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["scalar_broadcast_mul"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-scalar-broadcast-mul.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_scalar_broadcast_mul",
+        function_name="tcrv_emitc_pre_realized_body_scalar_broadcast_mul_kernel_pre_realized_body_rvv_scalar_broadcast_mul",
     ),
     "standalone_reduce_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
@@ -2536,14 +2681,16 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
-    if expectation.is_scalar_broadcast_add:
+    if expectation.is_scalar_broadcast_elementwise:
         per_op_metadata.update(
             {
                 "tcrv_rvv.route_operand_binding_plan": (
-                    SCALAR_BROADCAST_ROUTE_OPERAND_BINDING_PLAN
+                    scalar_broadcast_route_operand_binding_plan(expectation.kind)
                 ),
                 "tcrv_rvv.route_operand_binding_operands": (
-                    SCALAR_BROADCAST_ROUTE_OPERAND_BINDING_OPERANDS
+                    scalar_broadcast_route_operand_binding_operands(
+                        expectation.kind
+                    )
                 ),
             }
         )
@@ -2557,11 +2704,11 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
-    if expectation.is_scalar_broadcast_add or expectation.is_standalone_reduce_add:
+    if expectation.is_scalar_broadcast_elementwise or expectation.is_standalone_reduce_add:
         per_op_metadata["tcrv_rvv.runtime_control_plan"] = (
             RUNTIME_AVL_VL_CONTROL_PLAN
         )
-    if expectation.is_masked_add:
+    if expectation.is_masked_elementwise:
         per_op_metadata.update(
             {
                 "tcrv_rvv.mask_role": MASKED_ADD_MASK_ROLE,
@@ -2569,10 +2716,14 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.inactive_lane_contract": MASKED_ADD_INACTIVE_LANE_CONTRACT,
                 "tcrv_rvv.masked_passthrough_layout": MASKED_ADD_PASSTHROUGH_LAYOUT,
                 "tcrv_rvv.route_operand_binding_plan": (
-                    MASKED_ADD_ROUTE_OPERAND_BINDING_PLAN
+                    masked_elementwise_route_operand_binding_plan(
+                        expectation.kind
+                    )
                 ),
                 "tcrv_rvv.route_operand_binding_operands": (
-                    MASKED_ADD_ROUTE_OPERAND_BINDING_OPERANDS
+                    masked_elementwise_route_operand_binding_operands(
+                        expectation.kind
+                    )
                 ),
             }
         )
@@ -3558,7 +3709,7 @@ def verify_materialized_selected_body(
             "tcrv_rvv.broadcast_load",
             "materialized selected-body MLIR RHS broadcast load",
         )
-    if expectation.is_scalar_broadcast_add:
+    if expectation.is_scalar_broadcast_elementwise:
         require_contains(
             text,
             "tcrv_rvv.splat",
@@ -5422,7 +5573,7 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
-    if expectation.is_scalar_broadcast_add:
+    if expectation.is_scalar_broadcast_elementwise:
         return f"""
 #include <stddef.h>
 #include <stdint.h>
@@ -6781,7 +6932,7 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
-    if expectation.is_masked_add:
+    if expectation.is_masked_elementwise:
         return f"""
 #include <stddef.h>
 #include <stdint.h>
@@ -7327,7 +7478,7 @@ def run_one_op_e2e(
         "expected_runtime_abi_name": expectation.external_abi_name,
         "expected_function": expectation.function_name,
     }
-    if expectation.is_scalar_broadcast_add:
+    if expectation.is_scalar_broadcast_elementwise:
         evidence["rhs_scalar_values"] = rhs_scalar_values
     if (
         expectation.is_strided_load_unit_store
@@ -7389,10 +7540,10 @@ def run_one_op_e2e(
             "pass_marker": expectation.pass_marker,
             "boundary": "external C ABI consumer of generated header and object only",
         }
-        if expectation.is_scalar_broadcast_add:
+        if expectation.is_scalar_broadcast_elementwise:
             evidence["harness"]["rhs_scalar_values"] = rhs_scalar_values
             evidence["harness"]["rhs_scalar_coverage_contract"] = (
-                "runtime scalar-broadcast add cases must execute the same "
+                "runtime scalar-broadcast elementwise cases must execute the same "
                 "generated artifact with explicit runtime RHS scalar values"
             )
         if (
@@ -7431,9 +7582,9 @@ def run_one_op_e2e(
                 "runtime n must be honored and tail sentinel lanes must be "
                 "preserved"
             )
-        if expectation.is_masked_add:
+        if expectation.is_masked_elementwise:
             evidence["harness"]["mask_coverage_contract"] = (
-                "multi-lane masked_add cases require true and false mask lanes"
+                "multi-lane masked elementwise cases require true and false mask lanes"
             )
             evidence["harness"]["inactive_lane_contract"] = (
                 "masked-off lanes must preserve the explicit passthrough vector"
@@ -7596,7 +7747,7 @@ def run_e2e(args: argparse.Namespace) -> int:
         )
         expectations = selected_expectations(args)
         has_scalar_broadcast = any(
-            expectation.is_scalar_broadcast_add for expectation in expectations
+            expectation.is_scalar_broadcast_elementwise for expectation in expectations
         )
         has_strided_load_unit_store = any(
             expectation.is_strided_load_unit_store for expectation in expectations
@@ -7611,7 +7762,7 @@ def run_e2e(args: argparse.Namespace) -> int:
         if args.rhs_scalar and not has_scalar_broadcast:
             raise EvidenceError(
                 "--rhs-scalar may only be used when an op kind includes "
-                "scalar_broadcast_add"
+                "scalar_broadcast_add/sub/mul"
             )
         if args.stride_bytes and not (
             has_strided_load_unit_store
@@ -7847,7 +7998,7 @@ def run_self_test() -> int:
                 raise AssertionError(
                     f"self-test harness generation lost {expectation.kind} ABI call"
                 )
-            if expectation.is_scalar_broadcast_add and (
+            if expectation.is_scalar_broadcast_elementwise and (
                 "rhs_scalar_values" not in harness
                 or "(int32_t)-37" not in harness
             ):
@@ -8168,9 +8319,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=int,
         default=[],
         help=(
-            "runtime RHS scalar value for scalar_broadcast_add; may be "
+            "runtime RHS scalar value for scalar_broadcast_add/sub/mul; may be "
             "repeated to prove the same generated artifact consumes multiple "
-            "runtime scalar addends"
+            "runtime scalar values"
         ),
     )
     parser.add_argument(

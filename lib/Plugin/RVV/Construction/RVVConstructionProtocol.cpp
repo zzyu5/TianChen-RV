@@ -363,6 +363,18 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-masked-add-emitc-route",
      "rvv-generic-masked-add-callable-c-abi.v1",
      "rvv-generic-masked-add-callable-c-abi"},
+    {"masked_sub",
+     "tcrv_rvv.masked_binary",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-masked-sub-emitc-route",
+     "rvv-generic-masked-sub-callable-c-abi.v1",
+     "rvv-generic-masked-sub-callable-c-abi"},
+    {"masked_mul",
+     "tcrv_rvv.masked_binary",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-masked-mul-emitc-route",
+     "rvv-generic-masked-mul-callable-c-abi.v1",
+     "rvv-generic-masked-mul-callable-c-abi"},
     {"macc_add",
      "tcrv_rvv.macc",
      "rvv.role.compute.generic_vector",
@@ -471,6 +483,18 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-scalar-broadcast-add-emitc-route",
      "rvv-generic-scalar-broadcast-add-callable-c-abi.v1",
      "rvv-generic-scalar-broadcast-add-callable-c-abi"},
+    {"scalar_broadcast_sub",
+     "tcrv_rvv.binary",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-scalar-broadcast-sub-emitc-route",
+     "rvv-generic-scalar-broadcast-sub-callable-c-abi.v1",
+     "rvv-generic-scalar-broadcast-sub-callable-c-abi"},
+    {"scalar_broadcast_mul",
+     "tcrv_rvv.binary",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-scalar-broadcast-mul-emitc-route",
+     "rvv-generic-scalar-broadcast-mul-callable-c-abi.v1",
+     "rvv-generic-scalar-broadcast-mul-callable-c-abi"},
     {"widen_i32_to_i64",
      "tcrv_rvv.widening_convert",
      "rvv.role.compute.generic_vector",
@@ -601,11 +625,12 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 28)
+          .size() != 32)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
         "cmp_select, computed_mask_select, reduce_add, "
-        "standalone_reduce_add, masked_add, macc_add, widening_macc_add, "
+        "standalone_reduce_add, masked_add, masked_sub, masked_mul, "
+        "macc_add, widening_macc_add, "
         "widening_dot_reduce_add, "
         "strided_input_widening_dot_reduce_add, "
         "computed_masked_widening_dot_reduce_add, "
@@ -617,7 +642,8 @@ llvm::Error verifySelectedBodyRoutes() {
         "computed_masked_unit_load_store, computed_masked_strided_store, "
         "segment2_deinterleave_unit_store, "
         "segment2_interleave_unit_load, scalar_broadcast_add, "
-        "widen_i32_to_i64, and widen_i16_to_i32");
+        "scalar_broadcast_sub, scalar_broadcast_mul, widen_i32_to_i64, "
+        "and widen_i16_to_i32");
   return llvm::Error::success();
 }
 
@@ -729,7 +755,9 @@ buildRVVSelectedBodyExecutableRoleSteps(
   const bool isReduction = route->operationMnemonic == "reduce_add";
   const bool isStandaloneReduction =
       route->operationMnemonic == "standalone_reduce_add";
-  const bool isMaskedAdd = route->operationMnemonic == "masked_add";
+  const bool isMaskedElementwise = route->operationMnemonic == "masked_add" ||
+                                   route->operationMnemonic == "masked_sub" ||
+                                   route->operationMnemonic == "masked_mul";
   const bool isMAccAdd = route->operationMnemonic == "macc_add";
   const bool isWideningMAccAdd =
       route->operationMnemonic == "widening_macc_add";
@@ -763,8 +791,10 @@ buildRVVSelectedBodyExecutableRoleSteps(
       route->operationMnemonic == "segment2_deinterleave_unit_store";
   const bool isSegment2InterleaveUnitLoad =
       route->operationMnemonic == "segment2_interleave_unit_load";
-  const bool isScalarBroadcastAdd =
-      route->operationMnemonic == "scalar_broadcast_add";
+  const bool isScalarBroadcastElementwise =
+      route->operationMnemonic == "scalar_broadcast_add" ||
+      route->operationMnemonic == "scalar_broadcast_sub" ||
+      route->operationMnemonic == "scalar_broadcast_mul";
   const bool isWidenI32ToI64 =
       route->operationMnemonic == "widen_i32_to_i64";
   const bool isWidenI16ToI32 =
@@ -785,9 +815,9 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return makeRVVConstructionError(
         "RVV standalone reduction construction requires generic "
         "tcrv_rvv.standalone_reduce");
-  if (isMaskedAdd && typedComputeOpName != "tcrv_rvv.masked_binary")
+  if (isMaskedElementwise && typedComputeOpName != "tcrv_rvv.masked_binary")
     return makeRVVConstructionError(
-        "RVV masked add construction requires generic "
+        "RVV masked elementwise construction requires generic "
         "tcrv_rvv.masked_binary");
   if (isMAccAdd && typedComputeOpName != "tcrv_rvv.macc")
     return makeRVVConstructionError(
@@ -853,7 +883,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "generic tcrv_rvv.segment2_store");
   if (!isCompareSelect && !isComputedMaskSelect && !isReduction &&
       !isStandaloneReduction &&
-      !isMaskedAdd && !isMAccAdd && !isWideningMAccAdd &&
+      !isMaskedElementwise && !isMAccAdd && !isWideningMAccAdd &&
       !isWideningDotReduceAdd &&
       !isStridedInputWideningDotReduceAdd &&
       !isComputedMaskWideningDotReduceAdd &&
@@ -893,14 +923,16 @@ buildRVVSelectedBodyExecutableRoleSteps(
                     "tcrv_rvv.load, tcrv_rvv.broadcast_load, "
                     "tcrv_rvv.splat, or tcrv_rvv.strided_load, not '") +
         rhsSourceOperationName + "'");
-  if (isScalarBroadcastAdd && rhsSourceOperationName != "tcrv_rvv.splat")
+  if (isScalarBroadcastElementwise &&
+      rhsSourceOperationName != "tcrv_rvv.splat")
     return makeRVVConstructionError(
-        "RVV generic scalar-broadcast add construction requires explicit RHS "
-        "runtime scalar splat");
-  if (!isScalarBroadcastAdd && rhsSourceOperationName == "tcrv_rvv.splat")
+        "RVV generic scalar-broadcast elementwise construction requires "
+        "explicit RHS runtime scalar splat");
+  if (!isScalarBroadcastElementwise &&
+      rhsSourceOperationName == "tcrv_rvv.splat")
     return makeRVVConstructionError(
         "RVV generic scalar splat memory form is only supported by "
-        "scalar_broadcast_add in this bounded slice");
+        "scalar_broadcast_add/sub/mul in this bounded slice");
   if (isStridedAdd && rhsSourceOperationName != "tcrv_rvv.strided_load")
     return makeRVVConstructionError(
         "RVV generic strided add construction requires explicit strided lhs, "
@@ -1022,11 +1054,11 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "input vector load, scalar accumulator seed boundary, and scalar "
         "output boundary; broadcast standalone reduction is not in this "
         "bounded slice");
-  if (isMaskedAdd && rhsSourceOperationName != "tcrv_rvv.load")
+  if (isMaskedElementwise && rhsSourceOperationName != "tcrv_rvv.load")
     return makeRVVConstructionError(
-        "RVV generic masked add construction requires an explicit RHS "
-        "generic vector load; broadcast masked add is not in this bounded "
-        "slice");
+        "RVV generic masked elementwise construction requires an explicit "
+        "RHS generic vector load; broadcast masked elementwise is not in this "
+        "bounded slice");
   if (isMAccAdd && rhsSourceOperationName != "tcrv_rvv.load")
     return makeRVVConstructionError(
         "RVV generic multiply-accumulate construction requires explicit "
@@ -1947,7 +1979,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return steps;
   }
 
-  if (isMaskedAdd) {
+  if (isMaskedElementwise) {
     steps.push_back({"compute", "tcrv_rvv.compare",
                      route->typedRoleID,
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
@@ -2315,7 +2347,9 @@ llvm::Error verifyRVVConstructionProtocolReady() {
               getRVVSelectedBodySegment2InterleaveRuntimeABIParameters();
       routeRuntimeABIParameters.append(segment2Parameters.begin(),
                                        segment2Parameters.end());
-    } else if (route.operationMnemonic == "scalar_broadcast_add") {
+    } else if (route.operationMnemonic == "scalar_broadcast_add" ||
+               route.operationMnemonic == "scalar_broadcast_sub" ||
+               route.operationMnemonic == "scalar_broadcast_mul") {
       llvm::SmallVector<support::RuntimeABIParameter, 4> scalarParameters =
           tcrv::rvv::getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
       routeRuntimeABIParameters.append(scalarParameters.begin(),
@@ -2498,10 +2532,13 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
     return makeRVVConstructionError(
         llvm::Twine(context) +
         " standalone reduction cannot use generic tcrv_rvv.binary");
-  if (usesGenericBinary && route->operationMnemonic == "masked_add")
+  if (usesGenericBinary &&
+      (route->operationMnemonic == "masked_add" ||
+       route->operationMnemonic == "masked_sub" ||
+       route->operationMnemonic == "masked_mul"))
     return makeRVVConstructionError(
         llvm::Twine(context) +
-        " masked add cannot use generic tcrv_rvv.binary");
+        " masked elementwise cannot use generic tcrv_rvv.binary");
   if (usesGenericBinary && route->operationMnemonic == "macc_add")
     return makeRVVConstructionError(
         llvm::Twine(context) +
@@ -2601,6 +2638,8 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                  route->operationMnemonic == "reduce_add" ||
                  route->operationMnemonic == "standalone_reduce_add" ||
                  route->operationMnemonic == "masked_add" ||
+                 route->operationMnemonic == "masked_sub" ||
+                 route->operationMnemonic == "masked_mul" ||
                  route->operationMnemonic == "macc_add" ||
                  route->operationMnemonic == "widening_macc_add" ||
                  route->operationMnemonic == "widening_dot_reduce_add" ||
@@ -2727,7 +2766,9 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
             getRVVSelectedBodySegment2InterleaveRuntimeABIParameters();
     expectedParameters.append(segment2Parameters.begin(),
                               segment2Parameters.end());
-  } else if (route->operationMnemonic == "scalar_broadcast_add") {
+  } else if (route->operationMnemonic == "scalar_broadcast_add" ||
+             route->operationMnemonic == "scalar_broadcast_sub" ||
+             route->operationMnemonic == "scalar_broadcast_mul") {
     llvm::SmallVector<support::RuntimeABIParameter, 4> scalarParameters =
         tcrv::rvv::getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
     expectedParameters.append(scalarParameters.begin(),
@@ -3024,9 +3065,13 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
     return makeRVVConstructionError(
         "selected-body standalone reduction cannot use generic "
         "tcrv_rvv.binary");
-  if (usesGenericBinary && expected.operationMnemonic == "masked_add")
+  if (usesGenericBinary &&
+      (expected.operationMnemonic == "masked_add" ||
+       expected.operationMnemonic == "masked_sub" ||
+       expected.operationMnemonic == "masked_mul"))
     return makeRVVConstructionError(
-        "selected-body masked add cannot use generic tcrv_rvv.binary");
+        "selected-body masked elementwise cannot use generic "
+        "tcrv_rvv.binary");
   if (usesGenericBinary && expected.operationMnemonic == "macc_add")
     return makeRVVConstructionError(
         "selected-body multiply-accumulate cannot use generic "
@@ -3114,6 +3159,8 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
                  expected.operationMnemonic == "reduce_add" ||
                  expected.operationMnemonic == "standalone_reduce_add" ||
                  expected.operationMnemonic == "masked_add" ||
+                 expected.operationMnemonic == "masked_sub" ||
+                 expected.operationMnemonic == "masked_mul" ||
                  expected.operationMnemonic == "macc_add" ||
                  expected.operationMnemonic == "widening_macc_add" ||
                  expected.operationMnemonic == "widening_dot_reduce_add" ||

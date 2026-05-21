@@ -11,6 +11,7 @@
 #include "llvm/Support/Error.h"
 
 #include <optional>
+#include <string>
 #include <utility>
 
 namespace tianchenrv::plugin::rvv {
@@ -25,7 +26,9 @@ bool isRVVSelectedBodyCompareSelectRoute(RVVSelectedBodyOperationKind op) {
 }
 
 bool isRVVSelectedBodyMaskedArithmeticRoute(RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::MaskedAdd;
+  return op == RVVSelectedBodyOperationKind::MaskedAdd ||
+         op == RVVSelectedBodyOperationKind::MaskedSub ||
+         op == RVVSelectedBodyOperationKind::MaskedMul;
 }
 
 bool isRVVSelectedBodyMAccRoute(RVVSelectedBodyOperationKind op) {
@@ -456,31 +459,41 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (llvm::Error error = requireOperandUse(
               "out", "reduction-result-store", "reduce_add result store"))
         return error;
-    } else if (description.operation == RVVSelectedBodyOperationKind::MaskedAdd) {
+    } else if (isRVVSelectedBodyMaskedArithmeticRoute(description.operation)) {
+      llvm::StringRef materializedUsePrefix =
+          description.operation == RVVSelectedBodyOperationKind::MaskedSub
+              ? "masked-sub"
+          : description.operation == RVVSelectedBodyOperationKind::MaskedMul
+              ? "masked-mul"
+              : "masked-add";
+      std::string maskedLHSUse = (materializedUsePrefix + "-lhs-call").str();
+      std::string maskedRHSUse = (materializedUsePrefix + "-rhs-call").str();
       if (llvm::Error error = bindOperand(boundLHSABI, "lhs", "load-base",
-                                          "masked_add lhs load operand"))
+                                          "masked elementwise lhs load operand"))
         return error;
       if (llvm::Error error = requireOperandUse(
-              "lhs", "compare-lhs-call", "masked_add compare lhs operand"))
+              "lhs", "compare-lhs-call",
+              "masked elementwise compare lhs operand"))
         return error;
       if (llvm::Error error = requireOperandUse(
-              "lhs", "masked-add-lhs-call", "masked_add active lhs operand"))
+              "lhs", maskedLHSUse, "masked elementwise active lhs operand"))
         return error;
       if (llvm::Error error = requireOperandUse(
               "lhs", "masked-merge-passthrough-call",
-              "masked_add inactive passthrough operand"))
+              "masked elementwise inactive passthrough operand"))
         return error;
       if (llvm::Error error = bindOperand(boundRHSABI, "rhs", "load-base",
-                                          "masked_add rhs load operand"))
+                                          "masked elementwise rhs load operand"))
         return error;
       if (llvm::Error error = requireOperandUse(
-              "rhs", "compare-rhs-call", "masked_add compare rhs operand"))
+              "rhs", "compare-rhs-call",
+              "masked elementwise compare rhs operand"))
         return error;
       if (llvm::Error error = requireOperandUse(
-              "rhs", "masked-add-rhs-call", "masked_add active rhs operand"))
+              "rhs", maskedRHSUse, "masked elementwise active rhs operand"))
         return error;
       if (llvm::Error error = bindOperand(boundOutABI, "out", "store-base",
-                                          "masked_add output store"))
+                                          "masked elementwise output store"))
         return error;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::StridedAdd) {
@@ -1120,8 +1133,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               requireOperandUse("dst", "dst-mem",
                                 "segment2 interleave destination memory mirror"))
         return error;
-    } else if (description.operation ==
-               RVVSelectedBodyOperationKind::ScalarBroadcastAdd) {
+    } else if (description.memoryForm ==
+               RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
       llvm::Expected<const support::RuntimeABIParameter *> lhs =
           getRequiredBinding(bindingPlan, "lhs", "materialized-load-base",
                              "scalar broadcast lhs load operand");
@@ -2122,14 +2135,14 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
-            TCRVEmitCCallOpaqueResult{"active_sum_vec",
+            TCRVEmitCCallOpaqueResult{"active_result_vec",
                                       description.vectorCType.str()}))
       return error;
     if (llvm::Error error = addLoopStep(
             slice->arithmeticOp, "compute", description.maskedMergeIntrinsic,
             {TCRVEmitCCallOpaqueOperand{"lhs_vec",
                                         description.vectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{"active_sum_vec",
+             TCRVEmitCCallOpaqueOperand{"active_result_vec",
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{description.maskName.str(),
                                         description.maskCType.str()},

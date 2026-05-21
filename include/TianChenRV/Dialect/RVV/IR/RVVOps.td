@@ -338,7 +338,7 @@ def TypedBinaryPreRealizedBodyOp
     runtime n/AVL, and optional runtime stride values together with the
     selected operation kind, memory form, and compile-time RVV config. RHS may
     be a buffer ABI value for vector RHS routes or a scalar ABI value for the
-    bounded scalar-broadcast add route.
+    bounded scalar-broadcast elementwise route.
 
     This op is not a common route, descriptor, source-front-door marker,
     direct-C exporter, intrinsic wrapper, runtime artifact, correctness
@@ -1632,10 +1632,10 @@ def MaskedBinaryOp : TCRVRVV_Op<"masked_binary",
     same-typed !tcrv_rvv.vector result.
 
     For the current bounded Stage 2 mask/tail-policy slice, kind is limited to
-    add and the mask must come from generic tcrv_rvv.compare in the same
-    selected VL scope. The passthrough vector is structural body authority for
-    inactive-lane behavior; common EmitC/export must not infer it from route
-    ids, ABI names, or artifact metadata.
+    add, sub, or mul and the mask must come from generic tcrv_rvv.compare in
+    the same selected VL scope. The passthrough vector is structural body
+    authority for inactive-lane behavior; common EmitC/export must not infer it
+    from route ids, ABI names, or artifact metadata.
   }];
 
   let arguments = (ins

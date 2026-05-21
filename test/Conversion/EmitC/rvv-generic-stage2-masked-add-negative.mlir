@@ -20,5 +20,5 @@ module {
   }
 }
 
-// CHECK: bounded generic RVV masked add route requires an explicit RHS vector load
-// CHECK-SAME: broadcast/splat masked add is not in this bounded slice
+// CHECK: bounded generic RVV masked elementwise route requires an explicit RHS vector load
+// CHECK-SAME: broadcast/splat masked elementwise is not in this bounded slice

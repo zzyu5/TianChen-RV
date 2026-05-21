@@ -44,7 +44,18 @@ bool isPreRealizedMaskedMemoryForm(llvm::StringRef memoryForm) {
 }
 
 bool isPreRealizedMaskedOpKind(llvm::StringRef opKind) {
-  return opKind == "masked_add";
+  return opKind == "masked_add" || opKind == "masked_sub" ||
+         opKind == "masked_mul";
+}
+
+llvm::StringRef getPreRealizedMaskedBinaryKind(llvm::StringRef opKind) {
+  if (opKind == "masked_add")
+    return "add";
+  if (opKind == "masked_sub")
+    return "sub";
+  if (opKind == "masked_mul")
+    return "mul";
+  return {};
 }
 
 bool isPreRealizedMaskedMaskSource(llvm::StringRef maskSource) {
@@ -599,11 +610,6 @@ llvm::Error validatePreRealizedRVVSelectedBody(
         "pre-realized RVV selected body currently supports only memory_form "
         "'vector-rhs-load', 'rhs-scalar-broadcast', or "
         "'strided-load-store'");
-  if (isPreRealizedScalarBroadcastMemoryForm(body.getMemoryForm()) &&
-      body.getOpKind() != "add")
-    return makeRVVPluginError(
-        "pre-realized RVV selected scalar-broadcast body currently supports "
-        "only op_kind 'add'");
   if (isPreRealizedStridedMemoryForm(body.getMemoryForm()) &&
       body.getOpKind() != "add")
     return makeRVVPluginError(
@@ -744,7 +750,7 @@ llvm::Error validatePreRealizedRVVSelectedMaskedBody(
   if (!isPreRealizedMaskedOpKind(body.getOpKind()))
     return makeRVVPluginError(
         "pre-realized RVV selected masked body currently supports only "
-        "op_kind 'masked_add'");
+        "op_kind 'masked_add', 'masked_sub', or 'masked_mul'");
   if (!isPreRealizedMaskedMemoryForm(body.getMemoryForm()))
     return makeRVVPluginError(
         "pre-realized RVV selected masked body currently supports only "
@@ -3394,11 +3400,16 @@ llvm::Expected<mlir::Operation *> createRealizedGenericMaskedBinaryCompute(
   if (!isPreRealizedMaskedOpKind(opKind))
     return makeRVVPluginError(
         "pre-realized RVV selected-body masked realization supports only "
-        "op_kind 'masked_add'");
+        "op_kind 'masked_add', 'masked_sub', or 'masked_mul'");
+  llvm::StringRef maskedBinaryKind = getPreRealizedMaskedBinaryKind(opKind);
+  if (maskedBinaryKind.empty())
+    return makeRVVPluginError(
+        "pre-realized RVV selected-body masked realization could not map "
+        "masked op_kind to tcrv_rvv.masked_binary kind");
 
   mlir::OperationState state(loc, "tcrv_rvv.masked_binary");
   state.addOperands({mask, passthrough, lhs, rhs, vl});
-  state.addAttribute("kind", builder.getStringAttr("add"));
+  state.addAttribute("kind", builder.getStringAttr(maskedBinaryKind));
   state.addTypes(lhs.getType());
   return builder.create(state);
 }
