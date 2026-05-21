@@ -106,6 +106,26 @@ bool isPreRealizedReduceResultLayout(llvm::StringRef layout) {
   return layout == "store-reduction-lane0-to-output-chunk-base";
 }
 
+bool isPreRealizedStandaloneReduceOpKind(llvm::StringRef opKind) {
+  return opKind == "standalone_reduce_add";
+}
+
+bool isPreRealizedStandaloneReduceMemoryForm(llvm::StringRef memoryForm) {
+  return memoryForm == "unit-stride-standalone-reduction";
+}
+
+bool isPreRealizedStandaloneReduceAccumulatorRole(llvm::StringRef role) {
+  return role == "accumulator-input-buffer";
+}
+
+bool isPreRealizedStandaloneReduceAccumulatorLayout(llvm::StringRef layout) {
+  return layout == "scalar-i32-seed-lane0-from-accumulator-input";
+}
+
+bool isPreRealizedStandaloneReduceResultLayout(llvm::StringRef layout) {
+  return layout == "store-standalone-reduction-lane0-to-output-scalar";
+}
+
 bool isPreRealizedMAccOpKind(llvm::StringRef opKind) {
   return opKind == "macc_add";
 }
@@ -494,6 +514,7 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedReducePreRealizedBodyOp,
+                  tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp,
                   tcrv::rvv::TypedMAccPreRealizedBodyOp,
                   tcrv::rvv::TypedWideningMAccPreRealizedBodyOp,
                   tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp,
@@ -523,6 +544,7 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.typed_compare_select_pre_realized_body or "
         "tcrv_rvv.typed_computed_mask_select_pre_realized_body or "
         "tcrv_rvv.typed_reduce_pre_realized_body or "
+        "tcrv_rvv.typed_standalone_reduce_pre_realized_body or "
         "tcrv_rvv.typed_macc_pre_realized_body or "
         "tcrv_rvv.typed_widening_macc_pre_realized_body or "
         "tcrv_rvv.typed_widening_dot_reduce_pre_realized_body or "
@@ -1085,6 +1107,118 @@ llvm::Error validatePreRealizedRVVSelectedReduceBody(
     return makeRVVPluginError(
         "pre-realized RVV selected reduce-body realization requires non-empty "
         "selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
+llvm::Error validatePreRealizedRVVSelectedStandaloneReduceBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVPluginError(
+        "selected RVV standalone reduction realization requires a pre-realized "
+        "standalone reduction body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVPluginError(
+        "pre-realized RVV selected standalone reduction body must be a direct "
+        "child of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedStandaloneReduceOpKind(body.getOpKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected standalone reduction body currently supports "
+        "only op_kind 'standalone_reduce_add'");
+  if (!isPreRealizedStandaloneReduceMemoryForm(body.getMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected standalone reduction body currently supports "
+        "only memory_form 'unit-stride-standalone-reduction'");
+  if (!isPreRealizedStandaloneReduceAccumulatorRole(body.getAccumulatorRole()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected standalone reduction body currently supports "
+        "only accumulator_role 'accumulator-input-buffer'");
+  if (!isPreRealizedStandaloneReduceAccumulatorLayout(
+          body.getAccumulatorLayout()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected standalone reduction body currently supports "
+        "only accumulator_layout "
+        "'scalar-i32-seed-lane0-from-accumulator-input'");
+  if (!isPreRealizedStandaloneReduceResultLayout(body.getResultLayout()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected standalone reduction body currently supports "
+        "only result_layout "
+        "'store-standalone-reduction-lane0-to-output-scalar'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVPluginError(
+        "pre-realized RVV selected standalone reduction body requires SEW32 "
+        "LMUL m1");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected standalone reduction body requires tail "
+        "agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getLhs(),
+          "pre-realized RVV standalone reduction input operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!lhs)
+    return lhs.takeError();
+  if ((*lhs).getCType() != "const int32_t *")
+    return makeRVVPluginError(
+        "pre-realized RVV standalone reduction input operand requires C type "
+        "'const int32_t *'");
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+      requirePreRealizedRuntimeABIValue(
+          body.getAcc(),
+          "pre-realized RVV standalone reduction accumulator seed operand",
+          support::RuntimeABIParameterRole::AccumulatorInputBuffer);
+  if (!acc)
+    return acc.takeError();
+  if ((*acc).getCType() != "const int32_t *")
+    return makeRVVPluginError(
+        "pre-realized RVV standalone reduction accumulator seed operand "
+        "requires C type 'const int32_t *'");
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+      requirePreRealizedRuntimeABIValue(
+          body.getOut(),
+          "pre-realized RVV standalone reduction scalar output operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!out)
+    return out.takeError();
+  if ((*out).getCType() != "int32_t *")
+    return makeRVVPluginError(
+        "pre-realized RVV standalone reduction scalar output operand requires C "
+        "type 'int32_t *'");
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(),
+          "pre-realized RVV standalone reduction runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
+                  tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp>(op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected standalone reduction body must "
+                    "not be mixed with already realized RVV route body op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVPluginError(
+        "pre-realized RVV selected standalone reduction realization requires "
+        "non-empty selected variant requires metadata");
 
   return llvm::Error::success();
 }
@@ -3243,6 +3377,25 @@ llvm::Expected<mlir::Operation *> createRealizedGenericReduceCompute(
   return builder.create(state);
 }
 
+llvm::Expected<mlir::Operation *> createRealizedGenericStandaloneReduceCompute(
+    mlir::OpBuilder &builder, mlir::Location loc, llvm::StringRef opKind,
+    llvm::StringRef accumulatorLayout, llvm::StringRef resultLayout,
+    mlir::Value input, mlir::Value accumulatorSeed, mlir::Value vl) {
+  if (!isPreRealizedStandaloneReduceOpKind(opKind))
+    return makeRVVPluginError(
+        "pre-realized RVV selected-body standalone reduction realization "
+        "supports only op_kind 'standalone_reduce_add'");
+
+  mlir::OperationState state(loc, "tcrv_rvv.standalone_reduce");
+  state.addOperands({input, accumulatorSeed, vl});
+  state.addAttribute("kind", builder.getStringAttr("add"));
+  state.addAttribute("accumulator_layout",
+                     builder.getStringAttr(accumulatorLayout));
+  state.addAttribute("result_layout", builder.getStringAttr(resultLayout));
+  state.addTypes(input.getType());
+  return builder.create(state);
+}
+
 llvm::Expected<mlir::Operation *> createRealizedGenericMAccCompute(
     mlir::OpBuilder &builder, mlir::Location loc, llvm::StringRef opKind,
     llvm::StringRef accumulatorLayout, llvm::StringRef resultLayout,
@@ -3721,6 +3874,7 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedReducePreRealizedBodyOp,
+                  tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp,
                   tcrv::rvv::TypedMAccPreRealizedBodyOp,
                   tcrv::rvv::TypedWideningMAccPreRealizedBodyOp,
                   tcrv::rvv::TypedWideningDotReducePreRealizedBodyOp,
@@ -3964,6 +4118,46 @@ realizePreRealizedRVVSelectedBody(
     createRealizedGenericStore(builder, loc, reduceBody.getOut(),
                                (*compute)->getResult(0), setvl.getVl());
     reduceBody->erase();
+    return withVL;
+  }
+
+  if (auto standaloneReduceBody =
+          llvm::dyn_cast<tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp>(
+              *bodyOp)) {
+    if (llvm::Error error = validatePreRealizedRVVSelectedStandaloneReduceBody(
+            request, standaloneReduceBody))
+      return std::move(error);
+
+    mlir::Location loc = standaloneReduceBody->getLoc();
+    builder.setInsertionPoint(standaloneReduceBody.getOperation());
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc, standaloneReduceBody.getN(),
+                            tcrv::rvv::getRVVFirstSliceSEWBits(),
+                            tcrv::rvv::getRVVLMULM1(),
+                            standaloneReduceBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             tcrv::rvv::getRVVFirstSliceSEWBits(),
+                             tcrv::rvv::getRVVLMULM1(),
+                             standaloneReduceBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto inputLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, standaloneReduceBody.getLhs(), setvl.getVl(),
+        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+    llvm::Expected<mlir::Operation *> compute =
+        createRealizedGenericStandaloneReduceCompute(
+            builder, loc, standaloneReduceBody.getOpKind(),
+            standaloneReduceBody.getAccumulatorLayout(),
+            standaloneReduceBody.getResultLayout(), inputLoad.getLoaded(),
+            standaloneReduceBody.getAcc(), setvl.getVl());
+    if (!compute)
+      return compute.takeError();
+    createRealizedGenericStore(builder, loc, standaloneReduceBody.getOut(),
+                               (*compute)->getResult(0), setvl.getVl());
+    standaloneReduceBody->erase();
     return withVL;
   }
 

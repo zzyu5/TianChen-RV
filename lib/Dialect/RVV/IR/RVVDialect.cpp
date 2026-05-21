@@ -417,6 +417,11 @@ bool isAllowedReduceAttr(llvm::StringRef name) {
          name == kResultLayoutAttrName;
 }
 
+bool isAllowedStandaloneReduceAttr(llvm::StringRef name) {
+  return name == "kind" || name == kAccumulatorLayoutAttrName ||
+         name == kResultLayoutAttrName;
+}
+
 bool isAllowedMAccAttr(llvm::StringRef name) {
   return name == "kind" || name == kAccumulatorLayoutAttrName ||
          name == kResultLayoutAttrName;
@@ -552,6 +557,31 @@ bool isSupportedTypedReducePreRealizedAccumulatorLayout(
 
 bool isSupportedTypedReducePreRealizedResultLayout(llvm::StringRef layout) {
   return layout == "store-reduction-lane0-to-output-chunk-base";
+}
+
+bool isSupportedTypedStandaloneReducePreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "standalone_reduce_add";
+}
+
+bool isSupportedTypedStandaloneReducePreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-stride-standalone-reduction";
+}
+
+bool isSupportedTypedStandaloneReducePreRealizedAccumulatorRole(
+    llvm::StringRef role) {
+  return role == "accumulator-input-buffer";
+}
+
+bool isSupportedTypedStandaloneReducePreRealizedAccumulatorLayout(
+    llvm::StringRef layout) {
+  return layout == "scalar-i32-seed-lane0-from-accumulator-input";
+}
+
+bool isSupportedTypedStandaloneReducePreRealizedResultLayout(
+    llvm::StringRef layout) {
+  return layout == "store-standalone-reduction-lane0-to-output-scalar";
 }
 
 bool isSupportedTypedMAccPreRealizedBodyOpKind(llvm::StringRef opKind) {
@@ -934,6 +964,19 @@ bool isSupportedGenericReduceAccumulatorLayout(llvm::StringRef layout) {
 
 bool isSupportedGenericReduceResultLayout(llvm::StringRef layout) {
   return layout == "store-reduction-lane0-to-output-chunk-base";
+}
+
+bool isSupportedGenericStandaloneReduceKind(llvm::StringRef kind) {
+  return kind == "add";
+}
+
+bool isSupportedGenericStandaloneReduceAccumulatorLayout(
+    llvm::StringRef layout) {
+  return layout == "scalar-i32-seed-lane0-from-accumulator-input";
+}
+
+bool isSupportedGenericStandaloneReduceResultLayout(llvm::StringRef layout) {
+  return layout == "store-standalone-reduction-lane0-to-output-scalar";
 }
 
 bool isSupportedGenericMAccKind(llvm::StringRef kind) {
@@ -2790,6 +2833,110 @@ mlir::LogicalResult TypedReducePreRealizedBodyOp::verify() {
           op, getOut(), "result output",
           {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult TypedStandaloneReducePreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected standalone reduction bodies carry "
+                "only typed RVV operation/config/memory/accumulator/runtime "
+                "SSA facts and must be realized by the RVV plugin before route "
+                "construction";
+
+    if (!isAllowedTypedReducePreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '"
+             << kAccumulatorRoleAttrName << "', '"
+             << kAccumulatorLayoutAttrName << "', '" << kResultLayoutAttrName
+             << "', '" << kSEWAttrName << "', '" << kLMULAttrName
+             << "', and '" << kPolicyAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires input, accumulator seed, scalar output, runtime n/AVL "
+              "operands and no results";
+
+  if (!isSupportedTypedStandaloneReducePreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind \"standalone_reduce_add\" for "
+              "the bounded selected-body standalone reduction hook";
+  if (!isSupportedTypedStandaloneReducePreRealizedMemoryForm(getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"unit-stride-standalone-reduction\" for the bounded "
+              "selected-body standalone reduction hook";
+  if (!isSupportedTypedStandaloneReducePreRealizedAccumulatorRole(
+          getAccumulatorRole()))
+    return emitOpError()
+           << "currently supports only accumulator_role "
+              "\"accumulator-input-buffer\" for the bounded selected-body "
+              "standalone reduction hook";
+  if (!isSupportedTypedStandaloneReducePreRealizedAccumulatorLayout(
+          getAccumulatorLayout()))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"scalar-i32-seed-lane0-from-accumulator-input\" for the "
+              "bounded selected-body standalone reduction hook";
+  if (!isSupportedTypedStandaloneReducePreRealizedResultLayout(getResultLayout()))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-standalone-reduction-lane0-to-output-scalar\" for the "
+              "bounded selected-body standalone reduction hook";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized standalone reduction config to be "
+              "SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body standalone reduction hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "input",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getAcc(), "accumulator seed",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               AccumulatorInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "scalar output",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp accBinding = getAcc().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
+  if (!lhsBinding || lhsBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires input operand C type 'const int32_t *' to match typed "
+              "standalone reduction source dtype";
+  if (!accBinding || accBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires accumulator seed operand C type 'const int32_t *' to "
+              "match typed standalone reduction scalar seed dtype";
+  if (!outBinding || outBinding.getCType() != "int32_t *")
+    return emitOpError()
+           << "requires scalar output operand C type 'int32_t *' to match typed "
+              "standalone reduction result dtype";
+
   return verifyRuntimeElementCountOperand(op, getN());
 }
 
@@ -5256,6 +5403,105 @@ mlir::LogicalResult ReduceOp::verify() {
   if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getAccumulator(),
                                                     "accumulator")))
     return mlir::failure();
+  return verifyGenericVectorTypeForWithVL(op, getResult(), "result");
+}
+
+mlir::LogicalResult StandaloneReduceOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.standalone_reduce keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+
+    if (!isAllowedStandaloneReduceAttr(attrName))
+      return emitOpError()
+             << "only accepts generic standalone reduction attributes 'kind', '"
+             << kAccumulatorLayoutAttrName << "', and '"
+             << kResultLayoutAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!isSupportedGenericStandaloneReduceKind(getKind()))
+    return emitOpError()
+           << "currently supports only kind \"add\" for the bounded Stage 2 "
+              "standalone reduction route";
+  if (!isSupportedGenericStandaloneReduceAccumulatorLayout(
+          getAccumulatorLayout()))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"scalar-i32-seed-lane0-from-accumulator-input\" for the "
+              "bounded Stage 2 standalone reduction route";
+  if (!isSupportedGenericStandaloneReduceResultLayout(getResultLayout()))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-standalone-reduction-lane0-to-output-scalar\" for the "
+              "bounded Stage 2 standalone reduction route";
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one input generic RVV vector operand, one scalar "
+              "accumulator seed runtime ABI operand, one !tcrv_rvv.vl operand, "
+              "and one generic RVV vector result";
+  if (getInput().getType() != getResult().getType())
+    return emitOpError()
+           << "requires input and result to have the same generic RVV vector "
+              "type";
+  if (!isGenericRVVVectorI32M1(getInput().getType()) ||
+      !isGenericRVVVectorI32M1(getResult().getType()))
+    return emitOpError()
+           << "requires input and result vectors to have type "
+              "!tcrv_rvv.vector<i32, \"m1\"> for the bounded standalone "
+              "reduction route";
+  if (!llvm::isa<RuntimeABIValueType>(getAccumulatorSeed().getType()))
+    return emitOpError()
+           << "requires accumulator seed operand to have "
+              "!tcrv_rvv.runtime_abi_value type";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getAccumulatorSeed(), "accumulator seed",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               AccumulatorInputBuffer})))
+    return mlir::failure();
+  RuntimeABIValueOp seedBinding =
+      getAccumulatorSeed().getDefiningOp<RuntimeABIValueOp>();
+  if (!seedBinding || seedBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires accumulator seed operand C type 'const int32_t *' for "
+              "the bounded standalone reduction route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getInput(), "input")))
+    return mlir::failure();
+
+  auto expectedSEW =
+      (*withVL)->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto expectedLMUL =
+      (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  if (!expectedSEW || !expectedLMUL)
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit result "
+              "SEW/LMUL metadata for standalone reduction";
+  if (!isRVVSelectedBodyM1Config(expectedSEW.getInt(),
+                                 expectedLMUL.getValue()))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl result config to be SEW32 "
+              "LMUL m1 for the bounded standalone reduction route";
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for standalone reduction";
+
   return verifyGenericVectorTypeForWithVL(op, getResult(), "result");
 }
 

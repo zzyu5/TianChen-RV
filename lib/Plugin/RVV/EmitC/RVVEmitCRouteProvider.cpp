@@ -148,6 +148,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           analysis.scalarBroadcastElementwiseRouteFamilyPlan
               ? &*analysis.scalarBroadcastElementwiseRouteFamilyPlan
               : nullptr;
+  const RVVSelectedBodyStandaloneReductionRouteFamilyPlan
+      *standaloneReductionPlan =
+          analysis.standaloneReductionRouteFamilyPlan
+              ? &*analysis.standaloneReductionRouteFamilyPlan
+              : nullptr;
   const bool emitsContractionDotReduction =
       contractionPlan && contractionPlan->usesDotReduction;
   const bool emitsContractionWideningMAcc =
@@ -156,13 +161,19 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       contractionPlan && contractionPlan->usesComputedMask;
   const bool emitsStridedInputContraction =
       contractionPlan && contractionPlan->usesStridedInputs;
+  const bool emitsStandaloneReduction = standaloneReductionPlan != nullptr;
   llvm::StringRef vlCType =
-      contractionPlan ? contractionPlan->vlCType : description.vlCType;
+      contractionPlan
+          ? contractionPlan->vlCType
+          : (standaloneReductionPlan ? standaloneReductionPlan->vlCType
+                                     : description.vlCType);
   llvm::StringRef resultVectorTypeName =
       contractionPlan ? contractionPlan->resultVectorTypeName
+      : standaloneReductionPlan ? standaloneReductionPlan->vectorTypeName
                       : description.vectorTypeName;
   llvm::StringRef resultVectorCType =
       contractionPlan ? contractionPlan->resultVectorCType
+      : standaloneReductionPlan ? standaloneReductionPlan->vectorCType
                       : description.vectorCType;
   llvm::StringRef sourceVectorTypeName =
       contractionPlan ? contractionPlan->sourceVectorTypeName
@@ -179,14 +190,20 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     setVLLeaf = contractionPlan->setVLIntrinsic;
   else if (scalarBroadcastPlan)
     setVLLeaf = scalarBroadcastPlan->setVLIntrinsic;
+  else if (standaloneReductionPlan)
+    setVLLeaf = standaloneReductionPlan->setVLIntrinsic;
   llvm::StringRef sourceLoadLeaf = description.sourceVectorLoadIntrinsic;
   if (contractionPlan)
     sourceLoadLeaf = contractionPlan->sourceVectorLoadIntrinsic;
   else if (scalarBroadcastPlan)
     sourceLoadLeaf = scalarBroadcastPlan->vectorLoadIntrinsic;
+  else if (standaloneReductionPlan)
+    sourceLoadLeaf = standaloneReductionPlan->vectorLoadIntrinsic;
   llvm::StringRef vectorLoadLeaf =
-      scalarBroadcastPlan ? scalarBroadcastPlan->vectorLoadIntrinsic
-                          : description.vectorLoadIntrinsic;
+      scalarBroadcastPlan
+          ? scalarBroadcastPlan->vectorLoadIntrinsic
+          : (standaloneReductionPlan ? standaloneReductionPlan->vectorLoadIntrinsic
+                                     : description.vectorLoadIntrinsic);
   llvm::StringRef stridedSourceLoadLeaf =
       contractionPlan ? contractionPlan->stridedLoadIntrinsic
                       : description.stridedLoadIntrinsic;
@@ -195,9 +212,12 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     storeLeaf = contractionPlan->storeIntrinsic;
   else if (scalarBroadcastPlan)
     storeLeaf = scalarBroadcastPlan->storeIntrinsic;
+  else if (standaloneReductionPlan)
+    storeLeaf = standaloneReductionPlan->storeIntrinsic;
   llvm::StringRef contractionComputeLeaf =
       contractionPlan ? contractionPlan->contractionComputeIntrinsic
-                      : description.intrinsic;
+      : standaloneReductionPlan ? standaloneReductionPlan->reductionIntrinsic
+                                : description.intrinsic;
   llvm::StringRef elementwiseComputeLeaf =
       scalarBroadcastPlan ? scalarBroadcastPlan->arithmeticIntrinsic
                           : description.intrinsic;
@@ -209,7 +229,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                       : description.maskedWideningProductIntrinsic;
   llvm::StringRef scalarSeedSplatLeaf =
       contractionPlan ? contractionPlan->scalarSeedSplatIntrinsic
-                      : description.scalarSeedSplatIntrinsic;
+      : standaloneReductionPlan ? standaloneReductionPlan->scalarSeedSplatIntrinsic
+                                : description.scalarSeedSplatIntrinsic;
   llvm::StringRef rhsScalarBroadcastLeaf =
       scalarBroadcastPlan ? scalarBroadcastPlan->rhsScalarSplatIntrinsic
                           : description.rhsBroadcastIntrinsic;
@@ -223,12 +244,14 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   conversion::emitc::TCRVEmitCLowerableRoute route(
       analysis.description.emitCRouteID,
       "extension-family-ops-to-emitc-call-opaque");
-  if (contractionPlan || scalarBroadcastPlan) {
+  if (contractionPlan || scalarBroadcastPlan || standaloneReductionPlan) {
     llvm::ArrayRef<llvm::StringRef> requiredHeaders =
         contractionPlan ? llvm::ArrayRef<llvm::StringRef>(
                               contractionPlan->requiredHeaders)
-                        : llvm::ArrayRef<llvm::StringRef>(
-                              scalarBroadcastPlan->requiredHeaders);
+        : scalarBroadcastPlan ? llvm::ArrayRef<llvm::StringRef>(
+                                    scalarBroadcastPlan->requiredHeaders)
+                              : llvm::ArrayRef<llvm::StringRef>(
+                                    standaloneReductionPlan->requiredHeaders);
     for (llvm::StringRef header : requiredHeaders)
       route.addHeader(header);
   } else {
@@ -282,6 +305,27 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             {TCRVEmitCCallOpaqueOperand{slice->outABI.cName,
                                         slice->outABI.cType},
              TCRVEmitCCallOpaqueOperand{"dot_initial_acc_vec",
+                                        resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                        vlCType.str()}}))
+      return error;
+  }
+  if (emitsStandaloneReduction) {
+    if (llvm::Error error = addCallStepFromSource(
+            route, slice->arithmeticOp, "compute", scalarSeedSplatLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->accumulatorABI.cName) + "[0]").str(),
+                 "int32_t"},
+             TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                        vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"standalone_initial_acc_vec",
+                                      resultVectorCType.str()}))
+      return error;
+    if (llvm::Error error = addCallStepFromSource(
+            route, slice->storeOperation, "store", storeLeaf,
+            {TCRVEmitCCallOpaqueOperand{slice->outABI.cName,
+                                        slice->outABI.cType},
+             TCRVEmitCCallOpaqueOperand{"standalone_initial_acc_vec",
                                         resultVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
                                         vlCType.str()}}))
@@ -780,7 +824,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   }
   if (isRVVSelectedBodyWideningConversionRoute(description.operation) ||
       isRuntimeMaskMemory ||
-      isRVVSelectedBodyMemoryMovementRoute(description.operation)) {
+      isRVVSelectedBodyMemoryMovementRoute(description.operation) ||
+      emitsStandaloneReduction) {
     // These bounded routes have no RHS dataflow.
   } else if (emitsContractionDotReduction &&
              emitsStridedInputContraction) {
@@ -1127,6 +1172,27 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{description.resultName.str(),
                                       resultVectorCType.str()}))
       return error;
+  } else if (emitsStandaloneReduction) {
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", scalarSeedSplatLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->outABI.cName) + "[0]").str(),
+                 "int32_t"},
+             TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                        vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"standalone_acc_vec",
+                                      resultVectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", contractionComputeLeaf,
+            {TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                        resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"standalone_acc_vec",
+                                        resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                      resultVectorCType.str()}))
+      return error;
   } else if (isRVVSelectedBodyWideningConversionRoute(description.operation)) {
     if (llvm::Error error = addLoopStep(
             slice->arithmeticOp, "compute", description.intrinsic,
@@ -1156,10 +1222,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   }
   llvm::StringRef storeVLName =
       (isRVVSelectedBodyReductionRoute(description.operation) ||
-       emitsContractionDotReduction)
+       emitsContractionDotReduction || emitsStandaloneReduction)
           ? description.reductionStoreVL
           : loopVLName;
-  if (emitsContractionDotReduction) {
+  if (emitsContractionDotReduction || emitsStandaloneReduction) {
     if (llvm::Error error = addLoopStep(
             slice->storeOperation, "store", storeLeaf,
             {TCRVEmitCCallOpaqueOperand{slice->outABI.cName,

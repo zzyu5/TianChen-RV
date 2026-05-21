@@ -1629,6 +1629,8 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "widening_macc_add";
     const bool isWideningDotReduceRoute =
         route.operationMnemonic == "widening_dot_reduce_add";
+    const bool isStandaloneReduceRoute =
+        route.operationMnemonic == "standalone_reduce_add";
     const bool isStridedInputWideningDotReduceRoute =
         route.operationMnemonic == "strided_input_widening_dot_reduce_add";
     const bool isComputedMaskWideningDotReduceRoute =
@@ -1643,6 +1645,8 @@ int runRVVCommonValidationTest() {
       executableComputeOp = "tcrv_rvv.select";
     else if (route.operationMnemonic == "reduce_add")
       executableComputeOp = "tcrv_rvv.reduce";
+    else if (isStandaloneReduceRoute)
+      executableComputeOp = "tcrv_rvv.standalone_reduce";
     else if (route.operationMnemonic == "masked_add")
       executableComputeOp = "tcrv_rvv.masked_binary";
     else if (route.operationMnemonic == "macc_add")
@@ -1749,6 +1753,7 @@ int runRVVCommonValidationTest() {
     unsigned expectedStepCount =
         hasConversion          ? 8u
         : hasComputedMaskSelect                  ? 15u
+        : isStandaloneReduceRoute                ? 9u
         : hasWideningMAcc                       ? 12u
         : hasWideningDotReduce                  ? 11u
         : hasStridedInputWideningDotReduce      ? 13u
@@ -1855,6 +1860,12 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "standalone_reduce_add") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "widen_i32_to_i64") {

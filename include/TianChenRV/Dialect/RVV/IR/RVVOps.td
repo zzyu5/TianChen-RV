@@ -524,6 +524,46 @@ def TypedReducePreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedStandaloneReducePreRealizedBodyOp
+    : TCRVRVV_Op<"typed_standalone_reduce_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV standalone scalar reduction body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body for the
+    standalone horizontal add-reduction slice. The op is nested directly in a
+    selected tcrv.exec.variant and binds explicit runtime ABI values for input,
+    scalar accumulator seed, scalar output, and runtime n/AVL together with
+    selected operation kind, standalone memory form, accumulator role/layout,
+    scalar result layout, and compile-time RVV config facts.
+
+    This op is not a broad reduction framework, contraction route, descriptor,
+    source-front-door marker, direct-C exporter, route id, intrinsic wrapper,
+    runtime artifact, correctness evidence, or performance evidence. The RVV
+    plugin must first realize it into explicit setvl/with_vl/load/
+    standalone_reduce/store tcrv_rvv body structure before the provider may
+    construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$acc,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    StrAttr:$accumulator_role,
+    StrAttr:$accumulator_layout,
+    StrAttr:$result_layout,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$lhs `,` $acc `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedMAccPreRealizedBodyOp
     : TCRVRVV_Op<"typed_macc_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV macc selected body";
@@ -1692,6 +1732,40 @@ def ReduceOp : TCRVRVV_Op<"reduce",
 
   let assemblyFormat =
     "$input `,` $accumulator `,` $vl attr-dict `:` type($input) `,` type($accumulator) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def StandaloneReduceOp : TCRVRVV_Op<"standalone_reduce",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary = "generic typed RVV standalone scalar reduction dataflow op";
+  let description = [{
+    Records one bounded generic plugin-local RVV standalone horizontal
+    reduction dataflow step. The op is nested directly under tcrv_rvv.with_vl,
+    consumes one typed !tcrv_rvv.vector input, one explicit scalar accumulator
+    seed runtime ABI value, and the active !tcrv_rvv.vl token. It carries an
+    explicit reduction kind plus accumulator/result layout facts, and produces
+    one typed !tcrv_rvv.vector token whose lane 0 is the scalar output boundary.
+
+    For the current bounded Stage 2 slice, kind is limited to add, representing
+    acc_seed + sum(input) over runtime n. Input dtype/config, accumulator seed
+    boundary, scalar output layout, VL, policy, and runtime n facts are
+    structural in the selected RVV body. Route ids, helper names, ABI strings,
+    artifact names, status fields, exact intrinsic spellings, and common
+    EmitC/export code must not infer or choose standalone reduction semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$accumulator_seed,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$accumulator_layout,
+    StrAttr:$result_layout
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$input `,` $accumulator_seed `,` $vl attr-dict `:` type($input) `,` type($accumulator_seed) `,` type($vl) `->` type($result)";
   let hasVerifier = 1;
 }
 

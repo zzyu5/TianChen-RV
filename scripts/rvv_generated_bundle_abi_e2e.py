@@ -64,6 +64,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "segment2_deinterleave_unit_store",
     "segment2_interleave_unit_load",
     "scalar_broadcast_add",
+    "standalone_reduce_add",
     "i64_add",
     "lmul_m2_add",
     "widen_i32_to_i64",
@@ -89,6 +90,18 @@ WIDENING_DOT_RESULT_LAYOUT = "store-dot-reduction-lane0-to-output-scalar"
 WIDENING_DOT_RELATION = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"
 WIDENING_DOT_REDUCTION_STORE_VL = "1"
 WIDENING_DOT_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
+STANDALONE_REDUCE_ACCUMULATOR_LAYOUT = "scalar-i32-seed-lane0-from-accumulator-input"
+STANDALONE_REDUCE_RESULT_LAYOUT = "store-standalone-reduction-lane0-to-output-scalar"
+STANDALONE_REDUCE_STORE_VL = "1"
+STANDALONE_REDUCE_RUNTIME_ABI_ORDER = "lhs,acc,out,n"
+STANDALONE_REDUCE_TARGET_LEAF_PROFILE = (
+    "rvv-v1-e32m1-standalone-reduction-leaf-profile.v1"
+)
+STANDALONE_REDUCE_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-standalone-reduction-plan-validated"
+)
+STANDALONE_REDUCE_REQUIRED_HEADER_DECLARATIONS = "stddef.h,stdint.h,riscv_vector.h"
+STANDALONE_REDUCE_C_TYPE_MAPPING = "vl:size_t,input:signed-e32m1,seed:i32,result:signed-e32m1"
 CONTRACTION_TARGET_LEAF_PROFILE = "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1"
 CONTRACTION_PROVIDER_SUPPORTED_MIRROR = (
     "provider_supported_mirror:rvv-contraction-family-plan-validated"
@@ -339,6 +352,11 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *lhs, "
                 "int32_t rhs_scalar, int32_t *out, size_t n);"
             )
+        if self.is_standalone_reduce_add:
+            return (
+                f"void {self.function_name}(const int32_t *lhs, "
+                "const int32_t *acc, int32_t *out, size_t n);"
+            )
         if self.is_widen_i32_to_i64:
             return (
                 f"void {self.function_name}(const int32_t *lhs, "
@@ -393,6 +411,8 @@ class OpExpectation:
             return EXPECTED_SEGMENT2_INTERLEAVE_RUNTIME_PARAMETERS
         if self.is_scalar_broadcast_add:
             return EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS
+        if self.is_standalone_reduce_add:
+            return EXPECTED_STANDALONE_REDUCE_RUNTIME_PARAMETERS
         if self.is_widen_i32_to_i64:
             return EXPECTED_WIDENING_CONVERSION_RUNTIME_PARAMETERS
         if self.is_widen_i16_to_i32:
@@ -435,6 +455,8 @@ class OpExpectation:
             return SEGMENT2_INTERLEAVE_RUNTIME_ABI_ORDER
         if self.is_scalar_broadcast_add:
             return SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER
+        if self.is_standalone_reduce_add:
+            return STANDALONE_REDUCE_RUNTIME_ABI_ORDER
         if self.is_widen_i32_to_i64 or self.is_widen_i16_to_i32:
             return WIDENING_CONVERSION_RUNTIME_ABI_ORDER
         if self.is_widening_macc_add:
@@ -544,6 +566,10 @@ class OpExpectation:
     @property
     def is_scalar_broadcast_add(self) -> bool:
         return self.kind == "scalar_broadcast_add"
+
+    @property
+    def is_standalone_reduce_add(self) -> bool:
+        return self.kind == "standalone_reduce_add"
 
     @property
     def is_i64_add(self) -> bool:
@@ -1047,6 +1073,22 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         memory_form="rhs-scalar-broadcast",
         rhs_initializer="(int32_t)-37",
         expected_expression="lhs[index] + rhs_scalar",
+    ),
+    "standalone_reduce_add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
+        kind="standalone_reduce_add",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-add.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_standalone_reduce_add",
+        external_abi_name="rvv-generic-standalone-reduce-add-callable-c-abi.v1",
+        function_name="tcrv_emitc_pre_realized_body_standalone_reduce_add_kernel_pre_realized_body_rvv_standalone_reduce_add",
+        emitc_route="rvv-generic-standalone-reduce-add-emitc-route",
+        typed_compute_op="tcrv_rvv.standalone_reduce",
+        memory_form="unit-stride-standalone-reduction",
+        lhs_initializer="(int32_t)(((index % 5) < 2) ? -((int32_t)(index % 29) + 1) : ((int32_t)(index % 31) + 3))",
+        rhs_initializer="unused",
+        source_initializer="(int32_t)-11",
+        expected_expression="(int32_t)(acc[0] + sum_i(lhs[i]))",
     ),
     "i64_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
@@ -1594,6 +1636,17 @@ EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS = (
         "c_name": "rhs_scalar",
         "c_type": "int32_t",
         "role": "rhs-scalar-value",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_RUNTIME_PARAMETERS[2],
+    EXPECTED_RUNTIME_PARAMETERS[3],
+)
+EXPECTED_STANDALONE_REDUCE_RUNTIME_PARAMETERS = (
+    EXPECTED_RUNTIME_PARAMETERS[0],
+    {
+        "c_name": "acc",
+        "c_type": "const int32_t *",
+        "role": "accumulator-input-buffer",
         "ownership": "target-export-abi-owned",
     },
     EXPECTED_RUNTIME_PARAMETERS[2],
@@ -2162,6 +2215,28 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.reduction_accumulator_layout": REDUCE_ADD_ACCUMULATOR_LAYOUT,
                 "tcrv_rvv.reduction_result_layout": REDUCE_ADD_RESULT_LAYOUT,
                 "tcrv_rvv.reduction_store_vl": REDUCE_ADD_STORE_VL,
+            }
+        )
+    if expectation.is_standalone_reduce_add:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.reduction_accumulator_layout": (
+                    STANDALONE_REDUCE_ACCUMULATOR_LAYOUT
+                ),
+                "tcrv_rvv.reduction_result_layout": (
+                    STANDALONE_REDUCE_RESULT_LAYOUT
+                ),
+                "tcrv_rvv.reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
+                "tcrv_rvv.target_leaf_profile": (
+                    STANDALONE_REDUCE_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    STANDALONE_REDUCE_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    STANDALONE_REDUCE_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": STANDALONE_REDUCE_C_TYPE_MAPPING,
             }
         )
     if expectation.is_masked_add:
@@ -3493,6 +3568,42 @@ def verify_materialized_selected_body(
             'result_layout = "store-reduction-lane0-to-output-chunk-base"',
             "materialized selected-body MLIR reduce result layout",
         )
+    if expectation.is_standalone_reduce_add:
+        require_contains(
+            text,
+            "tcrv_rvv.standalone_reduce",
+            "materialized selected-body MLIR standalone reduction op",
+        )
+        require_contains(
+            text,
+            'kind = "add"',
+            "materialized selected-body MLIR standalone reduction kind",
+        )
+        require_contains(
+            text,
+            f'accumulator_layout = "{STANDALONE_REDUCE_ACCUMULATOR_LAYOUT}"',
+            "materialized selected-body MLIR standalone reduction accumulator layout",
+        )
+        require_contains(
+            text,
+            f'result_layout = "{STANDALONE_REDUCE_RESULT_LAYOUT}"',
+            "materialized selected-body MLIR standalone reduction result layout",
+        )
+        require_contains(
+            text,
+            'role = "accumulator-input-buffer"',
+            "materialized selected-body MLIR standalone seed ABI role",
+        )
+        require_contains(
+            text,
+            'role = "output-buffer"',
+            "materialized selected-body MLIR standalone scalar output role",
+        )
+        require_not_contains(
+            text,
+            "rhs-vector-seed-lane0-per-vl-chunk",
+            "materialized selected-body MLIR standalone reduction",
+        )
     if expectation.is_macc_add:
         require_contains(
             text,
@@ -3572,6 +3683,11 @@ def verify_materialized_selected_body(
         require_not_contains(
             text,
             "tcrv_rvv.typed_reduce_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_standalone_reduce_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
@@ -4797,6 +4913,91 @@ int main(void) {{
   }}
   printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
   printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
+  return 0;
+}}
+""".lstrip()
+    if expectation.is_standalone_reduce_add:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int32_t make_lhs_value(size_t index) {{
+  return (int32_t)(((index % 7) < 3)
+                       ? -((int32_t)(index % 31) + 1)
+                       : ((int32_t)(index % 37) + 2));
+}}
+
+static int run_case(size_t n, int32_t seed) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n == 0 ? 1 : n;
+  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t acc[1];
+  int32_t out[4];
+  if (!lhs) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    return 11;
+  }}
+
+  int32_t expected = seed;
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    lhs[index] = make_lhs_value(index);
+    if (index < n)
+      expected = (int32_t)(expected + lhs[index]);
+  }}
+  acc[0] = seed;
+  for (size_t index = 0; index < sizeof(out) / sizeof(out[0]); ++index)
+    out[index] = {OUT_SENTINEL};
+
+  {expectation.function_name}(lhs, acc, out, n);
+
+  if (out[0] != expected) {{
+    fprintf(stderr,
+            "{expectation.kind} mismatch n=%zu seed=%d got=%d expected=%d\\n",
+            n, seed, out[0], expected);
+    free(lhs);
+    return 12;
+  }}
+  if (acc[0] != seed) {{
+    fprintf(stderr,
+            "{expectation.kind} mutated seed input n=%zu got=%d expected=%d\\n",
+            n, acc[0], seed);
+    free(lhs);
+    return 13;
+  }}
+  for (size_t index = 1; index < sizeof(out) / sizeof(out[0]); ++index) {{
+    if (out[index] != {OUT_SENTINEL}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched scalar-output sentinel n=%zu seed=%d index=%zu got=%d sentinel=%d\\n",
+              n, seed, index, out[index], {OUT_SENTINEL});
+      free(lhs);
+      return 14;
+    }}
+  }}
+
+  free(lhs);
+  printf("{expectation.kind} case n=%zu seed=%d ok scalar_out=%d tail_preserved\\n",
+         n, seed, out[0]);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const int32_t seeds[] = {{(int32_t)-11, (int32_t)17}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const size_t seed_count = sizeof(seeds) / sizeof(seeds[0]);
+  for (size_t seed_index = 0; seed_index < seed_count; ++seed_index) {{
+    for (size_t count_index = 0; count_index < count_count; ++count_index) {{
+      int status = run_case(counts[count_index], seeds[seed_index]);
+      if (status != 0)
+        return status;
+    }}
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} seeds=-11,17\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} seeds=-11,17\\n");
   return 0;
 }}
 """.lstrip()

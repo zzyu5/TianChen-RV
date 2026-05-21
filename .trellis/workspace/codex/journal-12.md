@@ -899,3 +899,72 @@ instead of scattered route-id or artifact-string authority.
 ### Next Steps
 
 - None for this bounded slice.
+
+
+## Session 148: Stage2 RVV standalone reduction executable slice
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV standalone reduction executable slice
+**Branch**: `main`
+
+### Summary
+
+Implemented bounded standalone i32 add-reduction executable slice with generated-bundle and ssh rvv evidence.
+
+### Main Changes
+
+### Summary
+
+Implemented the bounded Stage2 RVV standalone horizontal add-reduction executable slice:
+`out[0] = acc[0] + sum(lhs[0:n])` for signed i32 / SEW32 / LMUL m1. The route now carries input mem_window, scalar seed input, scalar output binding, runtime n/AVL, typed config, reduction kind, accumulator/result layout, tail policy, provider route plan, generated header/object metadata, and real `ssh rvv` correctness evidence through the RVV-owned path.
+
+### Main Changes
+
+- Added `tcrv_rvv.typed_standalone_reduce_pre_realized_body` and generic `tcrv_rvv.standalone_reduce` verifier coverage.
+- Added the standalone reduction ABI contract `lhs,acc,out,n`.
+- Extended selected-body realization to materialize setvl/with_vl/load/standalone_reduce/scalar store structure.
+- Extended RVV route planning/provider with `RVVSelectedBodyStandaloneReductionRouteFamilyPlan`, scalar seed splat, standalone reduction leaf validation, scalar-output store VL=1, target leaf profile, provider mirror, header declarations, and C type mapping.
+- Extended construction protocol, target artifact metadata, generated-bundle ABI harness, and stale diagnostic tests for the standalone reduction path.
+
+### Testing
+
+- [OK] Focused build: `ninja -C build tcrv-opt tcrv-translate`.
+- [OK] Focused FileCheck for standalone selected-body realization, route plan mirrors, target header export, and verifier negative cases.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] Generated-bundle dry-run for `standalone_reduce_add`, counts `7,16,23`.
+- [OK] Real `ssh rvv` generated-bundle PASS for `standalone_reduce_add`, counts `7,16,23`, seeds `-11,17`, runtime `n`, multi-VL coverage, scalar output correctness, seed preservation, and output tail sentinel preservation.
+- [OK] `ninja -C build check-tianchenrv` - 250/250 passed after self-repairing stale test expectations.
+- [OK] `git diff --check`.
+- [OK] Active-authority scan: no positive standalone reduction route authority from `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`, source-front-door/source-export/direct-C/descriptor, or public exact intrinsic strings. The only standalone `rvv-i32m1` hit is the negative stale route-id verifier test.
+
+### Self-Repair
+
+- Added a standalone config branch and null-value guard in route planning after the first positive test exposed RHS-vector assumptions in config validation.
+- Updated construction-protocol and legacy fail-closed tests after the new generic op changed the accepted Stage2 generic-op diagnostic list.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+### Next Steps
+
+- None for this bounded standalone reduction slice.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

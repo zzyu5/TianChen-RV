@@ -29,6 +29,7 @@ enum class RVVSelectedBodyOperationKind {
   CmpSelect,
   ComputedMaskSelect,
   ReduceAdd,
+  StandaloneReduceAdd,
   MaskedAdd,
   MAccAdd,
   StridedAdd,
@@ -70,6 +71,7 @@ enum class RVVSelectedBodyMemoryForm {
   ComputedMaskUnitStrideWideningDotReduce,
   StridedInputWideningDotReduce,
   ComputedMaskStridedInputWideningDotReduce,
+  UnitStrideStandaloneReduction,
 };
 
 struct RVVSelectedBodyEmitCRouteDescription {
