@@ -125,7 +125,20 @@ bool isPreRealizedReduceResultLayout(llvm::StringRef layout) {
 }
 
 bool isPreRealizedStandaloneReduceOpKind(llvm::StringRef opKind) {
-  return opKind == "standalone_reduce_add";
+  return opKind == "standalone_reduce_add" ||
+         opKind == "standalone_reduce_min" ||
+         opKind == "standalone_reduce_max";
+}
+
+llvm::StringRef getPreRealizedStandaloneReduceDataflowKind(
+    llvm::StringRef opKind) {
+  if (opKind == "standalone_reduce_add")
+    return "add";
+  if (opKind == "standalone_reduce_min")
+    return "min";
+  if (opKind == "standalone_reduce_max")
+    return "max";
+  return {};
 }
 
 bool isPreRealizedComputedMaskStandaloneReduceOpKind(
@@ -1162,7 +1175,8 @@ llvm::Error validatePreRealizedRVVSelectedStandaloneReduceBody(
   if (!isPreRealizedStandaloneReduceOpKind(body.getOpKind()))
     return makeRVVPluginError(
         "pre-realized RVV selected standalone reduction body currently supports "
-        "only op_kind 'standalone_reduce_add'");
+        "only op_kind 'standalone_reduce_add', 'standalone_reduce_min', or "
+        "'standalone_reduce_max'");
   if (!isPreRealizedStandaloneReduceMemoryForm(body.getMemoryForm()))
     return makeRVVPluginError(
         "pre-realized RVV selected standalone reduction body currently supports "
@@ -3601,11 +3615,14 @@ llvm::Expected<mlir::Operation *> createRealizedGenericStandaloneReduceCompute(
   if (!isPreRealizedStandaloneReduceOpKind(opKind))
     return makeRVVPluginError(
         "pre-realized RVV selected-body standalone reduction realization "
-        "supports only op_kind 'standalone_reduce_add'");
+        "supports only op_kind 'standalone_reduce_add', 'standalone_reduce_min', "
+        "or 'standalone_reduce_max'");
 
   mlir::OperationState state(loc, "tcrv_rvv.standalone_reduce");
   state.addOperands({input, accumulatorSeed, vl});
-  state.addAttribute("kind", builder.getStringAttr("add"));
+  state.addAttribute("kind", builder.getStringAttr(
+                                 getPreRealizedStandaloneReduceDataflowKind(
+                                     opKind)));
   state.addAttribute("accumulator_layout",
                      builder.getStringAttr(accumulatorLayout));
   state.addAttribute("result_layout", builder.getStringAttr(resultLayout));

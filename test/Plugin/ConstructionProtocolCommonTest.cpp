@@ -98,6 +98,12 @@ static_assert(
 
 namespace {
 
+bool isStandaloneReduceOperationMnemonic(llvm::StringRef mnemonic) {
+  return mnemonic == "standalone_reduce_add" ||
+         mnemonic == "standalone_reduce_min" ||
+         mnemonic == "standalone_reduce_max";
+}
+
 class GateFailingPlugin final : public ExtensionPlugin {
 public:
   llvm::StringRef getName() const override {
@@ -1630,7 +1636,7 @@ int runRVVCommonValidationTest() {
     const bool isWideningDotReduceRoute =
         route.operationMnemonic == "widening_dot_reduce_add";
     const bool isStandaloneReduceRoute =
-        route.operationMnemonic == "standalone_reduce_add";
+        isStandaloneReduceOperationMnemonic(route.operationMnemonic);
     const bool isStridedInputWideningDotReduceRoute =
         route.operationMnemonic == "strided_input_widening_dot_reduce_add";
     const bool isComputedMaskWideningDotReduceRoute =
@@ -1889,7 +1895,7 @@ int runRVVCommonValidationTest() {
               getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
-    } else if (route.operationMnemonic == "standalone_reduce_add") {
+    } else if (isStandaloneReduceOperationMnemonic(route.operationMnemonic)) {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();

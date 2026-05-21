@@ -59,6 +59,10 @@ constexpr llvm::StringLiteral kRVVScalarBroadcastMulOperandBindingPlanID(
     "rvv-route-operand-binding:scalar_broadcast_mul.v1");
 constexpr llvm::StringLiteral kRVVStandaloneReductionOperandBindingPlanID(
     "rvv-route-operand-binding:standalone_reduce_add.v1");
+constexpr llvm::StringLiteral kRVVStandaloneReductionMinOperandBindingPlanID(
+    "rvv-route-operand-binding:standalone_reduce_min.v1");
+constexpr llvm::StringLiteral kRVVStandaloneReductionMaxOperandBindingPlanID(
+    "rvv-route-operand-binding:standalone_reduce_max.v1");
 constexpr llvm::StringLiteral
     kRVVComputedMaskStandaloneReductionOperandBindingPlanID(
         "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1");
@@ -127,6 +131,10 @@ llvm::StringRef getExpectedRVVRouteOperandBindingPlanID(
     return kRVVReduceAddOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
     return kRVVStandaloneReductionOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::StandaloneReduceMin:
+    return kRVVStandaloneReductionMinOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::StandaloneReduceMax:
+    return kRVVStandaloneReductionMaxOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
     return kRVVComputedMaskStandaloneReductionOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::MaskedAdd:
@@ -328,7 +336,9 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
     if (logicalOperand == "n")
       return RuntimeABIParameterRole::RuntimeElementCount;
   }
-  if (planID == kRVVStandaloneReductionOperandBindingPlanID) {
+  if (planID == kRVVStandaloneReductionOperandBindingPlanID ||
+      planID == kRVVStandaloneReductionMinOperandBindingPlanID ||
+      planID == kRVVStandaloneReductionMaxOperandBindingPlanID) {
     if (logicalOperand == "lhs")
       return RuntimeABIParameterRole::LHSInputBuffer;
     if (logicalOperand == "acc")
@@ -1265,6 +1275,8 @@ constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::ComputedMaskSelect,
     RVVSelectedBodyOperationKind::ReduceAdd,
     RVVSelectedBodyOperationKind::StandaloneReduceAdd,
+    RVVSelectedBodyOperationKind::StandaloneReduceMin,
+    RVVSelectedBodyOperationKind::StandaloneReduceMax,
     RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd,
     RVVSelectedBodyOperationKind::MaskedAdd,
     RVVSelectedBodyOperationKind::MaskedSub,
@@ -1349,6 +1361,24 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
       RVVSelectedBodyOperationKind::StandaloneReduceAdd,
       "standalone_reduce_add", "standalone_reduced_vec",
       "", /*isCompareSelect=*/false, /*isReduction=*/true,
+      /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
+      /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
+      /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+      /*isSegmentedMemoryMovement=*/false,
+      /*isWideningConversion=*/false};
+  static const RVVSelectedBodyOperationProfile kStandaloneReduceMin = {
+      RVVSelectedBodyOperationKind::StandaloneReduceMin,
+      "standalone_reduce_min", "standalone_reduced_min_vec", "",
+      /*isCompareSelect=*/false, /*isReduction=*/true,
+      /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
+      /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
+      /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+      /*isSegmentedMemoryMovement=*/false,
+      /*isWideningConversion=*/false};
+  static const RVVSelectedBodyOperationProfile kStandaloneReduceMax = {
+      RVVSelectedBodyOperationKind::StandaloneReduceMax,
+      "standalone_reduce_max", "standalone_reduced_max_vec", "",
+      /*isCompareSelect=*/false, /*isReduction=*/true,
       /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
       /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
       /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
@@ -1613,6 +1643,10 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
     return kReduceAdd;
   case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
     return kStandaloneReduceAdd;
+  case RVVSelectedBodyOperationKind::StandaloneReduceMin:
+    return kStandaloneReduceMin;
+  case RVVSelectedBodyOperationKind::StandaloneReduceMax:
+    return kStandaloneReduceMax;
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
     return kComputedMaskStandaloneReduceAdd;
   case RVVSelectedBodyOperationKind::MaskedAdd:
@@ -1863,6 +1897,8 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
     llvm_unreachable("compare/select uses dedicated compare and merge leaves");
   case RVVSelectedBodyOperationKind::ReduceAdd:
   case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
+  case RVVSelectedBodyOperationKind::StandaloneReduceMin:
+  case RVVSelectedBodyOperationKind::StandaloneReduceMax:
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
     llvm_unreachable("reduction uses dedicated reduction intrinsic leaf");
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
@@ -1971,6 +2007,22 @@ getRVVSelectedBodyReductionIntrinsic(llvm::StringRef lmul) {
   if (lmul == tcrv::rvv::getRVVLMULM1())
     return "__riscv_vredsum_vs_i32m1_i32m1";
   return {};
+}
+
+llvm::StringRef getRVVSelectedBodyStandaloneReductionIntrinsic(
+    RVVSelectedBodyOperationKind operation, llvm::StringRef lmul) {
+  if (lmul != tcrv::rvv::getRVVLMULM1())
+    return {};
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
+    return "__riscv_vredsum_vs_i32m1_i32m1";
+  case RVVSelectedBodyOperationKind::StandaloneReduceMin:
+    return "__riscv_vredmin_vs_i32m1_i32m1";
+  case RVVSelectedBodyOperationKind::StandaloneReduceMax:
+    return "__riscv_vredmax_vs_i32m1_i32m1";
+  default:
+    return {};
+  }
 }
 
 llvm::StringRef
@@ -2423,6 +2475,13 @@ bool isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
          op == RVVSelectedBodyOperationKind::ScalarBroadcastMul;
 }
 
+bool isRVVSelectedBodyPlainStandaloneReductionRouteOperation(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::StandaloneReduceAdd ||
+         op == RVVSelectedBodyOperationKind::StandaloneReduceMin ||
+         op == RVVSelectedBodyOperationKind::StandaloneReduceMax;
+}
+
 llvm::Error requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
     const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan &plan,
     llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
@@ -2656,7 +2715,7 @@ void applyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
 
 bool isRVVSelectedBodyStandaloneReductionRouteOperation(
     RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::StandaloneReduceAdd ||
+  return isRVVSelectedBodyPlainStandaloneReductionRouteOperation(op) ||
          op == RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd;
 }
 
@@ -2699,12 +2758,16 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
                      : kRVVStandaloneReductionCTypeMappingSummary;
   llvm::StringRef expectedResultName =
       getRVVSelectedBodyOperationProfile(plan.operation).resultName;
-  if (plan.operation != RVVSelectedBodyOperationKind::StandaloneReduceAdd &&
-      plan.operation !=
-          RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd)
+  llvm::StringRef expectedReductionIntrinsic =
+      isComputedMask ? getRVVSelectedBodyReductionIntrinsic(
+                           tcrv::rvv::getRVVLMULM1())
+                     : getRVVSelectedBodyStandaloneReductionIntrinsic(
+                           plan.operation, tcrv::rvv::getRVVLMULM1());
+  if (!isRVVSelectedBodyStandaloneReductionRouteOperation(plan.operation))
     return makeRVVEmitCRouteProviderError(
         "standalone reduction route-family plan currently supports only "
-        "standalone_reduce_add or computed_mask_standalone_reduce_add");
+        "standalone_reduce_add, standalone_reduce_min, standalone_reduce_max, "
+        "or computed_mask_standalone_reduce_add");
   if (plan.usesComputedMask != isComputedMask)
     return makeRVVEmitCRouteProviderError(
         "standalone reduction route-family plan requires usesComputedMask to "
@@ -2767,7 +2830,7 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "reduction leaf", plan.reductionIntrinsic,
-          "__riscv_vredsum_vs_i32m1_i32m1"))
+          expectedReductionIntrinsic))
     return error;
   if (isComputedMask) {
     if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
@@ -3105,8 +3168,8 @@ deriveRVVSelectedBodyTargetLeafProfile(
 
   if (operationProfile.isReduction) {
     const bool isStandalone =
-        description.operation ==
-        RVVSelectedBodyOperationKind::StandaloneReduceAdd;
+        isRVVSelectedBodyPlainStandaloneReductionRouteOperation(
+            description.operation);
     const bool isComputedMaskStandalone =
         description.operation ==
         RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd;
@@ -3120,7 +3183,10 @@ deriveRVVSelectedBodyTargetLeafProfile(
                                        ComputedMaskUnitStrideStandaloneReduction))
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     llvm::StringRef reductionIntrinsic =
-        getRVVSelectedBodyReductionIntrinsic(configProfile.lmul);
+        isStandalone
+            ? getRVVSelectedBodyStandaloneReductionIntrinsic(
+                  description.operation, configProfile.lmul)
+            : getRVVSelectedBodyReductionIntrinsic(configProfile.lmul);
     llvm::StringRef compareIntrinsic =
         isComputedMaskStandalone
             ? getRVVSelectedBodyCompareIntrinsic(
@@ -3865,8 +3931,8 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     return llvm::Error::success();
   }
 
-  if (slice.arithmeticKind ==
-      RVVSelectedBodyOperationKind::StandaloneReduceAdd) {
+  if (isRVVSelectedBodyPlainStandaloneReductionRouteOperation(
+          slice.arithmeticKind)) {
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.lhsValue, "standalone reduction input vector", config))
       return error;
@@ -4534,7 +4600,8 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
       RVVSelectedBodyOperationKind::
           ComputedMaskStridedInputWideningDotReduceAdd;
   const bool isStandaloneReduction =
-      slice.arithmeticKind == RVVSelectedBodyOperationKind::StandaloneReduceAdd;
+      isRVVSelectedBodyPlainStandaloneReductionRouteOperation(
+          slice.arithmeticKind);
   const bool isComputedMaskStandaloneReduction =
       slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd;
@@ -5233,9 +5300,13 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
         {"abi", "setvl-avl", "loop", "hdr"});
   } else if (slice.memoryForm ==
              RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction) {
-    plan.planID = kRVVStandaloneReductionOperandBindingPlanID.str();
+    plan.planID =
+        getExpectedRVVRouteOperandBindingPlanID(slice.arithmeticKind).str();
     expectedRuntimeABIOrder = kRVVStandaloneReductionRuntimeABIOrder;
-    context = "standalone_reduce_add route";
+    dynamicContext =
+        (stringifyRVVSelectedBodyOperationKind(slice.arithmeticKind) + " route")
+            .str();
+    context = dynamicContext;
     addRouteOperandBinding(
         plan, "lhs", slice.lhsABI,
         {"runtime-abi-mirror", "materialized-load-base",
@@ -5473,17 +5544,29 @@ llvm::Error recordRVVSelectedBodyReduction(RVVSelectedBodyRouteSlice &slice,
   return llvm::Error::success();
 }
 
+llvm::Expected<RVVSelectedBodyOperationKind>
+parseRVVSelectedBodyStandaloneReductionKind(llvm::StringRef kind) {
+  if (kind == "add")
+    return RVVSelectedBodyOperationKind::StandaloneReduceAdd;
+  if (kind == "min")
+    return RVVSelectedBodyOperationKind::StandaloneReduceMin;
+  if (kind == "max")
+    return RVVSelectedBodyOperationKind::StandaloneReduceMax;
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("unsupported generic tcrv_rvv.standalone_reduce kind '") +
+      kind + "' for bounded RVV standalone reduction route");
+}
+
 llvm::Error recordRVVSelectedBodyStandaloneReduction(
     RVVSelectedBodyRouteSlice &slice,
     tcrv::rvv::StandaloneReduceOp standaloneReduce) {
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
-  if (standaloneReduce.getKind() != "add")
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.standalone_reduce kind '") +
-        standaloneReduce.getKind() +
-        "' for bounded RVV standalone reduction route");
+  llvm::Expected<RVVSelectedBodyOperationKind> reductionKind =
+      parseRVVSelectedBodyStandaloneReductionKind(standaloneReduce.getKind());
+  if (!reductionKind)
+    return reductionKind.takeError();
   if (standaloneReduce.getAccumulatorLayout() !=
       kRVVStandaloneReductionAccumulatorLayout)
     return makeRVVEmitCRouteProviderError(
@@ -5500,7 +5583,7 @@ llvm::Error recordRVVSelectedBodyStandaloneReduction(
         "' for bounded RVV standalone reduction route");
   slice.standaloneReduceOp = standaloneReduce;
   slice.arithmeticOp = standaloneReduce.getOperation();
-  slice.arithmeticKind = RVVSelectedBodyOperationKind::StandaloneReduceAdd;
+  slice.arithmeticKind = *reductionKind;
   slice.arithmeticLhs = standaloneReduce.getInput();
   slice.arithmeticAccumulator = standaloneReduce.getAccumulatorSeed();
   slice.accumulatorBuffer = standaloneReduce.getAccumulatorSeed();
@@ -6260,8 +6343,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       slice.arithmeticKind == RVVSelectedBodyOperationKind::ReduceAdd;
   const bool isStandaloneReduction =
       slice.arithmeticOp &&
-      slice.arithmeticKind ==
-          RVVSelectedBodyOperationKind::StandaloneReduceAdd;
+      isRVVSelectedBodyPlainStandaloneReductionRouteOperation(
+          slice.arithmeticKind);
   const bool isComputedMaskStandaloneReduction =
       slice.arithmeticOp &&
       slice.arithmeticKind ==
@@ -8039,7 +8122,8 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       RVVSelectedBodyOperationKind::
           ComputedMaskStridedInputWideningDotReduceAdd;
   const bool isStandaloneReduction =
-      slice.arithmeticKind == RVVSelectedBodyOperationKind::StandaloneReduceAdd;
+      isRVVSelectedBodyPlainStandaloneReductionRouteOperation(
+          slice.arithmeticKind);
   const bool isComputedMaskStandaloneReduction =
       slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd;
@@ -8665,12 +8749,13 @@ llvm::Error verifySelectedRVVRoleSequence(
       slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::
           ComputedMaskStridedInputWideningDotReduceAdd;
-	  const bool isStandaloneReduction =
-	      slice.arithmeticKind == RVVSelectedBodyOperationKind::StandaloneReduceAdd;
-	  const bool isComputedMaskStandaloneReduction =
-	      slice.arithmeticKind ==
-	      RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd;
-	  if (!lhsABI ||
+  const bool isStandaloneReduction =
+      isRVVSelectedBodyPlainStandaloneReductionRouteOperation(
+          slice.arithmeticKind);
+  const bool isComputedMaskStandaloneReduction =
+      slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd;
+  if (!lhsABI ||
       (!isConversion && !isStridedLoadUnitStore &&
        !isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
        !isMaskedUnitLoadStore && !isMaskedUnitStore &&
@@ -8678,10 +8763,10 @@ llvm::Error verifySelectedRVVRoleSequence(
        !isComputedMaskSelect &&
        !isComputedMaskStridedStore &&
        !isSegment2DeinterleaveUnitStore && !isSegment2InterleaveUnitLoad &&
-	       !isUnitLoadStridedStore &&
-	       !isStandaloneReduction &&
-	       !isComputedMaskStandaloneReduction &&
-	       !rhsABI) ||
+       !isUnitLoadStridedStore &&
+       !isStandaloneReduction &&
+       !isComputedMaskStandaloneReduction &&
+       !rhsABI) ||
       (!isSegment2DeinterleaveUnitStore && !outABI) ||
       !nABI || (isStrided && (!lhsStrideABI || !rhsStrideABI || !outStrideABI)) ||
       (isStridedLoadUnitStore && !lhsStrideABI) ||
@@ -8696,9 +8781,9 @@ llvm::Error verifySelectedRVVRoleSequence(
       (isMAcc && (!rhsABI || !accumulatorABI)) ||
       (isWideningMAcc && (!rhsABI || !accumulatorABI)) ||
       (isWideningDotReduce && (!rhsABI || !accumulatorABI)) ||
-	      (isStandaloneReduction && !accumulatorABI) ||
-	      (isComputedMaskStandaloneReduction &&
-	       (!rhsABI || !sourceABI || !accumulatorABI)) ||
+      (isStandaloneReduction && !accumulatorABI) ||
+      (isComputedMaskStandaloneReduction &&
+       (!rhsABI || !sourceABI || !accumulatorABI)) ||
       (isStridedInputWideningDotReduce &&
        (!rhsABI || !accumulatorABI || !lhsStrideABI || !rhsStrideABI)) ||
       (isComputedMaskWideningDotReduce &&
@@ -8778,10 +8863,10 @@ llvm::Error verifySelectedRVVRoleSequence(
           ? slice.segment2LoadOperation->getName().getStringRef()
       : isSegment2InterleaveUnitLoad
           ? slice.segment2StoreOperation->getName().getStringRef()
-	      : isStandaloneReduction
-	          ? slice.lhsLoadOperation->getName().getStringRef()
-	      : isComputedMaskStandaloneReduction
-	          ? slice.compareOp.getOperation()->getName().getStringRef()
+      : isStandaloneReduction
+          ? slice.lhsLoadOperation->getName().getStringRef()
+      : isComputedMaskStandaloneReduction
+          ? slice.compareOp.getOperation()->getName().getStringRef()
       : isStridedLoadUnitStore
           ? slice.lhsLoadOperation->getName().getStringRef()
       : isUnitLoadStridedStore
@@ -8893,14 +8978,14 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     analysis.description.runtimeABIOrder =
         kRVVSegment2InterleaveRuntimeABIOrder;
     break;
-	  case RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction:
-	    analysis.description.runtimeABIOrder = kRVVStandaloneReductionRuntimeABIOrder;
-	    break;
+  case RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction:
+    analysis.description.runtimeABIOrder = kRVVStandaloneReductionRuntimeABIOrder;
+    break;
   case RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideStandaloneReduction:
     analysis.description.runtimeABIOrder =
         kRVVComputedMaskStandaloneReductionRuntimeABIOrder;
     break;
-	  case RVVSelectedBodyMemoryForm::UnitStrideConversion:
+  case RVVSelectedBodyMemoryForm::UnitStrideConversion:
     analysis.description.runtimeABIOrder =
         kRVVWideningConversionRuntimeABIOrder;
     break;
@@ -9101,13 +9186,13 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       (routeProfile->operation.isCompareSelect ||
        routeProfile->operation.isMaskedArithmetic ||
        routeProfile->operation.isMaskedMemoryMovement ||
-	       routeProfile->operation.operation ==
-	           RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd ||
-	       routeProfile->operation.operation ==
-	           RVVSelectedBodyOperationKind::
-	               ComputedMaskStridedInputWideningDotReduceAdd ||
-	       routeProfile->operation.operation ==
-	           RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd)
+       routeProfile->operation.operation ==
+           RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd ||
+       routeProfile->operation.operation ==
+           RVVSelectedBodyOperationKind::
+               ComputedMaskStridedInputWideningDotReduceAdd ||
+       routeProfile->operation.operation ==
+           RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd)
           ? routeProfile->config.maskTypeName
           : "";
   analysis.description.vectorCType = routeProfile->config.vectorCType;
@@ -9119,13 +9204,13 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       (routeProfile->operation.isCompareSelect ||
        routeProfile->operation.isMaskedArithmetic ||
        routeProfile->operation.isMaskedMemoryMovement ||
-	       routeProfile->operation.operation ==
-	           RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd ||
-	       routeProfile->operation.operation ==
-	           RVVSelectedBodyOperationKind::
-	               ComputedMaskStridedInputWideningDotReduceAdd ||
-	       routeProfile->operation.operation ==
-	           RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd)
+       routeProfile->operation.operation ==
+           RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd ||
+       routeProfile->operation.operation ==
+           RVVSelectedBodyOperationKind::
+               ComputedMaskStridedInputWideningDotReduceAdd ||
+       routeProfile->operation.operation ==
+           RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd)
           ? routeProfile->config.maskCType
           : "";
   analysis.description.setVLIntrinsic =
@@ -11442,10 +11527,7 @@ getRVVSelectedBodyConfigArtifactMetadata(
     }
   }
   if (description.operation == RVVSelectedBodyOperationKind::ReduceAdd ||
-      description.operation ==
-          RVVSelectedBodyOperationKind::StandaloneReduceAdd ||
-      description.operation ==
-          RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd) {
+      isRVVSelectedBodyStandaloneReductionRouteOperation(description.operation)) {
     metadata.push_back({"tcrv_rvv.reduction_accumulator_layout",
                         description.reductionAccumulatorLayout});
     metadata.push_back({"tcrv_rvv.reduction_result_layout",

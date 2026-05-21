@@ -589,7 +589,9 @@ bool isSupportedTypedReducePreRealizedResultLayout(llvm::StringRef layout) {
 
 bool isSupportedTypedStandaloneReducePreRealizedBodyOpKind(
     llvm::StringRef opKind) {
-  return opKind == "standalone_reduce_add";
+  return opKind == "standalone_reduce_add" ||
+         opKind == "standalone_reduce_min" ||
+         opKind == "standalone_reduce_max";
 }
 
 bool isSupportedTypedComputedMaskStandaloneReducePreRealizedBodyOpKind(
@@ -1013,7 +1015,7 @@ bool isSupportedGenericReduceResultLayout(llvm::StringRef layout) {
 }
 
 bool isSupportedGenericStandaloneReduceKind(llvm::StringRef kind) {
-  return kind == "add";
+  return kind == "add" || kind == "min" || kind == "max";
 }
 
 bool isSupportedGenericMaskedStandaloneReduceKind(llvm::StringRef kind) {
@@ -2933,8 +2935,9 @@ mlir::LogicalResult TypedStandaloneReducePreRealizedBodyOp::verify() {
 
   if (!isSupportedTypedStandaloneReducePreRealizedBodyOpKind(getOpKind()))
     return emitOpError()
-           << "currently supports only op_kind \"standalone_reduce_add\" for "
-              "the bounded selected-body standalone reduction hook";
+           << "currently supports only op_kind \"standalone_reduce_add\", "
+              "\"standalone_reduce_min\", or \"standalone_reduce_max\" for the "
+              "bounded selected-body standalone reduction hook";
   if (!isSupportedTypedStandaloneReducePreRealizedMemoryForm(getMemoryForm()))
     return emitOpError()
            << "currently supports only memory_form "
@@ -5684,8 +5687,8 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
 
   if (!isSupportedGenericStandaloneReduceKind(getKind()))
     return emitOpError()
-           << "currently supports only kind \"add\" for the bounded Stage 2 "
-              "standalone reduction route";
+           << "currently supports only kind \"add\", \"min\", or \"max\" for "
+              "the bounded Stage 2 standalone reduction route";
   if (!isSupportedGenericStandaloneReduceAccumulatorLayout(
           getAccumulatorLayout()))
     return emitOpError()

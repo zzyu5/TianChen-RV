@@ -1233,7 +1233,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
         return outStore.takeError();
       boundOutABI = *outStore;
     } else if (description.operation ==
-               RVVSelectedBodyOperationKind::StandaloneReduceAdd) {
+                   RVVSelectedBodyOperationKind::StandaloneReduceAdd ||
+               description.operation ==
+                   RVVSelectedBodyOperationKind::StandaloneReduceMin ||
+               description.operation ==
+                   RVVSelectedBodyOperationKind::StandaloneReduceMax) {
       llvm::Expected<const support::RuntimeABIParameter *> lhs =
           getRequiredBinding(bindingPlan, "lhs", "materialized-load-base",
                              "standalone reduction input load operand");
@@ -2086,7 +2090,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   }
-	  if (isComputedMaskMemory) {
+  if (isComputedMaskMemory) {
     if (llvm::Error error = addLoopStep(
             slice->sourceLoadOperation, "load", description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
@@ -2130,8 +2134,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               TCRVEmitCCallOpaqueResult{"old_dst_vec",
                                         description.vectorCType.str()}))
         return error;
-	    }
-	  }
+    }
+  }
   if (emitsComputedMaskStandaloneReduction) {
     if (llvm::Error error = addLoopStep(
             slice->sourceLoadOperation, "load", vectorLoadLeaf,
@@ -2145,7 +2149,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       resultVectorCType.str()}))
       return error;
   }
-	  if (isRVVSelectedBodyMAccRoute(description.operation)) {
+  if (isRVVSelectedBodyMAccRoute(description.operation)) {
     if (llvm::Error error = addLoopStep(
             slice->accumulatorLoadOperation, "load",
             description.vectorLoadIntrinsic,

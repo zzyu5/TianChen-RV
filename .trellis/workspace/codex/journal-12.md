@@ -1936,3 +1936,34 @@ Normalized reduce_add RouteOperandBindingPlan mirrors and added explicit standal
 ### Next Steps
 
 - None - task complete
+
+
+## Session 154: Stage2 RVV signed minmax reduction coverage
+
+**Date**: 2026-05-22
+**Task**: Stage2 RVV signed minmax reduction coverage
+**Branch**: `main`
+
+### Summary
+
+Added closure-gated signed standalone min/max RVV reductions with generated-bundle and ssh rvv evidence.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

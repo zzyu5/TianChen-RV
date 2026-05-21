@@ -75,6 +75,8 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "segment2_interleave_unit_load",
     *SCALAR_BROADCAST_OP_KINDS,
     "standalone_reduce_add",
+    "standalone_reduce_min",
+    "standalone_reduce_max",
     "computed_mask_standalone_reduce_add",
     "i64_add",
     "lmul_m2_add",
@@ -252,15 +254,18 @@ SCALAR_BROADCAST_ROUTE_OPERAND_BINDING_OPERANDS = (
     "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
 )
-STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_PLAN = (
-    "rvv-route-operand-binding:standalone_reduce_add.v1"
-)
-STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS = (
-    "rvv-route-operand-binding:standalone_reduce_add.v1;"
+STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_PLAN = "rvv-route-operand-binding:standalone_reduce_add.v1"
+STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS_TEMPLATE = (
+    "rvv-route-operand-binding:{kind}.v1;"
     "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|standalone-reduction-input-call;"
     "acc=accumulator-input-buffer:acc:runtime-abi-mirror|standalone-initial-accumulator-call;"
     "out=output-buffer:out:runtime-abi-mirror|standalone-accumulator-state-load|materialized-store-base|header-mirror;"
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+)
+STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS = (
+    STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS_TEMPLATE.format(
+        kind="standalone_reduce_add"
+    )
 )
 COMPUTED_MASK_STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1"
@@ -553,6 +558,34 @@ EXPECTED_OBJECT_KIND = "riscv-elf-relocatable-object"
 EXPECTED_HEADER_KIND = "runtime-callable-c-header"
 
 
+def is_standalone_reduce_kind(kind: str) -> bool:
+    return kind in {
+        "standalone_reduce_add",
+        "standalone_reduce_min",
+        "standalone_reduce_max",
+    }
+
+
+def standalone_reduce_dataflow_kind(kind: str) -> str:
+    if not is_standalone_reduce_kind(kind):
+        raise ValueError(f"not a standalone reduction kind: {kind}")
+    return kind.removeprefix("standalone_reduce_")
+
+
+def standalone_reduce_route_operand_binding_plan(kind: str) -> str:
+    if not is_standalone_reduce_kind(kind):
+        raise ValueError(f"not a standalone reduction kind: {kind}")
+    return f"rvv-route-operand-binding:{kind}.v1"
+
+
+def standalone_reduce_route_operand_binding_operands(kind: str) -> str:
+    if not is_standalone_reduce_kind(kind):
+        raise ValueError(f"not a standalone reduction kind: {kind}")
+    return STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS_TEMPLATE.format(
+        kind=kind
+    )
+
+
 @dataclass(frozen=True)
 class OpExpectation:
     kind: str
@@ -666,7 +699,7 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *lhs, "
                 "int32_t rhs_scalar, int32_t *out, size_t n);"
             )
-        if self.is_standalone_reduce_add:
+        if self.is_standalone_reduce:
             return (
                 f"void {self.function_name}(const int32_t *lhs, "
                 "const int32_t *acc, int32_t *out, size_t n);"
@@ -737,7 +770,7 @@ class OpExpectation:
             return EXPECTED_SEGMENT2_INTERLEAVE_RUNTIME_PARAMETERS
         if self.is_scalar_broadcast_elementwise:
             return EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS
-        if self.is_standalone_reduce_add:
+        if self.is_standalone_reduce:
             return EXPECTED_STANDALONE_REDUCE_RUNTIME_PARAMETERS
         if self.is_computed_mask_standalone_reduce_add:
             return EXPECTED_COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_PARAMETERS
@@ -789,7 +822,7 @@ class OpExpectation:
             return SEGMENT2_INTERLEAVE_RUNTIME_ABI_ORDER
         if self.is_scalar_broadcast_elementwise:
             return SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER
-        if self.is_standalone_reduce_add:
+        if self.is_standalone_reduce:
             return STANDALONE_REDUCE_RUNTIME_ABI_ORDER
         if self.is_computed_mask_standalone_reduce_add:
             return COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_ABI_ORDER
@@ -931,6 +964,22 @@ class OpExpectation:
     @property
     def is_standalone_reduce_add(self) -> bool:
         return self.kind == "standalone_reduce_add"
+
+    @property
+    def is_standalone_reduce_min(self) -> bool:
+        return self.kind == "standalone_reduce_min"
+
+    @property
+    def is_standalone_reduce_max(self) -> bool:
+        return self.kind == "standalone_reduce_max"
+
+    @property
+    def is_standalone_reduce(self) -> bool:
+        return is_standalone_reduce_kind(self.kind)
+
+    @property
+    def standalone_reduction_kind(self) -> str:
+        return standalone_reduce_dataflow_kind(self.kind)
 
     @property
     def is_computed_mask_standalone_reduce_add(self) -> bool:
@@ -1119,6 +1168,38 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         rhs_initializer="unused",
         source_initializer="(int32_t)-11",
         expected_expression="(int32_t)(acc[0] + sum_i(lhs[i]))",
+    ),
+    "standalone_reduce_min": OpExpectation(
+        kind="standalone_reduce_min",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-standalone-reduce-min.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_standalone_reduce_min",
+        external_abi_name="rvv-generic-standalone-reduce-min-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_standalone_reduce_min_kernel_explicit_selected_body_rvv_standalone_reduce_min",
+        emitc_route="rvv-generic-standalone-reduce-min-emitc-route",
+        typed_compute_op="tcrv_rvv.standalone_reduce",
+        memory_form="unit-stride-standalone-reduction",
+        lhs_initializer="(int32_t)(((index % 5) == 0) ? (int32_t)(index + 4) : ((index % 5) == 1) ? (int32_t)(-((int32_t)index + 13)) : ((index % 5) == 2) ? (int32_t)37 : ((index % 5) == 3) ? (int32_t)-5 : (int32_t)(index + 19))",
+        rhs_initializer="unused",
+        source_initializer="(int32_t)-11",
+        expected_expression="(int32_t)(min_i(acc[0], lhs[i]))",
+    ),
+    "standalone_reduce_max": OpExpectation(
+        kind="standalone_reduce_max",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-standalone-reduce-max.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_standalone_reduce_max",
+        external_abi_name="rvv-generic-standalone-reduce-max-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_standalone_reduce_max_kernel_explicit_selected_body_rvv_standalone_reduce_max",
+        emitc_route="rvv-generic-standalone-reduce-max-emitc-route",
+        typed_compute_op="tcrv_rvv.standalone_reduce",
+        memory_form="unit-stride-standalone-reduction",
+        lhs_initializer="(int32_t)(((index % 5) == 0) ? (int32_t)(-((int32_t)index + 4)) : ((index % 5) == 1) ? (int32_t)(index + 13) : ((index % 5) == 2) ? (int32_t)-37 : ((index % 5) == 3) ? (int32_t)5 : (int32_t)(-((int32_t)index + 19)))",
+        rhs_initializer="unused",
+        source_initializer="(int32_t)-11",
+        expected_expression="(int32_t)(max_i(acc[0], lhs[i]))",
     ),
     "reduce_add": OpExpectation(
         kind="reduce_add",
@@ -1694,6 +1775,22 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_standalone_reduce_add",
         function_name="tcrv_emitc_pre_realized_body_standalone_reduce_add_kernel_pre_realized_body_rvv_standalone_reduce_add",
+    ),
+    "standalone_reduce_min": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["standalone_reduce_min"],
+        kind="standalone_reduce_min",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-min.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_standalone_reduce_min",
+        function_name="tcrv_emitc_pre_realized_body_standalone_reduce_min_kernel_pre_realized_body_rvv_standalone_reduce_min",
+    ),
+    "standalone_reduce_max": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["standalone_reduce_max"],
+        kind="standalone_reduce_max",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-max.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_standalone_reduce_max",
+        function_name="tcrv_emitc_pre_realized_body_standalone_reduce_max_kernel_pre_realized_body_rvv_standalone_reduce_max",
     ),
     "computed_mask_standalone_reduce_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -2865,7 +2962,7 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
-    if expectation.is_standalone_reduce_add:
+    if expectation.is_standalone_reduce:
         per_op_metadata.update(
             {
                 "tcrv_rvv.reduction_accumulator_layout": (
@@ -2886,10 +2983,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.c_type_mapping": STANDALONE_REDUCE_C_TYPE_MAPPING,
                 "tcrv_rvv.route_operand_binding_plan": (
-                    STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_PLAN
+                    standalone_reduce_route_operand_binding_plan(expectation.kind)
                 ),
                 "tcrv_rvv.route_operand_binding_operands": (
-                    STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS
+                    standalone_reduce_route_operand_binding_operands(
+                        expectation.kind
+                    )
                 ),
             }
         )
@@ -2957,7 +3056,7 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         )
     if (
         expectation.is_scalar_broadcast_elementwise
-        or expectation.is_standalone_reduce_add
+        or expectation.is_standalone_reduce
         or expectation.is_computed_mask_standalone_reduce_add
     ):
         per_op_metadata["tcrv_rvv.runtime_control_plan"] = (
@@ -4566,7 +4665,7 @@ def verify_materialized_selected_body(
             'result_layout = "store-reduction-lane0-to-output-chunk-base"',
             "materialized selected-body MLIR reduce result layout",
         )
-    if expectation.is_standalone_reduce_add:
+    if expectation.is_standalone_reduce:
         require_contains(
             text,
             "tcrv_rvv.standalone_reduce",
@@ -4574,7 +4673,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            'kind = "add"',
+            f'kind = "{expectation.standalone_reduction_kind}"',
             "materialized selected-body MLIR standalone reduction kind",
         )
         require_contains(
@@ -5978,7 +6077,17 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
-    if expectation.is_standalone_reduce_add:
+    if expectation.is_standalone_reduce:
+        if expectation.is_standalone_reduce_min:
+            expected_update = (
+                "expected = (expected < lhs[index]) ? expected : lhs[index];"
+            )
+        elif expectation.is_standalone_reduce_max:
+            expected_update = (
+                "expected = (expected > lhs[index]) ? expected : lhs[index];"
+            )
+        else:
+            expected_update = "expected = (int32_t)(expected + lhs[index]);"
         return f"""
 #include <stddef.h>
 #include <stdint.h>
@@ -6008,7 +6117,7 @@ static int run_case(size_t n, int32_t seed) {{
   for (size_t index = 0; index < alloc_n; ++index) {{
     lhs[index] = make_lhs_value(index);
     if (index < n)
-      expected = (int32_t)(expected + lhs[index]);
+      {expected_update}
   }}
   acc[0] = seed;
   for (size_t index = 0; index < sizeof(out) / sizeof(out[0]); ++index)
@@ -8112,6 +8221,15 @@ def run_one_op_e2e(
                 "only out[0] is written and non-scalar output slots preserve "
                 "sentinels"
             )
+        if expectation.is_standalone_reduce:
+            evidence["harness"]["reduction_contract"] = (
+                f"signed i32 {expectation.standalone_reduction_kind} reduction "
+                "combines input lanes with the scalar accumulator seed"
+            )
+            evidence["harness"]["scalar_result_contract"] = (
+                "only out[0] is written and non-scalar output slots preserve "
+                "sentinels"
+            )
         if expectation.is_computed_masked_widening_dot_reduce_add:
             evidence["harness"]["mask_coverage_contract"] = (
                 "multi-lane computed_masked_widening_dot_reduce_add cases "
@@ -8523,6 +8641,15 @@ def run_self_test() -> int:
                 raise AssertionError(
                     "self-test harness generation lost computed-mask "
                     "standalone reduction seed and mask coverage"
+                )
+            if expectation.is_standalone_reduce and (
+                "acc[0] != seed" not in harness
+                or "tail_preserved" not in harness
+                or expectation.standalone_reduction_kind not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost standalone reduction "
+                    "seed, kind, or scalar-tail coverage"
                 )
 
         expectation = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"]
