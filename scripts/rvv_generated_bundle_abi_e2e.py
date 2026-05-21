@@ -38,6 +38,7 @@ DEFAULT_SSH_TARGET = "rvv"
 DEFAULT_TIMEOUT_SECONDS = 120
 DEFAULT_CONNECT_TIMEOUT_SECONDS = 10
 DEFAULT_RUNTIME_COUNTS = (1, 7, 16, 17, 257)
+DEFAULT_RHS_SCALAR_VALUES = (-37,)
 MIN_RUNTIME_COUNT_CASES = 2
 MIN_NON_ONE_VECTOR_SENTINEL_COUNT = 17
 DEFAULT_OP_KINDS = ("add", "sub", "mul")
@@ -3652,9 +3653,17 @@ def verify_materialized_selected_body(
 
 
 def harness_source(
-    header_file_name: str, runtime_counts: list[int], expectation: OpExpectation
+    header_file_name: str,
+    runtime_counts: list[int],
+    expectation: OpExpectation,
+    rhs_scalar_values: list[int] | None = None,
 ) -> str:
     counts = ", ".join(str(count) for count in runtime_counts)
+    scalar_values = list(
+        DEFAULT_RHS_SCALAR_VALUES if rhs_scalar_values is None else rhs_scalar_values
+    )
+    scalar_values_literal = ", ".join(f"(int32_t){value}" for value in scalar_values)
+    scalar_values_summary = ",".join(str(value) for value in scalar_values)
     if expectation.is_segment2_deinterleave_unit_store:
         return f"""
 #include <stddef.h>
@@ -4737,12 +4746,11 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static int run_case(size_t n, int32_t rhs_scalar) {{
   /* expected: {expectation.expected_expression} */
   size_t alloc_n = n == 0 ? 1 : n;
   {expectation.element_c_type} *lhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
   {expectation.element_c_type} *out = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
-  int32_t rhs_scalar = {expectation.rhs_initializer};
   if (!lhs || !out) {{
     fprintf(stderr, "allocation failed for n=%zu\\n", n);
     free(lhs);
@@ -4777,14 +4785,18 @@ static int run_case(size_t n) {{
 
 int main(void) {{
   const size_t counts[] = {{{counts}}};
+  const int32_t rhs_scalar_values[] = {{{scalar_values_literal}}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
-  for (size_t index = 0; index < count_count; ++index) {{
-    int status = run_case(counts[index]);
-    if (status != 0)
-      return status;
+  const size_t scalar_count = sizeof(rhs_scalar_values) / sizeof(rhs_scalar_values[0]);
+  for (size_t scalar_index = 0; scalar_index < scalar_count; ++scalar_index) {{
+    for (size_t index = 0; index < count_count; ++index) {{
+      int status = run_case(counts[index], rhs_scalar_values[scalar_index]);
+      if (status != 0)
+        return status;
+    }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
   return 0;
 }}
 """.lstrip()
@@ -6328,6 +6340,25 @@ def validate_runtime_counts(runtime_counts: list[int]) -> None:
         )
 
 
+def validate_rhs_scalar_values(rhs_scalar_values: list[int]) -> None:
+    if not rhs_scalar_values:
+        raise EvidenceError(
+            "runtime scalar-broadcast evidence requires at least one RHS scalar value"
+        )
+    if len(set(rhs_scalar_values)) != len(rhs_scalar_values):
+        raise EvidenceError(
+            "runtime scalar-broadcast evidence requires distinct RHS scalar "
+            f"values: {rhs_scalar_values}"
+        )
+    min_i32 = -(2**31)
+    max_i32 = 2**31 - 1
+    if any(value < min_i32 or value > max_i32 for value in rhs_scalar_values):
+        raise EvidenceError(
+            "runtime scalar-broadcast evidence requires int32 RHS scalar "
+            f"values: {rhs_scalar_values}"
+        )
+
+
 def runtime_count_contract_summary(runtime_counts: list[int]) -> dict[str, Any]:
     return {
         "minimum_case_count": MIN_RUNTIME_COUNT_CASES,
@@ -6347,6 +6378,7 @@ def run_one_op_e2e(
     tcrv_translate: str,
     readobj: str | None,
     runtime_counts: list[int],
+    rhs_scalar_values: list[int],
 ) -> dict[str, Any]:
     op_artifact_dir = artifact_dir / expectation.kind
     bundle_dir = op_artifact_dir / "generated_bundle"
@@ -6370,6 +6402,8 @@ def run_one_op_e2e(
         "expected_runtime_abi_name": expectation.external_abi_name,
         "expected_function": expectation.function_name,
     }
+    if expectation.is_scalar_broadcast_add:
+        evidence["rhs_scalar_values"] = rhs_scalar_values
 
     try:
         if expectation.is_pre_realized:
@@ -6409,7 +6443,12 @@ def run_one_op_e2e(
             / f"rvv_generated_bundle_abi_{expectation.kind}_harness.c"
         )
         harness_path.write_text(
-            harness_source(bundle_checks["header_file"], runtime_counts, expectation),
+            harness_source(
+                bundle_checks["header_file"],
+                runtime_counts,
+                expectation,
+                rhs_scalar_values,
+            ),
             encoding="utf-8",
         )
         evidence["harness"] = {
@@ -6418,6 +6457,12 @@ def run_one_op_e2e(
             "pass_marker": expectation.pass_marker,
             "boundary": "external C ABI consumer of generated header and object only",
         }
+        if expectation.is_scalar_broadcast_add:
+            evidence["harness"]["rhs_scalar_values"] = rhs_scalar_values
+            evidence["harness"]["rhs_scalar_coverage_contract"] = (
+                "runtime scalar-broadcast add cases must execute the same "
+                "generated artifact with explicit runtime RHS scalar values"
+            )
         if expectation.is_cmp_select:
             evidence["harness"][
                 "predicate_coverage_contract"
@@ -6555,6 +6600,7 @@ def run_e2e(args: argparse.Namespace) -> int:
     run_id = safe_run_id(args.run_id or utc_run_id())
     artifact_dir = prepare_artifact_dir(args.artifact_root, run_id, args.overwrite)
     runtime_counts = args.runtime_count or list(DEFAULT_RUNTIME_COUNTS)
+    rhs_scalar_values = args.rhs_scalar or list(DEFAULT_RHS_SCALAR_VALUES)
     evidence: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "tool": SCRIPT_NAME,
@@ -6583,6 +6629,17 @@ def run_e2e(args: argparse.Namespace) -> int:
             runtime_counts
         )
         expectations = selected_expectations(args)
+        has_scalar_broadcast = any(
+            expectation.is_scalar_broadcast_add for expectation in expectations
+        )
+        if args.rhs_scalar and not has_scalar_broadcast:
+            raise EvidenceError(
+                "--rhs-scalar may only be used when an op kind includes "
+                "scalar_broadcast_add"
+            )
+        validate_rhs_scalar_values(rhs_scalar_values)
+        if has_scalar_broadcast:
+            evidence["rhs_scalar_values"] = rhs_scalar_values
         evidence["op_kinds"] = [expectation.kind for expectation in expectations]
         tcrv_opt = ensure_tool(args.tcrv_opt)
         tcrv_translate = ensure_tool(args.tcrv_translate)
@@ -6598,6 +6655,7 @@ def run_e2e(args: argparse.Namespace) -> int:
                 tcrv_translate=tcrv_translate,
                 readobj=readobj,
                 runtime_counts=runtime_counts,
+                rhs_scalar_values=rhs_scalar_values,
             )
             evidence["op_results"][expectation.kind] = {
                 "status": result["status"],
@@ -6756,6 +6814,14 @@ def run_self_test() -> int:
             "missing non-one-vector runtime count",
             lambda: validate_runtime_counts([7, 16]),
         )
+        validate_rhs_scalar_values([-37, 91])
+        expect_self_test_failure(
+            "duplicate scalar values", lambda: validate_rhs_scalar_values([-37, -37])
+        )
+        expect_self_test_failure(
+            "out-of-range scalar value",
+            lambda: validate_rhs_scalar_values([-(2**31) - 1]),
+        )
 
         for expectation in (
             list(EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS.values())
@@ -6779,6 +6845,14 @@ def run_self_test() -> int:
             ):
                 raise AssertionError(
                     f"self-test harness generation lost {expectation.kind} ABI call"
+                )
+            if expectation.is_scalar_broadcast_add and (
+                "rhs_scalar_values" not in harness
+                or "(int32_t)-37" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost scalar broadcast "
+                    "runtime scalar coverage"
                 )
 
         expectation = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"]
@@ -7058,6 +7132,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=int,
         default=[],
         help="runtime n value to test; may be repeated",
+    )
+    parser.add_argument(
+        "--rhs-scalar",
+        action="append",
+        type=int,
+        default=[],
+        help=(
+            "runtime RHS scalar value for scalar_broadcast_add; may be "
+            "repeated to prove the same generated artifact consumes multiple "
+            "runtime scalar addends"
+        ),
     )
     return parser.parse_args(argv)
 

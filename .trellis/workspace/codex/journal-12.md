@@ -88,6 +88,44 @@ real `ssh rvv` correctness evidence.
 - None - task complete
 
 
+## Session 147: Stage2 RVV runtime scalar broadcast add production evidence
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV runtime scalar broadcast add executable slice
+**Branch**: `main`
+
+### Summary
+
+Created a fresh production task from the Hermes brief, confirmed current HEAD already had the typed RVV scalar-broadcast route, then closed the active evidence gap by extending the generated-bundle ABI harness to run `scalar_broadcast_add` with multiple runtime RHS scalar values. Verified counts 7/16/23 with rhs_scalar -37 and 91 on real `ssh rvv`.
+
+### Main Changes
+
+- Added repeated `--rhs-scalar` support to `scripts/rvv_generated_bundle_abi_e2e.py` for `scalar_broadcast_add`.
+- Recorded RHS scalar values in root/op evidence JSON and generated harness metadata.
+- Updated the scalar-broadcast dry-run lit test to require two scalar addends in evidence and harness output.
+- Added and completed the Trellis implementation PRD for the bounded task.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Generated-bundle dry-run for `scalar_broadcast_add`, counts `7,16,23`, rhs scalars `-37,91`.
+- [OK] Manual FileCheck equivalents for scalar script ROOT/SCALAR/HARNESS.
+- [OK] Selected-body REALIZED/PLAN/HEADER FileCheck for scalar broadcast add.
+- [OK] EmitC scalar-broadcast materialization and negative fail-closed checks.
+- [OK] Real `ssh rvv` PASS for counts `7,16,23` and rhs scalars `-37,91`.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 248/248 passed.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+### Next Steps
+
+- None for this bounded slice.
+
+
 ## Session 147: Stage2 RVV runtime scalar broadcast add current-head validation
 
 **Date**: 2026-05-21

@@ -1,6 +1,6 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-scalar-broadcast-add --overwrite --op-kind scalar_broadcast_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-scalar-broadcast-add --overwrite --op-kind scalar_broadcast_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-scalar-broadcast-add/evidence.json
 # RUN: FileCheck %s --check-prefix=SCALAR --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-scalar-broadcast-add/scalar_broadcast_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-scalar-broadcast-add/scalar_broadcast_add/rvv_generated_bundle_abi_scalar_broadcast_add_harness.c
@@ -20,6 +20,9 @@
 # SCALAR-DAG: "expected_function": "tcrv_emitc_pre_realized_body_scalar_broadcast_add_kernel_pre_realized_body_rvv_scalar_broadcast_add"
 # SCALAR-DAG: "expected_runtime_abi_name": "rvv-generic-scalar-broadcast-add-callable-c-abi.v1"
 # SCALAR-DAG: "expected_selected_variant": "pre_realized_body_rvv_scalar_broadcast_add"
+# SCALAR-DAG: "rhs_scalar_values": [
+# SCALAR-DAG: -37
+# SCALAR-DAG: 91
 # SCALAR-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
 # SCALAR-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
 # SCALAR-DAG: --tcrv-materialize-selected-lowering-boundaries
@@ -38,7 +41,9 @@
 # SCALAR-DAG: "memory_form": "rhs-scalar-broadcast"
 # SCALAR-DAG: "status": "dry_run_success"
 
-# HARNESS: int32_t rhs_scalar = (int32_t)-37;
 # HARNESS: tcrv_emitc_pre_realized_body_scalar_broadcast_add_kernel_pre_realized_body_rvv_scalar_broadcast_add(lhs, rhs_scalar, out, n);
 # HARNESS: int32_t expected = lhs[index] + rhs_scalar;
 # HARNESS: rhs_scalar=%d
+# HARNESS: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESS: run_case(counts[index], rhs_scalar_values[scalar_index]);
+# HARNESS: rhs_scalars=-37,91
