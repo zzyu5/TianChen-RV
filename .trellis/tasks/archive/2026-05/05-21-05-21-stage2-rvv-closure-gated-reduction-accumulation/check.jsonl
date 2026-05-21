@@ -1,0 +1,20 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final work stays on RVV-first typed-body Stage2 route expansion."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin authority, selected-body realization, and legacy/source-front-door fail-closed boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export remains neutral and consumes provider-built routes only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify positive/negative tests and ssh rvv evidence match the runtime correctness claim."}
+{"file": ".trellis/tasks/05-21-05-21-stage2-rvv-closure-gated-reduction-accumulation/prd.md", "reason": "Task scope, acceptance criteria, and validation plan."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Run focused RVV plugin/provider tests after route planning and provider changes."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Run target artifact/header mirror tests after metadata changes."}
+{"file": "test/Dialect/RVV/", "type": "directory", "reason": "Run focused dialect verifier tests for masked standalone reduction positive and negative cases."}
+{"file": "test/Target/RVV/", "type": "directory", "reason": "Run focused selected-body realization, route plan, header, and artifact FileCheck tests."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Run py_compile, self-test, generated-bundle dry-runs, and ssh rvv representative checks."}
+{"file": "build/test/lit.site.cfg.py", "reason": "Run check-tianchenrv before finish."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-mask-standalone-reduce-add.mlir", "reason": "Passed: focused PLAN and HEADER FileCheck for explicit computed-mask standalone reduction."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-standalone-reduce-add.mlir", "reason": "Passed: focused REALIZED, PLAN, and HEADER FileCheck for pre-realized computed-mask standalone reduction."}
+{"file": "test/Dialect/RVV/computed-mask-standalone-reduction-dataflow.mlir", "reason": "Passed: split-input verifier negative coverage for stale route_id, unsupported predicate, role swaps, mask mismatch, and runtime role mismatch."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Passed: py_compile and self-test after generated-bundle support changes."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Passed: dry-run explicit/pre-realized computed_mask_standalone_reduce_add at counts 7,16,23; final artifact dirs 20260521T-computed-mask-standalone-reduce-final-dry-explicit and 20260521T-computed-mask-standalone-reduce-final-dry-pre."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Passed: real ssh rvv explicit/pre-realized computed_mask_standalone_reduce_add at counts 7,16,23, seeds -11 and 17; outputs distinguished active/inactive lanes and reported tail_preserved."}
+{"file": "build/test/lit.site.cfg.py", "reason": "Passed: cmake --build build --target check-tianchenrv -j2, 282/282 tests passed."}
+{"file": ".trellis/tasks/05-21-05-21-stage2-rvv-closure-gated-reduction-accumulation/check.jsonl", "reason": "Passed: git diff --check reported no whitespace errors."}
+{"file": ".trellis/tasks/05-21-05-21-stage2-rvv-closure-gated-reduction-accumulation/check.jsonl", "reason": "Passed: diff-level active-authority scan found no new RVVI32M1, rvv-i32m1, finite tcrv_rvv.i32_* route authority, exact i32m1 intrinsic authority, descriptor, source-front-door, direct-C, or route_id authority."}

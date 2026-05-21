@@ -56,7 +56,8 @@ constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;"
     "compute:rvv.role.compute.generic_vector:tcrv_rvv.binary|"
     "tcrv_rvv.compare|tcrv_rvv.masked_binary|tcrv_rvv.select|"
-    "tcrv_rvv.reduce|tcrv_rvv.standalone_reduce|tcrv_rvv.macc|"
+    "tcrv_rvv.reduce|tcrv_rvv.standalone_reduce|"
+    "tcrv_rvv.masked_standalone_reduce|tcrv_rvv.macc|"
     "tcrv_rvv.widening_macc|"
     "tcrv_rvv.widening_dot_reduce|"
     "tcrv_rvv.masked_widening_dot_reduce|tcrv_rvv.widening_convert|"
@@ -76,7 +77,8 @@ constexpr llvm::StringLiteral kTypedRoleArtifactSummary(
     "load:tcrv_rvv.load|broadcast_load|splat|strided_load|index_load|"
     "indexed_load|mask_load|segment2_load;"
     "compute:tcrv_rvv.binary|compare|select|masked_binary|reduce|"
-    "standalone_reduce|macc|widening_macc|widening_dot_reduce|"
+    "standalone_reduce|masked_standalone_reduce|macc|"
+    "widening_macc|widening_dot_reduce|"
     "masked_widening_dot_reduce|"
     "widening_convert|move|masked_move;"
     "store:tcrv_rvv.store|strided_store|indexed_store|segment2_store|"
@@ -89,7 +91,8 @@ constexpr llvm::StringLiteral kSourceOps(
     "load_family->compute_family->store_family;"
     "ops=load,broadcast_load,splat,strided_load,index_load,indexed_load,"
     "mask_load,segment2_load,binary,compare,select,masked_binary,reduce,"
-    "standalone_reduce,macc,widening_macc,widening_dot_reduce,"
+    "standalone_reduce,masked_standalone_reduce,macc,widening_macc,"
+    "widening_dot_reduce,"
     "masked_widening_dot_reduce,"
     "widening_convert,move,masked_move,"
     "store,strided_store,indexed_store,segment2_store,masked_store");
@@ -207,7 +210,8 @@ const RVVConstructionSemanticRole kSemanticRoles[] = {
     {"compute", 4,
      "tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.masked_binary|"
      "tcrv_rvv.select|tcrv_rvv.reduce|tcrv_rvv.standalone_reduce|"
-     "tcrv_rvv.macc|tcrv_rvv.widening_macc|tcrv_rvv.widening_dot_reduce|"
+     "tcrv_rvv.masked_standalone_reduce|tcrv_rvv.macc|"
+     "tcrv_rvv.widening_macc|tcrv_rvv.widening_dot_reduce|"
      "tcrv_rvv.masked_widening_dot_reduce|tcrv_rvv.widening_convert|"
      "tcrv_rvv.move|tcrv_rvv.masked_move",
      "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
@@ -286,7 +290,8 @@ const RVVTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      4,
      "tcrv_rvv.binary|tcrv_rvv.compare|tcrv_rvv.masked_binary|"
      "tcrv_rvv.select|tcrv_rvv.reduce|tcrv_rvv.standalone_reduce|"
-     "tcrv_rvv.macc|tcrv_rvv.widening_macc|tcrv_rvv.widening_dot_reduce|"
+     "tcrv_rvv.masked_standalone_reduce|tcrv_rvv.macc|"
+     "tcrv_rvv.widening_macc|tcrv_rvv.widening_dot_reduce|"
      "tcrv_rvv.masked_widening_dot_reduce|tcrv_rvv.widening_convert|"
      "tcrv_rvv.move|tcrv_rvv.masked_move",
      "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
@@ -357,6 +362,12 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-standalone-reduce-add-emitc-route",
      "rvv-generic-standalone-reduce-add-callable-c-abi.v1",
      "rvv-generic-standalone-reduce-add-callable-c-abi"},
+    {"computed_mask_standalone_reduce_add",
+     "tcrv_rvv.masked_standalone_reduce",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-computed-mask-standalone-reduce-add-emitc-route",
+     "rvv-generic-computed-mask-standalone-reduce-add-callable-c-abi.v1",
+     "rvv-generic-computed-mask-standalone-reduce-add-callable-c-abi"},
     {"masked_add",
      "tcrv_rvv.masked_binary",
      "rvv.role.compute.generic_vector",
@@ -625,11 +636,12 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 32)
+          .size() != 33)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
         "cmp_select, computed_mask_select, reduce_add, "
-        "standalone_reduce_add, masked_add, masked_sub, masked_mul, "
+        "standalone_reduce_add, computed_mask_standalone_reduce_add, "
+        "masked_add, masked_sub, masked_mul, "
         "macc_add, widening_macc_add, "
         "widening_dot_reduce_add, "
         "strided_input_widening_dot_reduce_add, "
@@ -755,6 +767,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
   const bool isReduction = route->operationMnemonic == "reduce_add";
   const bool isStandaloneReduction =
       route->operationMnemonic == "standalone_reduce_add";
+  const bool isComputedMaskStandaloneReduction =
+      route->operationMnemonic == "computed_mask_standalone_reduce_add";
   const bool isMaskedElementwise = route->operationMnemonic == "masked_add" ||
                                    route->operationMnemonic == "masked_sub" ||
                                    route->operationMnemonic == "masked_mul";
@@ -815,6 +829,11 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return makeRVVConstructionError(
         "RVV standalone reduction construction requires generic "
         "tcrv_rvv.standalone_reduce");
+  if (isComputedMaskStandaloneReduction &&
+      typedComputeOpName != "tcrv_rvv.masked_standalone_reduce")
+    return makeRVVConstructionError(
+        "RVV computed-mask standalone reduction construction requires generic "
+        "tcrv_rvv.masked_standalone_reduce");
   if (isMaskedElementwise && typedComputeOpName != "tcrv_rvv.masked_binary")
     return makeRVVConstructionError(
         "RVV masked elementwise construction requires generic "
@@ -882,7 +901,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "RVV segment2 interleave memory movement construction requires "
         "generic tcrv_rvv.segment2_store");
   if (!isCompareSelect && !isComputedMaskSelect && !isReduction &&
-      !isStandaloneReduction &&
+      !isStandaloneReduction && !isComputedMaskStandaloneReduction &&
       !isMaskedElementwise && !isMAccAdd && !isWideningMAccAdd &&
       !isWideningDotReduceAdd &&
       !isStridedInputWideningDotReduceAdd &&
@@ -910,6 +929,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isComputedMaskUnitLoadStore &&
       !isComputedMaskStridedStore &&
       !isComputedMaskSelect &&
+      !isComputedMaskStandaloneReduction &&
       !isComputedMaskWideningDotReduceAdd &&
       !isComputedMaskStridedInputWideningDotReduceAdd &&
       !isStridedInputWideningDotReduceAdd &&
@@ -969,7 +989,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
   if ((isComputedMaskSelect || isComputedMaskUnitLoadStore ||
        isComputedMaskStridedStore ||
        isComputedMaskWideningDotReduceAdd ||
-       isComputedMaskStridedInputWideningDotReduceAdd) &&
+       isComputedMaskStridedInputWideningDotReduceAdd ||
+       isComputedMaskStandaloneReduction) &&
       rhsSourceOperationName != "tcrv_rvv.compare")
     return makeRVVConstructionError(
         "RVV generic computed-mask construction requires explicit compare "
@@ -994,12 +1015,14 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isComputedMaskStridedStore &&
       !isComputedMaskWideningDotReduceAdd &&
       !isComputedMaskStridedInputWideningDotReduceAdd &&
+      !isComputedMaskStandaloneReduction &&
       rhsSourceOperationName == "tcrv_rvv.compare")
     return makeRVVConstructionError(
         "RVV generic compare-produced mask memory form is only supported by "
         "computed_mask_select, computed_masked_unit_load_store, "
-        "computed_masked_strided_store, or "
-        "computed_masked_widening_dot_reduce_add, or "
+	        "computed_masked_strided_store, "
+	        "computed_mask_standalone_reduce_add, "
+	        "computed_masked_widening_dot_reduce_add, or "
         "computed_masked_strided_input_widening_dot_reduce_add in this "
         "bounded slice");
   if (!isSegment2DeinterleaveUnitStore &&
@@ -1054,6 +1077,13 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "input vector load, scalar accumulator seed boundary, and scalar "
         "output boundary; broadcast standalone reduction is not in this "
         "bounded slice");
+  if (isComputedMaskStandaloneReduction &&
+      rhsSourceOperationName != "tcrv_rvv.compare")
+    return makeRVVConstructionError(
+        "RVV generic computed-mask standalone reduction construction requires "
+        "compare lhs/rhs loads, a compare-produced mask, a source vector load, "
+        "an i32 scalar accumulator seed boundary, and an i32 scalar output "
+        "boundary");
   if (isMaskedElementwise && rhsSourceOperationName != "tcrv_rvv.load")
     return makeRVVConstructionError(
         "RVV generic masked elementwise construction requires an explicit "
@@ -1108,8 +1138,9 @@ buildRVVSelectedBodyExecutableRoleSteps(
                    "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
                    (isComputedMaskSelect ||
                     isComputedMaskUnitLoadStore || isComputedMaskStridedStore ||
-                    isComputedMaskWideningDotReduceAdd ||
-                    isComputedMaskStridedInputWideningDotReduceAdd)
+	                    isComputedMaskWideningDotReduceAdd ||
+	                    isComputedMaskStandaloneReduction ||
+	                    isComputedMaskStridedInputWideningDotReduceAdd)
                        ? "cmp_lhs"
                        : (isIndexedGatherUnitStore
                               ? "data"
@@ -1120,7 +1151,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
                                      ? "src"
                                      : "lhs")),
                    0});
-  if (isComputedMaskSelect) {
+	  if (isComputedMaskSelect) {
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
                      "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
@@ -1170,9 +1201,58 @@ buildRVVSelectedBodyExecutableRoleSteps(
     steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
                      "store", 14});
+	    return steps;
+	  }
+  if (isComputedMaskStandaloneReduction) {
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "cmp_rhs", 1});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "src", 2});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "acc", 3});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "out", 4});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "n", 5});
+    steps.push_back({"configure", "tcrv_rvv.setvl",
+                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+                     6});
+    steps.push_back({"scope", "tcrv_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "cmp_lhs_load", 8});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "cmp_rhs_load", 9});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "src_load", 10});
+    steps.push_back({"compute", "tcrv_rvv.compare",
+                     "rvv.role.compute.generic_vector",
+                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "compare_mask", 11});
+    steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
+                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     route->operationMnemonic, 12});
+    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "store", 13});
     return steps;
   }
-  if (isWideningConversion) {
+	  if (isWideningConversion) {
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
                      "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
@@ -2354,13 +2434,20 @@ llvm::Error verifyRVVConstructionProtocolReady() {
           tcrv::rvv::getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
       routeRuntimeABIParameters.append(scalarParameters.begin(),
                                        scalarParameters.end());
-    } else if (route.operationMnemonic == "standalone_reduce_add") {
-      llvm::SmallVector<support::RuntimeABIParameter, 4> reductionParameters =
+	    } else if (route.operationMnemonic == "standalone_reduce_add") {
+	      llvm::SmallVector<support::RuntimeABIParameter, 4> reductionParameters =
+	          tcrv::rvv::
+	              getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
+	      routeRuntimeABIParameters.append(reductionParameters.begin(),
+	                                       reductionParameters.end());
+    } else if (route.operationMnemonic ==
+               "computed_mask_standalone_reduce_add") {
+      llvm::SmallVector<support::RuntimeABIParameter, 6> reductionParameters =
           tcrv::rvv::
-              getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
+              getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(reductionParameters.begin(),
                                        reductionParameters.end());
-    } else if (route.operationMnemonic == "macc_add") {
+	    } else if (route.operationMnemonic == "macc_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 5> maccParameters =
           tcrv::rvv::getRVVSelectedBodyMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(maccParameters.begin(),
@@ -2773,13 +2860,20 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         tcrv::rvv::getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
     expectedParameters.append(scalarParameters.begin(),
                               scalarParameters.end());
-  } else if (route->operationMnemonic == "standalone_reduce_add") {
-    llvm::SmallVector<support::RuntimeABIParameter, 4> reductionParameters =
+	  } else if (route->operationMnemonic == "standalone_reduce_add") {
+	    llvm::SmallVector<support::RuntimeABIParameter, 4> reductionParameters =
+	        tcrv::rvv::
+	            getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
+	    expectedParameters.append(reductionParameters.begin(),
+	                              reductionParameters.end());
+  } else if (route->operationMnemonic ==
+             "computed_mask_standalone_reduce_add") {
+    llvm::SmallVector<support::RuntimeABIParameter, 6> reductionParameters =
         tcrv::rvv::
-            getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
+            getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters();
     expectedParameters.append(reductionParameters.begin(),
                               reductionParameters.end());
-  } else if (route->operationMnemonic == "macc_add") {
+	  } else if (route->operationMnemonic == "macc_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 5> maccParameters =
         tcrv::rvv::getRVVSelectedBodyMAccRuntimeABIParameters();
     expectedParameters.append(maccParameters.begin(), maccParameters.end());
@@ -2926,6 +3020,10 @@ llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "runtime_abi->runtime_abi->runtime_abi->configure->scope->"
             "load->load->load->load->compute->compute->store"
+      : typedComputeOpName == "tcrv_rvv.masked_standalone_reduce"
+          ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
+            "runtime_abi->runtime_abi->configure->scope->load->load->load->"
+            "compute->compute->store"
       : typedComputeOpName == "tcrv_rvv.widening_dot_reduce"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "runtime_abi->configure->scope->load->load->compute->store"
@@ -3060,10 +3158,15 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
   if (usesGenericBinary && expected.operationMnemonic == "reduce_add")
     return makeRVVConstructionError(
         "selected-body reduction cannot use generic tcrv_rvv.binary");
+	  if (usesGenericBinary &&
+	      expected.operationMnemonic == "standalone_reduce_add")
+	    return makeRVVConstructionError(
+	        "selected-body standalone reduction cannot use generic "
+	        "tcrv_rvv.binary");
   if (usesGenericBinary &&
-      expected.operationMnemonic == "standalone_reduce_add")
+      expected.operationMnemonic == "computed_mask_standalone_reduce_add")
     return makeRVVConstructionError(
-        "selected-body standalone reduction cannot use generic "
+        "selected-body computed-mask standalone reduction cannot use generic "
         "tcrv_rvv.binary");
   if (usesGenericBinary &&
       (expected.operationMnemonic == "masked_add" ||
@@ -3158,6 +3261,8 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
                  expected.operationMnemonic == "computed_mask_select" ||
                  expected.operationMnemonic == "reduce_add" ||
                  expected.operationMnemonic == "standalone_reduce_add" ||
+                 expected.operationMnemonic ==
+                     "computed_mask_standalone_reduce_add" ||
                  expected.operationMnemonic == "masked_add" ||
                  expected.operationMnemonic == "masked_sub" ||
                  expected.operationMnemonic == "masked_mul" ||

@@ -75,6 +75,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "segment2_interleave_unit_load",
     *SCALAR_BROADCAST_OP_KINDS,
     "standalone_reduce_add",
+    "computed_mask_standalone_reduce_add",
     "i64_add",
     "lmul_m2_add",
     "widen_i32_to_i64",
@@ -105,6 +106,7 @@ STANDALONE_REDUCE_ACCUMULATOR_LAYOUT = "scalar-i32-seed-lane0-from-accumulator-i
 STANDALONE_REDUCE_RESULT_LAYOUT = "store-standalone-reduction-lane0-to-output-scalar"
 STANDALONE_REDUCE_STORE_VL = "1"
 STANDALONE_REDUCE_RUNTIME_ABI_ORDER = "lhs,acc,out,n"
+COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_ABI_ORDER = "cmp_lhs,cmp_rhs,src,acc,out,n"
 RUNTIME_AVL_VL_CONTROL_PLAN = "rvv-runtime-avl-vl-control-plan.v1"
 STANDALONE_REDUCE_TARGET_LEAF_PROFILE = (
     "rvv-v1-e32m1-standalone-reduction-leaf-profile.v1"
@@ -114,6 +116,18 @@ STANDALONE_REDUCE_PROVIDER_SUPPORTED_MIRROR = (
 )
 STANDALONE_REDUCE_REQUIRED_HEADER_DECLARATIONS = "stddef.h,stdint.h,riscv_vector.h"
 STANDALONE_REDUCE_C_TYPE_MAPPING = "vl:size_t,input:signed-e32m1,seed:i32,result:signed-e32m1"
+COMPUTED_MASK_STANDALONE_REDUCE_TARGET_LEAF_PROFILE = (
+    "rvv-v1-e32m1-computed-mask-standalone-reduction-leaf-profile.v1"
+)
+COMPUTED_MASK_STANDALONE_REDUCE_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-computed-mask-standalone-reduction-plan-validated"
+)
+COMPUTED_MASK_STANDALONE_REDUCE_C_TYPE_MAPPING = (
+    "vl:size_t,compare/source:signed-e32m1,mask:b32,seed:i32,result:signed-e32m1"
+)
+COMPUTED_MASK_STANDALONE_REDUCE_INACTIVE_ZEROING = (
+    "masked-standalone-reduction-zero-inactive-lanes-before-reduction"
+)
 CONTRACTION_TARGET_LEAF_PROFILE = "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1"
 CONTRACTION_PROVIDER_SUPPORTED_MIRROR = (
     "provider_supported_mirror:rvv-contraction-family-plan-validated"
@@ -247,6 +261,18 @@ STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "acc=accumulator-input-buffer:acc:runtime-abi-mirror|standalone-initial-accumulator-call;"
     "out=output-buffer:out:runtime-abi-mirror|standalone-accumulator-state-load|materialized-store-base|header-mirror;"
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+)
+COMPUTED_MASK_STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1"
+)
+COMPUTED_MASK_STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;"
+    "src=source-input-buffer:src:abi|src-load|masked-reduce-input|zero-inactive|hdr;"
+    "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc;"
+    "out=output-buffer:out:abi|acc-state|store-base|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 )
 MASKED_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:masked_unit_load_store.v1"
@@ -645,6 +671,12 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *lhs, "
                 "const int32_t *acc, int32_t *out, size_t n);"
             )
+        if self.is_computed_mask_standalone_reduce_add:
+            return (
+                f"void {self.function_name}(const int32_t *cmp_lhs, "
+                "const int32_t *cmp_rhs, const int32_t *src, "
+                "const int32_t *acc, int32_t *out, size_t n);"
+            )
         if self.is_macc_add:
             return (
                 f"void {self.function_name}(const int32_t *lhs, "
@@ -707,6 +739,8 @@ class OpExpectation:
             return EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS
         if self.is_standalone_reduce_add:
             return EXPECTED_STANDALONE_REDUCE_RUNTIME_PARAMETERS
+        if self.is_computed_mask_standalone_reduce_add:
+            return EXPECTED_COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_PARAMETERS
         if self.is_widen_i32_to_i64:
             return EXPECTED_WIDENING_CONVERSION_RUNTIME_PARAMETERS
         if self.is_widen_i16_to_i32:
@@ -757,6 +791,8 @@ class OpExpectation:
             return SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER
         if self.is_standalone_reduce_add:
             return STANDALONE_REDUCE_RUNTIME_ABI_ORDER
+        if self.is_computed_mask_standalone_reduce_add:
+            return COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_ABI_ORDER
         if self.is_macc_add:
             return MACC_ADD_RUNTIME_ABI_ORDER
         if self.is_widen_i32_to_i64 or self.is_widen_i16_to_i32:
@@ -897,6 +933,10 @@ class OpExpectation:
         return self.kind == "standalone_reduce_add"
 
     @property
+    def is_computed_mask_standalone_reduce_add(self) -> bool:
+        return self.kind == "computed_mask_standalone_reduce_add"
+
+    @property
     def is_i64_add(self) -> bool:
         return self.kind == "i64_add"
 
@@ -1032,6 +1072,35 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         false_value_initializer="(int32_t)(-2300 - (int32_t)(index * 19))",
         expected_expression=(
             "(cmp_lhs[index] <= cmp_rhs[index] ? true_value[index] : false_value[index])"
+        ),
+        compare_predicate_kind="sle",
+    ),
+    "computed_mask_standalone_reduce_add": OpExpectation(
+        kind="computed_mask_standalone_reduce_add",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-computed-mask-standalone-reduce-add.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="rvv_cm_standalone_reduce",
+        external_abi_name="rvv-generic-computed-mask-standalone-reduce-add-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_cm_standalone_reduce_kernel_rvv_cm_standalone_reduce",
+        emitc_route="rvv-generic-computed-mask-standalone-reduce-add-emitc-route",
+        typed_compute_op="tcrv_rvv.masked_standalone_reduce",
+        memory_form="computed-mask-unit-stride-standalone-reduction",
+        lhs_initializer=(
+            "(int32_t)((index % 5) == 0 ? 10 : "
+            "((index % 5) == 1 ? 7 : "
+            "((index % 5) == 2 ? 15 : "
+            "((index % 5) == 3 ? -4 : -12))))"
+        ),
+        rhs_initializer=(
+            "(int32_t)((index % 5) == 0 ? 10 : "
+            "((index % 5) == 1 ? 9 : "
+            "((index % 5) == 2 ? 12 : "
+            "((index % 5) == 3 ? -4 : -13))))"
+        ),
+        source_initializer="(int32_t)(((index % 3) == 0) ? (int32_t)(index + 5) : (int32_t)(-((int32_t)index + 3)))",
+        expected_expression=(
+            "(int32_t)(acc[0] + sum_i(cmp_lhs[i] <= cmp_rhs[i] ? src[i] : 0))"
         ),
         compare_predicate_kind="sle",
     ),
@@ -1618,6 +1687,15 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         source_initializer="(int32_t)-11",
         expected_expression="(int32_t)(acc[0] + sum_i(lhs[i]))",
     ),
+    "computed_mask_standalone_reduce_add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "computed_mask_standalone_reduce_add"
+        ],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-standalone-reduce-add.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="rvv_pre_cm_standalone_reduce",
+        function_name="tcrv_emitc_pre_cm_standalone_reduce_kernel_rvv_pre_cm_standalone_reduce",
+    ),
     "i64_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
         kind="i64_add",
@@ -2171,6 +2249,19 @@ EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS = (
 )
 EXPECTED_STANDALONE_REDUCE_RUNTIME_PARAMETERS = (
     EXPECTED_RUNTIME_PARAMETERS[0],
+    {
+        "c_name": "acc",
+        "c_type": "const int32_t *",
+        "role": "accumulator-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_RUNTIME_PARAMETERS[2],
+    EXPECTED_RUNTIME_PARAMETERS[3],
+)
+EXPECTED_COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_PARAMETERS = (
+    EXPECTED_COMPUTED_MASK_SELECT_RUNTIME_PARAMETERS[0],
+    EXPECTED_COMPUTED_MASK_SELECT_RUNTIME_PARAMETERS[1],
+    EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[2],
     {
         "c_name": "acc",
         "c_type": "const int32_t *",
@@ -2794,6 +2885,45 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
+    if expectation.is_computed_mask_standalone_reduce_add:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.compare_predicate_kind": (
+                    expectation.compare_predicate_kind
+                ),
+                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "tcrv_rvv.inactive_lane_zeroing_requirement": (
+                    COMPUTED_MASK_STANDALONE_REDUCE_INACTIVE_ZEROING
+                ),
+                "tcrv_rvv.reduction_accumulator_layout": (
+                    STANDALONE_REDUCE_ACCUMULATOR_LAYOUT
+                ),
+                "tcrv_rvv.reduction_result_layout": (
+                    STANDALONE_REDUCE_RESULT_LAYOUT
+                ),
+                "tcrv_rvv.reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
+                "tcrv_rvv.target_leaf_profile": (
+                    COMPUTED_MASK_STANDALONE_REDUCE_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    COMPUTED_MASK_STANDALONE_REDUCE_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    STANDALONE_REDUCE_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    COMPUTED_MASK_STANDALONE_REDUCE_C_TYPE_MAPPING
+                ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    COMPUTED_MASK_STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    COMPUTED_MASK_STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+            }
+        )
     if expectation.is_scalar_broadcast_elementwise:
         per_op_metadata.update(
             {
@@ -2817,7 +2947,11 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
-    if expectation.is_scalar_broadcast_elementwise or expectation.is_standalone_reduce_add:
+    if (
+        expectation.is_scalar_broadcast_elementwise
+        or expectation.is_standalone_reduce_add
+        or expectation.is_computed_mask_standalone_reduce_add
+    ):
         per_op_metadata["tcrv_rvv.runtime_control_plan"] = (
             RUNTIME_AVL_VL_CONTROL_PLAN
         )
@@ -4188,6 +4322,82 @@ def verify_materialized_selected_body(
             "tcrv_rvv.binary",
             "materialized selected-body MLIR computed-mask select",
         )
+    if expectation.is_computed_mask_standalone_reduce_add:
+        require_contains(
+            text,
+            "tcrv_rvv.compare",
+            "materialized selected-body MLIR computed-mask standalone reduction compare",
+        )
+        require_contains(
+            text,
+            f'kind = "{expectation.compare_predicate_kind}"',
+            "materialized selected-body MLIR computed-mask standalone reduction predicate",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.masked_standalone_reduce",
+            "materialized selected-body MLIR masked standalone reduction op",
+        )
+        require_contains(
+            text,
+            'role = "source-input-buffer"',
+            "materialized selected-body MLIR computed-mask standalone source role",
+        )
+        require_contains(
+            text,
+            'role = "accumulator-input-buffer"',
+            "materialized selected-body MLIR computed-mask standalone seed role",
+        )
+        require_contains(
+            text,
+            'role = "output-buffer"',
+            "materialized selected-body MLIR computed-mask standalone scalar output role",
+        )
+        require_contains(
+            text,
+            f'mask_role = "{COMPUTED_MASK_MEMORY_MASK_ROLE}"',
+            "materialized selected-body MLIR computed-mask standalone mask role",
+        )
+        require_contains(
+            text,
+            f'mask_source = "{COMPUTED_MASK_MEMORY_MASK_SOURCE}"',
+            "materialized selected-body MLIR computed-mask standalone mask source",
+        )
+        require_contains(
+            text,
+            f'mask_memory_form = "{COMPUTED_MASK_MEMORY_MASK_FORM}"',
+            "materialized selected-body MLIR computed-mask standalone mask memory form",
+        )
+        require_contains(
+            text,
+            f'accumulator_layout = "{STANDALONE_REDUCE_ACCUMULATOR_LAYOUT}"',
+            "materialized selected-body MLIR computed-mask standalone accumulator layout",
+        )
+        require_contains(
+            text,
+            f'result_layout = "{STANDALONE_REDUCE_RESULT_LAYOUT}"',
+            "materialized selected-body MLIR computed-mask standalone result layout",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.store",
+            "materialized selected-body MLIR computed-mask standalone store",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.mask_load",
+            "materialized selected-body MLIR computed-mask standalone reduction",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.standalone_reduce",
+            "materialized selected-body MLIR computed-mask standalone reduction",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.binary",
+            "materialized selected-body MLIR computed-mask standalone reduction",
+        )
     if expectation.is_computed_masked_strided_store:
         require_contains(
             text,
@@ -4473,6 +4683,11 @@ def verify_materialized_selected_body(
         require_not_contains(
             text,
             "tcrv_rvv.typed_standalone_reduce_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_computed_mask_standalone_reduce_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
@@ -5820,6 +6035,133 @@ static int run_case(size_t n, int32_t seed) {{
   free(lhs);
   printf("{expectation.kind} case n=%zu seed=%d ok scalar_out=%d tail_preserved\\n",
          n, seed, out[0]);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const int32_t seeds[] = {{(int32_t)-11, (int32_t)17}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const size_t seed_count = sizeof(seeds) / sizeof(seeds[0]);
+  for (size_t seed_index = 0; seed_index < seed_count; ++seed_index) {{
+    for (size_t count_index = 0; count_index < count_count; ++count_index) {{
+      int status = run_case(counts[count_index], seeds[seed_index]);
+      if (status != 0)
+        return status;
+    }}
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} seeds=-11,17\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} seeds=-11,17\\n");
+  return 0;
+}}
+""".lstrip()
+    if expectation.is_computed_mask_standalone_reduce_add:
+        active_expression = expectation.compare_predicate_c_expression(
+            "cmp_lhs[index]", "cmp_rhs[index]"
+        )
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int32_t make_cmp_lhs_value(size_t index) {{
+  return {expectation.lhs_initializer};
+}}
+
+static int32_t make_cmp_rhs_value(size_t index) {{
+  return {expectation.rhs_initializer};
+}}
+
+static int32_t make_src_value(size_t index) {{
+  return {expectation.source_initializer};
+}}
+
+static int run_case(size_t n, int32_t seed) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n == 0 ? 1 : n;
+  int32_t *cmp_lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *cmp_rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *src = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t acc[1];
+  int32_t out[4];
+  if (!cmp_lhs || !cmp_rhs || !src) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(cmp_lhs);
+    free(cmp_rhs);
+    free(src);
+    return 11;
+  }}
+
+  int32_t expected = seed;
+  size_t active_lanes = 0;
+  size_t inactive_lanes = 0;
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    cmp_lhs[index] = make_cmp_lhs_value(index);
+    cmp_rhs[index] = make_cmp_rhs_value(index);
+    src[index] = make_src_value(index);
+    if (index < n) {{
+      int active = {active_expression};
+      if (active) {{
+        expected = (int32_t)(expected + src[index]);
+        ++active_lanes;
+      }} else {{
+        ++inactive_lanes;
+      }}
+    }}
+  }}
+  acc[0] = seed;
+  for (size_t index = 0; index < sizeof(out) / sizeof(out[0]); ++index)
+    out[index] = {OUT_SENTINEL};
+
+  {expectation.function_name}(cmp_lhs, cmp_rhs, src, acc, out, n);
+
+  if (out[0] != expected) {{
+    fprintf(stderr,
+            "{expectation.kind} mismatch n=%zu seed=%d got=%d expected=%d active_lanes=%zu inactive_lanes=%zu\\n",
+            n, seed, out[0], expected, active_lanes, inactive_lanes);
+    free(cmp_lhs);
+    free(cmp_rhs);
+    free(src);
+    return 12;
+  }}
+  if (acc[0] != seed) {{
+    fprintf(stderr,
+            "{expectation.kind} mutated seed input n=%zu got=%d expected=%d\\n",
+            n, acc[0], seed);
+    free(cmp_lhs);
+    free(cmp_rhs);
+    free(src);
+    return 13;
+  }}
+  for (size_t index = 1; index < sizeof(out) / sizeof(out[0]); ++index) {{
+    if (out[index] != {OUT_SENTINEL}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched scalar-output sentinel n=%zu seed=%d index=%zu got=%d sentinel=%d\\n",
+              n, seed, index, out[index], {OUT_SENTINEL});
+      free(cmp_lhs);
+      free(cmp_rhs);
+      free(src);
+      return 14;
+    }}
+  }}
+  if (n > 1 && (active_lanes == 0 || inactive_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} compare mask coverage missing n=%zu active_lanes=%zu inactive_lanes=%zu\\n",
+            n, active_lanes, inactive_lanes);
+    free(cmp_lhs);
+    free(cmp_rhs);
+    free(src);
+    return 15;
+  }}
+
+  free(cmp_lhs);
+  free(cmp_rhs);
+  free(src);
+  printf("{expectation.kind} case n=%zu seed=%d ok scalar_out=%d active_lanes=%zu inactive_lanes=%zu tail_preserved\\n",
+         n, seed, out[0], active_lanes, inactive_lanes);
   return 0;
 }}
 
@@ -7749,6 +8091,19 @@ def run_one_op_e2e(
                 "while compare-false lanes, skipped destination slots, and "
                 "tail slots preserve sentinels"
             )
+        if expectation.is_computed_mask_standalone_reduce_add:
+            evidence["harness"]["mask_coverage_contract"] = (
+                "multi-lane computed_mask_standalone_reduce_add cases require "
+                "compare-produced active and inactive mask lanes"
+            )
+            evidence["harness"]["reduction_contract"] = (
+                "active lanes contribute signed i32 source values to the i32 "
+                "scalar seed while inactive nonzero source lanes are zeroed"
+            )
+            evidence["harness"]["scalar_result_contract"] = (
+                "only out[0] is written and non-scalar output slots preserve "
+                "sentinels"
+            )
         if expectation.is_computed_masked_widening_dot_reduce_add:
             evidence["harness"]["mask_coverage_contract"] = (
                 "multi-lane computed_masked_widening_dot_reduce_add cases "
@@ -8151,6 +8506,15 @@ def run_self_test() -> int:
                 raise AssertionError(
                     "self-test harness generation lost computed-mask runtime "
                     "destination byte-stride coverage"
+                )
+            if expectation.is_computed_mask_standalone_reduce_add and (
+                "active_lanes" not in harness
+                or "inactive_lanes" not in harness
+                or "acc[0] != seed" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost computed-mask "
+                    "standalone reduction seed and mask coverage"
                 )
 
         expectation = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"]

@@ -179,6 +179,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const bool emitsStridedInputContraction =
       contractionPlan && contractionPlan->usesStridedInputs;
   const bool emitsStandaloneReduction = standaloneReductionPlan != nullptr;
+  const bool emitsComputedMaskStandaloneReduction =
+      standaloneReductionPlan && standaloneReductionPlan->usesComputedMask;
   llvm::StringRef vlCType =
       contractionPlan
           ? contractionPlan->vlCType
@@ -253,10 +255,14 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                           : description.rhsBroadcastIntrinsic;
   llvm::StringRef compareLeaf =
       contractionPlan ? contractionPlan->compareIntrinsic
-                      : description.compareIntrinsic;
+      : emitsComputedMaskStandaloneReduction
+          ? standaloneReductionPlan->compareIntrinsic
+          : description.compareIntrinsic;
   llvm::StringRef maskedMergeLeaf =
       contractionPlan ? contractionPlan->maskedMergeIntrinsic
-                      : description.maskedMergeIntrinsic;
+      : emitsComputedMaskStandaloneReduction
+          ? standaloneReductionPlan->maskedMergeIntrinsic
+          : description.maskedMergeIntrinsic;
 
   if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
           analysis.routeOperandBindingPlan, description,
@@ -1155,6 +1161,75 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
         return out.takeError();
       boundOutABI = *out;
     } else if (description.operation ==
+               RVVSelectedBodyOperationKind::
+                   ComputedMaskStandaloneReduceAdd) {
+      llvm::Expected<const support::RuntimeABIParameter *> cmpLhs =
+          getRequiredBinding(bindingPlan, "cmp_lhs", "cmp-lhs-load",
+                             "computed-mask standalone reduction compare lhs "
+                             "load operand");
+      if (!cmpLhs)
+        return cmpLhs.takeError();
+      boundLHSABI = *cmpLhs;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "cmp-lhs-call",
+              "computed-mask standalone reduction compare lhs call operand"))
+        return error;
+      llvm::Expected<const support::RuntimeABIParameter *> cmpRhs =
+          getRequiredBinding(bindingPlan, "cmp_rhs", "cmp-rhs-load",
+                             "computed-mask standalone reduction compare rhs "
+                             "load operand");
+      if (!cmpRhs)
+        return cmpRhs.takeError();
+      boundRHSABI = *cmpRhs;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_rhs", "cmp-rhs-call",
+              "computed-mask standalone reduction compare rhs call operand"))
+        return error;
+      llvm::Expected<const support::RuntimeABIParameter *> source =
+          getRequiredBinding(bindingPlan, "src", "src-load",
+                             "computed-mask standalone reduction source load "
+                             "operand");
+      if (!source)
+        return source.takeError();
+      boundSourceABI = *source;
+      if (llvm::Error error = requireOperandUse(
+              "src", "masked-reduce-input",
+              "computed-mask standalone reduction source compute operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "src", "zero-inactive",
+              "computed-mask standalone reduction inactive-lane zeroing "
+              "source operand"))
+        return error;
+      llvm::Expected<const support::RuntimeABIParameter *> acc =
+          getRequiredBinding(bindingPlan, "acc", "initial-seed",
+                             "computed-mask standalone reduction accumulator "
+                             "operand");
+      if (!acc)
+        return acc.takeError();
+      boundAccumulatorABI = *acc;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "acc-state",
+              "computed-mask standalone reduction accumulator state"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "masked-reduce-acc",
+              "computed-mask standalone reduction accumulator compute operand"))
+        return error;
+      llvm::Expected<const support::RuntimeABIParameter *> outState =
+          getRequiredBinding(bindingPlan, "out", "acc-state",
+                             "computed-mask standalone reduction output "
+                             "accumulator state");
+      if (!outState)
+        return outState.takeError();
+      llvm::Expected<const support::RuntimeABIParameter *> outStore =
+          getRequiredBinding(bindingPlan, "out", "store-base",
+                             "computed-mask standalone reduction output store "
+                             "operand");
+      if (!outStore)
+        return outStore.takeError();
+      boundOutABI = *outStore;
+    } else if (description.operation ==
                RVVSelectedBodyOperationKind::StandaloneReduceAdd) {
       llvm::Expected<const support::RuntimeABIParameter *> lhs =
           getRequiredBinding(bindingPlan, "lhs", "materialized-load-base",
@@ -1893,7 +1968,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       isRuntimeMaskMemory ||
       isMaskedStore ||
       isRVVSelectedBodyMemoryMovementRoute(description.operation) ||
-      emitsStandaloneReduction) {
+      (emitsStandaloneReduction && !emitsComputedMaskStandaloneReduction)) {
     // These bounded routes have no RHS dataflow.
   } else if (emitsContractionDotReduction &&
              emitsStridedInputContraction) {
@@ -2008,7 +2083,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   }
-  if (isComputedMaskMemory) {
+	  if (isComputedMaskMemory) {
     if (llvm::Error error = addLoopStep(
             slice->sourceLoadOperation, "load", description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
@@ -2052,9 +2127,22 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               TCRVEmitCCallOpaqueResult{"old_dst_vec",
                                         description.vectorCType.str()}))
         return error;
-    }
+	    }
+	  }
+  if (emitsComputedMaskStandaloneReduction) {
+    if (llvm::Error error = addLoopStep(
+            slice->sourceLoadOperation, "load", vectorLoadLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(boundSourceABI->cName) + " + " +
+                  inductionName)
+                     .str(),
+                 boundSourceABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"source_vec",
+                                      resultVectorCType.str()}))
+      return error;
   }
-  if (isRVVSelectedBodyMAccRoute(description.operation)) {
+	  if (isRVVSelectedBodyMAccRoute(description.operation)) {
     if (llvm::Error error = addLoopStep(
             slice->accumulatorLoadOperation, "load",
             description.vectorLoadIntrinsic,
@@ -2236,6 +2324,56 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             {TCRVEmitCCallOpaqueOperand{"dot_product_vec",
                                         resultVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{"dot_acc_vec",
+                                        resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                      resultVectorCType.str()}))
+      return error;
+  } else if (emitsComputedMaskStandaloneReduction) {
+    if (llvm::Error error = addLoopStep(
+            slice->compareOp.getOperation(), "compute", compareLeaf,
+            {TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                        resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"rhs_vec",
+                                        resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.maskName.str(),
+                                      maskCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", scalarSeedSplatLeaf,
+            {TCRVEmitCCallOpaqueOperand{"0", "int32_t"},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"standalone_zero_vec",
+                                      resultVectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", maskedMergeLeaf,
+            {TCRVEmitCCallOpaqueOperand{"standalone_zero_vec",
+                                        resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"source_vec",
+                                        resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"masked_source_vec",
+                                      resultVectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", scalarSeedSplatLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(boundOutABI->cName) + "[0]").str(),
+                 "int32_t"},
+             TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                        vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"standalone_acc_vec",
+                                      resultVectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", contractionComputeLeaf,
+            {TCRVEmitCCallOpaqueOperand{"masked_source_vec",
+                                        resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"standalone_acc_vec",
                                         resultVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
             TCRVEmitCCallOpaqueResult{description.resultName.str(),

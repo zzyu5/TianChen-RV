@@ -54,6 +54,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::SelectOp selectOp;
   tcrv::rvv::ReduceOp reduceOp;
   tcrv::rvv::StandaloneReduceOp standaloneReduceOp;
+  tcrv::rvv::MaskedStandaloneReduceOp maskedStandaloneReduceOp;
   tcrv::rvv::MaskedBinaryOp maskedBinaryOp;
   tcrv::rvv::MAccOp maccOp;
   tcrv::rvv::WideningMAccOp wideningMAccOp;
@@ -231,6 +232,7 @@ struct RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan {
 struct RVVSelectedBodyStandaloneReductionRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  bool usesComputedMask = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
@@ -245,12 +247,18 @@ struct RVVSelectedBodyStandaloneReductionRouteFamilyPlan {
   llvm::StringRef vectorLoadIntrinsic;
   llvm::StringRef scalarSeedSplatIntrinsic;
   llvm::StringRef reductionIntrinsic;
+  llvm::StringRef compareIntrinsic;
+  llvm::StringRef maskedMergeIntrinsic;
   llvm::StringRef storeIntrinsic;
   llvm::StringRef accumulatorLayout;
   llvm::StringRef resultLayout;
   llvm::StringRef reductionStoreVL;
+  llvm::StringRef inactiveLaneZeroingRequirement;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
   llvm::StringRef resultName;
-  llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
+  llvm::SmallVector<support::RuntimeABIParameter, 6> runtimeABIParameters;
 };
 
 struct RVVSelectedBodyRouteAnalysis {

@@ -1640,6 +1640,8 @@ int runRVVCommonValidationTest() {
         "computed_masked_strided_input_widening_dot_reduce_add";
     const bool isComputedMaskSelectRoute =
         route.operationMnemonic == "computed_mask_select";
+    const bool isComputedMaskStandaloneReduceRoute =
+        route.operationMnemonic == "computed_mask_standalone_reduce_add";
     const bool isMaskedElementwiseRoute =
         route.operationMnemonic == "masked_add" ||
         route.operationMnemonic == "masked_sub" ||
@@ -1655,6 +1657,8 @@ int runRVVCommonValidationTest() {
       executableComputeOp = "tcrv_rvv.reduce";
     else if (isStandaloneReduceRoute)
       executableComputeOp = "tcrv_rvv.standalone_reduce";
+    else if (isComputedMaskStandaloneReduceRoute)
+      executableComputeOp = "tcrv_rvv.masked_standalone_reduce";
     else if (isMaskedElementwiseRoute)
       executableComputeOp = "tcrv_rvv.masked_binary";
     else if (route.operationMnemonic == "macc_add")
@@ -1707,6 +1711,7 @@ int runRVVCommonValidationTest() {
                                              route.operationMnemonic ==
                                                  "computed_masked_strided_store" ||
                                              isComputedMaskSelectRoute ||
+                                             isComputedMaskStandaloneReduceRoute ||
                                              route.operationMnemonic ==
                                                  "computed_masked_widening_dot_reduce_add" ||
                                              route.operationMnemonic ==
@@ -1763,9 +1768,12 @@ int runRVVCommonValidationTest() {
     const bool hasComputedMaskStridedInputWideningDotReduce =
         isComputedMaskStridedInputWideningDotReduceRoute;
     const bool hasComputedMaskSelect = isComputedMaskSelectRoute;
+    const bool hasComputedMaskStandaloneReduction =
+        isComputedMaskStandaloneReduceRoute;
     unsigned expectedStepCount =
         hasConversion          ? 8u
         : hasComputedMaskSelect                  ? 15u
+        : hasComputedMaskStandaloneReduction     ? 14u
         : isStandaloneReduceRoute                ? 9u
         : hasWideningMAcc                       ? 12u
         : hasWideningDotReduce                  ? 11u
@@ -1936,6 +1944,13 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyComputedMaskSelectRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
+               "computed_mask_standalone_reduce_add") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else {

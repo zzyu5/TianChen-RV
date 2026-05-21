@@ -617,6 +617,29 @@ getRVVSelectedBodyStandaloneReductionRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 6>
+getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "cmp_lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "cmp_rhs", "const int32_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src", "const int32_t *",
+      support::RuntimeABIParameterRole::SourceInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "acc", "const int32_t *",
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 7>
 getRVVSelectedBodyStridedInputWideningDotReduceRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 7> parameters;
@@ -991,6 +1014,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
                                          standaloneReductionExpected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 6>
+      computedMaskStandaloneReductionExpected =
+          getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(
+          parameters, computedMaskStandaloneReductionExpected))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 7>
       stridedInputWideningDotExpected =
           getRVVSelectedBodyStridedInputWideningDotReduceRuntimeABIParameters();
@@ -1021,7 +1051,9 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "the bounded i32 multiply-add accumulator, i16 widening "
       "multiply-accumulate, or unit-stride dot-reduction route; lhs, acc, "
       "out, n for the bounded standalone i32 scalar "
-      "add-reduction route; lhs, rhs, acc, out, n, lhs_stride, rhs_stride for "
+      "add-reduction route; cmp_lhs, cmp_rhs, src, acc, out, n for the bounded "
+      "computed-mask standalone i32 scalar add-reduction route; lhs, rhs, acc, "
+      "out, n, lhs_stride, rhs_stride for "
       "the bounded "
       "i16 strided-input widening dot-reduction route; or lhs, rhs, out, n, "
       "lhs_stride, rhs_stride, out_stride for the bounded int32_t strided add "

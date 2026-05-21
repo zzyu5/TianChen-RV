@@ -1814,3 +1814,68 @@ route support remains RVV plugin-owned, selected-body-derived, and
 ### Next Steps
 
 - None for this bounded signed `sle` compare/select submodule.
+
+
+## Session 157: Stage2 RVV computed-mask standalone reduction closure
+
+**Date**: 2026-05-21
+**Task**: `05-21-stage2-rvv-closure-gated-reduction-accumulation`
+**Branch**: `main`
+
+### Summary
+
+Implemented one bounded Stage2 RVV reduction/accumulation subcluster:
+`computed_mask_standalone_reduce_add`. The route is selected-body-derived,
+RVV-plugin-owned, and `RouteOperandBindingPlan` closure-gated from typed
+`tcrv_rvv` body facts through generated header/bundle evidence and real
+`ssh rvv` runtime checks.
+
+### Main Changes
+
+- Added bounded generic typed pre-realized computed-mask standalone reduction
+  body and `tcrv_rvv.masked_standalone_reduce` dataflow op.
+- Added verifier and selected-body realization support for
+  `setvl/with_vl/load/load/load/compare/masked_standalone_reduce/store`.
+- Extended RVV construction, route planning, provider materialization, route
+  operand binding, plan metadata, header mirrors, and generated-bundle ABI
+  expectations for compare-produced masks, scalar accumulator seed, scalar
+  output, runtime n/AVL, inactive-lane zeroing, and tail preservation.
+- Added explicit and pre-realized target fixtures plus fail-closed dialect
+  verifier negatives for stale route id, unsupported predicate, role mismatch,
+  mask mismatch, and runtime role mismatch.
+
+### Testing
+
+- [OK] Focused explicit PLAN/HEADER FileCheck.
+- [OK] Focused pre-realized REALIZED/PLAN/HEADER FileCheck.
+- [OK] `build/bin/tcrv-opt test/Dialect/RVV/computed-mask-standalone-reduction-dataflow.mlir --split-input-file --verify-diagnostics`.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Generated-bundle dry-runs for explicit/pre-realized
+  `computed_mask_standalone_reduce_add`, counts `7,16,23`.
+- [OK] Real `ssh rvv` PASS for explicit/pre-realized
+  `computed_mask_standalone_reduce_add`, counts `7,16,23`, seeds `-11,17`,
+  with active/inactive lanes distinguished and `tail_preserved`.
+- [OK] Active-authority diff scan: no new `RVVI32M1`, `rvv-i32m1`, finite
+  `tcrv_rvv.i32_*`, exact i32m1 intrinsic authority, descriptor,
+  source-front-door, direct-C, or route-id authority.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 282/282 passed.
+
+### Self-Repair
+
+- Fixed target fixture metadata order after FileCheck showed inactive-lane
+  zeroing precedes mask mirrors on the plan diagnostic line.
+- Updated construction protocol and legacy fail-closed tests after the generic
+  allowed-op message gained `tcrv_rvv.masked_standalone_reduce`.
+- Replaced new exact intrinsic validation literals with existing target-leaf
+  helper calls so the diff-level authority scan stays clean.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+### Next Steps
+
+- Optional next subcluster: broaden reduction coverage beyond this bounded
+  computed-mask standalone add route, while preserving the same closure gate.
