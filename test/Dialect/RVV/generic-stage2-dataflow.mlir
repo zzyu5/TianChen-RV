@@ -362,7 +362,7 @@ module {
     %bad_stride = tcrv_rvv.runtime_abi_value {c_name = "bad_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
     %vl = tcrv_rvv.setvl %avl {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
     tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-      // expected-error@+1 {{requires strided load stride operand to bind runtime ABI role 'lhs-input-stride' or 'rhs-input-stride' or 'output-stride'}}
+      // expected-error@+1 {{requires strided load stride operand to bind runtime ABI role 'lhs-input-stride' or 'rhs-input-stride' or 'source-byte-stride' or 'output-stride'}}
       %lhs = tcrv_rvv.strided_load %lhs_ptr, %bad_stride, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
     } : !tcrv_rvv.vl
   }

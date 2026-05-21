@@ -1459,7 +1459,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
                      "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
-                     "src_stride", 3});
+                     "stride_bytes", 3});
     steps.push_back({"configure", "tcrv_rvv.setvl",
                      "rvv.role.configure.setvl", "TCRVConfigOpInterface",
                      "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",

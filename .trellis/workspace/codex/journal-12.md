@@ -87,6 +87,62 @@ real `ssh rvv` correctness evidence.
 
 - None - task complete
 
+## 2026-05-21 - Stage2 RVV Runtime-Strided Load Executable Slice
+
+### Task
+
+- `.trellis/tasks/05-21-stage2-rvv-runtime-strided-load`
+- Goal: make bounded `strided_load_unit_store` executable with runtime byte
+  stride authority, not old `src_stride` / `lhs-input-stride` element-stride
+  authority.
+
+### Implementation
+
+- Added `source-byte-stride` as a runtime ABI role and threaded it through RVV
+  dialect verification, config contracts, selected-body realization, route
+  planning/provider, construction protocol metadata, and generated-bundle
+  evidence.
+- Tightened `typed_strided_memory_pre_realized_body` for
+  `strided_load_unit_store` to require `source-input-buffer`,
+  `source-byte-stride`, and `stride_unit = "byte"`.
+- Updated provider emission so `stride_bytes` is passed directly to the RVV
+  strided-load leaf; the vector base advances by runtime byte offset through a
+  provider-supplied casted byte-scaled pointer expression.
+- Extended common EmitC materialization only as neutral mechanics for C-style
+  casted scaled pointer expressions, lowering them via EmitC cast/mul/add/cast
+  without choosing RVV semantics.
+- Updated generated-bundle script/harness to cover `stride_bytes = 4,8,12`
+  with sentinel-padded raw source bytes and contiguous output tail checks.
+
+### Evidence
+
+- [OK] Focused lit 6/6:
+  dialect negative, EmitC negative, explicit/pre-realized target artifact, and
+  explicit/pre-realized generated-bundle dry-run tests.
+- [OK] Script syntax and self-test:
+  `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py` and
+  `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Touched C++ tests:
+  `tianchenrv-rvv-dialect-test`,
+  `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-construction-protocol-common-test`,
+  `tianchenrv-target-artifact-export-test`.
+- [OK] Dry-run generated bundles for explicit and pre-realized
+  `strided_load_unit_store`, counts `7,16,23`, byte strides `4,8,12`.
+- [OK] Real `ssh rvv` PASS for explicit and pre-realized
+  `strided_load_unit_store`, all nine count/stride cases, with
+  `byte_strided_load contiguous_output tail_preserved`.
+- [OK] Active-authority scan: no added positive `RVVI32M1`, `rvv-i32m1`,
+  finite `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`, `__riscv_*_i32m1`,
+  source-front-door/source-export, descriptor/direct-C, or old `src_stride`
+  authority.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 259/259 passed.
+
+### Status
+
+[OK] Completed and ready to archive.
+
 
 ## Session 149: Stage2 RVV runtime AVL/VL control boundary
 

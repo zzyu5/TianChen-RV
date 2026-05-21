@@ -908,7 +908,7 @@ def TypedStridedMemoryPreRealizedBodyOp
     Carries one bounded RVV plugin-local pre-realized selected body for
     strided source memory movement into a unit-stride destination. The op is
     nested directly in a selected tcrv.exec.variant and binds explicit runtime
-    ABI values for source input, output, runtime n/AVL, and source element
+    ABI values for source input, output, runtime n/AVL, and source byte
     stride together with selected memory movement operation kind, memory form,
     stride unit, compile-time RVV config, and policy.
 
@@ -1404,8 +1404,10 @@ def StridedLoadOp : TCRVRVV_Op<"strided_load",
     value, and the active !tcrv_rvv.vl token. It produces one
     !tcrv_rvv.vector element/LMUL token matching the enclosing config.
 
-    The stride is an element-stride runtime value. The RVV plugin owns the
-    conversion to target byte-stride intrinsic operands after typed
+    The stride unit is route-specific typed body authority. The bounded
+    strided-load to unit-store slice uses a runtime byte stride; older
+    element-strided arithmetic/contraction slices remain separate routes. The
+    RVV plugin owns legality and intrinsic operand mapping after typed
     body/config/runtime validation.
   }];
 

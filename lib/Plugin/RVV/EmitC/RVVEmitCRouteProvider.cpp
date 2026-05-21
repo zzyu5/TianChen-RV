@@ -694,9 +694,26 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{description.resultName.str(),
                                       description.vectorCType.str()}))
       return error;
-  } else if (description.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore ||
-      description.memoryForm ==
-          RVVSelectedBodyMemoryForm::StridedLoadUnitStore) {
+  } else if (description.memoryForm ==
+             RVVSelectedBodyMemoryForm::StridedLoadUnitStore) {
+    if (llvm::Error error = addLoopStep(
+            slice->lhsLoadOperation, "load",
+            description.stridedLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 ("(const int32_t *)((const uint8_t *)" +
+                  llvm::StringRef(slice->lhsABI.cName) + " + (" +
+                  inductionName + " * " + slice->lhsStrideABI.cName + "))")
+                     .str(),
+                 slice->lhsABI.cType},
+             TCRVEmitCCallOpaqueOperand{slice->lhsStrideABI.cName,
+                                        "ptrdiff_t"},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{lhsResultName.str(),
+                                      description.vectorCType.str()}))
+      return error;
+  } else if (description.memoryForm ==
+             RVVSelectedBodyMemoryForm::StridedLoadStore) {
     if (llvm::Error error = addLoopStep(
             slice->lhsLoadOperation, "load",
             description.stridedLoadIntrinsic,

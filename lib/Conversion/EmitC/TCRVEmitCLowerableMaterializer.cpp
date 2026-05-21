@@ -76,6 +76,19 @@ bool isSafeExpressionText(llvm::StringRef value) {
   return true;
 }
 
+bool isSafeCTypeText(llvm::StringRef value) {
+  value = value.trim();
+  if (value.empty() || value.size() > 96)
+    return false;
+  for (char c : value) {
+    unsigned char byte = static_cast<unsigned char>(c);
+    if (std::isalnum(byte) || c == '_' || c == ' ' || c == '*')
+      continue;
+    return false;
+  }
+  return true;
+}
+
 llvm::Error validateSafeIdentifier(llvm::StringRef routeID,
                                    llvm::StringRef field,
                                    llvm::StringRef value) {
@@ -232,6 +245,45 @@ parseScaledPointerExpression(llvm::StringRef expression) {
     return std::nullopt;
   return std::tuple<llvm::StringRef, llvm::StringRef, llvm::StringRef>(
       base, product->first, product->second);
+}
+
+std::optional<std::tuple<llvm::StringRef, llvm::StringRef, llvm::StringRef,
+                         llvm::StringRef, llvm::StringRef>>
+parseCStyleCastScaledPointerExpression(llvm::StringRef expression) {
+  expression = expression.trim();
+  if (!expression.starts_with("("))
+    return std::nullopt;
+  std::size_t targetClose = expression.find(')');
+  if (targetClose == llvm::StringRef::npos)
+    return std::nullopt;
+  llvm::StringRef targetCType = expression.slice(1, targetClose).trim();
+  if (!isSafeCTypeText(targetCType))
+    return std::nullopt;
+
+  llvm::StringRef remainder = expression.drop_front(targetClose + 1).trim();
+  if (!remainder.starts_with("((") || !remainder.ends_with(")"))
+    return std::nullopt;
+
+  llvm::StringRef inner = remainder.drop_front().drop_back().trim();
+  if (!inner.starts_with("("))
+    return std::nullopt;
+  std::size_t baseCastClose = inner.find(')');
+  if (baseCastClose == llvm::StringRef::npos)
+    return std::nullopt;
+  llvm::StringRef baseCastCType = inner.slice(1, baseCastClose).trim();
+  if (!isSafeCTypeText(baseCastCType))
+    return std::nullopt;
+
+  llvm::StringRef scaledPointer = inner.drop_front(baseCastClose + 1).trim();
+  std::optional<std::tuple<llvm::StringRef, llvm::StringRef, llvm::StringRef>>
+      parsed = parseScaledPointerExpression(scaledPointer);
+  if (!parsed)
+    return std::nullopt;
+
+  return std::tuple<llvm::StringRef, llvm::StringRef, llvm::StringRef,
+                    llvm::StringRef, llvm::StringRef>(
+      targetCType, baseCastCType, std::get<0>(*parsed), std::get<1>(*parsed),
+      std::get<2>(*parsed));
 }
 
 std::optional<std::pair<llvm::StringRef, std::uint64_t>>
@@ -415,6 +467,58 @@ private:
           route.getRouteID(),
           llvm::Twine("operand expression references unknown value name '") +
               expression + "'");
+    }
+
+    if (std::optional<std::tuple<llvm::StringRef, llvm::StringRef,
+                                 llvm::StringRef, llvm::StringRef,
+                                 llvm::StringRef>>
+            castedScaledPointer =
+                parseCStyleCastScaledPointerExpression(expression)) {
+      llvm::StringRef targetCType = std::get<0>(*castedScaledPointer);
+      llvm::StringRef baseCastCType = std::get<1>(*castedScaledPointer);
+      llvm::StringRef baseName = std::get<2>(*castedScaledPointer);
+      llvm::StringRef offsetName = std::get<3>(*castedScaledPointer);
+      llvm::StringRef strideName = std::get<4>(*castedScaledPointer);
+      mlir::Value base = valueMap.lookup(baseName);
+      mlir::Value offset = valueMap.lookup(offsetName);
+      mlir::Value stride = valueMap.lookup(strideName);
+      if (!base || !offset || !stride)
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("operand expression '") + expression +
+                "' references values that are not materialized in the "
+                "current EmitC scope");
+      if (targetCType != llvm::StringRef(operand.cType).trim())
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("operand expression '") + expression +
+                "' casts to '" + targetCType +
+                "' but the route operand declares C type '" + operand.cType +
+                "'");
+      mlir::Value byteBase =
+          builder
+              .create<mlir::emitc::CastOp>(
+                  builder.getUnknownLoc(),
+                  getEmitCTypeForCType(context, baseCastCType), base)
+              .getResult();
+      mlir::Value scaledOffset =
+          builder
+              .create<mlir::emitc::MulOp>(builder.getUnknownLoc(),
+                                          offset.getType(), offset, stride)
+              .getResult();
+      mlir::Value byteAdvanced =
+          builder
+              .create<mlir::emitc::AddOp>(
+                  builder.getUnknownLoc(),
+                  getEmitCTypeForCType(context, baseCastCType), byteBase,
+                  scaledOffset)
+              .getResult();
+      return builder
+          .create<mlir::emitc::CastOp>(
+              builder.getUnknownLoc(), getEmitCTypeForCType(context,
+                                                            operand.cType),
+              byteAdvanced)
+          .getResult();
     }
 
     if (std::optional<std::pair<llvm::StringRef, std::uint64_t>> subscript =

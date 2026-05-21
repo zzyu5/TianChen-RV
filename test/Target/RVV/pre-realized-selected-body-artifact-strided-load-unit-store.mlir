@@ -3,7 +3,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 
 // Pre-realized selected-body input for one bounded Stage2 strided memory
-// movement slice. The RVV plugin must realize the source stride ABI operand
+// movement slice. The RVV plugin must realize the source byte-stride ABI operand
 // into explicit strided_load/move/unit-store typed structure before the
 // provider may construct the EmitC route.
 
@@ -12,11 +12,11 @@ module {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
     tcrv.exec.variant @pre_realized_body_rvv_strided_load_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-strided-load-unit-store:src", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-strided-load-unit-store:src", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-strided-load-unit-store:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-strided-load-unit-store:n", role = "runtime-element-count"} : index
-      %src_stride = tcrv_rvv.runtime_abi_value {c_name = "src_stride", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-strided-load-unit-store:src-stride", role = "lhs-input-stride"} : index
-      tcrv_rvv.typed_strided_memory_pre_realized_body %src, %out, %n, %src_stride {lmul = "m1", memory_form = "strided-load-unit-store", op_kind = "strided_load_unit_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64, stride_unit = "element"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index) -> ()
+      %stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-strided-load-unit-store:stride-bytes", role = "source-byte-stride"} : index
+      tcrv_rvv.typed_strided_memory_pre_realized_body %src, %out, %n, %stride_bytes {lmul = "m1", memory_form = "strided-load-unit-store", op_kind = "strided_load_unit_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64, stride_unit = "byte"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index) -> ()
     }
     tcrv.exec.variant @pre_realized_body_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
     }
@@ -46,9 +46,9 @@ module {
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "strided_load_unit_store"}
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.move"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "strided-load-unit-store"}
-// PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "src,out,n,src_stride"}
-// PLAN-SAME: {key = "tcrv_rvv.strided_memory_layout", value = "element-strided-source-unit-stride-output-runtime-abi"}
-// PLAN-SAME: {key = "tcrv_rvv.source_stride_source", value = "runtime_abi:src_stride"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "src,out,n,stride_bytes"}
+// PLAN-SAME: {key = "tcrv_rvv.strided_memory_layout", value = "byte-strided-source-unit-stride-output-runtime-abi"}
+// PLAN-SAME: {key = "tcrv_rvv.source_stride_source", value = "runtime_abi:stride_bytes"}
 // PLAN-SAME: {key = "tcrv_rvv.source_memory_form", value = "strided-load"}
 // PLAN-SAME: {key = "tcrv_rvv.destination_memory_form", value = "unit-stride-store"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
@@ -63,5 +63,5 @@ module {
 // HEADER: tianchenrv.rvv.selected_variant: @pre_realized_body_rvv_strided_load_unit_store
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-strided-load-unit-store-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
-// HEADER: tianchenrv.rvv.runtime_abi_order: src,out,n,src_stride
-// HEADER: void tcrv_emitc_pre_realized_body_strided_load_unit_store_kernel_pre_realized_body_rvv_strided_load_unit_store(const int32_t *src, int32_t *out, size_t n, size_t src_stride);
+// HEADER: tianchenrv.rvv.runtime_abi_order: src,out,n,stride_bytes
+// HEADER: void tcrv_emitc_pre_realized_body_strided_load_unit_store_kernel_pre_realized_body_rvv_strided_load_unit_store(const int32_t *src, int32_t *out, size_t n, size_t stride_bytes);

@@ -309,6 +309,10 @@ bool isPreRealizedStridedMemoryMovementStrideUnit(
   return strideUnit == "element";
 }
 
+bool isPreRealizedStridedLoadUnitStoreStrideUnit(llvm::StringRef strideUnit) {
+  return strideUnit == "byte";
+}
+
 bool isPreRealizedStridedStoreMemoryMovementOpKind(llvm::StringRef opKind) {
   return opKind == "unit_load_strided_store";
 }
@@ -2195,10 +2199,10 @@ llvm::Error validatePreRealizedRVVSelectedStridedMemoryBody(
     return makeRVVPluginError(
         "pre-realized RVV selected strided memory body currently supports "
         "only memory_form 'strided-load-unit-store'");
-  if (!isPreRealizedStridedMemoryMovementStrideUnit(body.getStrideUnit()))
+  if (!isPreRealizedStridedLoadUnitStoreStrideUnit(body.getStrideUnit()))
     return makeRVVPluginError(
         "pre-realized RVV selected strided memory body currently supports "
-        "only stride_unit 'element'");
+        "only stride_unit 'byte'");
   if (static_cast<std::int64_t>(body.getSew()) !=
           tcrv::rvv::getRVVFirstSliceSEWBits() ||
       body.getLmul() != tcrv::rvv::getRVVLMULM1())
@@ -2213,7 +2217,7 @@ llvm::Error validatePreRealizedRVVSelectedStridedMemoryBody(
   llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
       requirePreRealizedRuntimeABIValue(
           body.getSource(), "pre-realized RVV strided source operand",
-          support::RuntimeABIParameterRole::LHSInputBuffer);
+          support::RuntimeABIParameterRole::SourceInputBuffer);
   if (!source)
     return source.takeError();
   llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
@@ -2231,8 +2235,8 @@ llvm::Error validatePreRealizedRVVSelectedStridedMemoryBody(
   llvm::Expected<tcrv::rvv::RuntimeABIValueOp> sourceStride =
       requirePreRealizedRuntimeABIValue(
           body.getSourceStride(),
-          "pre-realized RVV source stride operand",
-          support::RuntimeABIParameterRole::LHSInputStride);
+          "pre-realized RVV source byte stride operand",
+          support::RuntimeABIParameterRole::SourceByteStride);
   if (!sourceStride)
     return sourceStride.takeError();
 

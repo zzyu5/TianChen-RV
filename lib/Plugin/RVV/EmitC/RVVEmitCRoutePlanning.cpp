@@ -400,7 +400,7 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral kRVVStridedRuntimeABIOrder(
     "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride");
 constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreRuntimeABIOrder(
-    "src,out,n,src_stride");
+    "src,out,n,stride_bytes");
 constexpr llvm::StringLiteral kRVVUnitLoadStridedStoreRuntimeABIOrder(
     "src,dst,n,dst_stride");
 constexpr llvm::StringLiteral kRVVIndexedGatherRuntimeABIOrder(
@@ -461,7 +461,7 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral kRVVStridedMemoryLayout(
     "element-strided-lhs-rhs-output-runtime-abi");
 constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreMemoryLayout(
-    "element-strided-source-unit-stride-output-runtime-abi");
+    "byte-strided-source-unit-stride-output-runtime-abi");
 constexpr llvm::StringLiteral kRVVUnitLoadStridedStoreMemoryLayout(
     "unit-stride-source-element-strided-destination-runtime-abi");
 constexpr llvm::StringLiteral kRVVIndexedGatherMemoryLayout(
@@ -491,7 +491,7 @@ constexpr llvm::StringLiteral kRVVLHSStrideSource("runtime_abi:lhs_stride");
 constexpr llvm::StringLiteral kRVVRHSStrideSource("runtime_abi:rhs_stride");
 constexpr llvm::StringLiteral kRVVOutStrideSource("runtime_abi:out_stride");
 constexpr llvm::StringLiteral kRVVSourceStrideSource(
-    "runtime_abi:src_stride");
+    "runtime_abi:stride_bytes");
 constexpr llvm::StringLiteral kRVVDestinationStrideSource(
     "runtime_abi:dst_stride");
 constexpr llvm::StringLiteral kRVVSourceMemoryForm("strided-load");
@@ -3262,6 +3262,27 @@ llvm::Error assignRVVGenericStridedLoadBinding(
     RVVSelectedBodyRouteSlice &slice, tcrv::rvv::StridedLoadOp load,
     const support::RuntimeABIParameter &bufferParameter,
     const support::RuntimeABIParameter &strideParameter) {
+  if (bufferParameter.role ==
+      support::RuntimeABIParameterRole::SourceInputBuffer) {
+    if (strideParameter.role !=
+        support::RuntimeABIParameterRole::SourceByteStride)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV source byte-strided load requires "
+          "source-byte-stride runtime ABI value");
+    if (slice.lhsLoadOperation)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV strided-load to unit-stride-store route "
+          "requires a unique source strided load");
+    slice.lhsStridedLoad = load;
+    slice.lhsLoadOperation = load.getOperation();
+    slice.lhsBuffer = load.getBuffer();
+    slice.lhsStride = load.getStride();
+    slice.lhsValue = load.getLoaded();
+    slice.lhsABI = bufferParameter;
+    slice.lhsStrideABI = strideParameter;
+    return llvm::Error::success();
+  }
+
   if (bufferParameter.role == support::RuntimeABIParameterRole::LHSInputBuffer) {
     if (strideParameter.role !=
         support::RuntimeABIParameterRole::LHSInputStride)
@@ -5284,6 +5305,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
              support::RuntimeABIParameterRole::RHSInputBuffer,
              support::RuntimeABIParameterRole::DotLHSInputBuffer,
              support::RuntimeABIParameterRole::DotRHSInputBuffer,
+             support::RuntimeABIParameterRole::SourceInputBuffer,
              support::RuntimeABIParameterRole::OutputBuffer});
     if (!bufferParameter)
       return bufferParameter.takeError();
@@ -5292,6 +5314,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
             load.getStride(), "tcrv_rvv.strided_load stride operand",
             {support::RuntimeABIParameterRole::LHSInputStride,
              support::RuntimeABIParameterRole::RHSInputStride,
+             support::RuntimeABIParameterRole::SourceByteStride,
              support::RuntimeABIParameterRole::OutputStride});
     if (!strideParameter)
       return strideParameter.takeError();
@@ -6862,6 +6885,19 @@ llvm::Error verifySelectedRVVRoleSequence(
     return makeRVVEmitCRouteProviderError(
         "selected RVV construction role sequence requires runtime ABI values "
         "to be explicit tcrv_rvv.runtime_abi_value ops");
+
+  if (isStridedLoadUnitStore) {
+    if (slice.lhsABI.role !=
+        support::RuntimeABIParameterRole::SourceInputBuffer)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV byte-strided-load to unit-stride-store route "
+          "requires source-input-buffer runtime ABI value");
+    if (slice.lhsStrideABI.role !=
+        support::RuntimeABIParameterRole::SourceByteStride)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV byte-strided-load to unit-stride-store route "
+          "requires source-byte-stride runtime ABI value");
+  }
 
   mlir::ArrayAttr requires =
       request.getVariant()->getAttrOfType<mlir::ArrayAttr>("requires");

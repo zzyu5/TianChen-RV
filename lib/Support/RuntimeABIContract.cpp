@@ -43,6 +43,7 @@ bool isFiniteBinaryCallableRole(RuntimeABIParameterRole role) {
   case RuntimeABIParameterRole::SegmentInterleavedOutputBuffer:
   case RuntimeABIParameterRole::LHSInputStride:
   case RuntimeABIParameterRole::RHSInputStride:
+  case RuntimeABIParameterRole::SourceByteStride:
   case RuntimeABIParameterRole::OutputStride:
   case RuntimeABIParameterRole::DispatchAvailabilityGuard:
     return false;

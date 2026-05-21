@@ -687,15 +687,15 @@ getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
   parameters.push_back(support::makeTargetExportABIParameter(
       "src", "const int32_t *",
-      support::RuntimeABIParameterRole::LHSInputBuffer));
+      support::RuntimeABIParameterRole::SourceInputBuffer));
   parameters.push_back(support::makeTargetExportABIParameter(
       "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
   parameters.push_back(support::makeTargetExportABIParameter(
       kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
       support::RuntimeABIParameterRole::RuntimeElementCount));
   parameters.push_back(support::makeTargetExportABIParameter(
-      "src_stride", "size_t",
-      support::RuntimeABIParameterRole::LHSInputStride));
+      "stride_bytes", "size_t",
+      support::RuntimeABIParameterRole::SourceByteStride));
   return parameters;
 }
 
@@ -1002,7 +1002,7 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "route; or cmp_lhs, cmp_rhs, lhs, rhs, acc, out, n, lhs_stride, "
       "rhs_stride for the bounded i16 computed-mask strided-input widening "
       "dot-reduction route; or "
-      "src, out, n, src_stride for the bounded int32_t strided-load to "
+      "src, out, n, stride_bytes for the bounded int32_t byte-strided-load to "
       "unit-stride-store route; or src, dst, n, dst_stride for the bounded "
       "int32_t unit-load to strided-store route; or data, index, out, n for the bounded "
       "int32_t indexed-gather to unit-stride-store route; or src, index, "
