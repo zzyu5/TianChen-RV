@@ -540,6 +540,58 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
         return out.takeError();
       boundOutABI = *out;
     } else if (description.operation ==
+               RVVSelectedBodyOperationKind::WideningMAccAdd) {
+      if (llvm::Error error =
+              bindOperand(boundLHSABI, "lhs", "src-load",
+                          "widening_macc lhs i16 source load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "wmacc-lhs",
+              "widening_macc lhs i16 source compute operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "src-i16mf2",
+              "widening_macc lhs source width mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundRHSABI, "rhs", "src-load",
+                          "widening_macc rhs i16 source load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "wmacc-rhs",
+              "widening_macc rhs i16 source compute operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "src-i16mf2",
+              "widening_macc rhs source width mirror"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundAccumulatorABI, "acc", "acc-load",
+              "widening_macc i32 accumulator load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "wmacc-acc",
+              "widening_macc accumulator compute operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "acc-i32m1",
+              "widening_macc accumulator width mirror"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundOutABI, "out", "res-store",
+              "widening_macc i32 result store operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out", "res-i32m1",
+              "widening_macc result width mirror"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "n", "loop", "widening_macc runtime loop control"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "n", "hdr", "widening_macc runtime header mirror"))
+        return error;
+    } else if (description.operation ==
                RVVSelectedBodyOperationKind::StridedLoadUnitStore) {
       llvm::Expected<const support::RuntimeABIParameter *> src =
           getRequiredBinding(bindingPlan, "src",

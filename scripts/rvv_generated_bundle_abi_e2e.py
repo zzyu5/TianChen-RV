@@ -149,6 +149,17 @@ MACC_ROUTE_OPERAND_BINDING_OPERANDS = (
     "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
 )
+WIDENING_MACC_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:widening_macc_add.v1"
+)
+WIDENING_MACC_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:widening_macc_add.v1;"
+    "lhs=lhs-input-buffer:lhs:abi|src-load|wmacc-lhs|src-i16mf2|hdr;"
+    "rhs=rhs-input-buffer:rhs:abi|src-load|wmacc-rhs|src-i16mf2|hdr;"
+    "acc=accumulator-input-buffer:acc:abi|acc-load|wmacc-acc|acc-i32m1|hdr;"
+    "out=output-buffer:out:abi|res-store|res-i32m1|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+)
 STRIDED_LOAD_UNIT_STORE_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:strided_load_unit_store.v1"
 )
@@ -2895,6 +2906,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     WIDENING_MACC_RESULT_LAYOUT
                 ),
                 "tcrv_rvv.widening_macc_relation": WIDENING_MACC_RELATION,
+                "tcrv_rvv.route_operand_binding_plan": (
+                    WIDENING_MACC_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    WIDENING_MACC_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if expectation.is_widening_dot_reduce_add:

@@ -1642,6 +1642,63 @@ int runRouteOperandBindingPlanValidationTest() {
           {"logical operand 'rhs'", "rhs-input-buffer", "lhs-input-buffer"}))
     return result;
 
+  RVVRouteOperandBindingPlan wideningMAccPlan;
+  wideningMAccPlan.planID = "rvv-route-operand-binding:widening_macc_add.v1";
+  addBinding(wideningMAccPlan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int16_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi", "src-load", "wmacc-lhs", "src-i16mf2"});
+  addBinding(wideningMAccPlan, "rhs",
+             makeTargetExportABIParameter(
+                 "rhs", "const int16_t *",
+                 RuntimeABIParameterRole::RHSInputBuffer),
+             {"abi", "src-load", "wmacc-rhs", "src-i16mf2"});
+  addBinding(wideningMAccPlan, "acc",
+             makeTargetExportABIParameter(
+                 "acc", "const int32_t *",
+                 RuntimeABIParameterRole::AccumulatorInputBuffer),
+             {"abi", "acc-load", "wmacc-acc", "acc-i32m1"});
+  addBinding(wideningMAccPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"abi", "res-store", "res-i32m1"});
+  addBinding(wideningMAccPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi", "setvl-avl", "loop"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              wideningMAccPlan,
+              "rvv-route-operand-binding:widening_macc_add.v1",
+              "lhs,rhs,acc,out,n", "valid widening macc binding plan"),
+          "valid widening macc route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedWideningAccumulator =
+      wideningMAccPlan;
+  swappedWideningAccumulator.bindings[2].parameter.role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedWideningAccumulator,
+              "rvv-route-operand-binding:widening_macc_add.v1",
+              "lhs,rhs,acc,out,n", "route operand binding unit test"),
+          {"logical operand 'acc'", "accumulator-input-buffer",
+           "output-buffer"}))
+    return result;
+
+  llvm::Expected<const tianchenrv::support::RuntimeABIParameter *>
+      wrongWideningWidthUse = tianchenrv::plugin::rvv::
+          getRVVRouteOperandBindingParameter(
+              wideningMAccPlan, "lhs", "res-i32m1",
+              "route operand binding unit test");
+  if (int result = expectErrorContains(wrongWideningWidthUse.takeError(),
+                                       {"materialized use",
+                                        "res-i32m1"}))
+    return result;
+
   llvm::Expected<const tianchenrv::support::RuntimeABIParameter *> missingUse =
       tianchenrv::plugin::rvv::getRVVRouteOperandBindingParameter(
           plan, "acc", "materialized-store-base",

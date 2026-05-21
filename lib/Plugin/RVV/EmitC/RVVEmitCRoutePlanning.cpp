@@ -30,6 +30,8 @@ llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message) {
 
 constexpr llvm::StringLiteral kRVVMAccOperandBindingPlanID(
     "rvv-route-operand-binding:macc_add.v1");
+constexpr llvm::StringLiteral kRVVWideningMAccOperandBindingPlanID(
+    "rvv-route-operand-binding:widening_macc_add.v1");
 constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreOperandBindingPlanID(
     "rvv-route-operand-binding:strided_load_unit_store.v1");
 constexpr llvm::StringLiteral kRVVUnitLoadStridedStoreOperandBindingPlanID(
@@ -91,6 +93,18 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
       return RuntimeABIParameterRole::RuntimeElementCount;
   }
   if (planID == kRVVMAccOperandBindingPlanID) {
+    if (logicalOperand == "lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "rhs")
+      return RuntimeABIParameterRole::RHSInputBuffer;
+    if (logicalOperand == "acc")
+      return RuntimeABIParameterRole::AccumulatorInputBuffer;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVWideningMAccOperandBindingPlanID) {
     if (logicalOperand == "lhs")
       return RuntimeABIParameterRole::LHSInputBuffer;
     if (logicalOperand == "rhs")
@@ -4329,6 +4343,26 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
         plan, "n", slice.runtimeElementCountABI,
         {"runtime-abi-mirror", "setvl-avl", "loop-control",
          "header-mirror"});
+  } else if (slice.arithmeticKind ==
+             RVVSelectedBodyOperationKind::WideningMAccAdd) {
+    plan.planID = kRVVWideningMAccOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVWideningMAccRuntimeABIOrder;
+    context = "widening_macc_add route";
+    addRouteOperandBinding(
+        plan, "lhs", slice.lhsABI,
+        {"abi", "src-load", "wmacc-lhs", "src-i16mf2", "hdr"});
+    addRouteOperandBinding(
+        plan, "rhs", slice.rhsABI,
+        {"abi", "src-load", "wmacc-rhs", "src-i16mf2", "hdr"});
+    addRouteOperandBinding(
+        plan, "acc", slice.accumulatorABI,
+        {"abi", "acc-load", "wmacc-acc", "acc-i32m1", "hdr"});
+    addRouteOperandBinding(
+        plan, "out", slice.outABI,
+        {"abi", "res-store", "res-i32m1", "hdr"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"abi", "setvl-avl", "loop", "hdr"});
   } else if (slice.memoryForm ==
              RVVSelectedBodyMemoryForm::StridedLoadUnitStore) {
     plan.planID = kRVVStridedLoadUnitStoreOperandBindingPlanID.str();
@@ -8871,6 +8905,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     expectedOperandBindingPlanID = kRVVStridedAddOperandBindingPlanID;
   else if (operationProfile.operation == RVVSelectedBodyOperationKind::MAccAdd)
     expectedOperandBindingPlanID = kRVVMAccOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::WideningMAccAdd)
+    expectedOperandBindingPlanID = kRVVWideningMAccOperandBindingPlanID;
   else if (operationProfile.operation ==
            RVVSelectedBodyOperationKind::StridedLoadUnitStore)
     expectedOperandBindingPlanID =

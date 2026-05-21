@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage1/Stage2 RVV order, and source-of-truth boundaries for this widening operand binding migration."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, route provider, selected-body realization, mirrors, and ssh-rvv evidence contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute boundary for widening materialization."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Route provider ownership and no core/common semantic inference boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/C++ checks and real ssh rvv evidence requirements for RVV runtime/correctness claims."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-05-21-stage2-rvv-segmented-movement-operand-binding/prd.md", "reason": "Immediate predecessor pattern for RouteOperandBindingPlan adoption, evidence, and validation."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-05-21-stage2-rvv-arithmetic-select-operand-binding/prd.md", "reason": "Recent completed operand-binding adoption pattern across active arithmetic route clusters."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-widening-macc-executable-slice/prd.md", "reason": "Existing widening_macc_add route semantics, typed body facts, generated-bundle evidence, and prior ssh rvv proof."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-contraction-selected-body-family/prd.md", "reason": "Defines dot-reduction contraction family boundary that is intentionally deferred in this operand-binding round."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-05-21-stage2-rvv-widening-operand-binding/prd.md", "reason": "Bounded task scope, acceptance criteria, non-goals, and validation plan for widening_macc_add operand binding adoption."}
+{"file": ".trellis/workspace/codex/journal-12.md", "reason": "Recent session notes and continuation point for operand binding clusters."}

@@ -1534,3 +1534,67 @@ cluster: `segment2_deinterleave_unit_store` and
 
 - Continue with a separate bounded PRD only for another route cluster such as
   widening, contraction, or conversion operand binding adoption.
+
+
+## Session 155: Stage2 RVV widening macc operand binding adoption
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV widening operand binding adoption
+**Branch**: `main`
+
+### Summary
+
+Adopted `RVVRouteOperandBindingPlan` for the active `widening_macc_add`
+subcluster. This round intentionally did not convert dot-reduction contraction
+routes or widening conversion routes.
+
+### Main Changes
+
+- Added `rvv-route-operand-binding:widening_macc_add.v1` and role validation
+  for `lhs`, `rhs`, `acc`, `out`, and runtime `n`.
+- Rewired `widening_macc_add` provider materialization so source loads,
+  accumulator load, widening-macc compute roles, result store, source/result
+  width mirrors, and generated header mirrors are required through the binding
+  contract.
+- Updated target artifact/header FileCheck fixtures and generated-bundle
+  metadata expectations to carry the compact widening-macc binding mirror.
+- Added negative C++ coverage for accumulator/output role swaps and
+  source/result-width materialized-use mismatch.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Focused lit for
+  `pre-realized-selected-body-artifact-widening-macc-add.mlir` and
+  `rvv-generated-bundle-abi-e2e-pre-realized-widening-macc-add-dry-run.test`.
+- [OK] Generated-bundle dry-run for pre-realized `widening_macc_add`, counts
+  `7,16,23`.
+- [OK] Real `ssh rvv` PASS for `widening_macc_add`, counts `7,16,23`, with
+  signed product accumulation and tail preservation.
+- [OK] Diff-level active-authority scan: no newly introduced positive
+  `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`,
+  descriptor/direct-C/source-front-door, public exact intrinsic, route-id,
+  artifact-name, or common/export RVV semantic authority.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 267/267 passed.
+
+### Self-Repair
+
+- The first focused lit pass exposed that the full-length
+  `route_operand_binding_operands` mirror exceeded the execution-plan
+  coherence limit for bounded single-line metadata. The widening-macc mirror
+  now uses compact provider-checked materialized-use tokens while preserving
+  ABI, load/store, compute-role, width, and header facts.
+
+### Status
+
+[OK] Completed and archived.
+
+### Next Steps
+
+- Continue with a separate bounded PRD for contraction dot-reduction operand
+  binding adoption or widening conversion operand binding adoption. Do not
+  treat either deferred cluster as completed by this widening-macc round.
