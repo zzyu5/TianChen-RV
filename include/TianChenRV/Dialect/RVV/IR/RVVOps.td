@@ -1207,7 +1207,7 @@ def TypedComputedMaskStridedStorePreRealizedBodyOp
     door marker, direct-C exporter, intrinsic wrapper, runtime artifact,
     correctness evidence, or performance evidence. The RVV plugin must realize
     it into explicit setvl/with_vl/load/load/load/strided_load/compare/
-    masked_move/strided_store tcrv_rvv body structure before the provider may
+    masked_strided_store tcrv_rvv body structure before the provider may
     construct a TCRVEmitCLowerableRoute.
   }];
 
@@ -2211,6 +2211,45 @@ def MaskedStoreOp : TCRVRVV_Op<"masked_store",
 
   let assemblyFormat =
     "$buffer `,` $mask `,` $value `,` $vl attr-dict `:` type($buffer) `,` type($mask) `,` type($value) `,` type($vl)";
+  let hasVerifier = 1;
+}
+
+def MaskedStridedStoreOp : TCRVRVV_Op<"masked_strided_store",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV masked byte-strided store dataflow op";
+  let description = [{
+    Records one bounded plugin-local RVV masked destination byte-strided store
+    step. The op is nested directly under tcrv_rvv.with_vl, consumes one
+    explicit output buffer runtime ABI value, one !tcrv_rvv.mask predicate,
+    one !tcrv_rvv.vector payload value matching the enclosing config, one
+    explicit runtime destination byte stride SSA value, and the active
+    !tcrv_rvv.vl token. It carries explicit masked strided-store memory-form,
+    byte-stride unit, and inactive-lane no-write preservation facts.
+
+    For the current bounded Stage 2 computed-mask strided masked-store slice,
+    memory_form is limited to masked-strided-store, stride_unit is limited to
+    byte, and inactive_lane_policy is limited to
+    preserve-output-on-false-lanes. False mask lanes, skipped strided
+    destination slots, and tail lanes are structural masked-store behavior;
+    common EmitC/export must not infer them from route ids, ABI names,
+    artifact metadata, exact intrinsic spelling, or harness sentinels.
+  }];
+
+  let arguments = (ins
+    AnyType:$buffer,
+    AnyType:$mask,
+    AnyType:$value,
+    Index:$stride,
+    AnyType:$vl,
+    StrAttr:$memory_form,
+    StrAttr:$stride_unit,
+    StrAttr:$inactive_lane_policy
+  );
+
+  let assemblyFormat =
+    "$buffer `,` $mask `,` $value `,` $stride `,` $vl attr-dict `:` type($buffer) `,` type($mask) `,` type($value) `,` type($stride) `,` type($vl)";
   let hasVerifier = 1;
 }
 

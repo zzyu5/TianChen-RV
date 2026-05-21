@@ -479,6 +479,11 @@ bool isAllowedMaskedStoreAttr(llvm::StringRef name) {
   return name == kMemoryFormAttrName || name == kInactiveLanePolicyAttrName;
 }
 
+bool isAllowedMaskedStridedStoreAttr(llvm::StringRef name) {
+  return name == kMemoryFormAttrName || name == kStrideUnitAttrName ||
+         name == kInactiveLanePolicyAttrName;
+}
+
 bool isAllowedStridedStoreAttr(llvm::StringRef) { return false; }
 
 bool isSupportedTypedBinaryPreRealizedBodyOpKind(llvm::StringRef opKind) {
@@ -2117,6 +2122,14 @@ llvm::StringRef MaskedStoreOp::getTCRVEmitCLowerableSourceOpName() {
 }
 
 llvm::StringRef MaskedStoreOp::getTCRVEmitCLowerableSourceRole() {
+  return "store";
+}
+
+llvm::StringRef MaskedStridedStoreOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef MaskedStridedStoreOp::getTCRVEmitCLowerableSourceRole() {
   return "store";
 }
 
@@ -6724,6 +6737,72 @@ mlir::LogicalResult MaskedStoreOp::verify() {
              << "requires mask-producing tcrv_rvv.compare to be in the same "
                 "tcrv_rvv.with_vl body as tcrv_rvv.masked_store";
   }
+
+  if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getValue(),
+                                                    "payload value")))
+    return mlir::failure();
+  return verifyGenericMaskMatchesVector(op, getMask(), getValue(), "mask",
+                                        "payload value");
+}
+
+mlir::LogicalResult MaskedStridedStoreOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.masked_strided_store",
+                                         isAllowedMaskedStridedStoreAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires one explicit output buffer ABI operand, one generic "
+              "RVV mask predicate, one generic RVV vector payload, one "
+              "runtime destination byte stride operand, one !tcrv_rvv.vl "
+              "operand, and no results";
+  if (getMemoryForm() != "masked-strided-store")
+    return emitOpError()
+           << "currently supports only memory_form \"masked-strided-store\" "
+              "for the bounded Stage 2 computed-mask strided store route";
+  if (getStrideUnit() != "byte")
+    return emitOpError()
+           << "currently supports only stride_unit \"byte\" for the bounded "
+              "Stage 2 computed-mask strided store route";
+  if (getInactiveLanePolicy() != "preserve-output-on-false-lanes")
+    return emitOpError()
+           << "requires inactive_lane_policy "
+              "\"preserve-output-on-false-lanes\" because false mask lanes "
+              "must not write the destination buffer";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getBuffer(), "masked strided store output buffer",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIIndexOperandRole(
+          op, getStride(), "masked strided store destination byte stride",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               DestinationByteStride})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto compare = getMask().getDefiningOp<CompareOp>();
+  if (!compare)
+    return emitOpError()
+           << "requires mask operand to be produced by tcrv_rvv.compare "
+              "inside the selected RVV typed body";
+  if (compare.getVl() != getVl())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.compare to consume the same "
+              "!tcrv_rvv.vl token as tcrv_rvv.masked_strided_store";
+  if (compare->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.compare to be in the same "
+              "tcrv_rvv.with_vl body as tcrv_rvv.masked_strided_store";
 
   if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
     return mlir::failure();

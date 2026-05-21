@@ -3818,24 +3818,6 @@ createRealizedGenericMove(mlir::OpBuilder &builder, mlir::Location loc,
 }
 
 llvm::Expected<mlir::Operation *>
-createRealizedGenericMaskedMove(mlir::OpBuilder &builder, mlir::Location loc,
-                                llvm::StringRef moveKind, mlir::Value mask,
-                                mlir::Value activeValue,
-                                mlir::Value inactivePassthrough,
-                                mlir::Value vl) {
-  if (moveKind != "active-source-preserve-old-destination")
-    return makeRVVPluginError(
-        "pre-realized RVV selected-body masked memory realization supports "
-        "only masked move kind 'active-source-preserve-old-destination'");
-
-  mlir::OperationState state(loc, "tcrv_rvv.masked_move");
-  state.addOperands({mask, activeValue, inactivePassthrough, vl});
-  state.addAttribute("kind", builder.getStringAttr(moveKind));
-  state.addTypes(activeValue.getType());
-  return builder.create(state);
-}
-
-llvm::Expected<mlir::Operation *>
 createRealizedGenericMaskedLoad(mlir::OpBuilder &builder, mlir::Location loc,
                                 mlir::Value source, mlir::Value mask,
                                 mlir::Value passthrough, mlir::Value vl) {
@@ -3866,6 +3848,24 @@ void createRealizedGenericMaskedStore(mlir::OpBuilder &builder,
   state.addOperands({out, mask, value, vl});
   state.addAttribute("memory_form",
                      builder.getStringAttr("masked-unit-store"));
+  state.addAttribute(
+      "inactive_lane_policy",
+      builder.getStringAttr("preserve-output-on-false-lanes"));
+  (void)builder.create(state);
+}
+
+void createRealizedGenericMaskedStridedStore(mlir::OpBuilder &builder,
+                                             mlir::Location loc,
+                                             mlir::Value out,
+                                             mlir::Value mask,
+                                             mlir::Value value,
+                                             mlir::Value stride,
+                                             mlir::Value vl) {
+  mlir::OperationState state(loc, "tcrv_rvv.masked_strided_store");
+  state.addOperands({out, mask, value, stride, vl});
+  state.addAttribute("memory_form",
+                     builder.getStringAttr("masked-strided-store"));
+  state.addAttribute("stride_unit", builder.getStringAttr("byte"));
   state.addAttribute(
       "inactive_lane_policy",
       builder.getStringAttr("preserve-output-on-false-lanes"));
@@ -5023,26 +5023,14 @@ realizePreRealizedRVVSelectedBody(
         createRealizedGenericLoad(builder, loc,
                                   computedMaskStridedStoreBody.getSource(),
                                   setvl.getVl(), sew, lmul));
-    auto oldDestinationLoad = llvm::cast<tcrv::rvv::StridedLoadOp>(
-        createRealizedGenericStridedLoad(
-            builder, loc, computedMaskStridedStoreBody.getDestination(),
-            computedMaskStridedStoreBody.getDestinationStride(),
-            setvl.getVl()));
     auto compare = llvm::cast<tcrv::rvv::CompareOp>(
         createRealizedGenericCompare(
             builder, loc, compareLhsLoad.getLoaded(),
             compareRhsLoad.getLoaded(), setvl.getVl(),
             computedMaskStridedStoreBody.getPredicateKind()));
-    llvm::Expected<mlir::Operation *> maskedMove =
-        createRealizedGenericMaskedMove(
-            builder, loc, "active-source-preserve-old-destination",
-            compare.getMask(), sourceLoad.getLoaded(),
-            oldDestinationLoad.getLoaded(), setvl.getVl());
-    if (!maskedMove)
-      return maskedMove.takeError();
-    createRealizedGenericStridedStore(
+    createRealizedGenericMaskedStridedStore(
         builder, loc, computedMaskStridedStoreBody.getDestination(),
-        (*maskedMove)->getResult(0),
+        compare.getMask(), sourceLoad.getLoaded(),
         computedMaskStridedStoreBody.getDestinationStride(), setvl.getVl());
     computedMaskStridedStoreBody->erase();
     return withVL;

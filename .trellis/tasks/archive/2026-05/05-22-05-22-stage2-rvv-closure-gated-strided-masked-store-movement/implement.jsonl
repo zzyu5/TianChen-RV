@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants, RVV-first authority chain, and Stage2 route-supported coverage boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body authority, selected-body realization, route provider ownership, fail-closed legacy/source paths, and ssh evidence rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built route versus common EmitC/export neutrality and mirror-only diagnostics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck, fail-closed, generated artifact, and ssh runtime evidence expectations."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-stage2-rvv-masked-memory-movement-coverage/prd.md", "reason": "Immediate predecessor for closure-gated masked load movement and masked-unit-store regression boundaries."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-05-21-stage2-rvv-computed-mask-byte-strided-store/prd.md", "reason": "Prior computed-mask byte-strided-store route evidence and destination byte-stride contract."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-computed-mask-strided-store/prd.md", "reason": "Older computed-mask strided-store route context and old masked_move plus strided_store authority to replace."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-masked-store-policy/prd.md", "reason": "Masked-store inactive-lane no-write policy and unit-stride masked-store precedent."}

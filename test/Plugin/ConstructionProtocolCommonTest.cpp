@@ -1689,7 +1689,7 @@ int runRVVCommonValidationTest() {
              route.operationMnemonic == "computed_masked_unit_load_store")
       executableComputeOp = "tcrv_rvv.masked_load";
     else if (route.operationMnemonic == "computed_masked_strided_store")
-      executableComputeOp = "tcrv_rvv.masked_move";
+      executableComputeOp = "tcrv_rvv.masked_strided_store";
     else if (route.operationMnemonic == "masked_unit_store")
       executableComputeOp = "tcrv_rvv.masked_store";
     else if (route.operationMnemonic == "strided_load_unit_store" ||
@@ -1799,7 +1799,7 @@ int runRVVCommonValidationTest() {
         : hasMaskedMemory                        ? 10u
         : hasMaskedStore                         ? 9u
         : hasComputedMaskMemory                  ? 13u
-        : hasComputedMaskStridedStore            ? 15u
+        : hasComputedMaskStridedStore            ? 13u
         : hasSegment2Deinterleave                ? 11u
         : hasSegment2Interleave                  ? 9u
         : hasStridedMemory         ? 13u

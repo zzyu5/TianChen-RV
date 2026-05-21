@@ -2043,3 +2043,53 @@ Added closure-gated signed standalone min/max RVV reductions with generated-bund
 ### Next Steps
 
 - None - task complete
+
+
+## Session 155: Stage2 RVV closure-gated strided masked store movement
+
+**Date**: 2026-05-22
+**Task**: Stage2 RVV closure-gated strided masked store movement
+**Branch**: `main`
+
+### Summary
+
+Replaced the computed-mask byte-strided destination-store route's old
+`strided_load -> masked_move -> strided_store` body authority with typed
+`tcrv_rvv.masked_strided_store` movement facts, closure-gated route operand
+bindings, explicit/pre-realized target fixtures, generated-bundle evidence, and
+real `ssh rvv` correctness.
+
+### Main Changes
+
+- Added `tcrv_rvv.masked_strided_store` ODS/verifier surface for the bounded
+  masked byte-strided store family.
+- Rewired selected-body realization, route planning, route provider, and
+  construction metadata for `computed_masked_strided_store`.
+- Updated generated-bundle tooling and tests to prove destination byte strides
+  `4,8,12`, active compare lanes, false-lane no-write behavior, untouched gaps,
+  and tail/sentinel preservation.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-dialect-test tianchenrv-rvv-extension-plugin-test tianchenrv-construction-protocol-common-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-dialect-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Direct verifier negative tests for `test/Dialect/RVV/masked-strided-store-dataflow.mlir` and `test/Dialect/RVV/pre-realized-computed-mask-strided-store-memory-negative.mlir`
+- [OK] Manual FileCheck for explicit and pre-realized computed masked strided-store target/header fixtures using `/usr/lib/llvm-20/bin/FileCheck`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate`
+- [OK] Generated-bundle dry-run for `computed_masked_strided_store`, counts `7,16,23`, destination byte strides `4,8,12`
+- [OK] Real `ssh rvv` generated-bundle run for `computed_masked_strided_store`, counts `7,16,23`, destination byte strides `4,8,12`
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 297/297 passed
+- [OK] `git diff --check`
+- [OK] Diff-level authority scan found no new positive legacy/source/descriptor authority; exact intrinsic diff hit is the provider-owned target leaf selected after typed closure, not route authority.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+### Next Steps
+
+- None - task complete.

@@ -1503,9 +1503,9 @@ module {
        "tcrv_rvv.widening_convert, tcrv_rvv.move, "
        "tcrv_rvv.widening_dot_reduce, tcrv_rvv.masked_widening_dot_reduce, "
        "tcrv_rvv.masked_move, tcrv_rvv.masked_load, "
-       "tcrv_rvv.masked_store, "
-       "tcrv_rvv.store, and "
-       "tcrv_rvv.strided_store"});
+      "tcrv_rvv.masked_store, tcrv_rvv.masked_strided_store, "
+      "tcrv_rvv.store, and "
+      "tcrv_rvv.strided_store"});
 }
 
 int runOutOfOrderSelectedRoleSequenceRejectionTest(mlir::MLIRContext &context) {
@@ -2568,21 +2568,21 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "cmp_lhs", "const int32_t *",
                  RuntimeABIParameterRole::LHSInputBuffer),
-             {"abi-mirror", "cmp-lhs-load"});
+             {"abi-mirror", "cmp-lhs-load", "cmp-lhs-call"});
   addBinding(computedMaskStridedStorePlan, "cmp_rhs",
              makeTargetExportABIParameter(
                  "cmp_rhs", "const int32_t *",
                  RuntimeABIParameterRole::RHSInputBuffer),
-             {"abi-mirror", "cmp-rhs-load"});
+             {"abi-mirror", "cmp-rhs-load", "cmp-rhs-call"});
   addBinding(computedMaskStridedStorePlan, "src",
              makeTargetExportABIParameter(
                  "src", "const int32_t *",
                  RuntimeABIParameterRole::SourceInputBuffer),
-             {"abi-mirror", "src-load"});
+             {"abi-mirror", "src-load", "mstr-store-src-call"});
   addBinding(computedMaskStridedStorePlan, "dst",
              makeTargetExportABIParameter("dst", "int32_t *",
                                           RuntimeABIParameterRole::OutputBuffer),
-             {"abi-mirror", "old-dst-load", "strided-store"});
+             {"abi-mirror", "mstr-store-base", "header-mirror"});
   addBinding(computedMaskStridedStorePlan, "n",
              makeTargetExportABIParameter(
                  "n", "size_t",
@@ -2592,7 +2592,7 @@ int runRouteOperandBindingPlanValidationTest() {
              makeTargetExportABIParameter(
                  "dst_stride_bytes", "size_t",
                  RuntimeABIParameterRole::DestinationByteStride),
-             {"abi-mirror", "old-dst-stride", "store-stride"});
+             {"abi-mirror", "mstr-store-stride", "byte", "header-mirror"});
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
               computedMaskStridedStorePlan,

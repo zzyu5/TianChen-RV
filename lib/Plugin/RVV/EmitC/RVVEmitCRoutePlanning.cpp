@@ -1152,7 +1152,7 @@ constexpr llvm::StringLiteral kRVVComputedMaskMemoryLayout(
 constexpr llvm::StringLiteral kRVVComputedMaskSelectMemoryLayout(
     "unit-stride-compare-true-false-select-output-runtime-abi");
 constexpr llvm::StringLiteral kRVVComputedMaskStridedStoreMemoryLayout(
-    "unit-stride-compare-source-byte-strided-old-destination-runtime-abi");
+    "unit-stride-compare-source-byte-strided-masked-destination-runtime-abi");
 constexpr llvm::StringLiteral kRVVStridedInputWideningDotMemoryLayout(
     "element-strided-lhs-rhs-dot-source-unit-stride-output-runtime-abi");
 constexpr llvm::StringLiteral
@@ -1198,6 +1198,14 @@ constexpr llvm::StringLiteral kRVVMaskedStoreDestinationMemoryForm(
     "masked-unit-store");
 constexpr llvm::StringLiteral kRVVMaskedStoreIntrinsic(
     "__riscv_vse32_v_i32m1_m");
+constexpr llvm::StringLiteral kRVVMaskedStridedStoreDestinationMemoryForm(
+    "masked-strided-store");
+constexpr llvm::StringLiteral kRVVMaskedStridedStoreIntrinsic(
+    "__riscv_vsse32_v_i32m1_m");
+constexpr llvm::StringLiteral kRVVMaskedStridedStoreInactiveLaneContract(
+    "masked-strided-store-false-lanes-preserve-output-buffer");
+constexpr llvm::StringLiteral kRVVMaskedStridedStorePassthroughLayout(
+    "masked-strided-store-has-no-passthrough-load");
 constexpr llvm::StringLiteral kRVVComputedMaskMemoryMaskMemoryForm(
     "compare-produced-mask");
 constexpr llvm::StringLiteral kRVVSegment2SourceMemoryForm(
@@ -3374,9 +3382,7 @@ deriveRVVSelectedBodyTargetLeafProfile(
             ? getRVVSelectedBodySignedLessThanCompareIntrinsic(
                   configProfile.lmul)
             : getRVVSelectedBodyMaskFromI32Intrinsic(configProfile.lmul),
-        isComputedMaskStridedStore
-            ? getRVVSelectedBodySelectIntrinsic(configProfile.lmul)
-            : llvm::StringRef(),
+        "",
         ""};
   }
 
@@ -3954,17 +3960,13 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
             slice.sourceValue,
             "computed-mask strided-store active source vector", config))
       return error;
-    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
-            slice.accumulatorValue,
-            "computed-mask strided-store old destination vector", config))
-      return error;
     if (llvm::Error error = validateRVVSelectedBodyMaskTypeAgainstConfig(
             slice.compareMask, "computed-mask strided-store predicate mask",
             config))
       return error;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.arithmeticResult,
-            "computed-mask strided-store movement result vector", config))
+            "computed-mask strided-store payload vector", config))
       return error;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.storeValue,
@@ -5517,23 +5519,22 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     context = "computed_masked_strided_store route";
     addRouteOperandBinding(
         plan, "cmp_lhs", slice.lhsABI,
-        {"abi-mirror", "cmp-lhs-load"});
+        {"abi-mirror", "cmp-lhs-load", "cmp-lhs-call"});
     addRouteOperandBinding(
         plan, "cmp_rhs", slice.rhsABI,
-        {"abi-mirror", "cmp-rhs-load"});
+        {"abi-mirror", "cmp-rhs-load", "cmp-rhs-call"});
     addRouteOperandBinding(
         plan, "src", slice.sourceABI,
-        {"abi-mirror", "src-load", "active-source"});
+        {"abi-mirror", "src-load", "mstr-store-src-call"});
     addRouteOperandBinding(
         plan, "dst", slice.outABI,
-        {"abi-mirror", "old-dst-load", "strided-store", "header-mirror"});
+        {"abi-mirror", "mstr-store-base", "header-mirror"});
     addRouteOperandBinding(
         plan, "n", slice.runtimeElementCountABI,
         {"abi-mirror", "setvl-avl", "loop-control", "header-mirror"});
     addRouteOperandBinding(
         plan, "dst_stride_bytes", slice.outStrideABI,
-        {"abi-mirror", "old-dst-stride", "store-stride", "byte-addr",
-         "header-mirror"});
+        {"abi-mirror", "mstr-store-stride", "byte", "header-mirror"});
   }
 
   if (plan.planID.empty())
@@ -6158,6 +6159,51 @@ llvm::Error recordRVVSelectedBodyMaskedStore(
   return llvm::Error::success();
 }
 
+llvm::Error recordRVVSelectedBodyMaskedStridedStore(
+    RVVSelectedBodyRouteSlice &slice,
+    tcrv::rvv::MaskedStridedStoreOp store) {
+  if (slice.arithmeticOp)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route requires exactly one selected compute or "
+        "movement/store op");
+  if (store.getMemoryForm() != kRVVMaskedStridedStoreDestinationMemoryForm)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.masked_strided_store "
+                    "memory_form '") +
+        store.getMemoryForm() +
+        "' for bounded RVV computed-mask strided store route");
+  if (store.getStrideUnit() != "byte")
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.masked_strided_store "
+                    "stride_unit '") +
+        store.getStrideUnit() +
+        "' for bounded RVV computed-mask strided store route");
+  if (store.getInactiveLanePolicy() != "preserve-output-on-false-lanes")
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.masked_strided_store "
+                    "inactive_lane_policy '") +
+        store.getInactiveLanePolicy() +
+        "' for bounded RVV computed-mask strided store route");
+  if (!store.getMask().getDefiningOp<tcrv::rvv::CompareOp>())
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV computed-mask strided store route requires "
+        "tcrv_rvv.masked_strided_store to consume a tcrv_rvv.compare mask");
+  slice.maskedStridedStore = store;
+  slice.maskedStridedStoreOperation = store.getOperation();
+  slice.storeOperation = store.getOperation();
+  slice.arithmeticOp = store.getOperation();
+  slice.arithmeticKind = RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
+  slice.maskValue = store.getMask();
+  slice.maskedActiveValue = store.getValue();
+  slice.arithmeticLhs = store.getValue();
+  slice.arithmeticResult = store.getValue();
+  slice.outBuffer = store.getBuffer();
+  slice.outStride = store.getStride();
+  slice.storeValue = store.getValue();
+  slice.memoryForm = RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore;
+  return llvm::Error::success();
+}
+
 llvm::Expected<RVVSelectedBodyOperationKind>
 parseRVVSelectedBodyBinaryKind(llvm::StringRef kind) {
   if (kind == "add")
@@ -6399,6 +6445,13 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         return std::move(error);
       continue;
     }
+    if (auto maskedStridedStore =
+            llvm::dyn_cast<tcrv::rvv::MaskedStridedStoreOp>(op)) {
+      if (llvm::Error error = recordRVVSelectedBodyMaskedStridedStore(
+              slice, maskedStridedStore))
+        return std::move(error);
+      continue;
+    }
     if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(op)) {
       slice.genericStore = store;
       genericStores.push_back(store);
@@ -6426,7 +6479,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "tcrv_rvv.widening_dot_reduce, "
           "tcrv_rvv.masked_widening_dot_reduce, "
           "tcrv_rvv.masked_move, tcrv_rvv.masked_load, "
-          "tcrv_rvv.masked_store, tcrv_rvv.store, and "
+          "tcrv_rvv.masked_store, tcrv_rvv.masked_strided_store, "
+          "tcrv_rvv.store, and "
           "tcrv_rvv.strided_store body structure");
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("bounded RVV EmitC route does not support op '") +
@@ -6437,8 +6491,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "masked_binary, select, reduce, standalone_reduce, "
         "masked_standalone_reduce, macc, "
         "widening_convert, widening_dot_reduce, "
-        "masked_widening_dot_reduce, move, masked_move, masked_load, store, "
-        "and strided_store only");
+        "masked_widening_dot_reduce, move, masked_move, masked_load, "
+        "masked_store, masked_strided_store, store, and strided_store only");
   }
 
   const bool hasIndexedMemory =
@@ -6447,7 +6501,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   const bool hasMaskedMemory =
       !genericMaskLoads.empty() || !genericMaskedLoads.empty() ||
       static_cast<bool>(slice.maskedMoveOp) ||
-      static_cast<bool>(slice.maskedStore);
+      static_cast<bool>(slice.maskedStore) ||
+      static_cast<bool>(slice.maskedStridedStore);
   const bool hasSegmentedMemory = !genericSegment2Loads.empty() ||
                                   !genericSegment2Stores.empty() ||
                                   static_cast<bool>(slice.field0MoveOp) ||
@@ -6468,13 +6523,14 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     slice.arithmeticOp = genericSegment2Stores.front().getOperation();
   }
   const bool hasStridedMemory =
-      !genericStridedLoads.empty() || static_cast<bool>(slice.stridedStore);
+      !genericStridedLoads.empty() || static_cast<bool>(slice.stridedStore) ||
+      static_cast<bool>(slice.maskedStridedStore);
   if (hasStridedMemory && genericStridedLoads.empty() &&
       stridedStoreCount == 1 && slice.moveOp)
     slice.arithmeticKind =
         RVVSelectedBodyOperationKind::UnitLoadStridedStore;
-  if (hasStridedMemory && genericStridedLoads.size() == 1 &&
-      stridedStoreCount == 1 && slice.maskedMoveOp && slice.compareOp &&
+  if (hasStridedMemory && genericStridedLoads.empty() &&
+      stridedStoreCount == 0 && slice.maskedStridedStore && slice.compareOp &&
       genericLoads.size() == 3)
     slice.arithmeticKind =
         RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
@@ -6786,8 +6842,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "bounded generic RVV masked memory route supports only runtime-mask "
         "unit-stride mask_load/old-destination-load/masked_load/store, "
         "runtime-mask unit-stride load/mask_load/masked_store, "
-        "or computed-mask compare/source/old-destination/masked_load/store "
-        "memory movement in this slice");
+        "computed-mask compare/source/old-destination/masked_load/store, "
+        "or computed-mask compare/source/masked_strided_store memory "
+        "movement in this slice");
   if (hasSegmentedMemory && isSegment2DeinterleaveUnitStore &&
       (hasIndexedMemory ||
        hasStridedMemory || hasMaskedMemory || !genericLoads.empty() ||
@@ -6859,7 +6916,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   if (isComputedMaskStridedStore && !slice.compareOp)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-store route requires one "
-        "tcrv_rvv.compare producer before tcrv_rvv.masked_move");
+        "tcrv_rvv.compare producer before tcrv_rvv.masked_strided_store");
   if ((isMaskedUnitLoadStore || isMaskedUnitStore) &&
       genericMaskLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
@@ -6893,10 +6950,10 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "bounded generic RVV computed-mask strided-store route requires "
         "exactly three unit-stride tcrv_rvv.load ops for compare lhs, "
         "compare rhs, and active source");
-  if (isComputedMaskStridedStore && genericStridedLoads.size() != 1)
+  if (isComputedMaskStridedStore && !genericStridedLoads.empty())
     return makeRVVEmitCRouteProviderError(
-        "bounded generic RVV computed-mask strided-store route requires "
-        "exactly one tcrv_rvv.strided_load old-destination op");
+        "bounded generic RVV computed-mask strided-store route must not load "
+        "the old destination; false lanes are preserved by masked_strided_store");
   if (isMaskedUnitStore && storeCount != 0)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV masked store route must use "
@@ -6924,10 +6981,14 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-store route must use "
         "tcrv_rvv.strided_store, not unit-stride tcrv_rvv.store");
-  if (isComputedMaskStridedStore && stridedStoreCount != 1)
+  if (isComputedMaskStridedStore && stridedStoreCount != 0)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV computed-mask strided-store route must use "
+        "tcrv_rvv.masked_strided_store, not tcrv_rvv.strided_store");
+  if (isComputedMaskStridedStore && !slice.maskedStridedStoreOperation)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask strided-store route requires "
-        "exactly one tcrv_rvv.strided_store op");
+        "exactly one tcrv_rvv.masked_strided_store op");
   if (isMAccAdd && hasRHSBroadcastLike)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV multiply-accumulate route requires explicit "
@@ -7109,8 +7170,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.widening_macc, "
         "tcrv_rvv.widening_dot_reduce, "
         "tcrv_rvv.masked_widening_dot_reduce, tcrv_rvv.widening_convert, "
-        "tcrv_rvv.move, tcrv_rvv.masked_move, tcrv_rvv.masked_load, or "
-        "tcrv_rvv.masked_store op");
+        "tcrv_rvv.move, tcrv_rvv.masked_move, tcrv_rvv.masked_load, "
+        "tcrv_rvv.masked_store, or tcrv_rvv.masked_strided_store op");
   if (!hasStridedMemory && !hasIndexedMemory && !hasSegmentedMemory &&
       !isMaskedUnitStore && storeCount != 1)
     return makeRVVEmitCRouteProviderError(
@@ -7191,7 +7252,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       : isComputedMaskUnitLoadStore
           ? 13
       : isComputedMaskStridedStore
-          ? 15
+          ? 13
       : isComputedMaskSelect
           ? 15
       : isMaskedUnitStore
@@ -7216,8 +7277,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "binary/compare/select/masked_binary/reduce/macc/"
         "standalone_reduce/masked_standalone_reduce/widening_dot_reduce/"
         "widening_convert/move/"
-        "masked_move/masked_load/masked_store/store/strided_store body "
-        "structure");
+        "masked_move/masked_load/masked_store/masked_strided_store/store/"
+        "strided_store body structure");
 
   for (tcrv::rvv::LoadOp load : genericLoads) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
@@ -7428,18 +7489,16 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "and masked_load to consume the selected !tcrv_rvv.vl token");
   }
   if (isComputedMaskStridedStore) {
-    if (slice.maskedMoveOp.getMask() != slice.compareMask)
+    if (slice.maskedStridedStore.getMask() != slice.compareMask)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route requires "
-          "tcrv_rvv.masked_move to consume the mask produced by "
+          "tcrv_rvv.masked_strided_store to consume the mask produced by "
           "tcrv_rvv.compare");
     if (slice.compareOp.getVl() != slice.setvl.getVl() ||
-        slice.maskedMoveOp.getVl() != slice.setvl.getVl() ||
-        slice.lhsStridedLoad.getVl() != slice.setvl.getVl() ||
-        slice.stridedStore.getVl() != slice.setvl.getVl())
+        slice.maskedStridedStore.getVl() != slice.setvl.getVl())
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route requires "
-          "compare, masked_move, and strided_store to consume the selected "
+          "compare and masked_strided_store to consume the selected "
           "!tcrv_rvv.vl token");
   }
   if (isSegment2DeinterleaveUnitStore) {
@@ -7532,7 +7591,12 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     resolvedOutABI = slice.outABI;
   } else {
     llvm::Expected<support::RuntimeABIParameter> outABI =
-        hasStridedMemory && !isStridedLoadUnitStore &&
+        isComputedMaskStridedStore
+            ? getRuntimeABIParameterBindingFromValue(
+                  slice.maskedStridedStore.getBuffer(),
+                  "tcrv_rvv.masked_strided_store buffer operand",
+                  {support::RuntimeABIParameterRole::OutputBuffer})
+        : hasStridedMemory && !isStridedLoadUnitStore &&
                 !isStridedInputWideningDotReduceAdd &&
                 !isComputedMaskStridedInputWideningDotReduceAdd
             ? getRuntimeABIParameterBindingFromValue(
@@ -7559,7 +7623,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   }
   if (hasStridedMemory && !isStridedLoadUnitStore &&
       !isStridedInputWideningDotReduceAdd &&
-      !isComputedMaskStridedInputWideningDotReduceAdd) {
+      !isComputedMaskStridedInputWideningDotReduceAdd &&
+      !isComputedMaskStridedStore) {
     llvm::Expected<support::RuntimeABIParameter> outStrideABI =
         getRuntimeABIParameterBindingFromValue(
             slice.stridedStore.getStride(),
@@ -7579,6 +7644,27 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore;
     else
       slice.arithmeticKind = RVVSelectedBodyOperationKind::StridedAdd;
+  } else if (isComputedMaskStridedStore) {
+    llvm::Expected<support::RuntimeABIParameter> outStrideABI =
+        getRuntimeABIParameterBindingFromValue(
+            slice.maskedStridedStore.getStride(),
+            "tcrv_rvv.masked_strided_store stride operand",
+            {support::RuntimeABIParameterRole::DestinationByteStride});
+    if (!outStrideABI)
+      return outStrideABI.takeError();
+    if (outStrideABI->role !=
+        support::RuntimeABIParameterRole::DestinationByteStride)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV computed-mask strided-store route requires "
+          "destination-byte-stride runtime ABI value");
+    slice.storeOperation = slice.maskedStridedStore.getOperation();
+    slice.outBuffer = slice.maskedStridedStore.getBuffer();
+    slice.storeValue = slice.maskedStridedStore.getValue();
+    slice.outStride = slice.maskedStridedStore.getStride();
+    slice.outABI = resolvedOutABI;
+    slice.outStrideABI = *outStrideABI;
+    slice.memoryForm =
+        RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore;
   } else if (isStridedLoadUnitStore) {
     slice.storeOperation = slice.genericStore.getOperation();
     slice.outBuffer = slice.genericStore.getBuffer();
@@ -8155,21 +8241,15 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route requires one "
           "source-input-buffer tcrv_rvv.load for active source values");
-    if (!slice.accumulatorLoadOperation)
+    if (slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
-          "bounded generic RVV computed-mask strided-store route requires an "
-          "output-buffer tcrv_rvv.strided_load for old-destination "
-          "preservation");
-    if (slice.accumulatorBuffer != slice.outBuffer)
+          "bounded generic RVV computed-mask strided-store route must not "
+          "load the old destination; false lanes are preserved by "
+          "masked_strided_store");
+    if (!slice.maskedStridedStoreOperation)
       return makeRVVEmitCRouteProviderError(
-          "bounded generic RVV computed-mask strided-store route requires the "
-          "old-destination strided load to consume the same output buffer as "
-          "tcrv_rvv.strided_store");
-    if (slice.outStride != slice.stridedStore.getStride())
-      return makeRVVEmitCRouteProviderError(
-          "bounded generic RVV computed-mask strided-store route requires the "
-          "old-destination strided load and strided_store to consume the same "
-          "destination stride SSA value");
+          "bounded generic RVV computed-mask strided-store route requires one "
+          "tcrv_rvv.masked_strided_store op");
     if (slice.compareOp.getKind() != "slt")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route currently "
@@ -8179,12 +8259,11 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route requires "
           "tcrv_rvv.compare to consume compare lhs/rhs generic load results");
-    if (slice.maskedActiveValue != slice.sourceValue ||
-        slice.maskedInactivePassthrough != slice.accumulatorValue)
+    if (slice.maskedActiveValue != slice.sourceValue)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route requires "
-          "tcrv_rvv.masked_move to consume source-input load as active value "
-          "and old strided destination load as inactive passthrough");
+          "tcrv_rvv.masked_strided_store to consume the source-input load "
+          "as payload value");
     if (slice.maskLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route does not "
@@ -8653,15 +8732,11 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       return 9;
     if (op == slice.sourceLoadOperation)
       return 10;
-    if (op == slice.accumulatorLoadOperation)
-      return 11;
     if (op == slice.compareOp.getOperation())
+      return 11;
+    if (op == slice.arithmeticOp || op == slice.storeOperation)
       return 12;
-    if (op == slice.arithmeticOp)
-      return 13;
-    if (op == slice.storeOperation)
-      return 14;
-    return 15;
+    return 13;
   }
   if (isMaskedUnitLoadStore) {
     if (maskABI && op == maskABI.getOperation())
@@ -9444,9 +9519,7 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.stridedLoadIntrinsic =
       (analysis.slice.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore ||
        analysis.slice.memoryForm ==
-           RVVSelectedBodyMemoryForm::StridedLoadUnitStore ||
-       analysis.slice.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore)
+           RVVSelectedBodyMemoryForm::StridedLoadUnitStore)
           ? routeProfile->config.stridedLoadIntrinsic
           : "";
   analysis.description.maskedLoadIntrinsic =
@@ -9474,7 +9547,11 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
            RVVSelectedBodyMemoryForm::UnitLoadStridedStore ||
        analysis.slice.memoryForm ==
            RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore)
-          ? routeProfile->config.stridedStoreIntrinsic
+          ? (analysis.slice.memoryForm ==
+                     RVVSelectedBodyMemoryForm::
+                         ComputedMaskUnitLoadStridedStore
+                 ? llvm::StringRef(kRVVMaskedStridedStoreIntrinsic)
+                 : routeProfile->config.stridedStoreIntrinsic)
           : "";
   analysis.description.intrinsic = routeProfile->targetLeaves.intrinsic;
   analysis.description.compareIntrinsic =
@@ -9536,6 +9613,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     const bool isMaskedStore =
         routeProfile->operation.operation ==
         RVVSelectedBodyOperationKind::MaskedUnitStore;
+    const bool isComputedMaskStridedStore =
+        routeProfile->operation.operation ==
+        RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
     analysis.description.maskRole =
         isComputedMask ? kRVVMaskedPredicateMaskRole : kRVVMaskRole;
     analysis.description.maskSource =
@@ -9544,11 +9624,15 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
         isComputedMask ? kRVVComputedMaskMemoryMaskMemoryForm
                        : kRVVMaskMemoryForm;
     analysis.description.inactiveLaneContract =
-        isMaskedStore ? kRVVMaskedStoreInactiveLaneContract
-                      : kRVVMaskedMemoryInactiveLaneContract;
+        isComputedMaskStridedStore
+            ? kRVVMaskedStridedStoreInactiveLaneContract
+            : (isMaskedStore ? kRVVMaskedStoreInactiveLaneContract
+                             : kRVVMaskedMemoryInactiveLaneContract);
     analysis.description.maskedPassthroughLayout =
-        isMaskedStore ? kRVVMaskedStorePassthroughLayout
-                      : kRVVMaskedMemoryPassthroughLayout;
+        isComputedMaskStridedStore
+            ? kRVVMaskedStridedStorePassthroughLayout
+            : (isMaskedStore ? kRVVMaskedStorePassthroughLayout
+                             : kRVVMaskedMemoryPassthroughLayout);
   }
   if (routeProfile->operation.operation ==
       RVVSelectedBodyOperationKind::ReduceAdd) {
@@ -9653,7 +9737,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       analysis.description.destinationMemoryForm =
           kRVVMaskedStoreDestinationMemoryForm;
     else if (isComputedMaskStridedStore)
-      analysis.description.destinationMemoryForm = "strided-store";
+      analysis.description.destinationMemoryForm =
+          kRVVMaskedStridedStoreDestinationMemoryForm;
     else
       analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
   }
@@ -10543,9 +10628,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   }
   if (operationProfile.operation == RVVSelectedBodyOperationKind::StridedAdd ||
       operationProfile.operation ==
-          RVVSelectedBodyOperationKind::StridedLoadUnitStore ||
-      operationProfile.operation ==
-          RVVSelectedBodyOperationKind::ComputedMaskStridedStore) {
+          RVVSelectedBodyOperationKind::StridedLoadUnitStore) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "strided-load intrinsic",
             description.stridedLoadIntrinsic,
@@ -10590,7 +10673,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "strided-store intrinsic",
             description.stridedStoreIntrinsic,
-            configProfile.stridedStoreIntrinsic))
+            operationProfile.operation ==
+                    RVVSelectedBodyOperationKind::ComputedMaskStridedStore
+                ? llvm::StringRef(kRVVMaskedStridedStoreIntrinsic)
+                : configProfile.stridedStoreIntrinsic))
       return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -10743,6 +10829,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     const bool isMaskedStore =
         operationProfile.operation ==
         RVVSelectedBodyOperationKind::MaskedUnitStore;
+    const bool isComputedMaskStridedStore =
+        operationProfile.operation ==
+        RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "mask role", description.maskRole,
             isComputedMask ? kRVVMaskedPredicateMaskRole : kRVVMaskRole))
@@ -10759,14 +10848,18 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "inactive lane contract",
             description.inactiveLaneContract,
-            isMaskedStore ? kRVVMaskedStoreInactiveLaneContract
-                          : kRVVMaskedMemoryInactiveLaneContract))
+            isComputedMaskStridedStore
+                ? kRVVMaskedStridedStoreInactiveLaneContract
+                : (isMaskedStore ? kRVVMaskedStoreInactiveLaneContract
+                                 : kRVVMaskedMemoryInactiveLaneContract)))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "masked passthrough layout",
             description.maskedPassthroughLayout,
-            isMaskedStore ? kRVVMaskedStorePassthroughLayout
-                          : kRVVMaskedMemoryPassthroughLayout))
+            isComputedMaskStridedStore
+                ? kRVVMaskedStridedStorePassthroughLayout
+                : (isMaskedStore ? kRVVMaskedStorePassthroughLayout
+                                 : kRVVMaskedMemoryPassthroughLayout)))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "inactive-lane zeroing requirement",
@@ -11349,7 +11442,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
                                          isMaskedStore
                                              ? kRVVMaskedStoreDestinationMemoryForm
                                          : isComputedMaskStridedStore
-                                             ? "strided-store"
+                                             ? kRVVMaskedStridedStoreDestinationMemoryForm
                                              : kRVVDestinationMemoryForm))
       return error;
     if (description.indexEEW != 0)

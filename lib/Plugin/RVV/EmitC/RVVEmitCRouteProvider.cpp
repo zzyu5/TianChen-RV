@@ -1399,40 +1399,43 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                              "computed-mask compare lhs load operand");
       if (!cmpLHS)
         return cmpLHS.takeError();
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "cmp-lhs-call",
+              "computed-mask strided-store compare lhs operand"))
+        return error;
       boundLHSABI = *cmpLHS;
       llvm::Expected<const support::RuntimeABIParameter *> cmpRHS =
           getRequiredBinding(bindingPlan, "cmp_rhs", "cmp-rhs-load",
                              "computed-mask compare rhs load operand");
       if (!cmpRHS)
         return cmpRHS.takeError();
+      if (llvm::Error error = requireOperandUse(
+              "cmp_rhs", "cmp-rhs-call",
+              "computed-mask strided-store compare rhs operand"))
+        return error;
       boundRHSABI = *cmpRHS;
       llvm::Expected<const support::RuntimeABIParameter *> src =
           getRequiredBinding(bindingPlan, "src", "src-load",
                              "computed-mask payload source operand");
       if (!src)
         return src.takeError();
+      if (llvm::Error error =
+              requireOperandUse(
+                  "src", "mstr-store-src-call",
+                  "computed-mask strided-store payload source operand"))
+        return error;
       boundSourceABI = *src;
-      llvm::Expected<const support::RuntimeABIParameter *> oldDst =
-          getRequiredBinding(bindingPlan, "dst", "old-dst-load",
-                             "computed-mask old destination load operand");
-      if (!oldDst)
-        return oldDst.takeError();
       llvm::Expected<const support::RuntimeABIParameter *> dst =
-          getRequiredBinding(bindingPlan, "dst", "strided-store",
-                             "computed-mask strided destination operand");
+          getRequiredBinding(bindingPlan, "dst",
+                             "mstr-store-base",
+                             "computed-mask masked strided destination operand");
       if (!dst)
         return dst.takeError();
       boundOutABI = *dst;
-      llvm::Expected<const support::RuntimeABIParameter *> oldDstStride =
-          getRequiredBinding(bindingPlan, "dst_stride_bytes",
-                             "old-dst-stride",
-                             "computed-mask old destination byte stride");
-      if (!oldDstStride)
-        return oldDstStride.takeError();
       llvm::Expected<const support::RuntimeABIParameter *> dstStride =
           getRequiredBinding(bindingPlan, "dst_stride_bytes",
-                             "store-stride",
-                             "computed-mask strided destination byte stride");
+                             "mstr-store-stride",
+                             "computed-mask masked strided destination byte stride");
       if (!dstStride)
         return dstStride.takeError();
       boundOutStrideABI = *dstStride;
@@ -2144,22 +2147,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{"source_vec",
                                       description.vectorCType.str()}))
       return error;
-    if (llvm::Error error = addLoopStep(
-            slice->accumulatorLoadOperation, "load",
-            description.stridedLoadIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{
-                 ("(int32_t *)((uint8_t *)" +
-                  llvm::StringRef(boundOutABI->cName) + " + (" +
-                  inductionName + " * " + boundOutStrideABI->cName + "))")
-                     .str(),
-                 boundOutABI->cType},
-             TCRVEmitCCallOpaqueOperand{boundOutStrideABI->cName,
-                                        "ptrdiff_t"},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                        description.vlCType.str()}},
-            TCRVEmitCCallOpaqueResult{"old_dst_vec",
-                                      description.vectorCType.str()}))
-      return error;
   } else if (isComputedMaskMemory) {
     if (llvm::Error error = addLoopStep(
             slice->accumulatorLoadOperation, "load",
@@ -2316,20 +2303,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                     inductionName)
                        .str(),
                    maskedLoadSourceABI->cType},
-               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                          description.vlCType.str()}},
-              TCRVEmitCCallOpaqueResult{description.resultName.str(),
-                                        description.vectorCType.str()}))
-        return error;
-    } else if (isComputedMaskStridedStore) {
-      if (llvm::Error error = addLoopStep(
-              slice->arithmeticOp, "compute", description.maskedMergeIntrinsic,
-              {TCRVEmitCCallOpaqueOperand{"old_dst_vec",
-                                          description.vectorCType.str()},
-               TCRVEmitCCallOpaqueOperand{"source_vec",
-                                          description.vectorCType.str()},
-               TCRVEmitCCallOpaqueOperand{description.maskName.str(),
-                                          description.maskCType.str()},
                TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                           description.vlCType.str()}},
               TCRVEmitCCallOpaqueResult{description.resultName.str(),
@@ -2520,9 +2493,27 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     out = std::move(route);
     return llvm::Error::success();
   }
-  if (description.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadStridedStore ||
-      description.memoryForm ==
-          RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore) {
+  if (description.memoryForm ==
+      RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore) {
+    if (llvm::Error error = addLoopStep(
+            slice->storeOperation, "store", description.stridedStoreIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        description.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 ("(int32_t *)((uint8_t *)" +
+                  llvm::StringRef(boundOutABI->cName) + " + (" +
+                  inductionName + " * " + boundOutStrideABI->cName + "))")
+                     .str(),
+                 boundOutABI->cType},
+             TCRVEmitCCallOpaqueOperand{boundOutStrideABI->cName,
+                                        "ptrdiff_t"},
+             TCRVEmitCCallOpaqueOperand{"source_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{storeVLName.str(),
+                                        description.vlCType.str()}}))
+      return error;
+  } else if (description.memoryForm ==
+             RVVSelectedBodyMemoryForm::UnitLoadStridedStore) {
     if (llvm::Error error = addLoopStep(
             slice->storeOperation, "store", description.stridedStoreIntrinsic,
             {TCRVEmitCCallOpaqueOperand{

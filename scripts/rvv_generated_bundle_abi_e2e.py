@@ -326,12 +326,12 @@ COMPUTED_MASK_STRIDED_STORE_ROUTE_OPERAND_BINDING_PLAN = (
 )
 COMPUTED_MASK_STRIDED_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:computed_masked_strided_store.v1;"
-    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi-mirror|cmp-lhs-load;"
-    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi-mirror|cmp-rhs-load;"
-    "src=source-input-buffer:src:abi-mirror|src-load|active-source;"
-    "dst=output-buffer:dst:abi-mirror|old-dst-load|strided-store|header-mirror;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi-mirror|cmp-lhs-load|cmp-lhs-call;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi-mirror|cmp-rhs-load|cmp-rhs-call;"
+    "src=source-input-buffer:src:abi-mirror|src-load|mstr-store-src-call;"
+    "dst=output-buffer:dst:abi-mirror|mstr-store-base|header-mirror;"
     "n=runtime-element-count:n:abi-mirror|setvl-avl|loop-control|header-mirror;"
-    "dst_stride_bytes=destination-byte-stride:dst_stride_bytes:abi-mirror|old-dst-stride|store-stride|byte-addr|header-mirror"
+    "dst_stride_bytes=destination-byte-stride:dst_stride_bytes:abi-mirror|mstr-store-stride|byte|header-mirror"
 )
 BINARY_ROUTE_OPERAND_BINDING_OPERANDS = (
     "{plan};"
@@ -527,8 +527,15 @@ COMPUTED_MASK_STRIDED_STORE_RUNTIME_ABI_ORDER = (
     "cmp_lhs,cmp_rhs,src,dst,n,dst_stride_bytes"
 )
 COMPUTED_MASK_STRIDED_STORE_MEMORY_LAYOUT = (
-    "unit-stride-compare-source-byte-strided-old-destination-runtime-abi"
+    "unit-stride-compare-source-byte-strided-masked-destination-runtime-abi"
 )
+COMPUTED_MASK_STRIDED_STORE_INACTIVE_LANE_CONTRACT = (
+    "masked-strided-store-false-lanes-preserve-output-buffer"
+)
+COMPUTED_MASK_STRIDED_STORE_PASSTHROUGH_LAYOUT = (
+    "masked-strided-store-has-no-passthrough-load"
+)
+COMPUTED_MASK_STRIDED_STORE_DESTINATION_MEMORY_FORM = "masked-strided-store"
 COMPUTED_MASK_MEMORY_MASK_ROLE = "predicate-mask-produced-by-compare"
 COMPUTED_MASK_MEMORY_MASK_SOURCE = "compare-produced-mask-same-vl-scope"
 COMPUTED_MASK_MEMORY_MASK_FORM = "compare-produced-mask"
@@ -1821,7 +1828,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         external_abi_name="rvv-generic-computed-masked-strided-store-callable-c-abi.v1",
         function_name="tcrv_emitc_pre_realized_body_computed_masked_strided_store_kernel_pre_realized_body_rvv_computed_masked_strided_store",
         emitc_route="rvv-generic-computed-masked-strided-store-emitc-route",
-        typed_compute_op="tcrv_rvv.masked_move",
+        typed_compute_op="tcrv_rvv.masked_strided_store",
         memory_form="computed-mask-unit-load-strided-store",
         lhs_initializer=(
             "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
@@ -3474,14 +3481,14 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
                 "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
                 "tcrv_rvv.inactive_lane_contract": (
-                    MASKED_MEMORY_INACTIVE_LANE_CONTRACT
+                    COMPUTED_MASK_STRIDED_STORE_INACTIVE_LANE_CONTRACT
                 ),
                 "tcrv_rvv.masked_passthrough_layout": (
-                    MASKED_MEMORY_PASSTHROUGH_LAYOUT
+                    COMPUTED_MASK_STRIDED_STORE_PASSTHROUGH_LAYOUT
                 ),
                 "tcrv_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
                 "tcrv_rvv.destination_memory_form": (
-                    UNIT_LOAD_STRIDED_STORE_DESTINATION_MEMORY_FORM
+                    COMPUTED_MASK_STRIDED_STORE_DESTINATION_MEMORY_FORM
                 ),
                 "tcrv_rvv.strided_memory_layout": (
                     COMPUTED_MASK_STRIDED_STORE_MEMORY_LAYOUT
@@ -4695,23 +4702,38 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            "tcrv_rvv.masked_move",
-            "materialized selected-body MLIR computed-mask strided-store movement op",
+            "tcrv_rvv.masked_strided_store",
+            "materialized selected-body MLIR computed-mask masked strided-store op",
         )
         require_contains(
             text,
-            "tcrv_rvv.strided_load",
-            "materialized selected-body MLIR old-destination strided load",
+            'memory_form = "masked-strided-store"',
+            "materialized selected-body MLIR computed-mask destination memory form",
         )
         require_contains(
             text,
-            "tcrv_rvv.strided_store",
-            "materialized selected-body MLIR computed-mask strided store",
+            'inactive_lane_policy = "preserve-output-on-false-lanes"',
+            "materialized selected-body MLIR computed-mask inactive lane policy",
         )
         require_contains(
             text,
             'role = "destination-byte-stride"',
             "materialized selected-body MLIR destination stride ABI role",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_move",
+            "materialized selected-body MLIR computed-mask strided-store",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.strided_load",
+            "materialized selected-body MLIR computed-mask strided-store",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.strided_store",
+            "materialized selected-body MLIR computed-mask strided-store",
         )
         require_no_op_invocation(
             text,
