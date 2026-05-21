@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/index.md", "reason": "Final verification must stay on RVV-first typed-body Stage2 route expansion."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin authority, selected-body realization, route-provider ownership, and legacy/source-front-door fail-closed boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export remains neutral and consumes provider-built routes only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify positive/negative tests and ssh rvv evidence match the runtime correctness claim."}
+{"file": ".trellis/tasks/05-22-stage2-rvv-base-reduction-coverage/prd.md", "reason": "Task scope, acceptance criteria, non-goals, and validation plan."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Passed: py_compile and self-test."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-standalone-reduce-add.mlir", "reason": "Passed: focused PLAN and HEADER FileCheck."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-reduce-add.mlir", "reason": "Passed: focused PLAN and HEADER FileCheck after reduce_add binding normalization."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-reduce-add.mlir", "reason": "Passed: focused PLAN and HEADER FileCheck after reduce_add binding normalization."}
+{"file": "test/Dialect/RVV/standalone-reduction-dataflow.mlir", "reason": "Passed: split-input verifier negative coverage."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Passed: dry-run and ssh rvv explicit/pre-realized standalone_reduce_add at counts 7,16,23 with seeds -11 and 17."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Passed: focused RVV extension plugin/provider test."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Passed: target artifact export test."}
+{"file": "build/test/lit.site.cfg.py", "reason": "Passed: cmake --build build --target check-tianchenrv -j2, 284/284 tests passed."}
+{"file": ".trellis/tasks/05-22-stage2-rvv-base-reduction-coverage/check.jsonl", "reason": "Passed: git diff --check and diff-level active-authority scan."}

@@ -404,10 +404,10 @@ REDUCE_ADD_ROUTE_OPERAND_BINDING_PLAN = (
 )
 REDUCE_ADD_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:reduce_add.v1;"
-    "lhs=lhs-input-buffer:lhs:abi|load-base|reduction-input-call;"
-    "rhs=rhs-input-buffer:rhs:abi|load-base|reduction-accumulator-call;"
-    "out=output-buffer:out:abi|store-base|reduction-result-store|header;"
-    "n=runtime-element-count:n:abi|setvl-avl|loop-control|header"
+    "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|reduction-input-call;"
+    "rhs=rhs-input-buffer:rhs:runtime-abi-mirror|materialized-accumulator-load-base|reduction-accumulator-call;"
+    "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|reduction-result-store|header-mirror;"
+    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
 )
 STRIDED_ADD_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:strided_add.v1"
@@ -1104,6 +1104,22 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         ),
         compare_predicate_kind="sle",
     ),
+    "standalone_reduce_add": OpExpectation(
+        kind="standalone_reduce_add",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-standalone-reduce-add.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_standalone_reduce_add",
+        external_abi_name="rvv-generic-standalone-reduce-add-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_standalone_reduce_add_kernel_explicit_selected_body_rvv_standalone_reduce_add",
+        emitc_route="rvv-generic-standalone-reduce-add-emitc-route",
+        typed_compute_op="tcrv_rvv.standalone_reduce",
+        memory_form="unit-stride-standalone-reduction",
+        lhs_initializer="(int32_t)(((index % 5) < 2) ? -((int32_t)(index % 29) + 1) : ((int32_t)(index % 31) + 3))",
+        rhs_initializer="unused",
+        source_initializer="(int32_t)-11",
+        expected_expression="(int32_t)(acc[0] + sum_i(lhs[i]))",
+    ),
     "reduce_add": OpExpectation(
         kind="reduce_add",
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-reduce-add.mlir"),
@@ -1672,20 +1688,12 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         function_name="tcrv_emitc_pre_realized_body_scalar_broadcast_mul_kernel_pre_realized_body_rvv_scalar_broadcast_mul",
     ),
     "standalone_reduce_add": replace(
-        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["standalone_reduce_add"],
         kind="standalone_reduce_add",
         input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-standalone-reduce-add.mlir"),
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_standalone_reduce_add",
-        external_abi_name="rvv-generic-standalone-reduce-add-callable-c-abi.v1",
         function_name="tcrv_emitc_pre_realized_body_standalone_reduce_add_kernel_pre_realized_body_rvv_standalone_reduce_add",
-        emitc_route="rvv-generic-standalone-reduce-add-emitc-route",
-        typed_compute_op="tcrv_rvv.standalone_reduce",
-        memory_form="unit-stride-standalone-reduction",
-        lhs_initializer="(int32_t)(((index % 5) < 2) ? -((int32_t)(index % 29) + 1) : ((int32_t)(index % 31) + 3))",
-        rhs_initializer="unused",
-        source_initializer="(int32_t)-11",
-        expected_expression="(int32_t)(acc[0] + sum_i(lhs[i]))",
     ),
     "computed_mask_standalone_reduce_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[

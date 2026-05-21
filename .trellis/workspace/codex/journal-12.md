@@ -866,15 +866,41 @@ Implemented bounded RVV unit-load to runtime destination-strided-store route, ad
 
 ### Main Changes
 
-(Add details)
+- Created and archived Trellis task
+  `05-22-stage2-rvv-base-reduction-coverage`.
+- Normalized `reduce_add` `RVVRouteOperandBindingPlan` materialized-use
+  labels to explicit runtime ABI mirrors, materialized load/store bases, and
+  header mirrors.
+- Updated `reduce_add` provider checks so materialization requires the
+  normalized binding closure uses.
+- Added explicit selected-body `standalone_reduce_add` target fixture and
+  generated-bundle dry-run lit coverage.
+- Added explicit `standalone_reduce_add` script expectation; pre-realized
+  standalone coverage reuses the same route expectation with the pre-realized
+  fixture/function.
 
 ### Git Commits
 
-(No commits - planning session)
+- Pending in the session commit.
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Focused `tcrv-opt` / `tcrv-translate` / `FileCheck` checks for
+  explicit and pre-realized `reduce_add`, plus explicit and pre-realized
+  `standalone_reduce_add`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Generated-bundle dry-runs for explicit/pre-realized
+  `standalone_reduce_add` and explicit/pre-realized `reduce_add`.
+- [OK] Real `ssh rvv` explicit `standalone_reduce_add`, counts `7,16,23`,
+  seeds `-11,17`: `PASS`.
+- [OK] Real `ssh rvv` pre-realized `standalone_reduce_add`, counts `7,16,23`,
+  seeds `-11,17`: `PASS`.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` with 284/284 tests
+  passed.
 
 ### Status
 
@@ -1879,3 +1905,34 @@ RVV-plugin-owned, and `RouteOperandBindingPlan` closure-gated from typed
 
 - Optional next subcluster: broaden reduction coverage beyond this bounded
   computed-mask standalone add route, while preserving the same closure gate.
+
+
+## Session 153: Stage2 RVV base reduction closure coverage
+
+**Date**: 2026-05-22
+**Task**: Stage2 RVV base reduction closure coverage
+**Branch**: `main`
+
+### Summary
+
+Normalized reduce_add RouteOperandBindingPlan mirrors and added explicit standalone_reduce_add selected-body generated-bundle plus ssh rvv evidence.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

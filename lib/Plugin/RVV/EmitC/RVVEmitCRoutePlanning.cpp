@@ -4815,15 +4815,19 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     context = "reduce_add route";
     addRouteOperandBinding(
         plan, "lhs", slice.lhsABI,
-        {"abi", "load-base", "reduction-input-call"});
+        {"runtime-abi-mirror", "materialized-load-base",
+         "reduction-input-call"});
     addRouteOperandBinding(
         plan, "rhs", slice.rhsABI,
-        {"abi", "load-base", "reduction-accumulator-call"});
+        {"runtime-abi-mirror", "materialized-accumulator-load-base",
+         "reduction-accumulator-call"});
     addRouteOperandBinding(
         plan, "out", slice.outABI,
-        {"abi", "store-base", "reduction-result-store", "header"});
+        {"runtime-abi-mirror", "materialized-store-base",
+         "reduction-result-store", "header-mirror"});
     addRouteOperandBinding(plan, "n", slice.runtimeElementCountABI,
-                           {"abi", "setvl-avl", "loop-control", "header"});
+                           {"runtime-abi-mirror", "setvl-avl",
+                            "loop-control", "header-mirror"});
   } else if (getRVVSelectedBodyOperationProfile(slice.arithmeticKind)
                  .isMaskedArithmetic) {
     llvm::StringRef mnemonic =

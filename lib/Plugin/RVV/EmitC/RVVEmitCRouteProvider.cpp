@@ -446,21 +446,24 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                           "computed_mask_select output store"))
         return error;
     } else if (description.operation == RVVSelectedBodyOperationKind::ReduceAdd) {
-      if (llvm::Error error = bindOperand(boundLHSABI, "lhs", "load-base",
-                                          "reduce_add input load operand"))
+      if (llvm::Error error =
+              bindOperand(boundLHSABI, "lhs", "materialized-load-base",
+                          "reduce_add input load operand"))
         return error;
       if (llvm::Error error = requireOperandUse(
               "lhs", "reduction-input-call", "reduce_add input operand"))
         return error;
-      if (llvm::Error error = bindOperand(boundRHSABI, "rhs", "load-base",
-                                          "reduce_add accumulator load operand"))
+      if (llvm::Error error = bindOperand(
+              boundRHSABI, "rhs", "materialized-accumulator-load-base",
+              "reduce_add accumulator load operand"))
         return error;
       if (llvm::Error error = requireOperandUse(
               "rhs", "reduction-accumulator-call",
               "reduce_add accumulator operand"))
         return error;
-      if (llvm::Error error = bindOperand(boundOutABI, "out", "store-base",
-                                          "reduce_add output store"))
+      if (llvm::Error error =
+              bindOperand(boundOutABI, "out", "materialized-store-base",
+                          "reduce_add output store"))
         return error;
       if (llvm::Error error = requireOperandUse(
               "out", "reduction-result-store", "reduce_add result store"))

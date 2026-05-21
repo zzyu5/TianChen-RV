@@ -1,0 +1,47 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id standalone-reduce-add --overwrite --op-kind standalone_reduce_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/standalone-reduce-add/evidence.json
+# RUN: FileCheck %s --check-prefix=REDUCE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/standalone-reduce-add/standalone_reduce_add/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/standalone-reduce-add/standalone_reduce_add/rvv_generated_bundle_abi_standalone_reduce_add_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "explicit-selected-body"
+# ROOT: "standalone_reduce_add"
+# ROOT: "pre_realized_selected_body": false
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# REDUCE-DAG: "op_kind": "standalone_reduce_add"
+# REDUCE-DAG: "input_mode": "explicit-selected-body"
+# REDUCE-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-standalone-reduce-add.mlir"
+# REDUCE-DAG: "runtime_counts": [
+# REDUCE-DAG: "prototype": "void tcrv_emitc_explicit_selected_body_standalone_reduce_add_kernel_explicit_selected_body_rvv_standalone_reduce_add(const int32_t *lhs, const int32_t *acc, int32_t *out, size_t n);"
+# REDUCE-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_standalone_reduce_add_kernel_explicit_selected_body_rvv_standalone_reduce_add"
+# REDUCE-DAG: "expected_runtime_abi_name": "rvv-generic-standalone-reduce-add-callable-c-abi.v1"
+# REDUCE-DAG: "expected_selected_variant": "explicit_selected_body_rvv_standalone_reduce_add"
+# REDUCE-DAG: "key": "rvv_emitc_lowerable_route"
+# REDUCE-DAG: "value": "rvv-generic-standalone-reduce-add-emitc-route"
+# REDUCE-DAG: "key": "rvv_selected_body_operation"
+# REDUCE-DAG: "value": "standalone_reduce_add"
+# REDUCE-DAG: "key": "rvv_selected_body_typed_compute_op"
+# REDUCE-DAG: "value": "tcrv_rvv.standalone_reduce"
+# REDUCE-DAG: "key": "tcrv_rvv.memory_form"
+# REDUCE-DAG: "value": "unit-stride-standalone-reduction"
+# REDUCE-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# REDUCE-DAG: "value": "rvv-route-operand-binding:standalone_reduce_add.v1"
+# REDUCE-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# REDUCE-DAG: "value": "rvv-route-operand-binding:standalone_reduce_add.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|standalone-reduction-input-call;acc=accumulator-input-buffer:acc:runtime-abi-mirror|standalone-initial-accumulator-call;out=output-buffer:out:runtime-abi-mirror|standalone-accumulator-state-load|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+# REDUCE-DAG: "typed_compute_op": "tcrv_rvv.standalone_reduce"
+# REDUCE-DAG: "memory_form": "unit-stride-standalone-reduction"
+# REDUCE-DAG: "status": "dry_run_success"
+
+# HARNESS: int32_t expected = seed;
+# HARNESS: expected = (int32_t)(expected + lhs[index]);
+# HARNESS: acc[0] = seed;
+# HARNESS: tcrv_emitc_explicit_selected_body_standalone_reduce_add_kernel_explicit_selected_body_rvv_standalone_reduce_add(lhs, acc, out, n);
+# HARNESS: if (out[0] != expected)
+# HARNESS: tail_preserved
+# HARNESS: seeds=-11,17
