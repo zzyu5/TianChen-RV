@@ -240,6 +240,16 @@ STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "out=output-buffer:out:runtime-abi-mirror|standalone-accumulator-state-load|materialized-store-base|header-mirror;"
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
 )
+MASKED_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:masked_unit_load_store.v1"
+)
+MASKED_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:masked_unit_load_store.v1;"
+    "src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|masked-move-source-call;"
+    "mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|mask-compare-call;"
+    "dst=output-buffer:dst:runtime-abi-mirror|materialized-old-destination-load-base|materialized-store-base|header-mirror;"
+    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+)
 MASKED_UNIT_STORE_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:masked_unit_store.v1"
 )
@@ -249,6 +259,17 @@ MASKED_UNIT_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-store-mask-call;"
     "dst=output-buffer:dst:runtime-abi-mirror|materialized-masked-store-base|header-mirror;"
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+)
+COMPUTED_MASK_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:computed_masked_unit_load_store.v1"
+)
+COMPUTED_MASK_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:computed_masked_unit_load_store.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi-mirror|cmp-lhs-load|compare-lhs-call;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi-mirror|cmp-rhs-load|compare-rhs-call;"
+    "src=source-input-buffer:src:abi-mirror|src-load|active-source;"
+    "dst=output-buffer:dst:abi-mirror|old-dst-load|materialized-store-base|header-mirror;"
+    "n=runtime-element-count:n:abi-mirror|setvl-avl|loop-control|header-mirror"
 )
 COMPUTED_MASK_STRIDED_STORE_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:computed_masked_strided_store.v1"
@@ -2701,6 +2722,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.destination_memory_form": (
                     MASKED_MEMORY_DESTINATION_MEMORY_FORM
                 ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    MASKED_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    MASKED_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if expectation.is_masked_unit_store:
@@ -2744,6 +2771,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
                 "tcrv_rvv.destination_memory_form": (
                     MASKED_MEMORY_DESTINATION_MEMORY_FORM
+                ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    COMPUTED_MASK_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    COMPUTED_MASK_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
         )

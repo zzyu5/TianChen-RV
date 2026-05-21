@@ -117,6 +117,39 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
         plugin::rvv::getRVVSelectedBodyOperationMetadataName() +
         " provenance must mirror selected typed RVV body operation '" +
         expectedOperation + "' but was '" + selectedBodyOperation + "'");
+  llvm::StringRef routeOperandBindingPlan = lookupCandidateMetadataValue(
+      candidate, "tcrv_rvv.route_operand_binding_plan");
+  llvm::StringRef routeOperandBindingOperands = lookupCandidateMetadataValue(
+      candidate, "tcrv_rvv.route_operand_binding_operands");
+  if (!description.routeOperandBindingPlanID.empty()) {
+    if (routeOperandBindingPlan.empty())
+      return makeRVVTargetRouteError(
+          "candidate metadata must carry "
+          "tcrv_rvv.route_operand_binding_plan provenance");
+    if (routeOperandBindingPlan != description.routeOperandBindingPlanID)
+      return makeRVVTargetRouteError(
+          llvm::Twine("candidate tcrv_rvv.route_operand_binding_plan "
+                      "provenance must mirror selected typed RVV body binding "
+                      "plan '") +
+          description.routeOperandBindingPlanID + "' but was '" +
+          routeOperandBindingPlan + "'");
+    if (routeOperandBindingOperands.empty())
+      return makeRVVTargetRouteError(
+          "candidate metadata must carry "
+          "tcrv_rvv.route_operand_binding_operands provenance");
+    if (routeOperandBindingOperands != description.routeOperandBindingSummary)
+      return makeRVVTargetRouteError(
+          llvm::Twine("candidate tcrv_rvv.route_operand_binding_operands "
+                      "provenance must mirror selected typed RVV body binding "
+                      "summary '") +
+          description.routeOperandBindingSummary + "' but was '" +
+          routeOperandBindingOperands + "'");
+  } else if (!routeOperandBindingPlan.empty() ||
+             !routeOperandBindingOperands.empty()) {
+    return makeRVVTargetRouteError(
+        "candidate metadata must not carry route operand binding mirrors for a "
+        "selected typed RVV body route without a binding plan");
+  }
   return llvm::Error::success();
 }
 

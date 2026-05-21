@@ -255,6 +255,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       contractionPlan ? contractionPlan->maskedMergeIntrinsic
                       : description.maskedMergeIntrinsic;
 
+  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
+          analysis.routeOperandBindingPlan, description,
+          "selected RVV EmitC route construction"))
+    return error;
+
   conversion::emitc::TCRVEmitCLowerableRoute route(
       analysis.description.emitCRouteID,
       "extension-family-ops-to-emitc-call-opaque");
@@ -321,7 +326,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       &slice->outStrideABI;
   const RVVRouteOperandBindingPlan &bindingPlan =
       analysis.routeOperandBindingPlan;
-  if (!bindingPlan.planID.empty()) {
+  {
     llvm::Expected<const support::RuntimeABIParameter *> boundN =
         getRequiredBinding(bindingPlan, "n", "setvl-avl",
                            "runtime AVL/control operand");
@@ -1164,6 +1169,37 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
         return outStore.takeError();
       boundOutABI = *outStore;
     } else if (description.operation ==
+               RVVSelectedBodyOperationKind::MaskedUnitLoadStore) {
+      if (llvm::Error error =
+              bindOperand(boundLHSABI, "src", "materialized-load-base",
+                          "masked unit-load-store source load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "src", "masked-move-source-call",
+              "masked unit-load-store active source operand"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundMaskABI, "mask", "materialized-mask-load-base",
+              "masked unit-load-store mask load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "mask", "mask-compare-call",
+              "masked unit-load-store mask compare operand"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundAccumulatorABI, "dst",
+                          "materialized-old-destination-load-base",
+                          "masked unit-load-store old destination load"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundOutABI, "dst", "materialized-store-base",
+                          "masked unit-load-store destination store"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("dst", "header-mirror",
+                                "masked unit-load-store header mirror"))
+        return error;
+    } else if (description.operation ==
                RVVSelectedBodyOperationKind::MaskedUnitStore) {
       llvm::Expected<const support::RuntimeABIParameter *> src =
           getRequiredBinding(bindingPlan, "src", "materialized-load-base",
@@ -1185,6 +1221,44 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (!dst)
         return dst.takeError();
       boundOutABI = *dst;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore) {
+      if (llvm::Error error = bindOperand(
+              boundLHSABI, "cmp_lhs", "cmp-lhs-load",
+              "computed-mask unit-load-store compare lhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "compare-lhs-call",
+              "computed-mask unit-load-store compare lhs operand"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundRHSABI, "cmp_rhs", "cmp-rhs-load",
+              "computed-mask unit-load-store compare rhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_rhs", "compare-rhs-call",
+              "computed-mask unit-load-store compare rhs operand"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundSourceABI, "src", "src-load",
+                          "computed-mask unit-load-store payload source"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("src", "active-source",
+                                "computed-mask unit-load-store active source"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundOutABI, "dst", "old-dst-load",
+                          "computed-mask unit-load-store old destination load"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("dst", "materialized-store-base",
+                                "computed-mask unit-load-store destination"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("dst", "header-mirror",
+                                "computed-mask unit-load-store header mirror"))
+        return error;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::ComputedMaskStridedStore) {
       llvm::Expected<const support::RuntimeABIParameter *> cmpLHS =
@@ -1229,6 +1303,12 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (!dstStride)
         return dstStride.takeError();
       boundOutStrideABI = *dstStride;
+    } else {
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine("route operand ABI binding closure for selected RVV "
+                      "EmitC route construction has no provider binding "
+                      "materialization case for operation '") +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
     }
   }
 

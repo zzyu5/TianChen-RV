@@ -277,6 +277,14 @@ llvm::Error verifyRVVRouteOperandBindingPlan(
     const RVVRouteOperandBindingPlan &plan, llvm::StringRef expectedPlanID,
     llvm::StringRef expectedRuntimeABIOrder, llvm::StringRef context);
 
+llvm::StringRef getExpectedRVVRouteOperandBindingPlanID(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error verifyRVVRouteOperandBindingClosure(
+    const RVVRouteOperandBindingPlan &plan,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context);
+
 std::string
 stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan);
 

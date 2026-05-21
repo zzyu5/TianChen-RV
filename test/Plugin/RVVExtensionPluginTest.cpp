@@ -28,6 +28,7 @@
 #include <cstdint>
 #include <initializer_list>
 #include <string>
+#include <utility>
 
 using tianchenrv::plugin::ExtensionPluginRegistry;
 using tianchenrv::plugin::PluginCapability;
@@ -1552,6 +1553,8 @@ module {
 }
 
 int runRouteOperandBindingPlanValidationTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVRouteOperandBinding;
   using tianchenrv::plugin::rvv::RVVRouteOperandBindingPlan;
   using tianchenrv::support::RuntimeABIParameterRole;
@@ -1567,6 +1570,20 @@ int runRouteOperandBindingPlanValidationTest() {
         for (llvm::StringRef use : uses)
           binding.materializedUses.push_back(use.str());
         plan.bindings.push_back(std::move(binding));
+      };
+
+  auto makeClosureDescription =
+      [](RVVSelectedBodyOperationKind operation, llvm::StringRef abiOrder,
+         const RVVRouteOperandBindingPlan &plan) {
+        RVVSelectedBodyEmitCRouteDescription description;
+        description.operation = operation;
+        description.runtimeABIOrder = abiOrder;
+        description.routeOperandBindingPlanID = plan.planID;
+        description.routeOperandBindingSummary =
+            tianchenrv::plugin::rvv::stringifyRVVRouteOperandBindingPlan(plan);
+        for (const RVVRouteOperandBinding &binding : plan.bindings)
+          description.runtimeABIParameters.push_back(binding.parameter);
+        return description;
       };
 
   RVVRouteOperandBindingPlan plan;
@@ -2338,6 +2355,108 @@ int runRouteOperandBindingPlanValidationTest() {
           "valid standalone reduction route operand binding plan"))
     return result;
 
+  RVVRouteOperandBindingPlan maskedLoadStorePlan;
+  maskedLoadStorePlan.planID =
+      "rvv-route-operand-binding:masked_unit_load_store.v1";
+  addBinding(maskedLoadStorePlan, "src",
+             makeTargetExportABIParameter(
+                 "src", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"runtime-abi-mirror", "materialized-load-base",
+              "masked-move-source-call"});
+  addBinding(maskedLoadStorePlan, "mask",
+             makeTargetExportABIParameter(
+                 "mask", "const int32_t *",
+                 RuntimeABIParameterRole::MaskInputBuffer),
+             {"runtime-abi-mirror", "materialized-mask-load-base",
+              "mask-compare-call"});
+  addBinding(maskedLoadStorePlan, "dst",
+             makeTargetExportABIParameter(
+                 "dst", "int32_t *",
+                 RuntimeABIParameterRole::OutputBuffer),
+             {"runtime-abi-mirror", "materialized-old-destination-load-base",
+              "materialized-store-base", "header-mirror"});
+  addBinding(maskedLoadStorePlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"runtime-abi-mirror", "setvl-avl", "loop-control",
+              "header-mirror"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              maskedLoadStorePlan,
+              "rvv-route-operand-binding:masked_unit_load_store.v1",
+              "src,mask,dst,n", "route operand binding unit test"),
+          "valid masked load-store route operand binding plan"))
+    return result;
+
+  RVVSelectedBodyEmitCRouteDescription maskedLoadStoreDescription =
+      makeClosureDescription(RVVSelectedBodyOperationKind::MaskedUnitLoadStore,
+                             "src,mask,dst,n", maskedLoadStorePlan);
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingClosure(
+              maskedLoadStorePlan, maskedLoadStoreDescription,
+              "masked load-store closure unit test"),
+          "valid masked load-store route operand binding closure"))
+    return result;
+
+  RVVSelectedBodyEmitCRouteDescription staleMaskedLoadStoreDescription =
+      maskedLoadStoreDescription;
+  staleMaskedLoadStoreDescription.routeOperandBindingSummary = "stale";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingClosure(
+              maskedLoadStorePlan, staleMaskedLoadStoreDescription,
+              "masked load-store closure unit test"),
+          {"mirror summary", "stale"}))
+    return result;
+
+  RVVRouteOperandBindingPlan missingMaskedLoadStorePlan =
+      maskedLoadStorePlan;
+  missingMaskedLoadStorePlan.planID.clear();
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingClosure(
+              missingMaskedLoadStorePlan, maskedLoadStoreDescription,
+              "masked load-store closure unit test"),
+          {"requires plan id",
+           "rvv-route-operand-binding:masked_unit_load_store.v1"}))
+    return result;
+
+  RVVSelectedBodyEmitCRouteDescription wrongMaskedLoadStoreMirror =
+      maskedLoadStoreDescription;
+  wrongMaskedLoadStoreMirror.routeOperandBindingPlanID =
+      "rvv-route-operand-binding:masked_unit_store.v1";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingClosure(
+              maskedLoadStorePlan, wrongMaskedLoadStoreMirror,
+              "masked load-store closure unit test"),
+          {"mirror plan id",
+           "rvv-route-operand-binding:masked_unit_load_store.v1",
+           "rvv-route-operand-binding:masked_unit_store.v1"}))
+    return result;
+
+  RVVSelectedBodyEmitCRouteDescription swappedRuntimeMirror =
+      maskedLoadStoreDescription;
+  std::swap(swappedRuntimeMirror.runtimeABIParameters[0],
+            swappedRuntimeMirror.runtimeABIParameters[1]);
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingClosure(
+              maskedLoadStorePlan, swappedRuntimeMirror,
+              "masked load-store closure unit test"),
+          {"runtime ABI parameter mirrors", "binding plan"}))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedMaskedLoadMask = maskedLoadStorePlan;
+  swappedMaskedLoadMask.bindings[1].parameter.role =
+      RuntimeABIParameterRole::RHSInputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedMaskedLoadMask,
+              "rvv-route-operand-binding:masked_unit_load_store.v1",
+              "src,mask,dst,n", "route operand binding unit test"),
+          {"logical operand 'mask'", "mask-input-buffer",
+           "rhs-input-buffer"}))
+    return result;
+
   RVVRouteOperandBindingPlan maskedStorePlan;
   maskedStorePlan.planID = "rvv-route-operand-binding:masked_unit_store.v1";
   addBinding(maskedStorePlan, "src",
@@ -2365,6 +2484,78 @@ int runRouteOperandBindingPlanValidationTest() {
               "rvv-route-operand-binding:masked_unit_store.v1",
               "src,mask,dst,n", "route operand binding unit test"),
           "valid masked store route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan computedMaskUnitLoadStorePlan;
+  computedMaskUnitLoadStorePlan.planID =
+      "rvv-route-operand-binding:computed_masked_unit_load_store.v1";
+  addBinding(computedMaskUnitLoadStorePlan, "cmp_lhs",
+             makeTargetExportABIParameter(
+                 "cmp_lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi-mirror", "cmp-lhs-load", "compare-lhs-call"});
+  addBinding(computedMaskUnitLoadStorePlan, "cmp_rhs",
+             makeTargetExportABIParameter(
+                 "cmp_rhs", "const int32_t *",
+                 RuntimeABIParameterRole::RHSInputBuffer),
+             {"abi-mirror", "cmp-rhs-load", "compare-rhs-call"});
+  addBinding(computedMaskUnitLoadStorePlan, "src",
+             makeTargetExportABIParameter(
+                 "src", "const int32_t *",
+                 RuntimeABIParameterRole::SourceInputBuffer),
+             {"abi-mirror", "src-load", "active-source"});
+  addBinding(computedMaskUnitLoadStorePlan, "dst",
+             makeTargetExportABIParameter(
+                 "dst", "int32_t *",
+                 RuntimeABIParameterRole::OutputBuffer),
+             {"abi-mirror", "old-dst-load", "materialized-store-base",
+              "header-mirror"});
+  addBinding(computedMaskUnitLoadStorePlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi-mirror", "setvl-avl", "loop-control", "header-mirror"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              computedMaskUnitLoadStorePlan,
+              "rvv-route-operand-binding:computed_masked_unit_load_store.v1",
+              "cmp_lhs,cmp_rhs,src,dst,n",
+              "route operand binding unit test"),
+          "valid computed-mask unit load-store route operand binding plan"))
+    return result;
+
+  RVVSelectedBodyEmitCRouteDescription computedMaskUnitLoadStoreDescription =
+      makeClosureDescription(
+          RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore,
+          "cmp_lhs,cmp_rhs,src,dst,n", computedMaskUnitLoadStorePlan);
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingClosure(
+              computedMaskUnitLoadStorePlan,
+              computedMaskUnitLoadStoreDescription,
+              "computed-mask unit load-store closure unit test"),
+          "valid computed-mask unit load-store route operand binding closure"))
+    return result;
+
+  RVVSelectedBodyEmitCRouteDescription wrongComputedMaskOperation =
+      makeClosureDescription(
+          RVVSelectedBodyOperationKind::ComputedMaskStridedStore,
+          "cmp_lhs,cmp_rhs,src,dst,n", computedMaskUnitLoadStorePlan);
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingClosure(
+              computedMaskUnitLoadStorePlan, wrongComputedMaskOperation,
+              "computed-mask unit load-store closure unit test"),
+          {"requires plan id",
+           "rvv-route-operand-binding:computed_masked_strided_store.v1"}))
+    return result;
+
+  llvm::Expected<const tianchenrv::support::RuntimeABIParameter *>
+      missingComputedMaskStoreUse = tianchenrv::plugin::rvv::
+          getRVVRouteOperandBindingParameter(
+              computedMaskUnitLoadStorePlan, "dst", "strided-store",
+              "route operand binding unit test");
+  if (int result =
+          expectErrorContains(missingComputedMaskStoreUse.takeError(),
+                              {"materialized use", "strided-store"}))
     return result;
 
   RVVRouteOperandBindingPlan computedMaskStridedStorePlan;

@@ -59,6 +59,8 @@ module {
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.masked_move"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "computed-mask-unit-load-store"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "cmp_lhs,cmp_rhs,src,dst,n"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:computed_masked_unit_load_store.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:computed_masked_unit_load_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi-mirror|cmp-lhs-load|compare-lhs-call;cmp_rhs=rhs-input-buffer:cmp_rhs:abi-mirror|cmp-rhs-load|compare-rhs-call;src=source-input-buffer:src:abi-mirror|src-load|active-source;dst=output-buffer:dst:abi-mirror|old-dst-load|materialized-store-base|header-mirror;n=runtime-element-count:n:abi-mirror|setvl-avl|loop-control|header-mirror"}
 // PLAN-SAME: {key = "tcrv_rvv.masked_memory_layout", value = "unit-stride-compare-source-old-destination-runtime-abi"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_role", value = "predicate-mask-produced-by-compare"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
@@ -80,4 +82,6 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-computed-masked-unit-load-store-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.runtime_abi_order: cmp_lhs,cmp_rhs,src,dst,n
+// HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:computed_masked_unit_load_store.v1
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:computed_masked_unit_load_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi-mirror|cmp-lhs-load|compare-lhs-call;cmp_rhs=rhs-input-buffer:cmp_rhs:abi-mirror|cmp-rhs-load|compare-rhs-call;src=source-input-buffer:src:abi-mirror|src-load|active-source;dst=output-buffer:dst:abi-mirror|old-dst-load|materialized-store-base|header-mirror;n=runtime-element-count:n:abi-mirror|setvl-avl|loop-control|header-mirror
 // HEADER: void tcrv_emitc_pre_realized_body_computed_masked_unit_load_store_kernel_pre_realized_body_rvv_computed_masked_unit_load_store(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *src, int32_t *dst, size_t n);
