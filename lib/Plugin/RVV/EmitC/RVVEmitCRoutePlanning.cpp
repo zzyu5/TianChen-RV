@@ -29,6 +29,318 @@ llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message) {
 
 namespace {
 
+constexpr llvm::StringLiteral kRVVRuntimeAVLVLControlPlanID(
+    "rvv-runtime-avl-vl-control-plan.v1");
+
+llvm::Error makeRVVRuntimeAVLVLControlPlanError(llvm::Twine message) {
+  return llvm::make_error<llvm::StringError>(
+      llvm::Twine("TianChen-RV RVV runtime AVL/VL control plan invalid: ") +
+          message,
+      llvm::errc::invalid_argument);
+}
+
+llvm::StringRef stringifyRuntimeControlTailPolicy(
+    tcrv::rvv::TailPolicy policy) {
+  switch (policy) {
+  case tcrv::rvv::TailPolicy::Agnostic:
+    return "agnostic";
+  case tcrv::rvv::TailPolicy::Undisturbed:
+    return "undisturbed";
+  }
+  return "unknown";
+}
+
+llvm::StringRef stringifyRuntimeControlMaskPolicy(
+    tcrv::rvv::MaskPolicy policy) {
+  switch (policy) {
+  case tcrv::rvv::MaskPolicy::Agnostic:
+    return "agnostic";
+  case tcrv::rvv::MaskPolicy::Undisturbed:
+    return "undisturbed";
+  }
+  return "unknown";
+}
+
+llvm::Expected<support::RuntimeABIParameter>
+getRuntimeAVLParameterBindingFromValue(mlir::Value value,
+                                       llvm::StringRef context) {
+  auto binding = value.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  if (!binding)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) +
+        " AVL must be defined by explicit tcrv_rvv.runtime_abi_value");
+  if (llvm::Error error =
+          verifyRVVRuntimeABIValueRoleOpInterface(binding.getOperation()))
+    return std::move(error);
+
+  std::optional<support::RuntimeABIParameterRole> role =
+      support::symbolizeRuntimeABIParameterRole(binding.getRole());
+  if (!role)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) + " AVL binding carries unsupported runtime ABI "
+                              "role '" +
+        binding.getRole() + "'");
+  if (*role != support::RuntimeABIParameterRole::RuntimeElementCount)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) +
+        " AVL must bind the single runtime-element-count ABI role; got '" +
+        binding.getRole() + "'");
+
+  std::optional<support::RuntimeABIParameterOwnership> ownership =
+      support::symbolizeRuntimeABIParameterOwnership(binding.getOwnership());
+  if (!ownership)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) + " AVL binding carries unsupported runtime ABI "
+                              "ownership '" +
+        binding.getOwnership() + "'");
+
+  support::RuntimeABIParameter parameter(binding.getCName(),
+                                         binding.getCType(), *role,
+                                         *ownership);
+  if (parameter.cName != tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName())
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) + " AVL runtime ABI parameter must be named '" +
+        tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName() +
+        "' but found '" + parameter.cName + "'");
+  if (parameter.cType != "size_t")
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) + " AVL runtime ABI parameter must have C type "
+                              "'size_t' but found '" +
+        parameter.cType + "'");
+  if (parameter.ownership !=
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) +
+        " AVL runtime ABI parameter must be target-export ABI owned");
+
+  return parameter;
+}
+
+llvm::Error validateSingleRuntimeAVLBinding(tcrv::exec::VariantOp variant,
+                                            mlir::Value runtimeAVLValue,
+                                            llvm::StringRef context) {
+  if (!variant)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) +
+        " requires a materialized selected tcrv.exec.variant");
+
+  auto selectedBinding =
+      runtimeAVLValue.getDefiningOp<tcrv::rvv::RuntimeABIValueOp>();
+  if (!selectedBinding)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) +
+        " runtime AVL value must be a tcrv_rvv.runtime_abi_value");
+
+  unsigned runtimeElementCountBindings = 0;
+  bool selectedIsTheRuntimeCount = false;
+  variant.getBody().walk([&](tcrv::rvv::RuntimeABIValueOp op) {
+    std::optional<support::RuntimeABIParameterRole> role =
+        support::symbolizeRuntimeABIParameterRole(op.getRole());
+    if (!role || *role != support::RuntimeABIParameterRole::RuntimeElementCount)
+      return;
+    ++runtimeElementCountBindings;
+    if (op.getOperation() == selectedBinding.getOperation())
+      selectedIsTheRuntimeCount = true;
+  });
+
+  if (runtimeElementCountBindings != 1)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) +
+        " requires exactly one runtime-element-count ABI binding in the "
+        "selected RVV variant");
+  if (!selectedIsTheRuntimeCount)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) +
+        " setvl AVL must consume the selected variant's single runtime n ABI "
+        "binding");
+  return llvm::Error::success();
+}
+
+llvm::Expected<RVVRuntimeAVLVLControlPlan>
+buildRuntimeAVLVLControlPlan(
+    tcrv::exec::VariantOp variant, mlir::Value runtimeAVLValue,
+    std::int64_t sew, llvm::StringRef lmul, tcrv::rvv::PolicyAttr policy,
+    llvm::StringRef runtimeABIOrder, llvm::StringRef context) {
+  llvm::Expected<support::RuntimeABIParameter> runtimeAVL =
+      getRuntimeAVLParameterBindingFromValue(runtimeAVLValue, context);
+  if (!runtimeAVL)
+    return runtimeAVL.takeError();
+  if (llvm::Error error =
+          validateSingleRuntimeAVLBinding(variant, runtimeAVLValue, context))
+    return std::move(error);
+
+  const tcrv::rvv::RVVSelectedBodyConfigVLContract &configContract =
+      tcrv::rvv::getRVVSelectedBodyConfigVLContract(sew, lmul);
+
+  RVVRuntimeAVLVLControlPlan plan;
+  plan.sew = sew;
+  plan.lmul = lmul;
+  plan.policy = policy;
+  if (policy) {
+    plan.tailPolicy = stringifyRuntimeControlTailPolicy(policy.getTail());
+    plan.maskPolicy = stringifyRuntimeControlMaskPolicy(policy.getMask());
+  }
+  plan.controlPlanID = kRVVRuntimeAVLVLControlPlanID;
+  plan.configContractID = configContract.configContractID;
+  plan.runtimeVLContractID = configContract.runtimeVLContractID;
+  plan.runtimeAVLABIParameterName =
+      configContract.runtimeAVLABIParameterName;
+  plan.runtimeAVLASource = configContract.runtimeAVLASource;
+  plan.runtimeABIOrder = runtimeABIOrder;
+  plan.vlDefOpName = configContract.vlDefOpName;
+  plan.vlScopeOpName = configContract.vlScopeOpName;
+  plan.vlUses = configContract.vlUses;
+  plan.emitCLoopKind = configContract.emitCLoopKind;
+  plan.emitCLoopInductionName = configContract.emitCLoopInductionName;
+  plan.emitCFullChunkVLName = configContract.emitCFullChunkVLName;
+  plan.emitCLoopVLName = tcrv::rvv::getRVVSelectedBodyEmitCLoopVLName();
+  plan.remainingAVLMetadata = configContract.remainingAVLMetadata;
+  plan.pointerAdvanceMetadata = configContract.pointerAdvanceMetadata;
+  plan.boundedSlice = configContract.boundedSlice;
+  plan.multiVL = configContract.multiVL;
+  plan.runtimeAVLValue = runtimeAVLValue;
+  plan.runtimeAVLParameter = std::move(*runtimeAVL);
+
+  if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(plan, context))
+    return std::move(error);
+  return plan;
+}
+
+void applyRVVRuntimeAVLVLControlPlanToDescription(
+    const RVVRuntimeAVLVLControlPlan &plan,
+    RVVSelectedBodyEmitCRouteDescription &description) {
+  description.sew = plan.sew;
+  description.lmul = plan.lmul;
+  description.tailPolicy = plan.tailPolicy;
+  description.maskPolicy = plan.maskPolicy;
+  description.runtimeControlPlanID = plan.controlPlanID;
+  description.configContractID = plan.configContractID;
+  description.runtimeVLContractID = plan.runtimeVLContractID;
+  description.runtimeAVLASource = plan.runtimeAVLASource;
+  description.runtimeABIOrder = plan.runtimeABIOrder;
+  description.vlDefOpName = plan.vlDefOpName;
+  description.vlScopeOpName = plan.vlScopeOpName;
+  description.vlUses = plan.vlUses;
+  description.emitCLoopKind = plan.emitCLoopKind;
+  description.emitCLoopInductionName = plan.emitCLoopInductionName;
+  description.emitCFullChunkVLName = plan.emitCFullChunkVLName;
+  description.emitCLoopVLName = plan.emitCLoopVLName;
+  description.remainingAVLMetadata = plan.remainingAVLMetadata;
+  description.pointerAdvanceMetadata = plan.pointerAdvanceMetadata;
+  description.boundedSlice = plan.boundedSlice;
+  description.multiVL = plan.multiVL;
+}
+
+} // namespace
+
+llvm::StringRef getRVVRuntimeAVLVLControlPlanID() {
+  return kRVVRuntimeAVLVLControlPlanID;
+}
+
+llvm::Error verifyRVVRuntimeAVLVLControlPlan(
+    const RVVRuntimeAVLVLControlPlan &plan, llvm::StringRef context) {
+  if (context.trim().empty())
+    return makeRVVRuntimeAVLVLControlPlanError(
+        "verification requires a non-empty context");
+  if (plan.controlPlanID != kRVVRuntimeAVLVLControlPlanID)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) + " must use runtime control plan '" +
+        kRVVRuntimeAVLVLControlPlanID + "'");
+  if (!plan.policy)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) + " requires explicit RVV policy");
+  if (!tcrv::rvv::isRVVFirstSliceDataflowConfig(plan.sew, plan.lmul))
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) +
+        " requires a supported typed RVV SEW/LMUL config");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(plan.policy))
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) +
+        " requires tail agnostic, mask agnostic runtime VL policy");
+  if (plan.runtimeAVLABIParameterName !=
+      tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName())
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) + " must use runtime AVL ABI parameter '" +
+        tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName() + "'");
+  if (plan.runtimeAVLASource != "runtime_abi:n")
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) +
+        " must derive runtime AVL source from runtime_abi:n");
+  if (plan.runtimeAVLParameter.role !=
+      support::RuntimeABIParameterRole::RuntimeElementCount)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) +
+        " must carry runtime-element-count as AVL parameter role");
+  if (plan.runtimeAVLParameter.cName !=
+      tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName())
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) + " must carry runtime AVL ABI parameter name '" +
+        tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName() + "'");
+  if (plan.runtimeAVLParameter.cType != "size_t")
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) + " must carry runtime AVL ABI C type 'size_t'");
+  if (plan.runtimeAVLParameter.ownership !=
+      support::RuntimeABIParameterOwnership::TargetExportABIOwned)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) +
+        " must carry target-export-owned runtime AVL ABI ownership");
+  if (plan.vlDefOpName != "tcrv_rvv.setvl" ||
+      plan.vlScopeOpName != "tcrv_rvv.with_vl")
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) +
+        " must route VL through tcrv_rvv.setvl and tcrv_rvv.with_vl");
+  if (plan.remainingAVLMetadata != "n-offset" ||
+      plan.pointerAdvanceMetadata != "offset")
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) +
+        " must carry remaining AVL 'n-offset' and pointer advance 'offset'");
+  if (plan.multiVL != "supported")
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) + " must keep multi-VL support validated");
+  return llvm::Error::success();
+}
+
+llvm::Expected<RVVRuntimeAVLVLControlPlan>
+deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+    tcrv::exec::VariantOp variant, mlir::Value runtimeAVLValue,
+    std::int64_t sew, llvm::StringRef lmul, tcrv::rvv::PolicyAttr policy,
+    llvm::StringRef runtimeABIOrder, llvm::StringRef context) {
+  return buildRuntimeAVLVLControlPlan(variant, runtimeAVLValue, sew, lmul,
+                                      policy, runtimeABIOrder, context);
+}
+
+llvm::Expected<RVVRuntimeAVLVLControlPlan>
+deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
+    tcrv::exec::VariantOp variant, tcrv::rvv::SetVLOp setvl,
+    tcrv::rvv::WithVLOp withVL, llvm::StringRef runtimeABIOrder,
+    llvm::StringRef context) {
+  if (!setvl)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) + " requires a validated tcrv_rvv.setvl op");
+  if (!withVL)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) + " requires a validated tcrv_rvv.with_vl op");
+  if (setvl->getBlock() != withVL->getBlock() ||
+      !setvl->isBeforeInBlock(withVL.getOperation()))
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) +
+        " requires tcrv_rvv.setvl to dominate the tcrv_rvv.with_vl scope");
+
+  tcrv::rvv::RVVConfigContractDiagnostic structure =
+      tcrv::rvv::validateRVVSelectedBodyConfigVLStructure(setvl, withVL);
+  if (!structure.ok)
+    return makeRVVRuntimeAVLVLControlPlanError(
+        llvm::Twine(context) + " " + structure.message);
+
+  tcrv::rvv::RVVCompileTimeConfig config =
+      tcrv::rvv::getRVVSetVLCompileTimeConfig(setvl);
+  return buildRuntimeAVLVLControlPlan(variant, setvl.getAvl(), config.sew,
+                                      config.lmul, config.policy,
+                                      runtimeABIOrder, context);
+}
+
+namespace {
+
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
 constexpr llvm::StringLiteral
     kRVVSelectedBodyEmissionKind("materialized-emitc-cpp-rvv-intrinsic-object");
@@ -1348,6 +1660,10 @@ llvm::Error requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
 
 llvm::Error validateRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
     const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan &plan) {
+  if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
+          plan.runtimeControlPlan,
+          "scalar-broadcast elementwise route-family runtime AVL/VL control"))
+    return error;
   if (plan.operation != RVVSelectedBodyOperationKind::ScalarBroadcastAdd)
     return makeRVVEmitCRouteProviderError(
         "scalar-broadcast elementwise route-family plan currently supports "
@@ -1356,6 +1672,12 @@ llvm::Error validateRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "scalar-broadcast elementwise route-family plan requires "
         "rhs-scalar-broadcast memory form");
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "runtime control plan",
+              plan.runtimeControlPlan.controlPlanID,
+              getRVVRuntimeAVLVLControlPlanID()))
+    return error;
   if (llvm::Error error =
           requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
               plan, "runtime ABI order", plan.runtimeABIOrder,
@@ -1480,10 +1802,20 @@ deriveRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
         "scalar-broadcast elementwise route-family plan requires lhs buffer, "
         "RHS scalar, output buffer, and runtime element-count ABI roles");
 
+  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+      deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
+          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl, analysis.slice.withVL,
+          kRVVScalarBroadcastRuntimeABIOrder,
+          "scalar-broadcast elementwise route-family plan");
+  if (!runtimeControlPlan)
+    return runtimeControlPlan.takeError();
+
   RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan plan;
   plan.operation = analysis.slice.arithmeticKind;
   plan.memoryForm = analysis.slice.memoryForm;
-  plan.runtimeABIOrder = kRVVScalarBroadcastRuntimeABIOrder;
+  plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
   plan.targetLeafProfile = kRVVScalarBroadcastElementwiseTargetLeafProfile;
   plan.providerSupportedMirror =
       kRVVScalarBroadcastElementwiseProviderSupportedMirror;
@@ -1506,7 +1838,7 @@ deriveRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
   plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
   plan.runtimeABIParameters.push_back(analysis.slice.rhsABI);
   plan.runtimeABIParameters.push_back(analysis.slice.outABI);
-  plan.runtimeABIParameters.push_back(analysis.slice.runtimeElementCountABI);
+  plan.runtimeABIParameters.push_back(plan.runtimeControlPlan.runtimeAVLParameter);
 
   if (llvm::Error error =
           validateRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
@@ -1518,6 +1850,8 @@ deriveRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
 void applyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
     const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan &plan,
     RVVSelectedBodyEmitCRouteDescription &description) {
+  applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
+                                               description);
   description.runtimeABIOrder = plan.runtimeABIOrder;
   description.targetLeafProfile = plan.targetLeafProfile;
   description.providerSupportedMirror = plan.providerSupportedMirror;
@@ -1556,6 +1890,10 @@ llvm::Error requireRVVSelectedBodyStandaloneReductionPlanField(
 
 llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
     const RVVSelectedBodyStandaloneReductionRouteFamilyPlan &plan) {
+  if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
+          plan.runtimeControlPlan,
+          "standalone reduction route-family runtime AVL/VL control"))
+    return error;
   if (plan.operation != RVVSelectedBodyOperationKind::StandaloneReduceAdd)
     return makeRVVEmitCRouteProviderError(
         "standalone reduction route-family plan currently supports only "
@@ -1564,6 +1902,10 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "standalone reduction route-family plan requires "
         "unit-stride-standalone-reduction memory form");
+  if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
+          plan, "runtime control plan", plan.runtimeControlPlan.controlPlanID,
+          getRVVRuntimeAVLVLControlPlanID()))
+    return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "runtime ABI order", plan.runtimeABIOrder,
           kRVVStandaloneReductionRuntimeABIOrder))
@@ -1679,10 +2021,20 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
         "accumulator seed buffer, output buffer, and runtime element-count ABI "
         "roles");
 
+  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+      deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
+          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl, analysis.slice.withVL,
+          kRVVStandaloneReductionRuntimeABIOrder,
+          "standalone reduction route-family plan");
+  if (!runtimeControlPlan)
+    return runtimeControlPlan.takeError();
+
   RVVSelectedBodyStandaloneReductionRouteFamilyPlan plan;
   plan.operation = analysis.slice.arithmeticKind;
   plan.memoryForm = analysis.slice.memoryForm;
-  plan.runtimeABIOrder = kRVVStandaloneReductionRuntimeABIOrder;
+  plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
   plan.targetLeafProfile = kRVVStandaloneReductionTargetLeafProfile;
   plan.providerSupportedMirror = kRVVStandaloneReductionProviderSupportedMirror;
   plan.requiredHeaders.push_back("stddef.h");
@@ -1707,7 +2059,7 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
   plan.runtimeABIParameters.push_back(analysis.slice.accumulatorABI);
   plan.runtimeABIParameters.push_back(analysis.slice.outABI);
-  plan.runtimeABIParameters.push_back(analysis.slice.runtimeElementCountABI);
+  plan.runtimeABIParameters.push_back(plan.runtimeControlPlan.runtimeAVLParameter);
 
   if (llvm::Error error =
           validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(plan))
@@ -1718,6 +2070,8 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
 void applyRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
     const RVVSelectedBodyStandaloneReductionRouteFamilyPlan &plan,
     RVVSelectedBodyEmitCRouteDescription &description) {
+  applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
+                                               description);
   description.runtimeABIOrder = plan.runtimeABIOrder;
   description.targetLeafProfile = plan.targetLeafProfile;
   description.providerSupportedMirror = plan.providerSupportedMirror;
@@ -7441,6 +7795,11 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           context, "runtime ABI order", description.runtimeABIOrder,
           expectedRuntimeABIOrder))
     return error;
+  if (isScalarBroadcastElementwiseRoute || isStandaloneReductionRoute)
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "runtime control plan", description.runtimeControlPlanID,
+            getRVVRuntimeAVLVLControlPlanID()))
+      return error;
   if (llvm::Error error = requireRouteDescriptionField(
           context, "VL def op", description.vlDefOpName,
           configContract.vlDefOpName))
@@ -8748,6 +9107,9 @@ getRVVSelectedBodyConfigArtifactMetadata(
   metadata.push_back({"tcrv_rvv.lmul", description.lmul});
   metadata.push_back({"tcrv_rvv.tail_policy", description.tailPolicy});
   metadata.push_back({"tcrv_rvv.mask_policy", description.maskPolicy});
+  if (!description.runtimeControlPlanID.empty())
+    metadata.push_back(
+        {"tcrv_rvv.runtime_control_plan", description.runtimeControlPlanID});
   metadata.push_back({"tcrv_rvv.memory_form",
                       stringifyRVVSelectedBodyMemoryForm(
                           description.memoryForm)});

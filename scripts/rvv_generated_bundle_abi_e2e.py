@@ -94,6 +94,7 @@ STANDALONE_REDUCE_ACCUMULATOR_LAYOUT = "scalar-i32-seed-lane0-from-accumulator-i
 STANDALONE_REDUCE_RESULT_LAYOUT = "store-standalone-reduction-lane0-to-output-scalar"
 STANDALONE_REDUCE_STORE_VL = "1"
 STANDALONE_REDUCE_RUNTIME_ABI_ORDER = "lhs,acc,out,n"
+RUNTIME_AVL_VL_CONTROL_PLAN = "rvv-runtime-avl-vl-control-plan.v1"
 STANDALONE_REDUCE_TARGET_LEAF_PROFILE = (
     "rvv-v1-e32m1-standalone-reduction-leaf-profile.v1"
 )
@@ -2238,6 +2239,10 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.c_type_mapping": STANDALONE_REDUCE_C_TYPE_MAPPING,
             }
+        )
+    if expectation.is_scalar_broadcast_add or expectation.is_standalone_reduce_add:
+        per_op_metadata["tcrv_rvv.runtime_control_plan"] = (
+            RUNTIME_AVL_VL_CONTROL_PLAN
         )
     if expectation.is_masked_add:
         per_op_metadata.update(

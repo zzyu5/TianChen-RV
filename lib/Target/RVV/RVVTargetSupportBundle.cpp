@@ -569,6 +569,8 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"target_leaf_profile", "tcrv_rvv.target_leaf_profile", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"runtime_control_plan", "tcrv_rvv.runtime_control_plan", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"provider_supported_mirror", "tcrv_rvv.provider_supported_mirror", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"required_header_declarations",

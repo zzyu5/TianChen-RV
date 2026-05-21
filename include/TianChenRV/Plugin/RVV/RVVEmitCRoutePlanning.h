@@ -5,6 +5,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
 
 #include "mlir/IR/Operation.h"
@@ -194,6 +195,7 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
 struct RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  RVVRuntimeAVLVLControlPlan runtimeControlPlan;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
   llvm::StringRef providerSupportedMirror;
@@ -215,6 +217,7 @@ struct RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan {
 struct RVVSelectedBodyStandaloneReductionRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  RVVRuntimeAVLVLControlPlan runtimeControlPlan;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
   llvm::StringRef providerSupportedMirror;

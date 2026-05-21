@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
+#include "TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OperationSupport.h"
@@ -3928,8 +3929,26 @@ realizePreRealizedRVVSelectedBody(
     std::int64_t sew = static_cast<std::int64_t>(body.getSew());
     llvm::StringRef lmul = body.getLmul();
     auto policy = body.getPolicy();
+    std::optional<RVVRuntimeAVLVLControlPlan> runtimeControlPlan;
+    if (isPreRealizedScalarBroadcastMemoryForm(body.getMemoryForm())) {
+      llvm::Expected<RVVRuntimeAVLVLControlPlan> plan =
+          deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+              variant, body.getN(), sew, lmul, policy,
+              "lhs,rhs_scalar,out,n",
+              "pre-realized RVV scalar-broadcast selected-body realization");
+      if (!plan)
+        return plan.takeError();
+      runtimeControlPlan = std::move(*plan);
+      sew = runtimeControlPlan->sew;
+      lmul = runtimeControlPlan->lmul;
+      policy = runtimeControlPlan->policy;
+    }
     auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
-        createRealizedSetVL(builder, loc, body.getN(), sew, lmul, policy));
+        createRealizedSetVL(builder, loc,
+                            runtimeControlPlan
+                                ? runtimeControlPlan->runtimeAVLValue
+                                : body.getN(),
+                            sew, lmul, policy));
     tcrv::rvv::WithVLOp withVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                              request.getRole(), requires, sew, lmul, policy);
@@ -4131,22 +4150,33 @@ realizePreRealizedRVVSelectedBody(
     mlir::Location loc = standaloneReduceBody->getLoc();
     builder.setInsertionPoint(standaloneReduceBody.getOperation());
 
+    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+            variant, standaloneReduceBody.getN(),
+            tcrv::rvv::getRVVFirstSliceSEWBits(),
+            tcrv::rvv::getRVVLMULM1(), standaloneReduceBody.getPolicy(),
+            "lhs,acc,out,n",
+            "pre-realized RVV standalone reduction selected-body realization");
+    if (!runtimeControlPlan)
+      return runtimeControlPlan.takeError();
+
     auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
-        createRealizedSetVL(builder, loc, standaloneReduceBody.getN(),
-                            tcrv::rvv::getRVVFirstSliceSEWBits(),
-                            tcrv::rvv::getRVVLMULM1(),
-                            standaloneReduceBody.getPolicy()));
+        createRealizedSetVL(builder, loc,
+                            runtimeControlPlan->runtimeAVLValue,
+                            runtimeControlPlan->sew,
+                            runtimeControlPlan->lmul,
+                            runtimeControlPlan->policy));
     tcrv::rvv::WithVLOp withVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                              request.getRole(), requires,
-                             tcrv::rvv::getRVVFirstSliceSEWBits(),
-                             tcrv::rvv::getRVVLMULM1(),
-                             standaloneReduceBody.getPolicy());
+                             runtimeControlPlan->sew,
+                             runtimeControlPlan->lmul,
+                             runtimeControlPlan->policy);
 
     builder.setInsertionPointToStart(&withVL.getBody().front());
     auto inputLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
         builder, loc, standaloneReduceBody.getLhs(), setvl.getVl(),
-        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+        runtimeControlPlan->sew, runtimeControlPlan->lmul));
     llvm::Expected<mlir::Operation *> compute =
         createRealizedGenericStandaloneReduceCompute(
             builder, loc, standaloneReduceBody.getOpKind(),

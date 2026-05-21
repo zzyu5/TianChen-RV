@@ -44,6 +44,7 @@ module {
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "scalar_broadcast_add"}
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.binary"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "rhs-scalar-broadcast"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs_scalar,out,n"}
 // PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-e32m1-scalar-broadcast-elementwise-leaf-profile.v1"}
@@ -63,4 +64,5 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-scalar-broadcast-add-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.runtime_abi_order: lhs,rhs_scalar,out,n
+// HEADER: tianchenrv.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
 // HEADER: void tcrv_emitc_pre_realized_body_scalar_broadcast_add_kernel_pre_realized_body_rvv_scalar_broadcast_add(const int32_t *lhs, int32_t rhs_scalar, int32_t *out, size_t n);

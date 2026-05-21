@@ -81,6 +81,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef lmul;
   llvm::StringRef tailPolicy;
   llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
   llvm::StringRef configContractID;
   llvm::StringRef runtimeVLContractID;
   llvm::StringRef runtimeAVLASource;

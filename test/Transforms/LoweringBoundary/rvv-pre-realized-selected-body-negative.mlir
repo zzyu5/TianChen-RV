@@ -518,3 +518,50 @@ module {
     }
   }
 }
+
+// -----
+
+module {
+  // expected-error@+1 {{requires exactly one runtime-element-count ABI binding in the selected RVV variant}}
+  tcrv.exec.kernel @pre_realized_scalar_broadcast_reject_duplicate_runtime_n_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @pre_realized_scalar_broadcast_reject_duplicate_runtime_n attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %unused_n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_binary_pre_realized_body %lhs, %rhs_scalar, %out, %n {lmul = "m1", memory_form = "rhs-scalar-broadcast", op_kind = "add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @pre_realized_scalar_broadcast_reject_duplicate_runtime_n_scalar attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @pre_realized_scalar_broadcast_reject_duplicate_runtime_n {origin = "rvv-plugin"}
+      tcrv.exec.fallback @pre_realized_scalar_broadcast_reject_duplicate_runtime_n_scalar {origin = "scalar-plugin"}
+    }
+  }
+}
+
+// -----
+
+module {
+  // expected-error@+1 {{AVL runtime ABI parameter must be named 'n'}}
+  tcrv.exec.kernel @pre_realized_standalone_reduce_reject_runtime_n_name_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @pre_realized_standalone_reduce_reject_runtime_n_name attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %runtime_count = tcrv_rvv.runtime_abi_value {c_name = "runtime_count", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_standalone_reduce_pre_realized_body %lhs, %acc, %out, %runtime_count {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", memory_form = "unit-stride-standalone-reduction", op_kind = "standalone_reduce_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-standalone-reduction-lane0-to-output-scalar", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @pre_realized_standalone_reduce_reject_runtime_n_name_scalar attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @pre_realized_standalone_reduce_reject_runtime_n_name {origin = "rvv-plugin"}
+      tcrv.exec.fallback @pre_realized_standalone_reduce_reject_runtime_n_name_scalar {origin = "scalar-plugin"}
+    }
+  }
+}

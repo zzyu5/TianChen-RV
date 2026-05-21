@@ -88,6 +88,74 @@ real `ssh rvv` correctness evidence.
 - None - task complete
 
 
+## Session 149: Stage2 RVV runtime AVL/VL control boundary
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV runtime AVL/VL control boundary
+**Branch**: `main`
+
+### Summary
+
+Implemented a bounded RVV plugin-owned runtime AVL/VL control plan consumed by
+the existing `scalar_broadcast_add` and `standalone_reduce_add` executable
+selected-body routes. The plan validates runtime `n`/AVL, selected setvl/with_vl
+structure, typed config, agnostic policy, runtime ABI order, and mirror metadata
+before route planning and generated artifact evidence.
+
+### Main Changes
+
+- Added `RVVRuntimeAVLVLControlPlan` and derivation/verification APIs.
+- Routed scalar-broadcast and standalone-reduction pre-realized selected-body
+  realization through the shared control plan before materializing `setvl`,
+  `with_vl`, and typed RVV operations.
+- Made both route-family plans consume the control plan and copy validated
+  config/runtime/VL facts into provider route descriptions and artifact mirrors.
+- Extended target header metadata and generated-bundle evidence checks for
+  `tcrv_rvv.runtime_control_plan`.
+- Added focused positive and negative coverage for runtime-control validation.
+
+### Testing
+
+- [OK] Focused FileCheck for scalar-broadcast and standalone selected-body
+  realization, route plan mirrors, header export, pre-realized negatives,
+  scalar-broadcast EmitC materialization, and runtime-control negative cases.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Generated-bundle dry-runs for `scalar_broadcast_add`, counts `7,16,23`,
+  RHS scalars `-37,91`.
+- [OK] Generated-bundle dry-runs for `standalone_reduce_add`, counts `7,16,23`,
+  seeds `-11,17`.
+- [OK] Real `ssh rvv` PASS for `scalar_broadcast_add`, counts `7,16,23`, RHS
+  scalars `-37,91`.
+- [OK] Real `ssh rvv` PASS for `standalone_reduce_add`, counts `7,16,23`, seeds
+  `-11,17`, scalar output correctness, seed preservation, and output tail
+  sentinel preservation.
+- [OK] Active-authority scan on production diff: no positive `RVVI32M1`,
+  `rvv-i32m1`, finite `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`,
+  source-front-door/source-export/direct-C/descriptor authority, or public exact
+  i32m1 intrinsic route authority introduced.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 252/252 passed.
+
+### Self-Repair
+
+- Split the new realized-route runtime-control negative test out of an existing
+  `not --split-input-file` file because the old negative stopped before the new
+  split could be observed.
+- Adjusted the standalone generated-bundle dry-run FileCheck harness order after
+  full lit exposed an assertion-order mismatch.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+### Next Steps
+
+- Later RVV Stage2 consumers can adopt `RVVRuntimeAVLVLControlPlan`; this round
+  intentionally bounded production consumption to `scalar_broadcast_add` and
+  `standalone_reduce_add`.
+
+
 ## Session 147: Stage2 RVV runtime scalar broadcast add production evidence
 
 **Date**: 2026-05-21
