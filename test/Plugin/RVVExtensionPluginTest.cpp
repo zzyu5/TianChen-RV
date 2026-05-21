@@ -1043,6 +1043,120 @@ module {
       "verify RVV generic broadcast selected-body route description");
 }
 
+int runScalarBroadcastElementwisePlanValidationTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_scalar_broadcast_elementwise_plan_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_scalar_broadcast_add attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_scalar_broadcast_add, sew = 32 : i64, source_kernel = "rvv_scalar_broadcast_elementwise_plan_kernel", status = "selected-lowering-boundary"} {
+        %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %sum = tcrv_rvv.binary %lhs, %rhs, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV scalar-broadcast elementwise module");
+  KernelOp kernel =
+      findKernel(*module, "rvv_scalar_broadcast_elementwise_plan_kernel");
+  VariantOp variant = findVariant(kernel, "rvv_scalar_broadcast_add");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
+      routeDescription =
+          tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+              VariantEmitCLowerableRequest(
+                  variant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant));
+  if (!routeDescription)
+    return fail("describe RVV scalar-broadcast elementwise route: " +
+                llvm::toString(routeDescription.takeError()));
+  if (int result =
+          expect(routeDescription->operation ==
+                         tianchenrv::plugin::rvv::
+                             RVVSelectedBodyOperationKind::ScalarBroadcastAdd &&
+                     routeDescription->memoryForm ==
+                         tianchenrv::plugin::rvv::
+                             RVVSelectedBodyMemoryForm::RHSScalarBroadcast &&
+                     routeDescription->targetLeafProfile ==
+                         "rvv-v1-e32m1-scalar-broadcast-elementwise-leaf-profile.v1" &&
+                     routeDescription->providerSupportedMirror ==
+                         "provider_supported_mirror:rvv-scalar-broadcast-elementwise-plan-validated" &&
+                     routeDescription->requiredHeaderDeclarations ==
+                         "stddef.h,stdint.h,riscv_vector.h" &&
+                     routeDescription->cTypeMappingSummary ==
+                         "vl:size_t,lhs:signed-e32m1,rhs_scalar:i32,result:signed-e32m1" &&
+                     routeDescription->runtimeABIOrder ==
+                         "lhs,rhs_scalar,out,n" &&
+                     routeDescription->rhsBroadcastIntrinsic ==
+                         "__riscv_vmv_v_x_i32m1" &&
+                     routeDescription->intrinsic ==
+                         "__riscv_vadd_vv_i32m1" &&
+                     routeDescription->storeIntrinsic ==
+                         "__riscv_vse32_v_i32m1",
+                 "RVV scalar-broadcast elementwise route records validated "
+                 "family plan facts"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVSelectedBodyEmitCRouteDescription(
+              *routeDescription,
+              "RVV scalar-broadcast elementwise route description"),
+          "verify RVV scalar-broadcast elementwise route description"))
+    return result;
+
+  auto expectStaleFieldRejected =
+      [&](tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription stale,
+          std::initializer_list<llvm::StringRef> expected) -> int {
+    return expectErrorContains(
+        tianchenrv::plugin::rvv::verifyRVVSelectedBodyEmitCRouteDescription(
+            stale, "RVV scalar-broadcast stale plan field test"),
+        expected);
+  };
+
+  tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription stale =
+      *routeDescription;
+  stale.providerSupportedMirror = "supported";
+  if (int result = expectStaleFieldRejected(
+          stale, {"provider_supported_mirror",
+                  "provider_supported_mirror:rvv-scalar-broadcast-elementwise-plan-validated",
+                  "supported"}))
+    return result;
+
+  stale = *routeDescription;
+  stale.targetLeafProfile = "route-id-selected-profile";
+  if (int result = expectStaleFieldRejected(
+          stale, {"target leaf profile",
+                  "rvv-v1-e32m1-scalar-broadcast-elementwise-leaf-profile.v1",
+                  "route-id-selected-profile"}))
+    return result;
+
+  stale = *routeDescription;
+  stale.rhsBroadcastIntrinsic = "__riscv_vle32_v_i32m1";
+  if (int result = expectStaleFieldRejected(
+          stale, {"RHS broadcast intrinsic", "__riscv_vmv_v_x_i32m1",
+                  "__riscv_vle32_v_i32m1"}))
+    return result;
+
+  stale = *routeDescription;
+  stale.runtimeABIOrder = "lhs,rhs,out,n";
+  return expectStaleFieldRejected(
+      stale, {"runtime ABI order", "lhs,rhs_scalar,out,n",
+              "lhs,rhs,out,n"});
+}
+
 int runMaskedAddSelectedBodyPolicyRouteTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -1465,6 +1579,8 @@ int main() {
   if (int result = runLMULM2SelectedBodyRouteTest(context))
     return result;
   if (int result = runBroadcastSelectedBodyRouteTest(context))
+    return result;
+  if (int result = runScalarBroadcastElementwisePlanValidationTest(context))
     return result;
   if (int result = runMaskedAddSelectedBodyPolicyRouteTest(context))
     return result;

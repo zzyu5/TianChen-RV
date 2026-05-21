@@ -116,6 +116,29 @@ module {
 // -----
 
 module {
+  tcrv.exec.kernel @pre_realized_reject_scalar_broadcast_route_id_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @pre_realized_reject_scalar_broadcast_route_id attributes {origin = "rvv-plugin", requires = [@rvv]} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      // expected-error@+1 {{does not accept authority metadata attribute '"route_id"'}}
+      tcrv_rvv.typed_binary_pre_realized_body %lhs, %rhs_scalar, %out, %n {lmul = "m1", memory_form = "rhs-scalar-broadcast", op_kind = "add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, route_id = "rvv-i32m1-scalar-broadcast", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @pre_realized_reject_scalar_broadcast_route_id_scalar attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @pre_realized_reject_scalar_broadcast_route_id {origin = "rvv-plugin"}
+      tcrv.exec.fallback @pre_realized_reject_scalar_broadcast_route_id_scalar {origin = "scalar-plugin"}
+    }
+  }
+}
+
+// -----
+
+module {
   tcrv.exec.kernel @pre_realized_reject_strided_missing_stride_kernel {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}

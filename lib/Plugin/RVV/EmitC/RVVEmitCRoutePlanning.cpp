@@ -103,6 +103,16 @@ constexpr llvm::StringLiteral kRVVSegment2InterleaveRuntimeABIOrder(
     "src0,src1,dst,n");
 constexpr llvm::StringLiteral kRVVScalarBroadcastRuntimeABIOrder(
     "lhs,rhs_scalar,out,n");
+constexpr llvm::StringLiteral kRVVScalarBroadcastElementwiseTargetLeafProfile(
+    "rvv-v1-e32m1-scalar-broadcast-elementwise-leaf-profile.v1");
+constexpr llvm::StringLiteral
+    kRVVScalarBroadcastElementwiseProviderSupportedMirror(
+        "provider_supported_mirror:rvv-scalar-broadcast-elementwise-plan-validated");
+constexpr llvm::StringLiteral
+    kRVVScalarBroadcastElementwiseRequiredHeaderDeclarations(
+        "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral kRVVScalarBroadcastElementwiseCTypeMappingSummary(
+    "vl:size_t,lhs:signed-e32m1,rhs_scalar:i32,result:signed-e32m1");
 constexpr llvm::StringLiteral kRVVWideningConversionRuntimeABIOrder(
     "lhs,out,n");
 constexpr llvm::StringLiteral kRVVWideningMAccRuntimeABIOrder(
@@ -1289,6 +1299,214 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
     description.sourceMemoryForm = plan.sourceMemoryForm;
     description.destinationMemoryForm = plan.destinationMemoryForm;
   }
+}
+
+bool isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::ScalarBroadcastAdd;
+}
+
+llvm::Error requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+    const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan &plan,
+    llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("scalar-broadcast elementwise route-family plan validation "
+                  "for operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
+      field + " '" + expected + "' but found '" + actual + "'");
+}
+
+llvm::Error validateRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
+    const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan &plan) {
+  if (plan.operation != RVVSelectedBodyOperationKind::ScalarBroadcastAdd)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast elementwise route-family plan currently supports "
+        "only scalar_broadcast_add");
+  if (plan.memoryForm != RVVSelectedBodyMemoryForm::RHSScalarBroadcast)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast elementwise route-family plan requires "
+        "rhs-scalar-broadcast memory form");
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "runtime ABI order", plan.runtimeABIOrder,
+              kRVVScalarBroadcastRuntimeABIOrder))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "target leaf profile", plan.targetLeafProfile,
+              kRVVScalarBroadcastElementwiseTargetLeafProfile))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "provider_supported_mirror",
+              plan.providerSupportedMirror,
+              kRVVScalarBroadcastElementwiseProviderSupportedMirror))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "header declarations", plan.requiredHeaderDeclarations,
+              kRVVScalarBroadcastElementwiseRequiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "C type mapping summary", plan.cTypeMappingSummary,
+              kRVVScalarBroadcastElementwiseCTypeMappingSummary))
+    return error;
+  if (plan.requiredHeaders.size() != 3 ||
+      plan.requiredHeaders[0] != "stddef.h" ||
+      plan.requiredHeaders[1] != "stdint.h" ||
+      plan.requiredHeaders[2] != "riscv_vector.h")
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast elementwise route-family plan requires "
+        "provider-owned header declarations 'stddef.h,stdint.h,riscv_vector.h'");
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "VL C type", plan.vlCType, "size_t"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "vector type", plan.vectorTypeName,
+              "!tcrv_rvv.vector<i32, \"m1\">"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "vector C type", plan.vectorCType, "vint32m1_t"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "setvl leaf", plan.setVLIntrinsic,
+              "__riscv_vsetvl_e32m1"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "vector-load leaf", plan.vectorLoadIntrinsic,
+              "__riscv_vle32_v_i32m1"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "RHS scalar splat leaf",
+              plan.rhsScalarSplatIntrinsic,
+              "__riscv_vmv_v_x_i32m1"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "elementwise compute leaf", plan.arithmeticIntrinsic,
+              "__riscv_vadd_vv_i32m1"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "store leaf", plan.storeIntrinsic,
+              "__riscv_vse32_v_i32m1"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "result name", plan.resultName, "sum_vec"))
+    return error;
+  if (llvm::Error error =
+          verifyRVVSelectedBodyConstructionRuntimeABIParameters(
+              plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
+  return llvm::Error::success();
+}
+
+llvm::Expected<RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan>
+deriveRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyConfigProfile &configProfile,
+    const RVVSelectedBodyTargetLeafProfile &targetLeaves) {
+  if (!isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
+          analysis.slice.arithmeticKind))
+    return makeRVVEmitCRouteProviderError(
+        "requested scalar-broadcast elementwise route-family plan for "
+        "non-scalar-broadcast RVV operation");
+  if (analysis.slice.memoryForm != RVVSelectedBodyMemoryForm::RHSScalarBroadcast)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast elementwise route-family plan requires "
+        "rhs-scalar-broadcast typed body structure");
+  if (!analysis.slice.lhsGenericLoad || !analysis.slice.rhsScalarSplat ||
+      !analysis.slice.genericStore || !analysis.slice.arithmeticOp)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast elementwise route-family plan requires explicit "
+        "load, scalar splat, binary compute, and store body structure");
+  if (analysis.slice.arithmeticKind !=
+      RVVSelectedBodyOperationKind::ScalarBroadcastAdd)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast elementwise route-family plan currently requires "
+        "add binary compute");
+  if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast elementwise route-family plan currently requires "
+        "SEW32 LMUL m1 typed config");
+  if (analysis.slice.lhsABI.role !=
+          support::RuntimeABIParameterRole::LHSInputBuffer ||
+      analysis.slice.rhsABI.role !=
+          support::RuntimeABIParameterRole::RHSScalarValue ||
+      analysis.slice.outABI.role !=
+          support::RuntimeABIParameterRole::OutputBuffer ||
+      analysis.slice.runtimeElementCountABI.role !=
+          support::RuntimeABIParameterRole::RuntimeElementCount)
+    return makeRVVEmitCRouteProviderError(
+        "scalar-broadcast elementwise route-family plan requires lhs buffer, "
+        "RHS scalar, output buffer, and runtime element-count ABI roles");
+
+  RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan plan;
+  plan.operation = analysis.slice.arithmeticKind;
+  plan.memoryForm = analysis.slice.memoryForm;
+  plan.runtimeABIOrder = kRVVScalarBroadcastRuntimeABIOrder;
+  plan.targetLeafProfile = kRVVScalarBroadcastElementwiseTargetLeafProfile;
+  plan.providerSupportedMirror =
+      kRVVScalarBroadcastElementwiseProviderSupportedMirror;
+  plan.requiredHeaders.push_back("stddef.h");
+  plan.requiredHeaders.push_back("stdint.h");
+  plan.requiredHeaders.push_back("riscv_vector.h");
+  plan.requiredHeaderDeclarations =
+      kRVVScalarBroadcastElementwiseRequiredHeaderDeclarations;
+  plan.cTypeMappingSummary =
+      kRVVScalarBroadcastElementwiseCTypeMappingSummary;
+  plan.vlCType = configProfile.vlCType;
+  plan.vectorTypeName = configProfile.vectorTypeName;
+  plan.vectorCType = configProfile.vectorCType;
+  plan.setVLIntrinsic = configProfile.setVLIntrinsic;
+  plan.vectorLoadIntrinsic = configProfile.vectorLoadIntrinsic;
+  plan.rhsScalarSplatIntrinsic = targetLeaves.rhsBroadcastIntrinsic;
+  plan.arithmeticIntrinsic = targetLeaves.intrinsic;
+  plan.storeIntrinsic = configProfile.storeIntrinsic;
+  plan.resultName = "sum_vec";
+  plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.rhsABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.runtimeElementCountABI);
+
+  if (llvm::Error error =
+          validateRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
+              plan))
+    return std::move(error);
+  return plan;
+}
+
+void applyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
+    const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan &plan,
+    RVVSelectedBodyEmitCRouteDescription &description) {
+  description.runtimeABIOrder = plan.runtimeABIOrder;
+  description.targetLeafProfile = plan.targetLeafProfile;
+  description.providerSupportedMirror = plan.providerSupportedMirror;
+  description.requiredHeaderDeclarations = plan.requiredHeaderDeclarations;
+  description.cTypeMappingSummary = plan.cTypeMappingSummary;
+  description.vlCType = plan.vlCType;
+  description.vectorTypeName = plan.vectorTypeName;
+  description.vectorCType = plan.vectorCType;
+  description.setVLIntrinsic = plan.setVLIntrinsic;
+  description.vectorLoadIntrinsic = plan.vectorLoadIntrinsic;
+  description.rhsBroadcastIntrinsic = plan.rhsScalarSplatIntrinsic;
+  description.intrinsic = plan.arithmeticIntrinsic;
+  description.storeIntrinsic = plan.storeIntrinsic;
+  description.resultName = plan.resultName;
+  description.runtimeABIParameters.clear();
+  description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
+                                          plan.runtimeABIParameters.end());
 }
 
 llvm::Expected<RVVSelectedBodyTargetLeafProfile>
@@ -6091,6 +6309,20 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       routeProfile->targetLeaves.maskedMergeIntrinsic;
   analysis.description.resultName = routeProfile->operation.resultName;
   analysis.description.maskName = routeProfile->operation.maskName;
+  if (isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
+          routeProfile->operation.operation)) {
+    llvm::Expected<RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan>
+        scalarBroadcastPlan =
+            deriveRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
+                analysis, routeProfile->config, routeProfile->targetLeaves);
+    if (!scalarBroadcastPlan)
+      return scalarBroadcastPlan.takeError();
+    analysis.scalarBroadcastElementwiseRouteFamilyPlan =
+        std::move(*scalarBroadcastPlan);
+    applyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
+        *analysis.scalarBroadcastElementwiseRouteFamilyPlan,
+        analysis.description);
+  }
   if (routeProfile->operation.isMaskedArithmetic) {
     analysis.description.maskRole = kRVVMaskedPredicateMaskRole;
     analysis.description.maskSource = kRVVMaskedCompareMaskSource;
@@ -6429,6 +6661,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd;
   const bool isContractionRoute =
       isRVVSelectedBodyContractionRouteOperation(operationProfile.operation);
+  const bool isScalarBroadcastElementwiseRoute =
+      isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
+          operationProfile.operation);
 
   llvm::Expected<const RVVSelectedBodyConstructionRoute *> route =
       lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
@@ -6515,6 +6750,25 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "C type mapping summary", description.cTypeMappingSummary,
             kRVVContractionCTypeMappingSummary))
+      return error;
+  } else if (isScalarBroadcastElementwiseRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "target leaf profile", description.targetLeafProfile,
+            kRVVScalarBroadcastElementwiseTargetLeafProfile))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "provider_supported_mirror",
+            description.providerSupportedMirror,
+            kRVVScalarBroadcastElementwiseProviderSupportedMirror))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "required header declarations",
+            description.requiredHeaderDeclarations,
+            kRVVScalarBroadcastElementwiseRequiredHeaderDeclarations))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "C type mapping summary", description.cTypeMappingSummary,
+            kRVVScalarBroadcastElementwiseCTypeMappingSummary))
       return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -8043,7 +8297,9 @@ getRVVSelectedBodyConfigArtifactMetadata(
       {"tcrv_rvv.pointer_advance", description.pointerAdvanceMetadata});
   metadata.push_back({"tcrv_rvv.bounded_slice", description.boundedSlice});
   metadata.push_back({"tcrv_rvv.multi_vl", description.multiVL});
-  if (isRVVSelectedBodyContractionRouteOperation(description.operation)) {
+  if (isRVVSelectedBodyContractionRouteOperation(description.operation) ||
+      isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
+          description.operation)) {
     metadata.push_back(
         {"tcrv_rvv.target_leaf_profile", description.targetLeafProfile});
     metadata.push_back({"tcrv_rvv.provider_supported_mirror",

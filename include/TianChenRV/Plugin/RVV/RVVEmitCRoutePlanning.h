@@ -190,12 +190,35 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 8> runtimeABIParameters;
 };
 
+struct RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef rhsScalarSplatIntrinsic;
+  llvm::StringRef arithmeticIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef resultName;
+  llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
+};
+
 struct RVVSelectedBodyRouteAnalysis {
   RVVSelectedBodyRouteSlice slice;
   const RVVSelectedBodyConstructionRoute *constructionRoute = nullptr;
   RVVSelectedBodyEmitCRouteDescription description;
   std::optional<RVVSelectedBodyContractionRouteFamilyPlan>
       contractionRouteFamilyPlan;
+  std::optional<RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan>
+      scalarBroadcastElementwiseRouteFamilyPlan;
 };
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);

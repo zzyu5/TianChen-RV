@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final changes preserve global RVV-first and Stage1/Stage2 invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check scalar broadcast remains RVV plugin/typed-body owned and does not revive legacy authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remains neutral and consumes provider-built route payloads only."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check selected-body realization and route provider boundaries remain plugin-local."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused validation and runtime evidence are attached to changed behavior."}
+{"file": ".trellis/tasks/05-21-05-21-stage2-rvv-scalar-broadcast-elementwise-family-consolidation/prd.md", "reason": "Verify final implementation against this bounded consolidation PRD."}

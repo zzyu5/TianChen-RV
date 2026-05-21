@@ -143,6 +143,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       analysis.contractionRouteFamilyPlan
           ? &*analysis.contractionRouteFamilyPlan
           : nullptr;
+  const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan
+      *scalarBroadcastPlan =
+          analysis.scalarBroadcastElementwiseRouteFamilyPlan
+              ? &*analysis.scalarBroadcastElementwiseRouteFamilyPlan
+              : nullptr;
   const bool emitsContractionDotReduction =
       contractionPlan && contractionPlan->usesDotReduction;
   const bool emitsContractionWideningMAcc =
@@ -169,21 +174,33 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       contractionPlan ? contractionPlan->maskTypeName : description.maskTypeName;
   llvm::StringRef maskCType =
       contractionPlan ? contractionPlan->maskCType : description.maskCType;
-  llvm::StringRef setVLLeaf =
-      contractionPlan ? contractionPlan->setVLIntrinsic
-                      : description.setVLIntrinsic;
-  llvm::StringRef sourceLoadLeaf =
-      contractionPlan ? contractionPlan->sourceVectorLoadIntrinsic
-                      : description.sourceVectorLoadIntrinsic;
+  llvm::StringRef setVLLeaf = description.setVLIntrinsic;
+  if (contractionPlan)
+    setVLLeaf = contractionPlan->setVLIntrinsic;
+  else if (scalarBroadcastPlan)
+    setVLLeaf = scalarBroadcastPlan->setVLIntrinsic;
+  llvm::StringRef sourceLoadLeaf = description.sourceVectorLoadIntrinsic;
+  if (contractionPlan)
+    sourceLoadLeaf = contractionPlan->sourceVectorLoadIntrinsic;
+  else if (scalarBroadcastPlan)
+    sourceLoadLeaf = scalarBroadcastPlan->vectorLoadIntrinsic;
+  llvm::StringRef vectorLoadLeaf =
+      scalarBroadcastPlan ? scalarBroadcastPlan->vectorLoadIntrinsic
+                          : description.vectorLoadIntrinsic;
   llvm::StringRef stridedSourceLoadLeaf =
       contractionPlan ? contractionPlan->stridedLoadIntrinsic
                       : description.stridedLoadIntrinsic;
-  llvm::StringRef storeLeaf =
-      contractionPlan ? contractionPlan->storeIntrinsic
-                      : description.storeIntrinsic;
+  llvm::StringRef storeLeaf = description.storeIntrinsic;
+  if (contractionPlan)
+    storeLeaf = contractionPlan->storeIntrinsic;
+  else if (scalarBroadcastPlan)
+    storeLeaf = scalarBroadcastPlan->storeIntrinsic;
   llvm::StringRef contractionComputeLeaf =
       contractionPlan ? contractionPlan->contractionComputeIntrinsic
                       : description.intrinsic;
+  llvm::StringRef elementwiseComputeLeaf =
+      scalarBroadcastPlan ? scalarBroadcastPlan->arithmeticIntrinsic
+                          : description.intrinsic;
   llvm::StringRef wideningProductLeaf =
       contractionPlan ? contractionPlan->wideningProductIntrinsic
                       : description.wideningProductIntrinsic;
@@ -193,6 +210,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   llvm::StringRef scalarSeedSplatLeaf =
       contractionPlan ? contractionPlan->scalarSeedSplatIntrinsic
                       : description.scalarSeedSplatIntrinsic;
+  llvm::StringRef rhsScalarBroadcastLeaf =
+      scalarBroadcastPlan ? scalarBroadcastPlan->rhsScalarSplatIntrinsic
+                          : description.rhsBroadcastIntrinsic;
   llvm::StringRef compareLeaf =
       contractionPlan ? contractionPlan->compareIntrinsic
                       : description.compareIntrinsic;
@@ -203,8 +223,13 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   conversion::emitc::TCRVEmitCLowerableRoute route(
       analysis.description.emitCRouteID,
       "extension-family-ops-to-emitc-call-opaque");
-  if (contractionPlan) {
-    for (llvm::StringRef header : contractionPlan->requiredHeaders)
+  if (contractionPlan || scalarBroadcastPlan) {
+    llvm::ArrayRef<llvm::StringRef> requiredHeaders =
+        contractionPlan ? llvm::ArrayRef<llvm::StringRef>(
+                              contractionPlan->requiredHeaders)
+                        : llvm::ArrayRef<llvm::StringRef>(
+                              scalarBroadcastPlan->requiredHeaders);
+    for (llvm::StringRef header : requiredHeaders)
       route.addHeader(header);
   } else {
     route.addHeader("stddef.h");
@@ -672,7 +697,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   } else {
     if (llvm::Error error = addLoopStep(
             slice->lhsLoadOperation, "load",
-            description.vectorLoadIntrinsic,
+            vectorLoadLeaf,
             {TCRVEmitCCallOpaqueOperand{
                  (llvm::StringRef(slice->lhsABI.cName) + " + " + inductionName)
                      .str(),
@@ -790,7 +815,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
     if (llvm::Error error = addLoopStep(
             slice->rhsLoadOperation, "load",
-            description.rhsBroadcastIntrinsic,
+            rhsScalarBroadcastLeaf,
             {TCRVEmitCCallOpaqueOperand{slice->rhsABI.cName,
                                         slice->rhsABI.cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
@@ -1118,7 +1143,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     // not require an extra RVV intrinsic leaf.
   } else {
     if (llvm::Error error = addLoopStep(
-            slice->arithmeticOp, "compute", description.intrinsic,
+            slice->arithmeticOp, "compute", elementwiseComputeLeaf,
             {TCRVEmitCCallOpaqueOperand{"lhs_vec",
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{"rhs_vec",

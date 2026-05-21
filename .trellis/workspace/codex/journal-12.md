@@ -833,3 +833,69 @@ Implemented bounded computed-mask vector select through RVV selected-body realiz
 ### Next Steps
 
 - None - task complete
+
+
+## Session 147: Stage2 RVV scalar-broadcast elementwise production family consolidation
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV scalar-broadcast elementwise production family consolidation
+**Branch**: `main`
+
+### Summary
+
+Consolidated the existing `scalar_broadcast_add` path into a plugin-local
+scalar-broadcast elementwise route-family plan. The route now derives its
+runtime ABI order, memory form, target leaf profile, provider support mirror,
+header declarations, C type mapping, VL/vector type facts, scalar splat leaf,
+elementwise add leaf, and store leaf from typed body/config/runtime facts
+instead of scattered route-id or artifact-string authority.
+
+### Main Changes
+
+- Added `RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan` to the RVV
+  route analysis surface.
+- Extended RVV route planning to build, validate, and apply the scalar-broadcast
+  family plan for `ScalarBroadcastAdd` / `RHSScalarBroadcast`.
+- Updated RVV provider emission to consume plan-derived setvl/load/splat/add/store
+  leaves and required headers.
+- Added scalar-broadcast target artifact mirrors for target leaf profile,
+  provider-supported mirror, required header declarations, and C type mapping.
+- Added focused plugin and MLIR coverage for plan facts, artifact mirrors, stale
+  mirror wording, stale RHS load-as-broadcast authority, and stale route-id
+  authority.
+
+### Testing
+
+- [OK] Focused build: `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused FileCheck for scalar-broadcast selected-body realization, emission
+  plan mirrors, target header export, EmitC materialization, and negative
+  selected-body/EmitC/RVV verifier cases.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Generated-bundle dry-run for `scalar_broadcast_add`, counts `7,16,23`,
+  RHS scalars `-37,91`.
+- [OK] Real `ssh rvv` generated-bundle PASS for `scalar_broadcast_add`, counts
+  `7,16,23`, RHS scalars `-37,91`, preserving runtime scalar addend, runtime
+  `n`, and tail sentinels.
+- [OK] Focused build: `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-dialect-test tianchenrv-rvv-extension-plugin-test tianchenrv-construction-protocol-common-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-dialect-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `git diff --check`
+- [OK] Active-authority scan: no new positive `RVVI32M1`, `rvv-i32m1`,
+  finite `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`, source-front-door/source-seed,
+  descriptor/direct-C/source-export, public exact-intrinsic route authority, or
+  common/export RVV semantic authority. New exact intrinsic hits are RVV
+  plugin-owned leaf outputs/tests; the only new `rvv-i32m1` hit is a negative
+  stale route-id test.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 248/248 passed.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+### Next Steps
+
+- None for this bounded slice.
