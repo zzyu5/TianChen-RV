@@ -88,6 +88,67 @@ real `ssh rvv` correctness evidence.
 - None - task complete
 
 
+## Session 147: Stage2 RVV runtime scalar broadcast add current-head validation
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV runtime scalar broadcast add executable slice
+**Branch**: `main`
+
+### Summary
+
+Closed a duplicate stale scalar-broadcast implementation brief by validating
+current HEAD rather than adding a second production path. Current HEAD already
+contains the bounded `scalar_broadcast_add` path from `a4cac384` and the later
+current-head validation record from `aafa8210`; this round refreshed focused
+compiler checks, generated-bundle dry-run, real `ssh rvv` evidence, and
+`check-tianchenrv`.
+
+### Main Changes
+
+- Repaired the new Trellis task PRD/status to state the stale-brief finding and
+  current-head validation result.
+- Did not change compiler production code.
+- Refreshed real RVV evidence for `scalar_broadcast_add`, counts `7,16,23`,
+  with runtime `rhs_scalar=-37`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | Trellis closeout only |
+
+### Testing
+
+- [OK] Task context validation for `.trellis/tasks/05-21-stage2-rvv-runtime-scalar-broadcast-add-executable-slice`.
+- [OK] Focused build for `tcrv-opt`, `tcrv-translate`, RVV dialect/plugin,
+  construction protocol, and target artifact tests.
+- [OK] Focused C++ tests:
+  `tianchenrv-rvv-dialect-test`, `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-construction-protocol-common-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] Focused scalar-broadcast selected-body, emission-plan, header,
+  conversion/materialization, negative, generic dataflow, and selected-body
+  negative MLIR checks.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Generated-bundle dry-run:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/current-head-scalar-broadcast-20260521-dryrun`.
+- [OK] Real `ssh rvv`:
+  `PASS op=scalar_broadcast_add counts=7,16,23`.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 248/248 passed.
+- [OK] Spec update judgment: no `.trellis/spec/**` change needed because this
+  round changed no executable contract or convention.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task archived and ready to commit.
+
+
 ## Session 146: Stage2 RVV contraction selected-body realization family boundary
 
 **Date**: 2026-05-21

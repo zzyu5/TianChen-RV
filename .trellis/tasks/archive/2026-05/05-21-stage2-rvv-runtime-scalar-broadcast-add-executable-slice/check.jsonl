@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture boundaries, RVV-first authority chain, and Stage1/Stage2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-local legality, runtime scalar consumption, realization, route support, and fail-closed behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check RVV provider vs common EmitC ownership and descriptor/direct-C exclusion."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check runtime ABI declarations are mirrors and explicitly consumed by typed RVV body."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check generated artifact and runtime ABI boundary compliance."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check executable selected variant and realization requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required MLIR, generated artifact, fail-closed, and ssh rvv evidence for executable RVV claims."}
