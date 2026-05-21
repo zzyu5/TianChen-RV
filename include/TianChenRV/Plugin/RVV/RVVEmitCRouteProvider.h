@@ -11,6 +11,7 @@
 #include "llvm/Support/Error.h"
 
 #include <cstdint>
+#include <string>
 
 namespace tianchenrv::conversion::emitc {
 class TCRVEmitCLowerableRoute;
@@ -188,6 +189,8 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef sourceStrideSource;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
       runtimeABIParameters;
 };

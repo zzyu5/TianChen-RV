@@ -138,6 +138,15 @@ llvm::Error addCallStepFromSource(
   return llvm::Error::success();
 }
 
+llvm::Expected<const support::RuntimeABIParameter *>
+getRequiredBinding(const RVVRouteOperandBindingPlan &plan,
+                   llvm::StringRef logicalOperand,
+                   llvm::StringRef materializedUse,
+                   llvm::StringRef context) {
+  return getRVVRouteOperandBindingParameter(plan, logicalOperand,
+                                            materializedUse, context);
+}
+
 static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     RVVSelectedBodyRouteAnalysis &analysis,
     conversion::emitc::TCRVEmitCLowerableRoute &out) {
@@ -285,10 +294,105 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
 
   using conversion::emitc::TCRVEmitCCallOpaqueOperand;
   using conversion::emitc::TCRVEmitCCallOpaqueResult;
+
+  const support::RuntimeABIParameter *boundLHSABI = &slice->lhsABI;
+  const support::RuntimeABIParameter *boundRHSABI = &slice->rhsABI;
+  const support::RuntimeABIParameter *boundAccumulatorABI =
+      &slice->accumulatorABI;
+  const support::RuntimeABIParameter *boundOutABI = &slice->outABI;
+  const support::RuntimeABIParameter *boundRuntimeElementCountABI =
+      &slice->runtimeElementCountABI;
+  const support::RuntimeABIParameter *boundLHSStrideABI =
+      &slice->lhsStrideABI;
+  const support::RuntimeABIParameter *boundOutStrideABI =
+      &slice->outStrideABI;
+  const RVVRouteOperandBindingPlan &bindingPlan =
+      analysis.routeOperandBindingPlan;
+  if (!bindingPlan.planID.empty()) {
+    llvm::Expected<const support::RuntimeABIParameter *> boundN =
+        getRequiredBinding(bindingPlan, "n", "setvl-avl",
+                           "runtime AVL/control operand");
+    if (!boundN)
+      return boundN.takeError();
+    boundRuntimeElementCountABI = *boundN;
+
+    if (description.operation == RVVSelectedBodyOperationKind::MAccAdd) {
+      llvm::Expected<const support::RuntimeABIParameter *> lhs =
+          getRequiredBinding(bindingPlan, "lhs", "materialized-load-base",
+                             "macc lhs load operand");
+      if (!lhs)
+        return lhs.takeError();
+      boundLHSABI = *lhs;
+      llvm::Expected<const support::RuntimeABIParameter *> rhs =
+          getRequiredBinding(bindingPlan, "rhs", "materialized-load-base",
+                             "macc rhs load operand");
+      if (!rhs)
+        return rhs.takeError();
+      boundRHSABI = *rhs;
+      llvm::Expected<const support::RuntimeABIParameter *> acc =
+          getRequiredBinding(bindingPlan, "acc",
+                             "materialized-accumulator-load-base",
+                             "macc accumulator load operand");
+      if (!acc)
+        return acc.takeError();
+      boundAccumulatorABI = *acc;
+      llvm::Expected<const support::RuntimeABIParameter *> out =
+          getRequiredBinding(bindingPlan, "out", "materialized-store-base",
+                             "macc output store operand");
+      if (!out)
+        return out.takeError();
+      boundOutABI = *out;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::StridedLoadUnitStore) {
+      llvm::Expected<const support::RuntimeABIParameter *> src =
+          getRequiredBinding(bindingPlan, "src",
+                             "materialized-strided-load-base",
+                             "byte-strided source load operand");
+      if (!src)
+        return src.takeError();
+      boundLHSABI = *src;
+      llvm::Expected<const support::RuntimeABIParameter *> out =
+          getRequiredBinding(bindingPlan, "out", "materialized-store-base",
+                             "byte-strided load output store operand");
+      if (!out)
+        return out.takeError();
+      boundOutABI = *out;
+      llvm::Expected<const support::RuntimeABIParameter *> stride =
+          getRequiredBinding(bindingPlan, "stride_bytes",
+                             "materialized-strided-load-stride",
+                             "byte-strided source load stride operand");
+      if (!stride)
+        return stride.takeError();
+      boundLHSStrideABI = *stride;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::UnitLoadStridedStore) {
+      llvm::Expected<const support::RuntimeABIParameter *> src =
+          getRequiredBinding(bindingPlan, "src", "materialized-load-base",
+                             "unit source load operand");
+      if (!src)
+        return src.takeError();
+      boundLHSABI = *src;
+      llvm::Expected<const support::RuntimeABIParameter *> dst =
+          getRequiredBinding(bindingPlan, "dst",
+                             "materialized-strided-store-base",
+                             "byte-strided destination store operand");
+      if (!dst)
+        return dst.takeError();
+      boundOutABI = *dst;
+      llvm::Expected<const support::RuntimeABIParameter *> stride =
+          getRequiredBinding(bindingPlan, "dst_stride_bytes",
+                             "materialized-strided-store-stride",
+                             "byte-strided destination store stride operand");
+      if (!stride)
+        return stride.takeError();
+      boundOutStrideABI = *stride;
+    }
+  }
+
   if (llvm::Error error = addCallStepFromSource(
           route, slice->setvl.getOperation(), "configure", setVLLeaf,
-          {TCRVEmitCCallOpaqueOperand{slice->runtimeElementCountABI.cName,
-                                      slice->runtimeElementCountABI.cType}},
+          {TCRVEmitCCallOpaqueOperand{boundRuntimeElementCountABI->cName,
+                                      boundRuntimeElementCountABI->cType}},
           TCRVEmitCCallOpaqueResult{description.emitCFullChunkVLName.str(),
                                     vlCType.str()}))
     return error;
@@ -298,7 +402,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             route, slice->arithmeticOp, "compute",
             scalarSeedSplatLeaf,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->accumulatorABI.cName) + "[0]").str(),
+                 (llvm::StringRef(boundAccumulatorABI->cName) + "[0]").str(),
                  "int32_t"},
              TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
                                         vlCType.str()}},
@@ -307,8 +411,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       return error;
     if (llvm::Error error = addCallStepFromSource(
             route, slice->storeOperation, "store", storeLeaf,
-            {TCRVEmitCCallOpaqueOperand{slice->outABI.cName,
-                                        slice->outABI.cType},
+            {TCRVEmitCCallOpaqueOperand{boundOutABI->cName,
+                                        boundOutABI->cType},
              TCRVEmitCCallOpaqueOperand{"dot_initial_acc_vec",
                                         resultVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
@@ -319,7 +423,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addCallStepFromSource(
             route, slice->arithmeticOp, "compute", scalarSeedSplatLeaf,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->accumulatorABI.cName) + "[0]").str(),
+                 (llvm::StringRef(boundAccumulatorABI->cName) + "[0]").str(),
                  "int32_t"},
              TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
                                         vlCType.str()}},
@@ -328,8 +432,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       return error;
     if (llvm::Error error = addCallStepFromSource(
             route, slice->storeOperation, "store", storeLeaf,
-            {TCRVEmitCCallOpaqueOperand{slice->outABI.cName,
-                                        slice->outABI.cType},
+            {TCRVEmitCCallOpaqueOperand{boundOutABI->cName,
+                                        boundOutABI->cType},
              TCRVEmitCCallOpaqueOperand{"standalone_initial_acc_vec",
                                         resultVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
@@ -344,7 +448,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   loop.inductionVarName = inductionName.str();
   loop.lowerBound = TCRVEmitCCallOpaqueOperand{"0", description.vlCType.str()};
   loop.upperBound = TCRVEmitCCallOpaqueOperand{
-      slice->runtimeElementCountABI.cName, slice->runtimeElementCountABI.cType};
+      boundRuntimeElementCountABI->cName, boundRuntimeElementCountABI->cType};
   loop.step = TCRVEmitCCallOpaqueOperand{fullChunkVLName.str(),
                                          description.vlCType.str()};
 
@@ -365,7 +469,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           slice->setvl.getOperation(), "configure", setVLLeaf,
           {TCRVEmitCCallOpaqueOperand{
               tcrv::rvv::getRVVSelectedBodyEmitCRemainingAVLExpression(
-                  slice->runtimeElementCountABI.cName, inductionName),
+                  boundRuntimeElementCountABI->cName, inductionName),
               vlCType.str()}},
           TCRVEmitCCallOpaqueResult{loopVLName.str(),
                                     vlCType.str()}))
@@ -376,10 +480,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addLoopStep(
             slice->lhsLoadOperation, "load", description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->lhsABI.cName) + " + " +
+                 (llvm::StringRef(boundLHSABI->cName) + " + " +
                   inductionName)
                      .str(),
-                 slice->lhsABI.cType},
+                 boundLHSABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"cmp_lhs_vec",
@@ -388,10 +492,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addLoopStep(
             slice->rhsLoadOperation, "load", description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->rhsABI.cName) + " + " +
+                 (llvm::StringRef(boundRHSABI->cName) + " + " +
                   inductionName)
                      .str(),
-                 slice->rhsABI.cType},
+                 boundRHSABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"cmp_rhs_vec",
@@ -416,12 +520,12 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                 ? llvm::ArrayRef<TCRVEmitCCallOpaqueOperand>(
                       {TCRVEmitCCallOpaqueOperand{
                            (llvm::StringRef(slice->dotLHSABI.cName) + " + (" +
-                            inductionName + " * " + slice->lhsStrideABI.cName +
+                            inductionName + " * " + boundLHSStrideABI->cName +
                             ")")
                                .str(),
                            slice->dotLHSABI.cType},
                        TCRVEmitCCallOpaqueOperand{
-                           (llvm::StringRef(slice->lhsStrideABI.cName) + " * 2")
+                           (llvm::StringRef(boundLHSStrideABI->cName) + " * 2")
                                .str(),
                            "ptrdiff_t"},
                        TCRVEmitCCallOpaqueOperand{loopVLName.str(),
@@ -506,7 +610,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->arithmeticOp, "compute",
             scalarSeedSplatLeaf,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->outABI.cName) + "[0]").str(),
+                 (llvm::StringRef(boundOutABI->cName) + "[0]").str(),
                  "int32_t"},
              TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
                                         vlCType.str()}},
@@ -526,8 +630,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       return error;
     if (llvm::Error error = addLoopStep(
             slice->storeOperation, "store", storeLeaf,
-            {TCRVEmitCCallOpaqueOperand{slice->outABI.cName,
-                                        slice->outABI.cType},
+            {TCRVEmitCCallOpaqueOperand{boundOutABI->cName,
+                                        boundOutABI->cType},
              TCRVEmitCCallOpaqueOperand{description.resultName.str(),
                                         resultVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
@@ -546,10 +650,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (llvm::Error error = addLoopStep(
               slice->lhsLoadOperation, "load", description.vectorLoadIntrinsic,
               {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(slice->lhsABI.cName) + " + " +
+                   (llvm::StringRef(boundLHSABI->cName) + " + " +
                     inductionName)
                        .str(),
-                   slice->lhsABI.cType},
+                   boundLHSABI->cType},
                TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                           description.vlCType.str()}},
               TCRVEmitCCallOpaqueResult{description.field0Name.str(),
@@ -558,10 +662,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (llvm::Error error = addLoopStep(
               slice->rhsLoadOperation, "load", description.vectorLoadIntrinsic,
               {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(slice->rhsABI.cName) + " + " +
+                   (llvm::StringRef(boundRHSABI->cName) + " + " +
                     inductionName)
                        .str(),
-                   slice->rhsABI.cType},
+                   boundRHSABI->cType},
                TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                           description.vlCType.str()}},
               TCRVEmitCCallOpaqueResult{description.field1Name.str(),
@@ -581,10 +685,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               slice->segment2StoreOperation, "store",
               description.segmentStoreIntrinsic,
               {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(slice->outABI.cName) + " + (" +
+                   (llvm::StringRef(boundOutABI->cName) + " + (" +
                     inductionName + " * 2)")
                        .str(),
-                   slice->outABI.cType},
+                   boundOutABI->cType},
                TCRVEmitCCallOpaqueOperand{"segment2_tuple",
                                           description.segmentTupleCType.str()},
                TCRVEmitCCallOpaqueOperand{loopVLName.str(),
@@ -598,10 +702,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->segment2LoadOperation, "load",
             description.segmentLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->lhsABI.cName) + " + (" +
+                 (llvm::StringRef(boundLHSABI->cName) + " + (" +
                   inductionName + " * 2)")
                      .str(),
-                 slice->lhsABI.cType},
+                 boundLHSABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"segment2_tuple",
@@ -685,8 +789,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addLoopStep(
             slice->indexedLoadOperation, "load",
             description.indexedLoadIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{slice->lhsABI.cName,
-                                        slice->lhsABI.cType},
+            {TCRVEmitCCallOpaqueOperand{boundLHSABI->cName,
+                                        boundLHSABI->cType},
              TCRVEmitCCallOpaqueOperand{"byte_offsets",
                                         description.indexVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
@@ -701,11 +805,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             description.stridedLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
                  ("(const int32_t *)((const uint8_t *)" +
-                  llvm::StringRef(slice->lhsABI.cName) + " + (" +
-                  inductionName + " * " + slice->lhsStrideABI.cName + "))")
+                  llvm::StringRef(boundLHSABI->cName) + " + (" +
+                  inductionName + " * " + boundLHSStrideABI->cName + "))")
                      .str(),
-                 slice->lhsABI.cType},
-             TCRVEmitCCallOpaqueOperand{slice->lhsStrideABI.cName,
+                 boundLHSABI->cType},
+             TCRVEmitCCallOpaqueOperand{boundLHSStrideABI->cName,
                                         "ptrdiff_t"},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
@@ -718,12 +822,12 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->lhsLoadOperation, "load",
             description.stridedLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->lhsABI.cName) + " + (" +
-                  inductionName + " * " + slice->lhsStrideABI.cName + ")")
+                 (llvm::StringRef(boundLHSABI->cName) + " + (" +
+                  inductionName + " * " + boundLHSStrideABI->cName + ")")
                      .str(),
-                 slice->lhsABI.cType},
+                 boundLHSABI->cType},
              TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->lhsStrideABI.cName) + " * 4").str(),
+                 (llvm::StringRef(boundLHSStrideABI->cName) + " * 4").str(),
                  "ptrdiff_t"},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
@@ -736,12 +840,12 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->lhsLoadOperation, "load",
             stridedSourceLoadLeaf,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->lhsABI.cName) + " + (" +
-                  inductionName + " * " + slice->lhsStrideABI.cName + ")")
+                 (llvm::StringRef(boundLHSABI->cName) + " + (" +
+                  inductionName + " * " + boundLHSStrideABI->cName + ")")
                      .str(),
-                 slice->lhsABI.cType},
+                 boundLHSABI->cType},
              TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->lhsStrideABI.cName) + " * 2").str(),
+                 (llvm::StringRef(boundLHSStrideABI->cName) + " * 2").str(),
                  "ptrdiff_t"},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"lhs_vec",
@@ -753,9 +857,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->lhsLoadOperation, "load",
             sourceLoadLeaf,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->lhsABI.cName) + " + " + inductionName)
+                 (llvm::StringRef(boundLHSABI->cName) + " + " + inductionName)
                      .str(),
-                 slice->lhsABI.cType},
+                 boundLHSABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"lhs_vec",
                                       sourceVectorCType.str()}))
@@ -765,9 +869,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->lhsLoadOperation, "load",
             vectorLoadLeaf,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->lhsABI.cName) + " + " + inductionName)
+                 (llvm::StringRef(boundLHSABI->cName) + " + " + inductionName)
                      .str(),
-                 slice->lhsABI.cType},
+                 boundLHSABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{lhsResultName.str(),
@@ -813,10 +917,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->accumulatorLoadOperation, "load",
             description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->accumulatorABI.cName) + " + " +
+                 (llvm::StringRef(boundAccumulatorABI->cName) + " + " +
                   inductionName)
                      .str(),
-                 slice->accumulatorABI.cType},
+                 boundAccumulatorABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"old_dst_vec",
@@ -861,10 +965,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->rhsLoadOperation, "load",
             stridedSourceLoadLeaf,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->rhsABI.cName) + " + (" +
+                 (llvm::StringRef(boundRHSABI->cName) + " + (" +
                   inductionName + " * " + slice->rhsStrideABI.cName + ")")
                      .str(),
-                 slice->rhsABI.cType},
+                 boundRHSABI->cType},
              TCRVEmitCCallOpaqueOperand{
                  (llvm::StringRef(slice->rhsStrideABI.cName) + " * 2").str(),
                  "ptrdiff_t"},
@@ -877,9 +981,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->rhsLoadOperation, "load",
             sourceLoadLeaf,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->rhsABI.cName) + " + " + inductionName)
+                 (llvm::StringRef(boundRHSABI->cName) + " + " + inductionName)
                      .str(),
-                 slice->rhsABI.cType},
+                 boundRHSABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"rhs_vec",
                                       sourceVectorCType.str()}))
@@ -889,8 +993,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addLoopStep(
             slice->rhsLoadOperation, "load",
             rhsScalarBroadcastLeaf,
-            {TCRVEmitCCallOpaqueOperand{slice->rhsABI.cName,
-                                        slice->rhsABI.cType},
+            {TCRVEmitCCallOpaqueOperand{boundRHSABI->cName,
+                                        boundRHSABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"rhs_vec",
@@ -902,7 +1006,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->rhsLoadOperation, "load",
             description.rhsBroadcastIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->rhsABI.cName) + "[0]").str(),
+                 (llvm::StringRef(boundRHSABI->cName) + "[0]").str(),
                  "int32_t"},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
@@ -915,10 +1019,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->rhsLoadOperation, "load",
             description.stridedLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->rhsABI.cName) + " + (" +
+                 (llvm::StringRef(boundRHSABI->cName) + " + (" +
                   inductionName + " * " + slice->rhsStrideABI.cName + ")")
                      .str(),
-                 slice->rhsABI.cType},
+                 boundRHSABI->cType},
              TCRVEmitCCallOpaqueOperand{
                  (llvm::StringRef(slice->rhsStrideABI.cName) + " * 4").str(),
                  "ptrdiff_t"},
@@ -931,9 +1035,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addLoopStep(
             slice->rhsLoadOperation, "load", description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->rhsABI.cName) + " + " + inductionName)
+                 (llvm::StringRef(boundRHSABI->cName) + " + " + inductionName)
                      .str(),
-                 slice->rhsABI.cType},
+                 boundRHSABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"rhs_vec",
@@ -987,11 +1091,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               description.stridedLoadIntrinsic,
               {TCRVEmitCCallOpaqueOperand{
                    ("(int32_t *)((uint8_t *)" +
-                    llvm::StringRef(slice->outABI.cName) + " + (" +
-                    inductionName + " * " + slice->outStrideABI.cName + "))")
+                    llvm::StringRef(boundOutABI->cName) + " + (" +
+                    inductionName + " * " + boundOutStrideABI->cName + "))")
                        .str(),
-                   slice->outABI.cType},
-               TCRVEmitCCallOpaqueOperand{slice->outStrideABI.cName,
+                   boundOutABI->cType},
+               TCRVEmitCCallOpaqueOperand{boundOutStrideABI->cName,
                                           "ptrdiff_t"},
                TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                           description.vlCType.str()}},
@@ -1003,10 +1107,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               slice->accumulatorLoadOperation, "load",
               description.vectorLoadIntrinsic,
               {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(slice->outABI.cName) + " + " +
+                   (llvm::StringRef(boundOutABI->cName) + " + " +
                     inductionName)
                        .str(),
-                   slice->outABI.cType},
+                   boundOutABI->cType},
                TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                           description.vlCType.str()}},
               TCRVEmitCCallOpaqueResult{"old_dst_vec",
@@ -1019,10 +1123,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->accumulatorLoadOperation, "load",
             description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->accumulatorABI.cName) + " + " +
+                 (llvm::StringRef(boundAccumulatorABI->cName) + " + " +
                   inductionName)
                      .str(),
-                 slice->accumulatorABI.cType},
+                 boundAccumulatorABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"acc_vec",
@@ -1034,10 +1138,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->accumulatorLoadOperation, "load",
             description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->accumulatorABI.cName) + " + " +
+                 (llvm::StringRef(boundAccumulatorABI->cName) + " + " +
                   inductionName)
                      .str(),
-                 slice->accumulatorABI.cType},
+                 boundAccumulatorABI->cType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"acc_vec",
@@ -1184,7 +1288,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->arithmeticOp, "compute",
             scalarSeedSplatLeaf,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->outABI.cName) + "[0]").str(),
+                 (llvm::StringRef(boundOutABI->cName) + "[0]").str(),
                  "int32_t"},
              TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
                                         vlCType.str()}},
@@ -1205,7 +1309,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addLoopStep(
             slice->arithmeticOp, "compute", scalarSeedSplatLeaf,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->outABI.cName) + "[0]").str(),
+                 (llvm::StringRef(boundOutABI->cName) + "[0]").str(),
                  "int32_t"},
              TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
                                         vlCType.str()}},
@@ -1257,8 +1361,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   if (emitsContractionDotReduction || emitsStandaloneReduction) {
     if (llvm::Error error = addLoopStep(
             slice->storeOperation, "store", storeLeaf,
-            {TCRVEmitCCallOpaqueOperand{slice->outABI.cName,
-                                        slice->outABI.cType},
+            {TCRVEmitCCallOpaqueOperand{boundOutABI->cName,
+                                        boundOutABI->cType},
              TCRVEmitCCallOpaqueOperand{description.resultName.str(),
                                         resultVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{storeVLName.str(),
@@ -1275,11 +1379,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             slice->storeOperation, "store", description.stridedStoreIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
                  ("(int32_t *)((uint8_t *)" +
-                  llvm::StringRef(slice->outABI.cName) + " + (" +
-                  inductionName + " * " + slice->outStrideABI.cName + "))")
+                  llvm::StringRef(boundOutABI->cName) + " + (" +
+                  inductionName + " * " + boundOutStrideABI->cName + "))")
                      .str(),
-                 slice->outABI.cType},
-             TCRVEmitCCallOpaqueOperand{slice->outStrideABI.cName,
+                 boundOutABI->cType},
+             TCRVEmitCCallOpaqueOperand{boundOutStrideABI->cName,
                                         "ptrdiff_t"},
              TCRVEmitCCallOpaqueOperand{description.resultName.str(),
                                         description.vectorCType.str()},
@@ -1291,12 +1395,12 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addLoopStep(
             slice->storeOperation, "store", description.stridedStoreIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->outABI.cName) + " + (" +
-                  inductionName + " * " + slice->outStrideABI.cName + ")")
+                 (llvm::StringRef(boundOutABI->cName) + " + (" +
+                  inductionName + " * " + boundOutStrideABI->cName + ")")
                      .str(),
-                 slice->outABI.cType},
+                 boundOutABI->cType},
              TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->outStrideABI.cName) + " * 4").str(),
+                 (llvm::StringRef(boundOutStrideABI->cName) + " * 4").str(),
                  "ptrdiff_t"},
              TCRVEmitCCallOpaqueOperand{description.resultName.str(),
                                         description.vectorCType.str()},
@@ -1308,8 +1412,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addLoopStep(
             slice->indexedStoreOperation, "store",
             description.indexedStoreIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{slice->outABI.cName,
-                                        slice->outABI.cType},
+            {TCRVEmitCCallOpaqueOperand{boundOutABI->cName,
+                                        boundOutABI->cType},
              TCRVEmitCCallOpaqueOperand{"byte_offsets",
                                         description.indexVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{description.resultName.str(),
@@ -1324,9 +1428,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
                                         description.maskCType.str()},
              TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->outABI.cName) + " + " + inductionName)
+                 (llvm::StringRef(boundOutABI->cName) + " + " + inductionName)
                      .str(),
-                 slice->outABI.cType},
+                 boundOutABI->cType},
              TCRVEmitCCallOpaqueOperand{"lhs_vec",
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{storeVLName.str(),
@@ -1336,9 +1440,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (llvm::Error error = addLoopStep(
             slice->storeOperation, "store", description.storeIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(slice->outABI.cName) + " + " + inductionName)
+                 (llvm::StringRef(boundOutABI->cName) + " + " + inductionName)
                      .str(),
-                 slice->outABI.cType},
+                 boundOutABI->cType},
              TCRVEmitCCallOpaqueOperand{description.resultName.str(),
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{storeVLName.str(),

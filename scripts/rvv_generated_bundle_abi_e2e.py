@@ -140,6 +140,35 @@ COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT = (
 STRIDED_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride"
 STRIDED_LOAD_UNIT_STORE_RUNTIME_ABI_ORDER = "src,out,n,stride_bytes"
 UNIT_LOAD_STRIDED_STORE_RUNTIME_ABI_ORDER = "src,dst,n,dst_stride_bytes"
+MACC_ROUTE_OPERAND_BINDING_PLAN = "rvv-route-operand-binding:macc_add.v1"
+MACC_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:macc_add.v1;"
+    "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|macc-lhs-call;"
+    "rhs=rhs-input-buffer:rhs:runtime-abi-mirror|materialized-load-base|macc-rhs-call;"
+    "acc=accumulator-input-buffer:acc:runtime-abi-mirror|materialized-accumulator-load-base|macc-accumulator-call;"
+    "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
+    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+)
+STRIDED_LOAD_UNIT_STORE_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:strided_load_unit_store.v1"
+)
+STRIDED_LOAD_UNIT_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:strided_load_unit_store.v1;"
+    "src=source-input-buffer:src:runtime-abi-mirror|materialized-strided-load-base|move-source;"
+    "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
+    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror;"
+    "stride_bytes=source-byte-stride:stride_bytes:runtime-abi-mirror|materialized-strided-load-stride|materialized-byte-address|header-mirror"
+)
+UNIT_LOAD_STRIDED_STORE_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:unit_load_strided_store.v1"
+)
+UNIT_LOAD_STRIDED_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:unit_load_strided_store.v1;"
+    "src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|move-source;"
+    "dst=output-buffer:dst:runtime-abi-mirror|materialized-strided-store-base|header-mirror;"
+    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror;"
+    "dst_stride_bytes=destination-byte-stride:dst_stride_bytes:runtime-abi-mirror|materialized-strided-store-stride|materialized-byte-address|header-mirror"
+)
 SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,out,n"
 WIDENING_CONVERSION_RUNTIME_ABI_ORDER = "lhs,out,n"
 WIDENING_CONVERSION_RELATION = "signed-i32m1-to-i64m2"
@@ -2319,6 +2348,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
             {
                 "tcrv_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
                 "tcrv_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
+                "tcrv_rvv.route_operand_binding_plan": (
+                    MACC_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    MACC_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if expectation.is_strided_add:
@@ -2345,6 +2380,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.destination_memory_form": (
                     STRIDED_LOAD_UNIT_STORE_DESTINATION_MEMORY_FORM
                 ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    STRIDED_LOAD_UNIT_STORE_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    STRIDED_LOAD_UNIT_STORE_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if expectation.is_unit_load_strided_store:
@@ -2361,6 +2402,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.destination_memory_form": (
                     UNIT_LOAD_STRIDED_STORE_DESTINATION_MEMORY_FORM
+                ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    UNIT_LOAD_STRIDED_STORE_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    UNIT_LOAD_STRIDED_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
         )

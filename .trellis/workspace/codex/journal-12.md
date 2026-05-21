@@ -1356,3 +1356,47 @@ Implemented bounded RVV macc_add with explicit accumulator input, provider-deriv
 ### Next Steps
 
 - None - task complete
+
+
+## Session 152: Stage2 RVV route operand ABI binding contract
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV route operand ABI binding contract
+**Branch**: `main`
+
+### Summary
+
+Implemented a bounded RVV plugin-owned route operand binding contract consumed by existing executable routes, covering `macc_add`, `strided_load_unit_store`, and `unit_load_strided_store`.
+
+### Main Changes
+
+- Added `RVVRouteOperandBindingPlan` to record logical operands, runtime ABI roles/C parameters, and materialized uses for route/provider/header mirrors.
+- Rewired provider operand materialization so the bounded consumers derive setvl/control, loads, stores, call operands, and route/header mirrors from the binding contract.
+- Added fail-closed validation for plan id, logical operand uniqueness, runtime role uniqueness, logical-operand-to-role mapping, runtime ABI mirror order, missing materialized uses, and runtime ABI mirror mismatch.
+- Extended generated-bundle metadata checks and target artifact/header FileCheck coverage for macc and representative byte-strided load/store routes.
+- Added negative tests for macc accumulator loaded from `out` and unit-load-strided-store using source as destination.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Generated-bundle dry-run for explicit and pre-realized `macc_add`, `strided_load_unit_store`, and `unit_load_strided_store`, counts `7,16,23`, stride bytes `4,8,12`.
+- [OK] Real `ssh rvv` PASS for explicit and pre-realized `macc_add`, `strided_load_unit_store`, and `unit_load_strided_store`, counts `7,16,23`, stride bytes `4,8,12`.
+- [OK] Active-authority scan: no added positive legacy i32/RVVI32M1, descriptor/direct-C/source-front-door/source-export, public exact intrinsic, or common/export RVV semantic authority in production/test diff.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 261/261 passed.
+
+### Self-Repair
+
+- Added logical-operand-to-runtime-role validation after the initial contract only checked plan id, uniqueness, and ABI mirror order; plugin tests now catch `n`/stride role swaps directly in the binding contract.
+- Updated the unit-load-strided-store negative test to match the earlier verifier-level fail-closed diagnostic.
+
+### Status
+
+[OK] Completed and archived.
+
+### Next Steps
+
+- None for this bounded operand-binding contract.

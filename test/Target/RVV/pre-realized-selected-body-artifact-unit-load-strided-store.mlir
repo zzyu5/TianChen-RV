@@ -48,6 +48,8 @@ module {
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.move"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "unit-load-strided-store"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "src,dst,n,dst_stride_bytes"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:unit_load_strided_store.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:unit_load_strided_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|move-source;dst=output-buffer:dst:runtime-abi-mirror|materialized-strided-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror;dst_stride_bytes=destination-byte-stride:dst_stride_bytes:runtime-abi-mirror|materialized-strided-store-stride|materialized-byte-address|header-mirror"}
 // PLAN-SAME: {key = "tcrv_rvv.strided_memory_layout", value = "unit-stride-source-byte-strided-destination-runtime-abi"}
 // PLAN-SAME: {key = "tcrv_rvv.destination_stride_source", value = "runtime_abi:dst_stride_bytes"}
 // PLAN-SAME: {key = "tcrv_rvv.source_memory_form", value = "unit-stride-load"}
@@ -65,4 +67,6 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-unit-load-strided-store-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.runtime_abi_order: src,dst,n,dst_stride_bytes
+// HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:unit_load_strided_store.v1
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:unit_load_strided_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|move-source;dst=output-buffer:dst:runtime-abi-mirror|materialized-strided-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror;dst_stride_bytes=destination-byte-stride:dst_stride_bytes:runtime-abi-mirror|materialized-strided-store-stride|materialized-byte-address|header-mirror
 // HEADER: void tcrv_emitc_pre_realized_body_unit_load_strided_store_kernel_pre_realized_body_rvv_unit_load_strided_store(const int32_t *src, int32_t *dst, size_t n, size_t dst_stride_bytes);

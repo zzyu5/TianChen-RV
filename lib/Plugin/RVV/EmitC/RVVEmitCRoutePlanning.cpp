@@ -7,6 +7,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
@@ -25,6 +26,190 @@ llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message) {
           "TianChen-RV RVV plugin-owned EmitC route provider failed: ") +
           message,
       llvm::errc::invalid_argument);
+}
+
+constexpr llvm::StringLiteral kRVVMAccOperandBindingPlanID(
+    "rvv-route-operand-binding:macc_add.v1");
+constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreOperandBindingPlanID(
+    "rvv-route-operand-binding:strided_load_unit_store.v1");
+constexpr llvm::StringLiteral kRVVUnitLoadStridedStoreOperandBindingPlanID(
+    "rvv-route-operand-binding:unit_load_strided_store.v1");
+
+std::optional<support::RuntimeABIParameterRole>
+getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
+                                      llvm::StringRef logicalOperand) {
+  using support::RuntimeABIParameterRole;
+  if (planID == kRVVMAccOperandBindingPlanID) {
+    if (logicalOperand == "lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "rhs")
+      return RuntimeABIParameterRole::RHSInputBuffer;
+    if (logicalOperand == "acc")
+      return RuntimeABIParameterRole::AccumulatorInputBuffer;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVStridedLoadUnitStoreOperandBindingPlanID) {
+    if (logicalOperand == "src")
+      return RuntimeABIParameterRole::SourceInputBuffer;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+    if (logicalOperand == "stride_bytes")
+      return RuntimeABIParameterRole::SourceByteStride;
+  }
+  if (planID == kRVVUnitLoadStridedStoreOperandBindingPlanID) {
+    if (logicalOperand == "src")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "dst")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+    if (logicalOperand == "dst_stride_bytes")
+      return RuntimeABIParameterRole::DestinationByteStride;
+  }
+  return std::nullopt;
+}
+
+llvm::Expected<const support::RuntimeABIParameter *>
+getRVVRouteOperandBindingParameter(
+    const RVVRouteOperandBindingPlan &plan, llvm::StringRef logicalOperand,
+    llvm::StringRef materializedUse, llvm::StringRef context) {
+  if (plan.planID.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("route operand ABI binding lookup for ") + context +
+        " requires a non-empty RouteOperandBindingPlan");
+
+  const RVVRouteOperandBinding *matched = nullptr;
+  unsigned count = 0;
+  for (const RVVRouteOperandBinding &binding : plan.bindings) {
+    if (llvm::StringRef(binding.logicalOperand) != logicalOperand)
+      continue;
+    matched = &binding;
+    ++count;
+  }
+
+  if (count != 1)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("route operand ABI binding lookup for ") + context +
+        " requires exactly one logical operand '" + logicalOperand +
+        "' in plan '" + plan.planID + "'");
+
+  const bool hasUse = llvm::any_of(
+      matched->materializedUses, [&](const std::string &use) {
+        return llvm::StringRef(use) == materializedUse;
+      });
+  if (!hasUse)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("route operand ABI binding lookup for ") + context +
+        " requires logical operand '" + logicalOperand +
+        "' to record materialized use '" + materializedUse + "'");
+
+  if (llvm::StringRef(matched->parameter.cName).empty() ||
+      llvm::StringRef(matched->parameter.cType).empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("route operand ABI binding lookup for ") + context +
+        " found empty C ABI name/type for logical operand '" +
+        logicalOperand + "'");
+
+  return &matched->parameter;
+}
+
+std::string
+stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan) {
+  std::string text;
+  llvm::raw_string_ostream os(text);
+  os << plan.planID;
+  for (const RVVRouteOperandBinding &binding : plan.bindings) {
+    os << ";" << binding.logicalOperand << "="
+       << support::stringifyRuntimeABIParameterRole(binding.parameter.role)
+       << ":" << binding.parameter.cName << ":";
+    for (auto indexedUse : llvm::enumerate(binding.materializedUses)) {
+      if (indexedUse.index() != 0)
+        os << "|";
+      os << indexedUse.value();
+    }
+  }
+  os.flush();
+  return text;
+}
+
+llvm::Error verifyRVVRouteOperandBindingPlan(
+    const RVVRouteOperandBindingPlan &plan, llvm::StringRef expectedPlanID,
+    llvm::StringRef expectedRuntimeABIOrder, llvm::StringRef context) {
+  if (llvm::StringRef(plan.planID) != expectedPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("route operand ABI binding plan validation for ") +
+        context + " requires plan id '" + expectedPlanID + "' but found '" +
+        plan.planID + "'");
+  if (plan.bindings.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("route operand ABI binding plan validation for ") +
+        context + " requires at least one binding");
+
+  llvm::StringSet<> logicalOperands;
+  llvm::StringSet<> runtimeRoles;
+  std::string runtimeABIOrder;
+  llvm::raw_string_ostream orderOS(runtimeABIOrder);
+  bool firstBinding = true;
+  for (const RVVRouteOperandBinding &binding : plan.bindings) {
+    if (binding.logicalOperand.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine("route operand ABI binding plan validation for ") +
+          context + " found empty logical operand");
+    if (!logicalOperands.insert(binding.logicalOperand).second)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine("route operand ABI binding plan validation for ") +
+          context + " found duplicate logical operand '" +
+          binding.logicalOperand + "'");
+    llvm::StringRef role =
+        support::stringifyRuntimeABIParameterRole(binding.parameter.role);
+    std::optional<support::RuntimeABIParameterRole> expectedRole =
+        getExpectedRVVRouteOperandBindingRole(plan.planID,
+                                              binding.logicalOperand);
+    if (!expectedRole)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine("route operand ABI binding plan validation for ") +
+          context + " found unsupported logical operand '" +
+          binding.logicalOperand + "' in plan '" + plan.planID + "'");
+    if (binding.parameter.role != *expectedRole)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine("route operand ABI binding plan validation for ") +
+          context + " requires logical operand '" + binding.logicalOperand +
+          "' to bind runtime ABI role '" +
+          support::stringifyRuntimeABIParameterRole(*expectedRole) +
+          "' but found '" + role + "'");
+    if (!runtimeRoles.insert(role).second)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine("route operand ABI binding plan validation for ") +
+          context + " found duplicate runtime ABI role '" + role + "'");
+    if (binding.parameter.cName.empty() || binding.parameter.cType.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine("route operand ABI binding plan validation for ") +
+          context + " requires non-empty C ABI name/type for logical operand '" +
+          binding.logicalOperand + "'");
+    if (binding.materializedUses.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine("route operand ABI binding plan validation for ") +
+          context + " requires materialized uses for logical operand '" +
+          binding.logicalOperand + "'");
+    if (!firstBinding)
+      orderOS << ",";
+    firstBinding = false;
+    orderOS << binding.parameter.cName;
+  }
+  orderOS.flush();
+  if (runtimeABIOrder != expectedRuntimeABIOrder)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("route operand ABI binding plan validation for ") +
+        context + " requires runtime ABI mirror order '" +
+        expectedRuntimeABIOrder + "' but plan records '" + runtimeABIOrder +
+        "'");
+
+  return llvm::Error::success();
 }
 
 namespace {
@@ -3826,6 +4011,114 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
   return llvm::Error::success();
 }
 
+void addRouteOperandBinding(
+    RVVRouteOperandBindingPlan &plan, llvm::StringRef logicalOperand,
+    const support::RuntimeABIParameter &parameter,
+    llvm::ArrayRef<llvm::StringRef> materializedUses) {
+  RVVRouteOperandBinding binding;
+  binding.logicalOperand = logicalOperand.str();
+  binding.parameter = parameter;
+  for (llvm::StringRef use : materializedUses)
+    binding.materializedUses.push_back(use.str());
+  plan.bindings.push_back(std::move(binding));
+}
+
+llvm::Expected<RVVRouteOperandBindingPlan>
+deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
+  const RVVSelectedBodyRouteSlice &slice = analysis.slice;
+  RVVRouteOperandBindingPlan plan;
+  llvm::StringRef expectedRuntimeABIOrder;
+  llvm::StringRef context;
+
+  if (slice.arithmeticKind == RVVSelectedBodyOperationKind::MAccAdd) {
+    plan.planID = kRVVMAccOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVMAccRuntimeABIOrder;
+    context = "macc_add route";
+    addRouteOperandBinding(
+        plan, "lhs", slice.lhsABI,
+        {"runtime-abi-mirror", "materialized-load-base", "macc-lhs-call"});
+    addRouteOperandBinding(
+        plan, "rhs", slice.rhsABI,
+        {"runtime-abi-mirror", "materialized-load-base", "macc-rhs-call"});
+    addRouteOperandBinding(
+        plan, "acc", slice.accumulatorABI,
+        {"runtime-abi-mirror", "materialized-accumulator-load-base",
+         "macc-accumulator-call"});
+    addRouteOperandBinding(
+        plan, "out", slice.outABI,
+        {"runtime-abi-mirror", "materialized-store-base",
+         "header-mirror"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
+  } else if (slice.memoryForm ==
+             RVVSelectedBodyMemoryForm::StridedLoadUnitStore) {
+    plan.planID = kRVVStridedLoadUnitStoreOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVStridedLoadUnitStoreRuntimeABIOrder;
+    context = "strided_load_unit_store route";
+    addRouteOperandBinding(
+        plan, "src", slice.lhsABI,
+        {"runtime-abi-mirror", "materialized-strided-load-base",
+         "move-source"});
+    addRouteOperandBinding(
+        plan, "out", slice.outABI,
+        {"runtime-abi-mirror", "materialized-store-base",
+         "header-mirror"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
+    addRouteOperandBinding(
+        plan, "stride_bytes", slice.lhsStrideABI,
+        {"runtime-abi-mirror", "materialized-strided-load-stride",
+         "materialized-byte-address", "header-mirror"});
+  } else if (slice.memoryForm ==
+             RVVSelectedBodyMemoryForm::UnitLoadStridedStore) {
+    plan.planID = kRVVUnitLoadStridedStoreOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVUnitLoadStridedStoreRuntimeABIOrder;
+    context = "unit_load_strided_store route";
+    addRouteOperandBinding(
+        plan, "src", slice.lhsABI,
+        {"runtime-abi-mirror", "materialized-load-base", "move-source"});
+    addRouteOperandBinding(
+        plan, "dst", slice.outABI,
+        {"runtime-abi-mirror", "materialized-strided-store-base",
+         "header-mirror"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
+    addRouteOperandBinding(
+        plan, "dst_stride_bytes", slice.outStrideABI,
+        {"runtime-abi-mirror", "materialized-strided-store-stride",
+         "materialized-byte-address", "header-mirror"});
+  }
+
+  if (plan.planID.empty())
+    return plan;
+
+  if (llvm::Error error = verifyRVVRouteOperandBindingPlan(
+          plan, plan.planID, expectedRuntimeABIOrder, context))
+    return std::move(error);
+  if (expectedRuntimeABIOrder != analysis.description.runtimeABIOrder)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("route operand ABI binding plan validation for ") +
+        context + " requires description runtime ABI order '" +
+        expectedRuntimeABIOrder + "' but found '" +
+        analysis.description.runtimeABIOrder + "'");
+  llvm::SmallVector<support::RuntimeABIParameter, 8> planParameters;
+  for (const RVVRouteOperandBinding &binding : plan.bindings)
+    planParameters.push_back(binding.parameter);
+  if (!support::runtimeABIParametersEqual(
+          planParameters, analysis.description.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("route operand ABI binding plan validation for ") +
+        context +
+        " requires runtime ABI parameter mirrors to match the binding plan");
+  return plan;
+}
+
 llvm::Error recordRVVSelectedBodyOperation(RVVSelectedBodyRouteSlice &slice,
                                            mlir::Operation *op,
                                            RVVSelectedBodyOperationKind kind,
@@ -7596,6 +7889,18 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
           routeProfile->config, analysis.slice.runtimeElementCountABI,
           analysis.slice.outABI))
     return error;
+  llvm::Expected<RVVRouteOperandBindingPlan> operandBindingPlan =
+      deriveRVVRouteOperandBindingPlan(analysis);
+  if (!operandBindingPlan)
+    return operandBindingPlan.takeError();
+  analysis.routeOperandBindingPlan = std::move(*operandBindingPlan);
+  if (!analysis.routeOperandBindingPlan.planID.empty()) {
+    analysis.description.routeOperandBindingPlanID =
+        analysis.routeOperandBindingPlan.planID;
+    analysis.description.routeOperandBindingSummary =
+        stringifyRVVRouteOperandBindingPlan(
+            analysis.routeOperandBindingPlan);
+  }
   if (llvm::Error error = verifyRVVSelectedBodyConstructionRouteMapping(
           routeProfile->operation.operationMnemonic,
           analysis.description.typedComputeOpName,
@@ -8100,6 +8405,38 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           context, "runtime ABI order", description.runtimeABIOrder,
           expectedRuntimeABIOrder))
     return error;
+  llvm::StringRef expectedOperandBindingPlanID;
+  if (operationProfile.operation == RVVSelectedBodyOperationKind::MAccAdd)
+    expectedOperandBindingPlanID = kRVVMAccOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::StridedLoadUnitStore)
+    expectedOperandBindingPlanID =
+        kRVVStridedLoadUnitStoreOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::UnitLoadStridedStore)
+    expectedOperandBindingPlanID =
+        kRVVUnitLoadStridedStoreOperandBindingPlanID;
+  if (!expectedOperandBindingPlanID.empty()) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "route operand ABI binding plan",
+            description.routeOperandBindingPlanID,
+            expectedOperandBindingPlanID))
+      return error;
+    if (description.routeOperandBindingSummary.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " requires a non-empty route operand ABI binding mirror summary");
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "route operand ABI binding plan",
+            description.routeOperandBindingPlanID, ""))
+      return error;
+    if (!description.routeOperandBindingSummary.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " must not carry a route operand ABI binding summary for this "
+          "unconverted route");
+  }
   if (isScalarBroadcastElementwiseRoute || isStandaloneReductionRoute)
     if (llvm::Error error = requireRouteDescriptionField(
             context, "runtime control plan", description.runtimeControlPlanID,
@@ -9444,6 +9781,12 @@ getRVVSelectedBodyConfigArtifactMetadata(
       {"tcrv_rvv.runtime_abi_order", description.runtimeABIOrder});
   metadata.push_back({"tcrv_rvv.runtime_avl_abi_parameter",
                       tcrv::rvv::getRVVSelectedBodyRuntimeAVLParameterName()});
+  if (!description.routeOperandBindingPlanID.empty()) {
+    metadata.push_back({"tcrv_rvv.route_operand_binding_plan",
+                        description.routeOperandBindingPlanID});
+    metadata.push_back({"tcrv_rvv.route_operand_binding_operands",
+                        description.routeOperandBindingSummary});
+  }
   metadata.push_back({"tcrv_rvv.emitc_loop", description.emitCLoopKind});
   metadata.push_back(
       {"tcrv_rvv.loop_induction", description.emitCLoopInductionName});

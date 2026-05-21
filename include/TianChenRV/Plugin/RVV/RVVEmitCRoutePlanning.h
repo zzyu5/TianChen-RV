@@ -15,8 +15,20 @@
 #include "llvm/Support/Error.h"
 
 #include <optional>
+#include <string>
 
 namespace tianchenrv::plugin::rvv {
+
+struct RVVRouteOperandBinding {
+  std::string logicalOperand;
+  support::RuntimeABIParameter parameter;
+  llvm::SmallVector<std::string, 4> materializedUses;
+};
+
+struct RVVRouteOperandBindingPlan {
+  std::string planID;
+  llvm::SmallVector<RVVRouteOperandBinding, 8> bindings;
+};
 
 struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::SetVLOp setvl;
@@ -245,6 +257,7 @@ struct RVVSelectedBodyRouteAnalysis {
   RVVSelectedBodyRouteSlice slice;
   const RVVSelectedBodyConstructionRoute *constructionRoute = nullptr;
   RVVSelectedBodyEmitCRouteDescription description;
+  RVVRouteOperandBindingPlan routeOperandBindingPlan;
   std::optional<RVVSelectedBodyContractionRouteFamilyPlan>
       contractionRouteFamilyPlan;
   std::optional<RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan>
@@ -254,6 +267,18 @@ struct RVVSelectedBodyRouteAnalysis {
 };
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);
+
+llvm::Expected<const support::RuntimeABIParameter *>
+getRVVRouteOperandBindingParameter(
+    const RVVRouteOperandBindingPlan &plan, llvm::StringRef logicalOperand,
+    llvm::StringRef materializedUse, llvm::StringRef context);
+
+llvm::Error verifyRVVRouteOperandBindingPlan(
+    const RVVRouteOperandBindingPlan &plan, llvm::StringRef expectedPlanID,
+    llvm::StringRef expectedRuntimeABIOrder, llvm::StringRef context);
+
+std::string
+stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan);
 
 llvm::Expected<RVVSelectedBodyRouteAnalysis>
 analyzeRVVSelectedBodyRoute(

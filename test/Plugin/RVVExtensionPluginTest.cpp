@@ -5,6 +5,7 @@
 #include "TianChenRV/Plugin/BuiltinExtensionPlugins.h"
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
@@ -1550,6 +1551,156 @@ module {
       {"selected RVV EmitC route", "construction order 3", "expected 0"});
 }
 
+int runRouteOperandBindingPlanValidationTest() {
+  using tianchenrv::plugin::rvv::RVVRouteOperandBinding;
+  using tianchenrv::plugin::rvv::RVVRouteOperandBindingPlan;
+  using tianchenrv::support::RuntimeABIParameterRole;
+  using tianchenrv::support::makeTargetExportABIParameter;
+
+  auto addBinding =
+      [](RVVRouteOperandBindingPlan &plan, llvm::StringRef logicalOperand,
+         tianchenrv::support::RuntimeABIParameter parameter,
+         std::initializer_list<llvm::StringRef> uses) {
+        RVVRouteOperandBinding binding;
+        binding.logicalOperand = logicalOperand.str();
+        binding.parameter = std::move(parameter);
+        for (llvm::StringRef use : uses)
+          binding.materializedUses.push_back(use.str());
+        plan.bindings.push_back(std::move(binding));
+      };
+
+  RVVRouteOperandBindingPlan plan;
+  plan.planID = "rvv-route-operand-binding:macc_add.v1";
+  addBinding(plan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"runtime-abi-mirror", "materialized-load-base"});
+  addBinding(plan, "rhs",
+             makeTargetExportABIParameter(
+                 "rhs", "const int32_t *",
+                 RuntimeABIParameterRole::RHSInputBuffer),
+             {"runtime-abi-mirror", "materialized-load-base"});
+  addBinding(plan, "acc",
+             makeTargetExportABIParameter(
+                 "acc", "const int32_t *",
+                 RuntimeABIParameterRole::AccumulatorInputBuffer),
+             {"runtime-abi-mirror", "materialized-accumulator-load-base"});
+  addBinding(plan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"runtime-abi-mirror", "materialized-store-base"});
+  addBinding(plan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"runtime-abi-mirror", "setvl-avl", "loop-control"});
+
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              plan, "rvv-route-operand-binding:macc_add.v1",
+              "lhs,rhs,acc,out,n", "route operand binding unit test"),
+          "valid route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan badOrder = plan;
+  badOrder.bindings[2].parameter.cName = "out";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              badOrder, "rvv-route-operand-binding:macc_add.v1",
+              "lhs,rhs,acc,out,n", "route operand binding unit test"),
+          {"runtime ABI mirror order"}))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedNRole = plan;
+  swappedNRole.bindings[4].parameter.role =
+      RuntimeABIParameterRole::SourceByteStride;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedNRole, "rvv-route-operand-binding:macc_add.v1",
+              "lhs,rhs,acc,out,n", "route operand binding unit test"),
+          {"logical operand 'n'", "runtime-element-count",
+           "source-byte-stride"}))
+    return result;
+
+  RVVRouteOperandBindingPlan duplicate = plan;
+  duplicate.bindings.push_back(plan.bindings.front());
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              duplicate, "rvv-route-operand-binding:macc_add.v1",
+              "lhs,rhs,acc,out,n", "route operand binding unit test"),
+          {"duplicate logical operand"}))
+    return result;
+
+  RVVRouteOperandBindingPlan duplicateRole = plan;
+  duplicateRole.bindings[1].parameter.role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              duplicateRole, "rvv-route-operand-binding:macc_add.v1",
+              "lhs,rhs,acc,out,n", "route operand binding unit test"),
+          {"logical operand 'rhs'", "rhs-input-buffer", "lhs-input-buffer"}))
+    return result;
+
+  llvm::Expected<const tianchenrv::support::RuntimeABIParameter *> missingUse =
+      tianchenrv::plugin::rvv::getRVVRouteOperandBindingParameter(
+          plan, "acc", "materialized-store-base",
+          "route operand binding unit test");
+  if (int result =
+          expectErrorContains(missingUse.takeError(), {"materialized use"}))
+    return result;
+
+  llvm::Expected<const tianchenrv::support::RuntimeABIParameter *>
+      missingOperand = tianchenrv::plugin::rvv::
+          getRVVRouteOperandBindingParameter(
+              plan, "stride_bytes", "materialized-strided-load-stride",
+              "route operand binding unit test");
+  if (int result =
+          expectErrorContains(missingOperand.takeError(),
+                              {"exactly one logical operand", "stride_bytes"}))
+    return result;
+
+  RVVRouteOperandBindingPlan stridedLoadPlan;
+  stridedLoadPlan.planID =
+      "rvv-route-operand-binding:strided_load_unit_store.v1";
+  addBinding(stridedLoadPlan, "src",
+             makeTargetExportABIParameter(
+                 "src", "const int32_t *",
+                 RuntimeABIParameterRole::SourceInputBuffer),
+             {"runtime-abi-mirror", "materialized-strided-load-base"});
+  addBinding(stridedLoadPlan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"runtime-abi-mirror", "materialized-store-base"});
+  addBinding(stridedLoadPlan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"runtime-abi-mirror", "setvl-avl", "loop-control"});
+  addBinding(stridedLoadPlan, "stride_bytes",
+             makeTargetExportABIParameter(
+                 "stride_bytes", "size_t",
+                 RuntimeABIParameterRole::SourceByteStride),
+             {"runtime-abi-mirror", "materialized-strided-load-stride",
+              "materialized-byte-address"});
+
+  RVVRouteOperandBindingPlan swappedStrideAndN = stridedLoadPlan;
+  swappedStrideAndN.bindings[2].parameter.role =
+      RuntimeABIParameterRole::SourceByteStride;
+  swappedStrideAndN.bindings[3].parameter.role =
+      RuntimeABIParameterRole::RuntimeElementCount;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedStrideAndN,
+              "rvv-route-operand-binding:strided_load_unit_store.v1",
+              "src,out,n,stride_bytes", "route operand binding unit test"),
+          {"logical operand 'n'", "runtime-element-count",
+           "source-byte-stride"}))
+    return result;
+
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -1591,6 +1742,8 @@ int main() {
   if (int result = runCompareSelectSelectedBodyRouteTest(context))
     return result;
   if (int result = runOutOfOrderSelectedRoleSequenceRejectionTest(context))
+    return result;
+  if (int result = runRouteOperandBindingPlanValidationTest())
     return result;
 
   llvm::outs() << "RVV extension plugin smoke test passed\n";

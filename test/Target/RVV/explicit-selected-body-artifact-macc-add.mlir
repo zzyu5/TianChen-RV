@@ -39,6 +39,8 @@ module {
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "macc_add"}
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.macc"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "vector-rhs-load"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:macc_add.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:macc_add.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|macc-lhs-call;rhs=rhs-input-buffer:rhs:runtime-abi-mirror|materialized-load-base|macc-rhs-call;acc=accumulator-input-buffer:acc:runtime-abi-mirror|materialized-accumulator-load-base|macc-accumulator-call;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"}
 // PLAN-SAME: {key = "tcrv_rvv.macc_accumulator_layout", value = "separate-i32-vector-accumulator-input"}
 // PLAN-SAME: {key = "tcrv_rvv.macc_result_layout", value = "store-multiply-accumulate-result-to-output-buffer"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
@@ -50,4 +52,6 @@ module {
 // HEADER: tianchenrv.rvv.selected_variant: @explicit_selected_body_rvv_macc_add
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-macc-add-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
+// HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:macc_add.v1
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:macc_add.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|macc-lhs-call;rhs=rhs-input-buffer:rhs:runtime-abi-mirror|materialized-load-base|macc-rhs-call;acc=accumulator-input-buffer:acc:runtime-abi-mirror|materialized-accumulator-load-base|macc-accumulator-call;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror
 // HEADER: void tcrv_emitc_explicit_selected_body_macc_add_kernel_explicit_selected_body_rvv_macc_add(const int32_t *lhs, const int32_t *rhs, const int32_t *acc, int32_t *out, size_t n);
