@@ -416,7 +416,7 @@ constexpr llvm::StringLiteral kRVVComputedMaskMemoryRuntimeABIOrder(
 constexpr llvm::StringLiteral kRVVComputedMaskSelectRuntimeABIOrder(
     "cmp_lhs,cmp_rhs,true_value,false_value,out,n");
 constexpr llvm::StringLiteral kRVVComputedMaskStridedStoreRuntimeABIOrder(
-    "cmp_lhs,cmp_rhs,src,dst,n,dst_stride");
+    "cmp_lhs,cmp_rhs,src,dst,n,dst_stride_bytes");
 constexpr llvm::StringLiteral kRVVSegment2RuntimeABIOrder(
     "src,out0,out1,n");
 constexpr llvm::StringLiteral kRVVSegment2InterleaveRuntimeABIOrder(
@@ -477,7 +477,7 @@ constexpr llvm::StringLiteral kRVVComputedMaskMemoryLayout(
 constexpr llvm::StringLiteral kRVVComputedMaskSelectMemoryLayout(
     "unit-stride-compare-true-false-select-output-runtime-abi");
 constexpr llvm::StringLiteral kRVVComputedMaskStridedStoreMemoryLayout(
-    "unit-stride-compare-source-element-strided-old-destination-runtime-abi");
+    "unit-stride-compare-source-byte-strided-old-destination-runtime-abi");
 constexpr llvm::StringLiteral kRVVStridedInputWideningDotMemoryLayout(
     "element-strided-lhs-rhs-dot-source-unit-stride-output-runtime-abi");
 constexpr llvm::StringLiteral
@@ -494,8 +494,6 @@ constexpr llvm::StringLiteral kRVVSourceStrideSource(
     "runtime_abi:stride_bytes");
 constexpr llvm::StringLiteral kRVVDestinationByteStrideSource(
     "runtime_abi:dst_stride_bytes");
-constexpr llvm::StringLiteral kRVVDestinationElementStrideSource(
-    "runtime_abi:dst_stride");
 constexpr llvm::StringLiteral kRVVSourceMemoryForm("strided-load");
 constexpr llvm::StringLiteral kRVVStridedInputDotSourceMemoryForm(
     "strided-load");
@@ -3369,10 +3367,13 @@ llvm::Error assignRVVGenericStridedLoadBinding(
   }
 
   if (bufferParameter.role == support::RuntimeABIParameterRole::OutputBuffer) {
-    if (strideParameter.role != support::RuntimeABIParameterRole::OutputStride)
+    if (strideParameter.role !=
+            support::RuntimeABIParameterRole::OutputStride &&
+        strideParameter.role !=
+            support::RuntimeABIParameterRole::DestinationByteStride)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV strided old-destination load requires "
-          "output-stride runtime ABI value");
+          "output-stride or destination-byte-stride runtime ABI value");
     if (slice.accumulatorLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV strided route requires a unique "
@@ -5323,6 +5324,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
             {support::RuntimeABIParameterRole::LHSInputStride,
              support::RuntimeABIParameterRole::RHSInputStride,
              support::RuntimeABIParameterRole::SourceByteStride,
+             support::RuntimeABIParameterRole::DestinationByteStride,
              support::RuntimeABIParameterRole::OutputStride});
     if (!strideParameter)
       return strideParameter.takeError();
@@ -5601,7 +5603,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return outStrideABI.takeError();
     if (llvm::Error error = assignRVVGenericStridedStoreBinding(
             slice, slice.stridedStore, resolvedOutABI, *outStrideABI,
-            isUnitLoadStridedStore))
+            isUnitLoadStridedStore || isComputedMaskStridedStore))
       return error;
     if (isUnitLoadStridedStore)
       slice.memoryForm = RVVSelectedBodyMemoryForm::UnitLoadStridedStore;
@@ -6103,7 +6105,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route requires the "
           "old-destination strided load and strided_store to consume the same "
-          "output-stride SSA value");
+          "destination stride SSA value");
     if (slice.compareOp.getKind() != "slt")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask strided-store route currently "
@@ -6915,6 +6917,13 @@ llvm::Error verifySelectedRVVRoleSequence(
           "bounded generic RVV unit-load to byte-strided-store route "
           "requires destination-byte-stride runtime ABI value");
   }
+  if (isComputedMaskStridedStore) {
+    if (slice.outStrideABI.role !=
+        support::RuntimeABIParameterRole::DestinationByteStride)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV computed-mask byte-strided-store route "
+          "requires destination-byte-stride runtime ABI value");
+  }
 
   mlir::ArrayAttr requires =
       request.getVariant()->getAttrOfType<mlir::ArrayAttr>("requires");
@@ -7501,7 +7510,7 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     if (isComputedMaskStridedStore) {
       analysis.description.stridedMemoryLayout =
           kRVVComputedMaskStridedStoreMemoryLayout;
-      analysis.description.outStrideSource = kRVVDestinationElementStrideSource;
+      analysis.description.outStrideSource = kRVVDestinationByteStrideSource;
     }
     analysis.description.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
     if (isMaskedStore)
@@ -9093,7 +9102,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "out stride source", description.outStrideSource,
-            isComputedMaskStridedStore ? kRVVDestinationElementStrideSource
+            isComputedMaskStridedStore ? kRVVDestinationByteStrideSource
                                        : ""))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(

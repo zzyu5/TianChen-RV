@@ -1147,7 +1147,7 @@ def TypedComputedMaskStridedStorePreRealizedBodyOp
     memory movement stores active source lanes to a runtime-strided
     destination. The op is nested directly in a selected tcrv.exec.variant and
     binds explicit runtime ABI values for compare lhs, compare rhs, active
-    source, destination, runtime n/AVL, and destination element stride together
+    source, destination, runtime n/AVL, and destination byte stride together
     with compare predicate, memory form, mask role/source/config,
     inactive-lane preservation policy, stride unit, compile-time RVV data/mask
     config, and policy.

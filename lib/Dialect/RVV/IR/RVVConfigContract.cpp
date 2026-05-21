@@ -828,8 +828,8 @@ getRVVSelectedBodyComputedMaskStridedStoreRuntimeABIParameters() {
       kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
       support::RuntimeABIParameterRole::RuntimeElementCount));
   parameters.push_back(support::makeTargetExportABIParameter(
-      "dst_stride", "size_t",
-      support::RuntimeABIParameterRole::OutputStride));
+      "dst_stride_bytes", "size_t",
+      support::RuntimeABIParameterRole::DestinationByteStride));
   return parameters;
 }
 
@@ -1010,8 +1010,8 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "dst, n for the bounded int32_t masked unit-load/store route with "
       "ABI mask input; or cmp_lhs, cmp_rhs, src, dst, n for the bounded "
       "int32_t computed-mask masked unit-load/store route with compare "
-      "producer; or cmp_lhs, cmp_rhs, src, dst, n, dst_stride for the bounded "
-      "int32_t computed-mask masked unit-load to strided-store route with "
+      "producer; or cmp_lhs, cmp_rhs, src, dst, n, dst_stride_bytes for the bounded "
+      "int32_t computed-mask masked unit-load to byte-strided-store route with "
       "compare producer; or cmp_lhs, cmp_rhs, true_value, false_value, out, n "
       "for the bounded int32_t computed-mask select route with compare "
       "producer; or src, out0, out1, n for the bounded int32_t segment2 "

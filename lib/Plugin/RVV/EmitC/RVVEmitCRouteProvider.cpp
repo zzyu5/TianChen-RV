@@ -985,14 +985,13 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               slice->accumulatorLoadOperation, "load",
               description.stridedLoadIntrinsic,
               {TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(slice->outABI.cName) + " + (" +
-                    inductionName + " * " + slice->outStrideABI.cName + ")")
+                   ("(int32_t *)((uint8_t *)" +
+                    llvm::StringRef(slice->outABI.cName) + " + (" +
+                    inductionName + " * " + slice->outStrideABI.cName + "))")
                        .str(),
                    slice->outABI.cType},
-               TCRVEmitCCallOpaqueOperand{
-                   (llvm::StringRef(slice->outStrideABI.cName) + " * 4")
-                       .str(),
-                   "ptrdiff_t"},
+               TCRVEmitCCallOpaqueOperand{slice->outStrideABI.cName,
+                                          "ptrdiff_t"},
                TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                           description.vlCType.str()}},
               TCRVEmitCCallOpaqueResult{"old_dst_vec",
@@ -1267,7 +1266,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     out = std::move(route);
     return llvm::Error::success();
   }
-  if (description.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadStridedStore) {
+  if (description.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadStridedStore ||
+      description.memoryForm ==
+          RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore) {
     if (llvm::Error error = addLoopStep(
             slice->storeOperation, "store", description.stridedStoreIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
@@ -1284,9 +1285,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                         description.vlCType.str()}}))
       return error;
   } else if (description.memoryForm ==
-                 RVVSelectedBodyMemoryForm::StridedLoadStore ||
-             description.memoryForm ==
-                 RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore) {
+             RVVSelectedBodyMemoryForm::StridedLoadStore) {
     if (llvm::Error error = addLoopStep(
             slice->storeOperation, "store", description.stridedStoreIntrinsic,
             {TCRVEmitCCallOpaqueOperand{

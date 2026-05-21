@@ -87,6 +87,71 @@ real `ssh rvv` correctness evidence.
 
 - None - task complete
 
+
+## Session 151: Stage2 RVV computed-mask byte-strided store executable slice
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV computed-mask byte-strided store executable slice
+**Branch**: `main`
+
+### Summary
+
+Implemented the bounded Stage2 RVV `computed_masked_strided_store` slice where
+a compare-produced mask selects payload lanes and stores active lanes to
+`dst + index * dst_stride_bytes`, while false lanes, skipped byte-stride slots,
+and tail sentinels are preserved.
+
+### Main Changes
+
+- Switched the computed-mask strided-store pre-realized body contract from
+  element stride to runtime destination byte stride: `dst_stride_bytes` with
+  runtime ABI role `destination-byte-stride`.
+- Updated RVV selected-body realization to require and materialize the byte
+  stride operand through `setvl`, `with_vl`, compare, payload load, old
+  byte-strided destination load, `masked_move`, and byte-strided store.
+- Updated route planning/provider metadata and codegen so computed-mask store
+  uses provider-derived byte-addressed destination pointer mechanics, not
+  element-stride multiplication.
+- Updated construction protocol, target artifact checks, negative verifier
+  coverage, generated-bundle dry-run checks, and script harness evidence for
+  counts `7,16,23` crossed with `dst_stride_bytes` `4,8,12`.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Focused lit for computed-mask byte-strided-store verifier, generic
+  dataflow regression, selected-body artifact, and generated-bundle dry-run:
+  4/4 passed.
+- [OK] Generated-bundle dry-run for `computed_masked_strided_store`,
+  pre-realized selected-body input, counts `7,16,23`, stride bytes `4,8,12`.
+- [OK] Real `ssh rvv` PASS for all nine count/stride cases. Each case reported
+  computed mask use, byte-strided store, selected destination writes,
+  false-lane preservation, sentinel preservation, and tail preservation.
+- [OK] Active-authority scan on the generated computed-mask byte-strided-store
+  artifact: no positive `RVVI32M1`, `rvv-i32m1`, `tcrv_rvv.i32_*`,
+  `!tcrv_rvv.i32m*`, descriptor, direct-C, source-export, or source-front-door
+  residue.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 259/259 passed.
+
+### Self-Repair
+
+- Fixed the generated-bundle FileCheck order after the first focused lit run
+  showed the harness function call appears in `run_case` before the `main`
+  stride array.
+- Kept the retained older element-stride computed-mask path separate from this
+  byte-stride contract; this round does not promote it as byte-stride authority.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+### Next Steps
+
+- None for this bounded computed-mask byte-strided-store slice.
+
 ## 2026-05-21 - Stage2 RVV Runtime-Strided Load Executable Slice
 
 ### Task

@@ -885,7 +885,7 @@ bool isSupportedTypedComputedMaskStridedStorePreRealizedMemoryForm(
 
 bool isSupportedTypedComputedMaskStridedStoreStrideUnit(
     llvm::StringRef strideUnit) {
-  return strideUnit == "element";
+  return strideUnit == "byte";
 }
 
 bool isSupportedTypedComputedMaskMemoryRole(llvm::StringRef role) {
@@ -4494,7 +4494,7 @@ TypedComputedMaskStridedStorePreRealizedBodyOp::verify() {
               "selected-body computed-mask strided-store hook";
   if (!isSupportedTypedComputedMaskStridedStoreStrideUnit(getStrideUnit()))
     return emitOpError()
-           << "currently supports only stride_unit \"element\" for the "
+           << "currently supports only stride_unit \"byte\" for the "
               "bounded selected-body computed-mask strided-store hook";
   if (!isSupportedTypedComputedMaskMemoryRole(getMaskRole()))
     return emitOpError()
@@ -4548,8 +4548,8 @@ TypedComputedMaskStridedStorePreRealizedBodyOp::verify() {
   if (mlir::failed(verifyRuntimeElementCountOperand(op, getN())))
     return mlir::failure();
   return verifyRuntimeABIIndexOperandRole(
-      op, getDestinationStride(), "destination stride",
-      {tianchenrv::support::RuntimeABIParameterRole::OutputStride});
+      op, getDestinationStride(), "destination byte stride",
+      {tianchenrv::support::RuntimeABIParameterRole::DestinationByteStride});
 }
 
 mlir::LogicalResult
@@ -5150,6 +5150,7 @@ mlir::LogicalResult StridedLoadOp::verify() {
           {tianchenrv::support::RuntimeABIParameterRole::LHSInputStride,
            tianchenrv::support::RuntimeABIParameterRole::RHSInputStride,
            tianchenrv::support::RuntimeABIParameterRole::SourceByteStride,
+           tianchenrv::support::RuntimeABIParameterRole::DestinationByteStride,
            tianchenrv::support::RuntimeABIParameterRole::OutputStride})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final changes against the global TianChen-RV stack, RVV stage order, and authority placement."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV-owned typed-body/realization/provider responsibilities and legacy authority fail-close discipline."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export neutrality and provider-built route materialization."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/C++/script checks, ssh-rvv runtime evidence, and active-authority scan coverage."}

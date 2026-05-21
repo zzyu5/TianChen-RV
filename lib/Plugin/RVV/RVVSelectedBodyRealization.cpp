@@ -329,7 +329,7 @@ bool isPreRealizedStridedStoreMemoryMovementStrideUnit(
 
 bool isPreRealizedComputedMaskStridedStoreMemoryMovementStrideUnit(
     llvm::StringRef strideUnit) {
-  return strideUnit == "element";
+  return strideUnit == "byte";
 }
 
 bool isPreRealizedIndexedGatherMemoryMovementOpKind(
@@ -2818,7 +2818,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedStoreBody(
           body.getStrideUnit()))
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask strided-store body currently "
-        "supports only stride_unit 'element'");
+        "supports only stride_unit 'byte'");
   if (!isPreRealizedComputedMaskMemoryMovementMaskRole(body.getMaskRole()))
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask strided-store body currently "
@@ -2889,9 +2889,9 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedStoreBody(
   llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destinationStride =
       requirePreRealizedRuntimeABIValue(
           body.getDestinationStride(),
-          "pre-realized RVV computed-mask strided-store destination stride "
+          "pre-realized RVV computed-mask strided-store destination byte stride "
           "operand",
-          support::RuntimeABIParameterRole::OutputStride);
+          support::RuntimeABIParameterRole::DestinationByteStride);
   if (!destinationStride)
     return destinationStride.takeError();
 
