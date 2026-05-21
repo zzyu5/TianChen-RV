@@ -1236,6 +1236,55 @@ def TypedComputedMaskStridedStorePreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedComputedMaskStridedLoadPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_computed_mask_strided_load_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV computed-mask strided-load body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body where a
+    signed i32 vector compare produces an in-body mask SSA value and masked
+    memory movement loads active lanes from a runtime byte-strided source into
+    a unit-stride destination while preserving inactive lanes from the old
+    destination vector. The op is nested directly in a selected
+    tcrv.exec.variant and binds explicit runtime ABI values for compare lhs,
+    compare rhs, source, destination/old-vector passthrough, runtime n/AVL,
+    and source byte stride together with compare predicate, memory form, mask
+    role/source/config, inactive-lane preservation policy, stride unit,
+    compile-time RVV data/mask config, and policy.
+
+    This op is not a fusion framework, route label, descriptor,
+    source-front-door marker, direct-C exporter, intrinsic wrapper, runtime
+    artifact, correctness evidence, or performance evidence. The RVV plugin
+    must realize it into explicit setvl/with_vl/load/load/load/compare/
+    masked_strided_load/store tcrv_rvv body structure before the provider may
+    construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$compare_lhs,
+    AnyType:$compare_rhs,
+    AnyType:$source,
+    AnyType:$destination,
+    AnyType:$n,
+    Index:$source_stride,
+    StrAttr:$op_kind,
+    StrAttr:$predicate_kind,
+    StrAttr:$memory_form,
+    StrAttr:$stride_unit,
+    StrAttr:$mask_role,
+    StrAttr:$mask_source,
+    StrAttr:$mask_memory_form,
+    StrAttr:$inactive_lane_policy,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$compare_lhs `,` $compare_rhs `,` $source `,` $destination `,` $n `,` $source_stride attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedSegment2DeinterleaveMemoryPreRealizedBodyOp
     : TCRVRVV_Op<"typed_segment2_deinterleave_memory_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV segment2 deinterleave memory body";
@@ -1419,6 +1468,48 @@ def MaskedLoadOp : TCRVRVV_Op<"masked_load",
 
   let assemblyFormat =
     "$buffer `,` $mask `,` $passthrough `,` $vl attr-dict `:` type($buffer) `,` type($mask) `,` type($passthrough) `,` type($vl) `->` type($loaded)";
+  let hasVerifier = 1;
+}
+
+def MaskedStridedLoadOp : TCRVRVV_Op<"masked_strided_load",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV masked byte-strided data load op";
+  let description = [{
+    Records one bounded plugin-local RVV masked source byte-strided data load
+    step. The op is nested directly under tcrv_rvv.with_vl, consumes one
+    explicit source runtime ABI buffer, one !tcrv_rvv.mask predicate produced
+    by tcrv_rvv.compare in the same VL scope, one inactive-lane passthrough
+    vector, one explicit runtime source byte stride SSA value, and the active
+    !tcrv_rvv.vl token. It carries explicit masked strided-load memory form,
+    byte-stride unit, and inactive-lane passthrough preservation facts, and
+    produces the vector value to store.
+
+    For the current bounded Stage 2 computed-mask strided masked-load slice,
+    memory_form is limited to masked-strided-load, stride_unit is limited to
+    byte, and inactive_lane_policy is limited to
+    preserve-passthrough-on-false-lanes. The RVV plugin derives the concrete
+    masked strided-load intrinsic from this typed body fact, dtype/config,
+    mask, source stride, passthrough, and runtime ABI binding; common
+    EmitC/export must not infer the masked strided load from route ids, ABI
+    names, artifact metadata, exact intrinsic spelling, or harness sentinels.
+  }];
+
+  let arguments = (ins
+    AnyType:$buffer,
+    AnyType:$mask,
+    AnyType:$passthrough,
+    Index:$stride,
+    AnyType:$vl,
+    StrAttr:$memory_form,
+    StrAttr:$stride_unit,
+    StrAttr:$inactive_lane_policy
+  );
+  let results = (outs AnyType:$loaded);
+
+  let assemblyFormat =
+    "$buffer `,` $mask `,` $passthrough `,` $stride `,` $vl attr-dict `:` type($buffer) `,` type($mask) `,` type($passthrough) `,` type($stride) `,` type($vl) `->` type($loaded)";
   let hasVerifier = 1;
 }
 

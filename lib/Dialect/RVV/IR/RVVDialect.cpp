@@ -358,6 +358,11 @@ bool isAllowedTypedComputedMaskStridedStorePreRealizedBodyAttr(
          name == kLMULAttrName || name == kPolicyAttrName;
 }
 
+bool isAllowedTypedComputedMaskStridedLoadPreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return isAllowedTypedComputedMaskStridedStorePreRealizedBodyAttr(name);
+}
+
 bool isAllowedTypedSegment2DeinterleaveMemoryPreRealizedBodyAttr(
     llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
@@ -385,6 +390,11 @@ bool isAllowedMaskLoadAttr(llvm::StringRef name) {
 
 bool isAllowedMaskedLoadAttr(llvm::StringRef name) {
   return name == kMemoryFormAttrName || name == kInactiveLanePolicyAttrName;
+}
+
+bool isAllowedMaskedStridedLoadAttr(llvm::StringRef name) {
+  return name == kMemoryFormAttrName || name == kStrideUnitAttrName ||
+         name == kInactiveLanePolicyAttrName;
 }
 
 bool isAllowedBroadcastLoadAttr(llvm::StringRef) { return false; }
@@ -925,9 +935,19 @@ bool isSupportedTypedComputedMaskStridedStorePreRealizedBodyOpKind(
   return opKind == "computed_masked_strided_store";
 }
 
+bool isSupportedTypedComputedMaskStridedLoadPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "computed_masked_strided_load_unit_store";
+}
+
 bool isSupportedTypedComputedMaskStridedStorePreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-unit-load-strided-store";
+}
+
+bool isSupportedTypedComputedMaskStridedLoadPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "computed-mask-strided-load-unit-store";
 }
 
 bool isSupportedTypedComputedMaskStridedStoreStrideUnit(
@@ -2042,6 +2062,14 @@ llvm::StringRef MaskedLoadOp::getTCRVEmitCLowerableSourceOpName() {
 }
 
 llvm::StringRef MaskedLoadOp::getTCRVEmitCLowerableSourceRole() {
+  return "load";
+}
+
+llvm::StringRef MaskedStridedLoadOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef MaskedStridedLoadOp::getTCRVEmitCLowerableSourceRole() {
   return "load";
 }
 
@@ -4788,6 +4816,119 @@ TypedComputedMaskStridedStorePreRealizedBodyOp::verify() {
 }
 
 mlir::LogicalResult
+TypedComputedMaskStridedLoadPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected computed-mask strided-load bodies "
+                "carry only typed RVV compare/source/destination, stride, "
+                "mask, memory-form, inactive-lane policy, config, policy, "
+                "and runtime SSA facts and must be realized by the RVV "
+                "plugin before route construction";
+
+    if (!isAllowedTypedComputedMaskStridedLoadPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kPredicateKindAttrName << "', '"
+             << kMemoryFormAttrName << "', '" << kStrideUnitAttrName
+             << "', '" << kMaskRoleAttrName << "', '" << kMaskSourceAttrName
+             << "', '" << kMaskMemoryFormAttrName << "', '"
+             << kInactiveLanePolicyAttrName << "', '" << kSEWAttrName
+             << "', '" << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 6 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires compare lhs, compare rhs, source, destination, "
+              "runtime n/AVL, source stride operands and no results";
+
+  if (!isSupportedTypedComputedMaskStridedLoadPreRealizedBodyOpKind(
+          getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"computed_masked_strided_load_unit_store\" for the bounded "
+              "selected-body computed-mask strided-load hook";
+  if (!isSupportedTypedComputedMaskMemoryPreRealizedPredicateKind(
+          getPredicateKind()))
+    return emitOpError()
+           << "currently supports only predicate_kind \"slt\" for the "
+              "bounded selected-body computed-mask strided-load hook";
+  if (!isSupportedTypedComputedMaskStridedLoadPreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"computed-mask-strided-load-unit-store\" for the bounded "
+              "selected-body computed-mask strided-load hook";
+  if (!isSupportedTypedComputedMaskStridedStoreStrideUnit(getStrideUnit()))
+    return emitOpError()
+           << "currently supports only stride_unit \"byte\" for the "
+              "bounded selected-body computed-mask strided-load hook";
+  if (!isSupportedTypedComputedMaskMemoryRole(getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-produced-by-compare\" for the bounded "
+              "selected-body computed-mask strided-load hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskSource(getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"compare-produced-mask-same-vl-scope\" for the bounded "
+              "selected-body computed-mask strided-load hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskMemoryForm(getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"compare-produced-mask\" for the bounded selected-body "
+              "computed-mask strided-load hook";
+  if (getInactiveLanePolicy() != "preserve-passthrough-on-false-lanes")
+    return emitOpError()
+           << "requires inactive_lane_policy "
+              "\"preserve-passthrough-on-false-lanes\" because compare-false "
+              "and masked-off lanes must preserve the old destination vector "
+              "used as masked_strided_load passthrough";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized computed-mask strided-load data "
+              "config to be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body computed-mask strided-load hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareLhs(), "compare lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareRhs(), "compare rhs",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSource(), "source",
+          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getDestination(), "destination",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeElementCountOperand(op, getN())))
+    return mlir::failure();
+  return verifyRuntimeABIIndexOperandRole(
+      op, getSourceStride(), "source byte stride",
+      {tianchenrv::support::RuntimeABIParameterRole::SourceByteStride});
+}
+
+mlir::LogicalResult
 TypedSegment2DeinterleaveMemoryPreRealizedBodyOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -5127,6 +5268,78 @@ mlir::LogicalResult MaskedLoadOp::verify() {
              << "requires mask-producing tcrv_rvv.compare to be in the same "
                 "tcrv_rvv.with_vl body as tcrv_rvv.masked_load";
   }
+
+  if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getPassthrough(),
+                                                    "passthrough")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getLoaded(),
+                                                    "result")))
+    return mlir::failure();
+  return verifyGenericMaskMatchesVector(op, getMask(), getLoaded(), "mask",
+                                        "result");
+}
+
+mlir::LogicalResult MaskedStridedLoadOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.masked_strided_load",
+                                         isAllowedMaskedStridedLoadAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one explicit source buffer ABI operand, one generic "
+              "RVV mask predicate, one inactive passthrough generic RVV "
+              "vector, one runtime source byte stride operand, one "
+              "!tcrv_rvv.vl operand, and one generic RVV vector result";
+  if (getMemoryForm() != "masked-strided-load")
+    return emitOpError()
+           << "currently supports only memory_form \"masked-strided-load\" "
+              "for the bounded Stage 2 computed-mask strided load route";
+  if (getStrideUnit() != "byte")
+    return emitOpError()
+           << "currently supports only stride_unit \"byte\" for the bounded "
+              "Stage 2 computed-mask strided load route";
+  if (getInactiveLanePolicy() != "preserve-passthrough-on-false-lanes")
+    return emitOpError()
+           << "requires inactive_lane_policy "
+              "\"preserve-passthrough-on-false-lanes\" because false mask "
+              "lanes must preserve the explicit passthrough vector";
+  if (getPassthrough().getType() != getLoaded().getType())
+    return emitOpError()
+           << "requires inactive passthrough and result to have the same "
+              "generic RVV vector type";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getBuffer(), "masked strided load source buffer",
+          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIIndexOperandRole(
+          op, getStride(), "masked strided load source byte stride",
+          {tianchenrv::support::RuntimeABIParameterRole::SourceByteStride})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto compare = getMask().getDefiningOp<CompareOp>();
+  if (!compare)
+    return emitOpError()
+           << "requires mask operand to be produced by tcrv_rvv.compare "
+              "inside the selected RVV typed body";
+  if (compare.getVl() != getVl())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.compare to consume the same "
+              "!tcrv_rvv.vl token as tcrv_rvv.masked_strided_load";
+  if (compare->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.compare to be in the same "
+              "tcrv_rvv.with_vl body as tcrv_rvv.masked_strided_load";
 
   if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
     return mlir::failure();

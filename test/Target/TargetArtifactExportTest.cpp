@@ -1260,7 +1260,7 @@ bool expectRVVTargetArtifactExporterShape(
                            "RVV artifact rejects source-op provenance that "
                            "does not mirror the selected typed body",
                            {tianchenrv::plugin::rvv::getRVVSourceOpsMetadataName(),
-                            "tcrv_rvv.runtime_abi_value->tcrv_rvv.setvl"}))
+                            "typed-op-detail=rvv_typed_role_realization"}))
     return false;
 
   TargetArtifactCandidate missingAVLVLMetadata = candidate;

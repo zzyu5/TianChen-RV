@@ -452,6 +452,10 @@ bool isPreRealizedComputedMaskStridedStoreOpKind(llvm::StringRef opKind) {
   return opKind == "computed_masked_strided_store";
 }
 
+bool isPreRealizedComputedMaskStridedLoadOpKind(llvm::StringRef opKind) {
+  return opKind == "computed_masked_strided_load_unit_store";
+}
+
 bool isPreRealizedComputedMaskMemoryMovementPredicateKind(
     llvm::StringRef predicateKind) {
   return predicateKind == "slt";
@@ -465,6 +469,11 @@ bool isPreRealizedComputedMaskMemoryMovementMemoryForm(
 bool isPreRealizedComputedMaskStridedStoreMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-unit-load-strided-store";
+}
+
+bool isPreRealizedComputedMaskStridedLoadMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "computed-mask-strided-load-unit-store";
 }
 
 bool isPreRealizedComputedMaskMemoryMovementMaskRole(llvm::StringRef role) {
@@ -597,6 +606,7 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedComputedMaskMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp,
+                  tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp,
                   tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
             op))
@@ -625,6 +635,7 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.typed_indexed_scatter_memory_pre_realized_body or "
         "tcrv_rvv.typed_masked_memory_pre_realized_body or "
         "tcrv_rvv.typed_computed_mask_memory_pre_realized_body or "
+        "tcrv_rvv.typed_computed_mask_strided_load_pre_realized_body or "
         "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body or "
         "tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body op when no realized "
         "setvl/with_vl body is present");
@@ -3123,6 +3134,138 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedStoreBody(
   return llvm::Error::success();
 }
 
+llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedLoadBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVPluginError(
+        "selected RVV computed-mask strided-load realization requires a "
+        "pre-realized computed-mask strided-load body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask strided-load body must be "
+        "a direct child of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedComputedMaskStridedLoadOpKind(body.getOpKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask strided-load body currently "
+        "supports only op_kind 'computed_masked_strided_load_unit_store'");
+  if (!isPreRealizedComputedMaskMemoryMovementPredicateKind(
+          body.getPredicateKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask strided-load body currently "
+        "supports only predicate_kind 'slt'");
+  if (!isPreRealizedComputedMaskStridedLoadMemoryForm(body.getMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask strided-load body currently "
+        "supports only memory_form "
+        "'computed-mask-strided-load-unit-store'");
+  if (!isPreRealizedComputedMaskStridedStoreMemoryMovementStrideUnit(
+          body.getStrideUnit()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask strided-load body currently "
+        "supports only stride_unit 'byte'");
+  if (!isPreRealizedComputedMaskMemoryMovementMaskRole(body.getMaskRole()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask strided-load body currently "
+        "supports only mask_role 'predicate-mask-produced-by-compare'");
+  if (!isPreRealizedComputedMaskMemoryMovementMaskSource(
+          body.getMaskSource()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask strided-load body currently "
+        "supports only mask_source 'compare-produced-mask-same-vl-scope'");
+  if (!isPreRealizedComputedMaskMemoryMovementMaskMemoryForm(
+          body.getMaskMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask strided-load body currently "
+        "supports only mask_memory_form 'compare-produced-mask'");
+  if (body.getInactiveLanePolicy() !=
+      "preserve-passthrough-on-false-lanes")
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask strided-load body requires "
+        "inactive_lane_policy 'preserve-passthrough-on-false-lanes'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask strided-load body requires "
+        "SEW32 LMUL m1 data/mask config");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask strided-load body requires "
+        "tail agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getCompareLhs(),
+          "pre-realized RVV computed-mask strided-load compare lhs operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!compareLhs)
+    return compareLhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getCompareRhs(),
+          "pre-realized RVV computed-mask strided-load compare rhs operand",
+          support::RuntimeABIParameterRole::RHSInputBuffer);
+  if (!compareRhs)
+    return compareRhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+      requirePreRealizedRuntimeABIValue(
+          body.getSource(),
+          "pre-realized RVV computed-mask strided-load source operand",
+          support::RuntimeABIParameterRole::SourceInputBuffer);
+  if (!source)
+    return source.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+      requirePreRealizedRuntimeABIValue(
+          body.getDestination(),
+          "pre-realized RVV computed-mask strided-load destination operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!destination)
+    return destination.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(),
+          "pre-realized RVV computed-mask strided-load runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> sourceStride =
+      requirePreRealizedRuntimeABIValue(
+          body.getSourceStride(),
+          "pre-realized RVV computed-mask strided-load source byte stride "
+          "operand",
+          support::RuntimeABIParameterRole::SourceByteStride);
+  if (!sourceStride)
+    return sourceStride.takeError();
+
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
+                  tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp>(
+            op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected computed-mask strided-load "
+                    "body must not be mixed with already realized RVV route "
+                    "body op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask strided-load realization "
+        "requires non-empty selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
 llvm::Error validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
     const VariantLoweringBoundaryRequest &request,
     tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp body) {
@@ -3832,6 +3975,22 @@ createRealizedGenericMaskedLoad(mlir::OpBuilder &builder, mlir::Location loc,
   return builder.create(state);
 }
 
+llvm::Expected<mlir::Operation *> createRealizedGenericMaskedStridedLoad(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value source,
+    mlir::Value mask, mlir::Value passthrough, mlir::Value stride,
+    mlir::Value vl) {
+  mlir::OperationState state(loc, "tcrv_rvv.masked_strided_load");
+  state.addOperands({source, mask, passthrough, stride, vl});
+  state.addAttribute("memory_form",
+                     builder.getStringAttr("masked-strided-load"));
+  state.addAttribute("stride_unit", builder.getStringAttr("byte"));
+  state.addAttribute(
+      "inactive_lane_policy",
+      builder.getStringAttr("preserve-passthrough-on-false-lanes"));
+  state.addTypes(passthrough.getType());
+  return builder.create(state);
+}
+
 void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
                                 mlir::Value out, mlir::Value value,
                                 mlir::Value vl) {
@@ -4202,6 +4361,7 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedComputedMaskMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedComputedMaskStridedStorePreRealizedBodyOp,
+                  tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp,
                   tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
             op))
@@ -5033,6 +5193,61 @@ realizePreRealizedRVVSelectedBody(
         compare.getMask(), sourceLoad.getLoaded(),
         computedMaskStridedStoreBody.getDestinationStride(), setvl.getVl());
     computedMaskStridedStoreBody->erase();
+    return withVL;
+  }
+
+  if (auto computedMaskStridedLoadBody = llvm::dyn_cast<
+          tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp>(
+          *bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedComputedMaskStridedLoadBody(
+                request, computedMaskStridedLoadBody))
+      return std::move(error);
+
+    mlir::Location loc = computedMaskStridedLoadBody->getLoc();
+    builder.setInsertionPoint(computedMaskStridedLoadBody.getOperation());
+
+    std::int64_t sew =
+        static_cast<std::int64_t>(computedMaskStridedLoadBody.getSew());
+    llvm::StringRef lmul = computedMaskStridedLoadBody.getLmul();
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
+        builder, loc, computedMaskStridedLoadBody.getN(), sew, lmul,
+        computedMaskStridedLoadBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires, sew, lmul,
+                             computedMaskStridedLoadBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto compareLhsLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, computedMaskStridedLoadBody.getCompareLhs(),
+            setvl.getVl(), sew, lmul));
+    auto compareRhsLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, computedMaskStridedLoadBody.getCompareRhs(),
+            setvl.getVl(), sew, lmul));
+    auto oldDestinationLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, computedMaskStridedLoadBody.getDestination(),
+            setvl.getVl(), sew, lmul));
+    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(
+            builder, loc, compareLhsLoad.getLoaded(),
+            compareRhsLoad.getLoaded(), setvl.getVl(),
+            computedMaskStridedLoadBody.getPredicateKind()));
+    llvm::Expected<mlir::Operation *> maskedStridedLoad =
+        createRealizedGenericMaskedStridedLoad(
+            builder, loc, computedMaskStridedLoadBody.getSource(),
+            compare.getMask(), oldDestinationLoad.getLoaded(),
+            computedMaskStridedLoadBody.getSourceStride(), setvl.getVl());
+    if (!maskedStridedLoad)
+      return maskedStridedLoad.takeError();
+    createRealizedGenericStore(builder, loc,
+                               computedMaskStridedLoadBody.getDestination(),
+                               (*maskedStridedLoad)->getResult(0),
+                               setvl.getVl());
+    computedMaskStridedLoadBody->erase();
     return withVL;
   }
 

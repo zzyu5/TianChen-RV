@@ -77,7 +77,9 @@ bool isRVVSelectedBodyMaskedMemoryMovementRoute(
   return op == RVVSelectedBodyOperationKind::MaskedUnitLoadStore ||
          op == RVVSelectedBodyOperationKind::MaskedUnitStore ||
          op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
+         op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
+         op ==
+             RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore;
 }
 
 bool isRVVSelectedBodyMaskedStoreRoute(RVVSelectedBodyOperationKind op) {
@@ -87,12 +89,20 @@ bool isRVVSelectedBodyMaskedStoreRoute(RVVSelectedBodyOperationKind op) {
 bool isRVVSelectedBodyComputedMaskMemoryMovementRoute(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
+         op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
+         op ==
+             RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore;
 }
 
 bool isRVVSelectedBodyComputedMaskStridedStoreRoute(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
+}
+
+bool isRVVSelectedBodyComputedMaskStridedLoadRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op ==
+         RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore;
 }
 
 bool isRVVSelectedBodySegmentedMemoryMovementRoute(
@@ -359,6 +369,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       &slice->lhsStrideABI;
   const support::RuntimeABIParameter *boundRHSStrideABI =
       &slice->rhsStrideABI;
+  const support::RuntimeABIParameter *boundSourceStrideABI =
+      &slice->sourceStrideABI;
   const support::RuntimeABIParameter *boundOutStrideABI =
       &slice->outStrideABI;
   const RVVRouteOperandBindingPlan &bindingPlan =
@@ -1432,13 +1444,62 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (!dst)
         return dst.takeError();
       boundOutABI = *dst;
-      llvm::Expected<const support::RuntimeABIParameter *> dstStride =
-          getRequiredBinding(bindingPlan, "dst_stride_bytes",
+    llvm::Expected<const support::RuntimeABIParameter *> dstStride =
+        getRequiredBinding(bindingPlan, "dst_stride_bytes",
                              "mstr-store-stride",
                              "computed-mask masked strided destination byte stride");
       if (!dstStride)
         return dstStride.takeError();
       boundOutStrideABI = *dstStride;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::
+                   ComputedMaskStridedLoadUnitStore) {
+      if (llvm::Error error = bindOperand(
+              boundLHSABI, "cmp_lhs", "cmp-lhs-load",
+              "computed-mask strided-load compare lhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "lhs-call",
+              "computed-mask strided-load compare lhs operand"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundRHSABI, "cmp_rhs", "cmp-rhs-load",
+              "computed-mask strided-load compare rhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_rhs", "rhs-call",
+              "computed-mask strided-load compare rhs operand"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundSourceABI, "src", "mstr-base",
+                          "computed-mask masked strided source load"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse(
+                  "src", "mstr-load-call",
+                  "computed-mask strided-load source operand"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundOutABI, "dst", "old-dst-load",
+                          "computed-mask strided-load old destination load"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "dst", "passthru-call",
+              "computed-mask strided-load passthrough operand"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("dst", "store-base",
+                                "computed-mask strided-load destination"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("dst", "hdr-mirror",
+                                "computed-mask strided-load header mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundSourceStrideABI, "src_stride_bytes",
+                          "mstr-stride",
+                          "computed-mask masked strided source byte stride"))
+        return error;
     } else {
       return makeRVVEmitCRouteProviderError(
           llvm::Twine("route operand ABI binding closure for selected RVV "
@@ -1823,6 +1884,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       description.operation == RVVSelectedBodyOperationKind::ComputedMaskSelect;
   const bool isComputedMaskStridedStore =
       isRVVSelectedBodyComputedMaskStridedStoreRoute(description.operation);
+  const bool isComputedMaskStridedLoad =
+      isRVVSelectedBodyComputedMaskStridedLoadRoute(description.operation);
   const bool isRuntimeMaskMemory =
       description.operation == RVVSelectedBodyOperationKind::MaskedUnitLoadStore;
   const bool isMaskedStore =
@@ -2287,8 +2350,30 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               TCRVEmitCCallOpaqueResult{description.maskName.str(),
                                         description.maskCType.str()}))
         return error;
-    if (isRuntimeMaskMemory || (isComputedMaskMemory &&
-                                !isComputedMaskStridedStore)) {
+    if (isComputedMaskStridedLoad) {
+      if (llvm::Error error = addLoopStep(
+              slice->maskedStridedLoadOperation, "load",
+              description.maskedLoadIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                          description.maskCType.str()},
+               TCRVEmitCCallOpaqueOperand{"old_dst_vec",
+                                          description.vectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{
+                   ("(const int32_t *)((const uint8_t *)" +
+                    llvm::StringRef(boundSourceABI->cName) + " + (" +
+                    inductionName + " * " +
+                    boundSourceStrideABI->cName + "))")
+                       .str(),
+                   boundSourceABI->cType},
+               TCRVEmitCCallOpaqueOperand{boundSourceStrideABI->cName,
+                                          "ptrdiff_t"},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          description.vlCType.str()}},
+              TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                        description.vectorCType.str()}))
+        return error;
+    } else if (isRuntimeMaskMemory || (isComputedMaskMemory &&
+                                       !isComputedMaskStridedStore)) {
       const support::RuntimeABIParameter *maskedLoadSourceABI =
           isComputedMaskMemory ? boundSourceABI : boundLHSABI;
       if (llvm::Error error = addLoopStep(

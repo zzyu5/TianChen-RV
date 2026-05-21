@@ -1,0 +1,69 @@
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+
+// Hand-authored explicit selected-body input for one bounded Stage2 computed
+// mask plus runtime byte-strided masked source-load slice. The selected RVV
+// body structurally carries compare-produced mask, source input buffer,
+// runtime source byte stride, old-destination passthrough for inactive lanes,
+// loaded result, and unit-stride destination store through
+// tcrv_rvv.masked_strided_load.
+
+module {
+  tcrv.exec.kernel @explicit_selected_body_computed_masked_strided_load_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @explicit_selected_body_rvv_computed_masked_strided_load attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-computed-mask-strided-load:cmp_lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-computed-mask-strided-load:cmp_rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-computed-mask-strided-load:src", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-computed-mask-strided-load:dst", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-computed-mask-strided-load:n", role = "runtime-element-count"} : index
+      %src_stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "src_stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "explicit-selected-body-computed-mask-strided-load:src-stride-bytes", role = "source-byte-stride"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @explicit_selected_body_rvv_computed_masked_strided_load, sew = 32 : i64, source_kernel = "explicit_selected_body_computed_masked_strided_load_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %old_dst = tcrv_rvv.load %dst, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "slt"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %loaded = tcrv_rvv.masked_strided_load %src, %mask, %old_dst, %src_stride_bytes, %vl {inactive_lane_policy = "preserve-passthrough-on-false-lanes", memory_form = "masked-strided-load", stride_unit = "byte"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %dst, %loaded, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+    tcrv.exec.variant @explicit_selected_body_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @explicit_selected_body_rvv_computed_masked_strided_load {origin = "rvv-plugin", policy = "explicit-selected-body-computed-mask-strided-load-case"}
+      tcrv.exec.fallback @explicit_selected_body_scalar_fallback {fallback_role = "conservative", origin = "scalar-plugin", policy = "explicit-selected-body-computed-mask-strided-load-fallback-envelope"}
+    }
+  }
+}
+
+// PLAN: tcrv.exec.diagnostic
+// PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
+// PLAN-SAME: {key = "rvv_selected_body_operation", value = "computed_masked_strided_load_unit_store"}
+// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.masked_strided_load"}
+// PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "computed-mask-strided-load-unit-store"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "cmp_lhs,cmp_rhs,src,dst,n,src_stride_bytes"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:computed_masked_strided_load_unit_store.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:computed_masked_strided_load_unit_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;src=source-input-buffer:src:abi|mstr-base|mstr-load-call;dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr-mirror;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr-mirror;src_stride_bytes=source-byte-stride:src_stride_bytes:abi|mstr-stride|byte|hdr-mirror"}
+// PLAN-SAME: {key = "tcrv_rvv.masked_memory_layout", value = "unit-stride-compare-byte-strided-masked-source-old-destination-runtime-abi"}
+// PLAN-SAME: {key = "tcrv_rvv.mask_role", value = "predicate-mask-produced-by-compare"}
+// PLAN-SAME: {key = "tcrv_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
+// PLAN-SAME: {key = "tcrv_rvv.mask_memory_form", value = "compare-produced-mask"}
+// PLAN-SAME: {key = "tcrv_rvv.inactive_lane_contract", value = "masked-off-lanes-preserve-old-destination"}
+// PLAN-SAME: {key = "tcrv_rvv.masked_passthrough_layout", value = "old-destination-vector-preserves-inactive-lanes"}
+// PLAN-SAME: {key = "tcrv_rvv.source_memory_form", value = "masked-strided-load"}
+// PLAN-SAME: {key = "tcrv_rvv.destination_memory_form", value = "unit-stride-store"}
+// PLAN-SAME: {key = "tcrv_rvv.strided_memory_layout", value = "unit-stride-compare-byte-strided-masked-source-old-destination-runtime-abi"}
+// PLAN-SAME: {key = "tcrv_rvv.source_stride_source", value = "runtime_abi:src_stride_bytes"}
+// PLAN-SAME: runtime_abi_name = "rvv-generic-computed-masked-strided-load-unit-store-callable-c-abi.v1"
+// PLAN-SAME: status = "supported"
+// PLAN-SAME: target = @explicit_selected_body_rvv_computed_masked_strided_load
+
+// HEADER: tianchenrv.rvv.selected_variant: @explicit_selected_body_rvv_computed_masked_strided_load
+// HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-computed-masked-strided-load-unit-store-callable-c-abi.v1
+// HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
+// HEADER: tianchenrv.rvv.runtime_abi_order: cmp_lhs,cmp_rhs,src,dst,n,src_stride_bytes
+// HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:computed_masked_strided_load_unit_store.v1
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:computed_masked_strided_load_unit_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;src=source-input-buffer:src:abi|mstr-base|mstr-load-call;dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr-mirror;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr-mirror;src_stride_bytes=source-byte-stride:src_stride_bytes:abi|mstr-stride|byte|hdr-mirror
+// HEADER: void tcrv_emitc_explicit_selected_body_computed_masked_strided_load_kernel_explicit_selected_body_rvv_computed_masked_strided_load(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *src, int32_t *dst, size_t n, size_t src_stride_bytes);

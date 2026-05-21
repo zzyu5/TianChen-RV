@@ -47,6 +47,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::IndexedStoreOp indexedStore;
   tcrv::rvv::MaskLoadOp maskLoad;
   tcrv::rvv::MaskedLoadOp maskedLoadOp;
+  tcrv::rvv::MaskedStridedLoadOp maskedStridedLoadOp;
   tcrv::rvv::Segment2LoadOp segment2Load;
   tcrv::rvv::Segment2StoreOp segment2Store;
   tcrv::rvv::BroadcastLoadOp rhsBroadcastLoad;
@@ -100,6 +101,7 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Operation *indexedStoreOperation = nullptr;
   mlir::Operation *maskLoadOperation = nullptr;
   mlir::Operation *maskedLoadOperation = nullptr;
+  mlir::Operation *maskedStridedLoadOperation = nullptr;
   mlir::Operation *segment2LoadOperation = nullptr;
   mlir::Operation *segment2StoreOperation = nullptr;
   mlir::Operation *field0MoveOperation = nullptr;
@@ -130,6 +132,7 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value outBuffer;
   mlir::Value lhsStride;
   mlir::Value rhsStride;
+  mlir::Value sourceStride;
   mlir::Value outStride;
   mlir::Value lhsValue;
   mlir::Value rhsValue;
@@ -158,6 +161,7 @@ struct RVVSelectedBodyRouteSlice {
   support::RuntimeABIParameter runtimeElementCountABI;
   support::RuntimeABIParameter lhsStrideABI;
   support::RuntimeABIParameter rhsStrideABI;
+  support::RuntimeABIParameter sourceStrideABI;
   support::RuntimeABIParameter outStrideABI;
 };
 

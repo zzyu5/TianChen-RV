@@ -1503,9 +1503,9 @@ module {
        "tcrv_rvv.widening_convert, tcrv_rvv.move, "
        "tcrv_rvv.widening_dot_reduce, tcrv_rvv.masked_widening_dot_reduce, "
        "tcrv_rvv.masked_move, tcrv_rvv.masked_load, "
-      "tcrv_rvv.masked_store, tcrv_rvv.masked_strided_store, "
-      "tcrv_rvv.store, and "
-      "tcrv_rvv.strided_store"});
+       "tcrv_rvv.masked_strided_load, tcrv_rvv.masked_store, "
+       "tcrv_rvv.masked_strided_store, tcrv_rvv.store, and "
+       "tcrv_rvv.strided_store"});
 }
 
 int runOutOfOrderSelectedRoleSequenceRejectionTest(mlir::MLIRContext &context) {
