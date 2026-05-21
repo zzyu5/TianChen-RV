@@ -106,6 +106,12 @@ bool isStandaloneReduceOperationMnemonic(llvm::StringRef mnemonic) {
          mnemonic == "standalone_reduce_max";
 }
 
+bool isComputedMaskStandaloneReduceOperationMnemonic(llvm::StringRef mnemonic) {
+  return mnemonic == "computed_mask_standalone_reduce_add" ||
+         mnemonic == "computed_mask_standalone_reduce_min" ||
+         mnemonic == "computed_mask_standalone_reduce_max";
+}
+
 constexpr llvm::StringLiteral kEmitCLowerableRouteMetadataName(
     "rvv_emitc_lowerable_route");
 constexpr llvm::StringLiteral kSelectedBodyOperationMetadataName(
@@ -386,6 +392,18 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-computed-mask-standalone-reduce-add-emitc-route",
      "rvv-generic-computed-mask-standalone-reduce-add-callable-c-abi.v1",
      "rvv-generic-computed-mask-standalone-reduce-add-callable-c-abi"},
+    {"computed_mask_standalone_reduce_min",
+     "tcrv_rvv.masked_standalone_reduce",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-computed-mask-standalone-reduce-min-emitc-route",
+     "rvv-generic-computed-mask-standalone-reduce-min-callable-c-abi.v1",
+     "rvv-generic-computed-mask-standalone-reduce-min-callable-c-abi"},
+    {"computed_mask_standalone_reduce_max",
+     "tcrv_rvv.masked_standalone_reduce",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-computed-mask-standalone-reduce-max-emitc-route",
+     "rvv-generic-computed-mask-standalone-reduce-max-callable-c-abi.v1",
+     "rvv-generic-computed-mask-standalone-reduce-max-callable-c-abi"},
     {"masked_add",
      "tcrv_rvv.masked_binary",
      "rvv.role.compute.generic_vector",
@@ -654,12 +672,14 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 35)
+          .size() != 37)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
         "cmp_select, computed_mask_select, reduce_add, "
         "standalone_reduce_add, standalone_reduce_min, standalone_reduce_max, "
         "computed_mask_standalone_reduce_add, "
+        "computed_mask_standalone_reduce_min, "
+        "computed_mask_standalone_reduce_max, "
         "masked_add, masked_sub, masked_mul, "
         "macc_add, widening_macc_add, "
         "widening_dot_reduce_add, "
@@ -787,7 +807,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
   const bool isStandaloneReduction =
       isStandaloneReduceOperationMnemonic(route->operationMnemonic);
   const bool isComputedMaskStandaloneReduction =
-      route->operationMnemonic == "computed_mask_standalone_reduce_add";
+      isComputedMaskStandaloneReduceOperationMnemonic(route->operationMnemonic);
   const bool isMaskedElementwise = route->operationMnemonic == "masked_add" ||
                                    route->operationMnemonic == "masked_sub" ||
                                    route->operationMnemonic == "masked_mul";
@@ -1040,7 +1060,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "RVV generic compare-produced mask memory form is only supported by "
         "computed_mask_select, computed_masked_unit_load_store, "
         "computed_masked_strided_store, "
-        "computed_mask_standalone_reduce_add, "
+        "computed_mask_standalone_reduce_add/min/max, "
         "computed_masked_widening_dot_reduce_add, or "
         "computed_masked_strided_input_widening_dot_reduce_add in this "
         "bounded slice");
@@ -2458,8 +2478,8 @@ llvm::Error verifyRVVConstructionProtocolReady() {
           tcrv::rvv::getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(reductionParameters.begin(),
                                        reductionParameters.end());
-    } else if (route.operationMnemonic ==
-               "computed_mask_standalone_reduce_add") {
+    } else if (isComputedMaskStandaloneReduceOperationMnemonic(
+                   route.operationMnemonic)) {
       llvm::SmallVector<support::RuntimeABIParameter, 6> reductionParameters =
           tcrv::rvv::
               getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters();
@@ -2884,8 +2904,8 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         tcrv::rvv::getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
     expectedParameters.append(reductionParameters.begin(),
                               reductionParameters.end());
-  } else if (route->operationMnemonic ==
-             "computed_mask_standalone_reduce_add") {
+  } else if (isComputedMaskStandaloneReduceOperationMnemonic(
+                 route->operationMnemonic)) {
     llvm::SmallVector<support::RuntimeABIParameter, 6> reductionParameters =
         tcrv::rvv::
             getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters();
@@ -3182,7 +3202,7 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
         "selected-body standalone reduction cannot use generic "
         "tcrv_rvv.binary");
   if (usesGenericBinary &&
-      expected.operationMnemonic == "computed_mask_standalone_reduce_add")
+      isComputedMaskStandaloneReduceOperationMnemonic(expected.operationMnemonic))
     return makeRVVConstructionError(
         "selected-body computed-mask standalone reduction cannot use generic "
         "tcrv_rvv.binary");
@@ -3279,8 +3299,8 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
                  expected.operationMnemonic == "computed_mask_select" ||
                  expected.operationMnemonic == "reduce_add" ||
                  isStandaloneReduceOperationMnemonic(expected.operationMnemonic) ||
-                 expected.operationMnemonic ==
-                     "computed_mask_standalone_reduce_add" ||
+                 isComputedMaskStandaloneReduceOperationMnemonic(
+                     expected.operationMnemonic) ||
                  expected.operationMnemonic == "masked_add" ||
                  expected.operationMnemonic == "masked_sub" ||
                  expected.operationMnemonic == "masked_mul" ||

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV MLIR invariants, RVV-first stage order, and source-of-truth rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed body authority, selected-body realization, fail-closed legacy inventory, and ssh evidence requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute boundary and common EmitC neutrality constraints."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-05-21-stage2-rvv-closure-gated-reduction-accumulation/prd.md", "reason": "Completed computed-mask standalone reduce_add closure-gated route and mask/source/seed/output evidence baseline."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-stage2-rvv-base-reduction-coverage/prd.md", "reason": "Completed base standalone reduction binding-plan normalization and explicit/pre-realized evidence pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-signed-minmax-reduction/prd.md", "reason": "Completed signed standalone min/max route mechanics, intrinsic selection, dry-run, and ssh evidence baseline."}

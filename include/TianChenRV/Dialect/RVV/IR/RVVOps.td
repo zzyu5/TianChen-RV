@@ -570,7 +570,7 @@ def TypedComputedMaskStandaloneReducePreRealizedBodyOp
       "generic typed pre-realized RVV computed-mask standalone scalar reduction body";
   let description = [{
     Carries one bounded RVV plugin-local pre-realized selected body for the
-    computed-mask standalone horizontal add-reduction slice. The op is nested
+    computed-mask standalone horizontal signed-reduction slice. The op is nested
     directly in a selected tcrv.exec.variant and binds explicit runtime ABI
     values for compare lhs/rhs, source input, scalar accumulator seed, scalar
     output, and runtime n/AVL together with compare predicate, mask facts,
@@ -1835,13 +1835,14 @@ def MaskedStandaloneReduceOp : TCRVRVV_Op<"masked_standalone_reduce",
     produces one typed !tcrv_rvv.vector token whose lane 0 is the scalar output
     boundary.
 
-    For the current bounded Stage 2 slice, kind is limited to add, representing
-    acc_seed + sum(mask ? input : 0) over runtime n. Input dtype/config, mask
-    provenance, accumulator seed boundary, scalar output layout, VL, policy,
-    and runtime n facts are structural in the selected RVV body. Route ids,
-    helper names, ABI strings, artifact names, status fields, exact intrinsic
-    spellings, and common EmitC/export code must not infer or choose masked
-    standalone reduction semantics.
+    For the current bounded Stage 2 slice, kind is limited to signed add/min/max.
+    Add uses the neutral inactive element 0, min uses INT32_MAX, and max uses
+    INT32_MIN before reducing active source lanes with the scalar accumulator
+    seed. Input dtype/config, mask provenance, accumulator seed boundary,
+    scalar output layout, VL, policy, and runtime n facts are structural in the
+    selected RVV body. Route ids, helper names, ABI strings, artifact names,
+    status fields, exact intrinsic spellings, and common EmitC/export code must
+    not infer or choose masked standalone reduction semantics.
   }];
 
   let arguments = (ins

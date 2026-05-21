@@ -143,7 +143,20 @@ llvm::StringRef getPreRealizedStandaloneReduceDataflowKind(
 
 bool isPreRealizedComputedMaskStandaloneReduceOpKind(
     llvm::StringRef opKind) {
-  return opKind == "computed_mask_standalone_reduce_add";
+  return opKind == "computed_mask_standalone_reduce_add" ||
+         opKind == "computed_mask_standalone_reduce_min" ||
+         opKind == "computed_mask_standalone_reduce_max";
+}
+
+llvm::StringRef getPreRealizedComputedMaskStandaloneReduceDataflowKind(
+    llvm::StringRef opKind) {
+  if (opKind == "computed_mask_standalone_reduce_add")
+    return "add";
+  if (opKind == "computed_mask_standalone_reduce_min")
+    return "min";
+  if (opKind == "computed_mask_standalone_reduce_max")
+    return "max";
+  return {};
 }
 
 bool isPreRealizedStandaloneReduceMemoryForm(llvm::StringRef memoryForm) {
@@ -1287,7 +1300,9 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStandaloneReduceBody(
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask standalone reduction body "
         "currently supports only op_kind "
-        "'computed_mask_standalone_reduce_add'");
+        "'computed_mask_standalone_reduce_add', "
+        "'computed_mask_standalone_reduce_min', or "
+        "'computed_mask_standalone_reduce_max'");
   if (body.getPredicateKind() != "sle")
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask standalone reduction body "
@@ -3641,11 +3656,16 @@ createRealizedGenericMaskedStandaloneReduceCompute(
     return makeRVVPluginError(
         "pre-realized RVV selected-body computed-mask standalone reduction "
         "realization supports only op_kind "
-        "'computed_mask_standalone_reduce_add'");
+        "'computed_mask_standalone_reduce_add', "
+        "'computed_mask_standalone_reduce_min', or "
+        "'computed_mask_standalone_reduce_max'");
 
   mlir::OperationState state(loc, "tcrv_rvv.masked_standalone_reduce");
   state.addOperands({mask, input, accumulatorSeed, vl});
-  state.addAttribute("kind", builder.getStringAttr("add"));
+  state.addAttribute(
+      "kind",
+      builder.getStringAttr(
+          getPreRealizedComputedMaskStandaloneReduceDataflowKind(opKind)));
   state.addAttribute("mask_role", builder.getStringAttr(maskRole));
   state.addAttribute("mask_source", builder.getStringAttr(maskSource));
   state.addAttribute("mask_memory_form",

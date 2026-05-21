@@ -104,6 +104,12 @@ bool isStandaloneReduceOperationMnemonic(llvm::StringRef mnemonic) {
          mnemonic == "standalone_reduce_max";
 }
 
+bool isComputedMaskStandaloneReduceOperationMnemonic(llvm::StringRef mnemonic) {
+  return mnemonic == "computed_mask_standalone_reduce_add" ||
+         mnemonic == "computed_mask_standalone_reduce_min" ||
+         mnemonic == "computed_mask_standalone_reduce_max";
+}
+
 class GateFailingPlugin final : public ExtensionPlugin {
 public:
   llvm::StringRef getName() const override {
@@ -1647,7 +1653,8 @@ int runRVVCommonValidationTest() {
     const bool isComputedMaskSelectRoute =
         route.operationMnemonic == "computed_mask_select";
     const bool isComputedMaskStandaloneReduceRoute =
-        route.operationMnemonic == "computed_mask_standalone_reduce_add";
+        isComputedMaskStandaloneReduceOperationMnemonic(
+            route.operationMnemonic);
     const bool isMaskedElementwiseRoute =
         route.operationMnemonic == "masked_add" ||
         route.operationMnemonic == "masked_sub" ||
@@ -1952,8 +1959,8 @@ int runRVVCommonValidationTest() {
               getRVVSelectedBodyComputedMaskSelectRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
-    } else if (route.operationMnemonic ==
-               "computed_mask_standalone_reduce_add") {
+    } else if (isComputedMaskStandaloneReduceOperationMnemonic(
+                   route.operationMnemonic)) {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters();

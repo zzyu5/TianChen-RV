@@ -88,6 +88,82 @@ real `ssh rvv` correctness evidence.
 - None - task complete
 
 
+## Session 155: Stage2 RVV masked signed minmax reduction closure
+
+**Date**: 2026-05-22
+**Task**: `05-22-stage2-rvv-masked-signed-minmax-reduction`
+**Branch**: `main`
+
+### Summary
+
+Added bounded computed-mask signed standalone min/max reduction coverage on the
+generic typed `tcrv_rvv.masked_standalone_reduce` surface. The RVV plugin now
+derives route support, selected-body realization, binding-plan mirrors,
+operation-specific inactive-lane neutralization, generated bundle metadata, and
+runtime ABI evidence from typed body/config/runtime facts.
+
+### Main Changes
+
+- Extended RVV dialect verification and selected-body realization so
+  pre-realized computed-mask standalone reductions accept `min` and `max`, then
+  materialize to `setvl/with_vl/load/load/load/compare/
+  masked_standalone_reduce/store`.
+- Added per-kind route operation enums, binding-plan IDs, construction routes,
+  intrinsic selection, route metadata, and provider emission for
+  `computed_mask_standalone_reduce_min` and
+  `computed_mask_standalone_reduce_max`.
+- Updated provider emission to use neutral inactive source lanes for signed
+  min/max before horizontal reduction, while preserving zero-inactive behavior
+  for add.
+- Added explicit and pre-realized target artifact fixtures plus generated-bundle
+  script support and harness checks for active/inactive lanes, seed handling,
+  runtime `n`, scalar output, and tail sentinels.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Focused dialect verifier:
+  `build/bin/tcrv-opt test/Dialect/RVV/computed-mask-standalone-reduction-dataflow.mlir --split-input-file --verify-diagnostics`.
+- [OK] Focused construction protocol common test:
+  `build/bin/tianchenrv-construction-protocol-common-test`.
+- [OK] Focused generated-bundle dry-run lit:
+  `Scripts/rvv-generated-bundle-abi-e2e-computed-mask-standalone-reduce-minmax-dry-run.test`.
+- [OK] Generated-bundle dry-run for explicit and pre-realized
+  `computed_mask_standalone_reduce_min/max`, counts `7,16,23`.
+- [OK] Real `ssh rvv` generated-bundle evidence for explicit min/max, counts
+  `7,16,23`, seeds `-11,17`, active/inactive lanes, scalar output, and
+  `tail_preserved`.
+- [OK] Real `ssh rvv` generated-bundle evidence for pre-realized min/max,
+  counts `7,16,23`, seeds `-11,17`, active/inactive lanes, scalar output, and
+  `tail_preserved`.
+- [OK] Added-line authority scan found no new positive `RVVI32M1`,
+  `rvv-i32m1`, finite `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`,
+  descriptor/direct-C/source-export, source-front-door, or
+  `__riscv_*_i32m1` route authority.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 294/294 passed.
+
+### Self-Repair
+
+- Fixed provider inactive neutral emission after dry-run exposed that C macro
+  names were treated as unresolved EmitC value references.
+- Fixed max neutral expression to avoid materializer simple-binary parsing.
+- Updated construction protocol common test after `check-tianchenrv` exposed
+  add-only computed-mask standalone reduction expectations.
+- Updated generated-bundle FileCheck to match the actual neutral inactive-lane
+  contract evidence for pre-realized paths.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+### Next Steps
+
+- None for this bounded masked signed min/max reduction slice.
+
+
 ## Session 151: Stage2 RVV computed-mask byte-strided store executable slice
 
 **Date**: 2026-05-21

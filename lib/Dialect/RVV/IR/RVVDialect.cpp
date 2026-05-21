@@ -596,7 +596,9 @@ bool isSupportedTypedStandaloneReducePreRealizedBodyOpKind(
 
 bool isSupportedTypedComputedMaskStandaloneReducePreRealizedBodyOpKind(
     llvm::StringRef opKind) {
-  return opKind == "computed_mask_standalone_reduce_add";
+  return opKind == "computed_mask_standalone_reduce_add" ||
+         opKind == "computed_mask_standalone_reduce_min" ||
+         opKind == "computed_mask_standalone_reduce_max";
 }
 
 bool isSupportedTypedStandaloneReducePreRealizedMemoryForm(
@@ -1019,7 +1021,7 @@ bool isSupportedGenericStandaloneReduceKind(llvm::StringRef kind) {
 }
 
 bool isSupportedGenericMaskedStandaloneReduceKind(llvm::StringRef kind) {
-  return kind == "add";
+  return kind == "add" || kind == "min" || kind == "max";
 }
 
 bool isSupportedGenericStandaloneReduceAccumulatorLayout(
@@ -3046,7 +3048,9 @@ TypedComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
           getOpKind()))
     return emitOpError()
            << "currently supports only op_kind "
-              "\"computed_mask_standalone_reduce_add\" for the bounded "
+              "\"computed_mask_standalone_reduce_add\", "
+              "\"computed_mask_standalone_reduce_min\", or "
+              "\"computed_mask_standalone_reduce_max\" for the bounded "
               "selected-body computed-mask standalone reduction hook";
   if (getPredicateKind() != "sle")
     return emitOpError()
@@ -5787,8 +5791,8 @@ mlir::LogicalResult MaskedStandaloneReduceOp::verify() {
 
   if (!isSupportedGenericMaskedStandaloneReduceKind(getKind()))
     return emitOpError()
-           << "currently supports only kind \"add\" for the bounded Stage 2 "
-              "masked standalone reduction route";
+           << "currently supports only kind \"add\", \"min\", or \"max\" for "
+              "the bounded Stage 2 masked standalone reduction route";
   if (!isSupportedTypedComputedMaskMemoryRole(getMaskRole()))
     return emitOpError()
            << "currently supports only mask_role "

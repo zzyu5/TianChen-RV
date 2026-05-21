@@ -39,6 +39,34 @@ bool isRVVSelectedBodyReductionRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::ReduceAdd;
 }
 
+bool isRVVSelectedBodyComputedMaskStandaloneReductionRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax;
+}
+
+bool isRVVSelectedBodyPlainStandaloneReductionRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::StandaloneReduceAdd ||
+         op == RVVSelectedBodyOperationKind::StandaloneReduceMin ||
+         op == RVVSelectedBodyOperationKind::StandaloneReduceMax;
+}
+
+llvm::StringRef getRVVSelectedBodyMaskedStandaloneReductionInactiveNeutral(
+    RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
+    return "0";
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
+    return "2147483647";
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
+    return "(-2147483647-1)";
+  default:
+    return {};
+  }
+}
+
 bool isRVVSelectedBodyWideningConversionRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::WidenI32ToI64 ||
          op == RVVSelectedBodyOperationKind::WidenI16ToI32;
@@ -1163,9 +1191,13 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (!out)
         return out.takeError();
       boundOutABI = *out;
-    } else if (description.operation ==
-               RVVSelectedBodyOperationKind::
-                   ComputedMaskStandaloneReduceAdd) {
+    } else if (isRVVSelectedBodyComputedMaskStandaloneReductionRoute(
+                   description.operation)) {
+      llvm::StringRef inactiveUse =
+          description.operation ==
+                  RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd
+              ? "zero-inactive"
+              : "neutral-inactive";
       llvm::Expected<const support::RuntimeABIParameter *> cmpLhs =
           getRequiredBinding(bindingPlan, "cmp_lhs", "cmp-lhs-load",
                              "computed-mask standalone reduction compare lhs "
@@ -1200,8 +1232,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               "computed-mask standalone reduction source compute operand"))
         return error;
       if (llvm::Error error = requireOperandUse(
-              "src", "zero-inactive",
-              "computed-mask standalone reduction inactive-lane zeroing "
+              "src", inactiveUse,
+              "computed-mask standalone reduction inactive-lane neutral "
               "source operand"))
         return error;
       llvm::Expected<const support::RuntimeABIParameter *> acc =
@@ -1232,12 +1264,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (!outStore)
         return outStore.takeError();
       boundOutABI = *outStore;
-    } else if (description.operation ==
-                   RVVSelectedBodyOperationKind::StandaloneReduceAdd ||
-               description.operation ==
-                   RVVSelectedBodyOperationKind::StandaloneReduceMin ||
-               description.operation ==
-                   RVVSelectedBodyOperationKind::StandaloneReduceMax) {
+    } else if (isRVVSelectedBodyPlainStandaloneReductionRoute(
+                   description.operation)) {
       llvm::Expected<const support::RuntimeABIParameter *> lhs =
           getRequiredBinding(bindingPlan, "lhs", "materialized-load-base",
                              "standalone reduction input load operand");
@@ -2337,6 +2365,13 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       resultVectorCType.str()}))
       return error;
   } else if (emitsComputedMaskStandaloneReduction) {
+    llvm::StringRef inactiveNeutral =
+        getRVVSelectedBodyMaskedStandaloneReductionInactiveNeutral(
+            description.operation);
+    if (inactiveNeutral.empty())
+      return makeRVVEmitCRouteProviderError(
+          "computed-mask standalone reduction route requires an "
+          "operation-specific inactive-lane neutral element");
     if (llvm::Error error = addLoopStep(
             slice->compareOp.getOperation(), "compute", compareLeaf,
             {TCRVEmitCCallOpaqueOperand{"lhs_vec",
@@ -2349,14 +2384,14 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       return error;
     if (llvm::Error error = addLoopStep(
             slice->arithmeticOp, "compute", scalarSeedSplatLeaf,
-            {TCRVEmitCCallOpaqueOperand{"0", "int32_t"},
+            {TCRVEmitCCallOpaqueOperand{inactiveNeutral.str(), "int32_t"},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
-            TCRVEmitCCallOpaqueResult{"standalone_zero_vec",
+            TCRVEmitCCallOpaqueResult{"standalone_neutral_vec",
                                       resultVectorCType.str()}))
       return error;
     if (llvm::Error error = addLoopStep(
             slice->arithmeticOp, "compute", maskedMergeLeaf,
-            {TCRVEmitCCallOpaqueOperand{"standalone_zero_vec",
+            {TCRVEmitCCallOpaqueOperand{"standalone_neutral_vec",
                                         resultVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{"source_vec",
                                         resultVectorCType.str()},
