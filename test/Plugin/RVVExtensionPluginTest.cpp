@@ -1699,6 +1699,82 @@ int runRouteOperandBindingPlanValidationTest() {
                                         "res-i32m1"}))
     return result;
 
+  RVVRouteOperandBindingPlan widenI32ToI64Plan;
+  widenI32ToI64Plan.planID =
+      "rvv-route-operand-binding:widen_i32_to_i64.v1";
+  addBinding(widenI32ToI64Plan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int32_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi", "src-load", "convert-src", "src-i32m1",
+              "relation-signed-i32m1-to-i64m2", "hdr"});
+  addBinding(widenI32ToI64Plan, "out",
+             makeTargetExportABIParameter("out", "int64_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"abi", "res-store", "convert-result", "res-i64m2",
+              "relation-signed-i32m1-to-i64m2", "hdr"});
+  addBinding(widenI32ToI64Plan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi", "setvl-avl", "loop", "hdr"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              widenI32ToI64Plan,
+              "rvv-route-operand-binding:widen_i32_to_i64.v1",
+              "lhs,out,n", "valid widen i32 to i64 binding plan"),
+          "valid widen_i32_to_i64 route operand binding plan"))
+    return result;
+
+  RVVRouteOperandBindingPlan swappedWidenConversionOut = widenI32ToI64Plan;
+  swappedWidenConversionOut.bindings[1].parameter.role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              swappedWidenConversionOut,
+              "rvv-route-operand-binding:widen_i32_to_i64.v1",
+              "lhs,out,n", "route operand binding unit test"),
+          {"logical operand 'out'", "output-buffer", "lhs-input-buffer"}))
+    return result;
+
+  llvm::Expected<const tianchenrv::support::RuntimeABIParameter *>
+      wrongWidenConversionDirection = tianchenrv::plugin::rvv::
+          getRVVRouteOperandBindingParameter(
+              widenI32ToI64Plan, "lhs",
+              "relation-signed-i16mf2-to-i32m1",
+              "route operand binding unit test");
+  if (int result = expectErrorContains(
+          wrongWidenConversionDirection.takeError(),
+          {"materialized use", "relation-signed-i16mf2-to-i32m1"}))
+    return result;
+
+  RVVRouteOperandBindingPlan widenI16ToI32Plan;
+  widenI16ToI32Plan.planID =
+      "rvv-route-operand-binding:widen_i16_to_i32.v1";
+  addBinding(widenI16ToI32Plan, "lhs",
+             makeTargetExportABIParameter(
+                 "lhs", "const int16_t *",
+                 RuntimeABIParameterRole::LHSInputBuffer),
+             {"abi", "src-load", "convert-src", "src-i16mf2",
+              "relation-signed-i16mf2-to-i32m1", "hdr"});
+  addBinding(widenI16ToI32Plan, "out",
+             makeTargetExportABIParameter("out", "int32_t *",
+                                          RuntimeABIParameterRole::OutputBuffer),
+             {"abi", "res-store", "convert-result", "res-i32m1",
+              "relation-signed-i16mf2-to-i32m1", "hdr"});
+  addBinding(widenI16ToI32Plan, "n",
+             makeTargetExportABIParameter(
+                 "n", "size_t",
+                 RuntimeABIParameterRole::RuntimeElementCount),
+             {"abi", "setvl-avl", "loop", "hdr"});
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan(
+              widenI16ToI32Plan,
+              "rvv-route-operand-binding:widen_i16_to_i32.v1",
+              "lhs,out,n", "valid widen i16 to i32 binding plan"),
+          "valid widen_i16_to_i32 route operand binding plan"))
+    return result;
+
   RVVRouteOperandBindingPlan wideningDotPlan;
   wideningDotPlan.planID =
       "rvv-route-operand-binding:widening_dot_reduce.v1";

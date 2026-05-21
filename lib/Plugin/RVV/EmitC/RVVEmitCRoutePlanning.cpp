@@ -32,6 +32,10 @@ constexpr llvm::StringLiteral kRVVMAccOperandBindingPlanID(
     "rvv-route-operand-binding:macc_add.v1");
 constexpr llvm::StringLiteral kRVVWideningMAccOperandBindingPlanID(
     "rvv-route-operand-binding:widening_macc_add.v1");
+constexpr llvm::StringLiteral kRVVWidenI32ToI64OperandBindingPlanID(
+    "rvv-route-operand-binding:widen_i32_to_i64.v1");
+constexpr llvm::StringLiteral kRVVWidenI16ToI32OperandBindingPlanID(
+    "rvv-route-operand-binding:widen_i16_to_i32.v1");
 constexpr llvm::StringLiteral kRVVWideningDotReduceOperandBindingPlanID(
     "rvv-route-operand-binding:widening_dot_reduce.v1");
 constexpr llvm::StringLiteral
@@ -122,6 +126,15 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
       return RuntimeABIParameterRole::RHSInputBuffer;
     if (logicalOperand == "acc")
       return RuntimeABIParameterRole::AccumulatorInputBuffer;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVWidenI32ToI64OperandBindingPlanID ||
+      planID == kRVVWidenI16ToI32OperandBindingPlanID) {
+    if (logicalOperand == "lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
     if (logicalOperand == "out")
       return RuntimeABIParameterRole::OutputBuffer;
     if (logicalOperand == "n")
@@ -4436,6 +4449,33 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     addRouteOperandBinding(
         plan, "out", slice.outABI,
         {"abi", "res-store", "res-i32m1", "hdr"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"abi", "setvl-avl", "loop", "hdr"});
+  } else if (slice.arithmeticKind ==
+                 RVVSelectedBodyOperationKind::WidenI32ToI64 ||
+             slice.arithmeticKind ==
+                 RVVSelectedBodyOperationKind::WidenI16ToI32) {
+    const bool isI16ToI32 =
+        slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI16ToI32;
+    plan.planID = isI16ToI32 ? kRVVWidenI16ToI32OperandBindingPlanID.str()
+                             : kRVVWidenI32ToI64OperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVWideningConversionRuntimeABIOrder;
+    context = isI16ToI32 ? "widen_i16_to_i32 conversion route"
+                         : "widen_i32_to_i64 conversion route";
+    const llvm::StringRef sourceConfigUse =
+        isI16ToI32 ? "src-i16mf2" : "src-i32m1";
+    const llvm::StringRef resultConfigUse =
+        isI16ToI32 ? "res-i32m1" : "res-i64m2";
+    const llvm::StringRef relationUse =
+        isI16ToI32 ? "relation-signed-i16mf2-to-i32m1"
+                   : "relation-signed-i32m1-to-i64m2";
+    addRouteOperandBinding(plan, "lhs", slice.lhsABI,
+                           {"abi", "src-load", "convert-src",
+                            sourceConfigUse, relationUse, "hdr"});
+    addRouteOperandBinding(plan, "out", slice.outABI,
+                           {"abi", "res-store", "convert-result",
+                            resultConfigUse, relationUse, "hdr"});
     addRouteOperandBinding(
         plan, "n", slice.runtimeElementCountABI,
         {"abi", "setvl-avl", "loop", "hdr"});
@@ -9097,6 +9137,12 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   else if (operationProfile.operation ==
            RVVSelectedBodyOperationKind::WideningMAccAdd)
     expectedOperandBindingPlanID = kRVVWideningMAccOperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::WidenI32ToI64)
+    expectedOperandBindingPlanID = kRVVWidenI32ToI64OperandBindingPlanID;
+  else if (operationProfile.operation ==
+           RVVSelectedBodyOperationKind::WidenI16ToI32)
+    expectedOperandBindingPlanID = kRVVWidenI16ToI32OperandBindingPlanID;
   else if (operationProfile.operation ==
            RVVSelectedBodyOperationKind::WideningDotReduceAdd)
     expectedOperandBindingPlanID = kRVVWideningDotReduceOperandBindingPlanID;

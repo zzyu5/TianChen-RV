@@ -1,0 +1,33 @@
+{
+  "id": "05-21-stage2-rvv-conversion-operand-binding",
+  "name": "05-21-stage2-rvv-conversion-operand-binding",
+  "title": "Stage2 RVV conversion operand binding adoption",
+  "description": "Adopt RVVRouteOperandBindingPlan for current active widening conversion routes from the Hermes direction brief.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-21",
+  "completedAt": "2026-05-21",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp",
+    "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp",
+    "scripts/rvv_generated_bundle_abi_e2e.py",
+    "test/Plugin/RVVExtensionPluginTest.cpp",
+    "test/Target/RVV/pre-realized-selected-body-artifact-widen-i32-to-i64.mlir",
+    "test/Target/RVV/pre-realized-selected-body-artifact-widen-i16-to-i32.mlir"
+  ],
+  "notes": "Completed RouteOperandBindingPlan adoption for active widening conversion routes widen_i32_to_i64 and widen_i16_to_i32, with focused structural checks, generated-bundle dry-runs, real ssh rvv PASS at counts 7,16,23, active-authority scans, git diff --check, and check-tianchenrv 267/267.",
+  "meta": {}
+}

@@ -328,6 +328,24 @@ SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,out,n"
 WIDENING_CONVERSION_RUNTIME_ABI_ORDER = "lhs,out,n"
 WIDENING_CONVERSION_RELATION = "signed-i32m1-to-i64m2"
 WIDEN_I16_TO_I32_CONVERSION_RELATION = "signed-i16mf2-to-i32m1"
+WIDEN_I32_TO_I64_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:widen_i32_to_i64.v1"
+)
+WIDEN_I32_TO_I64_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:widen_i32_to_i64.v1;"
+    "lhs=lhs-input-buffer:lhs:abi|src-load|convert-src|src-i32m1|relation-signed-i32m1-to-i64m2|hdr;"
+    "out=output-buffer:out:abi|res-store|convert-result|res-i64m2|relation-signed-i32m1-to-i64m2|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+)
+WIDEN_I16_TO_I32_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:widen_i16_to_i32.v1"
+)
+WIDEN_I16_TO_I32_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:widen_i16_to_i32.v1;"
+    "lhs=lhs-input-buffer:lhs:abi|src-load|convert-src|src-i16mf2|relation-signed-i16mf2-to-i32m1|hdr;"
+    "out=output-buffer:out:abi|res-store|convert-result|res-i32m1|relation-signed-i16mf2-to-i32m1|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+)
 STRIDED_ADD_MEMORY_LAYOUT = "element-strided-lhs-rhs-output-runtime-abi"
 STRIDED_ADD_LHS_STRIDE_SOURCE = "runtime_abi:lhs_stride"
 STRIDED_ADD_RHS_STRIDE_SOURCE = "runtime_abi:rhs_stride"
@@ -2859,6 +2877,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.dest_sew": "64",
                 "tcrv_rvv.dest_lmul": "m2",
                 "tcrv_rvv.conversion_relation": WIDENING_CONVERSION_RELATION,
+                "tcrv_rvv.route_operand_binding_plan": (
+                    WIDEN_I32_TO_I64_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    WIDEN_I32_TO_I64_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if expectation.is_widen_i16_to_i32:
@@ -2869,6 +2893,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.dest_sew": "32",
                 "tcrv_rvv.dest_lmul": "m1",
                 "tcrv_rvv.conversion_relation": WIDEN_I16_TO_I32_CONVERSION_RELATION,
+                "tcrv_rvv.route_operand_binding_plan": (
+                    WIDEN_I16_TO_I32_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    WIDEN_I16_TO_I32_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
             }
         )
     if (

@@ -1671,3 +1671,72 @@ converted predecessor from commit `4db6013d`.
 
 - None for the bounded active dot-reduction operand binding cluster. A future
   task may handle widening conversion operand binding separately.
+
+
+## Session 157: Stage2 RVV conversion operand binding adoption
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV conversion operand binding adoption
+**Branch**: `main`
+
+### Summary
+
+Adopted `RVVRouteOperandBindingPlan` for the active widening conversion route
+cluster. The converted routes are `widen_i32_to_i64` and `widen_i16_to_i32`.
+No additional active conversion route was found or converted; parser-only,
+narrowing, unsigned, floating, frontend, and clone variants were left out of
+scope.
+
+### Main Changes
+
+- Added compact conversion route operand binding plan IDs and role validation
+  for `lhs`, `out`, and `n`.
+- Rewired RVV conversion provider checks so source load, conversion source,
+  destination store, runtime loop/control, source/result config mirrors,
+  conversion relation mirrors, and generated header mirrors are consumed
+  through the binding plan before emission.
+- Updated conversion target artifact/header FileCheck fixtures and
+  generated-bundle metadata expectations so mirrors and materialized operands
+  share the same binding contract.
+- Added plugin positive and negative coverage for conversion binding plans,
+  including source/destination role swap and conversion-direction/materialized
+  use mismatch.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Focused FileCheck for `widen_i32_to_i64` and `widen_i16_to_i32`
+  REALIZED, PLAN, and HEADER outputs.
+- [OK] Focused `tcrv-opt`/FileCheck validation for
+  `test/Dialect/RVV/generic-widening-conversion-dataflow.mlir`.
+- [OK] Generated-bundle dry-run for both converted routes at counts `7,16,23`:
+  `rvv_generated_bundle_abi_e2e: dry_run_success`.
+- [OK] Real `ssh rvv` generated-bundle run for both converted routes at counts
+  `7,16,23`: PASS for `widen_i32_to_i64` and `widen_i16_to_i32`, including
+  sign/value-distinguishing correctness and tail preservation.
+- [OK] Diff-level and generated-artifact active-authority scans: no newly added
+  positive `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`,
+  `!tcrv_rvv.i32m*`, descriptor/direct-C/source-export, source-front-door,
+  public exact intrinsic, stale route-id, artifact-name, or common/export RVV
+  semantic authority.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`: 267/267 passed.
+
+### Self-Repair
+
+- Raw source-tree `llvm-lit` was not available/configured for direct use
+  (`llvm-lit` absent from `/usr/lib/llvm-20/bin` and source lit config lacked
+  `tianchenrv_obj_root`), so focused direct FileCheck commands were used and
+  then superseded by the build-tree `check-tianchenrv` target.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+### Next Steps
+
+- None for the bounded active conversion operand binding cluster.

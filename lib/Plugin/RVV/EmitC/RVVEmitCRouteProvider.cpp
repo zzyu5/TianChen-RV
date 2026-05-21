@@ -593,6 +593,61 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (llvm::Error error = requireOperandUse(
               "n", "hdr", "widening_macc runtime header mirror"))
         return error;
+    } else if (isRVVSelectedBodyWideningConversionRoute(
+                   description.operation)) {
+      const bool isI16ToI32 =
+          description.operation == RVVSelectedBodyOperationKind::WidenI16ToI32;
+      const llvm::StringRef sourceConfigUse =
+          isI16ToI32 ? "src-i16mf2" : "src-i32m1";
+      const llvm::StringRef resultConfigUse =
+          isI16ToI32 ? "res-i32m1" : "res-i64m2";
+      const llvm::StringRef relationUse =
+          isI16ToI32 ? "relation-signed-i16mf2-to-i32m1"
+                     : "relation-signed-i32m1-to-i64m2";
+      if (llvm::Error error =
+              bindOperand(boundLHSABI, "lhs", "src-load",
+                          "widening conversion source load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "convert-src",
+              "widening conversion compute source operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", sourceConfigUse,
+              "widening conversion source type/config mirror"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", relationUse,
+              "widening conversion source direction mirror"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "hdr", "widening conversion source header mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundOutABI, "out", "res-store",
+                          "widening conversion result store operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out", "convert-result",
+              "widening conversion result dataflow operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out", resultConfigUse,
+              "widening conversion result type/config mirror"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out", relationUse,
+              "widening conversion result direction mirror"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out", "hdr", "widening conversion output header mirror"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "n", "loop", "widening conversion runtime loop control"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "n", "hdr", "widening conversion runtime header mirror"))
+        return error;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::WideningDotReduceAdd) {
       if (llvm::Error error =

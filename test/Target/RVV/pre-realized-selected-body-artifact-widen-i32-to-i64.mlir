@@ -50,6 +50,8 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.lmul", value = "m2"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "unit-stride-conversion"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "lhs,out,n"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:widen_i32_to_i64.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:widen_i32_to_i64.v1;lhs=lhs-input-buffer:lhs:abi|src-load|convert-src|src-i32m1|relation-signed-i32m1-to-i64m2|hdr;out=output-buffer:out:abi|res-store|convert-result|res-i64m2|relation-signed-i32m1-to-i64m2|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"}
 // PLAN-SAME: {key = "tcrv_rvv.bounded_slice", value = "multi-vl-selected-body-sew64-lmul-m2"}
 // PLAN-SAME: {key = "tcrv_rvv.source_sew", value = "32"}
 // PLAN-SAME: {key = "tcrv_rvv.source_lmul", value = "m1"}
@@ -71,4 +73,6 @@ module {
 // HEADER: tianchenrv.rvv.config_contract: rvv-selected-body-sew64-lmul-m2-tail-agnostic-mask-agnostic.v1
 // HEADER: tianchenrv.rvv.memory_form: unit-stride-conversion
 // HEADER: tianchenrv.rvv.conversion_relation: signed-i32m1-to-i64m2
+// HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:widen_i32_to_i64.v1
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:widen_i32_to_i64.v1;lhs=lhs-input-buffer:lhs:abi|src-load|convert-src|src-i32m1|relation-signed-i32m1-to-i64m2|hdr;out=output-buffer:out:abi|res-store|convert-result|res-i64m2|relation-signed-i32m1-to-i64m2|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr
 // HEADER: void tcrv_emitc_pre_realized_body_widen_i32_to_i64_kernel_pre_realized_body_rvv_widen_i32_to_i64(const int32_t *lhs, int64_t *out, size_t n);
