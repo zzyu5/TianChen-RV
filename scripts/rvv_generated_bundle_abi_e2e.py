@@ -59,6 +59,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "indexed_gather_unit_store",
     "indexed_scatter_unit_load",
     "masked_unit_load_store",
+    "masked_unit_store",
     "computed_masked_unit_load_store",
     "computed_masked_strided_store",
     "segment2_deinterleave_unit_store",
@@ -182,6 +183,10 @@ MASKED_MEMORY_INACTIVE_LANE_CONTRACT = "masked-off-lanes-preserve-old-destinatio
 MASKED_MEMORY_PASSTHROUGH_LAYOUT = "old-destination-vector-preserves-inactive-lanes"
 MASKED_MEMORY_SOURCE_MEMORY_FORM = "unit-stride-load"
 MASKED_MEMORY_DESTINATION_MEMORY_FORM = "unit-stride-store"
+MASKED_STORE_LAYOUT = "unit-stride-source-mask-destination-masked-store-runtime-abi"
+MASKED_STORE_INACTIVE_LANE_CONTRACT = "masked-store-false-lanes-preserve-output-buffer"
+MASKED_STORE_PASSTHROUGH_LAYOUT = "masked-store-has-no-passthrough-load"
+MASKED_STORE_DESTINATION_MEMORY_FORM = "masked-unit-store"
 COMPUTED_MASK_MEMORY_RUNTIME_ABI_ORDER = "cmp_lhs,cmp_rhs,src,dst,n"
 COMPUTED_MASK_MEMORY_LAYOUT = (
     "unit-stride-compare-source-old-destination-runtime-abi"
@@ -294,7 +299,7 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *src, "
                 "const uint32_t *index, int32_t *dst, size_t n);"
             )
-        if self.is_masked_unit_load_store:
+        if self.is_masked_unit_load_store or self.is_masked_unit_store:
             return (
                 f"void {self.function_name}(const int32_t *src, "
                 "const int32_t *mask, int32_t *dst, size_t n);"
@@ -392,7 +397,7 @@ class OpExpectation:
             return EXPECTED_INDEXED_GATHER_RUNTIME_PARAMETERS
         if self.is_indexed_scatter_unit_load:
             return EXPECTED_INDEXED_SCATTER_RUNTIME_PARAMETERS
-        if self.is_masked_unit_load_store:
+        if self.is_masked_unit_load_store or self.is_masked_unit_store:
             return EXPECTED_MASKED_MEMORY_RUNTIME_PARAMETERS
         if self.is_computed_masked_unit_load_store:
             return EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS
@@ -442,7 +447,7 @@ class OpExpectation:
             return INDEXED_GATHER_RUNTIME_ABI_ORDER
         if self.is_indexed_scatter_unit_load:
             return INDEXED_SCATTER_RUNTIME_ABI_ORDER
-        if self.is_masked_unit_load_store:
+        if self.is_masked_unit_load_store or self.is_masked_unit_store:
             return MASKED_MEMORY_RUNTIME_ABI_ORDER
         if self.is_computed_masked_unit_load_store:
             return COMPUTED_MASK_MEMORY_RUNTIME_ABI_ORDER
@@ -547,6 +552,10 @@ class OpExpectation:
     @property
     def is_masked_unit_load_store(self) -> bool:
         return self.kind == "masked_unit_load_store"
+
+    @property
+    def is_masked_unit_store(self) -> bool:
+        return self.kind == "masked_unit_store"
 
     @property
     def is_computed_masked_unit_load_store(self) -> bool:
@@ -977,6 +986,23 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_masked_unit_load_store",
         function_name="tcrv_emitc_pre_realized_body_masked_unit_load_store_kernel_pre_realized_body_rvv_masked_unit_load_store",
+    ),
+    "masked_unit_store": OpExpectation(
+        kind="masked_unit_store",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-masked-unit-store.mlir"),
+        input_mode="pre-realized-selected-body",
+        source_seed=False,
+        selected_variant="pre_realized_body_rvv_masked_unit_store",
+        external_abi_name="rvv-generic-masked-unit-store-callable-c-abi.v1",
+        function_name="tcrv_emitc_pre_realized_body_masked_unit_store_kernel_pre_realized_body_rvv_masked_unit_store",
+        emitc_route="rvv-generic-masked-unit-store-emitc-route",
+        typed_compute_op="tcrv_rvv.masked_store",
+        memory_form="masked-unit-store",
+        lhs_initializer="(int32_t)(900 + (int32_t)(index * 13))",
+        rhs_initializer="(int32_t)(((index % 5) == 0 || (index % 5) == 2) ? 1 : 0)",
+        out_initializer="(int32_t)(-7000 - (int32_t)(index * 17))",
+        expected_expression="(mask[index] != 0 ? src[index] : old_dst[index])",
+        config_contract="rvv-selected-body-sew32-lmul-m1-tail-undisturbed-mask-undisturbed.v1",
     ),
     "computed_masked_unit_load_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_unit_load_store"],
@@ -2210,6 +2236,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         "tcrv_rvv.memory_form": expectation.memory_form,
         "tcrv_rvv.bounded_slice": expectation.bounded_slice,
     }
+    if expectation.is_masked_unit_store:
+        per_op_metadata["tcrv_rvv.tail_policy"] = "undisturbed"
+        per_op_metadata["tcrv_rvv.mask_policy"] = "undisturbed"
     if expectation.is_reduce_add:
         per_op_metadata.update(
             {
@@ -2351,6 +2380,25 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
                 "tcrv_rvv.destination_memory_form": (
                     MASKED_MEMORY_DESTINATION_MEMORY_FORM
+                ),
+            }
+        )
+    if expectation.is_masked_unit_store:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.masked_memory_layout": MASKED_STORE_LAYOUT,
+                "tcrv_rvv.mask_role": MASKED_MEMORY_MASK_ROLE,
+                "tcrv_rvv.mask_source": MASKED_MEMORY_MASK_SOURCE,
+                "tcrv_rvv.mask_memory_form": MASKED_MEMORY_MASK_FORM,
+                "tcrv_rvv.inactive_lane_contract": (
+                    MASKED_STORE_INACTIVE_LANE_CONTRACT
+                ),
+                "tcrv_rvv.masked_passthrough_layout": (
+                    MASKED_STORE_PASSTHROUGH_LAYOUT
+                ),
+                "tcrv_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
+                "tcrv_rvv.destination_memory_form": (
+                    MASKED_STORE_DESTINATION_MEMORY_FORM
                 ),
             }
         )
@@ -3316,6 +3364,57 @@ def verify_materialized_selected_body(
             "tcrv_rvv.binary",
             "materialized selected-body MLIR masked memory movement",
         )
+    if expectation.is_masked_unit_store:
+        require_contains(
+            text,
+            "tcrv_rvv.mask_load",
+            "materialized selected-body MLIR masked-store mask load",
+        )
+        require_contains(
+            text,
+            'role = "mask-input-buffer"',
+            "materialized selected-body MLIR masked-store mask ABI role",
+        )
+        require_contains(
+            text,
+            'mask_role = "predicate-mask-input-buffer"',
+            "materialized selected-body MLIR masked-store mask role",
+        )
+        require_contains(
+            text,
+            'mask_memory_form = "unit-stride-mask-load"',
+            "materialized selected-body MLIR masked-store mask memory form",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.masked_store",
+            "materialized selected-body MLIR masked-store op",
+        )
+        require_contains(
+            text,
+            'memory_form = "masked-unit-store"',
+            "materialized selected-body MLIR masked-store memory form",
+        )
+        require_contains(
+            text,
+            'inactive_lane_policy = "preserve-output-on-false-lanes"',
+            "materialized selected-body MLIR masked-store inactive policy",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_move",
+            "materialized selected-body MLIR masked-store route",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.store",
+            "materialized selected-body MLIR masked-store route",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.binary",
+            "materialized selected-body MLIR masked-store route",
+        )
     if expectation.is_computed_masked_unit_load_store:
         require_contains(
             text,
@@ -4251,7 +4350,7 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
-    if expectation.is_masked_unit_load_store:
+    if expectation.is_masked_unit_load_store or expectation.is_masked_unit_store:
         return f"""
 #include <stddef.h>
 #include <stdint.h>
@@ -6689,9 +6788,9 @@ def run_one_op_e2e(
             evidence["harness"]["inactive_lane_contract"] = (
                 "masked-off lanes must preserve the explicit passthrough vector"
             )
-        if expectation.is_masked_unit_load_store:
+        if expectation.is_masked_unit_load_store or expectation.is_masked_unit_store:
             evidence["harness"]["mask_coverage_contract"] = (
-                "multi-lane masked_unit_load_store cases require active and "
+                "multi-lane masked unit-store/load-store cases require active and "
                 "inactive mask lanes"
             )
             evidence["harness"]["inactive_lane_contract"] = (
@@ -7273,7 +7372,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "strided_load_unit_store/"
             "unit_load_strided_store/indexed_gather_unit_store/"
             "indexed_scatter_unit_load/"
-            "masked_unit_load_store/computed_masked_unit_load_store/"
+            "masked_unit_load_store/masked_unit_store/"
+            "computed_masked_unit_load_store/"
             "computed_masked_strided_store/"
             "segment2_deinterleave_unit_store/"
             "segment2_interleave_unit_load/"

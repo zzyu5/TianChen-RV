@@ -66,6 +66,8 @@ const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyI64M1ConfigVLContract();
 const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyI64M2ConfigVLContract();
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyM1UndisturbedConfigVLContract();
 PolicyAttr getRVVSelectedBodyDefaultPolicy(mlir::MLIRContext *context);
 void populateRVVSelectedBodyDefaultConfigAttrs(mlir::Builder &builder,
                                                mlir::OperationState &state);
@@ -80,6 +82,7 @@ bool isRVVSelectedBodyM1Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyI64M1Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVSelectedBodyI64M2Config(std::int64_t sew, llvm::StringRef lmul);
 bool isRVVAgnosticPolicy(PolicyAttr policy);
+bool isRVVUndisturbedPolicy(PolicyAttr policy);
 
 RVVCompileTimeConfig getRVVSetVLCompileTimeConfig(SetVLOp setvl);
 std::optional<RVVCompileTimeConfig>
@@ -96,6 +99,9 @@ const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyConfigVLContract(llvm::StringRef lmul);
 const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyConfigVLContract(std::int64_t sew, llvm::StringRef lmul);
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyConfigVLContract(std::int64_t sew, llvm::StringRef lmul,
+                                   PolicyAttr policy);
 RVVConfigContractDiagnostic
 validateRVVSelectedBodyM1ConfigVLContract(SetVLOp setvl, WithVLOp withVL);
 

@@ -2044,6 +2044,41 @@ def StoreOp : TCRVRVV_Op<"store",
   let hasVerifier = 1;
 }
 
+def MaskedStoreOp : TCRVRVV_Op<"masked_store",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV masked unit-stride store dataflow op";
+  let description = [{
+    Records one bounded plugin-local RVV masked unit-stride store step. The op
+    is nested directly under tcrv_rvv.with_vl, consumes one explicit output
+    runtime ABI buffer SSA value, one !tcrv_rvv.mask predicate, one
+    !tcrv_rvv.vector payload value matching the enclosing config, and the
+    active !tcrv_rvv.vl token. It carries explicit masked-store memory-form
+    and inactive-lane preservation facts.
+
+    For the current bounded Stage 2 mask/tail-policy executable slice,
+    memory_form is limited to masked-unit-store and inactive_lane_policy is
+    limited to preserve-output-on-false-lanes. False mask lanes and tail lanes
+    are structural masked-store behavior; common EmitC/export must not infer
+    them from route ids, ABI names, artifact metadata, exact intrinsic
+    spelling, or harness sentinels.
+  }];
+
+  let arguments = (ins
+    AnyType:$buffer,
+    AnyType:$mask,
+    AnyType:$value,
+    AnyType:$vl,
+    StrAttr:$memory_form,
+    StrAttr:$inactive_lane_policy
+  );
+
+  let assemblyFormat =
+    "$buffer `,` $mask `,` $value `,` $vl attr-dict `:` type($buffer) `,` type($mask) `,` type($value) `,` type($vl)";
+  let hasVerifier = 1;
+}
+
 def StridedStoreOp : TCRVRVV_Op<"strided_store",
     [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
       ["getTCRVEmitCLowerableSourceOpName",

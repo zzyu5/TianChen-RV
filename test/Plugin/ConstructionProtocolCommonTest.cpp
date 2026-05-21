@@ -1664,6 +1664,8 @@ int runRVVCommonValidationTest() {
              route.operationMnemonic == "computed_masked_unit_load_store" ||
              route.operationMnemonic == "computed_masked_strided_store")
       executableComputeOp = "tcrv_rvv.masked_move";
+    else if (route.operationMnemonic == "masked_unit_store")
+      executableComputeOp = "tcrv_rvv.masked_store";
     else if (route.operationMnemonic == "strided_load_unit_store" ||
              route.operationMnemonic == "unit_load_strided_store" ||
              route.operationMnemonic == "indexed_gather_unit_store" ||
@@ -1688,7 +1690,9 @@ int runRVVCommonValidationTest() {
                                     "indexed_scatter_unit_load"
                                 ? "tcrv_rvv.indexed_store"
                                 : (route.operationMnemonic ==
-                                           "masked_unit_load_store"
+                                           "masked_unit_load_store" ||
+                                       route.operationMnemonic ==
+                                           "masked_unit_store"
                                        ? "tcrv_rvv.mask_load"
                                        : (route.operationMnemonic ==
                                                   "computed_masked_unit_load_store" ||
@@ -1732,6 +1736,8 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "indexed_scatter_unit_load";
     const bool hasMaskedMemory =
         route.operationMnemonic == "masked_unit_load_store";
+    const bool hasMaskedStore =
+        route.operationMnemonic == "masked_unit_store";
     const bool hasComputedMaskMemory =
         route.operationMnemonic == "computed_masked_unit_load_store";
     const bool hasComputedMaskStridedStore =
@@ -1762,6 +1768,7 @@ int runRVVCommonValidationTest() {
         : (hasStridedMemoryMovement || hasUnitLoadStridedStore) ? 9u
         : (hasIndexedGather || hasIndexedScatter) ? 10u
         : hasMaskedMemory                        ? 11u
+        : hasMaskedStore                         ? 9u
         : hasComputedMaskMemory                  ? 14u
         : hasComputedMaskStridedStore            ? 15u
         : hasSegment2Deinterleave                ? 11u
@@ -1822,7 +1829,8 @@ int runRVVCommonValidationTest() {
               getRVVSelectedBodyIndexedScatterRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
-    } else if (route.operationMnemonic == "masked_unit_load_store") {
+    } else if (route.operationMnemonic == "masked_unit_load_store" ||
+               route.operationMnemonic == "masked_unit_store") {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();

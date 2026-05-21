@@ -52,6 +52,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::MoveOp field0MoveOp;
   tcrv::rvv::MoveOp field1MoveOp;
   tcrv::rvv::MaskedMoveOp maskedMoveOp;
+  tcrv::rvv::MaskedStoreOp maskedStore;
   mlir::Operation *arithmeticOp = nullptr;
   mlir::Value arithmeticLhs;
   mlir::Value arithmeticRhs;
@@ -93,6 +94,7 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Operation *dotLHSLoadOperation = nullptr;
   mlir::Operation *dotRHSLoadOperation = nullptr;
   mlir::Operation *storeOperation = nullptr;
+  mlir::Operation *maskedStoreOperation = nullptr;
   mlir::Value lhsBuffer;
   mlir::Value rhsBuffer;
   mlir::Value trueValueBuffer;

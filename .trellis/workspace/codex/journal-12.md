@@ -1036,3 +1036,73 @@ Implemented the bounded Stage2 RVV standalone horizontal add-reduction executabl
 ### Next Steps
 
 - None - task complete
+
+
+## Session 149: Stage2 RVV masked-store policy executable slice
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV masked-store policy executable slice
+**Branch**: `main`
+
+### Summary
+
+Implemented bounded masked unit-store route with explicit mask/tail policy, generated-bundle dry-run, and ssh rvv evidence.
+
+### Main Changes
+
+### Summary
+
+Implemented the bounded Stage2 RVV masked unit-store executable slice for signed i32 / SEW32 / LMUL m1. The selected/pre-realized body now carries explicit mask import, payload source, output ABI buffer, runtime n/AVL, masked-store memory form, tail/mask undisturbed policy, false-lane preservation semantics, and ABI order `src,mask,dst,n` through RVV selected-body realization, route planning/provider, generated target artifact, and real `ssh rvv` execution.
+
+### Main Changes
+
+- Added `tcrv_rvv.masked_store` plus verifier coverage for output-buffer role, mask producer, mask/vector/VL shape, masked-store memory form, and false-lane preservation policy.
+- Added the `masked_unit_store` pre-realized selected-body hook with tail/mask undisturbed config contract.
+- Extended RVV selected-body realization to materialize `setvl`, `with_vl`, payload `load`, explicit `mask_load`, and direct `masked_store` without old-destination load or `masked_move`.
+- Extended RVV route planning/provider/construction protocol with `rvv-generic-masked-unit-store-emitc-route`, ABI `src,mask,dst,n`, masked-store metadata mirrors, masked store target leaf emission, and fail-closed diagnostics.
+- Extended generated-bundle ABI evidence tooling with `masked_unit_store` dry-run and ssh harness coverage for mixed true/false masks, false-lane preservation, and tail sentinels.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`.
+- [OK] Focused verifier/negative checks for `masked_store`, pre-realized masked-store policy, and route planner compare-mask rejection.
+- [OK] Selected-body realization, route plan, and generated header checks for `pre-realized-selected-body-artifact-masked-unit-store.mlir`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Generated-bundle dry-run for `masked_unit_store`, counts `7,16,23`.
+- [OK] Real `ssh rvv` PASS for `masked_unit_store`, counts `7,16,23`, active/inactive lanes `3/4`, `7/9`, `10/13`, inactive preservation, and `tail_preserved`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 257/257 passed.
+- [OK] `git diff --check`.
+- [OK] Active-authority scan: no positive masked-store associated `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`, descriptor/direct-C/source-export, source-front-door, public exact intrinsic residue, or common/export masked-store semantic authority in production/generated public evidence.
+
+### Self-Repair
+
+- Added masked-store-specific metadata mirrors after the first route-plan check showed only generic memory form/config metadata.
+- Updated construction protocol and stale fail-closed diagnostics/tests to include the new generic `tcrv_rvv.masked_store` surface.
+- Fixed generated-bundle self-test duplication by making `masked_unit_store` pre-realized-only in expectation routing.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+### Next Steps
+
+- None for this bounded masked-store slice.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

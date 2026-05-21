@@ -454,6 +454,10 @@ bool isAllowedMaskedMoveAttr(llvm::StringRef name) { return name == "kind"; }
 
 bool isAllowedStoreAttr(llvm::StringRef) { return false; }
 
+bool isAllowedMaskedStoreAttr(llvm::StringRef name) {
+  return name == kMemoryFormAttrName || name == kInactiveLanePolicyAttrName;
+}
+
 bool isAllowedStridedStoreAttr(llvm::StringRef) { return false; }
 
 bool isSupportedTypedBinaryPreRealizedBodyOpKind(llvm::StringRef opKind) {
@@ -825,12 +829,14 @@ bool isSupportedTypedIndexedScatterIndexUniqueness(
 
 bool isSupportedTypedMaskedMemoryPreRealizedBodyOpKind(
     llvm::StringRef opKind) {
-  return opKind == "masked_unit_load_store";
+  return opKind == "masked_unit_load_store" ||
+         opKind == "masked_unit_store";
 }
 
 bool isSupportedTypedMaskedMemoryPreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
-  return memoryForm == "masked-unit-load-store";
+  return memoryForm == "masked-unit-load-store" ||
+         memoryForm == "masked-unit-store";
 }
 
 bool isSupportedTypedMaskedMemoryRole(llvm::StringRef role) {
@@ -843,7 +849,8 @@ bool isSupportedTypedMaskedMemoryMaskMemoryForm(
 }
 
 bool isSupportedTypedMaskedMemoryInactiveLanePolicy(llvm::StringRef policy) {
-  return policy == "preserve-old-destination";
+  return policy == "preserve-old-destination" ||
+         policy == "preserve-output-on-false-lanes";
 }
 
 bool isSupportedTypedComputedMaskMemoryPreRealizedBodyOpKind(
@@ -2038,6 +2045,14 @@ llvm::StringRef StoreOp::getTCRVEmitCLowerableSourceOpName() {
 }
 
 llvm::StringRef StoreOp::getTCRVEmitCLowerableSourceRole() {
+  return "store";
+}
+
+llvm::StringRef MaskedStoreOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef MaskedStoreOp::getTCRVEmitCLowerableSourceRole() {
   return "store";
 }
 
@@ -4232,16 +4247,23 @@ mlir::LogicalResult TypedMaskedMemoryPreRealizedBodyOp::verify() {
            << "requires source, mask, destination, runtime n/AVL operands and "
               "no results";
 
+  const bool isMaskedUnitLoadStore = getOpKind() == "masked_unit_load_store";
+  const bool isMaskedUnitStore = getOpKind() == "masked_unit_store";
   if (!isSupportedTypedMaskedMemoryPreRealizedBodyOpKind(getOpKind()))
     return emitOpError()
-           << "currently supports only op_kind "
-              "\"masked_unit_load_store\" for the bounded selected-body "
-              "masked memory hook";
+           << "currently supports only op_kind \"masked_unit_load_store\" or "
+              "\"masked_unit_store\" for the bounded selected-body masked "
+              "memory hook";
   if (!isSupportedTypedMaskedMemoryPreRealizedMemoryForm(getMemoryForm()))
     return emitOpError()
            << "currently supports only memory_form "
-              "\"masked-unit-load-store\" for the bounded selected-body "
-              "masked memory hook";
+              "\"masked-unit-load-store\" or \"masked-unit-store\" for the "
+              "bounded selected-body masked memory hook";
+  if ((isMaskedUnitLoadStore && getMemoryForm() != "masked-unit-load-store") ||
+      (isMaskedUnitStore && getMemoryForm() != "masked-unit-store"))
+    return emitOpError()
+           << "requires op_kind and memory_form to agree for the bounded "
+              "selected-body masked memory hook";
   if (!isSupportedTypedMaskedMemoryRole(getMaskRole()))
     return emitOpError()
            << "currently supports only mask_role "
@@ -4255,19 +4277,35 @@ mlir::LogicalResult TypedMaskedMemoryPreRealizedBodyOp::verify() {
   if (!isSupportedTypedMaskedMemoryInactiveLanePolicy(
           getInactiveLanePolicy()))
     return emitOpError()
+           << "requires inactive_lane_policy \"preserve-old-destination\" or "
+              "\"preserve-output-on-false-lanes\" for the bounded "
+              "selected-body masked memory hook";
+  if (isMaskedUnitLoadStore &&
+      getInactiveLanePolicy() != "preserve-old-destination")
+    return emitOpError()
+           << "requires inactive_lane_policy \"preserve-old-destination\" "
+              "for masked_unit_load_store because masked-off lanes preserve "
+              "the loaded old destination value";
+  if (isMaskedUnitStore &&
+      getInactiveLanePolicy() != "preserve-output-on-false-lanes")
+    return emitOpError()
            << "requires inactive_lane_policy "
-              "\"preserve-old-destination\" because masked-off lanes must "
-              "preserve the old destination value in this bounded slice";
+              "\"preserve-output-on-false-lanes\" for masked_unit_store "
+              "because false mask lanes are not written";
 
   if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
       getLmul() != getRVVLMULM1())
     return emitOpError()
            << "requires bounded pre-realized masked memory data config to be "
               "SEW32 LMUL m1";
-  if (!isRVVAgnosticPolicy(getPolicy()))
+  if (isMaskedUnitLoadStore && !isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "
-              "selected-body masked memory hook";
+              "selected-body masked memory movement hook";
+  if (isMaskedUnitStore && !isRVVUndisturbedPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail undisturbed, mask undisturbed policy for the "
+              "bounded selected-body masked store hook";
 
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getSource(), "source",
@@ -6177,6 +6215,74 @@ mlir::LogicalResult StoreOp::verify() {
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
   return verifyGenericVectorTypeForWithVL(op, getValue(), "stored value");
+}
+
+mlir::LogicalResult MaskedStoreOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.masked_store",
+                                         isAllowedMaskedStoreAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 4 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires one explicit output buffer ABI operand, one generic "
+              "RVV mask predicate, one generic RVV vector payload, one "
+              "!tcrv_rvv.vl operand, and no results";
+  if (getMemoryForm() != "masked-unit-store")
+    return emitOpError()
+           << "currently supports only memory_form \"masked-unit-store\" for "
+              "the bounded Stage 2 masked store route";
+  if (getInactiveLanePolicy() != "preserve-output-on-false-lanes")
+    return emitOpError()
+           << "requires inactive_lane_policy "
+              "\"preserve-output-on-false-lanes\" because false mask lanes "
+              "must preserve the preinitialized output buffer";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getBuffer(), "masked store output buffer",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto maskLoad = getMask().getDefiningOp<MaskLoadOp>();
+  if (maskLoad) {
+    if (maskLoad.getVl() != getVl())
+      return emitOpError()
+             << "requires mask-producing tcrv_rvv.mask_load to consume the "
+                "same !tcrv_rvv.vl token as tcrv_rvv.masked_store";
+    if (maskLoad->getParentOp() != op->getParentOp())
+      return emitOpError()
+             << "requires mask-producing tcrv_rvv.mask_load to be in the "
+                "same tcrv_rvv.with_vl body as tcrv_rvv.masked_store";
+  } else {
+    auto compare = getMask().getDefiningOp<CompareOp>();
+    if (!compare)
+      return emitOpError()
+             << "requires mask operand to be produced by tcrv_rvv.mask_load "
+                "or tcrv_rvv.compare inside the selected RVV typed body";
+    if (compare.getVl() != getVl())
+      return emitOpError()
+             << "requires mask-producing tcrv_rvv.compare to consume the "
+                "same !tcrv_rvv.vl token as tcrv_rvv.masked_store";
+    if (compare->getParentOp() != op->getParentOp())
+      return emitOpError()
+             << "requires mask-producing tcrv_rvv.compare to be in the same "
+                "tcrv_rvv.with_vl body as tcrv_rvv.masked_store";
+  }
+
+  if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getValue(),
+                                                    "payload value")))
+    return mlir::failure();
+  return verifyGenericMaskMatchesVector(op, getMask(), getValue(), "mask",
+                                        "payload value");
 }
 
 mlir::LogicalResult StridedStoreOp::verify() {

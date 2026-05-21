@@ -25,6 +25,8 @@ constexpr llvm::StringLiteral kRVVSelectedBodyI64M1ConfigContract(
     "rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1");
 constexpr llvm::StringLiteral kRVVSelectedBodyI64M2ConfigContract(
     "rvv-selected-body-sew64-lmul-m2-tail-agnostic-mask-agnostic.v1");
+constexpr llvm::StringLiteral kRVVSelectedBodyM1UndisturbedConfigContract(
+    "rvv-selected-body-sew32-lmul-m1-tail-undisturbed-mask-undisturbed.v1");
 constexpr llvm::StringLiteral kRVVSelectedBodyRuntimeVLContract(
     "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1");
 constexpr llvm::StringLiteral
@@ -140,6 +142,28 @@ const RVVSelectedBodyConfigVLContract kRVVSelectedBodyI64M2ConfigVLContract = {
     kRVVSelectedBodyI64M2BoundedSlice,
     kRVVSelectedBodyMultiVLSupport};
 
+const RVVSelectedBodyConfigVLContract
+    kRVVSelectedBodyM1UndisturbedConfigVLContract = {
+        kRVVFirstSliceSEWBits,
+        kRVVLMULM1,
+        TailPolicy::Undisturbed,
+        MaskPolicy::Undisturbed,
+        kRVVSelectedBodyM1UndisturbedConfigContract,
+        kRVVSelectedBodyRuntimeVLContract,
+        kRVVSelectedBodyRuntimeAVLABIParameter,
+        kRVVSelectedBodyRuntimeAVLASource,
+        kRVVSelectedBodyRuntimeABIOrder,
+        kRVVSelectedBodyVLDefOpName,
+        kRVVSelectedBodyVLScopeOpName,
+        kRVVSelectedBodyVLUses,
+        kRVVSelectedBodyEmitCLoopKind,
+        kRVVSelectedBodyEmitCLoopInduction,
+        kRVVSelectedBodyEmitCFullChunkVL,
+        kRVVSelectedBodyRemainingAVLMetadata,
+        kRVVSelectedBodyPointerAdvanceMetadata,
+        kRVVSelectedBodyM1BoundedSlice,
+        kRVVSelectedBodyMultiVLSupport};
+
 std::string toString(llvm::Twine message) {
   std::string storage;
   llvm::raw_string_ostream stream(storage);
@@ -211,6 +235,11 @@ getRVVSelectedBodyI64M2ConfigVLContract() {
   return kRVVSelectedBodyI64M2ConfigVLContract;
 }
 
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyM1UndisturbedConfigVLContract() {
+  return kRVVSelectedBodyM1UndisturbedConfigVLContract;
+}
+
 PolicyAttr getRVVSelectedBodyDefaultPolicy(mlir::MLIRContext *context) {
   const RVVSelectedBodyConfigVLContract &contract =
       getRVVSelectedBodyM1ConfigVLContract();
@@ -258,6 +287,11 @@ bool isRVVSelectedBodyI64M2Config(std::int64_t sew, llvm::StringRef lmul) {
 bool isRVVAgnosticPolicy(PolicyAttr policy) {
   return policy && policy.getTail() == TailPolicy::Agnostic &&
          policy.getMask() == MaskPolicy::Agnostic;
+}
+
+bool isRVVUndisturbedPolicy(PolicyAttr policy) {
+  return policy && policy.getTail() == TailPolicy::Undisturbed &&
+         policy.getMask() == MaskPolicy::Undisturbed;
 }
 
 RVVCompileTimeConfig getRVVSetVLCompileTimeConfig(SetVLOp setvl) {
@@ -336,6 +370,15 @@ getRVVSelectedBodyConfigVLContract(std::int64_t sew, llvm::StringRef lmul) {
   if (isRVVSelectedBodyI64M1Config(sew, lmul))
     return getRVVSelectedBodyI64M1ConfigVLContract();
   return getRVVSelectedBodyConfigVLContract(lmul);
+}
+
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyConfigVLContract(std::int64_t sew, llvm::StringRef lmul,
+                                   PolicyAttr policy) {
+  if (isRVVUndisturbedPolicy(policy) &&
+      isRVVSelectedBodyM1Config(sew, lmul))
+    return getRVVSelectedBodyM1UndisturbedConfigVLContract();
+  return getRVVSelectedBodyConfigVLContract(sew, lmul);
 }
 
 RVVConfigContractDiagnostic

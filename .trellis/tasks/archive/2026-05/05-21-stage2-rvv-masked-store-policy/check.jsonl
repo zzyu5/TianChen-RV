@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check implementation against global stack and RVV-first invariants."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Check tcrv.exec remains ABI/envelope-only for masked store."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-local ownership, explicit mask/tail policy, and no legacy authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC only consumes provider-built masked-store routes."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check runtime ABI/artifact mirrors remain derived from provider output."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected-body realization consumes code-affecting policy into body structure."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check positive, negative, generated-bundle, ssh rvv, and authority-scan evidence."}

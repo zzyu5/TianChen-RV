@@ -44,8 +44,13 @@ bool isRVVSelectedBodyWideningConversionRoute(RVVSelectedBodyOperationKind op) {
 bool isRVVSelectedBodyMaskedMemoryMovementRoute(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::MaskedUnitLoadStore ||
+         op == RVVSelectedBodyOperationKind::MaskedUnitStore ||
          op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
          op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
+}
+
+bool isRVVSelectedBodyMaskedStoreRoute(RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::MaskedUnitStore;
 }
 
 bool isRVVSelectedBodyComputedMaskMemoryMovementRoute(
@@ -760,7 +765,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       isRVVSelectedBodyComputedMaskStridedStoreRoute(description.operation);
   const bool isRuntimeMaskMemory =
       description.operation == RVVSelectedBodyOperationKind::MaskedUnitLoadStore;
-  if (isRuntimeMaskMemory) {
+  const bool isMaskedStore =
+      isRVVSelectedBodyMaskedStoreRoute(description.operation);
+  if (isRuntimeMaskMemory || isMaskedStore) {
     if (llvm::Error error = addLoopStep(
             slice->maskLoadOperation, "load", description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
@@ -783,6 +790,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{description.maskName.str(),
                                       description.maskCType.str()}))
       return error;
+  }
+  if (isRuntimeMaskMemory) {
     if (llvm::Error error = addLoopStep(
             slice->accumulatorLoadOperation, "load",
             description.vectorLoadIntrinsic,
@@ -824,6 +833,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   }
   if (isRVVSelectedBodyWideningConversionRoute(description.operation) ||
       isRuntimeMaskMemory ||
+      isMaskedStore ||
       isRVVSelectedBodyMemoryMovementRoute(description.operation) ||
       emitsStandaloneReduction) {
     // These bounded routes have no RHS dataflow.
@@ -1098,20 +1108,21 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               TCRVEmitCCallOpaqueResult{description.maskName.str(),
                                         description.maskCType.str()}))
         return error;
-    if (llvm::Error error = addLoopStep(
-            slice->arithmeticOp, "compute", description.maskedMergeIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{"old_dst_vec",
-                                        description.vectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{isComputedMaskMemory ? "source_vec"
-                                                             : "lhs_vec",
-                                        description.vectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{description.maskName.str(),
-                                        description.maskCType.str()},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                        description.vlCType.str()}},
-            TCRVEmitCCallOpaqueResult{description.resultName.str(),
-                                      description.vectorCType.str()}))
-      return error;
+    if (!isMaskedStore)
+      if (llvm::Error error = addLoopStep(
+              slice->arithmeticOp, "compute", description.maskedMergeIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{"old_dst_vec",
+                                          description.vectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{isComputedMaskMemory ? "source_vec"
+                                                               : "lhs_vec",
+                                          description.vectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                          description.maskCType.str()},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          description.vlCType.str()}},
+              TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                        description.vectorCType.str()}))
+        return error;
   } else if (isRVVSelectedBodyMAccRoute(description.operation)) {
     if (llvm::Error error = addLoopStep(
             slice->arithmeticOp, "compute", description.intrinsic,
@@ -1268,6 +1279,21 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
              TCRVEmitCCallOpaqueOperand{"byte_offsets",
                                         description.indexVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{description.resultName.str(),
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{storeVLName.str(),
+                                        description.vlCType.str()}}))
+      return error;
+  } else if (description.memoryForm ==
+             RVVSelectedBodyMemoryForm::MaskedUnitStore) {
+    if (llvm::Error error = addLoopStep(
+            slice->storeOperation, "store", description.storeIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        description.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(slice->outABI.cName) + " + " + inductionName)
+                     .str(),
+                 slice->outABI.cType},
+             TCRVEmitCCallOpaqueOperand{"lhs_vec",
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{storeVLName.str(),
                                         description.vlCType.str()}}))
