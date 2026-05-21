@@ -9,7 +9,7 @@ module {
       %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      // expected-error@+1 {{currently supports only predicate_kind "eq" for the bounded selected-body compare/select realization hook}}
+      // expected-error@+1 {{currently supports only predicate_kind "eq", "slt", or "sle" for the bounded selected-body compare/select realization hook}}
       tcrv_rvv.typed_compare_select_pre_realized_body %lhs, %rhs, %out, %n {lmul = "m1", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "vector-rhs-load", op_kind = "cmp_select", predicate_kind = "ne", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, select_layout = "select-lhs-when-mask-else-rhs", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @pre_realized_cmp_select_reject_predicate_scalar attributes {origin = "scalar-plugin", requires = [@scalar_fallback]} {

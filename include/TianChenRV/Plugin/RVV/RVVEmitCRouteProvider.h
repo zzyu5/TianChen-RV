@@ -141,6 +141,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef storeIntrinsic;
   llvm::StringRef stridedStoreIntrinsic;
   llvm::StringRef intrinsic;
+  llvm::StringRef comparePredicateKind;
   llvm::StringRef compareIntrinsic;
   llvm::StringRef maskedMergeIntrinsic;
   llvm::StringRef resultName;

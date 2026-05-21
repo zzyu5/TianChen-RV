@@ -71,7 +71,8 @@ bool isPreRealizedCompareSelectOpKind(llvm::StringRef opKind) {
 }
 
 bool isPreRealizedCompareSelectPredicateKind(llvm::StringRef predicateKind) {
-  return predicateKind == "eq";
+  return predicateKind == "eq" || predicateKind == "slt" ||
+         predicateKind == "sle";
 }
 
 bool isPreRealizedCompareSelectMemoryForm(llvm::StringRef memoryForm) {
@@ -92,6 +93,11 @@ bool isPreRealizedComputedMaskSelectOpKind(llvm::StringRef opKind) {
 
 bool isPreRealizedComputedMaskSelectMemoryForm(llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-vector-select";
+}
+
+bool isPreRealizedComputedMaskSelectPredicateKind(
+    llvm::StringRef predicateKind) {
+  return predicateKind == "slt" || predicateKind == "sle";
 }
 
 bool isPreRealizedComputedMaskSelectLayout(llvm::StringRef layout) {
@@ -843,7 +849,7 @@ llvm::Error validatePreRealizedRVVSelectedCompareSelectBody(
   if (!isPreRealizedCompareSelectPredicateKind(body.getPredicateKind()))
     return makeRVVPluginError(
         "pre-realized RVV selected compare/select body currently supports only "
-        "predicate_kind 'eq'");
+        "predicate_kind 'eq', 'slt', or 'sle'");
   if (!isPreRealizedCompareSelectMemoryForm(body.getMemoryForm()))
     return makeRVVPluginError(
         "pre-realized RVV selected compare/select body currently supports only "
@@ -932,11 +938,10 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSelectBody(
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask select body currently "
         "supports only op_kind 'computed_mask_select'");
-  if (!isPreRealizedComputedMaskMemoryMovementPredicateKind(
-          body.getPredicateKind()))
+  if (!isPreRealizedComputedMaskSelectPredicateKind(body.getPredicateKind()))
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask select body currently "
-        "supports only predicate_kind 'slt'");
+        "supports only predicate_kind 'slt' or 'sle'");
   if (!isPreRealizedComputedMaskSelectMemoryForm(body.getMemoryForm()))
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask select body currently "

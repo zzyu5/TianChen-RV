@@ -51,7 +51,9 @@ SCALAR_BROADCAST_OP_KINDS = (
 )
 OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "cmp_select",
+    "cmp_select_sle",
     "computed_mask_select",
+    "computed_mask_select_sle",
     "reduce_add",
     *MASKED_ELEMENTWISE_OP_KINDS,
     "macc_add",
@@ -540,6 +542,7 @@ class OpExpectation:
     lhs_initializer: str
     rhs_initializer: str
     expected_expression: str
+    compare_predicate_kind: str = ""
     out_initializer: str = OUT_SENTINEL
     source_initializer: str = "(int32_t)(900 + (int32_t)(index * 13))"
     true_value_initializer: str = "(int32_t)(1300 + (int32_t)(index * 11))"
@@ -720,6 +723,10 @@ class OpExpectation:
     def selected_body_operation(self) -> str:
         if self.is_i64_add or self.is_lmul_m2_add:
             return "add"
+        if self.kind == "cmp_select_sle":
+            return "cmp_select"
+        if self.kind == "computed_mask_select_sle":
+            return "computed_mask_select"
         return self.kind
 
     @property
@@ -784,11 +791,22 @@ class OpExpectation:
 
     @property
     def is_cmp_select(self) -> bool:
-        return self.kind == "cmp_select"
+        return self.kind in {"cmp_select", "cmp_select_sle"}
 
     @property
     def is_computed_mask_select(self) -> bool:
-        return self.kind == "computed_mask_select"
+        return self.kind in {"computed_mask_select", "computed_mask_select_sle"}
+
+    def compare_predicate_c_expression(self, lhs: str, rhs: str) -> str:
+        if self.compare_predicate_kind == "eq":
+            return f"{lhs} == {rhs}"
+        if self.compare_predicate_kind == "slt":
+            return f"{lhs} < {rhs}"
+        if self.compare_predicate_kind == "sle":
+            return f"{lhs} <= {rhs}"
+        raise EvidenceError(
+            f"{self.kind} requires a supported compare predicate kind"
+        )
 
     @property
     def is_masked_add(self) -> bool:
@@ -959,6 +977,63 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
             ": (int32_t)(-300 - (int32_t)(index * 7)))"
         ),
         expected_expression="(lhs[index] == rhs[index] ? lhs[index] : rhs[index])",
+        compare_predicate_kind="eq",
+    ),
+    "cmp_select_sle": OpExpectation(
+        kind="cmp_select_sle",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-cmp-select-sle.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_i32_cmp_select_sle",
+        external_abi_name="rvv-generic-cmp-select-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_cmp_select_sle_kernel_explicit_selected_body_rvv_i32_cmp_select_sle",
+        emitc_route="rvv-generic-cmp-select-emitc-route",
+        typed_compute_op="tcrv_rvv.select",
+        memory_form="vector-rhs-load",
+        lhs_initializer=(
+            "(int32_t)((index % 5) == 0 ? 10 : "
+            "((index % 5) == 1 ? 11 : "
+            "((index % 5) == 2 ? 12 : "
+            "((index % 5) == 3 ? 15 : -4))))"
+        ),
+        rhs_initializer=(
+            "(int32_t)((index % 5) == 0 ? 10 : "
+            "((index % 5) == 1 ? 13 : "
+            "((index % 5) == 2 ? 9 : "
+            "((index % 5) == 3 ? 15 : -9))))"
+        ),
+        expected_expression="(lhs[index] <= rhs[index] ? lhs[index] : rhs[index])",
+        compare_predicate_kind="sle",
+    ),
+    "computed_mask_select_sle": OpExpectation(
+        kind="computed_mask_select_sle",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-computed-mask-select-sle.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_computed_mask_select_sle",
+        external_abi_name="rvv-generic-computed-mask-select-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_computed_mask_select_sle_kernel_explicit_selected_body_rvv_computed_mask_select_sle",
+        emitc_route="rvv-generic-computed-mask-select-emitc-route",
+        typed_compute_op="tcrv_rvv.select",
+        memory_form="computed-mask-vector-select",
+        lhs_initializer=(
+            "(int32_t)(((index % 5) == 0) ? 10 : "
+            "((index % 5) == 1) ? 9 : "
+            "((index % 5) == 2) ? 14 : "
+            "((index % 5) == 3) ? -3 : -9)"
+        ),
+        rhs_initializer=(
+            "(int32_t)(((index % 5) == 0) ? 10 : "
+            "((index % 5) == 1) ? 12 : "
+            "((index % 5) == 2) ? 11 : "
+            "((index % 5) == 3) ? -3 : -12)"
+        ),
+        true_value_initializer="(int32_t)(2100 + (int32_t)(index * 17))",
+        false_value_initializer="(int32_t)(-2300 - (int32_t)(index * 19))",
+        expected_expression=(
+            "(cmp_lhs[index] <= cmp_rhs[index] ? true_value[index] : false_value[index])"
+        ),
+        compare_predicate_kind="sle",
     ),
     "reduce_add": OpExpectation(
         kind="reduce_add",
@@ -1257,6 +1332,13 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="pre_realized_body_rvv_cmp_select",
         function_name="tcrv_emitc_pre_realized_body_cmp_select_kernel_pre_realized_body_rvv_cmp_select",
     ),
+    "cmp_select_sle": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["cmp_select_sle"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-cmp-select-sle.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_cmp_select_sle",
+        function_name="tcrv_emitc_pre_realized_body_cmp_select_sle_kernel_pre_realized_body_rvv_cmp_select_sle",
+    ),
     "computed_mask_select": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["cmp_select"],
         kind="computed_mask_select",
@@ -1283,6 +1365,37 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         expected_expression=(
             "(cmp_lhs[index] < cmp_rhs[index] ? true_value[index] : false_value[index])"
         ),
+        compare_predicate_kind="slt",
+    ),
+    "computed_mask_select_sle": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["computed_mask_select_sle"],
+        kind="computed_mask_select_sle",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-select-sle.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_computed_mask_select_sle",
+        external_abi_name="rvv-generic-computed-mask-select-callable-c-abi.v1",
+        function_name="tcrv_emitc_pre_realized_body_computed_mask_select_sle_kernel_pre_realized_body_rvv_computed_mask_select_sle",
+        emitc_route="rvv-generic-computed-mask-select-emitc-route",
+        typed_compute_op="tcrv_rvv.select",
+        memory_form="computed-mask-vector-select",
+        lhs_initializer=(
+            "(int32_t)(((index % 5) == 0) ? 10 : "
+            "((index % 5) == 1) ? 9 : "
+            "((index % 5) == 2) ? 14 : "
+            "((index % 5) == 3) ? -3 : -9)"
+        ),
+        rhs_initializer=(
+            "(int32_t)(((index % 5) == 0) ? 10 : "
+            "((index % 5) == 1) ? 12 : "
+            "((index % 5) == 2) ? 11 : "
+            "((index % 5) == 3) ? -3 : -12)"
+        ),
+        true_value_initializer="(int32_t)(2100 + (int32_t)(index * 17))",
+        false_value_initializer="(int32_t)(-2300 - (int32_t)(index * 19))",
+        expected_expression=(
+            "(cmp_lhs[index] <= cmp_rhs[index] ? true_value[index] : false_value[index])"
+        ),
+        compare_predicate_kind="sle",
     ),
     "masked_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_add"],
@@ -2730,6 +2843,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_cmp_select:
         per_op_metadata.update(
             {
+                "tcrv_rvv.compare_predicate_kind": (
+                    expectation.compare_predicate_kind
+                ),
                 "tcrv_rvv.route_operand_binding_plan": (
                     CMP_SELECT_ROUTE_OPERAND_BINDING_PLAN
                 ),
@@ -2934,6 +3050,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_computed_mask_select:
         per_op_metadata.update(
             {
+                "tcrv_rvv.compare_predicate_kind": (
+                    expectation.compare_predicate_kind
+                ),
                 "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
                 "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
@@ -4031,7 +4150,7 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            'kind = "slt"',
+            f'kind = "{expectation.compare_predicate_kind}"',
             "materialized selected-body MLIR computed-mask select predicate",
         )
         require_contains(
@@ -6780,7 +6899,7 @@ static int run_case(size_t n) {{
   size_t true_lanes = 0;
   size_t false_lanes = 0;
   for (size_t index = 0; index < n; ++index) {{
-    int predicate = cmp_lhs[index] < cmp_rhs[index];
+    int predicate = {expectation.compare_predicate_c_expression("cmp_lhs[index]", "cmp_rhs[index]")};
     if (predicate)
       ++true_lanes;
     else
@@ -6883,7 +7002,7 @@ static int run_case(size_t n) {{
   size_t predicate_true_lanes = 0;
   size_t predicate_false_lanes = 0;
   for (size_t index = 0; index < n; ++index) {{
-    int predicate = lhs[index] == rhs[index];
+    int predicate = {expectation.compare_predicate_c_expression("lhs[index]", "rhs[index]")};
     if (predicate)
       ++predicate_true_lanes;
     else

@@ -117,6 +117,24 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
         plugin::rvv::getRVVSelectedBodyOperationMetadataName() +
         " provenance must mirror selected typed RVV body operation '" +
         expectedOperation + "' but was '" + selectedBodyOperation + "'");
+  llvm::StringRef comparePredicateKind = lookupCandidateMetadataValue(
+      candidate, "tcrv_rvv.compare_predicate_kind");
+  if (!description.comparePredicateKind.empty()) {
+    if (comparePredicateKind.empty())
+      return makeRVVTargetRouteError(
+          "candidate metadata must carry "
+          "tcrv_rvv.compare_predicate_kind provenance");
+    if (comparePredicateKind != description.comparePredicateKind)
+      return makeRVVTargetRouteError(
+          llvm::Twine("candidate tcrv_rvv.compare_predicate_kind provenance "
+                      "must mirror selected typed RVV body predicate '") +
+          description.comparePredicateKind + "' but was '" +
+          comparePredicateKind + "'");
+  } else if (!comparePredicateKind.empty()) {
+    return makeRVVTargetRouteError(
+        "candidate metadata must not carry compare predicate mirrors for a "
+        "selected typed RVV body route without a compare predicate");
+  }
   llvm::StringRef routeOperandBindingPlan = lookupCandidateMetadataValue(
       candidate, "tcrv_rvv.route_operand_binding_plan");
   llvm::StringRef routeOperandBindingOperands = lookupCandidateMetadataValue(
@@ -538,6 +556,8 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
   });
   appendRVVConfigVLMetadataEvidence(evidence);
   evidence.append({
+      {"compare_predicate_kind", "tcrv_rvv.compare_predicate_kind", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"memory_form", "tcrv_rvv.memory_form", "",
        /*allowDynamicValue=*/true},
       {"strided_memory_layout", "tcrv_rvv.strided_memory_layout", "",

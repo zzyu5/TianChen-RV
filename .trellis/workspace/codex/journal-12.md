@@ -1565,6 +1565,7 @@ routes or widening conversion routes.
 
 - [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
 - [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`.
 - [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
 - [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
 - [OK] Focused lit for
@@ -1740,3 +1741,76 @@ scope.
 ### Next Steps
 
 - None for the bounded active conversion operand binding cluster.
+
+
+## Session 156: Stage2 RVV closure-gated compare/select `sle` expansion
+
+**Date**: 2026-05-21
+**Task**: `05-21-stage2-rvv-closure-gated-compare-select`
+**Branch**: `main`
+
+### Summary
+
+Implemented a bounded Stage2 RVV compare/select coverage expansion for signed
+less-or-equal (`sle`) on the corrected generic typed `tcrv_rvv` surface. The
+route support remains RVV plugin-owned, selected-body-derived, and
+`RVVRouteOperandBindingPlan` closure-gated.
+
+### Main Changes
+
+- Extended generic typed compare predicate verification to accept `eq`, `slt`,
+  and bounded signed `sle` where compare/select routes support them.
+- Extended pre-realized `cmp_select` and `computed_mask_select` realization so
+  `sle` materializes into explicit `setvl/with_vl/load/compare/select/store`
+  structure.
+- Added `comparePredicateKind` route description authority, predicate-derived
+  RVV compare intrinsic selection, emission metadata, and target header mirror
+  validation for `tcrv_rvv.compare_predicate_kind`.
+- Added explicit and pre-realized target fixtures for `cmp_select_sle` and
+  `computed_mask_select_sle`.
+- Extended generated-bundle ABI evidence and harnesses for explicit and
+  pre-realized `cmp_select_sle` and `computed_mask_select_sle` with
+  equality-distinguishing signed data, runtime counts `7,16,23`, and
+  computed-mask tail sentinel preservation.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Focused FileCheck for explicit/pre-realized `cmp_select_sle` and
+  `computed_mask_select_sle` PLAN/HEADER/REALIZED paths.
+- [OK] Focused verifier checks:
+  `test/Dialect/RVV/computed-mask-select-dataflow.mlir` and
+  `test/Transforms/LoweringBoundary/rvv-pre-realized-compare-select-selected-body-negative.mlir`.
+- [OK] Generated-bundle dry-runs for explicit/pre-realized `cmp_select_sle`
+  and `computed_mask_select_sle`, counts `7,16,23`.
+- [OK] Real `ssh rvv` PASS for explicit/pre-realized `cmp_select_sle` and
+  `computed_mask_select_sle`, counts `7,16,23`. `cmp_select_sle` reported both
+  predicate true and false lanes; `computed_mask_select_sle` reported both
+  select true and false lanes plus `tail_preserved`.
+- [OK] Active-authority scan: full scan hits were existing legacy inventory,
+  negative tests, and guard text; diff-level scan found no newly added positive
+  `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`,
+  descriptor/direct-C/source-export/source-front-door authority.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 279/279 passed.
+
+### Self-Repair
+
+- Fixed one stale masked-arithmetic helper call after the compare intrinsic
+  helper was split into explicit predicate-derived variants.
+- Added target header mirror support after focused FileCheck showed the plan
+  carried `compare_predicate_kind` but header export did not.
+- Added explicit generated-bundle expectation for `computed_mask_select_sle`
+  after the first explicit dry-run showed script support existed only for the
+  pre-realized table.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+### Next Steps
+
+- None for this bounded signed `sle` compare/select submodule.

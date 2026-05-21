@@ -1925,7 +1925,7 @@ getRVVSelectedBodyReductionIntrinsic(llvm::StringRef lmul) {
 }
 
 llvm::StringRef
-getRVVSelectedBodyCompareIntrinsic(llvm::StringRef lmul) {
+getRVVSelectedBodyEqualCompareIntrinsic(llvm::StringRef lmul) {
   return lmul == tcrv::rvv::getRVVLMULM2()
              ? "__riscv_vmseq_vv_i32m2_b16"
              : "__riscv_vmseq_vv_i32m1_b32";
@@ -1936,6 +1936,25 @@ getRVVSelectedBodySignedLessThanCompareIntrinsic(llvm::StringRef lmul) {
   return lmul == tcrv::rvv::getRVVLMULM2()
              ? "__riscv_vmslt_vv_i32m2_b16"
              : "__riscv_vmslt_vv_i32m1_b32";
+}
+
+llvm::StringRef
+getRVVSelectedBodySignedLessEqualCompareIntrinsic(llvm::StringRef lmul) {
+  return lmul == tcrv::rvv::getRVVLMULM2()
+             ? "__riscv_vmsle_vv_i32m2_b16"
+             : "__riscv_vmsle_vv_i32m1_b32";
+}
+
+llvm::StringRef
+getRVVSelectedBodyCompareIntrinsic(llvm::StringRef predicateKind,
+                                   llvm::StringRef lmul) {
+  if (predicateKind == "eq")
+    return getRVVSelectedBodyEqualCompareIntrinsic(lmul);
+  if (predicateKind == "slt")
+    return getRVVSelectedBodySignedLessThanCompareIntrinsic(lmul);
+  if (predicateKind == "sle")
+    return getRVVSelectedBodySignedLessEqualCompareIntrinsic(lmul);
+  return {};
 }
 
 llvm::StringRef getRVVSelectedBodyMaskFromI32Intrinsic(llvm::StringRef lmul) {
@@ -2842,13 +2861,13 @@ deriveRVVSelectedBodyTargetLeafProfile(
          description.memoryForm !=
              RVVSelectedBodyMemoryForm::ComputedMaskVectorSelect))
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+    llvm::StringRef compareIntrinsic = getRVVSelectedBodyCompareIntrinsic(
+        description.comparePredicateKind, configProfile.lmul);
+    if (compareIntrinsic.empty())
+      return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     return RVVSelectedBodyTargetLeafProfile{
         getRVVSelectedBodySelectIntrinsic(configProfile.lmul),
-        isComputedMaskSelect
-            ? getRVVSelectedBodySignedLessThanCompareIntrinsic(
-                  configProfile.lmul)
-            : getRVVSelectedBodyCompareIntrinsic(configProfile.lmul),
-        "", ""};
+        compareIntrinsic, "", ""};
   }
 
   if (description.operation ==
@@ -2931,7 +2950,7 @@ deriveRVVSelectedBodyTargetLeafProfile(
     return RVVSelectedBodyTargetLeafProfile{
         getRVVSelectedBodyArithmeticIntrinsic(description.operation,
                                              configProfile),
-        getRVVSelectedBodyCompareIntrinsic(configProfile.lmul),
+        getRVVSelectedBodyEqualCompareIntrinsic(configProfile.lmul),
         getRVVSelectedBodySelectIntrinsic(configProfile.lmul), ""};
   }
 
@@ -5126,7 +5145,8 @@ llvm::Error recordRVVSelectedBodyCompare(RVVSelectedBodyRouteSlice &slice,
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one generic "
         "tcrv_rvv.compare op for mask-producing routes");
-  if (compare.getKind() != "eq" && compare.getKind() != "slt")
+  if (compare.getKind() != "eq" && compare.getKind() != "slt" &&
+      compare.getKind() != "sle")
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic tcrv_rvv.compare kind '") +
         compare.getKind() + "' for bounded RVV EmitC route");
@@ -7048,10 +7068,11 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask select route requires "
           "true-value-input-buffer and false-value-input-buffer loads");
-    if (slice.compareOp.getKind() != "slt")
+    if (slice.compareOp.getKind() != "slt" &&
+        slice.compareOp.getKind() != "sle")
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask select route currently supports "
-          "only tcrv_rvv.compare {kind = \"slt\"}");
+          "only tcrv_rvv.compare {kind = \"slt\"} or {kind = \"sle\"}");
     if (slice.compareLhs != slice.lhsValue ||
         slice.compareRhs != slice.rhsValue)
       return makeRVVEmitCRouteProviderError(
@@ -8343,6 +8364,12 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.slice = std::move(*slice);
   analysis.description.operation = analysis.slice.arithmeticKind;
   analysis.description.memoryForm = analysis.slice.memoryForm;
+  if ((analysis.slice.arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect ||
+       analysis.slice.arithmeticKind ==
+           RVVSelectedBodyOperationKind::ComputedMaskSelect) &&
+      analysis.slice.compareOp)
+    analysis.description.comparePredicateKind =
+        analysis.slice.compareOp.getKind();
   analysis.description.sew = config.sew;
   analysis.description.lmul = config.lmul;
   analysis.description.tailPolicy =
@@ -9767,6 +9794,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           targetLeaves.intrinsic))
     return error;
   if (operationProfile.isCompareSelect) {
+    if (llvm::Error error = requireRouteDescriptionText(
+            context, "compare predicate kind",
+            description.comparePredicateKind))
+      return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "compare intrinsic", description.compareIntrinsic,
             targetLeaves.compareIntrinsic))
@@ -10789,6 +10820,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
   if (!description.runtimeControlPlanID.empty())
     metadata.push_back(
         {"tcrv_rvv.runtime_control_plan", description.runtimeControlPlanID});
+  if (getRVVSelectedBodyOperationProfile(description.operation).isCompareSelect)
+    metadata.push_back(
+        {"tcrv_rvv.compare_predicate_kind",
+         description.comparePredicateKind});
   metadata.push_back({"tcrv_rvv.memory_form",
                       stringifyRVVSelectedBodyMemoryForm(
                           description.memoryForm)});

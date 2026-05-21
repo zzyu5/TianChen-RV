@@ -1,0 +1,30 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV stage order, and source-of-truth boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed-body authority, selected-body realization, and fail-closed legacy/source-front-door boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route neutrality and provider-built TCRVEmitCLowerableRoute requirements."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Route provider ownership, selected-body realization hook, optional mirror policy, and fail-closed inventory."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Positive RVV generated artifact tests, fail-closed metadata/source-front-door boundaries, and ssh rvv evidence rules."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-binary-broadcast-masked-elementwise/prd.md", "reason": "Most recent closure-gated route expansion pattern and validation evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-05-21-stage2-rvv-computed-mask-vector-select-executable-slice/prd.md", "reason": "Prior computed-mask select route scope, fixtures, and ssh evidence pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-05-21-stage2-rvv-arithmetic-select-operand-binding/prd.md", "reason": "Current compare/select RouteOperandBindingPlan adoption contract."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Typed compare/select and computed-mask select pre-realized op contracts."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Route analysis and compare/select route description fields."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Route description mirrors and operation/memory-form definitions."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Verifier support for compare predicates and pre-realized compare/select bodies."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Pre-realized selected-body realization into explicit compare/select structure."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Predicate-derived route planning, binding plan validation, metadata, and target leaves."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Provider materialization consumes route description and binding plans."}
+{"file": "lib/Plugin/RVV/Construction/RVVConstructionProtocol.cpp", "reason": "Construction protocol mirrors and route inventory checks if compare/select metadata changes."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Target artifact mirror validation for route operand binding and metadata."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle dry-run and ssh rvv evidence for new compare/select routes."}
+{"file": "test/Dialect/RVV/", "type": "directory", "reason": "Dialect verifier positive and negative compare/select coverage."}
+{"file": "test/Target/RVV/", "type": "directory", "reason": "Selected-body realization, emission-plan, header, and artifact fixtures."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused provider and binding-plan tests."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Completed: generic compare and pre-realized compare/select verifier support now accepts bounded signed sle and keeps unsupported predicates fail-closed."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Completed: pre-realized cmp_select and computed_mask_select materialize sle into explicit compare/select typed RVV bodies."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Completed: route analysis carries comparePredicateKind from typed compare op, selects eq/slt/sle compare leaves from that mirror, and emits metadata."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Completed: target artifact/header mirror validates and exports tcrv_rvv.compare_predicate_kind for compare/select routes."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Completed: generated-bundle dry-run and ssh harnesses cover explicit/pre-realized cmp_select_sle and computed_mask_select_sle with value-distinguishing signed predicate cases."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-cmp-select-sle.mlir", "reason": "Completed: explicit cmp_select sle plan/header fixture proves predicate mirror and cmp_select binding plan."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-cmp-select-sle.mlir", "reason": "Completed: pre-realized cmp_select sle realization plus plan/header fixture proves selected-body transformation and route support."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-mask-select-sle.mlir", "reason": "Completed: explicit computed-mask select sle fixture proves compare lhs/rhs, true/false, output, n binding closure and header mirrors."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-select-sle.mlir", "reason": "Completed: pre-realized computed-mask select sle fixture proves selected-body realization, route support, and binding closure."}

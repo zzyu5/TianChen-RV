@@ -510,7 +510,8 @@ bool isSupportedTypedCompareSelectPreRealizedBodyOpKind(
 
 bool isSupportedTypedCompareSelectPreRealizedPredicateKind(
     llvm::StringRef predicateKind) {
-  return predicateKind == "eq";
+  return predicateKind == "eq" || predicateKind == "slt" ||
+         predicateKind == "sle";
 }
 
 bool isSupportedTypedCompareSelectPreRealizedMemoryForm(
@@ -531,6 +532,11 @@ bool isSupportedTypedCompareSelectPreRealizedSelectLayout(
 bool isSupportedTypedComputedMaskSelectPreRealizedBodyOpKind(
     llvm::StringRef opKind) {
   return opKind == "computed_mask_select";
+}
+
+bool isSupportedTypedComputedMaskSelectPreRealizedPredicateKind(
+    llvm::StringRef predicateKind) {
+  return predicateKind == "slt" || predicateKind == "sle";
 }
 
 bool isSupportedTypedComputedMaskSelectPreRealizedMemoryForm(
@@ -964,7 +970,7 @@ bool isSupportedGenericMaskedBinaryKind(llvm::StringRef kind) {
 }
 
 bool isSupportedGenericCompareKind(llvm::StringRef kind) {
-  return kind == "eq" || kind == "slt";
+  return kind == "eq" || kind == "slt" || kind == "sle";
 }
 
 bool isSupportedGenericReduceKind(llvm::StringRef kind) {
@@ -2629,8 +2635,9 @@ mlir::LogicalResult TypedCompareSelectPreRealizedBodyOp::verify() {
   if (!isSupportedTypedCompareSelectPreRealizedPredicateKind(
           getPredicateKind()))
     return emitOpError()
-           << "currently supports only predicate_kind \"eq\" for the bounded "
-              "selected-body compare/select realization hook";
+           << "currently supports only predicate_kind \"eq\", \"slt\", or "
+              "\"sle\" for the bounded selected-body compare/select "
+              "realization hook";
   if (!isSupportedTypedCompareSelectPreRealizedMemoryForm(getMemoryForm()))
     return emitOpError()
            << "currently supports only memory_form \"vector-rhs-load\" for the "
@@ -2709,11 +2716,11 @@ mlir::LogicalResult TypedComputedMaskSelectPreRealizedBodyOp::verify() {
     return emitOpError()
            << "currently supports only op_kind \"computed_mask_select\" for "
               "the bounded selected-body computed-mask select hook";
-  if (!isSupportedTypedComputedMaskMemoryPreRealizedPredicateKind(
+  if (!isSupportedTypedComputedMaskSelectPreRealizedPredicateKind(
           getPredicateKind()))
     return emitOpError()
-           << "currently supports only predicate_kind \"slt\" for the "
-              "bounded selected-body computed-mask select hook";
+           << "currently supports only predicate_kind \"slt\" or \"sle\" for "
+              "the bounded selected-body computed-mask select hook";
   if (!isSupportedTypedComputedMaskSelectPreRealizedMemoryForm(
           getMemoryForm()))
     return emitOpError()
@@ -5329,8 +5336,8 @@ mlir::LogicalResult CompareOp::verify() {
 
   if (!isSupportedGenericCompareKind(getKind()))
     return emitOpError()
-           << "currently supports only kind \"eq\" or \"slt\" for the "
-              "bounded Stage 2 predicate routes";
+           << "currently supports only kind \"eq\", \"slt\", or \"sle\" for "
+              "the bounded Stage 2 predicate routes";
 
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
