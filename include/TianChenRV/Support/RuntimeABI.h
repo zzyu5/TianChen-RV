@@ -45,6 +45,7 @@ enum class RuntimeABIParameterRole {
   LHSInputStride,
   RHSInputStride,
   SourceByteStride,
+  DestinationByteStride,
   OutputStride,
   DispatchAvailabilityGuard,
 };
@@ -121,6 +122,8 @@ inline llvm::StringRef stringifyRuntimeABIParameterRole(
     return "rhs-input-stride";
   case RuntimeABIParameterRole::SourceByteStride:
     return "source-byte-stride";
+  case RuntimeABIParameterRole::DestinationByteStride:
+    return "destination-byte-stride";
   case RuntimeABIParameterRole::OutputStride:
     return "output-stride";
   case RuntimeABIParameterRole::DispatchAvailabilityGuard:
@@ -173,6 +176,8 @@ symbolizeRuntimeABIParameterRole(llvm::StringRef role) {
     return RuntimeABIParameterRole::RHSInputStride;
   if (role == "source-byte-stride")
     return RuntimeABIParameterRole::SourceByteStride;
+  if (role == "destination-byte-stride")
+    return RuntimeABIParameterRole::DestinationByteStride;
   if (role == "output-stride")
     return RuntimeABIParameterRole::OutputStride;
   if (role == "dispatch-availability-guard")

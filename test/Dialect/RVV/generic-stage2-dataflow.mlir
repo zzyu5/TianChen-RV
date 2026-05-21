@@ -378,7 +378,7 @@ module {
     %value = "builtin.unrealized_conversion_cast"() : () -> !tcrv_rvv.vector<i32, "m1">
     %vl = tcrv_rvv.setvl %avl {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
     tcrv_rvv.with_vl %vl attributes {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} {
-      // expected-error@+1 {{requires strided store stride operand to bind runtime ABI role 'output-stride'}}
+      // expected-error@+1 {{requires strided store stride operand to bind runtime ABI role 'output-stride' or 'destination-byte-stride'}}
       tcrv_rvv.strided_store %out_ptr, %value, %lhs_stride, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, index, !tcrv_rvv.vl
     } : !tcrv_rvv.vl
   }

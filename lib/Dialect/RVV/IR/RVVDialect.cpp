@@ -796,7 +796,7 @@ bool isSupportedTypedStridedStoreMemoryPreRealizedMemoryForm(
 
 bool isSupportedTypedStridedStoreMemoryPreRealizedStrideUnit(
     llvm::StringRef strideUnit) {
-  return strideUnit == "element";
+  return strideUnit == "byte";
 }
 
 bool isSupportedTypedIndexedGatherPreRealizedBodyOpKind(
@@ -1174,6 +1174,7 @@ bool isSupportedBoundedRuntimeABIValueCType(
   case Role::LHSInputStride:
   case Role::RHSInputStride:
   case Role::SourceByteStride:
+  case Role::DestinationByteStride:
   case Role::OutputStride:
     return cType == "size_t";
   case Role::DispatchAvailabilityGuard:
@@ -1212,6 +1213,7 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::LHSInputStride:
   case Role::RHSInputStride:
   case Role::SourceByteStride:
+  case Role::DestinationByteStride:
   case Role::OutputStride:
     return "'size_t'";
   case Role::DispatchAvailabilityGuard:
@@ -1252,7 +1254,7 @@ bool isBoundedRuntimeIndexRole(
   using Role = tianchenrv::support::RuntimeABIParameterRole;
   return role == Role::RuntimeElementCount || role == Role::LHSInputStride ||
          role == Role::RHSInputStride || role == Role::SourceByteStride ||
-         role == Role::OutputStride;
+         role == Role::DestinationByteStride || role == Role::OutputStride;
 }
 
 mlir::FailureOr<RuntimeABIValueOp>
@@ -4037,7 +4039,7 @@ mlir::LogicalResult TypedStridedStoreMemoryPreRealizedBodyOp::verify() {
   if (!isSupportedTypedStridedStoreMemoryPreRealizedStrideUnit(
           getStrideUnit()))
     return emitOpError()
-           << "currently supports only stride_unit \"element\" for the "
+           << "currently supports only stride_unit \"byte\" for the "
               "bounded selected-body strided-store memory movement hook";
   if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
       getLmul() != getRVVLMULM1())
@@ -4060,8 +4062,8 @@ mlir::LogicalResult TypedStridedStoreMemoryPreRealizedBodyOp::verify() {
   if (mlir::failed(verifyRuntimeElementCountOperand(op, getN())))
     return mlir::failure();
   return verifyRuntimeABIIndexOperandRole(
-      op, getDestinationStride(), "destination stride",
-      {tianchenrv::support::RuntimeABIParameterRole::OutputStride});
+      op, getDestinationStride(), "destination byte stride",
+      {tianchenrv::support::RuntimeABIParameterRole::DestinationByteStride});
 }
 
 mlir::LogicalResult TypedIndexedGatherMemoryPreRealizedBodyOp::verify() {
@@ -6314,7 +6316,9 @@ mlir::LogicalResult StridedStoreOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIIndexOperandRole(
           op, getStride(), "strided store stride",
-          {tianchenrv::support::RuntimeABIParameterRole::OutputStride})))
+          {tianchenrv::support::RuntimeABIParameterRole::OutputStride,
+           tianchenrv::support::RuntimeABIParameterRole::
+               DestinationByteStride})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "

@@ -1267,10 +1267,26 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     out = std::move(route);
     return llvm::Error::success();
   }
-  if (description.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore ||
-      description.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadStridedStore ||
-      description.memoryForm ==
-          RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore) {
+  if (description.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadStridedStore) {
+    if (llvm::Error error = addLoopStep(
+            slice->storeOperation, "store", description.stridedStoreIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 ("(int32_t *)((uint8_t *)" +
+                  llvm::StringRef(slice->outABI.cName) + " + (" +
+                  inductionName + " * " + slice->outStrideABI.cName + "))")
+                     .str(),
+                 slice->outABI.cType},
+             TCRVEmitCCallOpaqueOperand{slice->outStrideABI.cName,
+                                        "ptrdiff_t"},
+             TCRVEmitCCallOpaqueOperand{description.resultName.str(),
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{storeVLName.str(),
+                                        description.vlCType.str()}}))
+      return error;
+  } else if (description.memoryForm ==
+                 RVVSelectedBodyMemoryForm::StridedLoadStore ||
+             description.memoryForm ==
+                 RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore) {
     if (llvm::Error error = addLoopStep(
             slice->storeOperation, "store", description.stridedStoreIntrinsic,
             {TCRVEmitCCallOpaqueOperand{

@@ -1162,3 +1162,73 @@ Implemented the bounded Stage2 RVV masked unit-store executable slice for signed
 ### Next Steps
 
 - None - task complete
+
+
+## Session 150: Stage2 RVV runtime byte-strided store executable slice
+
+**Date**: 2026-05-21
+**Task**: Stage2 RVV runtime byte-strided store executable slice
+**Branch**: `main`
+
+### Summary
+
+Implemented bounded RVV runtime byte-strided destination store through typed body, provider route, generated bundle, and ssh rvv evidence.
+
+### Main Changes
+
+### Summary
+
+Implemented the bounded Stage2 RVV `unit_load_strided_store` executable slice for signed i32 / SEW32 / LMUL m1 where contiguous source lanes store to `dst + i * dst_stride_bytes`.
+
+### Main Changes
+
+- Added `destination-byte-stride` runtime ABI role and enforced `dst_stride_bytes : size_t` for this route.
+- Updated pre-realized and explicit selected-body paths to carry `stride_unit = "byte"`, `src,dst,n,dst_stride_bytes`, unit source load, move, and byte-strided destination store.
+- Extended RVV route planning/provider to derive byte-strided destination mirrors and provider-owned byte pointer address mechanics while preserving computed-mask strided-store element-stride mirrors.
+- Updated generated-bundle ABI dry-run and ssh harnesses to cover counts `7,16,23` and byte strides `4,8,12`, including selected destination writes, skipped sentinel preservation, and tail sentinel preservation.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] focused lit for byte-strided store verifier/route/artifact/script coverage, 6/6 passed.
+- [OK] focused regression lit for computed-mask strided-store and generic dataflow, 3/3 passed.
+- [OK] RVV dialect/extension/construction/target C++ smoke tests.
+- [OK] generated-bundle dry-run for explicit and pre-realized `unit_load_strided_store`, counts `7,16,23`, stride bytes `4,8,12`.
+- [OK] real `ssh rvv` PASS for explicit and pre-realized `unit_load_strided_store`, all nine count/stride cases each, with `selected_destination_writes sentinel_preserved tail_preserved`.
+- [OK] active-authority scan: no added positive legacy i32, descriptor/direct-C/source-front-door/source-export, public exact intrinsic, or common/export RVV semantic authority; only negative fixture and FileCheck forbidden strings matched.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 259/259 passed.
+
+### Self-Repair
+
+- Fixed generated harness sentinel logic so `dst_stride_bytes=4` is treated as selected contiguous byte-stride writes, not skipped sentinel slots.
+- Split unit-load-strided-store byte-stride mirror from computed-mask strided-store element-stride mirror after full lit exposed accidental metadata reuse.
+- Removed `destination-byte-stride` from `strided_load` binding candidates and synchronized the verifier expectation.
+
+### Status
+
+[OK] Completed and ready to archive.
+
+### Next Steps
+
+- None for this bounded byte-strided destination-store slice.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

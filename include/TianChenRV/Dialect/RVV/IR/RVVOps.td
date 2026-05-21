@@ -947,7 +947,7 @@ def TypedStridedStoreMemoryPreRealizedBodyOp
     unit-stride source memory movement into a runtime-strided destination. The
     op is nested directly in a selected tcrv.exec.variant and binds explicit
     runtime ABI values for source input, destination output, runtime n/AVL, and
-    destination element stride together with selected memory movement operation
+    destination byte stride together with selected memory movement operation
     kind, memory form, stride unit, compile-time RVV config, and policy.
 
     This op is not a layout framework, gather/scatter route, masked route,
@@ -2090,8 +2090,8 @@ def StridedStoreOp : TCRVRVV_Op<"strided_store",
     Records one bounded generic plugin-local RVV strided vector store dataflow
     step. The op is nested directly under tcrv_rvv.with_vl, consumes one
     explicit output buffer runtime ABI value, one generic !tcrv_rvv.vector
-    value matching the enclosing config, one explicit runtime output stride
-    SSA value, and the active !tcrv_rvv.vl token.
+    value matching the enclosing config, one explicit runtime output or
+    destination-byte stride SSA value, and the active !tcrv_rvv.vl token.
   }];
 
   let arguments = (ins

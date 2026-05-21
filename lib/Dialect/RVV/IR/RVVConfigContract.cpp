@@ -711,8 +711,8 @@ getRVVSelectedBodyUnitLoadStridedStoreRuntimeABIParameters() {
       kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
       support::RuntimeABIParameterRole::RuntimeElementCount));
   parameters.push_back(support::makeTargetExportABIParameter(
-      "dst_stride", "size_t",
-      support::RuntimeABIParameterRole::OutputStride));
+      "dst_stride_bytes", "size_t",
+      support::RuntimeABIParameterRole::DestinationByteStride));
   return parameters;
 }
 
@@ -1003,7 +1003,7 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "rhs_stride for the bounded i16 computed-mask strided-input widening "
       "dot-reduction route; or "
       "src, out, n, stride_bytes for the bounded int32_t byte-strided-load to "
-      "unit-stride-store route; or src, dst, n, dst_stride for the bounded "
+      "unit-stride-store route; or src, dst, n, dst_stride_bytes for the bounded "
       "int32_t unit-load to strided-store route; or data, index, out, n for the bounded "
       "int32_t indexed-gather to unit-stride-store route; or src, index, "
       "dst, n for the bounded int32_t indexed-scatter route; or src, mask, "

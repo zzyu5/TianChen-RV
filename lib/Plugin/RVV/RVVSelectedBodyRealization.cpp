@@ -324,6 +324,11 @@ bool isPreRealizedStridedStoreMemoryMovementMemoryForm(
 
 bool isPreRealizedStridedStoreMemoryMovementStrideUnit(
     llvm::StringRef strideUnit) {
+  return strideUnit == "byte";
+}
+
+bool isPreRealizedComputedMaskStridedStoreMemoryMovementStrideUnit(
+    llvm::StringRef strideUnit) {
   return strideUnit == "element";
 }
 
@@ -2289,7 +2294,7 @@ llvm::Error validatePreRealizedRVVSelectedStridedStoreMemoryBody(
           body.getStrideUnit()))
     return makeRVVPluginError(
         "pre-realized RVV selected strided-store body currently supports "
-        "only stride_unit 'element'");
+        "only stride_unit 'byte'");
   if (static_cast<std::int64_t>(body.getSew()) !=
           tcrv::rvv::getRVVFirstSliceSEWBits() ||
       body.getLmul() != tcrv::rvv::getRVVLMULM1())
@@ -2322,8 +2327,8 @@ llvm::Error validatePreRealizedRVVSelectedStridedStoreMemoryBody(
   llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destinationStride =
       requirePreRealizedRuntimeABIValue(
           body.getDestinationStride(),
-          "pre-realized RVV destination stride operand",
-          support::RuntimeABIParameterRole::OutputStride);
+          "pre-realized RVV destination byte stride operand",
+          support::RuntimeABIParameterRole::DestinationByteStride);
   if (!destinationStride)
     return destinationStride.takeError();
 
@@ -2809,7 +2814,7 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskStridedStoreBody(
         "pre-realized RVV selected computed-mask strided-store body currently "
         "supports only memory_form "
         "'computed-mask-unit-load-strided-store'");
-  if (!isPreRealizedStridedStoreMemoryMovementStrideUnit(
+  if (!isPreRealizedComputedMaskStridedStoreMemoryMovementStrideUnit(
           body.getStrideUnit()))
     return makeRVVPluginError(
         "pre-realized RVV selected computed-mask strided-store body currently "

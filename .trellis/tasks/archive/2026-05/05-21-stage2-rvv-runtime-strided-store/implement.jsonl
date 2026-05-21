@@ -1,0 +1,18 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV-first stage order, and stack constraints."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec ABI/mem_window/runtime_param boundaries for selected RVV variants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed body authority, destination byte-strided memory form, and Stage2 route rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Runtime ABI, target artifact handoff, and mirror-vs-authority contract."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin-local selected-body realization and route-provider ownership boundaries."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected-body realization and Stage2 typed RVV coverage constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/C++/runtime evidence and fail-closed testing policy."}
+{"file": "include/TianChenRV/Support/RuntimeABI.h", "reason": "Added destination-byte-stride runtime ABI role for bounded RVV byte-strided destination stores."}
+{"file": "lib/Support/RuntimeABIContract.cpp", "reason": "Allowed destination-byte-stride as a non-finite runtime ABI parameter role in callable contracts."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Documented unit-load-strided-store as destination byte-strided and updated generic strided_store role documentation."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Verified destination-byte-stride c_type/index role, byte stride_unit, and fail-closed old output-stride authority for pre-realized unit-load-strided-store."}
+{"file": "lib/Dialect/RVV/IR/RVVConfigContract.cpp", "reason": "Updated unit-load-strided-store runtime ABI order to src,dst,n,dst_stride_bytes with destination-byte-stride role."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Materialized unmasked unit-load-strided-store with byte stride_unit and destination-byte-stride role while preserving computed-mask element-stride behavior."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Derived byte-strided destination route mirrors and ABI facts for unit-load-strided-store and kept computed-mask element-stride mirrors separate."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Generated provider-owned byte-pointer destination expression and passed dst_stride_bytes as byte stride for the RVV strided-store leaf."}
+{"file": "lib/Plugin/RVV/Construction/RVVConstructionProtocol.cpp", "reason": "Updated construction-protocol executable role mirror to dst_stride_bytes for this bounded route."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Extended generated-bundle dry-run and ssh harness coverage to destination byte strides 4,8,12 with selected-write, skipped-sentinel, and tail-sentinel checks."}

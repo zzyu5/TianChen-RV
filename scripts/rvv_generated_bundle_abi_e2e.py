@@ -138,7 +138,7 @@ COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT = (
 )
 STRIDED_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride"
 STRIDED_LOAD_UNIT_STORE_RUNTIME_ABI_ORDER = "src,out,n,stride_bytes"
-UNIT_LOAD_STRIDED_STORE_RUNTIME_ABI_ORDER = "src,dst,n,dst_stride"
+UNIT_LOAD_STRIDED_STORE_RUNTIME_ABI_ORDER = "src,dst,n,dst_stride_bytes"
 SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,out,n"
 WIDENING_CONVERSION_RUNTIME_ABI_ORDER = "lhs,out,n"
 WIDENING_CONVERSION_RELATION = "signed-i32m1-to-i64m2"
@@ -154,9 +154,12 @@ STRIDED_LOAD_UNIT_STORE_SOURCE_STRIDE_SOURCE = "runtime_abi:stride_bytes"
 STRIDED_LOAD_UNIT_STORE_SOURCE_MEMORY_FORM = "strided-load"
 STRIDED_LOAD_UNIT_STORE_DESTINATION_MEMORY_FORM = "unit-stride-store"
 UNIT_LOAD_STRIDED_STORE_MEMORY_LAYOUT = (
-    "unit-stride-source-element-strided-destination-runtime-abi"
+    "unit-stride-source-byte-strided-destination-runtime-abi"
 )
-UNIT_LOAD_STRIDED_STORE_DESTINATION_STRIDE_SOURCE = "runtime_abi:dst_stride"
+UNIT_LOAD_STRIDED_STORE_DESTINATION_STRIDE_SOURCE = (
+    "runtime_abi:dst_stride_bytes"
+)
+COMPUTED_MASK_STRIDED_STORE_DESTINATION_STRIDE_SOURCE = "runtime_abi:dst_stride"
 UNIT_LOAD_STRIDED_STORE_SOURCE_MEMORY_FORM = "unit-stride-load"
 UNIT_LOAD_STRIDED_STORE_DESTINATION_MEMORY_FORM = "strided-store"
 INDEXED_GATHER_RUNTIME_ABI_ORDER = "data,index,out,n"
@@ -288,7 +291,7 @@ class OpExpectation:
         if self.is_unit_load_strided_store:
             return (
                 f"void {self.function_name}(const int32_t *src, "
-                "int32_t *dst, size_t n, size_t dst_stride);"
+                "int32_t *dst, size_t n, size_t dst_stride_bytes);"
             )
         if self.is_indexed_gather_unit_store:
             return (
@@ -1446,9 +1449,9 @@ EXPECTED_UNIT_LOAD_STRIDED_STORE_RUNTIME_PARAMETERS = (
         "ownership": "target-export-abi-owned",
     },
     {
-        "c_name": "dst_stride",
+        "c_name": "dst_stride_bytes",
         "c_type": "size_t",
-        "role": "output-stride",
+        "role": "destination-byte-stride",
         "ownership": "target-export-abi-owned",
     },
 )
@@ -2463,7 +2466,7 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     COMPUTED_MASK_STRIDED_STORE_MEMORY_LAYOUT
                 ),
                 "tcrv_rvv.destination_stride_source": (
-                    UNIT_LOAD_STRIDED_STORE_DESTINATION_STRIDE_SOURCE
+                    COMPUTED_MASK_STRIDED_STORE_DESTINATION_STRIDE_SOURCE
                 ),
             }
         )
@@ -3237,8 +3240,8 @@ def verify_materialized_selected_body(
         )
         require_contains(
             text,
-            'role = "output-stride"',
-            "materialized selected-body MLIR destination stride ABI role",
+            'role = "destination-byte-stride"',
+            "materialized selected-body MLIR destination byte-stride ABI role",
         )
         require_no_op_invocation(
             text,
@@ -4810,15 +4813,17 @@ int main(void) {{
 
 #include "{header_file_name}"
 
-static int run_case(size_t n) {{
+static int run_case(size_t n, size_t dst_stride_bytes) {{
   /* expected: {expectation.expected_expression} */
-  const size_t dst_stride = 3;
   size_t src_alloc_n = (n == 0 ? 1 : n) + 8;
-  size_t dst_alloc_n = (n == 0 ? 1 : n) * dst_stride + 8;
+  size_t dst_alloc_bytes = (n == 0 ? 1 : n) * dst_stride_bytes + 32;
+  size_t dst_alloc_n = (dst_alloc_bytes + sizeof(int32_t) - 1) / sizeof(int32_t);
   int32_t *src = (int32_t *)malloc(sizeof(int32_t) * src_alloc_n);
   int32_t *dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
+  uint8_t *dst_raw = (uint8_t *)dst;
   if (!src || !dst) {{
-    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    fprintf(stderr, "allocation failed for n=%zu dst_stride_bytes=%zu\\n",
+            n, dst_stride_bytes);
     free(src);
     free(dst);
     return 11;
@@ -4832,16 +4837,17 @@ static int run_case(size_t n) {{
   for (size_t index = 0; index < n; ++index)
     src[index] = {expectation.lhs_initializer};
 
-  {expectation.function_name}(src, dst, n, dst_stride);
+  {expectation.function_name}(src, dst, n, dst_stride_bytes);
 
   for (size_t index = 0; index < n; ++index) {{
     int32_t expected = {expectation.expected_expression};
-    size_t dst_index = index * dst_stride;
-    if (dst[dst_index] != expected) {{
+    size_t dst_byte_offset = index * dst_stride_bytes;
+    int32_t got = *(int32_t *)(dst_raw + dst_byte_offset);
+    if (got != expected) {{
       fprintf(stderr,
-              "{expectation.kind} mismatch n=%zu index=%zu dst_index=%zu got=%d expected=%d src=%d dst_stride=%zu\\n",
-              n, index, dst_index, dst[dst_index], expected, src[index],
-              dst_stride);
+              "{expectation.kind} mismatch n=%zu index=%zu dst_byte_offset=%zu got=%d expected=%d src=%d dst_stride_bytes=%zu\\n",
+              n, index, dst_byte_offset, got, expected, src[index],
+              dst_stride_bytes);
       free(src);
       free(dst);
       return 12;
@@ -4849,8 +4855,15 @@ static int run_case(size_t n) {{
   }}
 
   for (size_t index = 0; index < dst_alloc_n; ++index) {{
-    if ((index % dst_stride) == 0 && (index / dst_stride) < n)
-      continue;
+    int is_selected_slot = 0;
+    for (size_t lane = 0; lane < n; ++lane) {{
+      if (index * sizeof(int32_t) == lane * dst_stride_bytes) {{
+        is_selected_slot = 1;
+        break;
+      }}
+    }}
+    if (is_selected_slot)
+        continue;
     if (dst[index] != {OUT_SENTINEL}) {{
       fprintf(stderr,
               "{expectation.kind} touched skipped/tail destination sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
@@ -4861,10 +4874,10 @@ static int run_case(size_t n) {{
     }}
   }}
 
-  if (n > 1 && dst[1] != {OUT_SENTINEL}) {{
+  if (n > 1 && dst_stride_bytes > sizeof(int32_t) && dst[1] != {OUT_SENTINEL}) {{
     fprintf(stderr,
-            "{expectation.kind} vacuous strided-store check failed n=%zu dst_stride=%zu dst[1]=%d sentinel=%d\\n",
-            n, dst_stride, dst[1], {OUT_SENTINEL});
+            "{expectation.kind} vacuous byte-strided-store check failed n=%zu dst_stride_bytes=%zu dst[1]=%d sentinel=%d\\n",
+            n, dst_stride_bytes, dst[1], {OUT_SENTINEL});
     free(src);
     free(dst);
     return 14;
@@ -4872,20 +4885,25 @@ static int run_case(size_t n) {{
 
   free(src);
   free(dst);
-  printf("{expectation.kind} case n=%zu ok dst_stride=%zu\\n", n, dst_stride);
+  printf("{expectation.kind} case n=%zu ok dst_stride_bytes=%zu byte_strided_store selected_destination_writes sentinel_preserved tail_preserved\\n",
+         n, dst_stride_bytes);
   return 0;
 }}
 
 int main(void) {{
   const size_t counts[] = {{{counts}}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const size_t stride_bytes_values[] = {{{stride_values_literal}}};
+  const size_t stride_count = sizeof(stride_bytes_values) / sizeof(stride_bytes_values[0]);
   for (size_t index = 0; index < count_count; ++index) {{
-    int status = run_case(counts[index]);
-    if (status != 0)
-      return status;
+    for (size_t stride_index = 0; stride_index < stride_count; ++stride_index) {{
+      int status = run_case(counts[index], stride_bytes_values[stride_index]);
+      if (status != 0)
+        return status;
+    }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} stride_bytes={stride_values_summary}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} stride_bytes={stride_values_summary}\\n");
   return 0;
 }}
 """.lstrip()
@@ -6688,24 +6706,24 @@ def validate_rhs_scalar_values(rhs_scalar_values: list[int]) -> None:
 def validate_strided_load_byte_strides(stride_bytes_values: list[int]) -> None:
     if not stride_bytes_values:
         raise EvidenceError(
-            "runtime strided_load_unit_store evidence requires at least one "
-            "byte stride"
+            "runtime byte-strided memory evidence requires at least one byte "
+            "stride"
         )
     if len(set(stride_bytes_values)) != len(stride_bytes_values):
         raise EvidenceError(
-            "runtime strided_load_unit_store evidence requires distinct byte "
+            "runtime byte-strided memory evidence requires distinct byte "
             f"strides: {stride_bytes_values}"
         )
     for stride in stride_bytes_values:
         if stride <= 0:
             raise EvidenceError(
-                "runtime strided_load_unit_store evidence requires positive "
-                f"byte strides: {stride_bytes_values}"
+                "runtime byte-strided memory evidence requires positive byte "
+                f"strides: {stride_bytes_values}"
             )
         if stride % 4 != 0:
             raise EvidenceError(
-                "runtime strided_load_unit_store evidence requires byte "
-                "strides to be multiples of sizeof(int32_t): "
+                "runtime byte-strided memory evidence requires byte strides "
+                "to be multiples of sizeof(int32_t): "
                 f"{stride_bytes_values}"
             )
 
@@ -6756,7 +6774,7 @@ def run_one_op_e2e(
     }
     if expectation.is_scalar_broadcast_add:
         evidence["rhs_scalar_values"] = rhs_scalar_values
-    if expectation.is_strided_load_unit_store:
+    if expectation.is_strided_load_unit_store or expectation.is_unit_load_strided_store:
         evidence["stride_bytes_values"] = stride_bytes_values
 
     try:
@@ -6818,12 +6836,19 @@ def run_one_op_e2e(
                 "runtime scalar-broadcast add cases must execute the same "
                 "generated artifact with explicit runtime RHS scalar values"
             )
-        if expectation.is_strided_load_unit_store:
+        if expectation.is_strided_load_unit_store or expectation.is_unit_load_strided_store:
             evidence["harness"]["stride_bytes_values"] = stride_bytes_values
-            evidence["harness"]["byte_stride_coverage_contract"] = (
-                "runtime strided_load_unit_store cases must execute the same "
-                "generated artifact with explicit runtime byte strides"
-            )
+            if expectation.is_unit_load_strided_store:
+                evidence["harness"]["byte_stride_coverage_contract"] = (
+                    "runtime unit_load_strided_store cases must execute the "
+                    "same generated artifact with explicit runtime destination "
+                    "byte strides"
+                )
+            else:
+                evidence["harness"]["byte_stride_coverage_contract"] = (
+                    "runtime strided_load_unit_store cases must execute the "
+                    "same generated artifact with explicit runtime byte strides"
+                )
         if expectation.is_cmp_select:
             evidence["harness"][
                 "predicate_coverage_contract"
@@ -6997,20 +7022,25 @@ def run_e2e(args: argparse.Namespace) -> int:
         has_strided_load_unit_store = any(
             expectation.is_strided_load_unit_store for expectation in expectations
         )
+        has_unit_load_strided_store = any(
+            expectation.is_unit_load_strided_store for expectation in expectations
+        )
         if args.rhs_scalar and not has_scalar_broadcast:
             raise EvidenceError(
                 "--rhs-scalar may only be used when an op kind includes "
                 "scalar_broadcast_add"
             )
-        if args.stride_bytes and not has_strided_load_unit_store:
+        if args.stride_bytes and not (
+            has_strided_load_unit_store or has_unit_load_strided_store
+        ):
             raise EvidenceError(
                 "--stride-bytes may only be used when an op kind includes "
-                "strided_load_unit_store"
+                "strided_load_unit_store or unit_load_strided_store"
             )
         validate_rhs_scalar_values(rhs_scalar_values)
         if has_scalar_broadcast:
             evidence["rhs_scalar_values"] = rhs_scalar_values
-        if has_strided_load_unit_store:
+        if has_strided_load_unit_store or has_unit_load_strided_store:
             validate_strided_load_byte_strides(stride_bytes_values)
             evidence["stride_bytes_values"] = stride_bytes_values
         evidence["op_kinds"] = [expectation.kind for expectation in expectations]
@@ -7242,6 +7272,15 @@ def run_self_test() -> int:
                 raise AssertionError(
                     "self-test harness generation lost runtime byte-stride "
                     "coverage"
+                )
+            if expectation.is_unit_load_strided_store and (
+                "stride_bytes_values" not in harness
+                or "byte_strided_store" not in harness
+                or "dst_stride_bytes" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost runtime destination "
+                    "byte-stride coverage"
                 )
 
         expectation = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"]
