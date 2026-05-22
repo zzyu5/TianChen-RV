@@ -687,3 +687,56 @@ this commit
 ### Next Steps
 
 - None - task complete
+
+
+## Session 162: Stage2 RVV computed-mask accumulation route family
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV computed-mask accumulation route-family interface
+**Branch**: `main`
+
+### Summary
+
+Migrated the existing `runtime_scalar_cmp_masked_macc_add` and
+`runtime_scalar_cmp_masked_standalone_reduce_add` production routes to consume
+one shared RVV plugin-local runtime-scalar computed-mask accumulation
+route-family plan while preserving distinct vector macc and scalar horizontal
+reduction suffix semantics.
+
+### Main Changes
+
+- Added `RVVSelectedBodyRuntimeScalarComputedMaskAccumulationRouteFamilyPlan`
+  for common runtime scalar threshold compare, produced-mask, runtime AVL/VL,
+  header/type, accumulator/result contract, and binding-closure facts.
+- Demoted the old macc one-off target/profile/runtime-control description
+  population behind the shared accumulation plan.
+- Made the provider require the shared accumulation plan before materializing
+  either route and share common `cmp_lhs`, `rhs_scalar`, and `n` operand
+  binding checks.
+- Added accumulation-family mirror fields to target/header evidence while
+  keeping common EmitC/export neutral.
+- Left select, memory, non-runtime computed-mask macc/reduction, widening
+  contraction, source-front-door, and generated-bundle script behavior
+  unchanged.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] Focused lit filter for runtime-scalar computed-mask macc and standalone
+  reduction dialect/target artifacts: 6/6 selected tests passed.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Generated-bundle dry-runs for explicit and pre-realized macc/reduction
+  with counts `7,16,23` and thresholds `-37,91`.
+- [OK] Real `ssh rvv` generated-bundle runs for explicit and pre-realized
+  macc/reduction with counts `7,16,23` and thresholds `-37,91`.
+- [OK] Active-authority scan, `git diff --check`, and
+  `cmake --build build --target check-tianchenrv -j2` passed 349/349.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

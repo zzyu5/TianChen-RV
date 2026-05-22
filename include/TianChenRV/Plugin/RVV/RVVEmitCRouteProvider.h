@@ -186,6 +186,11 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef maskSource;
   llvm::StringRef maskMemoryForm;
   llvm::StringRef maskComposition;
+  llvm::StringRef accumulationRouteFamilyPlanID;
+  llvm::StringRef accumulationComputeSuffix;
+  llvm::StringRef accumulationAccumulatorContract;
+  llvm::StringRef accumulationResultContract;
+  llvm::StringRef accumulationScalarCarryContract;
   llvm::StringRef inactiveLaneContract;
   llvm::StringRef maskedPassthroughLayout;
   llvm::StringRef reductionAccumulatorLayout;

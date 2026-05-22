@@ -270,6 +270,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           analysis.runtimeScalarComputedMaskMemoryRouteFamilyPlan
               ? &*analysis.runtimeScalarComputedMaskMemoryRouteFamilyPlan
               : nullptr;
+  const RVVSelectedBodyRuntimeScalarComputedMaskAccumulationRouteFamilyPlan
+      *runtimeScalarComputedMaskAccumulationPlan =
+          analysis.runtimeScalarComputedMaskAccumulationRouteFamilyPlan
+              ? &*analysis.runtimeScalarComputedMaskAccumulationRouteFamilyPlan
+              : nullptr;
   const RVVSelectedBodyStandaloneReductionRouteFamilyPlan
       *standaloneReductionPlan =
           analysis.standaloneReductionRouteFamilyPlan
@@ -286,17 +291,33 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const bool emitsStandaloneReduction = standaloneReductionPlan != nullptr;
   const bool emitsComputedMaskStandaloneReduction =
       standaloneReductionPlan && standaloneReductionPlan->usesComputedMask;
+  const bool emitsRuntimeScalarComputedMaskAccumulation =
+      description.operation ==
+          RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd ||
+      description.operation == RVVSelectedBodyOperationKind::
+                               RuntimeScalarComputedMaskStandaloneReduceAdd;
+  if (emitsRuntimeScalarComputedMaskAccumulation &&
+      !runtimeScalarComputedMaskAccumulationPlan)
+    return makeRVVEmitCRouteProviderError(
+        "runtime-scalar computed-mask accumulation route requires the shared "
+        "accumulation route-family plan before provider materialization");
   llvm::StringRef vlCType =
-      contractionPlan
+      runtimeScalarComputedMaskAccumulationPlan
+          ? runtimeScalarComputedMaskAccumulationPlan->vlCType
+      : contractionPlan
           ? contractionPlan->vlCType
           : (standaloneReductionPlan ? standaloneReductionPlan->vlCType
                                      : description.vlCType);
   llvm::StringRef resultVectorTypeName =
-      contractionPlan ? contractionPlan->resultVectorTypeName
+      runtimeScalarComputedMaskAccumulationPlan
+          ? runtimeScalarComputedMaskAccumulationPlan->vectorTypeName
+      : contractionPlan ? contractionPlan->resultVectorTypeName
       : standaloneReductionPlan ? standaloneReductionPlan->vectorTypeName
                       : description.vectorTypeName;
   llvm::StringRef resultVectorCType =
-      contractionPlan ? contractionPlan->resultVectorCType
+      runtimeScalarComputedMaskAccumulationPlan
+          ? runtimeScalarComputedMaskAccumulationPlan->vectorCType
+      : contractionPlan ? contractionPlan->resultVectorCType
       : standaloneReductionPlan ? standaloneReductionPlan->vectorCType
                       : description.vectorCType;
   llvm::StringRef sourceVectorTypeName =
@@ -306,11 +327,17 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       contractionPlan ? contractionPlan->sourceVectorCType
                       : description.sourceVectorCType;
   llvm::StringRef maskTypeName =
-      contractionPlan ? contractionPlan->maskTypeName : description.maskTypeName;
+      runtimeScalarComputedMaskAccumulationPlan
+          ? runtimeScalarComputedMaskAccumulationPlan->maskTypeName
+      : contractionPlan ? contractionPlan->maskTypeName : description.maskTypeName;
   llvm::StringRef maskCType =
-      contractionPlan ? contractionPlan->maskCType : description.maskCType;
+      runtimeScalarComputedMaskAccumulationPlan
+          ? runtimeScalarComputedMaskAccumulationPlan->maskCType
+      : contractionPlan ? contractionPlan->maskCType : description.maskCType;
   llvm::StringRef setVLLeaf = description.setVLIntrinsic;
-  if (contractionPlan)
+  if (runtimeScalarComputedMaskAccumulationPlan)
+    setVLLeaf = runtimeScalarComputedMaskAccumulationPlan->setVLIntrinsic;
+  else if (contractionPlan)
     setVLLeaf = contractionPlan->setVLIntrinsic;
   else if (scalarBroadcastPlan)
     setVLLeaf = scalarBroadcastPlan->setVLIntrinsic;
@@ -321,7 +348,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   else if (standaloneReductionPlan)
     setVLLeaf = standaloneReductionPlan->setVLIntrinsic;
   llvm::StringRef sourceLoadLeaf = description.sourceVectorLoadIntrinsic;
-  if (contractionPlan)
+  if (runtimeScalarComputedMaskAccumulationPlan)
+    sourceLoadLeaf = runtimeScalarComputedMaskAccumulationPlan->vectorLoadIntrinsic;
+  else if (contractionPlan)
     sourceLoadLeaf = contractionPlan->sourceVectorLoadIntrinsic;
   else if (scalarBroadcastPlan)
     sourceLoadLeaf = scalarBroadcastPlan->vectorLoadIntrinsic;
@@ -330,7 +359,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   else if (standaloneReductionPlan)
     sourceLoadLeaf = standaloneReductionPlan->vectorLoadIntrinsic;
   llvm::StringRef vectorLoadLeaf =
-      scalarBroadcastPlan
+      runtimeScalarComputedMaskAccumulationPlan
+          ? runtimeScalarComputedMaskAccumulationPlan->vectorLoadIntrinsic
+      : scalarBroadcastPlan
           ? scalarBroadcastPlan->vectorLoadIntrinsic
       : runtimeScalarComputedMaskMemoryPlan
           ? runtimeScalarComputedMaskMemoryPlan->vectorLoadIntrinsic
@@ -340,7 +371,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       contractionPlan ? contractionPlan->stridedLoadIntrinsic
                       : description.stridedLoadIntrinsic;
   llvm::StringRef storeLeaf = description.storeIntrinsic;
-  if (contractionPlan)
+  if (runtimeScalarComputedMaskAccumulationPlan)
+    storeLeaf = runtimeScalarComputedMaskAccumulationPlan->storeIntrinsic;
+  else if (contractionPlan)
     storeLeaf = contractionPlan->storeIntrinsic;
   else if (scalarBroadcastPlan)
     storeLeaf = scalarBroadcastPlan->storeIntrinsic;
@@ -368,13 +401,17 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       : standaloneReductionPlan ? standaloneReductionPlan->scalarSeedSplatIntrinsic
                                 : description.scalarSeedSplatIntrinsic;
   llvm::StringRef rhsScalarBroadcastLeaf =
-      scalarBroadcastPlan ? scalarBroadcastPlan->rhsScalarSplatIntrinsic
+      runtimeScalarComputedMaskAccumulationPlan
+          ? runtimeScalarComputedMaskAccumulationPlan->rhsScalarSplatIntrinsic
+      : scalarBroadcastPlan ? scalarBroadcastPlan->rhsScalarSplatIntrinsic
       : runtimeSplatStorePlan ? runtimeSplatStorePlan->rhsScalarSplatIntrinsic
       : runtimeScalarComputedMaskMemoryPlan
           ? runtimeScalarComputedMaskMemoryPlan->rhsScalarSplatIntrinsic
                           : description.rhsBroadcastIntrinsic;
   llvm::StringRef compareLeaf =
-      contractionPlan ? contractionPlan->compareIntrinsic
+      runtimeScalarComputedMaskAccumulationPlan
+          ? runtimeScalarComputedMaskAccumulationPlan->compareIntrinsic
+      : contractionPlan ? contractionPlan->compareIntrinsic
       : runtimeScalarComputedMaskMemoryPlan
           ? runtimeScalarComputedMaskMemoryPlan->compareIntrinsic
       : emitsComputedMaskStandaloneReduction
@@ -395,9 +432,13 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       analysis.description.emitCRouteID,
       "extension-family-ops-to-emitc-call-opaque");
   if (contractionPlan || scalarBroadcastPlan || runtimeSplatStorePlan ||
-      runtimeScalarComputedMaskMemoryPlan || standaloneReductionPlan) {
+      runtimeScalarComputedMaskMemoryPlan ||
+      runtimeScalarComputedMaskAccumulationPlan || standaloneReductionPlan) {
     llvm::ArrayRef<llvm::StringRef> requiredHeaders =
-        contractionPlan ? llvm::ArrayRef<llvm::StringRef>(
+        runtimeScalarComputedMaskAccumulationPlan
+            ? llvm::ArrayRef<llvm::StringRef>(
+                  runtimeScalarComputedMaskAccumulationPlan->requiredHeaders)
+        : contractionPlan ? llvm::ArrayRef<llvm::StringRef>(
                               contractionPlan->requiredHeaders)
         : scalarBroadcastPlan ? llvm::ArrayRef<llvm::StringRef>(
                                     scalarBroadcastPlan->requiredHeaders)
@@ -497,6 +538,49 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                              context);
       if (!parameter)
         return parameter.takeError();
+      return llvm::Error::success();
+    };
+    auto bindRuntimeScalarComputedMaskAccumulationProducer =
+        [&](llvm::StringRef routeName, llvm::StringRef cmpLhsLoadUse,
+            llvm::StringRef cmpLhsCallUse, llvm::StringRef rhsScalarSplatUse,
+            llvm::StringRef rhsScalarCompareUse) -> llvm::Error {
+      if (!runtimeScalarComputedMaskAccumulationPlan)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(routeName) +
+            " requires the shared runtime-scalar computed-mask accumulation "
+            "route-family plan before binding operands");
+      if (llvm::Error error = bindOperand(
+              boundLHSABI, "cmp_lhs", cmpLhsLoadUse,
+              (llvm::Twine(routeName) + " compare lhs load operand").str()))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", cmpLhsCallUse,
+              (llvm::Twine(routeName) + " compare lhs operand").str()))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "hdr",
+              (llvm::Twine(routeName) + " compare lhs header mirror").str()))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundRHSABI, "rhs_scalar", rhsScalarSplatUse,
+              (llvm::Twine(routeName) + " RHS scalar splat operand").str()))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs_scalar", rhsScalarCompareUse,
+              (llvm::Twine(routeName) + " compare rhs operand").str()))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs_scalar", "hdr",
+              (llvm::Twine(routeName) + " RHS scalar header mirror").str()))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "n", "loop",
+              (llvm::Twine(routeName) + " runtime loop control").str()))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "n", "hdr",
+              (llvm::Twine(routeName) + " runtime header mirror").str()))
+        return error;
       return llvm::Error::success();
     };
 
@@ -950,30 +1034,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                RVVSelectedBodyOperationKind::
                    RuntimeScalarComputedMaskedMAccAdd) {
       if (llvm::Error error =
-              bindOperand(boundLHSABI, "cmp_lhs", "cmp-lhs",
-                          "runtime_scalar_computed_masked_macc compare lhs "
-                          "load operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_lhs", "cmp-call",
-              "runtime_scalar_computed_masked_macc compare lhs operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_lhs", "hdr",
-              "runtime_scalar_computed_masked_macc compare lhs header mirror"))
-        return error;
-      if (llvm::Error error =
-              bindOperand(boundRHSABI, "rhs_scalar", "splat",
-                          "runtime_scalar_computed_masked_macc rhs scalar "
-                          "splat operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs_scalar", "cmp-rhs",
-              "runtime_scalar_computed_masked_macc compare rhs operand"))
-        return error;
-      if (llvm::Error error = requireOperandUse(
-              "rhs_scalar", "hdr",
-              "runtime_scalar_computed_masked_macc rhs scalar header mirror"))
+              bindRuntimeScalarComputedMaskAccumulationProducer(
+                  "runtime_scalar_computed_masked_macc", "cmp-lhs",
+                  "cmp-call", "splat", "cmp-rhs"))
         return error;
       if (llvm::Error error =
               bindOperand(boundDotLHSABI, "lhs", "lhs-load",
@@ -1665,31 +1728,25 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
            || isRuntimeScalarThreshold)
               ? "zero-inactive"
               : "neutral-inactive";
-      llvm::Expected<const support::RuntimeABIParameter *> cmpLhs =
-          getRequiredBinding(bindingPlan, "cmp_lhs", "cmp-lhs-load",
-                             "computed-mask standalone reduction compare lhs "
-                             "load operand");
-      if (!cmpLhs)
-        return cmpLhs.takeError();
-      boundLHSABI = *cmpLhs;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_lhs", "cmp-lhs-call",
-              "computed-mask standalone reduction compare lhs call operand"))
-        return error;
       if (isRuntimeScalarThreshold) {
-        llvm::Expected<const support::RuntimeABIParameter *> rhsScalar =
-            getRequiredBinding(bindingPlan, "rhs_scalar", "splat",
-                               "runtime scalar computed-mask standalone "
-                               "reduction RHS scalar splat operand");
-        if (!rhsScalar)
-          return rhsScalar.takeError();
-        boundRHSABI = *rhsScalar;
-        if (llvm::Error error = requireOperandUse(
-                "rhs_scalar", "cmp-rhs-call",
-                "runtime scalar computed-mask standalone reduction compare "
-                "rhs call operand"))
+        if (llvm::Error error =
+                bindRuntimeScalarComputedMaskAccumulationProducer(
+                    "runtime_scalar_computed_mask_standalone_reduction",
+                    "cmp-lhs-load", "cmp-lhs-call", "splat",
+                    "cmp-rhs-call"))
           return error;
       } else {
+        llvm::Expected<const support::RuntimeABIParameter *> cmpLhs =
+            getRequiredBinding(bindingPlan, "cmp_lhs", "cmp-lhs-load",
+                               "computed-mask standalone reduction compare lhs "
+                               "load operand");
+        if (!cmpLhs)
+          return cmpLhs.takeError();
+        boundLHSABI = *cmpLhs;
+        if (llvm::Error error = requireOperandUse(
+                "cmp_lhs", "cmp-lhs-call",
+                "computed-mask standalone reduction compare lhs call operand"))
+          return error;
         llvm::Expected<const support::RuntimeABIParameter *> cmpRhs =
             getRequiredBinding(bindingPlan, "cmp_rhs", "cmp-rhs-load",
                                "computed-mask standalone reduction compare rhs "
