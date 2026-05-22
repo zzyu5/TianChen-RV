@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check must preserve global stack, RVV-first Stage2, and authority boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check must confirm RVV plugin-owned route support and no legacy/source/descriptor/common-export authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check must confirm common EmitC/export remains neutral and consumes provider-built route payloads only."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-05-21-stage2-rvv-closure-gated-reduction-accumulation/prd.md", "reason": "Regression check for existing computed-mask standalone reduction evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-closure-gated-masked-macc-accumulation/prd.md", "reason": "Regression check that masked macc is not misreported as horizontal reduction accumulation."}

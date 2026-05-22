@@ -69,6 +69,66 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 159: Stage2 RVV closure-gated masked horizontal reduce-sum accumulation
+
+**Date**: 2026-05-22
+**Task**: Stage2 RVV closure-gated masked horizontal reduce-sum accumulation
+**Branch**: `main`
+
+### Summary
+
+Resolved a stale Hermes direction brief against current HEAD: the requested
+masked horizontal reduce-sum accumulation production route already exists as
+`computed_mask_standalone_reduce_add` from `d57f5c6c rvv: add closure-gated
+computed-mask reduction`. This round did not duplicate the production route.
+It added post-macc fail-closed dialect regressions proving elementwise masked
+add and masked macc cannot claim the standalone reduction route, then refreshed
+explicit/pre-realized generated-bundle and real `ssh rvv` evidence.
+
+### Main Changes
+
+- Created the Trellis task and PRD documenting current-head inventory, stale
+  brief resolution, non-goals, and completion evidence.
+- Added
+  `computed_mask_standalone_reduce_rejects_elementwise_add_fallback_claim` to
+  reject `tcrv_rvv.masked_binary` route-id authority for the standalone
+  reduction route.
+- Added `computed_mask_standalone_reduce_rejects_masked_macc_fallback_claim`
+  to reject `tcrv_rvv.masked_macc` carrying the standalone reduction result
+  layout.
+- Left production RVV dialect/config/construction/realization/planning/provider
+  code unchanged because the requested production add route is already live and
+  focused validation passed.
+
+### Testing
+
+- [OK] `build/bin/tcrv-opt test/Dialect/RVV/computed-mask-standalone-reduction-dataflow.mlir --split-input-file --verify-diagnostics`.
+- [OK] Explicit selected-body PLAN and HEADER FileCheck for
+  `computed_mask_standalone_reduce_add`.
+- [OK] Pre-realized selected-body REALIZED, PLAN, and HEADER FileCheck for
+  `computed_mask_standalone_reduce_add`.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Generated-bundle dry-runs for explicit and pre-realized
+  `computed_mask_standalone_reduce_add`, counts `7,16,23`.
+- [OK] Real `ssh rvv` explicit and pre-realized generated-bundle runs, counts
+  `7,16,23`, seeds `-11,17`, active-lane counts `5,10,14`, inactive-lane
+  counts `2,6,9`, scalar outputs `1,-33,-26,29,-5,2`, tail preserved.
+- [OK] Active-authority scan found only the intended negative `route_id`,
+  `masked_binary`, and `masked_macc` fail-closed cases in the touched RVV test
+  diff.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 322/322 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 158: Stage2 RVV closure-gated two-field segmented masked store movement
 
 **Date**: 2026-05-22
