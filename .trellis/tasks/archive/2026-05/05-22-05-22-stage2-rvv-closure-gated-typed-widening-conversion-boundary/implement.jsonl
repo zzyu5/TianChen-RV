@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV stage order, and authority boundaries for this conversion task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, legality, realization, route provider, and Stage2 coverage rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and TCRVEmitCLowerableRoute authority boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused MLIR/FileCheck and runtime evidence expectations."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-05-21-stage2-rvv-conversion-operand-binding/prd.md", "reason": "Archived conversion binding inventory and prior accepted conversion evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-operand-binding-contract-closure-gate/prd.md", "reason": "RouteOperandBindingPlan closure invariant for active route-supported RVV routes."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-closure-gated-masked-horizontal-reduce-sum-accumulation/prd.md", "reason": "Fresh closure-gated PRD/evidence style and active-authority scan discipline."}

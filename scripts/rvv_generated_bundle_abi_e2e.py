@@ -1366,6 +1366,32 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         rhs_initializer="(int32_t)((int)(index % 17) - 8)",
         expected_expression="lhs[index] * rhs[index]",
     ),
+    "widen_i32_to_i64": OpExpectation(
+        kind="widen_i32_to_i64",
+        input_path=Path(
+            "test/Target/RVV/explicit-selected-body-artifact-widen-i32-to-i64.mlir"
+        ),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_widen_i32_to_i64",
+        external_abi_name="rvv-generic-widen-i32-to-i64-callable-c-abi.v1",
+        function_name=(
+            "tcrv_emitc_explicit_selected_body_widen_i32_to_i64_kernel_"
+            "explicit_selected_body_rvv_widen_i32_to_i64"
+        ),
+        emitc_route="rvv-generic-widen-i32-to-i64-emitc-route",
+        typed_compute_op="tcrv_rvv.widening_convert",
+        memory_form="unit-stride-conversion",
+        lhs_initializer="(int32_t)(((int)(index % 31) - 15) * 65537)",
+        rhs_initializer="unused",
+        expected_expression="(int64_t)lhs[index]",
+        out_initializer=I64_OUT_SENTINEL,
+        lmul="m2",
+        sew="64",
+        element_c_type="int64_t",
+        config_contract="rvv-selected-body-sew64-lmul-m2-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew64-lmul-m2",
+    ),
     "cmp_select": OpExpectation(
         kind="cmp_select",
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-cmp-select.mlir"),

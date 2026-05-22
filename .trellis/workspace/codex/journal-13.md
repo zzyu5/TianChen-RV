@@ -69,6 +69,71 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 158: Stage2 RVV closure-gated typed widening conversion boundary
+
+**Date**: 2026-05-22
+**Task**: Stage2 RVV closure-gated typed widening conversion boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the explicit selected-body evidence boundary for the existing
+closure-gated `widen_i32_to_i64` signed widening conversion route. Current HEAD
+already had plugin-owned conversion planning/provider closure, so this round
+did not duplicate route logic.
+
+### Main Changes
+
+- Created the Trellis task and PRD from the Hermes brief because no current
+  task existed.
+- Added `test/Target/RVV/explicit-selected-body-artifact-widen-i32-to-i64.mlir`
+  to prove explicit typed `tcrv_rvv` route authority:
+  `runtime_abi_value -> setvl -> load<i32,m1> -> widening_convert ->
+  store<i64,m2>`.
+- Added explicit generated-bundle support for `widen_i32_to_i64` in
+  `scripts/rvv_generated_bundle_abi_e2e.py`.
+- Added
+  `test/Scripts/rvv-generated-bundle-abi-e2e-widen-i32-to-i64-dry-run.test`
+  to verify explicit evidence JSON and harness output include route binding
+  plan, binding summary, source/destination config, signed relation, and
+  explicit selected-body front-door mirrors.
+- Retained `widen_i16_to_i32` as existing active conversion support and did not
+  add a conversion matrix, unsigned/narrowing variants, source-front-door
+  route, or dtype/LMUL clone batch.
+
+### Checks
+
+- [OK] Explicit PLAN and HEADER FileCheck for
+  `explicit-selected-body-artifact-widen-i32-to-i64.mlir`.
+- [OK] Existing dialect/verifier conversion FileCheck.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused lit: explicit target/script tests 2/2 passed.
+- [OK] Focused lit: pre-realized target/script regression tests 2/2 passed.
+- [OK] Explicit and pre-realized generated-bundle dry-runs for counts
+  `7,16,23`.
+- [OK] Real `ssh rvv` explicit and pre-realized `widen_i32_to_i64` runs PASS
+  for counts `7,16,23`.
+- [OK] Diff-level active-authority scan found no new positive
+  legacy/source/descriptor/common-export route authority.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 324/324 passed.
+
+### Spec Update Review
+
+No `.trellis/spec/**` change was needed. Existing RVV plugin, EmitC route, and
+MLIR testing specs already encode the long-term boundary exercised here.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 159: Stage2 RVV closure-gated masked horizontal reduce-sum accumulation
 
 **Date**: 2026-05-22
