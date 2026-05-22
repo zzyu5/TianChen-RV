@@ -1,0 +1,45 @@
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id computed-masked-macc-add --overwrite --op-kind computed_masked_macc_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/computed-masked-macc-add/evidence.json
+# RUN: FileCheck %s --check-prefix=MACC --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/computed-masked-macc-add/computed_masked_macc_add/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/computed-masked-macc-add/computed_masked_macc_add/rvv_generated_bundle_abi_computed_masked_macc_add_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "computed_masked_macc_add"
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# MACC-DAG: "input_mode": "explicit-selected-body"
+# MACC-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-computed-masked-macc-add.mlir"
+# MACC-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_computed_masked_macc_add_kernel_explicit_selected_body_rvv_computed_masked_macc_add"
+# MACC-DAG: "expected_runtime_abi_name": "rvv-generic-computed-masked-macc-add-callable-c-abi.v1"
+# MACC-DAG: "expected_selected_variant": "explicit_selected_body_rvv_computed_masked_macc_add"
+# MACC-DAG: "key": "rvv_emitc_lowerable_route"
+# MACC-DAG: "value": "rvv-generic-computed-masked-macc-add-emitc-route"
+# MACC-DAG: "key": "rvv_selected_body_operation"
+# MACC-DAG: "value": "computed_masked_macc_add"
+# MACC-DAG: "key": "rvv_selected_body_typed_compute_op"
+# MACC-DAG: "value": "tcrv_rvv.masked_macc"
+# MACC-DAG: "key": "tcrv_rvv.compare_predicate_kind"
+# MACC-DAG: "value": "slt"
+# MACC-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# MACC-DAG: "value": "rvv-route-operand-binding:computed_masked_macc_add.v1"
+# MACC-DAG: "key": "tcrv_rvv.macc_accumulator_layout"
+# MACC-DAG: "value": "separate-i32-vector-accumulator-input"
+# MACC-DAG: "key": "tcrv_rvv.inactive_lane_contract"
+# MACC-DAG: "value": "masked-macc-false-lanes-preserve-accumulator"
+# MACC-DAG: "typed_compute_op": "tcrv_rvv.masked_macc"
+# MACC-DAG: "status": "dry_run_success"
+
+# HARNESS: cmp_lhs[index] =
+# HARNESS: cmp_rhs[index] =
+# HARNESS: lhs[index] =
+# HARNESS: rhs[index] =
+# HARNESS: acc[index] =
+# HARNESS: tcrv_emitc_explicit_selected_body_computed_masked_macc_add_kernel_explicit_selected_body_rvv_computed_masked_macc_add(cmp_lhs, cmp_rhs, lhs, rhs, acc, out, n);
+# HARNESS: int32_t expected = (cmp_lhs[index] < cmp_rhs[index] ? (int32_t)(acc[index] + (int32_t)(lhs[index] * rhs[index])) : acc[index]);
+# HARNESS: inactive_acc_preserved
+# HARNESS: add_only_distinguishing
+# HARNESS: mul_only_distinguishing

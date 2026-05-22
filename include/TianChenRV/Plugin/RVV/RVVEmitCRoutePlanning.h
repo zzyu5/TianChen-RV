@@ -63,6 +63,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::MaskedStandaloneReduceOp maskedStandaloneReduceOp;
   tcrv::rvv::MaskedBinaryOp maskedBinaryOp;
   tcrv::rvv::MAccOp maccOp;
+  tcrv::rvv::MaskedMAccOp maskedMAccOp;
   tcrv::rvv::WideningMAccOp wideningMAccOp;
   tcrv::rvv::WideningDotReduceOp wideningDotReduceOp;
   tcrv::rvv::MaskedWideningDotReduceOp maskedWideningDotReduceOp;

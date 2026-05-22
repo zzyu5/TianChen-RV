@@ -651,6 +651,54 @@ def TypedMAccPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedComputedMaskMAccPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_computed_mask_macc_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV computed-mask macc selected body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body for the
+    computed-mask multiply-accumulate route. The op is nested directly in a
+    selected tcrv.exec.variant and binds explicit runtime ABI values for
+    compare lhs/rhs, macc lhs/rhs payload inputs, accumulator input, output,
+    and runtime n/AVL together with compare predicate, mask provenance,
+    operation kind, memory form, accumulator role/layout, result layout, and
+    compile-time RVV config facts.
+
+    This op is not a matmul route, contraction framework, descriptor,
+    source-front-door marker, direct-C exporter, route id, intrinsic wrapper,
+    runtime artifact, correctness evidence, or performance evidence. The RVV
+    plugin must first realize it into explicit setvl/with_vl/compare-loads/
+    payload-loads/accumulator-load/compare/masked_macc/store tcrv_rvv body
+    structure before the provider may construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$compare_lhs,
+    AnyType:$compare_rhs,
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$acc,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$predicate_kind,
+    StrAttr:$memory_form,
+    StrAttr:$mask_role,
+    StrAttr:$mask_source,
+    StrAttr:$mask_memory_form,
+    StrAttr:$accumulator_role,
+    StrAttr:$accumulator_layout,
+    StrAttr:$result_layout,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$compare_lhs `,` $compare_rhs `,` $lhs `,` $rhs `,` $acc `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedWideningMAccPreRealizedBodyOp
     : TCRVRVV_Op<"typed_widening_macc_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV widening macc selected body";
@@ -2410,6 +2458,48 @@ def MAccOp : TCRVRVV_Op<"macc",
 
   let assemblyFormat =
     "$lhs `,` $rhs `,` $accumulator `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($accumulator) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
+def MaskedMAccOp : TCRVRVV_Op<"masked_macc",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary = "generic typed RVV computed-mask multiply-accumulate dataflow op";
+  let description = [{
+    Records one bounded generic plugin-local RVV computed-mask
+    multiply-accumulate dataflow step. The op is nested directly under
+    tcrv_rvv.with_vl, consumes a compare-produced !tcrv_rvv.mask, lhs/rhs typed
+    !tcrv_rvv.vector operands, an explicit typed accumulator vector, and the
+    active !tcrv_rvv.vl token. It carries explicit mask provenance,
+    accumulator/result layout facts, and produces one typed !tcrv_rvv.vector
+    result.
+
+    For the current bounded Stage 2 contraction-supporting slice, kind is
+    limited to add, representing masked accumulator + lhs * rhs. Inactive lanes
+    preserve the accumulator vector. Lhs, rhs, accumulator, result, mask, VL,
+    SEW, LMUL, policy, accumulator layout, result layout, and memory-form facts
+    are structural in the selected RVV body. Route ids, helper names, ABI
+    strings, artifact names, status fields, exact intrinsic spellings, and
+    common EmitC/export code must not infer or choose masked
+    multiply-accumulate semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$mask,
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$accumulator,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$mask_role,
+    StrAttr:$mask_source,
+    StrAttr:$mask_memory_form,
+    StrAttr:$accumulator_layout,
+    StrAttr:$result_layout
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$mask `,` $lhs `,` $rhs `,` $accumulator `,` $vl attr-dict `:` type($mask) `,` type($lhs) `,` type($rhs) `,` type($accumulator) `,` type($vl) `->` type($result)";
   let hasVerifier = 1;
 }
 

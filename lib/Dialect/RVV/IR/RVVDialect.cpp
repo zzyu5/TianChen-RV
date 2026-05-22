@@ -236,6 +236,17 @@ bool isAllowedTypedMAccPreRealizedBodyAttr(llvm::StringRef name) {
          name == kPolicyAttrName;
 }
 
+bool isAllowedTypedComputedMaskMAccPreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kPredicateKindAttrName ||
+         name == kMemoryFormAttrName || name == kMaskRoleAttrName ||
+         name == kMaskSourceAttrName || name == kMaskMemoryFormAttrName ||
+         name == kAccumulatorRoleAttrName ||
+         name == kAccumulatorLayoutAttrName || name == kResultLayoutAttrName ||
+         name == kSEWAttrName || name == kLMULAttrName ||
+         name == kPolicyAttrName;
+}
+
 bool isAllowedTypedWideningMAccPreRealizedBodyAttr(llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
          name == kAccumulatorRoleAttrName ||
@@ -528,6 +539,12 @@ bool isAllowedMAccAttr(llvm::StringRef name) {
          name == kResultLayoutAttrName;
 }
 
+bool isAllowedMaskedMAccAttr(llvm::StringRef name) {
+  return name == "kind" || name == kMaskRoleAttrName ||
+         name == kMaskSourceAttrName || name == kMaskMemoryFormAttrName ||
+         name == kAccumulatorLayoutAttrName || name == kResultLayoutAttrName;
+}
+
 bool isAllowedWideningMAccAttr(llvm::StringRef name) {
   return name == "kind" || name == kAccumulatorLayoutAttrName ||
          name == kResultLayoutAttrName || name == kMAccRelationAttrName;
@@ -719,8 +736,18 @@ bool isSupportedTypedMAccPreRealizedBodyOpKind(llvm::StringRef opKind) {
   return opKind == "macc_add";
 }
 
+bool isSupportedTypedComputedMaskMAccPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "computed_masked_macc_add";
+}
+
 bool isSupportedTypedMAccPreRealizedMemoryForm(llvm::StringRef memoryForm) {
   return memoryForm == "vector-rhs-load";
+}
+
+bool isSupportedTypedComputedMaskMAccPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "computed-mask-unit-stride-macc";
 }
 
 bool isSupportedTypedMAccPreRealizedAccumulatorRole(llvm::StringRef role) {
@@ -3449,6 +3476,160 @@ mlir::LogicalResult TypedMAccPreRealizedBodyOp::verify() {
     return emitOpError()
            << "requires out operand C type 'int32_t *' to match typed macc "
               "result dtype";
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult TypedComputedMaskMAccPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected computed-mask macc bodies carry "
+                "only typed RVV operation/config/mask/accumulator/runtime SSA "
+                "facts and must be realized by the RVV plugin before route "
+                "construction";
+
+    if (!isAllowedTypedComputedMaskMAccPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kPredicateKindAttrName << "', '"
+             << kMemoryFormAttrName << "', '" << kMaskRoleAttrName << "', '"
+             << kMaskSourceAttrName << "', '" << kMaskMemoryFormAttrName
+             << "', '" << kAccumulatorRoleAttrName << "', '"
+             << kAccumulatorLayoutAttrName << "', '" << kResultLayoutAttrName
+             << "', '" << kSEWAttrName << "', '" << kLMULAttrName
+             << "', and '" << kPolicyAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 7 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires compare lhs, compare rhs, lhs payload, rhs payload, "
+              "accumulator, out, runtime n/AVL operands and no results";
+
+  if (!isSupportedTypedComputedMaskMAccPreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"computed_masked_macc_add\" for the bounded selected-body "
+              "computed-mask macc realization hook";
+  if (getPredicateKind() != "slt")
+    return emitOpError()
+           << "currently supports only predicate_kind \"slt\" for the "
+              "bounded selected-body computed-mask macc realization hook";
+  if (!isSupportedTypedComputedMaskMAccPreRealizedMemoryForm(getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"computed-mask-unit-stride-macc\" for the bounded "
+              "selected-body computed-mask macc realization hook";
+  if (!isSupportedTypedComputedMaskMemoryRole(getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-produced-by-compare\" for the bounded "
+              "selected-body computed-mask macc realization hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskSource(getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"compare-produced-mask-same-vl-scope\" for the bounded "
+              "selected-body computed-mask macc realization hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskMemoryForm(getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"compare-produced-mask\" for the bounded selected-body "
+              "computed-mask macc realization hook";
+  if (!isSupportedTypedMAccPreRealizedAccumulatorRole(getAccumulatorRole()))
+    return emitOpError()
+           << "currently supports only accumulator_role "
+              "\"accumulator-input-buffer\" for the bounded selected-body "
+              "computed-mask macc realization hook";
+  if (!isSupportedTypedMAccPreRealizedAccumulatorLayout(
+          getAccumulatorLayout()))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"separate-i32-vector-accumulator-input\" for the bounded "
+              "selected-body computed-mask macc realization hook";
+  if (!isSupportedTypedMAccPreRealizedResultLayout(getResultLayout()))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-multiply-accumulate-result-to-output-buffer\" for "
+              "the bounded selected-body computed-mask macc realization hook";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized computed-mask macc config to be "
+              "SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body computed-mask macc realization hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareLhs(), "compare lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareRhs(), "compare rhs",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "lhs payload",
+          {tianchenrv::support::RuntimeABIParameterRole::DotLHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getRhs(), "rhs payload",
+          {tianchenrv::support::RuntimeABIParameterRole::DotRHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getAcc(), "accumulator",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               AccumulatorInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+
+  RuntimeABIValueOp cmpLHSBinding =
+      getCompareLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp cmpRHSBinding =
+      getCompareRhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsBinding = getRhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp accBinding = getAcc().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
+  if (!cmpLHSBinding || cmpLHSBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires compare lhs operand C type 'const int32_t *' to "
+              "match typed computed-mask macc predicate dtype";
+  if (!cmpRHSBinding || cmpRHSBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires compare rhs operand C type 'const int32_t *' to "
+              "match typed computed-mask macc predicate dtype";
+  if (!lhsBinding || lhsBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires lhs payload operand C type 'const int32_t *' to "
+              "match typed computed-mask macc source dtype";
+  if (!rhsBinding || rhsBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires rhs payload operand C type 'const int32_t *' to "
+              "match typed computed-mask macc source dtype";
+  if (!accBinding || accBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires accumulator operand C type 'const int32_t *' to "
+              "match typed computed-mask macc accumulator dtype";
+  if (!outBinding || outBinding.getCType() != "int32_t *")
+    return emitOpError()
+           << "requires out operand C type 'int32_t *' to match typed "
+              "computed-mask macc result dtype";
+
   return verifyRuntimeElementCountOperand(op, getN());
 }
 
@@ -7317,6 +7498,130 @@ mlir::LogicalResult MAccOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getAccumulator(),
                                                     "accumulator")))
+    return mlir::failure();
+  return verifyGenericVectorTypeForWithVL(op, getResult(), "result");
+}
+
+mlir::LogicalResult MaskedMAccOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.masked_macc keeps mask provenance, SEW/LMUL/"
+                "policy on typed values and setvl/with_vl, runtime n/AVL/VL "
+                "in the surrounding control-plane IR, and rejects deleted "
+                "local element_count metadata";
+
+    if (!isAllowedMaskedMAccAttr(attrName))
+      return emitOpError()
+             << "only accepts generic masked multiply-accumulate attributes "
+                "'kind', 'mask_role', 'mask_source', 'mask_memory_form', "
+                "'accumulator_layout', and 'result_layout'; unexpected "
+                "attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!isSupportedGenericMAccKind(getKind()))
+    return emitOpError()
+           << "currently supports only kind \"add\" for the bounded Stage 2 "
+              "masked multiply-accumulate route";
+  if (!isSupportedTypedComputedMaskMemoryRole(getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-produced-by-compare\" for the bounded Stage 2 "
+              "masked multiply-accumulate route";
+  if (!isSupportedTypedComputedMaskMemoryMaskSource(getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"compare-produced-mask-same-vl-scope\" for the bounded "
+              "Stage 2 masked multiply-accumulate route";
+  if (!isSupportedTypedComputedMaskMemoryMaskMemoryForm(getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"compare-produced-mask\" for the bounded Stage 2 masked "
+              "multiply-accumulate route";
+  if (!isSupportedGenericMAccAccumulatorLayout(getAccumulatorLayout()))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"separate-i32-vector-accumulator-input\" for the bounded "
+              "Stage 2 masked multiply-accumulate route";
+  if (!isSupportedGenericMAccResultLayout(getResultLayout()))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-multiply-accumulate-result-to-output-buffer\" for the "
+              "bounded Stage 2 masked multiply-accumulate route";
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires compare-produced mask, lhs, rhs, and accumulator "
+              "generic RVV vector operands, one !tcrv_rvv.vl operand, and one "
+              "generic RVV vector result";
+  if (getLhs().getType() != getRhs().getType() ||
+      getLhs().getType() != getAccumulator().getType() ||
+      getLhs().getType() != getResult().getType())
+    return emitOpError()
+           << "requires lhs, rhs, accumulator, and result to have the same "
+              "generic RVV vector type";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto compare = getMask().getDefiningOp<CompareOp>();
+  if (!compare)
+    return emitOpError()
+           << "requires mask operand to be produced by tcrv_rvv.compare "
+              "inside the selected RVV typed body";
+  if (compare.getKind() != "slt")
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.compare to use kind \"slt\" "
+              "for the bounded computed-mask macc route";
+  if (compare.getVl() != getVl())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.compare to consume the same "
+              "!tcrv_rvv.vl token as tcrv_rvv.masked_macc";
+  if (compare->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.compare to be in the same "
+              "tcrv_rvv.with_vl body as tcrv_rvv.masked_macc";
+
+  if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getLhs(), "lhs")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getRhs(), "rhs")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getAccumulator(),
+                                                    "accumulator")))
+    return mlir::failure();
+
+  auto expectedSEW =
+      (*withVL)->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto expectedLMUL =
+      (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  if (!expectedSEW || !expectedLMUL)
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit result "
+              "SEW/LMUL metadata for masked macc";
+  if (!isRVVSelectedBodyM1Config(expectedSEW.getInt(),
+                                 expectedLMUL.getValue()))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl result config to be SEW32 "
+              "LMUL m1 for the bounded masked macc route";
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for masked macc";
+
+  if (mlir::failed(verifyGenericMaskMatchesVector(op, getMask(), getResult(),
+                                                  "mask", "result")))
     return mlir::failure();
   return verifyGenericVectorTypeForWithVL(op, getResult(), "result");
 }

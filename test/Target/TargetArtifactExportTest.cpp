@@ -470,6 +470,8 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     return "tcrv_rvv.masked_binary";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
     return "tcrv_rvv.macc";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+    return "tcrv_rvv.masked_macc";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningMAccAdd:
     return "tcrv_rvv.widening_macc";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningDotReduceAdd:
@@ -540,6 +542,8 @@ llvm::StringRef getRVVTestBinaryKind(
     return "masked_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MAccAdd:
     return "macc_add";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+    return "computed_masked_macc_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningMAccAdd:
     return "widening_macc_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningDotReduceAdd:

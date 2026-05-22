@@ -32,7 +32,13 @@ bool isRVVSelectedBodyMaskedArithmeticRoute(RVVSelectedBodyOperationKind op) {
 }
 
 bool isRVVSelectedBodyMAccRoute(RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::MAccAdd;
+  return op == RVVSelectedBodyOperationKind::MAccAdd ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd;
+}
+
+bool isRVVSelectedBodyComputedMaskedMAccRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd;
 }
 
 bool isRVVSelectedBodyReductionRoute(RVVSelectedBodyOperationKind op) {
@@ -637,6 +643,83 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (!out)
         return out.takeError();
       boundOutABI = *out;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) {
+      if (llvm::Error error =
+              bindOperand(boundLHSABI, "cmp_lhs", "cmp-lhs",
+                          "computed_masked_macc compare lhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "cmp-call",
+              "computed_masked_macc compare lhs operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "hdr",
+              "computed_masked_macc compare lhs header mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundRHSABI, "cmp_rhs", "cmp-rhs",
+                          "computed_masked_macc compare rhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_rhs", "cmp-call",
+              "computed_masked_macc compare rhs operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_rhs", "hdr",
+              "computed_masked_macc compare rhs header mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundDotLHSABI, "lhs",
+                          "lhs-load",
+                          "computed_masked_macc payload lhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "macc-lhs",
+              "computed_masked_macc payload lhs compute operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "hdr",
+              "computed_masked_macc payload lhs header mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundDotRHSABI, "rhs",
+                          "rhs-load",
+                          "computed_masked_macc payload rhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "macc-rhs",
+              "computed_masked_macc payload rhs compute operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "hdr",
+              "computed_masked_macc payload rhs header mirror"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundAccumulatorABI, "acc",
+              "acc-load",
+              "computed_masked_macc accumulator load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "macc-acc",
+              "computed_masked_macc accumulator compute operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "macc-pass",
+              "computed_masked_macc inactive-lane passthrough operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "hdr",
+              "computed_masked_macc accumulator header mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundOutABI, "out", "store",
+                          "computed_masked_macc output store operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out", "hdr",
+              "computed_masked_macc output header mirror"))
+        return error;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::WideningMAccAdd) {
       if (llvm::Error error =
@@ -2418,6 +2501,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       isRVVSelectedBodyComputedMaskMemoryMovementRoute(description.operation);
   const bool isComputedMaskSelect =
       description.operation == RVVSelectedBodyOperationKind::ComputedMaskSelect;
+  const bool isComputedMaskedMAcc =
+      isRVVSelectedBodyComputedMaskedMAccRoute(description.operation);
   const bool isComputedMaskStridedStore =
       isRVVSelectedBodyComputedMaskStridedStoreRoute(description.operation);
   const bool isComputedMaskStridedLoad =
@@ -2767,6 +2852,34 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   }
+  if (isComputedMaskedMAcc) {
+    if (llvm::Error error = addLoopStep(
+            slice->dotLHSLoadOperation, "load",
+            description.vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(boundDotLHSABI->cName) + " + " +
+                  inductionName)
+                     .str(),
+                 boundDotLHSABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"macc_lhs_vec",
+                                      description.vectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->dotRHSLoadOperation, "load",
+            description.vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(boundDotRHSABI->cName) + " + " +
+                  inductionName)
+                     .str(),
+                 boundDotRHSABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"macc_rhs_vec",
+                                      description.vectorCType.str()}))
+      return error;
+  }
   if (isComputedMaskStridedStore || isComputedMaskIndexedScatterStore) {
     if (llvm::Error error = addLoopStep(
             slice->sourceLoadOperation, "load", description.vectorLoadIntrinsic,
@@ -2982,6 +3095,45 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                         description.vectorCType.str()}))
         return error;
     }
+  } else if (isComputedMaskedMAcc) {
+    if (llvm::Error error = addLoopStep(
+            slice->compareOp.getOperation(), "compute",
+            description.compareIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"rhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.maskName.str(),
+                                      description.maskCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", description.intrinsic,
+            {TCRVEmitCCallOpaqueOperand{"acc_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"macc_lhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"macc_rhs_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{"active_macc_vec",
+                                      description.vectorCType.str()}))
+      return error;
+    if (llvm::Error error = addLoopStep(
+            slice->arithmeticOp, "compute", description.maskedMergeIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{"acc_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"active_macc_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        description.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                      description.vectorCType.str()}))
+      return error;
   } else if (isRVVSelectedBodyMAccRoute(description.operation)) {
     if (llvm::Error error = addLoopStep(
             slice->arithmeticOp, "compute", description.intrinsic,

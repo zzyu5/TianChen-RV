@@ -580,6 +580,32 @@ getRVVSelectedBodyMAccRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 7>
+getRVVSelectedBodyComputedMaskMAccRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 7> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "cmp_lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "cmp_rhs", "const int32_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::DotLHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs", "const int32_t *",
+      support::RuntimeABIParameterRole::DotRHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "acc", "const int32_t *",
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 5>
 getRVVSelectedBodyWideningMAccRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
@@ -1150,6 +1176,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   llvm::SmallVector<support::RuntimeABIParameter, 5> maccExpected =
       getRVVSelectedBodyMAccRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, maccExpected))
+    return llvm::Error::success();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 7>
+      computedMaskMAccExpected =
+          getRVVSelectedBodyComputedMaskMAccRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters,
+                                         computedMaskMAccExpected))
     return llvm::Error::success();
 
   llvm::SmallVector<support::RuntimeABIParameter, 5> wideningMAccExpected =

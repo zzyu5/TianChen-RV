@@ -57,6 +57,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "reduce_add",
     *MASKED_ELEMENTWISE_OP_KINDS,
     "macc_add",
+    "computed_masked_macc_add",
     "widening_macc_add",
     "widening_dot_reduce_add",
     "strided_input_widening_dot_reduce_add",
@@ -100,6 +101,16 @@ MASKED_ADD_PASSTHROUGH_LAYOUT = "passthrough-vector-preserves-inactive-lanes"
 MACC_ADD_ACCUMULATOR_LAYOUT = "separate-i32-vector-accumulator-input"
 MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
 MACC_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
+COMPUTED_MASKED_MACC_ADD_RUNTIME_ABI_ORDER = "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n"
+COMPUTED_MASKED_MACC_ADD_MEMORY_LAYOUT = (
+    "unit-stride-compare-lhs-rhs-accumulator-masked-macc-output-runtime-abi"
+)
+COMPUTED_MASKED_MACC_ADD_INACTIVE_LANE_CONTRACT = (
+    "masked-macc-false-lanes-preserve-accumulator"
+)
+COMPUTED_MASKED_MACC_ADD_PASSTHROUGH_LAYOUT = (
+    "accumulator-vector-preserves-inactive-lanes"
+)
 WIDENING_MACC_ACCUMULATOR_LAYOUT = "separate-i32-vector-accumulator-input"
 WIDENING_MACC_RESULT_LAYOUT = (
     "store-widening-multiply-accumulate-result-to-output-buffer"
@@ -182,6 +193,19 @@ MACC_ROUTE_OPERAND_BINDING_OPERANDS = (
     "acc=accumulator-input-buffer:acc:runtime-abi-mirror|materialized-accumulator-load-base|macc-accumulator-call;"
     "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+)
+COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:computed_masked_macc_add.v1"
+)
+COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:computed_masked_macc_add.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call|hdr;"
+    "lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;"
+    "rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;"
+    "acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;"
+    "out=output-buffer:out:abi|store|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 )
 WIDENING_MACC_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:widening_macc_add.v1"
@@ -939,6 +963,13 @@ class OpExpectation:
                 "const int32_t *rhs, const int32_t *acc, "
                 "int32_t *out, size_t n);"
             )
+        if self.is_computed_masked_macc_add:
+            return (
+                f"void {self.function_name}(const int32_t *cmp_lhs, "
+                "const int32_t *cmp_rhs, const int32_t *lhs, "
+                "const int32_t *rhs, const int32_t *acc, "
+                "int32_t *out, size_t n);"
+            )
         if self.is_widen_i32_to_i64:
             return (
                 f"void {self.function_name}(const int32_t *lhs, "
@@ -1013,6 +1044,8 @@ class OpExpectation:
             return EXPECTED_WIDEN_I16_TO_I32_RUNTIME_PARAMETERS
         if self.is_macc_add:
             return EXPECTED_MACC_RUNTIME_PARAMETERS
+        if self.is_computed_masked_macc_add:
+            return EXPECTED_COMPUTED_MASKED_MACC_RUNTIME_PARAMETERS
         if self.is_widening_macc_add or self.is_widening_dot_reduce_add:
             return EXPECTED_WIDENING_MACC_RUNTIME_PARAMETERS
         if self.is_i64_add:
@@ -1071,6 +1104,8 @@ class OpExpectation:
             return COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_ABI_ORDER
         if self.is_macc_add:
             return MACC_ADD_RUNTIME_ABI_ORDER
+        if self.is_computed_masked_macc_add:
+            return COMPUTED_MASKED_MACC_ADD_RUNTIME_ABI_ORDER
         if self.is_widen_i32_to_i64 or self.is_widen_i16_to_i32:
             return WIDENING_CONVERSION_RUNTIME_ABI_ORDER
         if self.is_widening_macc_add:
@@ -1131,6 +1166,10 @@ class OpExpectation:
     @property
     def is_macc_add(self) -> bool:
         return self.kind == "macc_add"
+
+    @property
+    def is_computed_masked_macc_add(self) -> bool:
+        return self.kind == "computed_masked_macc_add"
 
     @property
     def is_widening_macc_add(self) -> bool:
@@ -1644,6 +1683,37 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_initializer="(int32_t)(((index % 2) == 0) ? (17 - (int32_t)(index % 9)) : -(17 - (int32_t)(index % 9)))",
         expected_expression="(int32_t)(acc[index] + (int32_t)(lhs[index] * rhs[index]))",
     ),
+    "computed_masked_macc_add": OpExpectation(
+        kind="computed_masked_macc_add",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-computed-masked-macc-add.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_computed_masked_macc_add",
+        external_abi_name="rvv-generic-computed-masked-macc-add-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_computed_masked_macc_add_kernel_explicit_selected_body_rvv_computed_masked_macc_add",
+        emitc_route="rvv-generic-computed-masked-macc-add-emitc-route",
+        typed_compute_op="tcrv_rvv.masked_macc",
+        memory_form="computed-mask-unit-stride-macc",
+        lhs_initializer=(
+            "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
+            "? (int32_t)(10 + (int32_t)index) "
+            ": (int32_t)(100 + (int32_t)index))"
+        ),
+        rhs_initializer=(
+            "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
+            "? (int32_t)(50 + (int32_t)index) "
+            ": (int32_t)(20 + (int32_t)index))"
+        ),
+        source_initializer="(int32_t)(((index % 2) == 0) ? (23 - (int32_t)(index % 11)) : -(23 - (int32_t)(index % 11)))",
+        true_value_initializer="(int32_t)(((index % 2) == 0) ? ((int32_t)(index % 7) + 2) : -((int32_t)(index % 7) + 2))",
+        false_value_initializer="(int32_t)(((index % 3) == 0) ? -((int32_t)(index % 5) + 3) : ((int32_t)(index % 5) + 3))",
+        expected_expression=(
+            "(cmp_lhs[index] < cmp_rhs[index] ? "
+            "(int32_t)(acc[index] + (int32_t)(lhs[index] * rhs[index])) "
+            ": acc[index])"
+        ),
+        compare_predicate_kind="slt",
+    ),
     "strided_add": OpExpectation(
         kind="strided_add",
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-strided-add.mlir"),
@@ -2073,6 +2143,13 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_macc_add",
         function_name="tcrv_emitc_pre_realized_body_macc_add_kernel_pre_realized_body_rvv_macc_add",
+    ),
+    "computed_masked_macc_add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["computed_masked_macc_add"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-macc-add.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_computed_masked_macc_add",
+        function_name="tcrv_emitc_pre_realized_body_computed_masked_macc_add_kernel_pre_realized_body_rvv_computed_masked_macc_add",
     ),
     "strided_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["strided_add"],
@@ -3003,6 +3080,30 @@ EXPECTED_MACC_RUNTIME_PARAMETERS = (
     EXPECTED_RUNTIME_PARAMETERS[2],
     EXPECTED_RUNTIME_PARAMETERS[3],
 )
+EXPECTED_COMPUTED_MASKED_MACC_RUNTIME_PARAMETERS = (
+    EXPECTED_COMPUTED_MASK_SELECT_RUNTIME_PARAMETERS[0],
+    EXPECTED_COMPUTED_MASK_SELECT_RUNTIME_PARAMETERS[1],
+    {
+        "c_name": "lhs",
+        "c_type": "const int32_t *",
+        "role": "dot-lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "rhs",
+        "c_type": "const int32_t *",
+        "role": "dot-rhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "acc",
+        "c_type": "const int32_t *",
+        "role": "accumulator-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_RUNTIME_PARAMETERS[2],
+    EXPECTED_RUNTIME_PARAMETERS[3],
+)
 EXPECTED_WIDENING_CONVERSION_RUNTIME_PARAMETERS = (
     EXPECTED_RUNTIME_PARAMETERS[0],
     {
@@ -3726,6 +3827,38 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.route_operand_binding_operands": (
                     MACC_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+            }
+        )
+    if expectation.is_computed_masked_macc_add:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.compare_predicate_kind": (
+                    expectation.compare_predicate_kind
+                ),
+                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "tcrv_rvv.inactive_lane_contract": (
+                    COMPUTED_MASKED_MACC_ADD_INACTIVE_LANE_CONTRACT
+                ),
+                "tcrv_rvv.masked_passthrough_layout": (
+                    COMPUTED_MASKED_MACC_ADD_PASSTHROUGH_LAYOUT
+                ),
+                "tcrv_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
+                "tcrv_rvv.destination_memory_form": (
+                    MASKED_MEMORY_DESTINATION_MEMORY_FORM
+                ),
+                "tcrv_rvv.indexed_memory_layout": (
+                    COMPUTED_MASKED_MACC_ADD_MEMORY_LAYOUT
+                ),
+                "tcrv_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
+                "tcrv_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
+                "tcrv_rvv.route_operand_binding_plan": (
+                    COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
         )
@@ -5980,6 +6113,72 @@ def verify_materialized_selected_body(
             'result_layout = "store-multiply-accumulate-result-to-output-buffer"',
             "materialized selected-body MLIR macc result layout",
         )
+    if expectation.is_computed_masked_macc_add:
+        require_contains(
+            text,
+            'role = "dot-lhs-input-buffer"',
+            "materialized selected-body MLIR computed-mask macc lhs payload ABI role",
+        )
+        require_contains(
+            text,
+            'role = "dot-rhs-input-buffer"',
+            "materialized selected-body MLIR computed-mask macc rhs payload ABI role",
+        )
+        require_contains(
+            text,
+            'role = "accumulator-input-buffer"',
+            "materialized selected-body MLIR computed-mask macc accumulator ABI role",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.compare",
+            "materialized selected-body MLIR computed-mask macc compare producer",
+        )
+        require_contains(
+            text,
+            'kind = "slt"',
+            "materialized selected-body MLIR computed-mask macc predicate",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.masked_macc",
+            "materialized selected-body MLIR computed-mask macc op",
+        )
+        require_contains(
+            text,
+            f'mask_source = "{COMPUTED_MASK_MEMORY_MASK_SOURCE}"',
+            "materialized selected-body MLIR computed-mask macc mask source",
+        )
+        require_contains(
+            text,
+            f'mask_memory_form = "{COMPUTED_MASK_MEMORY_MASK_FORM}"',
+            "materialized selected-body MLIR computed-mask macc mask memory form",
+        )
+        require_contains(
+            text,
+            f'accumulator_layout = "{MACC_ADD_ACCUMULATOR_LAYOUT}"',
+            "materialized selected-body MLIR computed-mask macc accumulator layout",
+        )
+        require_contains(
+            text,
+            f'result_layout = "{MACC_ADD_RESULT_LAYOUT}"',
+            "materialized selected-body MLIR computed-mask macc result layout",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.macc",
+            "materialized selected-body MLIR computed-mask macc route",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.binary",
+            "materialized selected-body MLIR computed-mask macc route",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_move",
+            "materialized selected-body MLIR computed-mask macc route",
+        )
     if expectation.is_widening_macc_add:
         require_contains(
             text,
@@ -6063,6 +6262,11 @@ def verify_materialized_selected_body(
         require_not_contains(
             text,
             "tcrv_rvv.typed_macc_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_computed_mask_macc_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
@@ -9181,6 +9385,146 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
+    if expectation.is_computed_masked_macc_add:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n + 8;
+  if (alloc_n == 8 && n == 0)
+    alloc_n = 9;
+  int32_t *cmp_lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *cmp_rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *acc = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  if (!cmp_lhs || !cmp_rhs || !lhs || !rhs || !acc || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(cmp_lhs);
+    free(cmp_rhs);
+    free(lhs);
+    free(rhs);
+    free(acc);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    cmp_lhs[index] = {expectation.lhs_initializer};
+    cmp_rhs[index] = {expectation.rhs_initializer};
+    lhs[index] = {expectation.true_value_initializer};
+    rhs[index] = {expectation.false_value_initializer};
+    acc[index] = {expectation.source_initializer};
+    out[index] = {expectation.out_initializer};
+  }}
+
+  {expectation.function_name}(cmp_lhs, cmp_rhs, lhs, rhs, acc, out, n);
+
+  size_t active_lanes = 0;
+  size_t inactive_lanes = 0;
+  size_t inactive_acc_preserved = 0;
+  size_t add_only_distinguishing = 0;
+  size_t mul_only_distinguishing = 0;
+  size_t signed_product_lanes = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    int predicate = {expectation.compare_predicate_c_expression("cmp_lhs[index]", "cmp_rhs[index]")};
+    int32_t product = (int32_t)lhs[index] * (int32_t)rhs[index];
+    int32_t expected = {expectation.expected_expression};
+    int32_t add_only = (int32_t)(acc[index] + lhs[index] + rhs[index]);
+    int32_t mul_only = product;
+    if (predicate)
+      ++active_lanes;
+    else
+      ++inactive_lanes;
+    if (!predicate && out[index] == acc[index])
+      ++inactive_acc_preserved;
+    if (predicate && expected != add_only)
+      ++add_only_distinguishing;
+    if (predicate && expected != mul_only)
+      ++mul_only_distinguishing;
+    if (predicate && product != 0 && acc[index] != 0)
+      ++signed_product_lanes;
+    if (out[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d cmp_lhs=%d cmp_rhs=%d lhs=%d rhs=%d acc=%d predicate=%d product=%d\\n",
+              n, index, out[index], expected, cmp_lhs[index], cmp_rhs[index],
+              lhs[index], rhs[index], acc[index], predicate, product);
+      free(cmp_lhs);
+      free(cmp_rhs);
+      free(lhs);
+      free(rhs);
+      free(acc);
+      free(out);
+      return 12;
+    }}
+  }}
+
+  for (size_t index = n; index < alloc_n; ++index) {{
+    if (out[index] != {expectation.out_initializer}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
+              n, index, out[index], {expectation.out_initializer});
+      free(cmp_lhs);
+      free(cmp_rhs);
+      free(lhs);
+      free(rhs);
+      free(acc);
+      free(out);
+      return 13;
+    }}
+  }}
+
+  if (n > 3 && (active_lanes == 0 || inactive_lanes == 0 ||
+                inactive_acc_preserved == 0 ||
+                add_only_distinguishing == 0 ||
+                mul_only_distinguishing == 0 ||
+                signed_product_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} coverage missing n=%zu active=%zu inactive=%zu inactive_acc_preserved=%zu add_only_distinguishing=%zu mul_only_distinguishing=%zu signed_product_lanes=%zu\\n",
+            n, active_lanes, inactive_lanes, inactive_acc_preserved,
+            add_only_distinguishing, mul_only_distinguishing,
+            signed_product_lanes);
+    free(cmp_lhs);
+    free(cmp_rhs);
+    free(lhs);
+    free(rhs);
+    free(acc);
+    free(out);
+    return 14;
+  }}
+
+  free(cmp_lhs);
+  free(cmp_rhs);
+  free(lhs);
+  free(rhs);
+  free(acc);
+  free(out);
+  printf("{expectation.kind} case n=%zu ok computed_mask macc active_lanes=%zu inactive_lanes=%zu inactive_acc_preserved=%zu add_only_distinguishing=%zu mul_only_distinguishing=%zu tail_preserved\\n",
+         n, active_lanes, inactive_lanes, inactive_acc_preserved,
+         add_only_distinguishing, mul_only_distinguishing);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_macc_add:
         return f"""
 #include <stddef.h>
@@ -10390,6 +10734,23 @@ def run_one_op_e2e(
                 "runtime n controls active lanes and output tail sentinels are "
                 "preserved"
             )
+        if expectation.is_computed_masked_macc_add:
+            evidence["harness"]["mask_coverage_contract"] = (
+                "multi-lane computed_masked_macc_add cases require "
+                "compare-produced active and inactive mask lanes"
+            )
+            evidence["harness"]["accumulator_contract"] = (
+                "inactive lanes preserve the explicit accumulator input while "
+                "active lanes compute accumulator + lhs * rhs"
+            )
+            evidence["harness"]["macc_distinguishing_contract"] = (
+                "active-lane checks distinguish fused multiply-add "
+                "accumulation from add-only or multiply-only behavior"
+            )
+            evidence["harness"]["tail_lane_contract"] = (
+                "runtime n controls active lanes and output tail sentinels are "
+                "preserved"
+            )
         if expectation.is_masked_unit_load_store or expectation.is_masked_unit_store:
             evidence["harness"]["mask_coverage_contract"] = (
                 "multi-lane masked unit-store/load-store cases require active and "
@@ -10983,6 +11344,17 @@ def run_self_test() -> int:
                     "self-test harness generation lost computed-mask segment2 "
                     "store mask, no-write, or field-order coverage"
                 )
+            if expectation.is_computed_masked_macc_add and (
+                "computed_mask macc" not in harness
+                or "active_lanes" not in harness
+                or "inactive_acc_preserved" not in harness
+                or "add_only_distinguishing" not in harness
+                or "mul_only_distinguishing" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost computed-mask macc "
+                    "mask, accumulator passthrough, or arithmetic coverage"
+                )
             if expectation.is_computed_mask_standalone_reduce and (
                 "active_lanes" not in harness
                 or "inactive_lanes" not in harness
@@ -11220,6 +11592,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "computed_masked_strided_load_unit_store/"
             "computed_masked_indexed_gather_load_unit_store/"
             "computed_masked_indexed_scatter_store_unit_load/"
+            "computed_masked_macc_add/"
             "segment2_deinterleave_unit_store/"
             "segment2_interleave_unit_load/"
             "lmul_m2_add/widen_i32_to_i64/widen_i16_to_i32/"
