@@ -1336,6 +1336,57 @@ def TypedComputedMaskIndexedGatherPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedComputedMaskIndexedScatterPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_computed_mask_indexed_scatter_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV computed-mask indexed scatter-store body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body where a
+    signed i32 vector compare produces an in-body mask SSA value and masked
+    indexed/scatter memory movement stores active source lanes into an
+    indexed destination memory window through an explicit runtime index
+    vector. The op is nested directly in a selected tcrv.exec.variant and
+    binds explicit runtime ABI values for compare lhs, compare rhs, source
+    payload, index, destination, and runtime n/AVL together with compare
+    predicate, indexed store memory form, index EEW/offset unit, unique-index
+    policy, mask role/source/config, inactive-lane no-write policy,
+    compile-time RVV data/mask/index config, and policy.
+
+    This op is not a gather/scatter framework, route label, duplicate-index
+    resolver, descriptor, source-front-door marker, direct-C exporter,
+    intrinsic wrapper, runtime artifact, correctness evidence, or performance
+    evidence. The RVV plugin must realize it into explicit setvl/with_vl/load/
+    load/load/index_load/compare/masked_indexed_store tcrv_rvv body structure
+    before the provider may construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$compare_lhs,
+    AnyType:$compare_rhs,
+    AnyType:$source,
+    AnyType:$index,
+    AnyType:$destination,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$predicate_kind,
+    StrAttr:$memory_form,
+    I64Attr:$index_eew,
+    StrAttr:$offset_unit,
+    StrAttr:$index_uniqueness,
+    StrAttr:$mask_role,
+    StrAttr:$mask_source,
+    StrAttr:$mask_memory_form,
+    StrAttr:$inactive_lane_policy,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$compare_lhs `,` $compare_rhs `,` $source `,` $index `,` $destination `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedSegment2DeinterleaveMemoryPreRealizedBodyOp
     : TCRVRVV_Op<"typed_segment2_deinterleave_memory_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV segment2 deinterleave memory body";
@@ -1791,6 +1842,51 @@ def IndexedStoreOp : TCRVRVV_Op<"indexed_store",
 
   let assemblyFormat =
     "$destination `,` $indices `,` $value `,` $vl attr-dict `:` type($destination) `,` type($indices) `,` type($value) `,` type($vl)";
+  let hasVerifier = 1;
+}
+
+def MaskedIndexedStoreOp : TCRVRVV_Op<"masked_indexed_store",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV masked indexed data store op";
+  let description = [{
+    Records one bounded plugin-local RVV masked indexed/scatter destination
+    store step. The op is nested directly under tcrv_rvv.with_vl, consumes one
+    explicit output buffer runtime ABI value, one !tcrv_rvv.index_vector
+    produced by tcrv_rvv.index_load, one !tcrv_rvv.mask predicate produced by
+    tcrv_rvv.compare in the same VL scope, one typed data !tcrv_rvv.vector
+    payload value, and the active !tcrv_rvv.vl token. It carries explicit
+    indexed masked-store memory form, index EEW, offset unit, unique-index
+    policy, and inactive-lane no-write preservation facts.
+
+    For the current bounded Stage 2 computed-mask indexed scatter-store slice,
+    memory_form is limited to masked-indexed-store, offset_unit is limited to
+    element, index_eew is limited to 32, index_uniqueness is limited to
+    unique, and inactive_lane_policy is limited to
+    preserve-output-on-false-lanes. The RVV plugin derives the concrete masked
+    indexed-store intrinsic and any element-to-byte offset conversion from
+    this typed body fact, dtype/config, mask, index vector, payload, and
+    runtime ABI binding; common EmitC/export must not infer indexed or masked
+    semantics from route ids, ABI names, artifact metadata, exact intrinsic
+    spelling, or harness sentinels.
+  }];
+
+  let arguments = (ins
+    AnyType:$destination,
+    AnyType:$indices,
+    AnyType:$mask,
+    AnyType:$value,
+    AnyType:$vl,
+    I64Attr:$index_eew,
+    StrAttr:$offset_unit,
+    StrAttr:$index_uniqueness,
+    StrAttr:$memory_form,
+    StrAttr:$inactive_lane_policy
+  );
+
+  let assemblyFormat =
+    "$destination `,` $indices `,` $mask `,` $value `,` $vl attr-dict `:` type($destination) `,` type($indices) `,` type($mask) `,` type($value) `,` type($vl)";
   let hasVerifier = 1;
 }
 

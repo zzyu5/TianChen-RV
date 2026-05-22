@@ -460,6 +460,10 @@ bool isPreRealizedComputedMaskIndexedGatherOpKind(llvm::StringRef opKind) {
   return opKind == "computed_masked_indexed_gather_load_unit_store";
 }
 
+bool isPreRealizedComputedMaskIndexedScatterOpKind(llvm::StringRef opKind) {
+  return opKind == "computed_masked_indexed_scatter_store_unit_load";
+}
+
 bool isPreRealizedComputedMaskMemoryMovementPredicateKind(
     llvm::StringRef predicateKind) {
   return predicateKind == "slt";
@@ -483,6 +487,11 @@ bool isPreRealizedComputedMaskStridedLoadMemoryForm(
 bool isPreRealizedComputedMaskIndexedGatherMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-indexed-gather-load-unit-store";
+}
+
+bool isPreRealizedComputedMaskIndexedScatterMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "computed-mask-unit-load-indexed-scatter-store";
 }
 
 bool isPreRealizedComputedMaskMemoryMovementMaskRole(llvm::StringRef role) {
@@ -618,6 +627,8 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp,
                   tcrv::rvv::
                       TypedComputedMaskIndexedGatherPreRealizedBodyOp,
+                  tcrv::rvv::
+                      TypedComputedMaskIndexedScatterPreRealizedBodyOp,
                   tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
             op))
@@ -646,7 +657,10 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.typed_indexed_scatter_memory_pre_realized_body or "
         "tcrv_rvv.typed_masked_memory_pre_realized_body or "
         "tcrv_rvv.typed_computed_mask_memory_pre_realized_body or "
+        "tcrv_rvv.typed_computed_mask_strided_store_pre_realized_body or "
         "tcrv_rvv.typed_computed_mask_strided_load_pre_realized_body or "
+        "tcrv_rvv.typed_computed_mask_indexed_gather_pre_realized_body or "
+        "tcrv_rvv.typed_computed_mask_indexed_scatter_pre_realized_body or "
         "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body or "
         "tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body op when no realized "
         "setvl/with_vl body is present");
@@ -3421,6 +3435,153 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedGatherBody(
   return llvm::Error::success();
 }
 
+llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVPluginError(
+        "selected RVV computed-mask indexed scatter-store realization requires "
+        "a pre-realized computed-mask indexed scatter body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask indexed scatter-store body "
+        "must be a direct child of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedComputedMaskIndexedScatterOpKind(body.getOpKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask indexed scatter-store body "
+        "currently supports only op_kind "
+        "'computed_masked_indexed_scatter_store_unit_load'");
+  if (!isPreRealizedComputedMaskMemoryMovementPredicateKind(
+          body.getPredicateKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask indexed scatter-store body "
+        "currently supports only predicate_kind 'slt'");
+  if (!isPreRealizedComputedMaskIndexedScatterMemoryForm(body.getMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask indexed scatter-store body "
+        "currently supports only memory_form "
+        "'computed-mask-unit-load-indexed-scatter-store'");
+  if (!isPreRealizedIndexedGatherMemoryMovementIndexEEW(
+          static_cast<std::int64_t>(body.getIndexEew())))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask indexed scatter-store body "
+        "currently supports only index_eew 32");
+  if (!isPreRealizedIndexedGatherMemoryMovementOffsetUnit(
+          body.getOffsetUnit()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask indexed scatter-store body "
+        "currently supports only offset_unit 'element'");
+  if (!isPreRealizedIndexedScatterIndexUniqueness(body.getIndexUniqueness()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask indexed scatter-store body "
+        "requires index_uniqueness 'unique' because duplicate-index masked "
+        "scatter policy is unsupported");
+  if (!isPreRealizedComputedMaskMemoryMovementMaskRole(body.getMaskRole()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask indexed scatter-store body "
+        "currently supports only mask_role "
+        "'predicate-mask-produced-by-compare'");
+  if (!isPreRealizedComputedMaskMemoryMovementMaskSource(
+          body.getMaskSource()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask indexed scatter-store body "
+        "currently supports only mask_source "
+        "'compare-produced-mask-same-vl-scope'");
+  if (!isPreRealizedComputedMaskMemoryMovementMaskMemoryForm(
+          body.getMaskMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask indexed scatter-store body "
+        "currently supports only mask_memory_form 'compare-produced-mask'");
+  if (body.getInactiveLanePolicy() != "preserve-output-on-false-lanes")
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask indexed scatter-store body "
+        "requires inactive_lane_policy 'preserve-output-on-false-lanes'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask indexed scatter-store body "
+        "requires SEW32 LMUL m1 data/mask/index config");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask indexed scatter-store body "
+        "requires tail agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getCompareLhs(),
+          "pre-realized RVV computed-mask indexed scatter-store compare lhs "
+          "operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!compareLhs)
+    return compareLhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getCompareRhs(),
+          "pre-realized RVV computed-mask indexed scatter-store compare rhs "
+          "operand",
+          support::RuntimeABIParameterRole::RHSInputBuffer);
+  if (!compareRhs)
+    return compareRhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+      requirePreRealizedRuntimeABIValue(
+          body.getSource(),
+          "pre-realized RVV computed-mask indexed scatter-store source operand",
+          support::RuntimeABIParameterRole::SourceInputBuffer);
+  if (!source)
+    return source.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> index =
+      requirePreRealizedRuntimeABIValue(
+          body.getIndex(),
+          "pre-realized RVV computed-mask indexed scatter-store index operand",
+          support::RuntimeABIParameterRole::IndexInputBuffer);
+  if (!index)
+    return index.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+      requirePreRealizedRuntimeABIValue(
+          body.getDestination(),
+          "pre-realized RVV computed-mask indexed scatter-store destination "
+          "operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!destination)
+    return destination.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(),
+          "pre-realized RVV computed-mask indexed scatter-store runtime n/AVL "
+          "operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
+                  tcrv::rvv::
+                      TypedComputedMaskIndexedScatterPreRealizedBodyOp>(op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected computed-mask indexed "
+                    "scatter-store body must not be mixed with already "
+                    "realized RVV route body op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask indexed scatter-store "
+        "realization requires non-empty selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
 llvm::Error validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
     const VariantLoweringBoundaryRequest &request,
     tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp body) {
@@ -4163,6 +4324,25 @@ llvm::Expected<mlir::Operation *> createRealizedGenericMaskedIndexedLoad(
   return builder.create(state);
 }
 
+void createRealizedGenericMaskedIndexedStore(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value destination,
+    mlir::Value indices, mlir::Value mask, mlir::Value value, mlir::Value vl,
+    std::int64_t indexEEW, llvm::StringRef offsetUnit,
+    llvm::StringRef indexUniqueness) {
+  mlir::OperationState state(loc, "tcrv_rvv.masked_indexed_store");
+  state.addOperands({destination, indices, mask, value, vl});
+  state.addAttribute("index_eew", builder.getI64IntegerAttr(indexEEW));
+  state.addAttribute("offset_unit", builder.getStringAttr(offsetUnit));
+  state.addAttribute("index_uniqueness",
+                     builder.getStringAttr(indexUniqueness));
+  state.addAttribute("memory_form",
+                     builder.getStringAttr("masked-indexed-store"));
+  state.addAttribute(
+      "inactive_lane_policy",
+      builder.getStringAttr("preserve-output-on-false-lanes"));
+  (void)builder.create(state);
+}
+
 void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
                                 mlir::Value out, mlir::Value value,
                                 mlir::Value vl) {
@@ -4536,6 +4716,8 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedComputedMaskStridedLoadPreRealizedBodyOp,
                   tcrv::rvv::
                       TypedComputedMaskIndexedGatherPreRealizedBodyOp,
+                  tcrv::rvv::
+                      TypedComputedMaskIndexedScatterPreRealizedBodyOp,
                   tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
             op))
@@ -5484,6 +5666,61 @@ realizePreRealizedRVVSelectedBody(
                                (*maskedIndexedLoad)->getResult(0),
                                setvl.getVl());
     computedMaskIndexedGatherBody->erase();
+    return withVL;
+  }
+
+  if (auto computedMaskIndexedScatterBody = llvm::dyn_cast<
+          tcrv::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp>(
+          *bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
+                request, computedMaskIndexedScatterBody))
+      return std::move(error);
+
+    mlir::Location loc = computedMaskIndexedScatterBody->getLoc();
+    builder.setInsertionPoint(computedMaskIndexedScatterBody.getOperation());
+
+    std::int64_t sew =
+        static_cast<std::int64_t>(computedMaskIndexedScatterBody.getSew());
+    llvm::StringRef lmul = computedMaskIndexedScatterBody.getLmul();
+    std::int64_t indexEEW = static_cast<std::int64_t>(
+        computedMaskIndexedScatterBody.getIndexEew());
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
+        builder, loc, computedMaskIndexedScatterBody.getN(), sew, lmul,
+        computedMaskIndexedScatterBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires, sew, lmul,
+                             computedMaskIndexedScatterBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto compareLhsLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, computedMaskIndexedScatterBody.getCompareLhs(),
+            setvl.getVl(), sew, lmul));
+    auto compareRhsLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, computedMaskIndexedScatterBody.getCompareRhs(),
+            setvl.getVl(), sew, lmul));
+    auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
+        createRealizedGenericLoad(builder, loc,
+                                  computedMaskIndexedScatterBody.getSource(),
+                                  setvl.getVl(), sew, lmul));
+    auto indexLoad = llvm::cast<tcrv::rvv::IndexLoadOp>(
+        createRealizedGenericIndexLoad(
+            builder, loc, computedMaskIndexedScatterBody.getIndex(),
+            setvl.getVl(), indexEEW, lmul));
+    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(
+            builder, loc, compareLhsLoad.getLoaded(),
+            compareRhsLoad.getLoaded(), setvl.getVl(),
+            computedMaskIndexedScatterBody.getPredicateKind()));
+    createRealizedGenericMaskedIndexedStore(
+        builder, loc, computedMaskIndexedScatterBody.getDestination(),
+        indexLoad.getLoaded(), compare.getMask(), sourceLoad.getLoaded(),
+        setvl.getVl(), indexEEW, computedMaskIndexedScatterBody.getOffsetUnit(),
+        computedMaskIndexedScatterBody.getIndexUniqueness());
+    computedMaskIndexedScatterBody->erase();
     return withVL;
   }
 

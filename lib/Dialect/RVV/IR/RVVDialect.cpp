@@ -373,6 +373,17 @@ bool isAllowedTypedComputedMaskIndexedGatherPreRealizedBodyAttr(
          name == kLMULAttrName || name == kPolicyAttrName;
 }
 
+bool isAllowedTypedComputedMaskIndexedScatterPreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kPredicateKindAttrName ||
+         name == kMemoryFormAttrName || name == kIndexEEWAttrName ||
+         name == kOffsetUnitAttrName || name == kIndexUniquenessAttrName ||
+         name == kMaskRoleAttrName || name == kMaskSourceAttrName ||
+         name == kMaskMemoryFormAttrName ||
+         name == kInactiveLanePolicyAttrName || name == kSEWAttrName ||
+         name == kLMULAttrName || name == kPolicyAttrName;
+}
+
 bool isAllowedTypedSegment2DeinterleaveMemoryPreRealizedBodyAttr(
     llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
@@ -427,6 +438,12 @@ bool isAllowedIndexedLoadAttr(llvm::StringRef name) {
 bool isAllowedIndexedStoreAttr(llvm::StringRef name) {
   return name == kIndexEEWAttrName || name == kOffsetUnitAttrName ||
          name == kIndexUniquenessAttrName;
+}
+
+bool isAllowedMaskedIndexedStoreAttr(llvm::StringRef name) {
+  return name == kIndexEEWAttrName || name == kOffsetUnitAttrName ||
+         name == kIndexUniquenessAttrName || name == kMemoryFormAttrName ||
+         name == kInactiveLanePolicyAttrName;
 }
 
 bool isAllowedSegment2LoadAttr(llvm::StringRef name) {
@@ -960,6 +977,11 @@ bool isSupportedTypedComputedMaskIndexedGatherPreRealizedBodyOpKind(
   return opKind == "computed_masked_indexed_gather_load_unit_store";
 }
 
+bool isSupportedTypedComputedMaskIndexedScatterPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "computed_masked_indexed_scatter_store_unit_load";
+}
+
 bool isSupportedTypedComputedMaskStridedStorePreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-unit-load-strided-store";
@@ -973,6 +995,11 @@ bool isSupportedTypedComputedMaskStridedLoadPreRealizedMemoryForm(
 bool isSupportedTypedComputedMaskIndexedGatherPreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-indexed-gather-load-unit-store";
+}
+
+bool isSupportedTypedComputedMaskIndexedScatterPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "computed-mask-unit-load-indexed-scatter-store";
 }
 
 bool isSupportedTypedComputedMaskStridedStoreStrideUnit(
@@ -2151,6 +2178,14 @@ llvm::StringRef IndexedStoreOp::getTCRVEmitCLowerableSourceOpName() {
 }
 
 llvm::StringRef IndexedStoreOp::getTCRVEmitCLowerableSourceRole() {
+  return "store";
+}
+
+llvm::StringRef MaskedIndexedStoreOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef MaskedIndexedStoreOp::getTCRVEmitCLowerableSourceRole() {
   return "store";
 }
 
@@ -5081,6 +5116,130 @@ TypedComputedMaskIndexedGatherPreRealizedBodyOp::verify() {
 }
 
 mlir::LogicalResult
+TypedComputedMaskIndexedScatterPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected computed-mask indexed scatter-store "
+                "bodies carry only typed RVV compare/source/index/"
+                "destination, mask, memory-form, inactive-lane policy, "
+                "unique-index policy, config, policy, and runtime SSA facts "
+                "and must be realized by the RVV plugin before route "
+                "construction";
+
+    if (!isAllowedTypedComputedMaskIndexedScatterPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kPredicateKindAttrName << "', '"
+             << kMemoryFormAttrName << "', '" << kIndexEEWAttrName << "', '"
+             << kOffsetUnitAttrName << "', '" << kIndexUniquenessAttrName
+             << "', '" << kMaskRoleAttrName << "', '" << kMaskSourceAttrName
+             << "', '" << kMaskMemoryFormAttrName << "', '"
+             << kInactiveLanePolicyAttrName << "', '" << kSEWAttrName
+             << "', '" << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 6 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires compare lhs, compare rhs, source, index, "
+              "destination, runtime n/AVL operands and no results";
+
+  if (!isSupportedTypedComputedMaskIndexedScatterPreRealizedBodyOpKind(
+          getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"computed_masked_indexed_scatter_store_unit_load\" for the "
+              "bounded selected-body computed-mask indexed scatter-store hook";
+  if (!isSupportedTypedComputedMaskMemoryPreRealizedPredicateKind(
+          getPredicateKind()))
+    return emitOpError()
+           << "currently supports only predicate_kind \"slt\" for the bounded "
+              "selected-body computed-mask indexed scatter-store hook";
+  if (!isSupportedTypedComputedMaskIndexedScatterPreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"computed-mask-unit-load-indexed-scatter-store\" for the "
+              "bounded selected-body computed-mask indexed scatter-store hook";
+  if (!isSupportedTypedIndexedGatherIndexEEW(
+          static_cast<std::int64_t>(getIndexEew())))
+    return emitOpError()
+           << "currently supports only index_eew 32 for the bounded "
+              "selected-body computed-mask indexed scatter-store hook";
+  if (!isSupportedTypedIndexedGatherOffsetUnit(getOffsetUnit()))
+    return emitOpError()
+           << "currently supports only offset_unit \"element\" for the "
+              "bounded selected-body computed-mask indexed scatter-store hook";
+  if (!isSupportedTypedIndexedScatterIndexUniqueness(getIndexUniqueness()))
+    return emitOpError()
+           << "requires index_uniqueness \"unique\" because duplicate-index "
+              "masked scatter policy is unsupported for the bounded "
+              "selected-body computed-mask indexed scatter-store hook";
+  if (!isSupportedTypedComputedMaskMemoryRole(getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-produced-by-compare\" for the bounded "
+              "selected-body computed-mask indexed scatter-store hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskSource(getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"compare-produced-mask-same-vl-scope\" for the bounded "
+              "selected-body computed-mask indexed scatter-store hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskMemoryForm(getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"compare-produced-mask\" for the bounded selected-body "
+              "computed-mask indexed scatter-store hook";
+  if (getInactiveLanePolicy() != "preserve-output-on-false-lanes")
+    return emitOpError()
+           << "requires inactive_lane_policy "
+              "\"preserve-output-on-false-lanes\" because compare-false and "
+              "masked-off lanes must not write the indexed destination buffer";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized computed-mask indexed "
+              "scatter-store data config to be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body computed-mask indexed scatter-store hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareLhs(), "compare lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareRhs(), "compare rhs",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSource(), "source",
+          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getIndex(), "index",
+          {tianchenrv::support::RuntimeABIParameterRole::IndexInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getDestination(), "destination",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult
 TypedSegment2DeinterleaveMemoryPreRealizedBodyOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -5745,6 +5904,99 @@ mlir::LogicalResult IndexedStoreOp::verify() {
           verifyGenericIndexVectorTypeForWithVL(op, getIndices(), "indices")))
     return mlir::failure();
   return verifyGenericVectorTypeForWithVL(op, getValue(), "stored value");
+}
+
+mlir::LogicalResult MaskedIndexedStoreOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.masked_indexed_store",
+                                         isAllowedMaskedIndexedStoreAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires one explicit destination buffer ABI operand, one "
+              "generic RVV index vector operand, one generic RVV mask "
+              "predicate, one generic RVV data vector payload, one "
+              "!tcrv_rvv.vl operand, and no results";
+  if (!isSupportedTypedIndexedGatherIndexEEW(
+          static_cast<std::int64_t>(getIndexEew())))
+    return emitOpError()
+           << "currently supports only index_eew 32 for "
+              "tcrv_rvv.masked_indexed_store";
+  if (!isSupportedTypedIndexedGatherOffsetUnit(getOffsetUnit()))
+    return emitOpError()
+           << "currently supports only offset_unit \"element\" for "
+              "tcrv_rvv.masked_indexed_store";
+  if (!isSupportedTypedIndexedScatterIndexUniqueness(getIndexUniqueness()))
+    return emitOpError()
+           << "requires index_uniqueness \"unique\" because duplicate-index "
+              "masked scatter policy is unsupported for "
+              "tcrv_rvv.masked_indexed_store";
+  if (getMemoryForm() != "masked-indexed-store")
+    return emitOpError()
+           << "currently supports only memory_form \"masked-indexed-store\" "
+              "for the bounded Stage 2 computed-mask indexed scatter-store "
+              "route";
+  if (getInactiveLanePolicy() != "preserve-output-on-false-lanes")
+    return emitOpError()
+           << "requires inactive_lane_policy "
+              "\"preserve-output-on-false-lanes\" because false mask lanes "
+              "must not write the indexed destination buffer";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getDestination(), "masked indexed store destination buffer",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto indexLoad = getIndices().getDefiningOp<IndexLoadOp>();
+  if (!indexLoad)
+    return emitOpError()
+           << "requires indices operand to be produced by "
+              "tcrv_rvv.index_load inside the selected RVV typed body";
+  if (indexLoad.getVl() != getVl())
+    return emitOpError()
+           << "requires index-producing tcrv_rvv.index_load to consume the "
+              "same !tcrv_rvv.vl token as tcrv_rvv.masked_indexed_store";
+  if (indexLoad->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires index-producing tcrv_rvv.index_load to be in the "
+              "same tcrv_rvv.with_vl body as tcrv_rvv.masked_indexed_store";
+  if (static_cast<std::int64_t>(indexLoad.getIndexEew()) !=
+      static_cast<std::int64_t>(getIndexEew()))
+    return emitOpError()
+           << "requires index_eew to match the producing tcrv_rvv.index_load";
+
+  auto compare = getMask().getDefiningOp<CompareOp>();
+  if (!compare)
+    return emitOpError()
+           << "requires mask operand to be produced by tcrv_rvv.compare "
+              "inside the selected RVV typed body";
+  if (compare.getVl() != getVl())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.compare to consume the same "
+              "!tcrv_rvv.vl token as tcrv_rvv.masked_indexed_store";
+  if (compare->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.compare to be in the same "
+              "tcrv_rvv.with_vl body as tcrv_rvv.masked_indexed_store";
+
+  if (mlir::failed(
+          verifyGenericIndexVectorTypeForWithVL(op, getIndices(), "indices")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getValue(),
+                                                    "payload value")))
+    return mlir::failure();
+  return verifyGenericMaskMatchesVector(op, getMask(), getValue(), "mask",
+                                        "payload value");
 }
 
 mlir::LogicalResult Segment2LoadOp::verify() {

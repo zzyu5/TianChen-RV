@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-13.md`
-- **Total Sessions**: 156
+- **Total Sessions**: 157
 - **Last Active**: 2026-05-22
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-13.md` | ~106 | Active |
+| `journal-13.md` | ~167 | Active |
 | `journal-12.md` | ~2095 | Archived |
 | `journal-11.md` | ~1979 | Archived |
 | `journal-10.md` | ~1968 | Archived |
@@ -41,6 +41,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 157 | 2026-05-22 | Stage2 RVV closure-gated indexed masked scatter-store movement | - | `main` |
 | 156 | 2026-05-22 | Stage2 RVV closure-gated indexed masked gather-load movement | - | `main` |
 | 155 | 2026-05-22 | Stage2 RVV closure-gated strided masked load movement | - | `main` |
 | 154 | 2026-05-22 | Stage2 RVV signed minmax reduction coverage | - | `main` |

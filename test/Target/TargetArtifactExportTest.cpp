@@ -498,6 +498,12 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     return "tcrv_rvv.masked_load";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
     return "tcrv_rvv.masked_move";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
+    return "tcrv_rvv.masked_strided_load";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+    return "tcrv_rvv.masked_indexed_load";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+    return "tcrv_rvv.masked_indexed_store";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
     return "tcrv_rvv.move";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
@@ -558,6 +564,12 @@ llvm::StringRef getRVVTestBinaryKind(
     return "computed_masked_unit_load_store";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
     return "computed_masked_strided_store";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
+    return "computed_masked_strided_load_unit_store";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+    return "computed_masked_indexed_gather_load_unit_store";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+    return "computed_masked_indexed_scatter_store_unit_load";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
     return "segment2_deinterleave_unit_store";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:

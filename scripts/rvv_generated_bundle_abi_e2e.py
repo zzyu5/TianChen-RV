@@ -73,6 +73,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "computed_masked_strided_store",
     "computed_masked_strided_load_unit_store",
     "computed_masked_indexed_gather_load_unit_store",
+    "computed_masked_indexed_scatter_store_unit_load",
     "segment2_deinterleave_unit_store",
     "segment2_interleave_unit_load",
     *SCALAR_BROADCAST_OP_KINDS,
@@ -360,6 +361,19 @@ COMPUTED_MASK_INDEXED_GATHER_ROUTE_OPERAND_BINDING_OPERANDS = (
     "dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr-mirror;"
     "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr-mirror"
 )
+COMPUTED_MASK_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:computed_masked_indexed_scatter_store_unit_load.v1"
+)
+COMPUTED_MASK_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:computed_masked_indexed_scatter_store_unit_load.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;"
+    "src=source-input-buffer:src:abi|src-load|mistore-src-call;"
+    "index=index-input-buffer:index:abi|materialized-index-load-base|"
+    "index-offset-scale|index-source-mirror|hdr-mirror;"
+    "dst=output-buffer:dst:abi|mistore-base|hdr-mirror;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr-mirror"
+)
 BINARY_ROUTE_OPERAND_BINDING_OPERANDS = (
     "{plan};"
     "lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;"
@@ -559,6 +573,9 @@ COMPUTED_MASK_STRIDED_LOAD_RUNTIME_ABI_ORDER = (
 COMPUTED_MASK_INDEXED_GATHER_RUNTIME_ABI_ORDER = (
     "cmp_lhs,cmp_rhs,src,index,dst,n"
 )
+COMPUTED_MASK_INDEXED_SCATTER_RUNTIME_ABI_ORDER = (
+    "cmp_lhs,cmp_rhs,src,index,dst,n"
+)
 COMPUTED_MASK_STRIDED_STORE_MEMORY_LAYOUT = (
     "unit-stride-compare-source-byte-strided-masked-destination-runtime-abi"
 )
@@ -567,6 +584,9 @@ COMPUTED_MASK_STRIDED_LOAD_MEMORY_LAYOUT = (
 )
 COMPUTED_MASK_INDEXED_GATHER_MEMORY_LAYOUT = (
     "unit-stride-compare-indexed-masked-source-old-destination-runtime-abi"
+)
+COMPUTED_MASK_INDEXED_SCATTER_MEMORY_LAYOUT = (
+    "unit-stride-compare-source-indexed-masked-destination-runtime-abi"
 )
 COMPUTED_MASK_STRIDED_LOAD_SOURCE_STRIDE_SOURCE = (
     "runtime_abi:src_stride_bytes"
@@ -577,6 +597,15 @@ COMPUTED_MASK_INDEXED_GATHER_INDEX_EEW = "32"
 COMPUTED_MASK_INDEXED_GATHER_OFFSET_UNIT = "element"
 COMPUTED_MASK_INDEXED_GATHER_SOURCE_MEMORY_FORM = "masked-indexed-load"
 COMPUTED_MASK_INDEXED_GATHER_DATA_MEMORY_FORM = "masked-indexed-load"
+COMPUTED_MASK_INDEXED_SCATTER_INDEX_SOURCE = "runtime_abi:index"
+COMPUTED_MASK_INDEXED_SCATTER_INDEX_EEW = "32"
+COMPUTED_MASK_INDEXED_SCATTER_OFFSET_UNIT = "element"
+COMPUTED_MASK_INDEXED_SCATTER_INDEX_UNIQUENESS = "unique"
+COMPUTED_MASK_INDEXED_SCATTER_SOURCE_MEMORY_FORM = "unit-stride-load"
+COMPUTED_MASK_INDEXED_SCATTER_DESTINATION_MEMORY_FORM = "masked-indexed-store"
+COMPUTED_MASK_INDEXED_SCATTER_INDEXED_DESTINATION_MEMORY_FORM = (
+    "masked-indexed-store"
+)
 COMPUTED_MASK_STRIDED_STORE_INACTIVE_LANE_CONTRACT = (
     "masked-strided-store-false-lanes-preserve-output-buffer"
 )
@@ -584,6 +613,12 @@ COMPUTED_MASK_STRIDED_STORE_PASSTHROUGH_LAYOUT = (
     "masked-strided-store-has-no-passthrough-load"
 )
 COMPUTED_MASK_STRIDED_STORE_DESTINATION_MEMORY_FORM = "masked-strided-store"
+COMPUTED_MASK_INDEXED_SCATTER_INACTIVE_LANE_CONTRACT = (
+    "masked-indexed-store-false-lanes-preserve-output-buffer"
+)
+COMPUTED_MASK_INDEXED_SCATTER_PASSTHROUGH_LAYOUT = (
+    "masked-indexed-store-has-no-passthrough-load"
+)
 COMPUTED_MASK_MEMORY_MASK_ROLE = "predicate-mask-produced-by-compare"
 COMPUTED_MASK_MEMORY_MASK_SOURCE = "compare-produced-mask-same-vl-scope"
 COMPUTED_MASK_MEMORY_MASK_FORM = "compare-produced-mask"
@@ -784,6 +819,12 @@ class OpExpectation:
                 "const int32_t *cmp_rhs, const int32_t *src, "
                 "const uint32_t *index, int32_t *dst, size_t n);"
             )
+        if self.is_computed_masked_indexed_scatter_store_unit_load:
+            return (
+                f"void {self.function_name}(const int32_t *cmp_lhs, "
+                "const int32_t *cmp_rhs, const int32_t *src, "
+                "const uint32_t *index, int32_t *dst, size_t n);"
+            )
         if self.is_computed_masked_widening_dot_reduce_add:
             return (
                 f"void {self.function_name}(const int32_t *cmp_lhs, "
@@ -883,6 +924,8 @@ class OpExpectation:
             return EXPECTED_COMPUTED_MASK_STRIDED_LOAD_RUNTIME_PARAMETERS
         if self.is_computed_masked_indexed_gather_load_unit_store:
             return EXPECTED_COMPUTED_MASK_INDEXED_GATHER_RUNTIME_PARAMETERS
+        if self.is_computed_masked_indexed_scatter_store_unit_load:
+            return EXPECTED_COMPUTED_MASK_INDEXED_SCATTER_RUNTIME_PARAMETERS
         if self.is_computed_masked_widening_dot_reduce_add:
             return EXPECTED_COMPUTED_MASK_WIDENING_DOT_RUNTIME_PARAMETERS
         if self.is_computed_masked_strided_input_widening_dot_reduce_add:
@@ -945,6 +988,8 @@ class OpExpectation:
             return COMPUTED_MASK_STRIDED_LOAD_RUNTIME_ABI_ORDER
         if self.is_computed_masked_indexed_gather_load_unit_store:
             return COMPUTED_MASK_INDEXED_GATHER_RUNTIME_ABI_ORDER
+        if self.is_computed_masked_indexed_scatter_store_unit_load:
+            return COMPUTED_MASK_INDEXED_SCATTER_RUNTIME_ABI_ORDER
         if self.is_segment2_deinterleave_unit_store:
             return SEGMENT2_RUNTIME_ABI_ORDER
         if self.is_segment2_interleave_unit_load:
@@ -1081,6 +1126,10 @@ class OpExpectation:
     @property
     def is_computed_masked_indexed_gather_load_unit_store(self) -> bool:
         return self.kind == "computed_masked_indexed_gather_load_unit_store"
+
+    @property
+    def is_computed_masked_indexed_scatter_store_unit_load(self) -> bool:
+        return self.kind == "computed_masked_indexed_scatter_store_unit_load"
 
     @property
     def is_segment2_deinterleave_unit_store(self) -> bool:
@@ -1621,6 +1670,34 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         ),
         compare_predicate_kind="slt",
     ),
+    "computed_masked_indexed_scatter_store_unit_load": OpExpectation(
+        kind="computed_masked_indexed_scatter_store_unit_load",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-computed-masked-indexed-scatter-store.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_cmidx_store",
+        external_abi_name="rvv-generic-computed-masked-indexed-scatter-store-unit-load-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_cmidx_store_kernel_explicit_selected_body_rvv_cmidx_store",
+        emitc_route="rvv-generic-computed-masked-indexed-scatter-store-unit-load-emitc-route",
+        typed_compute_op="tcrv_rvv.masked_indexed_store",
+        memory_form="computed-mask-unit-load-indexed-scatter-store",
+        lhs_initializer=(
+            "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
+            "? (int32_t)(10 + (int32_t)index) "
+            ": (int32_t)(100 + (int32_t)index))"
+        ),
+        rhs_initializer=(
+            "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
+            "? (int32_t)(50 + (int32_t)index) "
+            ": (int32_t)(20 + (int32_t)index))"
+        ),
+        source_initializer="(int32_t)(5100 + (int32_t)(index * 47))",
+        out_initializer="(int32_t)(-15000 - (int32_t)(index * 43))",
+        expected_expression=(
+            "(cmp_lhs[index] < cmp_rhs[index] ? src[index] : old_dst[indices[index]])"
+        ),
+        compare_predicate_kind="slt",
+    ),
     "indexed_gather_unit_store": OpExpectation(
         kind="indexed_gather_unit_store",
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-indexed-gather-unit-store.mlir"),
@@ -1994,6 +2071,15 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_cmidx_load",
         function_name="tcrv_emitc_pre_realized_body_cmidx_load_kernel_pre_realized_body_rvv_cmidx_load",
+    ),
+    "computed_masked_indexed_scatter_store_unit_load": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "computed_masked_indexed_scatter_store_unit_load"
+        ],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-indexed-scatter-store.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_cmidx_store",
+        function_name="tcrv_emitc_pre_realized_body_cmidx_store_kernel_pre_realized_body_rvv_cmidx_store",
     ),
     "segment2_deinterleave_unit_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["strided_load_unit_store"],
@@ -2601,6 +2687,19 @@ EXPECTED_COMPUTED_MASK_STRIDED_LOAD_RUNTIME_PARAMETERS = (
     },
 )
 EXPECTED_COMPUTED_MASK_INDEXED_GATHER_RUNTIME_PARAMETERS = (
+    EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[0],
+    EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[1],
+    EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[2],
+    {
+        "c_name": "index",
+        "c_type": "const uint32_t *",
+        "role": "index-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[3],
+    EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[4],
+)
+EXPECTED_COMPUTED_MASK_INDEXED_SCATTER_RUNTIME_PARAMETERS = (
     EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[0],
     EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[1],
     EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[2],
@@ -3752,6 +3851,54 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.route_operand_binding_operands": (
                     COMPUTED_MASK_INDEXED_GATHER_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+            }
+        )
+    if expectation.is_computed_masked_indexed_scatter_store_unit_load:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.compare_predicate_kind": (
+                    expectation.compare_predicate_kind
+                ),
+                "tcrv_rvv.masked_memory_layout": (
+                    COMPUTED_MASK_INDEXED_SCATTER_MEMORY_LAYOUT
+                ),
+                "tcrv_rvv.indexed_memory_layout": (
+                    COMPUTED_MASK_INDEXED_SCATTER_MEMORY_LAYOUT
+                ),
+                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "tcrv_rvv.inactive_lane_contract": (
+                    COMPUTED_MASK_INDEXED_SCATTER_INACTIVE_LANE_CONTRACT
+                ),
+                "tcrv_rvv.masked_passthrough_layout": (
+                    COMPUTED_MASK_INDEXED_SCATTER_PASSTHROUGH_LAYOUT
+                ),
+                "tcrv_rvv.index_source": (
+                    COMPUTED_MASK_INDEXED_SCATTER_INDEX_SOURCE
+                ),
+                "tcrv_rvv.index_eew": COMPUTED_MASK_INDEXED_SCATTER_INDEX_EEW,
+                "tcrv_rvv.offset_unit": (
+                    COMPUTED_MASK_INDEXED_SCATTER_OFFSET_UNIT
+                ),
+                "tcrv_rvv.index_uniqueness": (
+                    COMPUTED_MASK_INDEXED_SCATTER_INDEX_UNIQUENESS
+                ),
+                "tcrv_rvv.source_memory_form": (
+                    COMPUTED_MASK_INDEXED_SCATTER_SOURCE_MEMORY_FORM
+                ),
+                "tcrv_rvv.destination_memory_form": (
+                    COMPUTED_MASK_INDEXED_SCATTER_DESTINATION_MEMORY_FORM
+                ),
+                "tcrv_rvv.indexed_destination_memory_form": (
+                    COMPUTED_MASK_INDEXED_SCATTER_INDEXED_DESTINATION_MEMORY_FORM
+                ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    COMPUTED_MASK_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    COMPUTED_MASK_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
         )
@@ -5128,6 +5275,92 @@ def verify_materialized_selected_body(
             "tcrv_rvv.binary",
             "materialized selected-body MLIR computed-mask indexed-gather",
         )
+    if expectation.is_computed_masked_indexed_scatter_store_unit_load:
+        require_contains(
+            text,
+            "tcrv_rvv.compare",
+            "materialized selected-body MLIR computed-mask indexed-scatter compare",
+        )
+        require_contains(
+            text,
+            'kind = "slt"',
+            "materialized selected-body MLIR computed-mask indexed-scatter predicate",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.index_load",
+            "materialized selected-body MLIR computed-mask indexed-scatter index load",
+        )
+        require_contains(
+            text,
+            'role = "index-input-buffer"',
+            "materialized selected-body MLIR computed-mask indexed-scatter index ABI role",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.masked_indexed_store",
+            "materialized selected-body MLIR computed-mask masked indexed-store op",
+        )
+        require_contains(
+            text,
+            'memory_form = "masked-indexed-store"',
+            "materialized selected-body MLIR computed-mask indexed destination memory form",
+        )
+        require_contains(
+            text,
+            'offset_unit = "element"',
+            "materialized selected-body MLIR computed-mask indexed scatter offset unit",
+        )
+        require_contains(
+            text,
+            'index_eew = 32 : i64',
+            "materialized selected-body MLIR computed-mask indexed scatter EEW",
+        )
+        require_contains(
+            text,
+            'index_uniqueness = "unique"',
+            "materialized selected-body MLIR computed-mask indexed scatter uniqueness",
+        )
+        require_contains(
+            text,
+            'inactive_lane_policy = "preserve-output-on-false-lanes"',
+            "materialized selected-body MLIR computed-mask indexed scatter inactive lane policy",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.load",
+            "materialized selected-body MLIR computed-mask indexed scatter unit source load",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_indexed_load",
+            "materialized selected-body MLIR computed-mask indexed-scatter",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.indexed_store",
+            "materialized selected-body MLIR computed-mask indexed-scatter",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.strided_store",
+            "materialized selected-body MLIR computed-mask indexed-scatter",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.mask_load",
+            "materialized selected-body MLIR computed-mask indexed-scatter",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_move",
+            "materialized selected-body MLIR computed-mask indexed-scatter",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.binary",
+            "materialized selected-body MLIR computed-mask indexed-scatter",
+        )
     if expectation.is_segment2_deinterleave_unit_store:
         require_contains(
             text,
@@ -6210,6 +6443,240 @@ static int run_case(size_t n) {{
   free(dst);
   free(old_dst);
   printf("{expectation.kind} case n=%zu ok computed_mask indexed_gather active_lanes=%zu inactive_lanes=%zu inactive_preserved_lanes=%zu noncontiguous_index_lanes=%zu source_preserved tail_preserved\\n",
+         n, active_lanes, inactive_lanes, inactive_preserved_lanes,
+         noncontiguous_index_lanes);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
+    if expectation.is_computed_masked_indexed_scatter_store_unit_load:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static uint32_t make_index(size_t logical_index, size_t n) {{
+  if (n == 0)
+    return 0;
+  size_t mixed = (n - 1) - (logical_index % n);
+  if (n > 3)
+    mixed = (mixed + 3) % n;
+  return (uint32_t)mixed;
+}}
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n == 0 ? 1 : n;
+  size_t src_alloc_n = alloc_n + 8;
+  size_t dst_alloc_n = alloc_n + 8;
+  int32_t *cmp_lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *cmp_rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *src = (int32_t *)malloc(sizeof(int32_t) * src_alloc_n);
+  int32_t *src_before = (int32_t *)malloc(sizeof(int32_t) * src_alloc_n);
+  uint32_t *indices = (uint32_t *)malloc(sizeof(uint32_t) * alloc_n);
+  int32_t *dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
+  int32_t *old_dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
+  if (!cmp_lhs || !cmp_rhs || !src || !src_before || !indices || !dst || !old_dst) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(cmp_lhs);
+    free(cmp_rhs);
+    free(src);
+    free(src_before);
+    free(indices);
+    free(dst);
+    free(old_dst);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    cmp_lhs[index] = {expectation.lhs_initializer};
+    cmp_rhs[index] = {expectation.rhs_initializer};
+    src[index] = {expectation.source_initializer};
+    src_before[index] = src[index];
+    indices[index] = make_index(index, alloc_n);
+  }}
+  for (size_t index = alloc_n; index < src_alloc_n; ++index) {{
+    src[index] = {expectation.source_initializer};
+    src_before[index] = src[index];
+  }}
+  for (size_t index = 0; index < dst_alloc_n; ++index) {{
+    dst[index] = {expectation.out_initializer};
+    old_dst[index] = dst[index];
+  }}
+
+  for (size_t index = 0; index < n; ++index) {{
+    if ((size_t)indices[index] >= n) {{
+      fprintf(stderr,
+              "{expectation.kind} generated out-of-range index n=%zu index=%zu scatter_index=%u\\n",
+              n, index, indices[index]);
+      free(cmp_lhs);
+      free(cmp_rhs);
+      free(src);
+      free(src_before);
+      free(indices);
+      free(dst);
+      free(old_dst);
+      return 12;
+    }}
+    for (size_t prior = 0; prior < index; ++prior) {{
+      if (indices[prior] == indices[index]) {{
+        fprintf(stderr,
+                "{expectation.kind} duplicate scatter index n=%zu prior=%zu index=%zu scatter_index=%u\\n",
+                n, prior, index, indices[index]);
+        free(cmp_lhs);
+        free(cmp_rhs);
+        free(src);
+        free(src_before);
+        free(indices);
+        free(dst);
+        free(old_dst);
+        return 13;
+      }}
+    }}
+  }}
+
+  {expectation.function_name}(cmp_lhs, cmp_rhs, src, indices, dst, n);
+
+  size_t active_lanes = 0;
+  size_t inactive_lanes = 0;
+  size_t inactive_preserved_lanes = 0;
+  size_t noncontiguous_index_lanes = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    size_t dst_index = (size_t)indices[index];
+    if (dst_index != index)
+      ++noncontiguous_index_lanes;
+    int active = cmp_lhs[index] < cmp_rhs[index];
+    if (active)
+      ++active_lanes;
+    else
+      ++inactive_lanes;
+    int32_t expected = {expectation.expected_expression};
+    if (dst[dst_index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu scatter_index=%u got=%d expected=%d cmp_lhs=%d cmp_rhs=%d src=%d old_dst_at_scatter=%d\\n",
+              n, index, indices[index], dst[dst_index], expected,
+              cmp_lhs[index], cmp_rhs[index], src[index], old_dst[dst_index]);
+      free(cmp_lhs);
+      free(cmp_rhs);
+      free(src);
+      free(src_before);
+      free(indices);
+      free(dst);
+      free(old_dst);
+      return 14;
+    }}
+    if (!active) {{
+      if (dst[dst_index] != old_dst[dst_index]) {{
+        fprintf(stderr,
+                "{expectation.kind} inactive lane did not preserve destination n=%zu index=%zu scatter_index=%u got=%d old_dst=%d\\n",
+                n, index, indices[index], dst[dst_index], old_dst[dst_index]);
+        free(cmp_lhs);
+        free(cmp_rhs);
+        free(src);
+        free(src_before);
+        free(indices);
+        free(dst);
+        free(old_dst);
+        return 15;
+      }}
+      ++inactive_preserved_lanes;
+    }}
+  }}
+
+  for (size_t index = n; index < dst_alloc_n; ++index) {{
+    if (dst[index] != old_dst[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail destination n=%zu index=%zu got=%d old_dst=%d\\n",
+              n, index, dst[index], old_dst[index]);
+      free(cmp_lhs);
+      free(cmp_rhs);
+      free(src);
+      free(src_before);
+      free(indices);
+      free(dst);
+      free(old_dst);
+      return 16;
+    }}
+  }}
+  for (size_t index = 0; index < src_alloc_n; ++index) {{
+    if (src[index] != src_before[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} source buffer mutated n=%zu index=%zu got=%d before=%d\\n",
+              n, index, src[index], src_before[index]);
+      free(cmp_lhs);
+      free(cmp_rhs);
+      free(src);
+      free(src_before);
+      free(indices);
+      free(dst);
+      free(old_dst);
+      return 17;
+    }}
+  }}
+
+  if (n > 1 && (active_lanes == 0 || inactive_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} compare mask coverage missing n=%zu active_lanes=%zu inactive_lanes=%zu\\n",
+            n, active_lanes, inactive_lanes);
+    free(cmp_lhs);
+    free(cmp_rhs);
+    free(src);
+    free(src_before);
+    free(indices);
+    free(dst);
+    free(old_dst);
+    return 18;
+  }}
+  if (n > 3 && noncontiguous_index_lanes == 0) {{
+    fprintf(stderr,
+            "{expectation.kind} vacuous indexed scatter check failed n=%zu first_indices=[%u,%u,%u]\\n",
+            n, indices[0], indices[1], indices[2]);
+    free(cmp_lhs);
+    free(cmp_rhs);
+    free(src);
+    free(src_before);
+    free(indices);
+    free(dst);
+    free(old_dst);
+    return 19;
+  }}
+  if (inactive_lanes != inactive_preserved_lanes) {{
+    fprintf(stderr,
+            "{expectation.kind} inactive preservation coverage mismatch n=%zu inactive_lanes=%zu preserved_lanes=%zu\\n",
+            n, inactive_lanes, inactive_preserved_lanes);
+    free(cmp_lhs);
+    free(cmp_rhs);
+    free(src);
+    free(src_before);
+    free(indices);
+    free(dst);
+    free(old_dst);
+    return 20;
+  }}
+
+  free(cmp_lhs);
+  free(cmp_rhs);
+  free(src);
+  free(src_before);
+  free(indices);
+  free(dst);
+  free(old_dst);
+  printf("{expectation.kind} case n=%zu ok computed_mask indexed_scatter active_lanes=%zu inactive_lanes=%zu inactive_preserved_lanes=%zu noncontiguous_index_lanes=%zu source_preserved tail_preserved\\n",
          n, active_lanes, inactive_lanes, inactive_preserved_lanes,
          noncontiguous_index_lanes);
   return 0;
@@ -9236,6 +9703,21 @@ def run_one_op_e2e(
                 "permuted indices while source buffers and destination tail "
                 "slots preserve sentinels"
             )
+        if expectation.is_computed_masked_indexed_scatter_store_unit_load:
+            evidence["harness"]["mask_coverage_contract"] = (
+                "multi-lane computed_masked_indexed_scatter_store_unit_load "
+                "cases require compare-produced active and inactive mask lanes"
+            )
+            evidence["harness"]["inactive_lane_contract"] = (
+                "compare-false indexed destination lanes must preserve old "
+                "destination values"
+            )
+            evidence["harness"]["indexed_scatter_contract"] = (
+                "active lanes store source[i] to destination[index[i]] with "
+                "unique noncontiguous permuted indices while inactive indexed "
+                "lanes, source buffers, and destination tail slots preserve "
+                "sentinels"
+            )
         if expectation.is_computed_mask_standalone_reduce:
             evidence["harness"]["mask_coverage_contract"] = (
                 f"multi-lane {expectation.kind} cases require "
@@ -9690,6 +10172,18 @@ def run_self_test() -> int:
                     "self-test harness generation lost computed-mask indexed "
                     "gather mask, passthrough, or index coverage"
                 )
+            if expectation.is_computed_masked_indexed_scatter_store_unit_load and (
+                "computed_mask indexed_scatter" not in harness
+                or "dst[dst_index]" not in harness
+                or "src[index]" not in harness
+                or "inactive lane did not preserve destination" not in harness
+                or "source buffer mutated" not in harness
+                or "noncontiguous_index_lanes" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost computed-mask indexed "
+                    "scatter mask, no-write, or index coverage"
+                )
             if expectation.is_computed_mask_standalone_reduce and (
                 "active_lanes" not in harness
                 or "inactive_lanes" not in harness
@@ -9926,6 +10420,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "computed_masked_strided_store/"
             "computed_masked_strided_load_unit_store/"
             "computed_masked_indexed_gather_load_unit_store/"
+            "computed_masked_indexed_scatter_store_unit_load/"
             "segment2_deinterleave_unit_store/"
             "segment2_interleave_unit_load/"
             "lmul_m2_add/widen_i32_to_i64/widen_i16_to_i32/"

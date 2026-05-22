@@ -122,3 +122,46 @@ Final round commit is created after task archive in the same Codex turn.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 157: Stage2 RVV closure-gated indexed masked scatter-store movement
+
+**Date**: 2026-05-22
+**Task**: Stage2 RVV closure-gated indexed masked scatter-store movement
+**Branch**: `main`
+
+### Summary
+
+Added closure-gated computed-mask indexed scatter-store RVV route support with explicit/pre-realized fixtures, generated-bundle dry-runs, and real ssh rvv evidence.
+
+### Main Changes
+
+- Added the bounded `computed_masked_indexed_scatter_store_unit_load` route family on typed RVV body facts, including `tcrv_rvv.masked_indexed_store` and `tcrv_rvv.typed_computed_mask_indexed_scatter_pre_realized_body`.
+- Rewired RVV config ABI ordering, selected-body realization, construction protocol metadata, route planning, route provider materialization, closure-gated operand binding, target artifact mirrors, and generated-bundle ABI/runtime harness support for indexed masked scatter-store movement.
+- The route carries compare lhs/rhs, source payload, index vector, destination memory, runtime n/AVL, SEW/LMUL/policy, unique index policy, inactive-lane no-write policy, and tail preservation through the RVV dialect/plugin-owned path.
+- Added explicit and pre-realized target fixtures plus dialect dataflow/negative coverage; updated focused conversion negative allowlists for the new generic RVV op surface.
+- Self-repair performed: excluded indexed scatter from the computed-mask masked_load provider branch, added compare predicate metadata for target artifact validation, and repaired conversion FileCheck allowlists after the new op surface changed diagnostics.
+- Checks passed: manual FileCheck for explicit/pre-realized PLAN/REALIZED/HEADER fixtures and dialect negative verifier coverage; `cmake --build build -j2`; construction/RVV extension/target artifact C++ tests; `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`; generated-bundle self-test; explicit and pre-realized dry-runs for counts `7,16,23`; real `ssh rvv` explicit and pre-realized PASS for counts `7,16,23`; `cmake --build build --target check-tianchenrv -j2` with `308/308` tests; `git diff --check`.
+- Runtime evidence proved active indexed stores, mixed true/false mask behavior, inactive-lane no-write preservation, unrelated/tail sentinel preservation, runtime n/AVL variation, and noncontiguous/permuted unique index behavior.
+- Authority scan found no new positive legacy/source/descriptor/common-export route authority; staged hits are negative-boundary wording, one fail-closed stale route-id input, and the provider-owned target leaf selected after typed closure.
+- Spec update review: no `.trellis/spec/**` change was needed because existing RVV plugin, EmitC route, and MLIR testing contracts already define the long-term boundary; this round added bounded route coverage inside that boundary.
+- Segmented movement, broad gather/scatter matrices, additional dtype/LMUL clones, source-front-door routes, and Stage2 class expansion were intentionally not converted in this bounded owner.
+
+Final round commit is created after task archive in the same Codex turn.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

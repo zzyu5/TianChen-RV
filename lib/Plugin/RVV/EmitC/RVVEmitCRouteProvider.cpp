@@ -81,7 +81,9 @@ bool isRVVSelectedBodyMaskedMemoryMovementRoute(
          op ==
              RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore ||
          op == RVVSelectedBodyOperationKind::
-                   ComputedMaskIndexedGatherLoadUnitStore;
+                   ComputedMaskIndexedGatherLoadUnitStore ||
+         op == RVVSelectedBodyOperationKind::
+                   ComputedMaskIndexedScatterStoreUnitLoad;
 }
 
 bool isRVVSelectedBodyMaskedStoreRoute(RVVSelectedBodyOperationKind op) {
@@ -95,7 +97,9 @@ bool isRVVSelectedBodyComputedMaskMemoryMovementRoute(
          op ==
              RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore ||
          op == RVVSelectedBodyOperationKind::
-                   ComputedMaskIndexedGatherLoadUnitStore;
+                   ComputedMaskIndexedGatherLoadUnitStore ||
+         op == RVVSelectedBodyOperationKind::
+                   ComputedMaskIndexedScatterStoreUnitLoad;
 }
 
 bool isRVVSelectedBodyComputedMaskStridedStoreRoute(
@@ -113,6 +117,12 @@ bool isRVVSelectedBodyComputedMaskIndexedGatherLoadRoute(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::
                    ComputedMaskIndexedGatherLoadUnitStore;
+}
+
+bool isRVVSelectedBodyComputedMaskIndexedScatterStoreRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::
+                   ComputedMaskIndexedScatterStoreUnitLoad;
 }
 
 bool isRVVSelectedBodySegmentedMemoryMovementRoute(
@@ -1570,6 +1580,57 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                 "computed-mask indexed gather-load header "
                                 "mirror"))
         return error;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::
+                   ComputedMaskIndexedScatterStoreUnitLoad) {
+      if (llvm::Error error = bindOperand(
+              boundLHSABI, "cmp_lhs", "cmp-lhs-load",
+              "computed-mask indexed scatter-store compare lhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "lhs-call",
+              "computed-mask indexed scatter-store compare lhs operand"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundRHSABI, "cmp_rhs", "cmp-rhs-load",
+              "computed-mask indexed scatter-store compare rhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_rhs", "rhs-call",
+              "computed-mask indexed scatter-store compare rhs operand"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundSourceABI, "src", "src-load",
+                          "computed-mask indexed scatter-store payload source"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse(
+                  "src", "mistore-src-call",
+                  "computed-mask indexed scatter-store payload operand"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundIndexABI, "index",
+                          "materialized-index-load-base",
+                          "computed-mask indexed scatter-store index operand"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("index", "index-offset-scale",
+                                "computed-mask indexed scatter offset scale"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("index", "index-source-mirror",
+                                "computed-mask indexed scatter index mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundOutABI, "dst", "mistore-base",
+                          "computed-mask indexed scatter-store destination "
+                          "base"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("dst", "hdr-mirror",
+                                "computed-mask indexed scatter-store header "
+                                "mirror"))
+        return error;
     } else {
       return makeRVVEmitCRouteProviderError(
           llvm::Twine("route operand ABI binding closure for selected RVV "
@@ -1647,6 +1708,17 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                          llvm::ArrayRef<TCRVEmitCCallOpaqueOperand> operands,
                          std::optional<TCRVEmitCCallOpaqueResult> result =
                              std::nullopt) -> llvm::Error {
+    if (!op) {
+      std::string resultName = result ? result->name : std::string("<none>");
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine("RVV EmitC route requires a materialized ") + role +
+          " role op before emitting callee '" + callee +
+          "' for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) +
+          "', memory_form '" +
+          stringifyRVVSelectedBodyMemoryForm(description.memoryForm) +
+          "', result '" + resultName + "'");
+    }
     llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> step =
         makeCallStepFromSource(op, role, callee, operands, std::move(result));
     if (!step)
@@ -1959,6 +2031,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const bool isComputedMaskIndexedGatherLoad =
       isRVVSelectedBodyComputedMaskIndexedGatherLoadRoute(
           description.operation);
+  const bool isComputedMaskIndexedScatterStore =
+      isRVVSelectedBodyComputedMaskIndexedScatterStoreRoute(
+          description.operation);
   const bool isRuntimeMaskMemory =
       description.operation == RVVSelectedBodyOperationKind::MaskedUnitLoadStore;
   const bool isMaskedStore =
@@ -2151,7 +2226,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.indexVectorCType.str()}))
       return error;
   }
-  if (isComputedMaskIndexedGatherLoad) {
+  if (isComputedMaskIndexedGatherLoad || isComputedMaskIndexedScatterStore) {
     if (llvm::Error error = addLoopStep(
             slice->indexLoadOperation, "load", description.indexLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
@@ -2165,7 +2240,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.indexVectorCType.str()}))
       return error;
     if (llvm::Error error = addLoopStep(
-            slice->maskedIndexedLoadOperation, "load",
+            isComputedMaskIndexedScatterStore
+                ? slice->maskedIndexedStoreOperation
+                : slice->maskedIndexedLoadOperation,
+            isComputedMaskIndexedScatterStore ? "store" : "load",
             description.indexScaleIntrinsic,
             {TCRVEmitCCallOpaqueOperand{"index_vec",
                                         description.indexVectorCType.str()},
@@ -2295,7 +2373,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   }
-  if (isComputedMaskStridedStore) {
+  if (isComputedMaskStridedStore || isComputedMaskIndexedScatterStore) {
     if (llvm::Error error = addLoopStep(
             slice->sourceLoadOperation, "load", description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
@@ -2487,8 +2565,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               TCRVEmitCCallOpaqueResult{description.resultName.str(),
                                         description.vectorCType.str()}))
         return error;
-    } else if (isRuntimeMaskMemory || (isComputedMaskMemory &&
-                                       !isComputedMaskStridedStore)) {
+    } else if (isRuntimeMaskMemory ||
+               (isComputedMaskMemory && !isComputedMaskStridedStore &&
+                !isComputedMaskIndexedScatterStore)) {
       const support::RuntimeABIParameter *maskedLoadSourceABI =
           isComputedMaskMemory ? boundSourceABI : boundLHSABI;
       if (llvm::Error error = addLoopStep(
@@ -2742,6 +2821,23 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                  (llvm::StringRef(boundOutStrideABI->cName) + " * 4").str(),
                  "ptrdiff_t"},
              TCRVEmitCCallOpaqueOperand{description.resultName.str(),
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{storeVLName.str(),
+                                        description.vlCType.str()}}))
+      return error;
+  } else if (description.memoryForm ==
+             RVVSelectedBodyMemoryForm::
+                 ComputedMaskUnitLoadIndexedScatterStore) {
+    if (llvm::Error error = addLoopStep(
+            slice->maskedIndexedStoreOperation, "store",
+            description.indexedStoreIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        description.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{boundOutABI->cName,
+                                        boundOutABI->cType},
+             TCRVEmitCCallOpaqueOperand{"byte_offsets",
+                                        description.indexVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"source_vec",
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{storeVLName.str(),
                                         description.vlCType.str()}}))
