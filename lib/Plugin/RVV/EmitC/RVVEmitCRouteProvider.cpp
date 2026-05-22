@@ -34,12 +34,14 @@ bool isRVVSelectedBodyMaskedArithmeticRoute(RVVSelectedBodyOperationKind op) {
 
 bool isRVVSelectedBodyMAccRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::MAccAdd ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd;
+         op == RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd ||
+         op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd;
 }
 
 bool isRVVSelectedBodyComputedMaskedMAccRoute(
     RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd;
+  return op == RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd ||
+         op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd;
 }
 
 bool isRVVSelectedBodyReductionRoute(RVVSelectedBodyOperationKind op) {
@@ -869,6 +871,88 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (llvm::Error error = requireOperandUse(
               "out", "hdr",
               "computed_masked_macc output header mirror"))
+        return error;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::
+                   RuntimeScalarComputedMaskedMAccAdd) {
+      if (llvm::Error error =
+              bindOperand(boundLHSABI, "cmp_lhs", "cmp-lhs",
+                          "runtime_scalar_computed_masked_macc compare lhs "
+                          "load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "cmp-call",
+              "runtime_scalar_computed_masked_macc compare lhs operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "cmp_lhs", "hdr",
+              "runtime_scalar_computed_masked_macc compare lhs header mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundRHSABI, "rhs_scalar", "splat",
+                          "runtime_scalar_computed_masked_macc rhs scalar "
+                          "splat operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs_scalar", "cmp-rhs",
+              "runtime_scalar_computed_masked_macc compare rhs operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs_scalar", "hdr",
+              "runtime_scalar_computed_masked_macc rhs scalar header mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundDotLHSABI, "lhs", "lhs-load",
+                          "runtime_scalar_computed_masked_macc payload lhs "
+                          "load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "macc-lhs",
+              "runtime_scalar_computed_masked_macc payload lhs compute operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "hdr",
+              "runtime_scalar_computed_masked_macc payload lhs header mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundDotRHSABI, "rhs", "rhs-load",
+                          "runtime_scalar_computed_masked_macc payload rhs "
+                          "load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "macc-rhs",
+              "runtime_scalar_computed_masked_macc payload rhs compute operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "hdr",
+              "runtime_scalar_computed_masked_macc payload rhs header mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundAccumulatorABI, "acc", "acc-load",
+                          "runtime_scalar_computed_masked_macc accumulator "
+                          "load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "macc-acc",
+              "runtime_scalar_computed_masked_macc accumulator compute operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "macc-pass",
+              "runtime_scalar_computed_masked_macc inactive-lane passthrough "
+              "operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "acc", "hdr",
+              "runtime_scalar_computed_masked_macc accumulator header mirror"))
+        return error;
+      if (llvm::Error error =
+              bindOperand(boundOutABI, "out", "store",
+                          "runtime_scalar_computed_masked_macc output store "
+                          "operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "out", "hdr",
+              "runtime_scalar_computed_masked_macc output header mirror"))
         return error;
     } else if (description.operation ==
                RVVSelectedBodyOperationKind::WideningMAccAdd) {
@@ -2983,7 +3067,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                  RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore ||
              description.memoryForm ==
                  RVVSelectedBodyMemoryForm::
-                     RuntimeScalarComputedMaskLoadStore) {
+                     RuntimeScalarComputedMaskLoadStore ||
+             description.memoryForm ==
+                 RVVSelectedBodyMemoryForm::
+                     RuntimeScalarComputedMaskUnitStrideMAcc) {
     if (llvm::Error error = addLoopStep(
             slice->rhsLoadOperation, "load",
             rhsScalarBroadcastLeaf,

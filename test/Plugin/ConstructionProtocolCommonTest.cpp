@@ -1659,6 +1659,8 @@ int runRVVCommonValidationTest() {
             route.operationMnemonic);
     const bool isComputedMaskMAccRoute =
         route.operationMnemonic == "computed_masked_macc_add";
+    const bool isRuntimeScalarComputedMaskMAccRoute =
+        route.operationMnemonic == "runtime_scalar_cmp_masked_macc_add";
     const bool isMaskedElementwiseRoute =
         route.operationMnemonic == "masked_add" ||
         route.operationMnemonic == "masked_sub" ||
@@ -1681,7 +1683,8 @@ int runRVVCommonValidationTest() {
       executableComputeOp = "tcrv_rvv.masked_binary";
     else if (route.operationMnemonic == "macc_add")
       executableComputeOp = "tcrv_rvv.macc";
-    else if (isComputedMaskMAccRoute)
+    else if (isComputedMaskMAccRoute ||
+             isRuntimeScalarComputedMaskMAccRoute)
       executableComputeOp = "tcrv_rvv.masked_macc";
     else if (isWideningMAccRoute)
       executableComputeOp = "tcrv_rvv.widening_macc";
@@ -1759,6 +1762,7 @@ int runRVVCommonValidationTest() {
                isComputedMaskSelectRoute ||
                isComputedMaskStandaloneReduceRoute ||
                isComputedMaskMAccRoute ||
+               isRuntimeScalarComputedMaskMAccRoute ||
                route.operationMnemonic ==
                    "computed_masked_widening_dot_reduce_add" ||
                route.operationMnemonic ==
@@ -1844,7 +1848,8 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "runtime_scalar_cmp_masked_load_store";
     const bool hasComputedMaskStandaloneReduction =
         isComputedMaskStandaloneReduceRoute;
-    const bool hasComputedMaskMAcc = isComputedMaskMAccRoute;
+    const bool hasComputedMaskMAcc =
+        isComputedMaskMAccRoute || isRuntimeScalarComputedMaskMAccRoute;
     unsigned expectedStepCount =
         hasConversion          ? 8u
         : hasComputedMaskSelect                  ? 15u
@@ -2024,6 +2029,13 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyComputedMaskMAccRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
+               "runtime_scalar_cmp_masked_macc_add") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyRuntimeScalarComputedMaskMAccRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "widen_i32_to_i64") {

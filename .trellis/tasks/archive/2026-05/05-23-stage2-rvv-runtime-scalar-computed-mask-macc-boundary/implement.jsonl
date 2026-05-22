@@ -1,0 +1,20 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage1/Stage2 boundaries, and descriptor/source-front-door/common-export red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, route provider, runtime scalar, mask, and ssh rvv evidence rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary and provider-built TCRVEmitCLowerableRoute authority requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck, C++ API, generated-bundle, and ssh rvv evidence expectations."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected RVV variant and route mirror rules for Stage2 typed-body coverage."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-closure-gated-masked-macc-accumulation/prd.md", "reason": "Prior vector-compare computed_masked_macc_add route inventory, binding closure, and evidence baseline."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-runtime-scalar-computed-mask-load-merge-boundary/prd.md", "reason": "Fresh runtime scalar threshold computed-mask selected-body, provider, generated-bundle, and ssh rvv pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-stage2-rvv-runtime-scalar-computed-mask-store-boundary/prd.md", "reason": "Runtime scalar computed-mask masked-store closure pattern and negative fail-closed surfaces."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-runtime-scalar-compare-select-boundary/prd.md", "reason": "Runtime rhs_scalar splat/compare/select selected-body and RouteOperandBindingPlan pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-multiply-add-accumulator-executable-slice/prd.md", "reason": "Explicit accumulator input/output macc route semantics and runtime evidence pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-operand-binding-contract-closure-gate/prd.md", "reason": "RouteOperandBindingPlan closure invariant and fail-closed diagnostics."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Added typed pre-realized runtime scalar computed-mask macc selected-body surface on generic tcrv_rvv facts."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Realized runtime scalar threshold compare into produced mask feeding masked_macc and output store."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Added route planning, RouteOperandBindingPlan closure, mirrors, headers, target leaf, and fail-closed metadata checks for runtime_scalar_cmp_masked_macc_add."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Materialized cmp_lhs, rhs_scalar splat, lhs/rhs payload, accumulator, output, and n/AVL operands from binding closure."}
+{"file": "lib/Plugin/RVV/Construction/RVVConstructionProtocol.cpp", "reason": "Registered the route family as tcrv_rvv.masked_macc with runtime scalar computed-mask ABI roles."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Added explicit and pre-realized generated bundle dry-run and ssh rvv evidence support for runtime scalar computed-mask macc."}
+{"file": "test/Dialect/RVV/runtime-scalar-computed-mask-macc-dataflow.mlir", "reason": "Added valid and fail-closed dialect coverage for predicate, op kind, scalar/runtime roles, config, and authority attr drift."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-macc-add.mlir", "reason": "Added explicit selected-body structural artifact/header coverage."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-macc-add.mlir", "reason": "Added pre-realized selected-body realization plus artifact/header coverage."}

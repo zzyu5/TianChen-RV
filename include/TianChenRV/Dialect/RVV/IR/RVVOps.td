@@ -874,6 +874,58 @@ def TypedComputedMaskMAccPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_runtime_scalar_computed_mask_macc_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV runtime scalar computed-mask macc body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body where a
+    signed i32 compare lhs vector is compared against a non-AVL runtime scalar
+    threshold splatted inside the selected VL scope, and the produced mask
+    controls multiply-accumulate of explicit lhs/rhs payload vectors with an
+    explicit accumulator input before storing to the output buffer. The op is
+    nested directly in a selected tcrv.exec.variant and binds runtime ABI
+    values for compare lhs, rhs_scalar, macc lhs/rhs payload inputs,
+    accumulator input, output, and runtime n/AVL together with compare
+    predicate, mask provenance, operation kind, memory form, accumulator
+    role/layout, result layout, and compile-time RVV config facts.
+
+    This op is not a compare-select wrapper, masked-store fallback, unmasked
+    macc fallback, constant substitution, helper-string authority, route label,
+    descriptor, source-front-door marker, direct-C exporter, intrinsic wrapper,
+    runtime artifact, correctness evidence, or performance evidence. The RVV
+    plugin must first realize it into explicit setvl/with_vl/load/splat/
+    payload-loads/accumulator-load/compare/masked_macc/store tcrv_rvv body
+    structure before the provider may construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$compare_lhs,
+    AnyType:$rhs_scalar,
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$acc,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$predicate_kind,
+    StrAttr:$memory_form,
+    StrAttr:$mask_role,
+    StrAttr:$mask_source,
+    StrAttr:$mask_memory_form,
+    StrAttr:$accumulator_role,
+    StrAttr:$accumulator_layout,
+    StrAttr:$result_layout,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$compare_lhs `,` $rhs_scalar `,` $lhs `,` $rhs `,` $acc `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedWideningMAccPreRealizedBodyOp
     : TCRVRVV_Op<"typed_widening_macc_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV widening macc selected body";

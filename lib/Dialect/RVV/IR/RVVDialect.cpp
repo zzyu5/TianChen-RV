@@ -277,6 +277,11 @@ bool isAllowedTypedComputedMaskMAccPreRealizedBodyAttr(
          name == kPolicyAttrName;
 }
 
+bool isAllowedTypedRuntimeScalarComputedMaskMAccPreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return isAllowedTypedComputedMaskMAccPreRealizedBodyAttr(name);
+}
+
 bool isAllowedTypedWideningMAccPreRealizedBodyAttr(llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
          name == kAccumulatorRoleAttrName ||
@@ -831,6 +836,11 @@ bool isSupportedTypedComputedMaskMAccPreRealizedBodyOpKind(
   return opKind == "computed_masked_macc_add";
 }
 
+bool isSupportedTypedRuntimeScalarComputedMaskMAccPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "runtime_scalar_cmp_masked_macc_add";
+}
+
 bool isSupportedTypedMAccPreRealizedMemoryForm(llvm::StringRef memoryForm) {
   return memoryForm == "vector-rhs-load";
 }
@@ -838,6 +848,16 @@ bool isSupportedTypedMAccPreRealizedMemoryForm(llvm::StringRef memoryForm) {
 bool isSupportedTypedComputedMaskMAccPreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-unit-stride-macc";
+}
+
+bool isSupportedTypedRuntimeScalarComputedMaskMAccPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "runtime-scalar-computed-mask-unit-stride-macc";
+}
+
+bool isSupportedTypedRuntimeScalarComputedMaskMAccPreRealizedPredicateKind(
+    llvm::StringRef predicateKind) {
+  return predicateKind == "sle";
 }
 
 bool isSupportedTypedMAccPreRealizedAccumulatorRole(llvm::StringRef role) {
@@ -4104,6 +4124,174 @@ mlir::LogicalResult TypedComputedMaskMAccPreRealizedBodyOp::verify() {
     return emitOpError()
            << "requires out operand C type 'int32_t *' to match typed "
               "computed-mask macc result dtype";
+
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult
+TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected runtime scalar computed-mask macc "
+                "bodies carry only typed RVV operation/config/mask/"
+                "accumulator/runtime SSA facts and must be realized by the "
+                "RVV plugin before route construction";
+
+    if (!isAllowedTypedRuntimeScalarComputedMaskMAccPreRealizedBodyAttr(
+            attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kPredicateKindAttrName << "', '"
+             << kMemoryFormAttrName << "', '" << kMaskRoleAttrName << "', '"
+             << kMaskSourceAttrName << "', '" << kMaskMemoryFormAttrName
+             << "', '" << kAccumulatorRoleAttrName << "', '"
+             << kAccumulatorLayoutAttrName << "', '" << kResultLayoutAttrName
+             << "', '" << kSEWAttrName << "', '" << kLMULAttrName
+             << "', and '" << kPolicyAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 7 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires compare lhs, rhs scalar threshold, lhs payload, rhs "
+              "payload, accumulator, out, runtime n/AVL operands and no "
+              "results";
+
+  if (!isSupportedTypedRuntimeScalarComputedMaskMAccPreRealizedBodyOpKind(
+          getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"runtime_scalar_cmp_masked_macc_add\" for the bounded "
+              "selected-body runtime scalar computed-mask macc realization "
+              "hook";
+  if (!isSupportedTypedRuntimeScalarComputedMaskMAccPreRealizedPredicateKind(
+          getPredicateKind()))
+    return emitOpError()
+           << "currently supports only predicate_kind \"sle\" for the "
+              "bounded selected-body runtime scalar computed-mask macc "
+              "realization hook";
+  if (!isSupportedTypedRuntimeScalarComputedMaskMAccPreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"runtime-scalar-computed-mask-unit-stride-macc\" for the "
+              "bounded selected-body runtime scalar computed-mask macc "
+              "realization hook";
+  if (!isSupportedTypedComputedMaskMemoryRole(getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-produced-by-compare\" for the bounded "
+              "selected-body runtime scalar computed-mask macc realization "
+              "hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskSource(getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"compare-produced-mask-same-vl-scope\" for the bounded "
+              "selected-body runtime scalar computed-mask macc realization "
+              "hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskMemoryForm(getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"compare-produced-mask\" for the bounded selected-body "
+              "runtime scalar computed-mask macc realization hook";
+  if (!isSupportedTypedMAccPreRealizedAccumulatorRole(getAccumulatorRole()))
+    return emitOpError()
+           << "currently supports only accumulator_role "
+              "\"accumulator-input-buffer\" for the bounded selected-body "
+              "runtime scalar computed-mask macc realization hook";
+  if (!isSupportedTypedMAccPreRealizedAccumulatorLayout(
+          getAccumulatorLayout()))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"separate-i32-vector-accumulator-input\" for the bounded "
+              "selected-body runtime scalar computed-mask macc realization "
+              "hook";
+  if (!isSupportedTypedMAccPreRealizedResultLayout(getResultLayout()))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-multiply-accumulate-result-to-output-buffer\" for "
+              "the bounded selected-body runtime scalar computed-mask macc "
+              "realization hook";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized runtime scalar computed-mask "
+              "macc config to be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body runtime scalar computed-mask macc realization "
+              "hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareLhs(), "compare lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIScalarOperandRole(
+          op, getRhsScalar(), "rhs scalar threshold",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "lhs payload",
+          {tianchenrv::support::RuntimeABIParameterRole::DotLHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getRhs(), "rhs payload",
+          {tianchenrv::support::RuntimeABIParameterRole::DotRHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getAcc(), "accumulator",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               AccumulatorInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+
+  RuntimeABIValueOp cmpLHSBinding =
+      getCompareLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsScalarBinding =
+      getRhsScalar().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsBinding = getRhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp accBinding = getAcc().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
+  if (!cmpLHSBinding || cmpLHSBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires compare lhs operand C type 'const int32_t *' to "
+              "match typed runtime scalar computed-mask macc predicate dtype";
+  if (!rhsScalarBinding || rhsScalarBinding.getCType() != "int32_t")
+    return emitOpError()
+           << "requires rhs scalar threshold operand C type 'int32_t' to "
+              "match typed runtime scalar computed-mask macc predicate dtype";
+  if (!lhsBinding || lhsBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires lhs payload operand C type 'const int32_t *' to "
+              "match typed runtime scalar computed-mask macc source dtype";
+  if (!rhsBinding || rhsBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires rhs payload operand C type 'const int32_t *' to "
+              "match typed runtime scalar computed-mask macc source dtype";
+  if (!accBinding || accBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires accumulator operand C type 'const int32_t *' to "
+              "match typed runtime scalar computed-mask macc accumulator dtype";
+  if (!outBinding || outBinding.getCType() != "int32_t *")
+    return emitOpError()
+           << "requires out operand C type 'int32_t *' to match typed "
+              "runtime scalar computed-mask macc result dtype";
 
   return verifyRuntimeElementCountOperand(op, getN());
 }
@@ -8054,10 +8242,10 @@ mlir::LogicalResult MaskedMAccOp::verify() {
     return emitOpError()
            << "requires mask operand to be produced by tcrv_rvv.compare "
               "inside the selected RVV typed body";
-  if (compare.getKind() != "slt")
+  if (compare.getKind() != "slt" && compare.getKind() != "sle")
     return emitOpError()
            << "requires mask-producing tcrv_rvv.compare to use kind \"slt\" "
-              "for the bounded computed-mask macc route";
+              "or \"sle\" for bounded computed-mask macc routes";
   if (compare.getVl() != getVl())
     return emitOpError()
            << "requires mask-producing tcrv_rvv.compare to consume the same "

@@ -61,6 +61,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     *MASKED_ELEMENTWISE_OP_KINDS,
     "macc_add",
     "computed_masked_macc_add",
+    "runtime_scalar_cmp_masked_macc_add",
     "widening_macc_add",
     "widening_dot_reduce_add",
     "strided_input_widening_dot_reduce_add",
@@ -114,6 +115,27 @@ COMPUTED_MASKED_MACC_ADD_INACTIVE_LANE_CONTRACT = (
 )
 COMPUTED_MASKED_MACC_ADD_PASSTHROUGH_LAYOUT = (
     "accumulator-vector-preserves-inactive-lanes"
+)
+RUNTIME_SCALAR_COMPUTED_MASKED_MACC_ADD_RUNTIME_ABI_ORDER = (
+    "cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n"
+)
+RUNTIME_SCALAR_COMPUTED_MASKED_MACC_ADD_MEMORY_LAYOUT = (
+    "unit-stride-compare-lhs-runtime-scalar-threshold-lhs-rhs-accumulator-"
+    "masked-macc-output-runtime-abi"
+)
+RUNTIME_SCALAR_COMPUTED_MASKED_MACC_TARGET_LEAF_PROFILE = (
+    "rvv-v1-e32m1-runtime-scalar-cmp-masked-macc-add-leaf-profile.v1"
+)
+RUNTIME_SCALAR_COMPUTED_MASKED_MACC_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-macc-add-plan-"
+    "validated"
+)
+RUNTIME_SCALAR_COMPUTED_MASKED_MACC_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+RUNTIME_SCALAR_COMPUTED_MASKED_MACC_C_TYPE_MAPPING = (
+    "vl:size_t,cmp_lhs/lhs/rhs/acc:signed-e32m1,rhs_scalar:i32,mask:b32,"
+    "result:signed-e32m1"
 )
 WIDENING_MACC_ACCUMULATOR_LAYOUT = "separate-i32-vector-accumulator-input"
 WIDENING_MACC_RESULT_LAYOUT = (
@@ -205,6 +227,19 @@ COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:computed_masked_macc_add.v1;"
     "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;"
     "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call|hdr;"
+    "lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;"
+    "rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;"
+    "acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;"
+    "out=output-buffer:out:abi|store|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+)
+RUNTIME_SCALAR_COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1"
+)
+RUNTIME_SCALAR_COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;"
+    "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs|hdr;"
     "lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;"
     "rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;"
     "acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;"
@@ -1103,6 +1138,13 @@ class OpExpectation:
                 "const int32_t *rhs, const int32_t *acc, "
                 "int32_t *out, size_t n);"
             )
+        if self.is_runtime_scalar_computed_masked_macc_add:
+            return (
+                f"void {self.function_name}(const int32_t *cmp_lhs, "
+                "int32_t rhs_scalar, const int32_t *lhs, "
+                "const int32_t *rhs, const int32_t *acc, "
+                "int32_t *out, size_t n);"
+            )
         if self.is_widen_i32_to_i64:
             return (
                 f"void {self.function_name}(const int32_t *lhs, "
@@ -1187,6 +1229,8 @@ class OpExpectation:
             return EXPECTED_MACC_RUNTIME_PARAMETERS
         if self.is_computed_masked_macc_add:
             return EXPECTED_COMPUTED_MASKED_MACC_RUNTIME_PARAMETERS
+        if self.is_runtime_scalar_computed_masked_macc_add:
+            return EXPECTED_RUNTIME_SCALAR_COMPUTED_MASKED_MACC_RUNTIME_PARAMETERS
         if self.is_widening_macc_add or self.is_widening_dot_reduce_add:
             return EXPECTED_WIDENING_MACC_RUNTIME_PARAMETERS
         if self.is_i64_add:
@@ -1255,6 +1299,8 @@ class OpExpectation:
             return MACC_ADD_RUNTIME_ABI_ORDER
         if self.is_computed_masked_macc_add:
             return COMPUTED_MASKED_MACC_ADD_RUNTIME_ABI_ORDER
+        if self.is_runtime_scalar_computed_masked_macc_add:
+            return RUNTIME_SCALAR_COMPUTED_MASKED_MACC_ADD_RUNTIME_ABI_ORDER
         if self.is_widen_i32_to_i64 or self.is_widen_i16_to_i32:
             return WIDENING_CONVERSION_RUNTIME_ABI_ORDER
         if self.is_widening_macc_add:
@@ -1331,6 +1377,10 @@ class OpExpectation:
     @property
     def is_computed_masked_macc_add(self) -> bool:
         return self.kind == "computed_masked_macc_add"
+
+    @property
+    def is_runtime_scalar_computed_masked_macc_add(self) -> bool:
+        return self.kind == "runtime_scalar_cmp_masked_macc_add"
 
     @property
     def is_widening_macc_add(self) -> bool:
@@ -2007,6 +2057,46 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         ),
         compare_predicate_kind="slt",
     ),
+    "runtime_scalar_cmp_masked_macc_add": OpExpectation(
+        kind="runtime_scalar_cmp_masked_macc_add",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-macc-add.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="rvv_rt_scalar_masked_macc",
+        external_abi_name="rvv-generic-runtime-scalar-cmp-masked-macc-add-callable-c-abi.v1",
+        function_name="tcrv_emitc_rt_scalar_masked_macc_kernel_rvv_rt_scalar_masked_macc",
+        emitc_route="rvv-generic-runtime-scalar-cmp-masked-macc-add-emitc-route",
+        typed_compute_op="tcrv_rvv.masked_macc",
+        memory_form="runtime-scalar-computed-mask-unit-stride-macc",
+        lhs_initializer=(
+            "(int32_t)(((index % 5) == 0) ? -120 : "
+            "((index % 5) == 1) ? -37 : "
+            "((index % 5) == 2) ? 0 : "
+            "((index % 5) == 3) ? 91 : 130)"
+        ),
+        rhs_initializer="rhs_scalar",
+        source_initializer=(
+            "(int32_t)(((index % 2) == 0) ? "
+            "(29 - (int32_t)(index % 13)) : "
+            "-(29 - (int32_t)(index % 13)))"
+        ),
+        true_value_initializer=(
+            "(int32_t)(((index % 2) == 0) ? "
+            "((int32_t)(index % 7) + 2) : "
+            "-((int32_t)(index % 7) + 2))"
+        ),
+        false_value_initializer=(
+            "(int32_t)(((index % 3) == 0) ? "
+            "-((int32_t)(index % 5) + 3) : "
+            "((int32_t)(index % 5) + 3))"
+        ),
+        expected_expression=(
+            "(cmp_lhs[index] <= rhs_scalar ? "
+            "(int32_t)(acc[index] + (int32_t)(lhs[index] * rhs[index])) "
+            ": acc[index])"
+        ),
+        compare_predicate_kind="sle",
+    ),
     "strided_add": OpExpectation(
         kind="strided_add",
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-strided-add.mlir"),
@@ -2466,6 +2556,15 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_computed_masked_macc_add",
         function_name="tcrv_emitc_pre_realized_body_computed_masked_macc_add_kernel_pre_realized_body_rvv_computed_masked_macc_add",
+    ),
+    "runtime_scalar_cmp_masked_macc_add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "runtime_scalar_cmp_masked_macc_add"
+        ],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-macc-add.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="rvv_pr_rt_scalar_masked_macc",
+        function_name="tcrv_emitc_pr_rt_scalar_masked_macc_kernel_rvv_pr_rt_scalar_masked_macc",
     ),
     "strided_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["strided_add"],
@@ -3472,6 +3571,35 @@ EXPECTED_COMPUTED_MASKED_MACC_RUNTIME_PARAMETERS = (
     EXPECTED_RUNTIME_PARAMETERS[2],
     EXPECTED_RUNTIME_PARAMETERS[3],
 )
+EXPECTED_RUNTIME_SCALAR_COMPUTED_MASKED_MACC_RUNTIME_PARAMETERS = (
+    {
+        "c_name": "cmp_lhs",
+        "c_type": "const int32_t *",
+        "role": "lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_RUNTIME_SCALAR_CMP_SELECT_RUNTIME_PARAMETERS[1],
+    {
+        "c_name": "lhs",
+        "c_type": "const int32_t *",
+        "role": "dot-lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "rhs",
+        "c_type": "const int32_t *",
+        "role": "dot-rhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "acc",
+        "c_type": "const int32_t *",
+        "role": "accumulator-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_RUNTIME_PARAMETERS[2],
+    EXPECTED_RUNTIME_PARAMETERS[3],
+)
 EXPECTED_WIDENING_CONVERSION_RUNTIME_PARAMETERS = (
     EXPECTED_RUNTIME_PARAMETERS[0],
     {
@@ -4251,6 +4379,51 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.route_operand_binding_operands": (
                     COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+            }
+        )
+    if expectation.is_runtime_scalar_computed_masked_macc_add:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.compare_predicate_kind": (
+                    expectation.compare_predicate_kind
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    RUNTIME_SCALAR_COMPUTED_MASKED_MACC_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    RUNTIME_SCALAR_COMPUTED_MASKED_MACC_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    RUNTIME_SCALAR_COMPUTED_MASKED_MACC_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    RUNTIME_SCALAR_COMPUTED_MASKED_MACC_C_TYPE_MAPPING
+                ),
+                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "tcrv_rvv.inactive_lane_contract": (
+                    COMPUTED_MASKED_MACC_ADD_INACTIVE_LANE_CONTRACT
+                ),
+                "tcrv_rvv.masked_passthrough_layout": (
+                    COMPUTED_MASKED_MACC_ADD_PASSTHROUGH_LAYOUT
+                ),
+                "tcrv_rvv.source_memory_form": MASKED_MEMORY_SOURCE_MEMORY_FORM,
+                "tcrv_rvv.destination_memory_form": (
+                    MASKED_MEMORY_DESTINATION_MEMORY_FORM
+                ),
+                "tcrv_rvv.indexed_memory_layout": (
+                    RUNTIME_SCALAR_COMPUTED_MASKED_MACC_ADD_MEMORY_LAYOUT
+                ),
+                "tcrv_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
+                "tcrv_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
+                "tcrv_rvv.route_operand_binding_plan": (
+                    RUNTIME_SCALAR_COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    RUNTIME_SCALAR_COMPUTED_MASKED_MACC_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
         )
@@ -6901,6 +7074,72 @@ def verify_materialized_selected_body(
             "tcrv_rvv.masked_move",
             "materialized selected-body MLIR computed-mask macc route",
         )
+    if expectation.is_runtime_scalar_computed_masked_macc_add:
+        require_contains(
+            text,
+            'role = "rhs-scalar-value"',
+            "materialized selected-body MLIR runtime scalar macc threshold ABI role",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.splat",
+            "materialized selected-body MLIR runtime scalar macc threshold splat",
+        )
+        require_contains(
+            text,
+            'role = "dot-lhs-input-buffer"',
+            "materialized selected-body MLIR runtime scalar macc lhs payload ABI role",
+        )
+        require_contains(
+            text,
+            'role = "dot-rhs-input-buffer"',
+            "materialized selected-body MLIR runtime scalar macc rhs payload ABI role",
+        )
+        require_contains(
+            text,
+            'role = "accumulator-input-buffer"',
+            "materialized selected-body MLIR runtime scalar macc accumulator ABI role",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.compare",
+            "materialized selected-body MLIR runtime scalar macc compare producer",
+        )
+        require_contains(
+            text,
+            f'kind = "{expectation.compare_predicate_kind}"',
+            "materialized selected-body MLIR runtime scalar macc predicate",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.masked_macc",
+            "materialized selected-body MLIR runtime scalar macc op",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.macc",
+            "materialized selected-body MLIR runtime scalar macc route",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.binary",
+            "materialized selected-body MLIR runtime scalar macc route",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.select",
+            "materialized selected-body MLIR runtime scalar macc route",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_store",
+            "materialized selected-body MLIR runtime scalar macc route",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_load",
+            "materialized selected-body MLIR runtime scalar macc route",
+        )
     if expectation.is_widening_macc_add:
         require_contains(
             text,
@@ -8370,6 +8609,144 @@ int main(void) {{
   }}
   printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
   printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
+    if expectation.is_runtime_scalar_computed_masked_macc_add:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n, int32_t rhs_scalar) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n + 8;
+  if (alloc_n == 8 && n == 0)
+    alloc_n = 9;
+  int32_t *cmp_lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *acc = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  if (!cmp_lhs || !lhs || !rhs || !acc || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu rhs_scalar=%d\\n", n, rhs_scalar);
+    free(cmp_lhs);
+    free(lhs);
+    free(rhs);
+    free(acc);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    cmp_lhs[index] = {expectation.lhs_initializer};
+    lhs[index] = {expectation.true_value_initializer};
+    rhs[index] = {expectation.false_value_initializer};
+    acc[index] = {expectation.source_initializer};
+    out[index] = {expectation.out_initializer};
+  }}
+
+  {expectation.function_name}(cmp_lhs, rhs_scalar, lhs, rhs, acc, out, n);
+
+  size_t active_lanes = 0;
+  size_t inactive_lanes = 0;
+  size_t inactive_acc_preserved = 0;
+  size_t add_only_distinguishing = 0;
+  size_t mul_only_distinguishing = 0;
+  size_t signed_product_lanes = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    int predicate = {expectation.compare_predicate_c_expression("cmp_lhs[index]", "rhs_scalar")};
+    int32_t product = (int32_t)lhs[index] * (int32_t)rhs[index];
+    int32_t expected = {expectation.expected_expression};
+    int32_t add_only = (int32_t)(acc[index] + lhs[index] + rhs[index]);
+    int32_t mul_only = product;
+    if (predicate)
+      ++active_lanes;
+    else
+      ++inactive_lanes;
+    if (!predicate && out[index] == acc[index])
+      ++inactive_acc_preserved;
+    if (predicate && expected != add_only)
+      ++add_only_distinguishing;
+    if (predicate && expected != mul_only)
+      ++mul_only_distinguishing;
+    if (predicate && product != 0 && acc[index] != 0)
+      ++signed_product_lanes;
+    if (out[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu rhs_scalar=%d index=%zu got=%d expected=%d cmp_lhs=%d lhs=%d rhs=%d acc=%d predicate=%d product=%d\\n",
+              n, rhs_scalar, index, out[index], expected, cmp_lhs[index],
+              lhs[index], rhs[index], acc[index], predicate, product);
+      free(cmp_lhs);
+      free(lhs);
+      free(rhs);
+      free(acc);
+      free(out);
+      return 12;
+    }}
+  }}
+
+  for (size_t index = n; index < alloc_n; ++index) {{
+    if (out[index] != {expectation.out_initializer}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu rhs_scalar=%d raw_index=%zu got=%d sentinel=%d\\n",
+              n, rhs_scalar, index, out[index], {expectation.out_initializer});
+      free(cmp_lhs);
+      free(lhs);
+      free(rhs);
+      free(acc);
+      free(out);
+      return 13;
+    }}
+  }}
+
+  if (n > 4 && (active_lanes == 0 || inactive_lanes == 0 ||
+                inactive_acc_preserved != inactive_lanes ||
+                add_only_distinguishing == 0 ||
+                mul_only_distinguishing == 0 ||
+                signed_product_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} coverage missing n=%zu rhs_scalar=%d active=%zu inactive=%zu inactive_preserved=%zu add_dist=%zu mul_dist=%zu signed_products=%zu\\n",
+            n, rhs_scalar, active_lanes, inactive_lanes,
+            inactive_acc_preserved, add_only_distinguishing,
+            mul_only_distinguishing, signed_product_lanes);
+    free(cmp_lhs);
+    free(lhs);
+    free(rhs);
+    free(acc);
+    free(out);
+    return 14;
+  }}
+
+  free(cmp_lhs);
+  free(lhs);
+  free(rhs);
+  free(acc);
+  free(out);
+  printf("{expectation.kind} case n=%zu rhs_scalar=%d ok runtime_scalar_computed_mask_macc active_lanes=%zu inactive_lanes=%zu inactive_acc_preserved=%zu add_only_distinguishing=%zu mul_only_distinguishing=%zu tail_preserved\\n",
+         n, rhs_scalar, active_lanes, inactive_lanes,
+         inactive_acc_preserved, add_only_distinguishing,
+         mul_only_distinguishing);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const int32_t rhs_scalar_values[] = {{{scalar_values_literal}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const size_t scalar_count = sizeof(rhs_scalar_values) / sizeof(rhs_scalar_values[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    for (size_t scalar_index = 0; scalar_index < scalar_count; ++scalar_index) {{
+      int status = run_case(counts[index], rhs_scalar_values[scalar_index]);
+      if (status != 0)
+        return status;
+    }}
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
   return 0;
 }}
 """.lstrip()
@@ -11694,6 +12071,8 @@ def run_one_op_e2e(
         or expectation.is_runtime_scalar_splat_store
         or expectation.is_runtime_scalar_compare_select
         or expectation.is_runtime_scalar_computed_mask_store
+        or expectation.is_runtime_scalar_computed_mask_load_store
+        or expectation.is_runtime_scalar_computed_masked_macc_add
     ):
         evidence["rhs_scalar_values"] = rhs_scalar_values
     if (
@@ -11762,6 +12141,8 @@ def run_one_op_e2e(
             or expectation.is_runtime_scalar_splat_store
             or expectation.is_runtime_scalar_compare_select
             or expectation.is_runtime_scalar_computed_mask_store
+            or expectation.is_runtime_scalar_computed_mask_load_store
+            or expectation.is_runtime_scalar_computed_masked_macc_add
         ):
             evidence["harness"]["rhs_scalar_values"] = rhs_scalar_values
             evidence["harness"]["rhs_scalar_coverage_contract"] = (
@@ -11878,6 +12259,23 @@ def run_one_op_e2e(
             evidence["harness"]["tail_lane_contract"] = (
                 "runtime n controls active lanes and output tail sentinels are "
                 "preserved"
+            )
+        if expectation.is_runtime_scalar_computed_masked_macc_add:
+            evidence["harness"]["mask_coverage_contract"] = (
+                "multi-lane runtime_scalar_cmp_masked_macc_add cases require "
+                "runtime scalar threshold active and inactive mask lanes"
+            )
+            evidence["harness"]["accumulator_contract"] = (
+                "inactive lanes preserve the explicit accumulator input while "
+                "active lanes compute accumulator + lhs * rhs"
+            )
+            evidence["harness"]["macc_distinguishing_contract"] = (
+                "active-lane checks distinguish fused multiply-add "
+                "accumulation from add-only or multiply-only behavior"
+            )
+            evidence["harness"]["tail_lane_contract"] = (
+                "runtime n/AVL controls active lanes and output tail sentinels "
+                "are preserved"
             )
         if expectation.is_masked_unit_load_store or expectation.is_masked_unit_store:
             evidence["harness"]["mask_coverage_contract"] = (
@@ -12128,6 +12526,7 @@ def run_e2e(args: argparse.Namespace) -> int:
             or expectation.is_runtime_scalar_compare_select
             or expectation.is_runtime_scalar_computed_mask_store
             or expectation.is_runtime_scalar_computed_mask_load_store
+            or expectation.is_runtime_scalar_computed_masked_macc_add
             for expectation in expectations
         )
         has_strided_load_unit_store = any(
@@ -12149,7 +12548,8 @@ def run_e2e(args: argparse.Namespace) -> int:
                 "--rhs-scalar may only be used when an op kind includes "
                 "scalar_broadcast_add/sub/mul, runtime_i32_splat_store, or "
                 "runtime_scalar_cmp_select/runtime_scalar_cmp_masked_store/"
-                "runtime_scalar_cmp_masked_load_store"
+                "runtime_scalar_cmp_masked_load_store/"
+                "runtime_scalar_cmp_masked_macc_add"
             )
         if args.stride_bytes and not (
             has_strided_load_unit_store
@@ -12394,6 +12794,7 @@ def run_self_test() -> int:
                 or expectation.is_runtime_scalar_compare_select
                 or expectation.is_runtime_scalar_computed_mask_store
                 or expectation.is_runtime_scalar_computed_mask_load_store
+                or expectation.is_runtime_scalar_computed_masked_macc_add
             ) and (
                 "rhs_scalar_values" not in harness
                 or "(int32_t)-37" not in harness
@@ -12495,6 +12896,19 @@ def run_self_test() -> int:
                 raise AssertionError(
                     "self-test harness generation lost computed-mask macc "
                     "mask, accumulator passthrough, or arithmetic coverage"
+                )
+            if expectation.is_runtime_scalar_computed_masked_macc_add and (
+                "runtime_scalar_computed_mask_macc" not in harness
+                or "rhs_scalar_values" not in harness
+                or "active_lanes" not in harness
+                or "inactive_acc_preserved" not in harness
+                or "add_only_distinguishing" not in harness
+                or "mul_only_distinguishing" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost runtime scalar "
+                    "computed-mask macc threshold, accumulator passthrough, "
+                    "or arithmetic coverage"
                 )
             if expectation.is_computed_mask_standalone_reduce and (
                 "active_lanes" not in harness
