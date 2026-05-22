@@ -379,6 +379,12 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-runtime-scalar-cmp-masked-store-emitc-route",
      "rvv-generic-runtime-scalar-cmp-masked-store-callable-c-abi.v1",
      "rvv-generic-runtime-scalar-cmp-masked-store-callable-c-abi"},
+    {"runtime_scalar_cmp_masked_load_store",
+     "tcrv_rvv.masked_load",
+     "rvv.role.load.generic_load",
+     "rvv-generic-runtime-scalar-cmp-masked-load-store-emitc-route",
+     "rvv-generic-runtime-scalar-cmp-masked-load-store-callable-c-abi.v1",
+     "rvv-generic-runtime-scalar-cmp-masked-load-store-callable-c-abi"},
     {"reduce_add",
      "tcrv_rvv.reduce",
      "rvv.role.compute.generic_vector",
@@ -717,6 +723,7 @@ llvm::Error verifySelectedBodyRoutes() {
     llvm::StringRef expectedRoleName =
         (route.operationMnemonic == "masked_unit_load_store" ||
          route.operationMnemonic == "computed_masked_unit_load_store" ||
+         route.operationMnemonic == "runtime_scalar_cmp_masked_load_store" ||
          route.operationMnemonic ==
              "computed_masked_strided_load_unit_store" ||
          route.operationMnemonic ==
@@ -749,11 +756,12 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 46)
+          .size() != 47)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
         "cmp_select, computed_mask_select, runtime_scalar_cmp_select, "
         "runtime_scalar_cmp_masked_store, "
+        "runtime_scalar_cmp_masked_load_store, "
         "reduce_add, "
         "standalone_reduce_add, standalone_reduce_min, standalone_reduce_max, "
         "computed_mask_standalone_reduce_add, "
@@ -891,6 +899,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
       route->operationMnemonic == "runtime_scalar_cmp_select";
   const bool isRuntimeScalarComputedMaskStore =
       route->operationMnemonic == "runtime_scalar_cmp_masked_store";
+  const bool isRuntimeScalarComputedMaskLoadStore =
+      route->operationMnemonic == "runtime_scalar_cmp_masked_load_store";
   const bool isReduction = route->operationMnemonic == "reduce_add";
   const bool isStandaloneReduction =
       isStandaloneReduceOperationMnemonic(route->operationMnemonic);
@@ -974,6 +984,11 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return makeRVVConstructionError(
         "RVV runtime scalar computed-mask store construction requires "
         "generic tcrv_rvv.masked_store");
+  if (isRuntimeScalarComputedMaskLoadStore &&
+      typedComputeOpName != "tcrv_rvv.masked_load")
+    return makeRVVConstructionError(
+        "RVV runtime scalar computed-mask load-store construction requires "
+        "generic tcrv_rvv.masked_load");
   if (isReduction && typedComputeOpName != "tcrv_rvv.reduce")
     return makeRVVConstructionError(
         "RVV reduction construction requires generic tcrv_rvv.reduce");
@@ -1094,6 +1109,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "tcrv_rvv.splat");
   if (!isCompareSelect && !isComputedMaskSelect &&
       !isRuntimeScalarCompareSelect && !isRuntimeScalarComputedMaskStore &&
+      !isRuntimeScalarComputedMaskLoadStore &&
       !isReduction &&
       !isStandaloneReduction && !isComputedMaskStandaloneReduction &&
       !isMaskedElementwise && !isMAccAdd && !isComputedMaskedMAccAdd &&
@@ -1106,6 +1122,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
       !isMaskedUnitLoadStore && !isMaskedUnitStore &&
       !isRuntimeScalarComputedMaskStore &&
+      !isRuntimeScalarComputedMaskLoadStore &&
       !isComputedMaskUnitLoadStore &&
       !isComputedMaskStridedStore &&
       !isComputedMaskStridedLoadUnitStore &&
@@ -1138,6 +1155,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isComputedMaskSelect &&
       !isRuntimeScalarCompareSelect &&
       !isRuntimeScalarComputedMaskStore &&
+      !isRuntimeScalarComputedMaskLoadStore &&
       !isComputedMaskStandaloneReduction &&
       !isComputedMaskedMAccAdd &&
       !isComputedMaskWideningDotReduceAdd &&
@@ -1174,13 +1192,21 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "RVV runtime scalar computed-mask store construction requires "
         "explicit RHS runtime scalar splat feeding compare-produced mask and "
         "masked_store roles");
+  if (isRuntimeScalarComputedMaskLoadStore &&
+      rhsSourceOperationName != "tcrv_rvv.compare")
+    return makeRVVConstructionError(
+        "RVV runtime scalar computed-mask load-store construction requires "
+        "explicit RHS runtime scalar splat feeding compare-produced mask, "
+        "masked_load merge, and store roles");
   if (!isScalarBroadcastElementwise && !isRuntimeScalarSplatStore &&
       !isRuntimeScalarCompareSelect && !isRuntimeScalarComputedMaskStore &&
+      !isRuntimeScalarComputedMaskLoadStore &&
       rhsSourceOperationName == "tcrv_rvv.splat")
     return makeRVVConstructionError(
         "RVV generic scalar splat memory form is only supported by "
         "scalar_broadcast_add/sub/mul, runtime_i32_splat_store, "
-        "runtime_scalar_cmp_select, or runtime_scalar_cmp_masked_store in "
+        "runtime_scalar_cmp_select, runtime_scalar_cmp_masked_store, or "
+        "runtime_scalar_cmp_masked_load_store in "
         "this bounded slice");
   if (isStridedAdd && rhsSourceOperationName != "tcrv_rvv.strided_load")
     return makeRVVConstructionError(
@@ -1217,6 +1243,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "source load, mask_load, and masked_store roles");
   if ((isComputedMaskSelect || isComputedMaskUnitLoadStore ||
        isRuntimeScalarComputedMaskStore ||
+       isRuntimeScalarComputedMaskLoadStore ||
        isComputedMaskStridedStore ||
 	       isComputedMaskStridedLoadUnitStore ||
 	       isComputedMaskIndexedGatherLoadUnitStore ||
@@ -1249,6 +1276,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "masked_unit_load_store or masked_unit_store in this bounded slice");
   if (!isComputedMaskSelect && !isComputedMaskUnitLoadStore &&
       !isRuntimeScalarComputedMaskStore &&
+      !isRuntimeScalarComputedMaskLoadStore &&
       !isComputedMaskStridedStore &&
       !isComputedMaskStridedLoadUnitStore &&
       !isComputedMaskIndexedGatherLoadUnitStore &&
@@ -1264,6 +1292,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "RVV generic compare-produced mask memory form is only supported by "
         "computed_mask_select, computed_masked_unit_load_store, "
         "runtime_scalar_cmp_masked_store, "
+        "runtime_scalar_cmp_masked_load_store, "
         "computed_masked_strided_store, "
         "computed_masked_strided_load_unit_store, "
         "computed_masked_indexed_gather_load_unit_store, "
@@ -1582,6 +1611,51 @@ buildRVVSelectedBodyExecutableRoleSteps(
     steps.push_back({"store", route->typedComputeOpName, route->typedRoleID,
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
                      route->operationMnemonic, 11});
+    return steps;
+  }
+  if (isRuntimeScalarComputedMaskLoadStore) {
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "rhs_scalar", 1});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "src", 2});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "dst", 3});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "n", 4});
+    steps.push_back({"configure", "tcrv_rvv.setvl",
+                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+                     5});
+    steps.push_back({"scope", "tcrv_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "with_vl", 6});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "lhs_load", 7});
+    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "rhs_scalar_splat", 8});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "old_destination_load", 9});
+    steps.push_back({"compute", "tcrv_rvv.compare",
+                     "rvv.role.compute.generic_vector",
+                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "compare_mask", 10});
+    steps.push_back({"load", route->typedComputeOpName, route->typedRoleID,
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     route->operationMnemonic, 11});
+    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "store", 12});
     return steps;
   }
   if (isComputedMaskedMAccAdd) {
@@ -3107,7 +3181,9 @@ llvm::Error verifyRVVConstructionProtocolReady() {
           runtimeScalarCompareSelectParameters.begin(),
           runtimeScalarCompareSelectParameters.end());
     } else if (route.operationMnemonic ==
-               "runtime_scalar_cmp_masked_store") {
+                   "runtime_scalar_cmp_masked_store" ||
+               route.operationMnemonic ==
+                   "runtime_scalar_cmp_masked_load_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 5>
           runtimeScalarComputedMaskStoreParameters =
               tcrv::rvv::
@@ -3386,6 +3462,12 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         llvm::Twine(context) +
         " runtime scalar computed-mask store cannot use generic "
         "tcrv_rvv.binary");
+  if (usesGenericBinary &&
+      route->operationMnemonic == "runtime_scalar_cmp_masked_load_store")
+    return makeRVVConstructionError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask load-store cannot use generic "
+        "tcrv_rvv.binary");
   if (usesGenericBinary && route->operationMnemonic == "reduce_add")
     return makeRVVConstructionError(
         llvm::Twine(context) +
@@ -3539,6 +3621,8 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                  route->operationMnemonic == "runtime_scalar_cmp_select" ||
                  route->operationMnemonic ==
                      "runtime_scalar_cmp_masked_store" ||
+                 route->operationMnemonic ==
+                     "runtime_scalar_cmp_masked_load_store" ||
                  route->operationMnemonic == "reduce_add" ||
                  isStandaloneReduceOperationMnemonic(route->operationMnemonic) ||
                  route->operationMnemonic == "masked_add" ||
@@ -3669,7 +3753,9 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
     expectedParameters.append(runtimeScalarCompareSelectParameters.begin(),
                               runtimeScalarCompareSelectParameters.end());
   } else if (route->operationMnemonic ==
-             "runtime_scalar_cmp_masked_store") {
+                 "runtime_scalar_cmp_masked_store" ||
+             route->operationMnemonic ==
+                 "runtime_scalar_cmp_masked_load_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 5>
         runtimeScalarComputedMaskStoreParameters =
             tcrv::rvv::
@@ -3884,6 +3970,10 @@ llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
                  ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
                    "runtime_abi->configure->scope->load->load->load->"
                    "compute->load->store"
+             : operationMnemonic == "runtime_scalar_cmp_masked_load_store"
+                 ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
+                   "runtime_abi->configure->scope->load->load->load->"
+                   "compute->load->store"
                  : "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
                    "configure->scope->load->load->load->store")
       : typedComputeOpName == "tcrv_rvv.masked_indexed_load"
@@ -4089,6 +4179,11 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
     return makeRVVConstructionError(
         "selected-body runtime scalar computed-mask store cannot use generic "
         "tcrv_rvv.binary");
+  if (usesGenericBinary &&
+      expected.operationMnemonic == "runtime_scalar_cmp_masked_load_store")
+    return makeRVVConstructionError(
+        "selected-body runtime scalar computed-mask load-store cannot use "
+        "generic tcrv_rvv.binary");
   if (usesGenericBinary && expected.operationMnemonic == "reduce_add")
     return makeRVVConstructionError(
         "selected-body reduction cannot use generic tcrv_rvv.binary");
@@ -4229,6 +4324,8 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
                  expected.operationMnemonic == "runtime_scalar_cmp_select" ||
                  expected.operationMnemonic ==
                      "runtime_scalar_cmp_masked_store" ||
+                 expected.operationMnemonic ==
+                     "runtime_scalar_cmp_masked_load_store" ||
                  expected.operationMnemonic == "reduce_add" ||
                  isStandaloneReduceOperationMnemonic(expected.operationMnemonic) ||
                  isComputedMaskStandaloneReduceOperationMnemonic(

@@ -84,6 +84,8 @@ bool isRVVSelectedBodyMaskedMemoryMovementRoute(
   return op == RVVSelectedBodyOperationKind::MaskedUnitLoadStore ||
          op == RVVSelectedBodyOperationKind::MaskedUnitStore ||
          op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
+         op ==
+             RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore ||
          op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
          op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
          op ==
@@ -106,9 +108,16 @@ bool isRVVSelectedBodyRuntimeScalarComputedMaskStoreRoute(
   return op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore;
 }
 
+bool isRVVSelectedBodyRuntimeScalarComputedMaskLoadStoreRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op ==
+         RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore;
+}
+
 bool isRVVSelectedBodyComputedMaskMemoryMovementRoute(
     RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
+  return op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
          op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
          op ==
              RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore ||
@@ -612,6 +621,54 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (llvm::Error error = requireOperandUse(
               "dst", "masked-store-destination-call",
               "runtime_scalar_cmp_masked_store destination operand"))
+        return error;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::
+                   RuntimeScalarComputedMaskLoadStore) {
+      if (llvm::Error error =
+              bindOperand(boundLHSABI, "lhs", "materialized-load-base",
+                          "runtime_scalar_cmp_masked_load_store lhs load "
+                          "operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "compare-lhs-call",
+              "runtime_scalar_cmp_masked_load_store compare lhs operand"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundRHSABI, "rhs_scalar", "scalar-broadcast-rhs-call",
+              "runtime_scalar_cmp_masked_load_store scalar threshold splat"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs_scalar", "compare-rhs-call",
+              "runtime_scalar_cmp_masked_load_store compare rhs operand"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundSourceABI, "src", "materialized-masked-load-base",
+              "runtime_scalar_cmp_masked_load_store source masked-load "
+              "base"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "src", "masked-load-source-call",
+              "runtime_scalar_cmp_masked_load_store masked-load source "
+              "operand"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundAccumulatorABI, "dst",
+              "materialized-old-destination-load-base",
+              "runtime_scalar_cmp_masked_load_store old destination load"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "dst", "masked-load-passthrough-call",
+              "runtime_scalar_cmp_masked_load_store passthrough operand"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundOutABI, "dst", "materialized-store-base",
+              "runtime_scalar_cmp_masked_load_store destination store"))
+        return error;
+      if (llvm::Error error =
+              requireOperandUse("dst", "header-mirror",
+                                "runtime_scalar_cmp_masked_load_store "
+                                "destination header mirror"))
         return error;
     } else if (description.operation == RVVSelectedBodyOperationKind::ReduceAdd) {
       if (llvm::Error error =
@@ -2631,6 +2688,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const bool isRuntimeScalarComputedMaskStore =
       isRVVSelectedBodyRuntimeScalarComputedMaskStoreRoute(
           description.operation);
+  const bool isRuntimeScalarComputedMaskLoadStore =
+      isRVVSelectedBodyRuntimeScalarComputedMaskLoadStoreRoute(
+          description.operation);
   const bool isComputedMaskedMAcc =
       isRVVSelectedBodyComputedMaskedMAccRoute(description.operation);
   const bool isComputedMaskStridedStore =
@@ -2920,7 +2980,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
              description.memoryForm ==
                  RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect ||
              description.memoryForm ==
-                 RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore) {
+                 RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore ||
+             description.memoryForm ==
+                 RVVSelectedBodyMemoryForm::
+                     RuntimeScalarComputedMaskLoadStore) {
     if (llvm::Error error = addLoopStep(
             slice->rhsLoadOperation, "load",
             rhsScalarBroadcastLeaf,
@@ -3174,7 +3237,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       return error;
   } else if (isRVVSelectedBodyMaskedMemoryMovementRoute(
                  description.operation)) {
-    if (isRuntimeScalarComputedMaskStore || isComputedMaskMemory)
+    if (isRuntimeScalarComputedMaskStore ||
+        isRuntimeScalarComputedMaskLoadStore || isComputedMaskMemory)
       if (llvm::Error error = addLoopStep(
               slice->compareOp.getOperation(), "compute",
               description.compareIntrinsic,

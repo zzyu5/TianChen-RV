@@ -1693,7 +1693,9 @@ int runRVVCommonValidationTest() {
     else if (isConversionRoute)
       executableComputeOp = "tcrv_rvv.widening_convert";
     else if (route.operationMnemonic == "masked_unit_load_store" ||
-             route.operationMnemonic == "computed_masked_unit_load_store")
+             route.operationMnemonic == "computed_masked_unit_load_store" ||
+             route.operationMnemonic ==
+                 "runtime_scalar_cmp_masked_load_store")
       executableComputeOp = "tcrv_rvv.masked_load";
     else if (route.operationMnemonic ==
              "computed_masked_strided_load_unit_store")
@@ -1766,7 +1768,9 @@ int runRVVCommonValidationTest() {
       rhsSourceOp = "tcrv_rvv.segment2_load";
     } else if (route.operationMnemonic == "segment2_interleave_unit_load") {
       rhsSourceOp = "tcrv_rvv.segment2_store";
-    } else if (route.operationMnemonic == "runtime_scalar_cmp_masked_store") {
+    } else if (route.operationMnemonic == "runtime_scalar_cmp_masked_store" ||
+               route.operationMnemonic ==
+                   "runtime_scalar_cmp_masked_load_store") {
       rhsSourceOp = "tcrv_rvv.compare";
     } else if (isScalarBroadcastElementwiseRoute ||
                isRuntimeScalarCompareSelectRoute ||
@@ -1836,6 +1840,8 @@ int runRVVCommonValidationTest() {
         isRuntimeScalarCompareSelectRoute;
     const bool hasRuntimeScalarComputedMaskStore =
         route.operationMnemonic == "runtime_scalar_cmp_masked_store";
+    const bool hasRuntimeScalarComputedMaskLoadStore =
+        route.operationMnemonic == "runtime_scalar_cmp_masked_load_store";
     const bool hasComputedMaskStandaloneReduction =
         isComputedMaskStandaloneReduceRoute;
     const bool hasComputedMaskMAcc = isComputedMaskMAccRoute;
@@ -1844,6 +1850,7 @@ int runRVVCommonValidationTest() {
         : hasComputedMaskSelect                  ? 15u
         : hasRuntimeScalarCompareSelect          ? 15u
         : hasRuntimeScalarComputedMaskStore      ? 12u
+        : hasRuntimeScalarComputedMaskLoadStore  ? 13u
         : hasComputedMaskStandaloneReduction     ? 14u
         : hasComputedMaskMAcc                    ? 17u
         : isStandaloneReduceRoute                ? 9u
@@ -2077,7 +2084,9 @@ int runRVVCommonValidationTest() {
               getRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
-    } else if (route.operationMnemonic == "runtime_scalar_cmp_masked_store") {
+    } else if (route.operationMnemonic == "runtime_scalar_cmp_masked_store" ||
+               route.operationMnemonic ==
+                   "runtime_scalar_cmp_masked_load_store") {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters();

@@ -319,6 +319,7 @@ struct RVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan {
   llvm::StringRef vectorLoadIntrinsic;
   llvm::StringRef rhsScalarSplatIntrinsic;
   llvm::StringRef compareIntrinsic;
+  llvm::StringRef maskedLoadIntrinsic;
   llvm::StringRef maskedStoreIntrinsic;
   llvm::StringRef resultName;
   llvm::StringRef maskName;

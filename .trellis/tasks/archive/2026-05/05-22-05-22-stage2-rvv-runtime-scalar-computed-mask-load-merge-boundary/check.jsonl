@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check against global RVV-first authority and Stage2 boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check that RVV semantics remain plugin-owned and typed-body-derived."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check that common EmitC/export remains neutral and mirror-only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check for lit/FileCheck, fail-closed, generated-bundle, and ssh rvv evidence requirements."}
+{"file": ".trellis/tasks/05-22-05-22-stage2-rvv-runtime-scalar-computed-mask-load-merge-boundary/prd.md", "reason": "Task-specific acceptance criteria and validation plan."}
+{"file": "test/Dialect/RVV/runtime-scalar-computed-mask-load-store-dataflow.mlir", "reason": "Focused dialect positive and negative verifier coverage for pre-realized runtime scalar computed-mask load-store body."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-load-store.mlir", "reason": "Focused explicit selected-body plan/header coverage for route metadata, binding closure, mirrors, and exported ABI."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-load-store.mlir", "reason": "Focused pre-realized realization, plan, and header coverage for the same production route."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Self-test passed; explicit and pre-realized dry-runs passed for counts 7,16,23 and rhs_scalar -37,91."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/20260522-runtime-scalar-cmp-masked-load-store-explicit-ssh/evidence.json", "reason": "Real ssh rvv explicit evidence passed for counts 7,16,23 and rhs_scalar -37,91 with active loads, inactive preservation, source preservation, and tail preservation."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/20260522-runtime-scalar-cmp-masked-load-store-pre-realized-ssh/evidence.json", "reason": "Real ssh rvv pre-realized evidence passed for counts 7,16,23 and rhs_scalar -37,91 with active loads, inactive preservation, source preservation, and tail preservation."}
+{"file": "test/CMakeLists.txt", "reason": "git diff --check passed and cmake --build build --target check-tianchenrv -j2 passed 340/340."}

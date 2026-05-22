@@ -234,6 +234,11 @@ bool isAllowedTypedRuntimeScalarComputedMaskStorePreRealizedBodyAttr(
          name == kLMULAttrName || name == kPolicyAttrName;
 }
 
+bool isAllowedTypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return isAllowedTypedRuntimeScalarComputedMaskStorePreRealizedBodyAttr(name);
+}
+
 bool isAllowedTypedReducePreRealizedBodyAttr(llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
          name == kAccumulatorRoleAttrName ||
@@ -740,6 +745,21 @@ bool isSupportedTypedRuntimeScalarComputedMaskStorePreRealizedPredicateKind(
 bool isSupportedTypedRuntimeScalarComputedMaskStorePreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "runtime-scalar-computed-mask-store";
+}
+
+bool isSupportedTypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "runtime_scalar_cmp_masked_load_store";
+}
+
+bool isSupportedTypedRuntimeScalarComputedMaskLoadStorePreRealizedPredicateKind(
+    llvm::StringRef predicateKind) {
+  return predicateKind == "sle";
+}
+
+bool isSupportedTypedRuntimeScalarComputedMaskLoadStorePreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "runtime-scalar-computed-mask-load-store";
 }
 
 bool isSupportedTypedReducePreRealizedBodyOpKind(llvm::StringRef opKind) {
@@ -3384,6 +3404,113 @@ TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyRuntimeABIValueOperandRole(
           op, getDestination(), "destination",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult
+TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected runtime scalar computed-mask "
+                "load-store bodies carry only typed RVV lhs/source/"
+                "destination operand roles, runtime scalar threshold, "
+                "predicate, mask, config, policy, and runtime SSA facts and "
+                "must be realized by the RVV plugin before route construction";
+
+    if (!isAllowedTypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyAttr(
+            attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kPredicateKindAttrName << "', '"
+             << kMemoryFormAttrName << "', '" << kMaskRoleAttrName << "', '"
+             << kMaskSourceAttrName << "', '" << kMaskMemoryFormAttrName
+             << "', '" << kInactiveLanePolicyAttrName << "', '"
+             << kSEWAttrName << "', '" << kLMULAttrName << "', and '"
+             << kPolicyAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires lhs, rhs scalar threshold, active source, "
+              "destination/passthrough, runtime n/AVL operands and no "
+              "results";
+
+  if (!isSupportedTypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOpKind(
+          getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"runtime_scalar_cmp_masked_load_store\" for the bounded "
+              "selected-body runtime scalar computed-mask load-store hook";
+  if (!isSupportedTypedRuntimeScalarComputedMaskLoadStorePreRealizedPredicateKind(
+          getPredicateKind()))
+    return emitOpError()
+           << "currently supports only predicate_kind \"sle\" for the "
+              "bounded selected-body runtime scalar computed-mask load-store "
+              "hook";
+  if (!isSupportedTypedRuntimeScalarComputedMaskLoadStorePreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"runtime-scalar-computed-mask-load-store\" for the bounded "
+              "selected-body runtime scalar computed-mask load-store hook";
+  if (!isSupportedTypedComputedMaskMemoryRole(getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-produced-by-compare\" for the bounded "
+              "selected-body runtime scalar computed-mask load-store hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskSource(getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"compare-produced-mask-same-vl-scope\" for the bounded "
+              "selected-body runtime scalar computed-mask load-store hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskMemoryForm(getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"compare-produced-mask\" for the bounded selected-body "
+              "runtime scalar computed-mask load-store hook";
+  if (getInactiveLanePolicy() != "preserve-old-destination")
+    return emitOpError()
+           << "requires inactive_lane_policy \"preserve-old-destination\" "
+              "because false mask lanes preserve the loaded old destination "
+              "passthrough value";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized runtime scalar computed-mask "
+              "load-store data config to be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body runtime scalar computed-mask load-store hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIScalarOperandRole(
+          op, getRhsScalar(), "rhs scalar threshold",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSource(), "active source",
+          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getDestination(), "destination/passthrough",
           {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
   return verifyRuntimeElementCountOperand(op, getN());

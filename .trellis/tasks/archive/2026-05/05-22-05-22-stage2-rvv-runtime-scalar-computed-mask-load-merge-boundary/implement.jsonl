@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage 1/2 boundary, and source-of-truth rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body authority, plugin-owned legality/realization/provider, fail-closed rules, and ssh evidence requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "MLIR/FileCheck/runtime evidence requirements and RVV Stage rules."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-stage2-rvv-runtime-scalar-computed-mask-store-boundary/prd.md", "reason": "Immediate predecessor runtime scalar compare-produced mask feeding masked store boundary."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-stage2-rvv-masked-memory-movement-coverage/prd.md", "reason": "Typed contiguous masked_load plus passthrough/store route precedent."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-runtime-scalar-compare-select-boundary/prd.md", "reason": "Runtime scalar threshold compare and splat route precedent."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-route-operand-abi-binding/prd.md", "reason": "RouteOperandBindingPlan closure precedent."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Added the pre-realized typed runtime scalar computed-mask load-store body op surface."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Added verifier coverage for op kind, predicate, memory form, policy, SEW/LMUL, operand roles, runtime n, and authority-attribute rejection."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Realizes pre-realized selected bodies into setvl/with_vl, lhs load, rhs scalar splat, old destination load, compare, masked_load merge, and store."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Added runtime_scalar_cmp_masked_load_store route planning, target leaf profile, binding plan, materialized operand closure, metadata mirrors, and fail-closed validation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Added provider emission for source masked_load, old-destination passthrough, compare mask, store, and RouteOperandBindingPlan materialized uses."}
+{"file": "lib/Plugin/RVV/Construction/RVVConstructionProtocol.cpp", "reason": "Registered construction route and executable role sequence for the bounded masked-load merge route."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Added explicit and pre-realized generated-bundle ABI/runtime evidence support for runtime_scalar_cmp_masked_load_store."}
