@@ -551,14 +551,24 @@ CMP_SELECT_ROUTE_OPERAND_BINDING_OPERANDS = (
 COMPUTED_MASK_SELECT_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:computed_mask_select.v1"
 )
+COMPUTED_MASK_SELECT_ROUTE_FAMILY_PLAN = (
+    "rvv-computed-mask-select-route-family-plan.v1"
+)
+COMPUTED_MASK_SELECT_VECTOR_COMPARE_PRODUCER_SOURCE = "vector-compare-rhs-load"
+COMPUTED_MASK_SELECT_RUNTIME_SCALAR_PRODUCER_SOURCE = (
+    "runtime-scalar-splat-compare-rhs"
+)
+COMPUTED_MASK_SELECT_DUAL_RUNTIME_SCALAR_PRODUCER_SOURCE = (
+    "dual-runtime-scalar-splat-compare-rhs-mask-and"
+)
 COMPUTED_MASK_SELECT_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:computed_mask_select.v1;"
-    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|compare-lhs-call;"
-    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|compare-rhs-call;"
-    "true_value=true-value-input-buffer:true_value:abi|true-load|select-true-call;"
-    "false_value=false-value-input-buffer:false_value:abi|false-load|select-false-call;"
-    "out=output-buffer:out:abi|store-base|header;"
-    "n=runtime-element-count:n:abi|setvl-avl|loop-control|header"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs|cmp-call|hdr;"
+    "true_value=true-value-input-buffer:true_value:abi|true-load|sel-true|hdr;"
+    "false_value=false-value-input-buffer:false_value:abi|false-load|sel-false|hdr;"
+    "out=output-buffer:out:abi|store|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
 )
 RUNTIME_SCALAR_CMP_SELECT_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:runtime_scalar_cmp_select.v1"
@@ -5009,6 +5019,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.route_operand_binding_operands": (
                     COMPUTED_MASK_SELECT_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
+                "tcrv_rvv.computed_mask_select_route_family_plan": (
+                    COMPUTED_MASK_SELECT_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.computed_mask_select_mask_producer_source": (
+                    COMPUTED_MASK_SELECT_VECTOR_COMPARE_PRODUCER_SOURCE
+                ),
             }
         )
     if expectation.is_runtime_scalar_compare_select:
@@ -5032,6 +5048,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.route_operand_binding_operands": (
                     RUNTIME_SCALAR_CMP_SELECT_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+                "tcrv_rvv.computed_mask_select_route_family_plan": (
+                    COMPUTED_MASK_SELECT_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.computed_mask_select_mask_producer_source": (
+                    COMPUTED_MASK_SELECT_RUNTIME_SCALAR_PRODUCER_SOURCE
                 ),
                 "tcrv_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_CMP_SELECT_TARGET_LEAF_PROFILE
@@ -5075,6 +5097,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.route_operand_binding_operands": (
                     RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+                "tcrv_rvv.computed_mask_select_route_family_plan": (
+                    COMPUTED_MASK_SELECT_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.computed_mask_select_mask_producer_source": (
+                    COMPUTED_MASK_SELECT_DUAL_RUNTIME_SCALAR_PRODUCER_SOURCE
                 ),
                 "tcrv_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_TARGET_LEAF_PROFILE

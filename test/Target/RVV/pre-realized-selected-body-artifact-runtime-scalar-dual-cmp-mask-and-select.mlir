@@ -52,6 +52,8 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "runtime-scalar-dual-cmp-mask-and-select"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "cmp_lhs_a,rhs_scalar_a,cmp_lhs_b,rhs_scalar_b,true_value,false_value,out,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:runtime_scalar_dual_cmp_mask_and_select.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.computed_mask_select_route_family_plan", value = "rvv-computed-mask-select-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.computed_mask_select_mask_producer_source", value = "dual-runtime-scalar-splat-compare-rhs-mask-and"}
 // PLAN-SAME: {key = "tcrv_rvv.secondary_compare_predicate_kind", value = "sle"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_composition", value = "and"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-runtime-scalar-dual-cmp-mask-and-select-callable-c-abi.v1"
@@ -64,4 +66,6 @@ module {
 // HEADER: tianchenrv.rvv.secondary_compare_predicate_kind: sle
 // HEADER: tianchenrv.rvv.mask_composition: and
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:runtime_scalar_dual_cmp_mask_and_select.v1
+// HEADER: tianchenrv.rvv.computed_mask_select_route_family_plan: rvv-computed-mask-select-route-family-plan.v1
+// HEADER: tianchenrv.rvv.computed_mask_select_mask_producer_source: dual-runtime-scalar-splat-compare-rhs-mask-and
 // HEADER: void tcrv_emitc_pre_dual_cmp_mask_select_kernel_pre_rvv_dual_cmp_mask_select(const int32_t *cmp_lhs_a, int32_t rhs_scalar_a, const int32_t *cmp_lhs_b, int32_t rhs_scalar_b, const int32_t *true_value, const int32_t *false_value, int32_t *out, size_t n);

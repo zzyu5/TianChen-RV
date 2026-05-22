@@ -47,6 +47,8 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "cmp_lhs_a,rhs_scalar_a,cmp_lhs_b,rhs_scalar_b,true_value,false_value,out,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:runtime_scalar_dual_cmp_mask_and_select.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "cmp_lhs_a=abi|load|cmp|and;rhs_scalar_a=abi|splat|cmp;cmp_lhs_b=abi|load|cmp|and;rhs_scalar_b=abi|splat|cmp;true_value=abi|load|sel;false_value=abi|load|sel;out=abi|store|hdr;n=abi|setvl|loop|hdr"}
+// PLAN-SAME: {key = "tcrv_rvv.computed_mask_select_route_family_plan", value = "rvv-computed-mask-select-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.computed_mask_select_mask_producer_source", value = "dual-runtime-scalar-splat-compare-rhs-mask-and"}
 // PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-e32m1-runtime-scalar-dual-cmp-mask-and-select-leaf-profile.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-runtime-scalar-dual-cmp-mask-and-select-plan-validated"}
 // PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
@@ -66,4 +68,6 @@ module {
 // HEADER: tianchenrv.rvv.secondary_compare_predicate_kind: sle
 // HEADER: tianchenrv.rvv.mask_composition: and
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:runtime_scalar_dual_cmp_mask_and_select.v1
+// HEADER: tianchenrv.rvv.computed_mask_select_route_family_plan: rvv-computed-mask-select-route-family-plan.v1
+// HEADER: tianchenrv.rvv.computed_mask_select_mask_producer_source: dual-runtime-scalar-splat-compare-rhs-mask-and
 // HEADER: void tcrv_emitc_explicit_dual_cmp_mask_select_kernel_explicit_rvv_dual_cmp_mask_select(const int32_t *cmp_lhs_a, int32_t rhs_scalar_a, const int32_t *cmp_lhs_b, int32_t rhs_scalar_b, const int32_t *true_value, const int32_t *false_value, int32_t *out, size_t n);

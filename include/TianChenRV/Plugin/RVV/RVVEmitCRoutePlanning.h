@@ -282,11 +282,15 @@ struct RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
 };
 
-struct RVVSelectedBodyRuntimeScalarComputedMaskSelectRouteFamilyPlan {
+struct RVVSelectedBodyComputedMaskSelectRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  bool usesVectorCompareProducer = false;
+  bool usesRuntimeScalarProducer = false;
   bool usesDualCompareMaskAnd = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef familyPlanID;
+  llvm::StringRef maskProducerSource;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
   llvm::StringRef providerSupportedMirror;
@@ -313,6 +317,9 @@ struct RVVSelectedBodyRuntimeScalarComputedMaskSelectRouteFamilyPlan {
   llvm::StringRef maskMemoryForm;
   llvm::StringRef maskComposition;
   llvm::StringRef selectLayout;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::StringRef indexedMemoryLayout;
   llvm::SmallVector<support::RuntimeABIParameter, 8> runtimeABIParameters;
 };
 
@@ -435,8 +442,8 @@ struct RVVSelectedBodyRouteAnalysis {
       scalarBroadcastElementwiseRouteFamilyPlan;
   std::optional<RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan>
       runtimeScalarSplatStoreRouteFamilyPlan;
-  std::optional<RVVSelectedBodyRuntimeScalarComputedMaskSelectRouteFamilyPlan>
-      runtimeScalarComputedMaskSelectRouteFamilyPlan;
+  std::optional<RVVSelectedBodyComputedMaskSelectRouteFamilyPlan>
+      computedMaskSelectRouteFamilyPlan;
   std::optional<
       RVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan>
       runtimeScalarComputedMaskMemoryRouteFamilyPlan;

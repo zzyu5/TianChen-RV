@@ -43,6 +43,8 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.compare_predicate_kind", value = "sle"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "computed-mask-vector-select"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:computed_mask_select.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.computed_mask_select_route_family_plan", value = "rvv-computed-mask-select-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.computed_mask_select_mask_producer_source", value = "vector-compare-rhs-load"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-computed-mask-select-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_computed_mask_select_sle
@@ -50,4 +52,6 @@ module {
 // HEADER: tianchenrv.rvv.selected_variant: @pre_realized_body_rvv_computed_mask_select_sle
 // HEADER: tianchenrv.rvv.compare_predicate_kind: sle
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:computed_mask_select.v1
+// HEADER: tianchenrv.rvv.computed_mask_select_route_family_plan: rvv-computed-mask-select-route-family-plan.v1
+// HEADER: tianchenrv.rvv.computed_mask_select_mask_producer_source: vector-compare-rhs-load
 // HEADER: void tcrv_emitc_pre_realized_body_computed_mask_select_sle_kernel_pre_realized_body_rvv_computed_mask_select_sle(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *true_value, const int32_t *false_value, int32_t *out, size_t n);
