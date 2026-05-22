@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first stage order, and authority boundaries for the task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, route provider, and fail-closed boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-runtime-scalar-broadcast-boundary/prd.md", "reason": "Previous runtime scalar splat-store boundary and evidence context."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-05-21-stage2-rvv-runtime-scalar-broadcast-add-production/prd.md", "reason": "Current scalar_broadcast_add production route and evidence inventory."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-operand-binding-contract-closure-gate/prd.md", "reason": "RouteOperandBindingPlan closure expectations and validation scope."}

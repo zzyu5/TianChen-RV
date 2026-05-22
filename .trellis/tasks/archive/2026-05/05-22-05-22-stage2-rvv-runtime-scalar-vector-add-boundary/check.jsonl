@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global authority and Stage2 RVV constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV typed body, route provider, selected-body realization, and evidence boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and consumes provider-built routes."}
+{"file": ".trellis/tasks/05-22-05-22-stage2-rvv-runtime-scalar-vector-add-boundary/prd.md", "reason": "Check implementation against this task's bounded acceptance criteria."}

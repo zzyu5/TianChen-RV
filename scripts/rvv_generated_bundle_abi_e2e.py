@@ -284,8 +284,8 @@ SCALAR_BROADCAST_ROUTE_OPERAND_BINDING_PLAN = (
 )
 SCALAR_BROADCAST_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:scalar_broadcast_add.v1;"
-    "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|scalar-broadcast-lhs-call;"
-    "rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call;"
+    "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|scalar-broadcast-lhs-call|header-mirror;"
+    "rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call|header-mirror;"
     "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
 )
@@ -478,8 +478,8 @@ def scalar_broadcast_route_operand_binding_operands(kind: str) -> str:
     plan = scalar_broadcast_route_operand_binding_plan(kind)
     return (
         f"{plan};"
-        "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|scalar-broadcast-lhs-call;"
-        "rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call;"
+        "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|scalar-broadcast-lhs-call|header-mirror;"
+        "rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call|header-mirror;"
         "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
         "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
     )
@@ -1700,6 +1700,21 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         lhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(5 + (int32_t)(index % 7)) : (int32_t)(3 + (int32_t)index))",
         rhs_initializer="(int32_t)(((index % 4) == 0) ? (int32_t)(5 + (int32_t)(index % 7)) : (int32_t)(100 + (int32_t)index))",
         expected_expression="(lhs[index] == rhs[index] ? (int32_t)(lhs[index] * rhs[index]) : lhs[index])",
+    ),
+    "scalar_broadcast_add": OpExpectation(
+        kind="scalar_broadcast_add",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-scalar-broadcast-add.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_scalar_broadcast_add",
+        external_abi_name="rvv-generic-scalar-broadcast-add-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_scalar_broadcast_add_kernel_explicit_selected_body_rvv_scalar_broadcast_add",
+        emitc_route="rvv-generic-scalar-broadcast-add-emitc-route",
+        typed_compute_op="tcrv_rvv.binary",
+        memory_form="rhs-scalar-broadcast",
+        lhs_initializer="(int32_t)(7 + (int32_t)(index * 3))",
+        rhs_initializer="(int32_t)-37",
+        expected_expression="lhs[index] + rhs_scalar",
     ),
     "scalar_broadcast_sub": OpExpectation(
         kind="scalar_broadcast_sub",

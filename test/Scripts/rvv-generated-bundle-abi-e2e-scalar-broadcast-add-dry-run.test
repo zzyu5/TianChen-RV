@@ -1,0 +1,50 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id explicit-scalar-broadcast-add --overwrite --op-kind scalar_broadcast_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/explicit-scalar-broadcast-add/evidence.json
+# RUN: FileCheck %s --check-prefix=SCALAR --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/explicit-scalar-broadcast-add/scalar_broadcast_add/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/explicit-scalar-broadcast-add/scalar_broadcast_add/rvv_generated_bundle_abi_scalar_broadcast_add_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "explicit-selected-body"
+# ROOT: "scalar_broadcast_add"
+# ROOT: "pre_realized_selected_body": false
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# SCALAR-DAG: "input_mode": "explicit-selected-body"
+# SCALAR-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-scalar-broadcast-add.mlir"
+# SCALAR-DAG: "prototype": "void tcrv_emitc_explicit_selected_body_scalar_broadcast_add_kernel_explicit_selected_body_rvv_scalar_broadcast_add(const int32_t *lhs, int32_t rhs_scalar, int32_t *out, size_t n);"
+# SCALAR-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_scalar_broadcast_add_kernel_explicit_selected_body_rvv_scalar_broadcast_add"
+# SCALAR-DAG: "expected_runtime_abi_name": "rvv-generic-scalar-broadcast-add-callable-c-abi.v1"
+# SCALAR-DAG: "expected_selected_variant": "explicit_selected_body_rvv_scalar_broadcast_add"
+# SCALAR-DAG: "rhs_scalar_values": [
+# SCALAR-DAG: -37
+# SCALAR-DAG: 91
+# SCALAR-DAG: "front_door": "explicit-selected-tcrv-exec-rvv-body"
+# SCALAR-DAG: "key": "rvv_emitc_lowerable_route"
+# SCALAR-DAG: "value": "rvv-generic-scalar-broadcast-add-emitc-route"
+# SCALAR-DAG: "key": "rvv_selected_body_operation"
+# SCALAR-DAG: "value": "scalar_broadcast_add"
+# SCALAR-DAG: "key": "rvv_selected_body_typed_compute_op"
+# SCALAR-DAG: "value": "tcrv_rvv.binary"
+# SCALAR-DAG: "key": "tcrv_rvv.memory_form"
+# SCALAR-DAG: "value": "rhs-scalar-broadcast"
+# SCALAR-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# SCALAR-DAG: "value": "lhs,rhs_scalar,out,n"
+# SCALAR-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# SCALAR-DAG: "value": "rvv-route-operand-binding:scalar_broadcast_add.v1"
+# SCALAR-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# SCALAR-DAG: "value": "rvv-route-operand-binding:scalar_broadcast_add.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|scalar-broadcast-lhs-call|header-mirror;rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call|header-mirror;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+# SCALAR-DAG: "typed_compute_op": "tcrv_rvv.binary"
+# SCALAR-DAG: "memory_form": "rhs-scalar-broadcast"
+# SCALAR-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_explicit_selected_body_scalar_broadcast_add_kernel_explicit_selected_body_rvv_scalar_broadcast_add(lhs, rhs_scalar, out, n);
+# HARNESS: int32_t expected = lhs[index] + rhs_scalar;
+# HARNESS: rhs_scalar=%d
+# HARNESS: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESS: run_case(counts[index], rhs_scalar_values[scalar_index]);
+# HARNESS: rhs_scalars=-37,91

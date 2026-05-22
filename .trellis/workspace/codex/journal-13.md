@@ -69,6 +69,64 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 159: Stage2 RVV closure-gated runtime scalar-vector add boundary
+
+**Date**: 2026-05-22
+**Task**: Stage2 RVV closure-gated runtime scalar-vector add boundary
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded scalar-vector add/store boundary by adding the missing
+explicit selected-body `scalar_broadcast_add` artifact/runtime consumer and
+tightening RouteOperandBindingPlan header-mirror closure for scalar-broadcast
+operands.
+
+### Main Changes
+
+- Added explicit selected-body target/header fixture for `scalar_broadcast_add`
+  carrying `lhs`, runtime `rhs_scalar`, `out`, runtime `n`/AVL, SEW32, LMUL m1,
+  agnostic policy, `splat`, `binary {kind = "add"}`, and `store`.
+- Repaired scalar-broadcast elementwise binding summaries so `lhs`,
+  `rhs_scalar`, `out`, and `n` all carry header mirrors, and provider
+  construction requires the scalar-broadcast header mirror uses before route
+  construction.
+- Added C++ plugin checks for the scalar-broadcast binding summary and
+  fail-closed RHS scalar header mirror lookup.
+- Added explicit generated-bundle ABI expectation and dry-run test for
+  `scalar_broadcast_add`; updated pre-realized scalar-broadcast add evidence
+  checks for the closure-gated binding summary.
+- Shared scalar-broadcast sub/mul FileCheck summaries were updated only to
+  match the common route-family binding summary; no new sub/mul route coverage
+  was added.
+
+### Git Commits
+
+Final round commit is created after task archive in the same Codex turn.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused explicit/pre-realized scalar-broadcast add/sub/mul target and header FileCheck coverage.
+- [OK] Focused scalar-broadcast conversion and negative checks.
+- [OK] Explicit and pre-realized generated-bundle dry-runs for counts `7,16,23` and `rhs_scalar=-37,91`.
+- [OK] Explicit and pre-realized real `ssh rvv` PASS for counts `7,16,23` and `rhs_scalar=-37,91`.
+- [OK] Added-line authority scan found no new positive legacy/source/descriptor/common-export route authority.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` with `331/331` tests passing.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 158: Stage2 RVV closure-gated typed widening conversion boundary
 
 **Date**: 2026-05-22

@@ -1330,6 +1330,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (!lhs)
         return lhs.takeError();
       boundLHSABI = *lhs;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "header-mirror",
+              "scalar broadcast lhs header mirror operand"))
+        return error;
       llvm::Expected<const support::RuntimeABIParameter *> rhsScalar =
           getRequiredBinding(bindingPlan, "rhs_scalar",
                              "scalar-broadcast-rhs-call",
@@ -1337,12 +1341,24 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (!rhsScalar)
         return rhsScalar.takeError();
       boundRHSABI = *rhsScalar;
+      if (llvm::Error error = requireOperandUse(
+              "rhs_scalar", "header-mirror",
+              "scalar broadcast RHS scalar header mirror operand"))
+        return error;
       llvm::Expected<const support::RuntimeABIParameter *> out =
           getRequiredBinding(bindingPlan, "out", "materialized-store-base",
                              "scalar broadcast output store operand");
       if (!out)
         return out.takeError();
       boundOutABI = *out;
+      if (llvm::Error error = requireOperandUse(
+              "out", "header-mirror",
+              "scalar broadcast output header mirror operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "n", "header-mirror",
+              "scalar broadcast runtime count header mirror operand"))
+        return error;
     } else if (isRVVSelectedBodyComputedMaskStandaloneReductionRoute(
                    description.operation)) {
       llvm::StringRef inactiveUse =

@@ -6361,10 +6361,11 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     addRouteOperandBinding(
         plan, "lhs", slice.lhsABI,
         {"runtime-abi-mirror", "materialized-load-base",
-         "scalar-broadcast-lhs-call"});
+         "scalar-broadcast-lhs-call", "header-mirror"});
     addRouteOperandBinding(
         plan, "rhs_scalar", slice.rhsABI,
-        {"runtime-abi-mirror", "scalar-broadcast-rhs-call"});
+        {"runtime-abi-mirror", "scalar-broadcast-rhs-call",
+         "header-mirror"});
     addRouteOperandBinding(
         plan, "out", slice.outABI,
         {"runtime-abi-mirror", "materialized-store-base",
