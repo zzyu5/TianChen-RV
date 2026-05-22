@@ -1700,6 +1700,9 @@ int runRVVCommonValidationTest() {
     else if (route.operationMnemonic ==
              "computed_masked_segment2_load_unit_store")
       executableComputeOp = "tcrv_rvv.masked_segment2_load";
+    else if (route.operationMnemonic ==
+             "computed_masked_segment2_store_unit_load")
+      executableComputeOp = "tcrv_rvv.masked_segment2_store";
     else if (route.operationMnemonic == "computed_masked_strided_store")
       executableComputeOp = "tcrv_rvv.masked_strided_store";
     else if (route.operationMnemonic == "masked_unit_store")
@@ -1744,6 +1747,8 @@ int runRVVCommonValidationTest() {
                                                  "computed_masked_indexed_scatter_store_unit_load" ||
                                              route.operationMnemonic ==
                                                  "computed_masked_segment2_load_unit_store" ||
+                                             route.operationMnemonic ==
+                                                 "computed_masked_segment2_store_unit_load" ||
                                              isComputedMaskSelectRoute ||
                                              isComputedMaskStandaloneReduceRoute ||
                                              route.operationMnemonic ==
@@ -1800,6 +1805,9 @@ int runRVVCommonValidationTest() {
     const bool hasComputedMaskSegment2Load =
         route.operationMnemonic ==
         "computed_masked_segment2_load_unit_store";
+    const bool hasComputedMaskSegment2Store =
+        route.operationMnemonic ==
+        "computed_masked_segment2_store_unit_load";
     const bool hasSegment2Deinterleave =
         route.operationMnemonic == "segment2_deinterleave_unit_store";
     const bool hasSegment2Interleave =
@@ -1836,6 +1844,7 @@ int runRVVCommonValidationTest() {
         : hasComputedMaskIndexedGather           ? 15u
         : hasComputedMaskIndexedScatter          ? 14u
         : hasComputedMaskSegment2Load            ? 16u
+        : hasComputedMaskSegment2Store           ? 14u
         : hasSegment2Deinterleave                ? 11u
         : hasSegment2Interleave                  ? 9u
         : hasStridedMemory         ? 13u
@@ -1943,6 +1952,13 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
+               "computed_masked_segment2_store_unit_load") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyComputedMaskSegment2StoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==

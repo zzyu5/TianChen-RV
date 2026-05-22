@@ -468,6 +468,10 @@ bool isPreRealizedComputedMaskSegment2LoadOpKind(llvm::StringRef opKind) {
   return opKind == "computed_masked_segment2_load_unit_store";
 }
 
+bool isPreRealizedComputedMaskSegment2StoreOpKind(llvm::StringRef opKind) {
+  return opKind == "computed_masked_segment2_store_unit_load";
+}
+
 bool isPreRealizedComputedMaskMemoryMovementPredicateKind(
     llvm::StringRef predicateKind) {
   return predicateKind == "slt";
@@ -501,6 +505,11 @@ bool isPreRealizedComputedMaskIndexedScatterMemoryForm(
 bool isPreRealizedComputedMaskSegment2LoadMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-segment2-load-unit-store";
+}
+
+bool isPreRealizedComputedMaskSegment2StoreMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "computed-mask-unit-load-segment2-store";
 }
 
 bool isPreRealizedComputedMaskMemoryMovementMaskRole(llvm::StringRef role) {
@@ -639,6 +648,7 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::
                       TypedComputedMaskIndexedScatterPreRealizedBodyOp,
                   tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp,
+                  tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp,
                   tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
             op))
@@ -671,6 +681,7 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.typed_computed_mask_strided_load_pre_realized_body or "
         "tcrv_rvv.typed_computed_mask_indexed_gather_pre_realized_body or "
         "tcrv_rvv.typed_computed_mask_indexed_scatter_pre_realized_body or "
+        "tcrv_rvv.typed_computed_mask_segment2_store_pre_realized_body or "
         "tcrv_rvv.typed_segment2_deinterleave_memory_pre_realized_body or "
         "tcrv_rvv.typed_segment2_interleave_memory_pre_realized_body op when no realized "
         "setvl/with_vl body is present");
@@ -3745,6 +3756,166 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
   return llvm::Error::success();
 }
 
+llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVPluginError(
+        "selected RVV computed-mask segment2 store realization requires a "
+        "pre-realized computed-mask segment2 store body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body must be a "
+        "direct child of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedComputedMaskSegment2StoreOpKind(body.getOpKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only op_kind 'computed_masked_segment2_store_unit_load'");
+  if (!isPreRealizedComputedMaskMemoryMovementPredicateKind(
+          body.getPredicateKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only predicate_kind 'slt'");
+  if (!isPreRealizedComputedMaskSegment2StoreMemoryForm(body.getMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only memory_form 'computed-mask-unit-load-segment2-store'");
+  if (static_cast<std::int64_t>(body.getSegmentCount()) != 2)
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body requires "
+        "segment_count 2");
+  if (!isPreRealizedSegment2InterleaveField0Role(body.getField0Role()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body requires "
+        "field0_role 'segment-field0-input-buffer'");
+  if (!isPreRealizedSegment2InterleaveField1Role(body.getField1Role()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body requires "
+        "field1_role 'segment-field1-input-buffer'");
+  if (body.getField0Role() == body.getField1Role())
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body requires "
+        "distinct field0_role and field1_role");
+  if (!isPreRealizedSegment2InterleaveSourceMemoryForm(
+          body.getSource0MemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only source0_memory_form 'unit-stride-load'");
+  if (!isPreRealizedSegment2InterleaveSourceMemoryForm(
+          body.getSource1MemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only source1_memory_form 'unit-stride-load'");
+  if (!isPreRealizedSegment2InterleaveDestinationMemoryForm(
+          body.getDestinationMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only destination_memory_form "
+        "'segment2-interleaved-unit-stride-store'");
+  if (!isPreRealizedComputedMaskMemoryMovementMaskRole(body.getMaskRole()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only mask_role 'predicate-mask-produced-by-compare'");
+  if (!isPreRealizedComputedMaskMemoryMovementMaskSource(
+          body.getMaskSource()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only mask_source 'compare-produced-mask-same-vl-scope'");
+  if (!isPreRealizedComputedMaskMemoryMovementMaskMemoryForm(
+          body.getMaskMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body currently "
+        "supports only mask_memory_form 'compare-produced-mask'");
+  if (body.getInactiveLanePolicy() != "preserve-output-on-false-lanes")
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body requires "
+        "inactive_lane_policy 'preserve-output-on-false-lanes'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body requires "
+        "SEW32 LMUL m1 data/mask config");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store body requires "
+        "tail agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getCompareLhs(),
+          "pre-realized RVV computed-mask segment2 store compare lhs operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!compareLhs)
+    return compareLhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareRhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getCompareRhs(),
+          "pre-realized RVV computed-mask segment2 store compare rhs operand",
+          support::RuntimeABIParameterRole::RHSInputBuffer);
+  if (!compareRhs)
+    return compareRhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field0 =
+      requirePreRealizedRuntimeABIValue(
+          body.getSrc0(),
+          "pre-realized RVV computed-mask segment2 store field0 source "
+          "operand",
+          support::RuntimeABIParameterRole::SegmentField0InputBuffer);
+  if (!field0)
+    return field0.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field1 =
+      requirePreRealizedRuntimeABIValue(
+          body.getSrc1(),
+          "pre-realized RVV computed-mask segment2 store field1 source "
+          "operand",
+          support::RuntimeABIParameterRole::SegmentField1InputBuffer);
+  if (!field1)
+    return field1.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+      requirePreRealizedRuntimeABIValue(
+          body.getDst(),
+          "pre-realized RVV computed-mask segment2 store interleaved "
+          "destination operand",
+          support::RuntimeABIParameterRole::SegmentInterleavedOutputBuffer);
+  if (!destination)
+    return destination.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(),
+          "pre-realized RVV computed-mask segment2 store runtime n/AVL "
+          "operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
+                  tcrv::rvv::
+                      TypedComputedMaskSegment2StorePreRealizedBodyOp>(op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected computed-mask segment2 store "
+                    "body must not be mixed with already realized RVV route "
+                    "body op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVPluginError(
+        "pre-realized RVV selected computed-mask segment2 store realization "
+        "requires non-empty selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
 llvm::Error validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
     const VariantLoweringBoundaryRequest &request,
     tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp body) {
@@ -4100,6 +4271,25 @@ mlir::Operation *createRealizedGenericSegment2Store(
                      builder.getStringAttr(destinationMemoryForm));
   state.addAttribute("field0_role", builder.getStringAttr(field0Role));
   state.addAttribute("field1_role", builder.getStringAttr(field1Role));
+  return builder.create(state);
+}
+
+mlir::Operation *createRealizedGenericMaskedSegment2Store(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value destination,
+    mlir::Value mask, mlir::Value field0, mlir::Value field1, mlir::Value vl,
+    std::int64_t segmentCount, llvm::StringRef destinationMemoryForm,
+    llvm::StringRef field0Role, llvm::StringRef field1Role,
+    llvm::StringRef inactiveLanePolicy) {
+  mlir::OperationState state(loc, "tcrv_rvv.masked_segment2_store");
+  state.addOperands({destination, mask, field0, field1, vl});
+  state.addAttribute("segment_count",
+                     builder.getI64IntegerAttr(segmentCount));
+  state.addAttribute("destination_memory_form",
+                     builder.getStringAttr(destinationMemoryForm));
+  state.addAttribute("field0_role", builder.getStringAttr(field0Role));
+  state.addAttribute("field1_role", builder.getStringAttr(field1Role));
+  state.addAttribute("inactive_lane_policy",
+                     builder.getStringAttr(inactiveLanePolicy));
   return builder.create(state);
 }
 
@@ -4902,6 +5092,7 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::
                       TypedComputedMaskIndexedScatterPreRealizedBodyOp,
                   tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp,
+                  tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp,
                   tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp,
                   tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
             op))
@@ -5971,6 +6162,65 @@ realizePreRealizedRVVSelectedBody(
                                computedMaskSegment2LoadBody.getOut1(),
                                maskedSegmentLoad.getField1(), setvl.getVl());
     computedMaskSegment2LoadBody->erase();
+    return withVL;
+  }
+
+  if (auto computedMaskSegment2StoreBody = llvm::dyn_cast<
+          tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp>(
+          *bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
+                request, computedMaskSegment2StoreBody))
+      return std::move(error);
+
+    mlir::Location loc = computedMaskSegment2StoreBody->getLoc();
+    builder.setInsertionPoint(computedMaskSegment2StoreBody.getOperation());
+
+    std::int64_t sew =
+        static_cast<std::int64_t>(computedMaskSegment2StoreBody.getSew());
+    llvm::StringRef lmul = computedMaskSegment2StoreBody.getLmul();
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc, computedMaskSegment2StoreBody.getN(),
+                            sew, lmul,
+                            computedMaskSegment2StoreBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires, sew, lmul,
+                             computedMaskSegment2StoreBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto compareLhsLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, computedMaskSegment2StoreBody.getCompareLhs(),
+            setvl.getVl(), sew, lmul));
+    auto compareRhsLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, computedMaskSegment2StoreBody.getCompareRhs(),
+            setvl.getVl(), sew, lmul));
+    auto field0Load = llvm::cast<tcrv::rvv::LoadOp>(
+        createRealizedGenericLoad(builder, loc,
+                                  computedMaskSegment2StoreBody.getSrc0(),
+                                  setvl.getVl(), sew, lmul));
+    auto field1Load = llvm::cast<tcrv::rvv::LoadOp>(
+        createRealizedGenericLoad(builder, loc,
+                                  computedMaskSegment2StoreBody.getSrc1(),
+                                  setvl.getVl(), sew, lmul));
+    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(
+            builder, loc, compareLhsLoad.getLoaded(),
+            compareRhsLoad.getLoaded(), setvl.getVl(),
+            computedMaskSegment2StoreBody.getPredicateKind()));
+    createRealizedGenericMaskedSegment2Store(
+        builder, loc, computedMaskSegment2StoreBody.getDst(),
+        compare.getMask(), field0Load.getLoaded(), field1Load.getLoaded(),
+        setvl.getVl(),
+        static_cast<std::int64_t>(
+            computedMaskSegment2StoreBody.getSegmentCount()),
+        computedMaskSegment2StoreBody.getDestinationMemoryForm(),
+        computedMaskSegment2StoreBody.getField0Role(),
+        computedMaskSegment2StoreBody.getField1Role(),
+        computedMaskSegment2StoreBody.getInactiveLanePolicy());
+    computedMaskSegment2StoreBody->erase();
     return withVL;
   }
 

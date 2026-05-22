@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV/RVV stage order, typed body authority, descriptor/source-front-door red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned selected-body realization, route provider, typed tcrv_rvv authority, Stage2 coverage rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary and provider-built TCRVEmitCLowerableRoute requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck, generated artifact, and ssh rvv evidence policy for RVV runtime claims."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected body, realization, route provider, and metadata mirror boundaries for Stage2 RVV routes."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-05-21-stage2-rvv-segmented-movement-operand-binding/prd.md", "reason": "Immediate segmented movement RouteOperandBindingPlan adoption pattern and fail-closed validation baseline."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-closure-gated-two-field-segmented-masked-load-movement/prd.md", "reason": "Sibling segment2 masked-load route semantics, selected-body realization, closure-gated binding, dry-run, ssh rvv, and authority-scan pattern."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-stage2-rvv-closure-gated-indexed-masked-scatter-store-movement/prd.md", "reason": "Immediate masked-store predecessor for no-write policy, binding closure, generated-bundle, ssh rvv, and fail-closed test pattern."}
+{"file": ".trellis/workspace/codex/journal-13.md", "reason": "Recent session notes for closure-gated segment2 masked-load and indexed masked scatter-store continuation context."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Added typed computed-mask segment2 store pre-realized body and explicit masked_segment2_store op surface."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Implemented verifier/dataflow contracts for typed segmented masked store facts, compare-produced mask, segment_count=2, field payload roles, destination memory, and no-write policy."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Realized pre-realized segment2 masked store facts into explicit setvl/load/compare/masked_segment2_store selected-body structure."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Added computed_masked_segment2_store_unit_load planning profile, ABI order, metadata mirrors, target leaf, binding plan, and closure validation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Added closure-gated provider materialization for masked segment2 store using typed field payloads, compare mask, interleaved destination, runtime n/AVL, and provider-owned target leaf."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Added dry-run and real ssh rvv generated-bundle evidence path for explicit/pre-realized computed_masked_segment2_store_unit_load counts 7,16,23."}

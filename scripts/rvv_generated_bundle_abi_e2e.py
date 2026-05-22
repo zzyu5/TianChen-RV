@@ -75,6 +75,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "computed_masked_indexed_gather_load_unit_store",
     "computed_masked_indexed_scatter_store_unit_load",
     "computed_masked_segment2_load_unit_store",
+    "computed_masked_segment2_store_unit_load",
     "segment2_deinterleave_unit_store",
     "segment2_interleave_unit_load",
     *SCALAR_BROADCAST_OP_KINDS,
@@ -389,6 +390,18 @@ COMPUTED_MASK_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_OPERANDS = (
     "f1-store|f1-role|dst-mem|hdr;"
     "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
 )
+COMPUTED_MASK_SEGMENT2_STORE_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1"
+)
+COMPUTED_MASK_SEGMENT2_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1;"
+    "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;"
+    "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;"
+    "src0=segment-field0-input-buffer:src0:abi|f0-load|f0-payload|tuple0|f0-role|src0-mem;"
+    "src1=segment-field1-input-buffer:src1:abi|f1-load|f1-payload|tuple1|f1-role|src1-mem;"
+    "dst=segment-interleaved-output-buffer:dst:abi|mseg-store|dst-mem|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
+)
 BINARY_ROUTE_OPERAND_BINDING_OPERANDS = (
     "{plan};"
     "lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;"
@@ -594,6 +607,9 @@ COMPUTED_MASK_INDEXED_SCATTER_RUNTIME_ABI_ORDER = (
 COMPUTED_MASK_SEGMENT2_LOAD_RUNTIME_ABI_ORDER = (
     "cmp_lhs,cmp_rhs,src,out0,out1,n"
 )
+COMPUTED_MASK_SEGMENT2_STORE_RUNTIME_ABI_ORDER = (
+    "cmp_lhs,cmp_rhs,src0,src1,dst,n"
+)
 COMPUTED_MASK_STRIDED_STORE_MEMORY_LAYOUT = (
     "unit-stride-compare-source-byte-strided-masked-destination-runtime-abi"
 )
@@ -629,6 +645,14 @@ COMPUTED_MASK_INDEXED_SCATTER_INDEXED_DESTINATION_MEMORY_FORM = (
 )
 COMPUTED_MASK_SEGMENT2_SOURCE_MEMORY_FORM = "segment2-interleaved-unit-stride-load"
 COMPUTED_MASK_SEGMENT2_DESTINATION_MEMORY_FORM = "unit-stride-store"
+COMPUTED_MASK_SEGMENT2_STORE_MEMORY_LAYOUT = (
+    "unit-stride-compare-field-payloads-segment2-masked-destination-runtime-abi"
+)
+COMPUTED_MASK_SEGMENT2_STORE_SOURCE_MEMORY_FORM = "unit-stride-load"
+COMPUTED_MASK_SEGMENT2_STORE_DESTINATION_MEMORY_FORM = (
+    "segment2-interleaved-unit-stride-store"
+)
+COMPUTED_MASK_SEGMENT2_STORE_INTRINSIC = "__riscv_vsseg2e32_v_i32m1x2_m"
 COMPUTED_MASK_SEGMENT2_LOAD_INTRINSIC = "__riscv_vlseg2e32_v_i32m1x2_tumu"
 COMPUTED_MASK_SEGMENT2_TUPLE_CREATE_INTRINSIC = "__riscv_vcreate_v_i32m1x2"
 COMPUTED_MASK_STRIDED_STORE_INACTIVE_LANE_CONTRACT = (
@@ -856,6 +880,12 @@ class OpExpectation:
                 "const int32_t *cmp_rhs, const int32_t *src, "
                 "int32_t *out0, int32_t *out1, size_t n);"
             )
+        if self.is_computed_masked_segment2_store_unit_load:
+            return (
+                f"void {self.function_name}(const int32_t *cmp_lhs, "
+                "const int32_t *cmp_rhs, const int32_t *src0, "
+                "const int32_t *src1, int32_t *dst, size_t n);"
+            )
         if self.is_computed_masked_widening_dot_reduce_add:
             return (
                 f"void {self.function_name}(const int32_t *cmp_lhs, "
@@ -959,6 +989,8 @@ class OpExpectation:
             return EXPECTED_COMPUTED_MASK_INDEXED_SCATTER_RUNTIME_PARAMETERS
         if self.is_computed_masked_segment2_load_unit_store:
             return EXPECTED_COMPUTED_MASK_SEGMENT2_LOAD_RUNTIME_PARAMETERS
+        if self.is_computed_masked_segment2_store_unit_load:
+            return EXPECTED_COMPUTED_MASK_SEGMENT2_STORE_RUNTIME_PARAMETERS
         if self.is_computed_masked_widening_dot_reduce_add:
             return EXPECTED_COMPUTED_MASK_WIDENING_DOT_RUNTIME_PARAMETERS
         if self.is_computed_masked_strided_input_widening_dot_reduce_add:
@@ -1025,6 +1057,8 @@ class OpExpectation:
             return COMPUTED_MASK_INDEXED_SCATTER_RUNTIME_ABI_ORDER
         if self.is_computed_masked_segment2_load_unit_store:
             return COMPUTED_MASK_SEGMENT2_LOAD_RUNTIME_ABI_ORDER
+        if self.is_computed_masked_segment2_store_unit_load:
+            return COMPUTED_MASK_SEGMENT2_STORE_RUNTIME_ABI_ORDER
         if self.is_segment2_deinterleave_unit_store:
             return SEGMENT2_RUNTIME_ABI_ORDER
         if self.is_segment2_interleave_unit_load:
@@ -1169,6 +1203,10 @@ class OpExpectation:
     @property
     def is_computed_masked_segment2_load_unit_store(self) -> bool:
         return self.kind == "computed_masked_segment2_load_unit_store"
+
+    @property
+    def is_computed_masked_segment2_store_unit_load(self) -> bool:
+        return self.kind == "computed_masked_segment2_store_unit_load"
 
     @property
     def is_segment2_deinterleave_unit_store(self) -> bool:
@@ -1765,6 +1803,34 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         ),
         compare_predicate_kind="slt",
     ),
+    "computed_masked_segment2_store_unit_load": OpExpectation(
+        kind="computed_masked_segment2_store_unit_load",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-computed-masked-segment2-store.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_cmseg_store",
+        external_abi_name="rvv-generic-computed-masked-segment2-store-unit-load-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_cmseg_store_kernel_explicit_selected_body_rvv_cmseg_store",
+        emitc_route="rvv-generic-computed-masked-segment2-store-unit-load-emitc-route",
+        typed_compute_op="tcrv_rvv.masked_segment2_store",
+        memory_form="computed-mask-unit-load-segment2-store",
+        lhs_initializer=(
+            "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
+            "? (int32_t)(10 + (int32_t)index) "
+            ": (int32_t)(100 + (int32_t)index))"
+        ),
+        rhs_initializer=(
+            "(int32_t)(((index % 4) == 0 || (index % 4) == 3) "
+            "? (int32_t)(50 + (int32_t)index) "
+            ": (int32_t)(20 + (int32_t)index))"
+        ),
+        source_initializer="(int32_t)(7100 + (int32_t)(index * 59))",
+        out_initializer="(int32_t)(-19000 - (int32_t)(index * 41))",
+        expected_expression=(
+            "cmp_lhs[index] < cmp_rhs[index] ? src_field[index] : old_dst[2 * index + field]"
+        ),
+        compare_predicate_kind="slt",
+    ),
     "indexed_gather_unit_store": OpExpectation(
         kind="indexed_gather_unit_store",
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-indexed-gather-unit-store.mlir"),
@@ -2156,6 +2222,15 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_cmseg_load",
         function_name="tcrv_emitc_pre_realized_body_cmseg_load_kernel_pre_realized_body_rvv_cmseg_load",
+    ),
+    "computed_masked_segment2_store_unit_load": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "computed_masked_segment2_store_unit_load"
+        ],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-store.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_cmseg_store",
+        function_name="tcrv_emitc_pre_realized_body_cmseg_store_kernel_pre_realized_body_rvv_cmseg_store",
     ),
     "segment2_deinterleave_unit_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["strided_load_unit_store"],
@@ -2802,6 +2877,29 @@ EXPECTED_COMPUTED_MASK_SEGMENT2_LOAD_RUNTIME_PARAMETERS = (
         "c_name": "out1",
         "c_type": "int32_t *",
         "role": "segment-field1-output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[4],
+)
+EXPECTED_COMPUTED_MASK_SEGMENT2_STORE_RUNTIME_PARAMETERS = (
+    EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[0],
+    EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[1],
+    {
+        "c_name": "src0",
+        "c_type": "const int32_t *",
+        "role": "segment-field0-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "src1",
+        "c_type": "const int32_t *",
+        "role": "segment-field1-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "dst",
+        "c_type": "int32_t *",
+        "role": "segment-interleaved-output-buffer",
         "ownership": "target-export-abi-owned",
     },
     EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[4],
@@ -4049,6 +4147,59 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.route_operand_binding_operands": (
                     COMPUTED_MASK_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+            }
+        )
+    if expectation.is_computed_masked_segment2_store_unit_load:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.compare_predicate_kind": (
+                    expectation.compare_predicate_kind
+                ),
+                "tcrv_rvv.masked_memory_layout": (
+                    COMPUTED_MASK_SEGMENT2_STORE_MEMORY_LAYOUT
+                ),
+                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "tcrv_rvv.inactive_lane_contract": (
+                    MASKED_STORE_INACTIVE_LANE_CONTRACT
+                ),
+                "tcrv_rvv.masked_passthrough_layout": (
+                    MASKED_STORE_PASSTHROUGH_LAYOUT
+                ),
+                "tcrv_rvv.source_memory_form": (
+                    COMPUTED_MASK_SEGMENT2_STORE_SOURCE_MEMORY_FORM
+                ),
+                "tcrv_rvv.destination_memory_form": (
+                    COMPUTED_MASK_SEGMENT2_STORE_DESTINATION_MEMORY_FORM
+                ),
+                "tcrv_rvv.segment_memory_layout": (
+                    COMPUTED_MASK_SEGMENT2_STORE_MEMORY_LAYOUT
+                ),
+                "tcrv_rvv.segment_count": "2",
+                "tcrv_rvv.segment_tuple_c_type": SEGMENT2_TUPLE_C_TYPE,
+                "tcrv_rvv.segment_store_intrinsic": (
+                    COMPUTED_MASK_SEGMENT2_STORE_INTRINSIC
+                ),
+                "tcrv_rvv.segment_tuple_create_intrinsic": (
+                    SEGMENT2_TUPLE_CREATE_INTRINSIC
+                ),
+                "tcrv_rvv.field0_role": SEGMENT2_FIELD0_INPUT_ROLE,
+                "tcrv_rvv.field1_role": SEGMENT2_FIELD1_INPUT_ROLE,
+                "tcrv_rvv.field0_name": "masked_segment2_store_field0_vec",
+                "tcrv_rvv.field1_name": "masked_segment2_store_field1_vec",
+                "tcrv_rvv.field0_source_memory_form": (
+                    SEGMENT2_FIELD_SOURCE_MEMORY_FORM
+                ),
+                "tcrv_rvv.field1_source_memory_form": (
+                    SEGMENT2_FIELD_SOURCE_MEMORY_FORM
+                ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    COMPUTED_MASK_SEGMENT2_STORE_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    COMPUTED_MASK_SEGMENT2_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
             }
         )
@@ -5587,6 +5738,77 @@ def verify_materialized_selected_body(
             "tcrv_rvv.binary",
             "materialized selected-body MLIR computed-mask segment2",
         )
+    if expectation.is_computed_masked_segment2_store_unit_load:
+        require_contains(
+            text,
+            "tcrv_rvv.compare",
+            "materialized selected-body MLIR computed-mask segment2-store compare",
+        )
+        require_contains(
+            text,
+            'kind = "slt"',
+            "materialized selected-body MLIR computed-mask segment2-store predicate",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.masked_segment2_store",
+            "materialized selected-body MLIR computed-mask masked segment2 store op",
+        )
+        require_contains(
+            text,
+            'destination_memory_form = "segment2-interleaved-unit-stride-store"',
+            "materialized selected-body MLIR computed-mask segment2-store destination memory form",
+        )
+        require_contains(
+            text,
+            'inactive_lane_policy = "preserve-output-on-false-lanes"',
+            "materialized selected-body MLIR computed-mask segment2-store inactive lane policy",
+        )
+        require_contains(
+            text,
+            'field0_role = "segment-field0-input-buffer"',
+            "materialized selected-body MLIR computed-mask segment2-store field0 role",
+        )
+        require_contains(
+            text,
+            'field1_role = "segment-field1-input-buffer"',
+            "materialized selected-body MLIR computed-mask segment2-store field1 role",
+        )
+        require_contains(
+            text,
+            'role = "segment-interleaved-output-buffer"',
+            "materialized selected-body MLIR computed-mask segment2-store destination ABI role",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.segment2_store",
+            "materialized selected-body MLIR computed-mask segment2-store",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.mask_load",
+            "materialized selected-body MLIR computed-mask segment2-store",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_move",
+            "materialized selected-body MLIR computed-mask segment2-store",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.strided_load",
+            "materialized selected-body MLIR computed-mask segment2-store",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_indexed_store",
+            "materialized selected-body MLIR computed-mask segment2-store",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.binary",
+            "materialized selected-body MLIR computed-mask segment2-store",
+        )
     if expectation.is_segment2_deinterleave_unit_store:
         require_contains(
             text,
@@ -6070,6 +6292,156 @@ cleanup:
   free(out1);
   free(old0);
   free(old1);
+  return status;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  for (size_t index = 0; index < sizeof(counts) / sizeof(counts[0]); ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  return 0;
+}}
+""".lstrip()
+    if expectation.is_computed_masked_segment2_store_unit_load:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n == 0 ? 1 : n;
+  size_t dst_alloc_n = alloc_n * 2 + 8;
+  int32_t *cmp_lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *cmp_rhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *src0 = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *src1 = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *src0_before = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *src1_before = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
+  int32_t *old_dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
+  int status = 0;
+  if (!cmp_lhs || !cmp_rhs || !src0 || !src1 || !src0_before ||
+      !src1_before || !dst || !old_dst) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    status = 11;
+    goto cleanup;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    cmp_lhs[index] = {expectation.lhs_initializer};
+    cmp_rhs[index] = {expectation.rhs_initializer};
+    src0[index] = {expectation.source_initializer};
+    src1[index] = (int32_t)({expectation.source_initializer} - 211);
+    src0_before[index] = src0[index];
+    src1_before[index] = src1[index];
+  }}
+  for (size_t index = 0; index < dst_alloc_n; ++index) {{
+    dst[index] = {expectation.out_initializer};
+    old_dst[index] = dst[index];
+  }}
+
+  {expectation.function_name}(cmp_lhs, cmp_rhs, src0, src1, dst, n);
+
+  size_t active_lanes = 0;
+  size_t inactive_lanes = 0;
+  size_t inactive_preserved_lanes = 0;
+  size_t field_distinguishing_lanes = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    int active = cmp_lhs[index] < cmp_rhs[index];
+    if (active)
+      ++active_lanes;
+    else
+      ++inactive_lanes;
+    int32_t expected0 = active ? src0[index] : old_dst[2 * index];
+    int32_t expected1 = active ? src1[index] : old_dst[2 * index + 1];
+    if (expected0 != expected1)
+      ++field_distinguishing_lanes;
+    if (dst[2 * index] != expected0 || dst[2 * index + 1] != expected1) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got0=%d expected0=%d got1=%d expected1=%d cmp_lhs=%d cmp_rhs=%d src0=%d src1=%d old0=%d old1=%d\\n",
+              n, index, dst[2 * index], expected0, dst[2 * index + 1],
+              expected1, cmp_lhs[index], cmp_rhs[index], src0[index],
+              src1[index], old_dst[2 * index], old_dst[2 * index + 1]);
+      status = 12;
+      goto cleanup;
+    }}
+    if (!active) {{
+      if (dst[2 * index] != old_dst[2 * index] ||
+          dst[2 * index + 1] != old_dst[2 * index + 1]) {{
+        fprintf(stderr,
+                "{expectation.kind} inactive lane failed to preserve interleaved destination n=%zu index=%zu got0=%d old0=%d got1=%d old1=%d\\n",
+                n, index, dst[2 * index], old_dst[2 * index],
+                dst[2 * index + 1], old_dst[2 * index + 1]);
+        status = 13;
+        goto cleanup;
+      }}
+      ++inactive_preserved_lanes;
+    }}
+  }}
+
+  for (size_t index = n * 2; index < dst_alloc_n; ++index) {{
+    if (dst[index] != old_dst[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d old=%d\\n",
+              n, index, dst[index], old_dst[index]);
+      status = 14;
+      goto cleanup;
+    }}
+  }}
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    if (src0[index] != src0_before[index] || src1[index] != src1_before[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} source buffer mutated n=%zu index=%zu got0=%d before0=%d got1=%d before1=%d\\n",
+              n, index, src0[index], src0_before[index], src1[index],
+              src1_before[index]);
+      status = 15;
+      goto cleanup;
+    }}
+  }}
+  if (n > 1 && (active_lanes == 0 || inactive_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} compare mask coverage missing n=%zu active_lanes=%zu inactive_lanes=%zu\\n",
+            n, active_lanes, inactive_lanes);
+    status = 16;
+    goto cleanup;
+  }}
+  if (n > 1 && field_distinguishing_lanes == 0) {{
+    fprintf(stderr,
+            "{expectation.kind} field-distinguishing coverage missing n=%zu\\n",
+            n);
+    status = 17;
+    goto cleanup;
+  }}
+  if (inactive_lanes != inactive_preserved_lanes) {{
+    fprintf(stderr,
+            "{expectation.kind} inactive preservation coverage mismatch n=%zu inactive_lanes=%zu preserved_lanes=%zu\\n",
+            n, inactive_lanes, inactive_preserved_lanes);
+    status = 18;
+    goto cleanup;
+  }}
+
+  printf("{expectation.kind} case n=%zu ok computed_mask segment2_store active_lanes=%zu inactive_lanes=%zu inactive_preserved_lanes=%zu field_distinguishing_lanes=%zu source_preserved tail_preserved\\n",
+         n, active_lanes, inactive_lanes, inactive_preserved_lanes,
+         field_distinguishing_lanes);
+
+cleanup:
+  free(cmp_lhs);
+  free(cmp_rhs);
+  free(src0);
+  free(src1);
+  free(src0_before);
+  free(src1_before);
+  free(dst);
+  free(old_dst);
   return status;
 }}
 
@@ -10107,6 +10479,20 @@ def run_one_op_e2e(
                 "segment fields into out0/out1 while source and tail slots "
                 "preserve sentinels"
             )
+        if expectation.is_computed_masked_segment2_store_unit_load:
+            evidence["harness"]["mask_coverage_contract"] = (
+                "multi-lane computed_masked_segment2_store_unit_load cases "
+                "require compare-produced active and inactive mask lanes"
+            )
+            evidence["harness"]["inactive_lane_contract"] = (
+                "compare-false lanes must preserve both old interleaved "
+                "destination field slots"
+            )
+            evidence["harness"]["field_order_contract"] = (
+                "active lanes store distinguishable field0/field1 payload "
+                "vectors into even/odd interleaved destination slots while "
+                "source buffers and tail slots preserve sentinels"
+            )
         if expectation.is_computed_mask_standalone_reduce:
             evidence["harness"]["mask_coverage_contract"] = (
                 f"multi-lane {expectation.kind} cases require "
@@ -10583,6 +10969,19 @@ def run_self_test() -> int:
                 raise AssertionError(
                     "self-test harness generation lost computed-mask segment2 "
                     "mask, passthrough, or field-order coverage"
+                )
+            if expectation.is_computed_masked_segment2_store_unit_load and (
+                "computed_mask segment2_store" not in harness
+                or "dst[2 * index]" not in harness
+                or "dst[2 * index + 1]" not in harness
+                or "inactive lane failed to preserve interleaved destination"
+                not in harness
+                or "source buffer mutated" not in harness
+                or "field_distinguishing_lanes" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost computed-mask segment2 "
+                    "store mask, no-write, or field-order coverage"
                 )
             if expectation.is_computed_mask_standalone_reduce and (
                 "active_lanes" not in harness

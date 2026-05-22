@@ -69,6 +69,80 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 158: Stage2 RVV closure-gated two-field segmented masked store movement
+
+**Date**: 2026-05-22
+**Task**: Stage2 RVV closure-gated two-field segmented masked store movement
+**Branch**: `main`
+
+### Summary
+
+Added one bounded closure-gated `computed_masked_segment2_store_unit_load`
+route family on the corrected typed RVV surface. The new path carries
+compare-produced mask facts, field0/field1 payload sources, interleaved
+destination memory, segment count 2, inactive-lane no-write policy, runtime
+n/AVL, SEW/LMUL/policy, materialized operands, header mirrors, and provider
+owned target leaf through RVV dialect/config, selected-body realization,
+construction protocol, route planning/provider, target artifact fixtures, and
+generated-bundle runtime evidence.
+
+### Main Changes
+
+- Added `tcrv_rvv.masked_segment2_store` and
+  `tcrv_rvv.typed_computed_mask_segment2_store_pre_realized_body`.
+- Added RVV config/runtime ABI support for order
+  `cmp_lhs,cmp_rhs,src0,src1,dst,n`.
+- Added selected-body realization from pre-realized facts into explicit
+  `setvl`, typed loads, `tcrv_rvv.compare`, and
+  `tcrv_rvv.masked_segment2_store`.
+- Added closure-gated route planning/provider materialization with
+  `rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1` and
+  masked segmented store target leaf
+  `__riscv_vsseg2e32_v_i32m1x2_m`.
+- Added explicit/pre-realized target fixtures and generated-bundle ABI/runtime
+  support for value-distinguishing interleaved masked stores.
+- Routes intentionally not converted: segment3/4, broad segmented matrices,
+  indexed/strided/contiguous masked movement, segment2 masked load redo,
+  reductions, compare/select expansion, dtype/LMUL clone batches, frontend
+  lowering, source-front-door routes, and future plugin work.
+
+### Testing
+
+- [OK] Focused dialect and target FileCheck coverage for explicit and
+  pre-realized computed-mask segment2 masked store.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Explicit and pre-realized generated-bundle dry-runs for
+  `computed_masked_segment2_store_unit_load`, counts `7,16,23`.
+- [OK] Real `ssh rvv` explicit and pre-realized generated-bundle runs, counts
+  `7,16,23`, proving active segmented masked stores, false-lane no-write
+  preservation, field-distinguishing payload order, unrelated source
+  preservation, runtime n/AVL variation, and tail/sentinel preservation.
+- [OK] Regression dry-runs for explicit and pre-realized
+  `computed_masked_segment2_load_unit_store`, counts `7,16,23`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 316/316 passed.
+- [OK] `git diff --check`.
+- [OK] Active-authority scan found no new positive legacy i32/source-front-door
+  / descriptor / direct-C / common-export route authority. New exact intrinsic
+  hits are provider-owned target leaf mirrors after typed closure.
+
+### Self-Repair
+
+- Repaired target header metadata ordering for the new route.
+- Preserved computed segment2 masked-load source/destination metadata after
+  de-duplicating generic masked-memory metadata.
+- Added the new store runtime ABI branch and role step count to construction
+  protocol tests.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 158: Stage2 RVV closure-gated two-field segmented masked load movement
 
 **Date**: 2026-05-22
