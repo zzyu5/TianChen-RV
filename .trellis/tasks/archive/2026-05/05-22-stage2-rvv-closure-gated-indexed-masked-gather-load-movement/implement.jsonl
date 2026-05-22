@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants, RVV-first authority chain, and Stage2 route-supported coverage boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body authority, selected-body realization, route provider ownership, fail-closed legacy/source paths, and ssh evidence rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built route versus common EmitC/export neutrality and mirror-only diagnostics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck, fail-closed, generated artifact, and ssh runtime evidence expectations."}
+{"file": ".trellis/tasks/05-22-stage2-rvv-closure-gated-indexed-masked-gather-load-movement/prd.md", "reason": "Bounded task requirements, acceptance criteria, validation plan, and non-goals."}
+{"file": ".trellis/tasks/archive/2026-05/05-20-stage2-rvv-indexed-gather-memory-slice/prd.md", "reason": "Existing indexed gather executable slice and typed indexed memory route context."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-indexed-movement-operand-binding/prd.md", "reason": "Indexed route RouteOperandBindingPlan adoption and materialized operand expectations."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-stage2-rvv-masked-memory-movement-coverage/prd.md", "reason": "Masked unit load/store and computed masked load route context."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-closure-gated-strided-masked-load-movement/prd.md", "reason": "Immediate predecessor pattern for closure-gated masked load movement, old passthrough, generated-bundle evidence, and ssh proof."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-closure-gated-strided-masked-store-movement/prd.md", "reason": "Sibling closure-gated masked strided movement pattern and fail-closed validation boundary."}

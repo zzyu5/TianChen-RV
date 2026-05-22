@@ -899,6 +899,29 @@ getRVVSelectedBodyComputedMaskStridedLoadRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 6>
+getRVVSelectedBodyComputedMaskIndexedGatherRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "cmp_lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "cmp_rhs", "const int32_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src", "const int32_t *",
+      support::RuntimeABIParameterRole::SourceInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "index", "const uint32_t *",
+      support::RuntimeABIParameterRole::IndexInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "dst", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 4>
 getRVVSelectedBodySegment2DeinterleaveRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
@@ -1002,6 +1025,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
                                          computedMaskStridedLoad))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 6>
+      computedMaskIndexedGather =
+          getRVVSelectedBodyComputedMaskIndexedGatherRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters,
+                                         computedMaskIndexedGather))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 4> segment2 =
       getRVVSelectedBodySegment2DeinterleaveRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, segment2))
@@ -1102,7 +1132,10 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "int32_t computed-mask masked unit-load to byte-strided-store route with "
       "compare producer; or cmp_lhs, cmp_rhs, src, dst, n, src_stride_bytes "
       "for the bounded int32_t computed-mask byte-strided masked-load to "
-      "unit-store route with compare producer; or cmp_lhs, cmp_rhs, "
+      "unit-store route with compare producer; or cmp_lhs, cmp_rhs, src, "
+      "index, dst, n for the bounded int32_t computed-mask indexed "
+      "masked-gather-load to unit-store route with compare producer; or "
+      "cmp_lhs, cmp_rhs, "
       "true_value, false_value, out, n "
       "for the bounded int32_t computed-mask select route with compare "
       "producer; or src, out0, out1, n for the bounded int32_t segment2 "
