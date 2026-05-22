@@ -69,6 +69,73 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 161: Stage2 RVV computed-mask select route-family interface
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV computed-mask select route-family interface
+**Branch**: `main`
+
+### Summary
+
+Introduced a shared RVV plugin-local runtime-scalar computed-mask select
+route-family plan and migrated the active `runtime_scalar_cmp_select` and
+`runtime_scalar_dual_cmp_mask_and_select` production planning/provider paths to
+consume it.
+
+### Main Changes
+
+- Replaced the two independent runtime-scalar select route-family plan optionals
+  with `RVVSelectedBodyRuntimeScalarComputedMaskSelectRouteFamilyPlan`.
+- Consolidated route-family derive/validate/apply logic for runtime ABI order,
+  target leaf/header fields, c type mapping, mask role/source/form, select
+  layout, and optional dual compare/mask-and facts.
+- Consolidated RouteOperandBindingPlan construction and provider closure checks
+  for the shared true/false/out/n roles while preserving dual-specific
+  `cmp_lhs_b`, `rhs_scalar_b`, mask-and provenance, and output header mirror
+  requirements.
+- Left common EmitC/export neutral and did not migrate unrelated vector-select,
+  memory, macc, reduction, or future route families.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | `rvv: share computed-mask select route family` |
+
+### Testing
+
+- [OK] Focused build targets:
+  `tcrv-opt`, `tcrv-translate`, `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-construction-protocol-common-test`,
+  `tianchenrv-target-artifact-export-test`.
+- [OK] Focused lit filter from `build/test`: 6/6 selected tests passed.
+- [OK] Generated-bundle dry-runs for explicit/pre-realized
+  `runtime_scalar_cmp_select` and
+  `runtime_scalar_dual_cmp_mask_and_select`.
+- [OK] Real `ssh rvv` evidence for explicit dual, pre-realized dual, and one
+  explicit single-mask regression route.
+- [OK] Continuation retry revalidated live dry-runs
+  `20260523-cmsel-single-explicit`, `20260523-cmsel-single-pre`,
+  `20260523-cmsel-dual-explicit`, and `20260523-cmsel-dual-pre`.
+- [OK] Continuation retry revalidated live `ssh rvv`
+  `20260523-cmsel-dual-explicit-ssh`,
+  `20260523-cmsel-dual-pre-ssh`, and
+  `20260523-cmsel-single-explicit-ssh`.
+- [OK] Active-authority scan, `git diff --check`, and `check-tianchenrv`
+  349/349 passed.
+- [OK] Spec-update review found no `.trellis/spec/**` change was needed; the
+  existing RVV plugin, unified EmitC route, and MLIR testing contracts already
+  cover this boundary.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 159: Stage2 RVV runtime scalar computed-mask masked store
 
 **Date**: 2026-05-22

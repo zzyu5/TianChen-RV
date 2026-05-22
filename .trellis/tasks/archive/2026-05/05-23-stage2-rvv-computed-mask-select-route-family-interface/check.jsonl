@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the final change preserves global stack, authority-chain, Stage 1/2, and source-of-truth constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin locality, typed body authority, selected-body realization, provider-owned mapping, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export still consumes provider-built route payloads without inferring RVV semantics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused FileCheck/C++/runtime evidence, mirror-only authority rejection, and active-authority scan coverage."}

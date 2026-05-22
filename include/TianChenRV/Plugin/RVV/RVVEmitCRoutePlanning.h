@@ -282,39 +282,10 @@ struct RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
 };
 
-struct RVVSelectedBodyRuntimeScalarCompareSelectRouteFamilyPlan {
+struct RVVSelectedBodyRuntimeScalarComputedMaskSelectRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
-  RVVRuntimeAVLVLControlPlan runtimeControlPlan;
-  llvm::StringRef runtimeABIOrder;
-  llvm::StringRef targetLeafProfile;
-  llvm::StringRef providerSupportedMirror;
-  llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
-  llvm::StringRef requiredHeaderDeclarations;
-  llvm::StringRef cTypeMappingSummary;
-  llvm::StringRef vlCType;
-  llvm::StringRef vectorTypeName;
-  llvm::StringRef vectorCType;
-  llvm::StringRef maskTypeName;
-  llvm::StringRef maskCType;
-  llvm::StringRef setVLIntrinsic;
-  llvm::StringRef vectorLoadIntrinsic;
-  llvm::StringRef rhsScalarSplatIntrinsic;
-  llvm::StringRef compareIntrinsic;
-  llvm::StringRef selectIntrinsic;
-  llvm::StringRef storeIntrinsic;
-  llvm::StringRef resultName;
-  llvm::StringRef maskName;
-  llvm::StringRef maskRole;
-  llvm::StringRef maskSource;
-  llvm::StringRef maskMemoryForm;
-  llvm::StringRef selectLayout;
-  llvm::SmallVector<support::RuntimeABIParameter, 6> runtimeABIParameters;
-};
-
-struct RVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan {
-  RVVSelectedBodyOperationKind operation;
-  RVVSelectedBodyMemoryForm memoryForm;
+  bool usesDualCompareMaskAnd = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
@@ -423,11 +394,8 @@ struct RVVSelectedBodyRouteAnalysis {
       scalarBroadcastElementwiseRouteFamilyPlan;
   std::optional<RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan>
       runtimeScalarSplatStoreRouteFamilyPlan;
-  std::optional<RVVSelectedBodyRuntimeScalarCompareSelectRouteFamilyPlan>
-      runtimeScalarCompareSelectRouteFamilyPlan;
-  std::optional<
-      RVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan>
-      runtimeScalarDualCompareMaskAndSelectRouteFamilyPlan;
+  std::optional<RVVSelectedBodyRuntimeScalarComputedMaskSelectRouteFamilyPlan>
+      runtimeScalarComputedMaskSelectRouteFamilyPlan;
   std::optional<
       RVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan>
       runtimeScalarComputedMaskStoreRouteFamilyPlan;

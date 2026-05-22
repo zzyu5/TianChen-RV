@@ -559,134 +559,93 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               bindOperand(boundOutABI, "out", "store-base",
                           "computed_mask_select output store"))
         return error;
-	    } else if (description.operation ==
-	               RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect) {
-      if (llvm::Error error =
-              bindOperand(boundLHSABI, "lhs", "materialized-load-base",
-                          "runtime_scalar_cmp_select lhs load operand"))
+    } else if (description.operation ==
+                   RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect ||
+               description.operation == RVVSelectedBodyOperationKind::
+                                            RuntimeScalarDualCompareMaskAndSelect) {
+      const bool isDual =
+          description.operation == RVVSelectedBodyOperationKind::
+                                       RuntimeScalarDualCompareMaskAndSelect;
+      const llvm::StringRef routeName =
+          isDual ? "runtime_scalar_dual_cmp_mask_and_select"
+                 : "runtime_scalar_cmp_select";
+      const llvm::StringRef primaryLHS = isDual ? "cmp_lhs_a" : "lhs";
+      const llvm::StringRef primaryRHS =
+          isDual ? "rhs_scalar_a" : "rhs_scalar";
+
+      if (llvm::Error error = bindOperand(
+              boundLHSABI, primaryLHS, "materialized-load-base",
+              (llvm::Twine(routeName) + " compare lhs load operand").str()))
         return error;
       if (llvm::Error error = requireOperandUse(
-              "lhs", "compare-lhs-call",
-              "runtime_scalar_cmp_select compare lhs operand"))
+              primaryLHS, "compare-lhs-call",
+              (llvm::Twine(routeName) + " compare lhs operand").str()))
         return error;
-      if (llvm::Error error =
-              bindOperand(boundRHSABI, "rhs_scalar",
-                          "scalar-broadcast-rhs-call",
-                          "runtime_scalar_cmp_select scalar threshold splat"))
+      if (isDual)
+        if (llvm::Error error = requireOperandUse(
+                primaryLHS, "mask-and-lhs-call",
+                (llvm::Twine(routeName) + " mask-and lhs provenance").str()))
+          return error;
+      if (llvm::Error error = bindOperand(
+              boundRHSABI, primaryRHS, "scalar-broadcast-rhs-call",
+              (llvm::Twine(routeName) + " scalar threshold splat").str()))
         return error;
       if (llvm::Error error = requireOperandUse(
-              "rhs_scalar", "compare-rhs-call",
-              "runtime_scalar_cmp_select compare rhs operand"))
+              primaryRHS, "compare-rhs-call",
+              (llvm::Twine(routeName) + " compare rhs operand").str()))
         return error;
+      if (isDual) {
+        if (llvm::Error error = bindOperand(
+                boundSecondaryCompareLHSABI, "cmp_lhs_b",
+                "materialized-secondary-load-base",
+                (llvm::Twine(routeName) + " compare lhs B load operand").str()))
+          return error;
+        if (llvm::Error error = requireOperandUse(
+                "cmp_lhs_b", "secondary-compare-lhs-call",
+                (llvm::Twine(routeName) + " compare B lhs operand").str()))
+          return error;
+        if (llvm::Error error = requireOperandUse(
+                "cmp_lhs_b", "mask-and-rhs-call",
+                (llvm::Twine(routeName) + " mask-and rhs provenance").str()))
+          return error;
+        if (llvm::Error error = bindOperand(
+                boundSecondaryCompareRHSScalarABI, "rhs_scalar_b",
+                "secondary-scalar-broadcast-rhs-call",
+                (llvm::Twine(routeName) + " scalar threshold B splat").str()))
+          return error;
+        if (llvm::Error error = requireOperandUse(
+                "rhs_scalar_b", "secondary-compare-rhs-call",
+                (llvm::Twine(routeName) + " compare B rhs operand").str()))
+          return error;
+      }
       if (llvm::Error error = bindOperand(
               boundTrueValueABI, "true_value", "materialized-true-load-base",
-              "runtime_scalar_cmp_select true-value load operand"))
+              (llvm::Twine(routeName) + " true-value load operand").str()))
         return error;
       if (llvm::Error error = requireOperandUse(
               "true_value", "select-true-call",
-              "runtime_scalar_cmp_select selected true-value operand"))
+              (llvm::Twine(routeName) + " selected true-value operand").str()))
         return error;
       if (llvm::Error error = bindOperand(
-              boundFalseValueABI, "false_value", "materialized-false-load-base",
-              "runtime_scalar_cmp_select false-value load operand"))
+              boundFalseValueABI, "false_value",
+              "materialized-false-load-base",
+              (llvm::Twine(routeName) + " false-value load operand").str()))
         return error;
       if (llvm::Error error = requireOperandUse(
               "false_value", "select-false-call",
-              "runtime_scalar_cmp_select selected false-value operand"))
+              (llvm::Twine(routeName) + " selected false-value operand").str()))
         return error;
-	      if (llvm::Error error =
-	              bindOperand(boundOutABI, "out", "materialized-store-base",
-	                          "runtime_scalar_cmp_select output store"))
-	        return error;
-	    } else if (description.operation ==
-	               RVVSelectedBodyOperationKind::
-	                   RuntimeScalarDualCompareMaskAndSelect) {
-	      if (llvm::Error error =
-	              bindOperand(boundLHSABI, "cmp_lhs_a",
-	                          "materialized-load-base",
-	                          "runtime_scalar_dual_cmp_mask_and_select "
-	                          "compare lhs A load operand"))
-	        return error;
-	      if (llvm::Error error =
-	              requireOperandUse("cmp_lhs_a", "compare-lhs-call",
-	                                "runtime_scalar_dual_cmp_mask_and_select "
-	                                "compare A lhs operand"))
-	        return error;
-	      if (llvm::Error error =
-	              requireOperandUse("cmp_lhs_a", "mask-and-lhs-call",
-	                                "runtime_scalar_dual_cmp_mask_and_select "
-	                                "mask-and lhs provenance"))
-	        return error;
-	      if (llvm::Error error =
-	              bindOperand(boundRHSABI, "rhs_scalar_a",
-	                          "scalar-broadcast-rhs-call",
-	                          "runtime_scalar_dual_cmp_mask_and_select scalar "
-	                          "threshold A splat"))
-	        return error;
-	      if (llvm::Error error =
-	              requireOperandUse("rhs_scalar_a", "compare-rhs-call",
-	                                "runtime_scalar_dual_cmp_mask_and_select "
-	                                "compare A rhs operand"))
-	        return error;
-	      if (llvm::Error error =
-	              bindOperand(boundSecondaryCompareLHSABI, "cmp_lhs_b",
-	                          "materialized-secondary-load-base",
-	                          "runtime_scalar_dual_cmp_mask_and_select "
-	                          "compare lhs B load operand"))
-	        return error;
-	      if (llvm::Error error =
-	              requireOperandUse("cmp_lhs_b", "secondary-compare-lhs-call",
-	                                "runtime_scalar_dual_cmp_mask_and_select "
-	                                "compare B lhs operand"))
-	        return error;
-	      if (llvm::Error error =
-	              requireOperandUse("cmp_lhs_b", "mask-and-rhs-call",
-	                                "runtime_scalar_dual_cmp_mask_and_select "
-	                                "mask-and rhs provenance"))
-	        return error;
-	      if (llvm::Error error =
-	              bindOperand(boundSecondaryCompareRHSScalarABI, "rhs_scalar_b",
-	                          "secondary-scalar-broadcast-rhs-call",
-	                          "runtime_scalar_dual_cmp_mask_and_select scalar "
-	                          "threshold B splat"))
-	        return error;
-	      if (llvm::Error error =
-	              requireOperandUse("rhs_scalar_b", "secondary-compare-rhs-call",
-	                                "runtime_scalar_dual_cmp_mask_and_select "
-	                                "compare B rhs operand"))
-	        return error;
-	      if (llvm::Error error = bindOperand(
-	              boundTrueValueABI, "true_value", "materialized-true-load-base",
-	              "runtime_scalar_dual_cmp_mask_and_select true-value load "
-	              "operand"))
-	        return error;
-	      if (llvm::Error error =
-	              requireOperandUse("true_value", "select-true-call",
-	                                "runtime_scalar_dual_cmp_mask_and_select "
-	                                "selected true-value operand"))
-	        return error;
-	      if (llvm::Error error = bindOperand(
-	              boundFalseValueABI, "false_value", "materialized-false-load-base",
-	              "runtime_scalar_dual_cmp_mask_and_select false-value load "
-	              "operand"))
-	        return error;
-	      if (llvm::Error error =
-	              requireOperandUse("false_value", "select-false-call",
-	                                "runtime_scalar_dual_cmp_mask_and_select "
-	                                "selected false-value operand"))
-	        return error;
-	      if (llvm::Error error =
-	              requireOperandUse("out", "header-mirror",
-	                                "runtime_scalar_dual_cmp_mask_and_select "
-	                                "output header mirror"))
-	        return error;
-	      if (llvm::Error error =
-	              bindOperand(boundOutABI, "out", "materialized-store-base",
-	                          "runtime_scalar_dual_cmp_mask_and_select output "
-	                          "store"))
-	        return error;
-	    } else if (description.operation ==
-	               RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore) {
+      if (llvm::Error error = bindOperand(
+              boundOutABI, "out", "materialized-store-base",
+              (llvm::Twine(routeName) + " output store").str()))
+        return error;
+      if (isDual)
+        if (llvm::Error error = requireOperandUse(
+                "out", "header-mirror",
+                (llvm::Twine(routeName) + " output header mirror").str()))
+          return error;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore) {
       if (llvm::Error error =
               bindOperand(boundLHSABI, "lhs", "materialized-load-base",
                           "runtime_scalar_cmp_masked_store lhs load operand"))
