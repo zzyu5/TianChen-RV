@@ -384,6 +384,18 @@ bool isAllowedTypedComputedMaskIndexedScatterPreRealizedBodyAttr(
          name == kLMULAttrName || name == kPolicyAttrName;
 }
 
+bool isAllowedTypedComputedMaskSegment2LoadPreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kPredicateKindAttrName ||
+         name == kMemoryFormAttrName || name == kSegmentCountAttrName ||
+         name == kField0RoleAttrName || name == kField1RoleAttrName ||
+         name == kSourceMemoryFormAttrName ||
+         name == kDestinationMemoryFormAttrName || name == kMaskRoleAttrName ||
+         name == kMaskSourceAttrName || name == kMaskMemoryFormAttrName ||
+         name == kInactiveLanePolicyAttrName || name == kSEWAttrName ||
+         name == kLMULAttrName || name == kPolicyAttrName;
+}
+
 bool isAllowedTypedSegment2DeinterleaveMemoryPreRealizedBodyAttr(
     llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
@@ -449,6 +461,12 @@ bool isAllowedMaskedIndexedStoreAttr(llvm::StringRef name) {
 bool isAllowedSegment2LoadAttr(llvm::StringRef name) {
   return name == kSegmentCountAttrName || name == kSourceMemoryFormAttrName ||
          name == kField0RoleAttrName || name == kField1RoleAttrName;
+}
+
+bool isAllowedMaskedSegment2LoadAttr(llvm::StringRef name) {
+  return name == kSegmentCountAttrName || name == kSourceMemoryFormAttrName ||
+         name == kField0RoleAttrName || name == kField1RoleAttrName ||
+         name == kInactiveLanePolicyAttrName;
 }
 
 bool isAllowedSegment2StoreAttr(llvm::StringRef name) {
@@ -982,6 +1000,11 @@ bool isSupportedTypedComputedMaskIndexedScatterPreRealizedBodyOpKind(
   return opKind == "computed_masked_indexed_scatter_store_unit_load";
 }
 
+bool isSupportedTypedComputedMaskSegment2LoadPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "computed_masked_segment2_load_unit_store";
+}
+
 bool isSupportedTypedComputedMaskStridedStorePreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-unit-load-strided-store";
@@ -1000,6 +1023,11 @@ bool isSupportedTypedComputedMaskIndexedGatherPreRealizedMemoryForm(
 bool isSupportedTypedComputedMaskIndexedScatterPreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-unit-load-indexed-scatter-store";
+}
+
+bool isSupportedTypedComputedMaskSegment2LoadPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "computed-mask-segment2-load-unit-store";
 }
 
 bool isSupportedTypedComputedMaskStridedStoreStrideUnit(
@@ -2130,6 +2158,14 @@ llvm::StringRef MaskedIndexedLoadOp::getTCRVEmitCLowerableSourceOpName() {
 }
 
 llvm::StringRef MaskedIndexedLoadOp::getTCRVEmitCLowerableSourceRole() {
+  return "load";
+}
+
+llvm::StringRef MaskedSegment2LoadOp::getTCRVEmitCLowerableSourceOpName() {
+  return getOperation()->getName().getStringRef();
+}
+
+llvm::StringRef MaskedSegment2LoadOp::getTCRVEmitCLowerableSourceRole() {
   return "load";
 }
 
@@ -5240,6 +5276,142 @@ TypedComputedMaskIndexedScatterPreRealizedBodyOp::verify() {
 }
 
 mlir::LogicalResult
+TypedComputedMaskSegment2LoadPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected computed-mask segment2 load bodies "
+                "carry only typed RVV compare/source/field passthrough, mask, "
+                "segmented memory-form, inactive-lane policy, config, policy, "
+                "and runtime SSA facts and must be realized by the RVV plugin "
+                "before route construction";
+
+    if (!isAllowedTypedComputedMaskSegment2LoadPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kPredicateKindAttrName << "', '"
+             << kMemoryFormAttrName << "', '" << kSegmentCountAttrName
+             << "', '" << kField0RoleAttrName << "', '" << kField1RoleAttrName
+             << "', '" << kSourceMemoryFormAttrName << "', '"
+             << kDestinationMemoryFormAttrName << "', '" << kMaskRoleAttrName
+             << "', '" << kMaskSourceAttrName << "', '"
+             << kMaskMemoryFormAttrName << "', '" << kInactiveLanePolicyAttrName
+             << "', '" << kSEWAttrName << "', '" << kLMULAttrName
+             << "', and '" << kPolicyAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 6 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires compare lhs, compare rhs, interleaved source, field0 "
+              "destination/passthrough, field1 destination/passthrough, "
+              "runtime n/AVL operands and no results";
+
+  if (!isSupportedTypedComputedMaskSegment2LoadPreRealizedBodyOpKind(
+          getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"computed_masked_segment2_load_unit_store\" for the bounded "
+              "selected-body computed-mask segment2 load hook";
+  if (!isSupportedTypedComputedMaskMemoryPreRealizedPredicateKind(
+          getPredicateKind()))
+    return emitOpError()
+           << "currently supports only predicate_kind \"slt\" for the bounded "
+              "selected-body computed-mask segment2 load hook";
+  if (!isSupportedTypedComputedMaskSegment2LoadPreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"computed-mask-segment2-load-unit-store\" for the bounded "
+              "selected-body computed-mask segment2 load hook";
+  if (static_cast<std::int64_t>(getSegmentCount()) != 2)
+    return emitOpError()
+           << "requires segment_count 2 for the bounded computed-mask "
+              "segment2 load hook";
+  if (!isSupportedTypedSegment2Field0Role(getField0Role()))
+    return emitOpError()
+           << "requires field0_role \"segment-field0-output-buffer\"";
+  if (!isSupportedTypedSegment2Field1Role(getField1Role()))
+    return emitOpError()
+           << "requires field1_role \"segment-field1-output-buffer\"";
+  if (getField0Role() == getField1Role())
+    return emitOpError()
+           << "requires field0_role and field1_role to be distinct";
+  if (!isSupportedTypedSegment2SourceMemoryForm(getSourceMemoryForm()))
+    return emitOpError()
+           << "currently supports only source_memory_form "
+              "\"segment2-interleaved-unit-stride-load\"";
+  if (!isSupportedTypedSegment2DestinationMemoryForm(
+          getDestinationMemoryForm()))
+    return emitOpError()
+           << "currently supports only destination_memory_form "
+              "\"unit-stride-store\"";
+  if (!isSupportedTypedComputedMaskMemoryRole(getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-produced-by-compare\" for the bounded "
+              "selected-body computed-mask segment2 load hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskSource(getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"compare-produced-mask-same-vl-scope\" for the bounded "
+              "selected-body computed-mask segment2 load hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskMemoryForm(getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"compare-produced-mask\" for the bounded selected-body "
+              "computed-mask segment2 load hook";
+  if (getInactiveLanePolicy() != "preserve-passthrough-on-false-lanes")
+    return emitOpError()
+           << "requires inactive_lane_policy "
+              "\"preserve-passthrough-on-false-lanes\" because compare-false "
+              "and masked-off lanes must preserve the old field vectors";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized computed-mask segment2 load data "
+              "config to be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body computed-mask segment2 load hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareLhs(), "compare lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareRhs(), "compare rhs",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSource(), "interleaved source",
+          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut0(), "field0 destination/passthrough",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               SegmentField0OutputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut1(), "field1 destination/passthrough",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               SegmentField1OutputBuffer})))
+    return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult
 TypedSegment2DeinterleaveMemoryPreRealizedBodyOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -5465,7 +5637,11 @@ mlir::LogicalResult LoadOp::verify() {
            tianchenrv::support::RuntimeABIParameterRole::
                SegmentField0InputBuffer,
            tianchenrv::support::RuntimeABIParameterRole::
-               SegmentField1InputBuffer})))
+               SegmentField1InputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::
+               SegmentField0OutputBuffer,
+           tianchenrv::support::RuntimeABIParameterRole::
+               SegmentField1OutputBuffer})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
@@ -6045,6 +6221,95 @@ mlir::LogicalResult Segment2LoadOp::verify() {
   if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getField0(), "field0")))
     return mlir::failure();
   return verifyGenericVectorTypeForWithVL(op, getField1(), "field1");
+}
+
+mlir::LogicalResult MaskedSegment2LoadOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  if (mlir::failed(verifyNoDataflowAttrs(op, "tcrv_rvv.masked_segment2_load",
+                                         isAllowedMaskedSegment2LoadAttr)))
+    return mlir::failure();
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 2)
+    return emitOpError()
+           << "requires one explicit interleaved source buffer ABI operand, "
+              "one generic RVV mask predicate, two inactive field "
+              "passthrough generic RVV vectors, one !tcrv_rvv.vl operand, "
+              "and two generic RVV vector results";
+  if (static_cast<std::int64_t>(getSegmentCount()) != 2)
+    return emitOpError()
+           << "requires segment_count 2 for tcrv_rvv.masked_segment2_load";
+  if (!isSupportedTypedSegment2SourceMemoryForm(getSourceMemoryForm()))
+    return emitOpError()
+           << "currently supports only source_memory_form "
+              "\"segment2-interleaved-unit-stride-load\" for "
+              "tcrv_rvv.masked_segment2_load";
+  if (!isSupportedTypedSegment2Field0Role(getField0Role()))
+    return emitOpError()
+           << "requires field0_role \"segment-field0-output-buffer\"";
+  if (!isSupportedTypedSegment2Field1Role(getField1Role()))
+    return emitOpError()
+           << "requires field1_role \"segment-field1-output-buffer\"";
+  if (getField0Role() == getField1Role())
+    return emitOpError()
+           << "requires field0_role and field1_role to be distinct";
+  if (getInactiveLanePolicy() != "preserve-passthrough-on-false-lanes")
+    return emitOpError()
+           << "requires inactive_lane_policy "
+              "\"preserve-passthrough-on-false-lanes\" because false mask "
+              "lanes must preserve each explicit field passthrough vector";
+  if (getPassthrough0().getType() != getField0().getType() ||
+      getPassthrough1().getType() != getField1().getType())
+    return emitOpError()
+           << "requires each inactive field passthrough and matching result "
+              "to have the same generic RVV vector type";
+  if (getField0().getType() != getField1().getType())
+    return emitOpError()
+           << "requires field0 and field1 results to have matching generic "
+              "RVV vector types";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSource(), "interleaved source",
+          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto compare = getMask().getDefiningOp<CompareOp>();
+  if (!compare)
+    return emitOpError()
+           << "requires mask operand to be produced by tcrv_rvv.compare "
+              "inside the selected RVV typed body";
+  if (compare.getVl() != getVl())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.compare to consume the same "
+              "!tcrv_rvv.vl token as tcrv_rvv.masked_segment2_load";
+  if (compare->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.compare to be in the same "
+              "tcrv_rvv.with_vl body as tcrv_rvv.masked_segment2_load";
+
+  if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getPassthrough0(),
+                                                    "field0 passthrough")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getPassthrough1(),
+                                                    "field1 passthrough")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getField0(), "field0")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getField1(), "field1")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericMaskMatchesVector(op, getMask(), getField0(),
+                                                  "mask", "field0")))
+    return mlir::failure();
+  return verifyGenericMaskMatchesVector(op, getMask(), getField1(), "mask",
+                                        "field1");
 }
 
 mlir::LogicalResult Segment2StoreOp::verify() {

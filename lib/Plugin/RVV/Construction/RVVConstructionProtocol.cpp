@@ -53,7 +53,8 @@ constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "tcrv_rvv.broadcast_load|tcrv_rvv.splat|tcrv_rvv.strided_load|"
     "tcrv_rvv.index_load|tcrv_rvv.indexed_load|tcrv_rvv.mask_load|"
     "tcrv_rvv.masked_load|tcrv_rvv.masked_strided_load|"
-    "tcrv_rvv.masked_indexed_load|tcrv_rvv.segment2_load:"
+    "tcrv_rvv.masked_indexed_load|tcrv_rvv.segment2_load|"
+    "tcrv_rvv.masked_segment2_load:"
     "TCRVMemoryOpInterface:TCRVEmitCLowerableInterface;"
     "compute:rvv.role.compute.generic_vector:tcrv_rvv.binary|"
     "tcrv_rvv.compare|tcrv_rvv.masked_binary|tcrv_rvv.select|"
@@ -202,7 +203,7 @@ const RVVConstructionSemanticRole kSemanticRoles[] = {
      "tcrv_rvv.strided_load|tcrv_rvv.index_load|tcrv_rvv.indexed_load|"
      "tcrv_rvv.mask_load|tcrv_rvv.masked_load|"
      "tcrv_rvv.masked_strided_load|tcrv_rvv.masked_indexed_load|"
-     "tcrv_rvv.segment2_load",
+     "tcrv_rvv.segment2_load|tcrv_rvv.masked_segment2_load",
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "load explicit ABI buffers into typed RVV vector dataflow values, "
@@ -289,7 +290,7 @@ const RVVTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "tcrv_rvv.strided_load|tcrv_rvv.index_load|tcrv_rvv.indexed_load|"
      "tcrv_rvv.mask_load|tcrv_rvv.masked_load|"
      "tcrv_rvv.masked_strided_load|tcrv_rvv.masked_indexed_load|"
-     "tcrv_rvv.segment2_load",
+     "tcrv_rvv.segment2_load|tcrv_rvv.masked_segment2_load",
      "TCRVExtensionOpInterface+TCRVMemoryOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVMemoryOpInterface",
@@ -528,6 +529,12 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-computed-masked-indexed-scatter-store-unit-load-emitc-route",
      "rvv-generic-computed-masked-indexed-scatter-store-unit-load-callable-c-abi.v1",
      "rvv-generic-computed-masked-indexed-scatter-store-unit-load-callable-c-abi"},
+    {"computed_masked_segment2_load_unit_store",
+     "tcrv_rvv.masked_segment2_load",
+     "rvv.role.load.generic_load",
+     "rvv-generic-computed-masked-segment2-load-unit-store-emitc-route",
+     "rvv-generic-computed-masked-segment2-load-unit-store-callable-c-abi.v1",
+     "rvv-generic-computed-masked-segment2-load-unit-store-callable-c-abi"},
     {"segment2_deinterleave_unit_store",
      "tcrv_rvv.move",
      "rvv.role.compute.generic_vector",
@@ -686,6 +693,8 @@ llvm::Error verifySelectedBodyRoutes() {
         : route.operationMnemonic ==
                 "computed_masked_indexed_scatter_store_unit_load"
             ? "store"
+        : route.operationMnemonic == "computed_masked_segment2_load_unit_store"
+            ? "load"
             : "compute";
     const RVVTypedRoleInterfaceRealization *expectedRole =
         findTypedRole(expectedRoleName);
@@ -699,7 +708,7 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 40)
+          .size() != 41)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
         "cmp_select, computed_mask_select, reduce_add, "
@@ -721,6 +730,7 @@ llvm::Error verifySelectedBodyRoutes() {
         "computed_masked_strided_load_unit_store, "
         "computed_masked_indexed_gather_load_unit_store, "
         "computed_masked_indexed_scatter_store_unit_load, "
+        "computed_masked_segment2_load_unit_store, "
         "segment2_deinterleave_unit_store, "
         "segment2_interleave_unit_load, scalar_broadcast_add, "
         "scalar_broadcast_sub, scalar_broadcast_mul, widen_i32_to_i64, "
@@ -878,6 +888,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
   const bool isComputedMaskIndexedScatterStoreUnitLoad =
       route->operationMnemonic ==
       "computed_masked_indexed_scatter_store_unit_load";
+  const bool isComputedMaskSegment2LoadUnitStore =
+      route->operationMnemonic == "computed_masked_segment2_load_unit_store";
   const bool isSegment2DeinterleaveUnitStore =
       route->operationMnemonic == "segment2_deinterleave_unit_store";
   const bool isSegment2InterleaveUnitLoad =
@@ -987,6 +999,11 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return makeRVVConstructionError(
         "RVV computed-mask indexed scatter-store memory movement construction "
         "requires generic tcrv_rvv.masked_indexed_store");
+  if (isComputedMaskSegment2LoadUnitStore &&
+      typedComputeOpName != "tcrv_rvv.masked_segment2_load")
+    return makeRVVConstructionError(
+        "RVV computed-mask segment2 load memory movement construction "
+        "requires generic tcrv_rvv.masked_segment2_load");
   if (isSegment2DeinterleaveUnitStore &&
       typedComputeOpName != "tcrv_rvv.move")
     return makeRVVConstructionError(
@@ -1012,7 +1029,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isComputedMaskStridedLoadUnitStore &&
       !isComputedMaskIndexedGatherLoadUnitStore &&
       !isComputedMaskIndexedScatterStoreUnitLoad &&
-      !isComputedMaskIndexedScatterStoreUnitLoad &&
+      !isComputedMaskSegment2LoadUnitStore &&
       !isComputedMaskWideningDotReduceAdd &&
       !isComputedMaskStridedInputWideningDotReduceAdd &&
       !isStridedInputWideningDotReduceAdd &&
@@ -1032,6 +1049,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isComputedMaskStridedLoadUnitStore &&
       !isComputedMaskIndexedGatherLoadUnitStore &&
       !isComputedMaskIndexedScatterStoreUnitLoad &&
+      !isComputedMaskSegment2LoadUnitStore &&
       !isComputedMaskSelect &&
       !isComputedMaskStandaloneReduction &&
       !isComputedMaskWideningDotReduceAdd &&
@@ -1092,10 +1110,11 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "source load, mask_load, and masked_store roles");
   if ((isComputedMaskSelect || isComputedMaskUnitLoadStore ||
        isComputedMaskStridedStore ||
-       isComputedMaskStridedLoadUnitStore ||
-       isComputedMaskIndexedGatherLoadUnitStore ||
-       isComputedMaskIndexedScatterStoreUnitLoad ||
-       isComputedMaskWideningDotReduceAdd ||
+	       isComputedMaskStridedLoadUnitStore ||
+	       isComputedMaskIndexedGatherLoadUnitStore ||
+	       isComputedMaskIndexedScatterStoreUnitLoad ||
+	       isComputedMaskSegment2LoadUnitStore ||
+	       isComputedMaskWideningDotReduceAdd ||
        isComputedMaskStridedInputWideningDotReduceAdd ||
        isComputedMaskStandaloneReduction) &&
       rhsSourceOperationName != "tcrv_rvv.compare")
@@ -1123,6 +1142,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isComputedMaskStridedLoadUnitStore &&
       !isComputedMaskIndexedGatherLoadUnitStore &&
       !isComputedMaskIndexedScatterStoreUnitLoad &&
+      !isComputedMaskSegment2LoadUnitStore &&
       !isComputedMaskWideningDotReduceAdd &&
       !isComputedMaskStridedInputWideningDotReduceAdd &&
       !isComputedMaskStandaloneReduction &&
@@ -1134,6 +1154,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "computed_masked_strided_load_unit_store, "
         "computed_masked_indexed_gather_load_unit_store, "
         "computed_masked_indexed_scatter_store_unit_load, "
+        "computed_masked_segment2_load_unit_store, "
         "computed_mask_standalone_reduce_add/min/max, "
         "computed_masked_widening_dot_reduce_add, or "
         "computed_masked_strided_input_widening_dot_reduce_add in this "
@@ -1250,9 +1271,10 @@ buildRVVSelectedBodyExecutableRoleSteps(
                    "rvv.role.runtime_abi.runtime_abi_value",
                    "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
                    (isComputedMaskSelect || isComputedMaskUnitLoadStore ||
-                    isComputedMaskStridedStore ||
-                    isComputedMaskIndexedGatherLoadUnitStore ||
-                    isComputedMaskWideningDotReduceAdd ||
+	                    isComputedMaskStridedStore ||
+	                    isComputedMaskIndexedGatherLoadUnitStore ||
+	                    isComputedMaskSegment2LoadUnitStore ||
+	                    isComputedMaskWideningDotReduceAdd ||
                     isComputedMaskStandaloneReduction ||
                     isComputedMaskStridedInputWideningDotReduceAdd)
                        ? "cmp_lhs"
@@ -2151,6 +2173,61 @@ buildRVVSelectedBodyExecutableRoleSteps(
                      route->operationMnemonic, 13});
     return steps;
   }
+	  if (isComputedMaskSegment2LoadUnitStore) {
+	    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+	                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "cmp_rhs", 1});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "src", 2});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "out0", 3});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "out1", 4});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "n", 5});
+    steps.push_back({"configure", "tcrv_rvv.setvl",
+                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+                     6});
+    steps.push_back({"scope", "tcrv_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "compare_lhs_load", 8});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "compare_rhs_load", 9});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "field0_old_passthrough_load", 10});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "field1_old_passthrough_load", 11});
+    steps.push_back({"compute", "tcrv_rvv.compare",
+                     "rvv.role.compute.generic_vector",
+                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "compare_slt", 12});
+    steps.push_back({"load", route->typedComputeOpName, route->typedRoleID,
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     route->operationMnemonic, 13});
+    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "field0_store", 14});
+    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "field1_store", 15});
+    return steps;
+  }
   if (isSegment2DeinterleaveUnitStore) {
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
@@ -2699,6 +2776,15 @@ llvm::Error verifyRVVConstructionProtocolReady() {
           computedMaskIndexedScatterParameters.begin(),
           computedMaskIndexedScatterParameters.end());
     } else if (route.operationMnemonic ==
+               "computed_masked_segment2_load_unit_store") {
+      llvm::SmallVector<support::RuntimeABIParameter, 6>
+          computedMaskSegment2LoadParameters =
+              tcrv::rvv::
+                  getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters();
+      routeRuntimeABIParameters.append(
+          computedMaskSegment2LoadParameters.begin(),
+          computedMaskSegment2LoadParameters.end());
+    } else if (route.operationMnemonic ==
                "segment2_deinterleave_unit_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 4> segment2Parameters =
           tcrv::rvv::
@@ -3008,6 +3094,12 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         " computed-mask indexed scatter-store memory movement cannot use "
         "generic tcrv_rvv.binary");
   if (usesGenericBinary &&
+      route->operationMnemonic == "computed_masked_segment2_load_unit_store")
+    return makeRVVConstructionError(
+        llvm::Twine(context) +
+        " computed-mask segment2 load memory movement cannot use generic "
+        "tcrv_rvv.binary");
+  if (usesGenericBinary &&
       route->operationMnemonic == "segment2_deinterleave_unit_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
@@ -3052,6 +3144,8 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                      "computed_masked_indexed_gather_load_unit_store" ||
                  route->operationMnemonic ==
                      "computed_masked_indexed_scatter_store_unit_load" ||
+                 route->operationMnemonic ==
+                     "computed_masked_segment2_load_unit_store" ||
                  route->operationMnemonic ==
                      "segment2_deinterleave_unit_store"
                  || route->operationMnemonic ==
@@ -3174,6 +3268,14 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                 getRVVSelectedBodyComputedMaskIndexedScatterRuntimeABIParameters();
     expectedParameters.append(computedMaskIndexedScatterParameters.begin(),
                               computedMaskIndexedScatterParameters.end());
+  } else if (route->operationMnemonic ==
+             "computed_masked_segment2_load_unit_store") {
+    llvm::SmallVector<support::RuntimeABIParameter, 6>
+        computedMaskSegment2LoadParameters =
+            tcrv::rvv::
+                getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters();
+    expectedParameters.append(computedMaskSegment2LoadParameters.begin(),
+                              computedMaskSegment2LoadParameters.end());
   } else if (route->operationMnemonic ==
              "segment2_deinterleave_unit_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 4> segment2Parameters =
@@ -3335,6 +3437,10 @@ llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "runtime_abi->runtime_abi->configure->scope->load->load->load->"
             "load->compute->store"
+      : typedComputeOpName == "tcrv_rvv.masked_segment2_load"
+          ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
+            "runtime_abi->runtime_abi->configure->scope->load->load->load->"
+            "load->compute->load->store->store"
       : typedComputeOpName == "tcrv_rvv.masked_move"
           ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
             "configure->scope->load->load->load->compute->store"
@@ -3606,6 +3712,11 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
         "selected-body computed-mask indexed scatter-store memory movement "
         "cannot use generic tcrv_rvv.binary");
   if (usesGenericBinary &&
+      expected.operationMnemonic == "computed_masked_segment2_load_unit_store")
+    return makeRVVConstructionError(
+        "selected-body computed-mask segment2 load memory movement cannot use "
+        "generic tcrv_rvv.binary");
+  if (usesGenericBinary &&
       expected.operationMnemonic == "segment2_deinterleave_unit_store")
     return makeRVVConstructionError(
         "selected-body segment2 deinterleave memory movement cannot use "
@@ -3651,6 +3762,8 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
                      "computed_masked_indexed_gather_load_unit_store" ||
                  expected.operationMnemonic ==
                      "computed_masked_indexed_scatter_store_unit_load" ||
+                 expected.operationMnemonic ==
+                     "computed_masked_segment2_load_unit_store" ||
                  expected.operationMnemonic ==
                      "segment2_deinterleave_unit_store"
                  || expected.operationMnemonic ==

@@ -50,6 +50,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::MaskedStridedLoadOp maskedStridedLoadOp;
   tcrv::rvv::MaskedIndexedLoadOp maskedIndexedLoadOp;
   tcrv::rvv::MaskedIndexedStoreOp maskedIndexedStore;
+  tcrv::rvv::MaskedSegment2LoadOp maskedSegment2LoadOp;
   tcrv::rvv::Segment2LoadOp segment2Load;
   tcrv::rvv::Segment2StoreOp segment2Store;
   tcrv::rvv::BroadcastLoadOp rhsBroadcastLoad;
@@ -98,6 +99,8 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Operation *trueValueLoadOperation = nullptr;
   mlir::Operation *falseValueLoadOperation = nullptr;
   mlir::Operation *sourceLoadOperation = nullptr;
+  mlir::Operation *field0LoadOperation = nullptr;
+  mlir::Operation *field1LoadOperation = nullptr;
   mlir::Operation *indexLoadOperation = nullptr;
   mlir::Operation *indexedLoadOperation = nullptr;
   mlir::Operation *indexedStoreOperation = nullptr;
@@ -106,6 +109,7 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Operation *maskedStridedLoadOperation = nullptr;
   mlir::Operation *maskedIndexedLoadOperation = nullptr;
   mlir::Operation *maskedIndexedStoreOperation = nullptr;
+  mlir::Operation *maskedSegment2LoadOperation = nullptr;
   mlir::Operation *segment2LoadOperation = nullptr;
   mlir::Operation *segment2StoreOperation = nullptr;
   mlir::Operation *field0MoveOperation = nullptr;
@@ -145,6 +149,8 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value sourceValue;
   mlir::Value field0LoadedValue;
   mlir::Value field1LoadedValue;
+  mlir::Value field0PassthroughValue;
+  mlir::Value field1PassthroughValue;
   mlir::Value field0Value;
   mlir::Value field1Value;
   mlir::Value accumulatorValue;

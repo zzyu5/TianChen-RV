@@ -69,6 +69,56 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 158: Stage2 RVV closure-gated two-field segmented masked load movement
+
+**Date**: 2026-05-22
+**Task**: Stage2 RVV closure-gated two-field segmented masked load movement
+**Branch**: `main`
+
+### Summary
+
+Added closure-gated two-field computed-mask segmented load RVV route support with explicit/pre-realized fixtures, generated-bundle dry-runs, and real ssh rvv evidence.
+
+### Main Changes
+
+- Added the bounded `computed_masked_segment2_load_unit_store` route family on typed RVV body facts, including `tcrv_rvv.masked_segment2_load` and `tcrv_rvv.typed_computed_mask_segment2_load_pre_realized_body`.
+- Rewired RVV config ABI ordering, dialect verification, selected-body realization, construction protocol metadata, route planning, route provider materialization, closure-gated operand binding, target artifact mirrors, and generated-bundle ABI/runtime harness support for two-field segmented masked load movement.
+- The route carries compare lhs/rhs, interleaved source memory, per-field old passthrough buffers, per-field outputs, compare-produced mask, runtime n/AVL, SEW/LMUL/policy, segment count 2, inactive passthrough policy, and tail/source preservation through the RVV dialect/plugin-owned path.
+- Added explicit and pre-realized target fixtures plus dialect dataflow/negative coverage and generated-bundle dry-run tests; updated focused conversion/plugin allowlists for the new generic RVV op surface.
+- Self-repair performed: changed field extract materialization steps to load role, updated construction protocol common-test expectations for typed op/role sequence/runtime ABI, repaired stale Stage2 generic-op diagnostic allowlists, and added target artifact helper enum handling.
+- Checks passed: manual FileCheck for dialect verifier, explicit PLAN/HEADER, pre-realized REALIZED/PLAN/HEADER, and script dry-run fixtures; `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`; generated-bundle self-test; explicit and pre-realized dry-runs for counts `7,16,23`; real `ssh rvv` explicit and pre-realized PASS for counts `7,16,23`; focused lit filter 21/21; `cmake --build build --target check-tianchenrv -j2` with `313/313` tests; `git diff --check`.
+- Runtime evidence proved active segmented field loads, field-distinguishing interleaved source data, mixed true/false mask behavior, per-field inactive-lane passthrough preservation, source preservation, tail/sentinel preservation, and runtime n/AVL variation.
+- Authority scan found no new positive legacy/source/descriptor/common-export route authority; descriptor/source-front-door/direct-C diff hits are negative-boundary wording in `RVVOps.td`, and target intrinsic spelling remains provider-owned after typed closure.
+- Spec update review: no `.trellis/spec/**` change was needed because existing RVV plugin, EmitC route, and MLIR testing contracts already define the long-term boundary; this round added bounded route coverage inside that boundary.
+- Segment counts beyond two fields, segmented stores, indexed/strided fallback, dtype/LMUL clone batches, source-front-door routes, and high-level frontend work were intentionally not converted in this bounded owner.
+
+Final round commit is created after task archive in the same Codex turn.
+
+
+### Git Commits
+
+(Commit pending in this session)
+
+### Testing
+
+- [OK] Focused RVV dialect/target/script fixtures for explicit and pre-realized
+  computed-mask segment2 load routes.
+- [OK] Generated-bundle dry-runs and real `ssh rvv` runs for explicit and
+  pre-realized `computed_masked_segment2_load_unit_store`, counts `7,16,23`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` - 313/313 passed.
+- [OK] `git diff --check`.
+- [OK] Diff-level authority scan found no new positive legacy/source/descriptor
+  or common-export route authority.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 156: Stage2 RVV closure-gated indexed masked gather-load movement
 
 **Date**: 2026-05-22

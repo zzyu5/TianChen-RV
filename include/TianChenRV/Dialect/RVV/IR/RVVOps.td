@@ -1387,6 +1387,60 @@ def TypedComputedMaskIndexedScatterPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedComputedMaskSegment2LoadPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_computed_mask_segment2_load_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV computed-mask segment2 load body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body where a
+    signed i32 vector compare produces an in-body mask SSA value and masked
+    segment2 memory movement loads two active fields from an interleaved source
+    memory window into two unit-stride destination fields while preserving
+    inactive lanes from the old destination vectors. The op is nested directly
+    in a selected tcrv.exec.variant and binds explicit runtime ABI values for
+    compare lhs, compare rhs, interleaved source, field0 destination/old-vector
+    passthrough, field1 destination/old-vector passthrough, and runtime n/AVL
+    together with compare predicate, segment count, source/destination memory
+    forms, field roles, mask role/source/config, inactive-lane preservation
+    policy, compile-time RVV data/mask config, and policy.
+
+    This op is not a segmented-memory framework, route label, descriptor,
+    source-front-door marker, direct-C exporter, intrinsic wrapper, runtime
+    artifact, correctness evidence, or performance evidence. The RVV plugin
+    must realize it into explicit setvl/with_vl/load/load/load/load/compare/
+    masked_segment2_load/store/store tcrv_rvv body structure before the
+    provider may construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$compare_lhs,
+    AnyType:$compare_rhs,
+    AnyType:$source,
+    AnyType:$out0,
+    AnyType:$out1,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$predicate_kind,
+    StrAttr:$memory_form,
+    I64Attr:$segment_count,
+    StrAttr:$field0_role,
+    StrAttr:$field1_role,
+    StrAttr:$source_memory_form,
+    StrAttr:$destination_memory_form,
+    StrAttr:$mask_role,
+    StrAttr:$mask_source,
+    StrAttr:$mask_memory_form,
+    StrAttr:$inactive_lane_policy,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$compare_lhs `,` $compare_rhs `,` $source `,` $out0 `,` $out1 `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedSegment2DeinterleaveMemoryPreRealizedBodyOp
     : TCRVRVV_Op<"typed_segment2_deinterleave_memory_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV segment2 deinterleave memory body";
@@ -1922,6 +1976,49 @@ def Segment2LoadOp : TCRVRVV_Op<"segment2_load",
 
   let assemblyFormat =
     "$source `,` $vl attr-dict `:` type($source) `,` type($vl) `->` type($field0) `,` type($field1)";
+  let hasVerifier = 1;
+}
+
+def MaskedSegment2LoadOp : TCRVRVV_Op<"masked_segment2_load",
+    [DeclareOpInterfaceMethods<TCRVEmitCLowerableOpInterface,
+      ["getTCRVEmitCLowerableSourceOpName",
+       "getTCRVEmitCLowerableSourceRole"]>]> {
+  let summary = "generic typed RVV masked segment2 interleaved load op";
+  let description = [{
+    Records one bounded plugin-local RVV masked segment2 source load dataflow
+    step. The op is nested directly under tcrv_rvv.with_vl, consumes one
+    explicit interleaved source-buffer runtime ABI value, one !tcrv_rvv.mask
+    predicate produced by tcrv_rvv.compare in the same VL scope, two typed
+    old-vector passthrough values for inactive field lanes, and the active
+    !tcrv_rvv.vl token. It carries segment_count = 2, source memory form,
+    field0/field1 result role facts, and inactive-lane preservation policy,
+    and produces two same-typed !tcrv_rvv.vector field values.
+
+    Segment count, field order, source memory form, passthrough values, mask
+    provenance, dtype/config, and runtime ABI provenance come from this typed
+    body fact. The RVV plugin derives the tuple C type, masked segmented-load
+    leaf, field extraction leaves, and destination stores from these facts;
+    route ids, artifact names, ABI strings, exact intrinsic spellings,
+    descriptors, and common EmitC/export code must not infer segmented or
+    masked memory semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$source,
+    AnyType:$mask,
+    AnyType:$passthrough0,
+    AnyType:$passthrough1,
+    AnyType:$vl,
+    I64Attr:$segment_count,
+    StrAttr:$source_memory_form,
+    StrAttr:$field0_role,
+    StrAttr:$field1_role,
+    StrAttr:$inactive_lane_policy
+  );
+  let results = (outs AnyType:$field0, AnyType:$field1);
+
+  let assemblyFormat =
+    "$source `,` $mask `,` $passthrough0 `,` $passthrough1 `,` $vl attr-dict `:` type($source) `,` type($mask) `,` type($passthrough0) `,` type($passthrough1) `,` type($vl) `->` type($field0) `,` type($field1)";
   let hasVerifier = 1;
 }
 
