@@ -258,6 +258,11 @@ bool isAllowedTypedComputedMaskStandaloneReducePreRealizedBodyAttr(
          name == kPolicyAttrName;
 }
 
+bool isAllowedTypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return isAllowedTypedComputedMaskStandaloneReducePreRealizedBodyAttr(name);
+}
+
 bool isAllowedTypedMAccPreRealizedBodyAttr(llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
          name == kAccumulatorRoleAttrName ||
@@ -802,6 +807,11 @@ bool isSupportedTypedComputedMaskStandaloneReducePreRealizedBodyOpKind(
          opKind == "computed_mask_standalone_reduce_max";
 }
 
+bool isSupportedTypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "runtime_scalar_cmp_masked_standalone_reduce_add";
+}
+
 bool isSupportedTypedStandaloneReducePreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "unit-stride-standalone-reduction";
@@ -810,6 +820,12 @@ bool isSupportedTypedStandaloneReducePreRealizedMemoryForm(
 bool isSupportedTypedComputedMaskStandaloneReducePreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-unit-stride-standalone-reduction";
+}
+
+bool isSupportedTypedRuntimeScalarComputedMaskStandaloneReducePreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm ==
+         "runtime-scalar-computed-mask-unit-stride-standalone-reduction";
 }
 
 bool isSupportedTypedStandaloneReducePreRealizedAccumulatorRole(
@@ -3862,6 +3878,170 @@ TypedComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
            << "requires compare lhs/rhs const int32_t *, source const "
               "int32_t *, accumulator seed const int32_t *, and scalar output "
               "int32_t * runtime ABI bindings";
+
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult
+TypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected runtime scalar computed-mask "
+                "standalone reduction bodies carry only typed RVV "
+                "compare/mask/source/accumulator/runtime SSA facts and must "
+                "be realized by the RVV plugin before route construction";
+
+    if (!isAllowedTypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyAttr(
+            attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kPredicateKindAttrName << "', '"
+             << kMemoryFormAttrName << "', '" << kMaskRoleAttrName << "', '"
+             << kMaskSourceAttrName << "', '" << kMaskMemoryFormAttrName
+             << "', '" << kAccumulatorRoleAttrName << "', '"
+             << kAccumulatorLayoutAttrName << "', '" << kResultLayoutAttrName
+             << "', '" << kSEWAttrName << "', '" << kLMULAttrName
+             << "', and '" << kPolicyAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 6 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires compare lhs, rhs scalar threshold, source, "
+              "accumulator seed, scalar output, runtime n/AVL operands and "
+              "no results";
+
+  if (!isSupportedTypedRuntimeScalarComputedMaskStandaloneReducePreRealizedBodyOpKind(
+          getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"runtime_scalar_cmp_masked_standalone_reduce_add\" for the "
+              "bounded selected-body runtime scalar computed-mask standalone "
+              "reduction hook";
+  if (getPredicateKind() != "sle")
+    return emitOpError()
+           << "currently supports only predicate_kind \"sle\" for the bounded "
+              "selected-body runtime scalar computed-mask standalone "
+              "reduction hook";
+  if (!isSupportedTypedRuntimeScalarComputedMaskStandaloneReducePreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"runtime-scalar-computed-mask-unit-stride-standalone-"
+              "reduction\" for the bounded selected-body runtime scalar "
+              "computed-mask standalone reduction hook";
+  if (!isSupportedTypedComputedMaskMemoryRole(getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-produced-by-compare\" for the bounded "
+              "runtime scalar computed-mask standalone reduction hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskSource(getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"compare-produced-mask-same-vl-scope\" for the bounded "
+              "runtime scalar computed-mask standalone reduction hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskMemoryForm(getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"compare-produced-mask\" for the bounded runtime scalar "
+              "computed-mask standalone reduction hook";
+  if (!isSupportedTypedStandaloneReducePreRealizedAccumulatorRole(
+          getAccumulatorRole()))
+    return emitOpError()
+           << "currently supports only accumulator_role "
+              "\"accumulator-input-buffer\" for the bounded selected-body "
+              "runtime scalar computed-mask standalone reduction hook";
+  if (!isSupportedTypedStandaloneReducePreRealizedAccumulatorLayout(
+          getAccumulatorLayout()))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"scalar-i32-seed-lane0-from-accumulator-input\" for the "
+              "bounded selected-body runtime scalar computed-mask standalone "
+              "reduction hook";
+  if (!isSupportedTypedStandaloneReducePreRealizedResultLayout(
+          getResultLayout()))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-standalone-reduction-lane0-to-output-scalar\" for the "
+              "bounded selected-body runtime scalar computed-mask standalone "
+              "reduction hook";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized runtime scalar computed-mask "
+              "standalone reduction config to be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body runtime scalar computed-mask standalone "
+              "reduction hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareLhs(), "compare lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIScalarOperandRole(
+          op, getRhsScalar(), "rhs scalar threshold",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSource(), "source",
+          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getAcc(), "accumulator seed",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               AccumulatorInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "scalar output",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+
+  RuntimeABIValueOp compareLHSBinding =
+      getCompareLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsScalarBinding =
+      getRhsScalar().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp sourceBinding =
+      getSource().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp accBinding = getAcc().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
+  if (!compareLHSBinding || compareLHSBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires compare lhs operand C type 'const int32_t *' to "
+              "match typed runtime scalar computed-mask standalone reduction "
+              "predicate dtype";
+  if (!rhsScalarBinding || rhsScalarBinding.getCType() != "int32_t")
+    return emitOpError()
+           << "requires rhs scalar threshold operand C type 'int32_t' to "
+              "match typed runtime scalar computed-mask standalone reduction "
+              "predicate dtype";
+  if (!sourceBinding || sourceBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires source operand C type 'const int32_t *' to match "
+              "typed runtime scalar computed-mask standalone reduction "
+              "payload dtype";
+  if (!accBinding || accBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires accumulator seed operand C type 'const int32_t *' to "
+              "match typed runtime scalar computed-mask standalone reduction "
+              "accumulator dtype";
+  if (!outBinding || outBinding.getCType() != "int32_t *")
+    return emitOpError()
+           << "requires scalar output operand C type 'int32_t *' to match "
+              "typed runtime scalar computed-mask standalone reduction result "
+              "dtype";
 
   return verifyRuntimeElementCountOperand(op, getN());
 }

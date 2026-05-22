@@ -110,6 +110,11 @@ bool isComputedMaskStandaloneReduceOperationMnemonic(llvm::StringRef mnemonic) {
          mnemonic == "computed_mask_standalone_reduce_max";
 }
 
+bool isRuntimeScalarComputedMaskStandaloneReduceOperationMnemonic(
+    llvm::StringRef mnemonic) {
+  return mnemonic == "runtime_scalar_cmp_masked_standalone_reduce_add";
+}
+
 class GateFailingPlugin final : public ExtensionPlugin {
 public:
   llvm::StringRef getName() const override {
@@ -1657,6 +1662,9 @@ int runRVVCommonValidationTest() {
     const bool isComputedMaskStandaloneReduceRoute =
         isComputedMaskStandaloneReduceOperationMnemonic(
             route.operationMnemonic);
+    const bool isRuntimeScalarComputedMaskStandaloneReduceRoute =
+        isRuntimeScalarComputedMaskStandaloneReduceOperationMnemonic(
+            route.operationMnemonic);
     const bool isComputedMaskMAccRoute =
         route.operationMnemonic == "computed_masked_macc_add";
     const bool isRuntimeScalarComputedMaskMAccRoute =
@@ -1677,7 +1685,8 @@ int runRVVCommonValidationTest() {
       executableComputeOp = "tcrv_rvv.reduce";
     else if (isStandaloneReduceRoute)
       executableComputeOp = "tcrv_rvv.standalone_reduce";
-    else if (isComputedMaskStandaloneReduceRoute)
+    else if (isComputedMaskStandaloneReduceRoute ||
+             isRuntimeScalarComputedMaskStandaloneReduceRoute)
       executableComputeOp = "tcrv_rvv.masked_standalone_reduce";
     else if (isMaskedElementwiseRoute)
       executableComputeOp = "tcrv_rvv.masked_binary";
@@ -1761,6 +1770,7 @@ int runRVVCommonValidationTest() {
                    "computed_masked_segment2_store_unit_load" ||
                isComputedMaskSelectRoute ||
                isComputedMaskStandaloneReduceRoute ||
+               isRuntimeScalarComputedMaskStandaloneReduceRoute ||
                isComputedMaskMAccRoute ||
                isRuntimeScalarComputedMaskMAccRoute ||
                route.operationMnemonic ==
@@ -1848,6 +1858,8 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "runtime_scalar_cmp_masked_load_store";
     const bool hasComputedMaskStandaloneReduction =
         isComputedMaskStandaloneReduceRoute;
+    const bool hasRuntimeScalarComputedMaskStandaloneReduction =
+        isRuntimeScalarComputedMaskStandaloneReduceRoute;
     const bool hasComputedMaskMAcc =
         isComputedMaskMAccRoute || isRuntimeScalarComputedMaskMAccRoute;
     unsigned expectedStepCount =
@@ -1857,6 +1869,7 @@ int runRVVCommonValidationTest() {
         : hasRuntimeScalarComputedMaskStore      ? 12u
         : hasRuntimeScalarComputedMaskLoadStore  ? 13u
         : hasComputedMaskStandaloneReduction     ? 14u
+        : hasRuntimeScalarComputedMaskStandaloneReduction ? 14u
         : hasComputedMaskMAcc                    ? 17u
         : isStandaloneReduceRoute                ? 9u
         : hasWideningMAcc                       ? 12u
@@ -1883,9 +1896,12 @@ int runRVVCommonValidationTest() {
         : hasMaskProducer                       ? 11u
                                                 : 10u;
     if (steps->size() != expectedStepCount)
-      return fail("RVV executable role sequence must include explicit ABI, "
+      return fail(llvm::Twine("RVV executable role sequence for '") +
+                  route.operationMnemonic + "' must include explicit ABI, "
                   "config, scope, load, compute, optional mask-producing "
-                  "compute, and store steps");
+                  "compute, and store steps; got " +
+                  llvm::Twine(steps->size()) + ", expected " +
+                  llvm::Twine(expectedStepCount));
   }
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4> parameters =
       rvv::getRVVSelectedBodyConstructionRuntimeABIParameters();
@@ -2109,6 +2125,13 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (isRuntimeScalarComputedMaskStandaloneReduceOperationMnemonic(
+                   route.operationMnemonic)) {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else {

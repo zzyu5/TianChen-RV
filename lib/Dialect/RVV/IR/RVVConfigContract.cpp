@@ -706,6 +706,29 @@ getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 6>
+getRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "cmp_lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs_scalar", "int32_t",
+      support::RuntimeABIParameterRole::RHSScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src", "const int32_t *",
+      support::RuntimeABIParameterRole::SourceInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "acc", "const int32_t *",
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 7>
 getRVVSelectedBodyStridedInputWideningDotReduceRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 7> parameters;
@@ -1311,6 +1334,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
           getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(
           parameters, computedMaskStandaloneReductionExpected))
+    return llvm::Error::success();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 6>
+      runtimeScalarComputedMaskStandaloneReductionExpected =
+          getRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(
+          parameters, runtimeScalarComputedMaskStandaloneReductionExpected))
     return llvm::Error::success();
 
   llvm::SmallVector<support::RuntimeABIParameter, 7>

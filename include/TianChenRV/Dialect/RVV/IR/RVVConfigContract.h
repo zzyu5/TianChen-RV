@@ -130,6 +130,8 @@ llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
 getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
+getRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>
 getRVVSelectedBodyStridedInputWideningDotReduceRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>

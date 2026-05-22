@@ -337,6 +337,7 @@ struct RVVSelectedBodyStandaloneReductionRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
   bool usesComputedMask = false;
+  bool usesRuntimeScalarThreshold = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
@@ -349,6 +350,7 @@ struct RVVSelectedBodyStandaloneReductionRouteFamilyPlan {
   llvm::StringRef vectorCType;
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef rhsScalarSplatIntrinsic;
   llvm::StringRef scalarSeedSplatIntrinsic;
   llvm::StringRef reductionIntrinsic;
   llvm::StringRef compareIntrinsic;

@@ -52,7 +52,9 @@ bool isRVVSelectedBodyComputedMaskStandaloneReductionRoute(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd ||
          op == RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax;
+         op == RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax ||
+         op == RVVSelectedBodyOperationKind::
+                   RuntimeScalarComputedMaskStandaloneReduceAdd;
 }
 
 bool isRVVSelectedBodyPlainStandaloneReductionRoute(
@@ -66,6 +68,8 @@ llvm::StringRef getRVVSelectedBodyMaskedStandaloneReductionInactiveNeutral(
     RVVSelectedBodyOperationKind op) {
   switch (op) {
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceAdd:
     return "0";
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
     return "2147483647";
@@ -1582,9 +1586,13 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
         return error;
     } else if (isRVVSelectedBodyComputedMaskStandaloneReductionRoute(
                    description.operation)) {
+      const bool isRuntimeScalarThreshold =
+          description.operation == RVVSelectedBodyOperationKind::
+                                       RuntimeScalarComputedMaskStandaloneReduceAdd;
       llvm::StringRef inactiveUse =
-          description.operation ==
+          (description.operation ==
                   RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd
+           || isRuntimeScalarThreshold)
               ? "zero-inactive"
               : "neutral-inactive";
       llvm::Expected<const support::RuntimeABIParameter *> cmpLhs =
@@ -1598,17 +1606,32 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               "cmp_lhs", "cmp-lhs-call",
               "computed-mask standalone reduction compare lhs call operand"))
         return error;
-      llvm::Expected<const support::RuntimeABIParameter *> cmpRhs =
-          getRequiredBinding(bindingPlan, "cmp_rhs", "cmp-rhs-load",
-                             "computed-mask standalone reduction compare rhs "
-                             "load operand");
-      if (!cmpRhs)
-        return cmpRhs.takeError();
-      boundRHSABI = *cmpRhs;
-      if (llvm::Error error = requireOperandUse(
-              "cmp_rhs", "cmp-rhs-call",
-              "computed-mask standalone reduction compare rhs call operand"))
-        return error;
+      if (isRuntimeScalarThreshold) {
+        llvm::Expected<const support::RuntimeABIParameter *> rhsScalar =
+            getRequiredBinding(bindingPlan, "rhs_scalar", "splat",
+                               "runtime scalar computed-mask standalone "
+                               "reduction RHS scalar splat operand");
+        if (!rhsScalar)
+          return rhsScalar.takeError();
+        boundRHSABI = *rhsScalar;
+        if (llvm::Error error = requireOperandUse(
+                "rhs_scalar", "cmp-rhs-call",
+                "runtime scalar computed-mask standalone reduction compare "
+                "rhs call operand"))
+          return error;
+      } else {
+        llvm::Expected<const support::RuntimeABIParameter *> cmpRhs =
+            getRequiredBinding(bindingPlan, "cmp_rhs", "cmp-rhs-load",
+                               "computed-mask standalone reduction compare rhs "
+                               "load operand");
+        if (!cmpRhs)
+          return cmpRhs.takeError();
+        boundRHSABI = *cmpRhs;
+        if (llvm::Error error = requireOperandUse(
+                "cmp_rhs", "cmp-rhs-call",
+                "computed-mask standalone reduction compare rhs call operand"))
+          return error;
+      }
       llvm::Expected<const support::RuntimeABIParameter *> source =
           getRequiredBinding(bindingPlan, "src", "src-load",
                              "computed-mask standalone reduction source load "
@@ -3070,7 +3093,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                      RuntimeScalarComputedMaskLoadStore ||
              description.memoryForm ==
                  RVVSelectedBodyMemoryForm::
-                     RuntimeScalarComputedMaskUnitStrideMAcc) {
+                     RuntimeScalarComputedMaskUnitStrideMAcc ||
+             description.memoryForm == RVVSelectedBodyMemoryForm::
+                                           RuntimeScalarComputedMaskUnitStrideStandaloneReduction) {
     if (llvm::Error error = addLoopStep(
             slice->rhsLoadOperation, "load",
             rhsScalarBroadcastLeaf,
