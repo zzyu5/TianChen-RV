@@ -350,14 +350,17 @@ struct RVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
 };
 
-struct RVVSelectedBodyRuntimeScalarComputedMaskAccumulationRouteFamilyPlan {
+struct RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
   bool usesVectorMAccSuffix = false;
   bool usesScalarHorizontalReductionSuffix = false;
+  bool usesVectorCompareProducer = false;
+  bool usesRuntimeScalarProducer = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
   llvm::StringRef familyPlanID;
   llvm::StringRef computeSuffix;
+  llvm::StringRef maskProducerSource;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
   llvm::StringRef providerSupportedMirror;
@@ -438,8 +441,8 @@ struct RVVSelectedBodyRouteAnalysis {
       RVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan>
       runtimeScalarComputedMaskMemoryRouteFamilyPlan;
   std::optional<
-      RVVSelectedBodyRuntimeScalarComputedMaskAccumulationRouteFamilyPlan>
-      runtimeScalarComputedMaskAccumulationRouteFamilyPlan;
+      RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan>
+      computedMaskAccumulationRouteFamilyPlan;
   std::optional<RVVSelectedBodyStandaloneReductionRouteFamilyPlan>
       standaloneReductionRouteFamilyPlan;
 };

@@ -118,6 +118,45 @@ COMPUTED_MASKED_MACC_ADD_INACTIVE_LANE_CONTRACT = (
 COMPUTED_MASKED_MACC_ADD_PASSTHROUGH_LAYOUT = (
     "accumulator-vector-preserves-inactive-lanes"
 )
+COMPUTED_MASKED_MACC_TARGET_LEAF_PROFILE = (
+    "rvv-v1-e32m1-computed-mask-macc-add-leaf-profile.v1"
+)
+COMPUTED_MASKED_MACC_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-computed-mask-macc-add-plan-validated"
+)
+COMPUTED_MASKED_MACC_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+COMPUTED_MASKED_MACC_C_TYPE_MAPPING = (
+    "vl:size_t,cmp_lhs/cmp_rhs/lhs/rhs/acc:signed-e32m1,mask:b32,"
+    "result:signed-e32m1"
+)
+COMPUTED_MASK_ACCUMULATION_ROUTE_FAMILY_PLAN = (
+    "rvv-computed-mask-accumulation-route-family-plan.v1"
+)
+COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_SUFFIX = "vector-masked-macc-add"
+COMPUTED_MASK_ACCUMULATION_STANDALONE_REDUCE_SUFFIX = (
+    "scalar-horizontal-masked-standalone-reduce-add"
+)
+COMPUTED_MASK_ACCUMULATION_VECTOR_PRODUCER_SOURCE = "vector-compare-rhs-load"
+COMPUTED_MASK_ACCUMULATION_RUNTIME_SCALAR_PRODUCER_SOURCE = (
+    "runtime-scalar-splat-compare-rhs"
+)
+COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_ACCUMULATOR_CONTRACT = (
+    "vector-accumulator-input-preserves-inactive-lanes"
+)
+COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_RESULT_CONTRACT = (
+    "vector-macc-result-stored-to-output-buffer"
+)
+COMPUTED_MASK_ACCUMULATION_STANDALONE_ACCUMULATOR_CONTRACT = (
+    "scalar-seed-input-feeds-masked-horizontal-reduction"
+)
+COMPUTED_MASK_ACCUMULATION_STANDALONE_RESULT_CONTRACT = (
+    "scalar-horizontal-reduction-lane0-stored-to-output"
+)
+COMPUTED_MASK_ACCUMULATION_STANDALONE_SCALAR_CARRY_CONTRACT = (
+    "scalar-result-carries-across-runtime-vl-chunks"
+)
 RUNTIME_SCALAR_COMPUTED_MASKED_MACC_ADD_RUNTIME_ABI_ORDER = (
     "cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n"
 )
@@ -4473,6 +4512,29 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
+        if expectation.is_computed_mask_standalone_reduce_add:
+            per_op_metadata.update(
+                {
+                    "tcrv_rvv.accumulation_route_family_plan": (
+                        COMPUTED_MASK_ACCUMULATION_ROUTE_FAMILY_PLAN
+                    ),
+                    "tcrv_rvv.accumulation_compute_suffix": (
+                        COMPUTED_MASK_ACCUMULATION_STANDALONE_REDUCE_SUFFIX
+                    ),
+                    "tcrv_rvv.accumulation_mask_producer_source": (
+                        COMPUTED_MASK_ACCUMULATION_VECTOR_PRODUCER_SOURCE
+                    ),
+                    "tcrv_rvv.accumulation_accumulator_contract": (
+                        COMPUTED_MASK_ACCUMULATION_STANDALONE_ACCUMULATOR_CONTRACT
+                    ),
+                    "tcrv_rvv.accumulation_result_contract": (
+                        COMPUTED_MASK_ACCUMULATION_STANDALONE_RESULT_CONTRACT
+                    ),
+                    "tcrv_rvv.accumulation_scalar_carry_contract": (
+                        COMPUTED_MASK_ACCUMULATION_STANDALONE_SCALAR_CARRY_CONTRACT
+                    ),
+                }
+            )
     if expectation.is_runtime_scalar_computed_mask_standalone_reduce:
         per_op_metadata.update(
             {
@@ -4503,6 +4565,24 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_C_TYPE_MAPPING
+                ),
+                "tcrv_rvv.accumulation_route_family_plan": (
+                    COMPUTED_MASK_ACCUMULATION_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.accumulation_compute_suffix": (
+                    COMPUTED_MASK_ACCUMULATION_STANDALONE_REDUCE_SUFFIX
+                ),
+                "tcrv_rvv.accumulation_mask_producer_source": (
+                    COMPUTED_MASK_ACCUMULATION_RUNTIME_SCALAR_PRODUCER_SOURCE
+                ),
+                "tcrv_rvv.accumulation_accumulator_contract": (
+                    COMPUTED_MASK_ACCUMULATION_STANDALONE_ACCUMULATOR_CONTRACT
+                ),
+                "tcrv_rvv.accumulation_result_contract": (
+                    COMPUTED_MASK_ACCUMULATION_STANDALONE_RESULT_CONTRACT
+                ),
+                "tcrv_rvv.accumulation_scalar_carry_contract": (
+                    COMPUTED_MASK_ACCUMULATION_STANDALONE_SCALAR_CARRY_CONTRACT
                 ),
                 "tcrv_rvv.route_operand_binding_plan": (
                     RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_PLAN
@@ -4620,6 +4700,33 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
+                "tcrv_rvv.target_leaf_profile": (
+                    COMPUTED_MASKED_MACC_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    COMPUTED_MASKED_MACC_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    COMPUTED_MASKED_MACC_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    COMPUTED_MASKED_MACC_C_TYPE_MAPPING
+                ),
+                "tcrv_rvv.accumulation_route_family_plan": (
+                    COMPUTED_MASK_ACCUMULATION_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.accumulation_compute_suffix": (
+                    COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_SUFFIX
+                ),
+                "tcrv_rvv.accumulation_mask_producer_source": (
+                    COMPUTED_MASK_ACCUMULATION_VECTOR_PRODUCER_SOURCE
+                ),
+                "tcrv_rvv.accumulation_accumulator_contract": (
+                    COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_ACCUMULATOR_CONTRACT
+                ),
+                "tcrv_rvv.accumulation_result_contract": (
+                    COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_RESULT_CONTRACT
+                ),
                 "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
                 "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
@@ -4664,6 +4771,21 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_COMPUTED_MASKED_MACC_C_TYPE_MAPPING
+                ),
+                "tcrv_rvv.accumulation_route_family_plan": (
+                    COMPUTED_MASK_ACCUMULATION_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.accumulation_compute_suffix": (
+                    COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_SUFFIX
+                ),
+                "tcrv_rvv.accumulation_mask_producer_source": (
+                    COMPUTED_MASK_ACCUMULATION_RUNTIME_SCALAR_PRODUCER_SOURCE
+                ),
+                "tcrv_rvv.accumulation_accumulator_contract": (
+                    COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_ACCUMULATOR_CONTRACT
+                ),
+                "tcrv_rvv.accumulation_result_contract": (
+                    COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_RESULT_CONTRACT
                 ),
                 "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
@@ -13889,6 +14011,69 @@ def run_self_test() -> int:
         expect_self_test_failure(
             "stale runtime ABI",
             lambda: verify_bundle(stale_runtime_abi, None, expectation),
+        )
+
+        accumulation_expectation = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "computed_masked_macc_add"
+        ]
+        stale_accumulation_producer = make_fake_bundle(
+            tmp / "stale-accumulation-producer", accumulation_expectation
+        )
+        index_path = stale_accumulation_producer / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace(
+            COMPUTED_MASK_ACCUMULATION_VECTOR_PRODUCER_SOURCE,
+            COMPUTED_MASK_ACCUMULATION_RUNTIME_SCALAR_PRODUCER_SOURCE,
+            1,
+        )
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "wrong computed-mask accumulation producer source",
+            lambda: verify_bundle(
+                stale_accumulation_producer, None, accumulation_expectation
+            ),
+        )
+
+        stale_accumulation_suffix = make_fake_bundle(
+            tmp / "stale-accumulation-suffix", accumulation_expectation
+        )
+        index_path = stale_accumulation_suffix / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace(
+            COMPUTED_MASK_ACCUMULATION_VECTOR_MACC_SUFFIX,
+            COMPUTED_MASK_ACCUMULATION_STANDALONE_REDUCE_SUFFIX,
+            1,
+        )
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "wrong computed-mask accumulation suffix",
+            lambda: verify_bundle(
+                stale_accumulation_suffix, None, accumulation_expectation
+            ),
+        )
+
+        runtime_scalar_accumulation_expectation = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "runtime_scalar_cmp_masked_macc_add"
+        ]
+        stale_runtime_scalar_producer = make_fake_bundle(
+            tmp / "stale-runtime-scalar-accumulation-producer",
+            runtime_scalar_accumulation_expectation,
+        )
+        index_path = stale_runtime_scalar_producer / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace(
+            COMPUTED_MASK_ACCUMULATION_RUNTIME_SCALAR_PRODUCER_SOURCE,
+            COMPUTED_MASK_ACCUMULATION_VECTOR_PRODUCER_SOURCE,
+            1,
+        )
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "wrong runtime-scalar accumulation producer source",
+            lambda: verify_bundle(
+                stale_runtime_scalar_producer,
+                None,
+                runtime_scalar_accumulation_expectation,
+            ),
         )
 
         descriptor_residue = make_fake_bundle(tmp / "descriptor-residue", expectation)

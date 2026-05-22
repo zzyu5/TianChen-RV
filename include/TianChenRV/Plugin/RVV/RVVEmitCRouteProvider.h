@@ -188,6 +188,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef maskComposition;
   llvm::StringRef accumulationRouteFamilyPlanID;
   llvm::StringRef accumulationComputeSuffix;
+  llvm::StringRef accumulationMaskProducerSource;
   llvm::StringRef accumulationAccumulatorContract;
   llvm::StringRef accumulationResultContract;
   llvm::StringRef accumulationScalarCarryContract;

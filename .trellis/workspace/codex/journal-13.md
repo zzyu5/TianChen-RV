@@ -69,6 +69,70 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 163: Stage2 RVV computed-mask accumulation producer-source family
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV computed-mask accumulation producer-source family migration
+**Branch**: `main`
+
+### Summary
+
+Generalized the shared computed-mask accumulation route-family plan from
+runtime-scalar-only to producer-source-aware support and migrated the existing
+vector/vector `computed_masked_macc_add` and
+`computed_mask_standalone_reduce_add` production routes to consume it.
+
+### Main Changes
+
+- Replaced the runtime-scalar-specific accumulation plan surface with
+  `RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan`, carrying explicit
+  vector-compare versus runtime-scalar mask producer facts.
+- Kept runtime-scalar macc and standalone reduction on the same shared family
+  through the runtime-scalar producer source while preserving their runtime ABI
+  order and materialized operand closure.
+- Migrated vector/vector computed-mask macc and standalone reduction to derive
+  target leaf/header/mirror fields, suffix contracts, and provider compare
+  producer binding from the shared family.
+- Added `accumulation_mask_producer_source` to target/header metadata and
+  generated-bundle expectations; common EmitC/export remains a neutral mirror
+  path.
+- Added generated-bundle self-test negatives for stale producer-source and
+  wrong accumulation suffix metadata.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused lit filter for computed-mask macc/standalone and runtime-scalar
+  accumulation routes: 17/17 selected tests passed.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Generated-bundle dry-runs for explicit and pre-realized
+  `computed_masked_macc_add`, `computed_mask_standalone_reduce_add`,
+  `runtime_scalar_cmp_masked_macc_add`, and
+  `runtime_scalar_cmp_masked_standalone_reduce_add`, counts `7,16,23` and
+  thresholds `-37,91` for runtime-scalar cases.
+- [OK] Real `ssh rvv` generated-bundle runs for explicit and pre-realized
+  `computed_masked_macc_add` and `computed_mask_standalone_reduce_add`, counts
+  `7,16,23`, proving active/inactive mask behavior, accumulator passthrough,
+  scalar carry, and tail preservation.
+- [OK] Diff-level active-authority scan found no new positive
+  `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`, descriptor,
+  source-front-door, helper-string, artifact-name, or mirror-only route
+  authority; the only exact intrinsic diff hit is the existing typed provider
+  runtime-scalar splat leaf validation.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 349/349.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 161: Stage2 RVV computed-mask select route-family interface
 
 **Date**: 2026-05-23
