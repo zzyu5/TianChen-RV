@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global stack, authority-chain, Stage 1/2, and source-of-truth constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin locality, typed body authority, selected-body realization, provider-owned mapping, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export still consumes provider-built route payloads without inferring RVV semantics."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused FileCheck/C++/runtime evidence, mirror-only authority rejection, and active-authority scan coverage."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-computed-mask-select-route-family-interface/prd.md", "reason": "Check route-family migration follows the recently accepted select-family pattern without broadening scope."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-stage2-rvv-runtime-scalar-computed-mask-store-boundary/prd.md", "reason": "Check store route behavior/evidence remains intact."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-runtime-scalar-computed-mask-load-merge-boundary/prd.md", "reason": "Check load-store route behavior/evidence remains intact."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-route-operand-abi-binding/prd.md", "reason": "Check route operand binding closure remains authoritative for materialized operands and mirrors."}

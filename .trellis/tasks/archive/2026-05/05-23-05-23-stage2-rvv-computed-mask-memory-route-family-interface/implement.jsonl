@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack boundary, RVV-first authority chain, Stage 1/2 ordering, source-of-truth rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, route provider, runtime ABI, and common EmitC/export neutrality rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute boundary and common EmitC materialization constraints."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/FileCheck/C++/ssh evidence expectations and metadata-mirror constraints for RVV route changes."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-computed-mask-select-route-family-interface/prd.md", "reason": "Local pattern for sharing route-specific facts through a plugin-local route-family plan."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-stage2-rvv-runtime-scalar-computed-mask-store-boundary/prd.md", "reason": "Existing runtime_scalar_cmp_masked_store production behavior and evidence boundary."}
+{"file": ".trellis/tasks/archive/2026-05/05-22-05-22-stage2-rvv-runtime-scalar-computed-mask-load-merge-boundary/prd.md", "reason": "Existing runtime_scalar_cmp_masked_load_store production behavior and evidence boundary."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-route-operand-abi-binding/prd.md", "reason": "RouteOperandBindingPlan closure authority for materialized operands and mirrors."}

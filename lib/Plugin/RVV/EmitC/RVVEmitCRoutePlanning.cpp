@@ -4120,34 +4120,34 @@ void applyRVVSelectedBodyRuntimeScalarComputedMaskSelectRouteFamilyPlan(
                                           plan.runtimeABIParameters.end());
 }
 
-bool isRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteOperation(
+bool isRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteOperation(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
          op ==
              RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore;
 }
 
-llvm::Error requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
-    const RVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan &plan,
+llvm::Error requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
+    const RVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan &plan,
     llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
   if (actual == expected)
     return llvm::Error::success();
   return makeRVVEmitCRouteProviderError(
-      llvm::Twine("runtime scalar computed-mask store route-family plan "
+      llvm::Twine("runtime scalar computed-mask memory route-family plan "
                   "validation for operation '") +
       stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
       field + " '" + expected + "' but found '" + actual + "'");
 }
 
 llvm::Error
-validateRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan(
-    const RVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan &plan) {
+validateRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan(
+    const RVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan &plan) {
   if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
           plan.runtimeControlPlan,
-          "runtime scalar computed-mask store route-family runtime AVL/VL "
+          "runtime scalar computed-mask memory route-family runtime AVL/VL "
           "control"))
     return error;
-  if (!isRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteOperation(
+  if (!isRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteOperation(
           plan.operation))
     return makeRVVEmitCRouteProviderError(
         "runtime scalar computed-mask route-family plan supports only "
@@ -4156,6 +4156,10 @@ validateRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan(
   const bool isLoadStore =
       plan.operation ==
       RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore;
+  if (plan.usesLoadMerge != isLoadStore)
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar computed-mask memory route-family plan requires "
+        "usesLoadMerge to mirror the selected store or load-store consumer");
   if ((!isLoadStore &&
        plan.memoryForm !=
            RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore) ||
@@ -4166,27 +4170,27 @@ validateRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan(
         "runtime scalar computed-mask route-family plan requires matching "
         "runtime-scalar-computed-mask store or load-store memory form");
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "runtime control plan",
               plan.runtimeControlPlan.controlPlanID,
               getRVVRuntimeAVLVLControlPlanID()))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "runtime ABI order", plan.runtimeABIOrder,
               isLoadStore
                   ? kRVVRuntimeScalarComputedMaskLoadStoreRuntimeABIOrder
                   : kRVVRuntimeScalarComputedMaskStoreRuntimeABIOrder))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "target leaf profile", plan.targetLeafProfile,
               isLoadStore
                   ? kRVVRuntimeScalarComputedMaskLoadStoreTargetLeafProfile
                   : kRVVRuntimeScalarComputedMaskStoreTargetLeafProfile))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "provider_supported_mirror",
               plan.providerSupportedMirror,
               isLoadStore
@@ -4194,14 +4198,14 @@ validateRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan(
                   : kRVVRuntimeScalarComputedMaskStoreProviderSupportedMirror))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "header declarations", plan.requiredHeaderDeclarations,
               isLoadStore
                   ? kRVVRuntimeScalarComputedMaskLoadStoreRequiredHeaderDeclarations
                   : kRVVRuntimeScalarComputedMaskStoreRequiredHeaderDeclarations))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "C type mapping summary", plan.cTypeMappingSummary,
               isLoadStore
                   ? kRVVRuntimeScalarComputedMaskLoadStoreCTypeMappingSummary
@@ -4212,114 +4216,114 @@ validateRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan(
       plan.requiredHeaders[1] != "stdint.h" ||
       plan.requiredHeaders[2] != "riscv_vector.h")
     return makeRVVEmitCRouteProviderError(
-        "runtime scalar computed-mask store route-family plan requires "
+        "runtime scalar computed-mask memory route-family plan requires "
         "provider-owned header declarations 'stddef.h,stdint.h,riscv_vector.h'");
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "VL C type", plan.vlCType, "size_t"))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "vector type", plan.vectorTypeName,
               "!tcrv_rvv.vector<i32, \"m1\">"))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "vector C type", plan.vectorCType, "vint32m1_t"))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "mask type", plan.maskTypeName,
               "!tcrv_rvv.mask<i32, \"m1\">"))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "mask C type", plan.maskCType, "vbool32_t"))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "setvl leaf", plan.setVLIntrinsic,
               "__riscv_vsetvl_e32m1"))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "vector-load leaf", plan.vectorLoadIntrinsic,
               "__riscv_vle32_v_i32m1"))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "RHS scalar splat leaf",
               plan.rhsScalarSplatIntrinsic, "__riscv_vmv_v_x_i32m1"))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "compare leaf", plan.compareIntrinsic,
               "__riscv_vmsle_vv_i32m1_b32"))
     return error;
   if (isLoadStore) {
     if (llvm::Error error =
-            requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+            requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
                 plan, "masked-load leaf", plan.maskedLoadIntrinsic,
                 "__riscv_vle32_v_i32m1_tumu"))
       return error;
     if (llvm::Error error =
-            requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+            requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
                 plan, "store leaf", plan.maskedStoreIntrinsic,
                 "__riscv_vse32_v_i32m1"))
       return error;
   } else {
     if (llvm::Error error =
-            requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+            requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
                 plan, "masked-store leaf", plan.maskedStoreIntrinsic,
                 "__riscv_vse32_v_i32m1_m"))
       return error;
   }
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "result name", plan.resultName,
               isLoadStore ? "runtime_scalar_masked_loaded_vec"
                           : "runtime_scalar_masked_payload_vec"))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "mask name", plan.maskName,
               isLoadStore ? "runtime_scalar_cmp_masked_load_store_mask"
                           : "runtime_scalar_cmp_masked_store_mask"))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "mask role", plan.maskRole,
               kRVVMaskedPredicateMaskRole))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "mask source", plan.maskSource,
               kRVVMaskedCompareMaskSource))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "mask memory form", plan.maskMemoryForm,
               kRVVComputedMaskMemoryMaskMemoryForm))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "inactive-lane contract", plan.inactiveLaneContract,
               isLoadStore ? kRVVMaskedMemoryInactiveLaneContract
                           : kRVVMaskedStoreInactiveLaneContract))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "masked passthrough layout", plan.maskedPassthroughLayout,
               isLoadStore ? kRVVMaskedMemoryPassthroughLayout
                           : kRVVMaskedStorePassthroughLayout))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "source memory form", plan.sourceMemoryForm,
               kRVVUnitStrideSourceMemoryForm))
     return error;
   if (llvm::Error error =
-          requireRVVSelectedBodyRuntimeScalarComputedMaskStorePlanField(
+          requireRVVSelectedBodyRuntimeScalarComputedMaskMemoryPlanField(
               plan, "destination memory form", plan.destinationMemoryForm,
               isLoadStore ? kRVVDestinationMemoryForm
                           : kRVVMaskedStoreDestinationMemoryForm))
@@ -4331,12 +4335,12 @@ validateRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan(
   return llvm::Error::success();
 }
 
-llvm::Expected<RVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan>
-deriveRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan(
+llvm::Expected<RVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan>
+deriveRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyConfigProfile &configProfile,
     const RVVSelectedBodyTargetLeafProfile &targetLeaves) {
-  if (!isRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteOperation(
+  if (!isRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteOperation(
           analysis.slice.arithmeticKind))
     return makeRVVEmitCRouteProviderError(
         "requested runtime scalar computed-mask route-family plan for "
@@ -4368,12 +4372,12 @@ deriveRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan(
         "structure");
   if (analysis.slice.compareOp.getKind() != "sle")
     return makeRVVEmitCRouteProviderError(
-        "runtime scalar computed-mask store route-family plan currently "
+        "runtime scalar computed-mask memory route-family plan currently "
         "requires predicate_kind 'sle' for the bounded executable slice");
   if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
       configProfile.lmul != tcrv::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
-        "runtime scalar computed-mask store route-family plan currently "
+        "runtime scalar computed-mask memory route-family plan currently "
         "requires SEW32 LMUL m1 typed config");
   if (analysis.slice.lhsABI.role !=
           support::RuntimeABIParameterRole::LHSInputBuffer ||
@@ -4386,7 +4390,7 @@ deriveRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan(
       analysis.slice.runtimeElementCountABI.role !=
           support::RuntimeABIParameterRole::RuntimeElementCount)
     return makeRVVEmitCRouteProviderError(
-        "runtime scalar computed-mask store route-family plan requires lhs "
+        "runtime scalar computed-mask memory route-family plan requires lhs "
         "buffer, RHS scalar threshold, source payload buffer, output buffer, "
         "and runtime element-count ABI roles");
 
@@ -4397,14 +4401,17 @@ deriveRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan(
           isLoadStore ? kRVVRuntimeScalarComputedMaskLoadStoreRuntimeABIOrder
                       : kRVVRuntimeScalarComputedMaskStoreRuntimeABIOrder,
           isLoadStore
-              ? "runtime scalar computed-mask load-store route-family plan"
-              : "runtime scalar computed-mask store route-family plan");
+              ? "runtime scalar computed-mask memory route-family load-store "
+                "consumer"
+              : "runtime scalar computed-mask memory route-family store "
+                "consumer");
   if (!runtimeControlPlan)
     return runtimeControlPlan.takeError();
 
-  RVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan plan;
+  RVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan plan;
   plan.operation = analysis.slice.arithmeticKind;
   plan.memoryForm = analysis.slice.memoryForm;
+  plan.usesLoadMerge = isLoadStore;
   plan.runtimeControlPlan = std::move(*runtimeControlPlan);
   plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
   plan.targetLeafProfile =
@@ -4458,14 +4465,14 @@ deriveRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan(
       plan.runtimeControlPlan.runtimeAVLParameter);
 
   if (llvm::Error error =
-          validateRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan(
+          validateRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan(
               plan))
     return std::move(error);
   return plan;
 }
 
-void applyRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan(
-    const RVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan &plan,
+void applyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan(
+    const RVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan &plan,
     RVVSelectedBodyEmitCRouteDescription &description) {
   applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
                                                description);
@@ -15265,19 +15272,19 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
         *analysis.runtimeScalarComputedMaskSelectRouteFamilyPlan,
         analysis.description);
   }
-  if (isRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteOperation(
+  if (isRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteOperation(
           routeProfile->operation.operation)) {
     llvm::Expected<
-        RVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan>
-        runtimeScalarComputedMaskStorePlan =
-            deriveRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan(
+        RVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan>
+        runtimeScalarComputedMaskMemoryPlan =
+            deriveRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan(
                 analysis, routeProfile->config, routeProfile->targetLeaves);
-    if (!runtimeScalarComputedMaskStorePlan)
-      return runtimeScalarComputedMaskStorePlan.takeError();
-    analysis.runtimeScalarComputedMaskStoreRouteFamilyPlan =
-        std::move(*runtimeScalarComputedMaskStorePlan);
-    applyRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan(
-        *analysis.runtimeScalarComputedMaskStoreRouteFamilyPlan,
+    if (!runtimeScalarComputedMaskMemoryPlan)
+      return runtimeScalarComputedMaskMemoryPlan.takeError();
+    analysis.runtimeScalarComputedMaskMemoryRouteFamilyPlan =
+        std::move(*runtimeScalarComputedMaskMemoryPlan);
+    applyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan(
+        *analysis.runtimeScalarComputedMaskMemoryRouteFamilyPlan,
         analysis.description);
   }
   if (isRVVSelectedBodyStandaloneReductionRouteOperation(
@@ -15989,7 +15996,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       isRVVSelectedBodyRuntimeScalarComputedMaskSelectRouteOperation(
           operationProfile.operation);
   const bool isRuntimeScalarComputedMaskStoreRoute =
-      isRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteOperation(
+      isRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteOperation(
           operationProfile.operation);
   const bool isStandaloneReductionRoute =
       isRVVSelectedBodyStandaloneReductionRouteOperation(
@@ -18746,7 +18753,7 @@ getRVVSelectedBodyConfigArtifactMetadata(
           description.operation) ||
       isRVVSelectedBodyRuntimeScalarComputedMaskSelectRouteOperation(
           description.operation) ||
-      isRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteOperation(
+      isRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteOperation(
           description.operation) ||
       description.operation ==
           RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd ||

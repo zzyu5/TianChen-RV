@@ -316,9 +316,10 @@ struct RVVSelectedBodyRuntimeScalarComputedMaskSelectRouteFamilyPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 8> runtimeABIParameters;
 };
 
-struct RVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan {
+struct RVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  bool usesLoadMerge = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
@@ -397,8 +398,8 @@ struct RVVSelectedBodyRouteAnalysis {
   std::optional<RVVSelectedBodyRuntimeScalarComputedMaskSelectRouteFamilyPlan>
       runtimeScalarComputedMaskSelectRouteFamilyPlan;
   std::optional<
-      RVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan>
-      runtimeScalarComputedMaskStoreRouteFamilyPlan;
+      RVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan>
+      runtimeScalarComputedMaskMemoryRouteFamilyPlan;
   std::optional<RVVSelectedBodyStandaloneReductionRouteFamilyPlan>
       standaloneReductionRouteFamilyPlan;
 };

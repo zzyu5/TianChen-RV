@@ -648,3 +648,42 @@ Implemented runtime_scalar_dual_cmp_mask_and_select across RVV typed body, selec
 ### Next Steps
 
 - None - task complete
+
+
+## Session 161: Stage2 RVV computed-mask memory route family
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV computed-mask memory route family
+**Branch**: `main`
+
+### Summary
+
+Migrated runtime_scalar_cmp_masked_store and runtime_scalar_cmp_masked_load_store to a shared RVV plugin-owned computed-mask memory route-family plan; focused lit, generated-bundle dry-runs, explicit/pre-realized ssh rvv, authority scan, and check-tianchenrv passed.
+
+### Main Changes
+
+- Replaced the store-named runtime scalar computed-mask route-family plan with a shared memory route-family plan consumed by both `runtime_scalar_cmp_masked_store` and `runtime_scalar_cmp_masked_load_store`.
+- Added `usesLoadMerge` to keep store-only and load-merge/store facts explicit inside one plugin-owned family abstraction.
+- Made RVV EmitC route provider require the shared memory family plan before materializing runtime-scalar computed-mask store/load-store routes and consume plan-owned setvl/load/splat/compare/store/header facts.
+- Preserved RouteOperandBindingPlan closure for lhs, rhs_scalar, src, dst, and n; common EmitC/export remains neutral.
+
+### Git Commits
+
+this commit
+
+### Testing
+
+- [OK] Focused build: `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] Focused lit filter for runtime-scalar computed-mask store/load-store dialect and target artifacts.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Generated-bundle dry-runs for explicit and pre-realized store/load-store with counts `7,16,23` and thresholds `-37,91`.
+- [OK] Real `ssh rvv` generated-bundle runs for explicit and pre-realized store/load-store with counts `7,16,23` and thresholds `-37,91`.
+- [OK] Active-authority scan, stale store-family symbol scan, `git diff --check`, and `cmake --build build --target check-tianchenrv -j2`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
