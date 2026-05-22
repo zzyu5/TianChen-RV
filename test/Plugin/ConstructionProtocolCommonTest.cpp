@@ -1719,57 +1719,53 @@ int runRVVCommonValidationTest() {
       executableComputeOp = "tcrv_rvv.move";
     else if (route.operationMnemonic == "segment2_interleave_unit_load")
       executableComputeOp = "tcrv_rvv.segment2_store";
-    llvm::StringRef rhsSourceOp =
-        isConversionRoute
-            ? ""
-            : route.operationMnemonic == "unit_load_strided_store"
-                  ? "tcrv_rvv.strided_store"
-            : (route.operationMnemonic == "strided_add" ||
+    else if (route.operationMnemonic == "runtime_i32_splat_store")
+      executableComputeOp = "tcrv_rvv.splat";
+    llvm::StringRef rhsSourceOp = "tcrv_rvv.load";
+    if (isConversionRoute) {
+      rhsSourceOp = "";
+    } else if (route.operationMnemonic == "unit_load_strided_store") {
+      rhsSourceOp = "tcrv_rvv.strided_store";
+    } else if (route.operationMnemonic == "strided_add" ||
                route.operationMnemonic == "strided_load_unit_store" ||
                route.operationMnemonic ==
-                   "strided_input_widening_dot_reduce_add")
-                  ? "tcrv_rvv.strided_load"
-                  : (route.operationMnemonic == "indexed_gather_unit_store"
-                         ? "tcrv_rvv.indexed_load"
-                         : (route.operationMnemonic ==
-                                    "indexed_scatter_unit_load"
-                                ? "tcrv_rvv.indexed_store"
-                                : (route.operationMnemonic ==
-                                           "masked_unit_load_store" ||
-                                       route.operationMnemonic ==
-                                           "masked_unit_store"
-                                       ? "tcrv_rvv.mask_load"
-                                       : (route.operationMnemonic ==
-                                                  "computed_masked_unit_load_store" ||
-                                             route.operationMnemonic ==
-                                                 "computed_masked_strided_store" ||
-                                             route.operationMnemonic ==
-                                                 "computed_masked_strided_load_unit_store" ||
-                                             route.operationMnemonic ==
-                                                 "computed_masked_indexed_gather_load_unit_store" ||
-                                             route.operationMnemonic ==
-                                                 "computed_masked_indexed_scatter_store_unit_load" ||
-                                             route.operationMnemonic ==
-                                                 "computed_masked_segment2_load_unit_store" ||
-                                             route.operationMnemonic ==
-                                                 "computed_masked_segment2_store_unit_load" ||
-                                             isComputedMaskSelectRoute ||
-                                             isComputedMaskStandaloneReduceRoute ||
-                                             isComputedMaskMAccRoute ||
-                                             route.operationMnemonic ==
-                                                 "computed_masked_widening_dot_reduce_add" ||
-                                             route.operationMnemonic ==
-                                                 "computed_masked_strided_input_widening_dot_reduce_add"
-                                              ? "tcrv_rvv.compare"
-                                      : (route.operationMnemonic ==
-                                                 "segment2_deinterleave_unit_store"
-                                             ? "tcrv_rvv.segment2_load"
-                                       : (route.operationMnemonic ==
-                                                  "segment2_interleave_unit_load"
-                                              ? "tcrv_rvv.segment2_store"
-                                      : (isScalarBroadcastElementwiseRoute
-                                              ? "tcrv_rvv.splat"
-                                              : "tcrv_rvv.load")))))));
+                   "strided_input_widening_dot_reduce_add") {
+      rhsSourceOp = "tcrv_rvv.strided_load";
+    } else if (route.operationMnemonic == "indexed_gather_unit_store") {
+      rhsSourceOp = "tcrv_rvv.indexed_load";
+    } else if (route.operationMnemonic == "indexed_scatter_unit_load") {
+      rhsSourceOp = "tcrv_rvv.indexed_store";
+    } else if (route.operationMnemonic == "masked_unit_load_store" ||
+               route.operationMnemonic == "masked_unit_store") {
+      rhsSourceOp = "tcrv_rvv.mask_load";
+    } else if (route.operationMnemonic == "computed_masked_unit_load_store" ||
+               route.operationMnemonic == "computed_masked_strided_store" ||
+               route.operationMnemonic ==
+                   "computed_masked_strided_load_unit_store" ||
+               route.operationMnemonic ==
+                   "computed_masked_indexed_gather_load_unit_store" ||
+               route.operationMnemonic ==
+                   "computed_masked_indexed_scatter_store_unit_load" ||
+               route.operationMnemonic ==
+                   "computed_masked_segment2_load_unit_store" ||
+               route.operationMnemonic ==
+                   "computed_masked_segment2_store_unit_load" ||
+               isComputedMaskSelectRoute ||
+               isComputedMaskStandaloneReduceRoute ||
+               isComputedMaskMAccRoute ||
+               route.operationMnemonic ==
+                   "computed_masked_widening_dot_reduce_add" ||
+               route.operationMnemonic ==
+                   "computed_masked_strided_input_widening_dot_reduce_add") {
+      rhsSourceOp = "tcrv_rvv.compare";
+    } else if (route.operationMnemonic == "segment2_deinterleave_unit_store") {
+      rhsSourceOp = "tcrv_rvv.segment2_load";
+    } else if (route.operationMnemonic == "segment2_interleave_unit_load") {
+      rhsSourceOp = "tcrv_rvv.segment2_store";
+    } else if (isScalarBroadcastElementwiseRoute ||
+               route.operationMnemonic == "runtime_i32_splat_store") {
+      rhsSourceOp = "tcrv_rvv.splat";
+    }
     llvm::Expected<llvm::SmallVector<
         rvv::RVVSelectedBodyExecutableRoleStep, 10>>
         steps = rvv::getRVVSelectedBodyExecutableRoleSteps(
@@ -1817,6 +1813,8 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "segment2_deinterleave_unit_store";
     const bool hasSegment2Interleave =
         route.operationMnemonic == "segment2_interleave_unit_load";
+    const bool hasRuntimeScalarSplatStore =
+        route.operationMnemonic == "runtime_i32_splat_store";
     const bool hasConversion = isConversionRoute;
     const bool hasWideningMAcc = isWideningMAccRoute;
     const bool hasWideningDotReduce = isWideningDotReduceRoute;
@@ -1854,6 +1852,7 @@ int runRVVCommonValidationTest() {
         : hasComputedMaskSegment2Store           ? 14u
         : hasSegment2Deinterleave                ? 11u
         : hasSegment2Interleave                  ? 9u
+        : hasRuntimeScalarSplatStore             ? 7u
         : hasStridedMemory         ? 13u
         : hasAccumulatorLoad                    ? 12u
         : hasMaskProducer                       ? 11u
@@ -2017,6 +2016,12 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "runtime_i32_splat_store") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "widening_macc_add" ||

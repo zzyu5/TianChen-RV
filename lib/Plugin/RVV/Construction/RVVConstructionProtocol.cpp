@@ -583,6 +583,12 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-scalar-broadcast-mul-emitc-route",
      "rvv-generic-scalar-broadcast-mul-callable-c-abi.v1",
      "rvv-generic-scalar-broadcast-mul-callable-c-abi"},
+    {"runtime_i32_splat_store",
+     "tcrv_rvv.splat",
+     "rvv.role.load.generic_load",
+     "rvv-generic-runtime-i32-splat-store-emitc-route",
+     "rvv-generic-runtime-i32-splat-store-callable-c-abi.v1",
+     "rvv-generic-runtime-i32-splat-store-callable-c-abi"},
     {"widen_i32_to_i64",
      "tcrv_rvv.widening_convert",
      "rvv.role.compute.generic_vector",
@@ -704,6 +710,8 @@ llvm::Error verifySelectedBodyRoutes() {
          route.operationMnemonic ==
              "computed_masked_indexed_gather_load_unit_store")
             ? "load"
+        : route.operationMnemonic == "runtime_i32_splat_store"
+            ? "load"
         : (route.operationMnemonic == "segment2_interleave_unit_load" ||
            route.operationMnemonic == "masked_unit_store" ||
            route.operationMnemonic == "computed_masked_strided_store")
@@ -728,7 +736,7 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 43)
+          .size() != 44)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
         "cmp_select, computed_mask_select, reduce_add, "
@@ -755,7 +763,7 @@ llvm::Error verifySelectedBodyRoutes() {
         "segment2_deinterleave_unit_store, "
         "segment2_interleave_unit_load, scalar_broadcast_add, "
         "scalar_broadcast_sub, scalar_broadcast_mul, widen_i32_to_i64, "
-        "and widen_i16_to_i32");
+        "widen_i16_to_i32, and runtime_i32_splat_store");
   return llvm::Error::success();
 }
 
@@ -923,6 +931,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
       route->operationMnemonic == "scalar_broadcast_add" ||
       route->operationMnemonic == "scalar_broadcast_sub" ||
       route->operationMnemonic == "scalar_broadcast_mul";
+  const bool isRuntimeScalarSplatStore =
+      route->operationMnemonic == "runtime_i32_splat_store";
   const bool isWidenI32ToI64 =
       route->operationMnemonic == "widen_i32_to_i64";
   const bool isWidenI16ToI32 =
@@ -1049,6 +1059,10 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return makeRVVConstructionError(
         "RVV segment2 interleave memory movement construction requires "
         "generic tcrv_rvv.segment2_store");
+  if (isRuntimeScalarSplatStore && typedComputeOpName != "tcrv_rvv.splat")
+    return makeRVVConstructionError(
+        "RVV runtime scalar splat-store construction requires generic "
+        "tcrv_rvv.splat");
   if (!isCompareSelect && !isComputedMaskSelect && !isReduction &&
       !isStandaloneReduction && !isComputedMaskStandaloneReduction &&
       !isMaskedElementwise && !isMAccAdd && !isComputedMaskedMAccAdd &&
@@ -1071,6 +1085,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isComputedMaskStridedInputWideningDotReduceAdd &&
       !isStridedInputWideningDotReduceAdd &&
       !isSegment2DeinterleaveUnitStore && !isSegment2InterleaveUnitLoad &&
+      !isRuntimeScalarSplatStore &&
       !isWideningConversion &&
       !usesGenericBinary)
     return makeRVVConstructionError(
@@ -1095,6 +1110,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isComputedMaskStridedInputWideningDotReduceAdd &&
       !isStridedInputWideningDotReduceAdd &&
       !isSegment2DeinterleaveUnitStore && !isSegment2InterleaveUnitLoad &&
+      !isRuntimeScalarSplatStore &&
       rhsSourceOperationName != "tcrv_rvv.load" &&
       rhsSourceOperationName != "tcrv_rvv.broadcast_load" &&
       rhsSourceOperationName != "tcrv_rvv.splat" &&
@@ -1109,11 +1125,16 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return makeRVVConstructionError(
         "RVV generic scalar-broadcast elementwise construction requires "
         "explicit RHS runtime scalar splat");
-  if (!isScalarBroadcastElementwise &&
+  if (isRuntimeScalarSplatStore && rhsSourceOperationName != "tcrv_rvv.splat")
+    return makeRVVConstructionError(
+        "RVV runtime scalar splat-store construction requires explicit RHS "
+        "runtime scalar splat");
+  if (!isScalarBroadcastElementwise && !isRuntimeScalarSplatStore &&
       rhsSourceOperationName == "tcrv_rvv.splat")
     return makeRVVConstructionError(
         "RVV generic scalar splat memory form is only supported by "
-        "scalar_broadcast_add/sub/mul in this bounded slice");
+        "scalar_broadcast_add/sub/mul or runtime_i32_splat_store in this "
+        "bounded slice");
   if (isStridedAdd && rhsSourceOperationName != "tcrv_rvv.strided_load")
     return makeRVVConstructionError(
         "RVV generic strided add construction requires explicit strided lhs, "
@@ -1317,6 +1338,34 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "operation");
 
   llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10> steps;
+  if (isRuntimeScalarSplatStore) {
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "rhs_scalar", 0});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "out", 1});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "n", 2});
+    steps.push_back({"configure", "tcrv_rvv.setvl",
+                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+                     3});
+    steps.push_back({"scope", "tcrv_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "with_vl", 4});
+    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "runtime_scalar_splat", 5});
+    steps.push_back({"store", "tcrv_rvv.store",
+                     "rvv.role.store.generic_store", "TCRVMemoryOpInterface",
+                     "TCRVEmitCLowerableInterface", "store", 6});
+    return steps;
+  }
   steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                    "rvv.role.runtime_abi.runtime_abi_value",
                    "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
@@ -2785,9 +2834,11 @@ getRVVSelectedBodyExecutableRoleSteps(llvm::StringRef typedComputeOpName) {
          typedComputeOpName == "tcrv_rvv.masked_segment2_load" ||
          typedComputeOpName == "tcrv_rvv.masked_segment2_store")
           ? "tcrv_rvv.compare"
-          : (typedComputeOpName == "tcrv_rvv.segment2_store"
+      : (typedComputeOpName == "tcrv_rvv.segment2_store"
                  ? "tcrv_rvv.segment2_store"
-                 : "tcrv_rvv.load");
+         : typedComputeOpName == "tcrv_rvv.splat"
+             ? "tcrv_rvv.splat"
+             : "tcrv_rvv.load");
   return buildRVVSelectedBodyExecutableRoleSteps(route->operationMnemonic,
                                                 typedComputeOpName,
                                                 rhsSourceOperationName);
@@ -3009,6 +3060,12 @@ llvm::Error verifyRVVConstructionProtocolReady() {
               getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
       routeRuntimeABIParameters.append(conversionParameters.begin(),
                                        conversionParameters.end());
+    } else if (route.operationMnemonic == "runtime_i32_splat_store") {
+      llvm::SmallVector<support::RuntimeABIParameter, 3> splatParameters =
+          tcrv::rvv::
+              getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters();
+      routeRuntimeABIParameters.append(splatParameters.begin(),
+                                       splatParameters.end());
     } else if (route.operationMnemonic == "widening_macc_add" ||
                route.operationMnemonic == "widening_dot_reduce_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 5> wideningMAccParameters =
@@ -3526,6 +3583,10 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         tcrv::rvv::getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
     expectedParameters.append(conversionParameters.begin(),
                               conversionParameters.end());
+  } else if (route->operationMnemonic == "runtime_i32_splat_store") {
+    llvm::SmallVector<support::RuntimeABIParameter, 3> splatParameters =
+        tcrv::rvv::getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters();
+    expectedParameters.append(splatParameters.begin(), splatParameters.end());
   } else if (route->operationMnemonic == "widening_macc_add" ||
              route->operationMnemonic == "widening_dot_reduce_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 5> wideningMAccParameters =

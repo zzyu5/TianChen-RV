@@ -86,6 +86,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "computed_mask_standalone_reduce_add",
     "computed_mask_standalone_reduce_min",
     "computed_mask_standalone_reduce_max",
+    "runtime_i32_splat_store",
     "i64_add",
     "lmul_m2_add",
     "widen_i32_to_i64",
@@ -484,6 +485,17 @@ def scalar_broadcast_route_operand_binding_operands(kind: str) -> str:
     )
 
 
+RUNTIME_SCALAR_SPLAT_STORE_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:runtime_i32_splat_store.v1"
+)
+RUNTIME_SCALAR_SPLAT_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:runtime_i32_splat_store.v1;"
+    "rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|runtime-scalar-splat-call|header-mirror;"
+    "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
+    "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+)
+
+
 def masked_elementwise_route_operand_binding_plan(kind: str) -> str:
     if kind not in MASKED_ELEMENTWISE_OP_KINDS:
         raise EvidenceError(f"unsupported masked elementwise op kind: {kind}")
@@ -532,6 +544,19 @@ STRIDED_ADD_ROUTE_OPERAND_BINDING_OPERANDS = (
     "out_stride=output-stride:out_stride:abi|store-stride|out-byte-addr|header"
 )
 SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,out,n"
+RUNTIME_SCALAR_SPLAT_STORE_RUNTIME_ABI_ORDER = "rhs_scalar,out,n"
+RUNTIME_SCALAR_SPLAT_STORE_TARGET_LEAF_PROFILE = (
+    "rvv-v1-e32m1-runtime-scalar-splat-store-leaf-profile.v1"
+)
+RUNTIME_SCALAR_SPLAT_STORE_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-runtime-scalar-splat-store-plan-validated"
+)
+RUNTIME_SCALAR_SPLAT_STORE_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+RUNTIME_SCALAR_SPLAT_STORE_C_TYPE_MAPPING = (
+    "vl:size_t,rhs_scalar:i32,result:signed-e32m1"
+)
 WIDENING_CONVERSION_RUNTIME_ABI_ORDER = "lhs,out,n"
 WIDENING_CONVERSION_RELATION = "signed-i32m1-to-i64m2"
 WIDEN_I16_TO_I32_CONVERSION_RELATION = "signed-i16mf2-to-i32m1"
@@ -946,6 +971,11 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *lhs, "
                 "int32_t rhs_scalar, int32_t *out, size_t n);"
             )
+        if self.is_runtime_scalar_splat_store:
+            return (
+                f"void {self.function_name}(int32_t rhs_scalar, "
+                "int32_t *out, size_t n);"
+            )
         if self.is_standalone_reduce:
             return (
                 f"void {self.function_name}(const int32_t *lhs, "
@@ -1034,6 +1064,8 @@ class OpExpectation:
             return EXPECTED_SEGMENT2_INTERLEAVE_RUNTIME_PARAMETERS
         if self.is_scalar_broadcast_elementwise:
             return EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS
+        if self.is_runtime_scalar_splat_store:
+            return EXPECTED_RUNTIME_SCALAR_SPLAT_STORE_RUNTIME_PARAMETERS
         if self.is_standalone_reduce:
             return EXPECTED_STANDALONE_REDUCE_RUNTIME_PARAMETERS
         if self.is_computed_mask_standalone_reduce:
@@ -1098,6 +1130,8 @@ class OpExpectation:
             return SEGMENT2_INTERLEAVE_RUNTIME_ABI_ORDER
         if self.is_scalar_broadcast_elementwise:
             return SCALAR_BROADCAST_ADD_RUNTIME_ABI_ORDER
+        if self.is_runtime_scalar_splat_store:
+            return RUNTIME_SCALAR_SPLAT_STORE_RUNTIME_ABI_ORDER
         if self.is_standalone_reduce:
             return STANDALONE_REDUCE_RUNTIME_ABI_ORDER
         if self.is_computed_mask_standalone_reduce:
@@ -1262,6 +1296,10 @@ class OpExpectation:
     @property
     def is_scalar_broadcast_elementwise(self) -> bool:
         return self.kind in SCALAR_BROADCAST_OP_KINDS
+
+    @property
+    def is_runtime_scalar_splat_store(self) -> bool:
+        return self.kind == "runtime_i32_splat_store"
 
     @property
     def is_standalone_reduce_add(self) -> bool:
@@ -1692,6 +1730,21 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         lhs_initializer="(int32_t)((int)(index % 13) - 6)",
         rhs_initializer="(int32_t)-3",
         expected_expression="lhs[index] * rhs_scalar",
+    ),
+    "runtime_i32_splat_store": OpExpectation(
+        kind="runtime_i32_splat_store",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-runtime-i32-splat-store.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_runtime_i32_splat_store",
+        external_abi_name="rvv-generic-runtime-i32-splat-store-callable-c-abi.v1",
+        function_name="tcrv_emitc_explicit_selected_body_runtime_i32_splat_store_kernel_explicit_selected_body_rvv_runtime_i32_splat_store",
+        emitc_route="rvv-generic-runtime-i32-splat-store-emitc-route",
+        typed_compute_op="tcrv_rvv.splat",
+        memory_form="runtime-scalar-splat-store",
+        lhs_initializer="(int32_t)0",
+        rhs_initializer="(int32_t)-37",
+        expected_expression="rhs_scalar",
     ),
     "macc_add": OpExpectation(
         kind="macc_add",
@@ -2392,6 +2445,13 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="pre_realized_body_rvv_scalar_broadcast_mul",
         function_name="tcrv_emitc_pre_realized_body_scalar_broadcast_mul_kernel_pre_realized_body_rvv_scalar_broadcast_mul",
     ),
+    "runtime_i32_splat_store": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["runtime_i32_splat_store"],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-runtime-i32-splat-store.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_runtime_i32_splat_store",
+        function_name="tcrv_emitc_pre_realized_body_runtime_i32_splat_store_kernel_pre_realized_body_rvv_runtime_i32_splat_store",
+    ),
     "standalone_reduce_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["standalone_reduce_add"],
         kind="standalone_reduce_add",
@@ -3061,6 +3121,16 @@ EXPECTED_SEGMENT2_INTERLEAVE_RUNTIME_PARAMETERS = (
 )
 EXPECTED_SCALAR_BROADCAST_RUNTIME_PARAMETERS = (
     EXPECTED_RUNTIME_PARAMETERS[0],
+    {
+        "c_name": "rhs_scalar",
+        "c_type": "int32_t",
+        "role": "rhs-scalar-value",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_RUNTIME_PARAMETERS[2],
+    EXPECTED_RUNTIME_PARAMETERS[3],
+)
+EXPECTED_RUNTIME_SCALAR_SPLAT_STORE_RUNTIME_PARAMETERS = (
     {
         "c_name": "rhs_scalar",
         "c_type": "int32_t",
@@ -3792,6 +3862,29 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
+    if expectation.is_runtime_scalar_splat_store:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.target_leaf_profile": (
+                    RUNTIME_SCALAR_SPLAT_STORE_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    RUNTIME_SCALAR_SPLAT_STORE_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    RUNTIME_SCALAR_SPLAT_STORE_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    RUNTIME_SCALAR_SPLAT_STORE_C_TYPE_MAPPING
+                ),
+                "tcrv_rvv.route_operand_binding_plan": (
+                    RUNTIME_SCALAR_SPLAT_STORE_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    RUNTIME_SCALAR_SPLAT_STORE_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+            }
+        )
     if expectation.kind in {"add", "sub", "mul"}:
         plan = f"rvv-route-operand-binding:{expectation.kind}.v1"
         per_op_metadata.update(
@@ -3804,6 +3897,7 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         )
     if (
         expectation.is_scalar_broadcast_elementwise
+        or expectation.is_runtime_scalar_splat_store
         or expectation.is_standalone_reduce
         or expectation.is_computed_mask_standalone_reduce
     ):
@@ -5096,6 +5190,27 @@ def verify_materialized_selected_body(
             text,
             'role = "rhs-scalar-value"',
             "materialized selected-body MLIR RHS scalar ABI role",
+        )
+    if expectation.is_runtime_scalar_splat_store:
+        require_contains(
+            text,
+            "tcrv_rvv.splat",
+            "materialized selected-body MLIR runtime scalar splat",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.store",
+            "materialized selected-body MLIR runtime scalar splat store",
+        )
+        require_contains(
+            text,
+            'role = "rhs-scalar-value"',
+            "materialized selected-body MLIR runtime scalar ABI role",
+        )
+        require_not_contains(
+            text,
+            "tcrv_rvv.binary",
+            "materialized selected-body MLIR runtime scalar splat-store",
         )
     if expectation.is_strided_add:
         require_contains(
@@ -8440,6 +8555,73 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
+    if expectation.is_runtime_scalar_splat_store:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n, int32_t rhs_scalar) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = (n == 0 ? 1 : n) + 8;
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  if (!out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index)
+    out[index] = {expectation.out_initializer};
+
+  {expectation.function_name}(rhs_scalar, out, n);
+
+  for (size_t index = 0; index < n; ++index) {{
+    int32_t expected = {expectation.expected_expression};
+    if (out[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d rhs_scalar=%d\\n",
+              n, index, out[index], expected, rhs_scalar);
+      free(out);
+      return 12;
+    }}
+  }}
+
+  for (size_t index = n; index < alloc_n; ++index) {{
+    if (out[index] != {expectation.out_initializer}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d rhs_scalar=%d\\n",
+              n, index, out[index], {expectation.out_initializer}, rhs_scalar);
+      free(out);
+      return 13;
+    }}
+  }}
+
+  free(out);
+  printf("{expectation.kind} case n=%zu ok rhs_scalar=%d tail_preserved\\n",
+         n, rhs_scalar);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const int32_t rhs_scalar_values[] = {{{scalar_values_literal}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const size_t scalar_count = sizeof(rhs_scalar_values) / sizeof(rhs_scalar_values[0]);
+  for (size_t scalar_index = 0; scalar_index < scalar_count; ++scalar_index) {{
+    for (size_t index = 0; index < count_count; ++index) {{
+      int status = run_case(counts[index], rhs_scalar_values[scalar_index]);
+      if (status != 0)
+        return status;
+    }}
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary}\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_scalar_broadcast_elementwise:
         return f"""
 #include <stddef.h>
@@ -10632,7 +10814,7 @@ def run_one_op_e2e(
         "expected_runtime_abi_name": expectation.external_abi_name,
         "expected_function": expectation.function_name,
     }
-    if expectation.is_scalar_broadcast_elementwise:
+    if expectation.is_scalar_broadcast_elementwise or expectation.is_runtime_scalar_splat_store:
         evidence["rhs_scalar_values"] = rhs_scalar_values
     if (
         expectation.is_strided_load_unit_store
@@ -10695,11 +10877,11 @@ def run_one_op_e2e(
             "pass_marker": expectation.pass_marker,
             "boundary": "external C ABI consumer of generated header and object only",
         }
-        if expectation.is_scalar_broadcast_elementwise:
+        if expectation.is_scalar_broadcast_elementwise or expectation.is_runtime_scalar_splat_store:
             evidence["harness"]["rhs_scalar_values"] = rhs_scalar_values
             evidence["harness"]["rhs_scalar_coverage_contract"] = (
-                "runtime scalar-broadcast elementwise cases must execute the same "
-                "generated artifact with explicit runtime RHS scalar values"
+                "runtime scalar operand cases must execute the same generated "
+                "artifact with explicit runtime RHS scalar values"
             )
         if (
             expectation.is_strided_load_unit_store
@@ -11020,8 +11202,10 @@ def run_e2e(args: argparse.Namespace) -> int:
             runtime_counts
         )
         expectations = selected_expectations(args)
-        has_scalar_broadcast = any(
-            expectation.is_scalar_broadcast_elementwise for expectation in expectations
+        has_runtime_scalar_operand = any(
+            expectation.is_scalar_broadcast_elementwise
+            or expectation.is_runtime_scalar_splat_store
+            for expectation in expectations
         )
         has_strided_load_unit_store = any(
             expectation.is_strided_load_unit_store for expectation in expectations
@@ -11037,10 +11221,10 @@ def run_e2e(args: argparse.Namespace) -> int:
             expectation.is_computed_masked_strided_load_unit_store
             for expectation in expectations
         )
-        if args.rhs_scalar and not has_scalar_broadcast:
+        if args.rhs_scalar and not has_runtime_scalar_operand:
             raise EvidenceError(
                 "--rhs-scalar may only be used when an op kind includes "
-                "scalar_broadcast_add/sub/mul"
+                "scalar_broadcast_add/sub/mul or runtime_i32_splat_store"
             )
         if args.stride_bytes and not (
             has_strided_load_unit_store
@@ -11055,7 +11239,7 @@ def run_e2e(args: argparse.Namespace) -> int:
                 "computed_masked_strided_load_unit_store"
             )
         validate_rhs_scalar_values(rhs_scalar_values)
-        if has_scalar_broadcast:
+        if has_runtime_scalar_operand:
             evidence["rhs_scalar_values"] = rhs_scalar_values
         if (
             has_strided_load_unit_store
@@ -11279,12 +11463,15 @@ def run_self_test() -> int:
                 raise AssertionError(
                     f"self-test harness generation lost {expectation.kind} ABI call"
                 )
-            if expectation.is_scalar_broadcast_elementwise and (
+            if (
+                expectation.is_scalar_broadcast_elementwise
+                or expectation.is_runtime_scalar_splat_store
+            ) and (
                 "rhs_scalar_values" not in harness
                 or "(int32_t)-37" not in harness
             ):
                 raise AssertionError(
-                    "self-test harness generation lost scalar broadcast "
+                    "self-test harness generation lost runtime scalar "
                     "runtime scalar coverage"
                 )
             if expectation.is_strided_load_unit_store and (

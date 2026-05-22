@@ -238,6 +238,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           analysis.scalarBroadcastElementwiseRouteFamilyPlan
               ? &*analysis.scalarBroadcastElementwiseRouteFamilyPlan
               : nullptr;
+  const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan
+      *runtimeSplatStorePlan =
+          analysis.runtimeScalarSplatStoreRouteFamilyPlan
+              ? &*analysis.runtimeScalarSplatStoreRouteFamilyPlan
+              : nullptr;
   const RVVSelectedBodyStandaloneReductionRouteFamilyPlan
       *standaloneReductionPlan =
           analysis.standaloneReductionRouteFamilyPlan
@@ -282,6 +287,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     setVLLeaf = contractionPlan->setVLIntrinsic;
   else if (scalarBroadcastPlan)
     setVLLeaf = scalarBroadcastPlan->setVLIntrinsic;
+  else if (runtimeSplatStorePlan)
+    setVLLeaf = runtimeSplatStorePlan->setVLIntrinsic;
   else if (standaloneReductionPlan)
     setVLLeaf = standaloneReductionPlan->setVLIntrinsic;
   llvm::StringRef sourceLoadLeaf = description.sourceVectorLoadIntrinsic;
@@ -304,6 +311,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     storeLeaf = contractionPlan->storeIntrinsic;
   else if (scalarBroadcastPlan)
     storeLeaf = scalarBroadcastPlan->storeIntrinsic;
+  else if (runtimeSplatStorePlan)
+    storeLeaf = runtimeSplatStorePlan->storeIntrinsic;
   else if (standaloneReductionPlan)
     storeLeaf = standaloneReductionPlan->storeIntrinsic;
   llvm::StringRef contractionComputeLeaf =
@@ -325,6 +334,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                 : description.scalarSeedSplatIntrinsic;
   llvm::StringRef rhsScalarBroadcastLeaf =
       scalarBroadcastPlan ? scalarBroadcastPlan->rhsScalarSplatIntrinsic
+      : runtimeSplatStorePlan ? runtimeSplatStorePlan->rhsScalarSplatIntrinsic
                           : description.rhsBroadcastIntrinsic;
   llvm::StringRef compareLeaf =
       contractionPlan ? contractionPlan->compareIntrinsic
@@ -345,12 +355,15 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   conversion::emitc::TCRVEmitCLowerableRoute route(
       analysis.description.emitCRouteID,
       "extension-family-ops-to-emitc-call-opaque");
-  if (contractionPlan || scalarBroadcastPlan || standaloneReductionPlan) {
+  if (contractionPlan || scalarBroadcastPlan || runtimeSplatStorePlan ||
+      standaloneReductionPlan) {
     llvm::ArrayRef<llvm::StringRef> requiredHeaders =
         contractionPlan ? llvm::ArrayRef<llvm::StringRef>(
                               contractionPlan->requiredHeaders)
         : scalarBroadcastPlan ? llvm::ArrayRef<llvm::StringRef>(
                                     scalarBroadcastPlan->requiredHeaders)
+        : runtimeSplatStorePlan ? llvm::ArrayRef<llvm::StringRef>(
+                                      runtimeSplatStorePlan->requiredHeaders)
                               : llvm::ArrayRef<llvm::StringRef>(
                                     standaloneReductionPlan->requiredHeaders);
     for (llvm::StringRef header : requiredHeaders)
@@ -1294,6 +1307,21 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               requireOperandUse("dst", "dst-mem",
                                 "segment2 interleave destination memory mirror"))
         return error;
+    } else if (description.memoryForm ==
+               RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore) {
+      llvm::Expected<const support::RuntimeABIParameter *> rhsScalar =
+          getRequiredBinding(bindingPlan, "rhs_scalar",
+                             "runtime-scalar-splat-call",
+                             "runtime scalar splat-store scalar operand");
+      if (!rhsScalar)
+        return rhsScalar.takeError();
+      boundRHSABI = *rhsScalar;
+      llvm::Expected<const support::RuntimeABIParameter *> out =
+          getRequiredBinding(bindingPlan, "out", "materialized-store-base",
+                             "runtime scalar splat-store output store operand");
+      if (!out)
+        return out.takeError();
+      boundOutABI = *out;
     } else if (description.memoryForm ==
                RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
       llvm::Expected<const support::RuntimeABIParameter *> lhs =
@@ -2517,6 +2545,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       description.operation == RVVSelectedBodyOperationKind::MaskedUnitLoadStore;
   const bool isMaskedStore =
       isRVVSelectedBodyMaskedStoreRoute(description.operation);
+  const bool isRuntimeScalarSplatStore =
+      description.operation ==
+      RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
   llvm::StringRef lhsResultName =
       isRVVSelectedBodyMemoryMovementRoute(description.operation)
           ? description.resultName
@@ -2623,9 +2654,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{"lhs_vec",
                                       sourceVectorCType.str()}))
       return error;
-  } else if (isRuntimeMaskMemory) {
+  } else if (isRuntimeMaskMemory || isRuntimeScalarSplatStore) {
     // Runtime-mask load-store materializes the source vector through
     // tcrv_rvv.masked_load after mask and passthrough operands are available.
+    // Runtime scalar splat-store has no lhs load; tcrv_rvv.splat materializes
+    // the stored vector below.
   } else {
     if (llvm::Error error = addLoopStep(
             slice->lhsLoadOperation, "load",
@@ -2767,6 +2800,18 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
              TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"rhs_vec",
                                       sourceVectorCType.str()}))
+      return error;
+  } else if (description.memoryForm ==
+      RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore) {
+    if (llvm::Error error = addLoopStep(
+            slice->rhsLoadOperation, "load",
+            rhsScalarBroadcastLeaf,
+            {TCRVEmitCCallOpaqueOperand{boundRHSABI->cName,
+                                        boundRHSABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        description.vlCType.str()}},
+            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                      description.vectorCType.str()}))
       return error;
   } else if (description.memoryForm ==
       RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
@@ -3282,6 +3327,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{description.resultName.str(),
                                       description.vectorCType.str()}))
       return error;
+  } else if (isRuntimeScalarSplatStore) {
+    // The splat op is already materialized as the route's load step; the store
+    // consumes description.resultName directly.
   } else if (isRVVSelectedBodyMemoryMovementRoute(description.operation)) {
     // Bounded memory movement routes forward the loaded vector into the
     // unit-stride store. tcrv_rvv.move is structural body authority and does

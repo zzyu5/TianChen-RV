@@ -59,6 +59,8 @@ constexpr llvm::StringLiteral kRVVScalarBroadcastSubOperandBindingPlanID(
     "rvv-route-operand-binding:scalar_broadcast_sub.v1");
 constexpr llvm::StringLiteral kRVVScalarBroadcastMulOperandBindingPlanID(
     "rvv-route-operand-binding:scalar_broadcast_mul.v1");
+constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreOperandBindingPlanID(
+    "rvv-route-operand-binding:runtime_i32_splat_store.v1");
 constexpr llvm::StringLiteral kRVVStandaloneReductionOperandBindingPlanID(
     "rvv-route-operand-binding:standalone_reduce_add.v1");
 constexpr llvm::StringLiteral kRVVStandaloneReductionMinOperandBindingPlanID(
@@ -212,6 +214,8 @@ llvm::StringRef getExpectedRVVRouteOperandBindingPlanID(
     return kRVVScalarBroadcastSubOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::ScalarBroadcastMul:
     return kRVVScalarBroadcastMulOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::RuntimeI32SplatStore:
+    return kRVVRuntimeScalarSplatStoreOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::WidenI32ToI64:
     return kRVVWidenI32ToI64OperandBindingPlanID;
   case RVVSelectedBodyOperationKind::WidenI16ToI32:
@@ -384,6 +388,14 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
       planID == kRVVScalarBroadcastMulOperandBindingPlanID) {
     if (logicalOperand == "lhs")
       return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "rhs_scalar")
+      return RuntimeABIParameterRole::RHSScalarValue;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVRuntimeScalarSplatStoreOperandBindingPlanID) {
     if (logicalOperand == "rhs_scalar")
       return RuntimeABIParameterRole::RHSScalarValue;
     if (logicalOperand == "out")
@@ -1205,6 +1217,8 @@ constexpr llvm::StringLiteral kRVVSegment2InterleaveRuntimeABIOrder(
     "src0,src1,dst,n");
 constexpr llvm::StringLiteral kRVVScalarBroadcastRuntimeABIOrder(
     "lhs,rhs_scalar,out,n");
+constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreRuntimeABIOrder(
+    "rhs_scalar,out,n");
 constexpr llvm::StringLiteral kRVVStandaloneReductionRuntimeABIOrder(
     "lhs,acc,out,n");
 constexpr llvm::StringLiteral kRVVComputedMaskStandaloneReductionRuntimeABIOrder(
@@ -1242,6 +1256,15 @@ constexpr llvm::StringLiteral
         "stddef.h,stdint.h,riscv_vector.h");
 constexpr llvm::StringLiteral kRVVScalarBroadcastElementwiseCTypeMappingSummary(
     "vl:size_t,lhs:signed-e32m1,rhs_scalar:i32,result:signed-e32m1");
+constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreTargetLeafProfile(
+    "rvv-v1-e32m1-runtime-scalar-splat-store-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreProviderSupportedMirror(
+    "provider_supported_mirror:rvv-runtime-scalar-splat-store-plan-validated");
+constexpr llvm::StringLiteral
+    kRVVRuntimeScalarSplatStoreRequiredHeaderDeclarations(
+        "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreCTypeMappingSummary(
+    "vl:size_t,rhs_scalar:i32,result:signed-e32m1");
 constexpr llvm::StringLiteral kRVVWideningConversionRuntimeABIOrder(
     "lhs,out,n");
 constexpr llvm::StringLiteral kRVVMAccRuntimeABIOrder("lhs,rhs,acc,out,n");
@@ -1493,6 +1516,7 @@ constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::ScalarBroadcastAdd,
     RVVSelectedBodyOperationKind::ScalarBroadcastSub,
     RVVSelectedBodyOperationKind::ScalarBroadcastMul,
+    RVVSelectedBodyOperationKind::RuntimeI32SplatStore,
     RVVSelectedBodyOperationKind::WidenI32ToI64,
     RVVSelectedBodyOperationKind::WidenI16ToI32,
     RVVSelectedBodyOperationKind::WideningMAccAdd,
@@ -1849,6 +1873,15 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
       /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
       /*isSegmentedMemoryMovement=*/false,
       /*isWideningConversion=*/false};
+  static const RVVSelectedBodyOperationProfile kRuntimeI32SplatStore = {
+      RVVSelectedBodyOperationKind::RuntimeI32SplatStore,
+      "runtime_i32_splat_store", "splat_vec", "",
+      /*isCompareSelect=*/false, /*isReduction=*/false,
+      /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
+      /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
+      /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+      /*isSegmentedMemoryMovement=*/false,
+      /*isWideningConversion=*/false};
   static const RVVSelectedBodyOperationProfile kWidenI32ToI64 = {
       RVVSelectedBodyOperationKind::WidenI32ToI64, "widen_i32_to_i64",
       "widened_vec", "", /*isCompareSelect=*/false, /*isReduction=*/false,
@@ -1991,6 +2024,8 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
     return kScalarBroadcastSub;
   case RVVSelectedBodyOperationKind::ScalarBroadcastMul:
     return kScalarBroadcastMul;
+  case RVVSelectedBodyOperationKind::RuntimeI32SplatStore:
+    return kRuntimeI32SplatStore;
   case RVVSelectedBodyOperationKind::WidenI32ToI64:
     return kWidenI32ToI64;
   case RVVSelectedBodyOperationKind::WidenI16ToI32:
@@ -2248,6 +2283,8 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
   case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
     llvm_unreachable(
         "segment2 memory movement uses load/tuple/store leaves only");
+  case RVVSelectedBodyOperationKind::RuntimeI32SplatStore:
+    llvm_unreachable("runtime scalar splat-store uses splat/store leaves only");
   case RVVSelectedBodyOperationKind::WidenI32ToI64:
   case RVVSelectedBodyOperationKind::WidenI16ToI32:
     llvm_unreachable("widening conversion uses dedicated conversion leaf");
@@ -3037,6 +3074,215 @@ void applyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
                                           plan.runtimeABIParameters.end());
 }
 
+bool isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+}
+
+llvm::Error requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
+    const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan &plan,
+    llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("runtime scalar splat-store route-family plan validation "
+                  "for operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
+      field + " '" + expected + "' but found '" + actual + "'");
+}
+
+llvm::Error validateRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(
+    const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan &plan) {
+  if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
+          plan.runtimeControlPlan,
+          "runtime scalar splat-store route-family runtime AVL/VL control"))
+    return error;
+  if (!isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(plan.operation))
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar splat-store route-family plan supports only "
+        "runtime_i32_splat_store");
+  if (plan.memoryForm != RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore)
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar splat-store route-family plan requires "
+        "runtime-scalar-splat-store memory form");
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
+              plan, "runtime control plan",
+              plan.runtimeControlPlan.controlPlanID,
+              getRVVRuntimeAVLVLControlPlanID()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
+              plan, "runtime ABI order", plan.runtimeABIOrder,
+              kRVVRuntimeScalarSplatStoreRuntimeABIOrder))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
+              plan, "target leaf profile", plan.targetLeafProfile,
+              kRVVRuntimeScalarSplatStoreTargetLeafProfile))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
+              plan, "provider_supported_mirror",
+              plan.providerSupportedMirror,
+              kRVVRuntimeScalarSplatStoreProviderSupportedMirror))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
+              plan, "header declarations", plan.requiredHeaderDeclarations,
+              kRVVRuntimeScalarSplatStoreRequiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
+              plan, "C type mapping summary", plan.cTypeMappingSummary,
+              kRVVRuntimeScalarSplatStoreCTypeMappingSummary))
+    return error;
+  if (plan.requiredHeaders.size() != 3 ||
+      plan.requiredHeaders[0] != "stddef.h" ||
+      plan.requiredHeaders[1] != "stdint.h" ||
+      plan.requiredHeaders[2] != "riscv_vector.h")
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar splat-store route-family plan requires "
+        "provider-owned header declarations 'stddef.h,stdint.h,riscv_vector.h'");
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
+              plan, "VL C type", plan.vlCType, "size_t"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
+              plan, "vector type", plan.vectorTypeName,
+              "!tcrv_rvv.vector<i32, \"m1\">"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
+              plan, "vector C type", plan.vectorCType, "vint32m1_t"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
+              plan, "setvl leaf", plan.setVLIntrinsic,
+              "__riscv_vsetvl_e32m1"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
+              plan, "RHS scalar splat leaf", plan.rhsScalarSplatIntrinsic,
+              "__riscv_vmv_v_x_i32m1"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
+              plan, "store leaf", plan.storeIntrinsic,
+              "__riscv_vse32_v_i32m1"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
+              plan, "result name", plan.resultName, "splat_vec"))
+    return error;
+  if (llvm::Error error =
+          verifyRVVSelectedBodyConstructionRuntimeABIParameters(
+              plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
+  return llvm::Error::success();
+}
+
+llvm::Expected<RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan>
+deriveRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyConfigProfile &configProfile,
+    const RVVSelectedBodyTargetLeafProfile &targetLeaves) {
+  if (!isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(
+          analysis.slice.arithmeticKind))
+    return makeRVVEmitCRouteProviderError(
+        "requested runtime scalar splat-store route-family plan for "
+        "non-runtime-splat RVV operation");
+  if (analysis.slice.memoryForm !=
+      RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore)
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar splat-store route-family plan requires "
+        "runtime-scalar-splat-store typed body structure");
+  if (!analysis.slice.rhsScalarSplat || !analysis.slice.genericStore ||
+      !analysis.slice.arithmeticOp || analysis.slice.lhsLoadOperation)
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar splat-store route-family plan requires explicit "
+        "scalar splat and store body structure with no lhs load or binary "
+        "fallback");
+  if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar splat-store route-family plan currently requires "
+        "SEW32 LMUL m1 typed config");
+  if (analysis.slice.rhsABI.role !=
+          support::RuntimeABIParameterRole::RHSScalarValue ||
+      analysis.slice.outABI.role !=
+          support::RuntimeABIParameterRole::OutputBuffer ||
+      analysis.slice.runtimeElementCountABI.role !=
+          support::RuntimeABIParameterRole::RuntimeElementCount)
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar splat-store route-family plan requires RHS scalar, "
+        "output buffer, and runtime element-count ABI roles");
+
+  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+      deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
+          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl, analysis.slice.withVL,
+          kRVVRuntimeScalarSplatStoreRuntimeABIOrder,
+          "runtime scalar splat-store route-family plan");
+  if (!runtimeControlPlan)
+    return runtimeControlPlan.takeError();
+
+  RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan plan;
+  plan.operation = analysis.slice.arithmeticKind;
+  plan.memoryForm = analysis.slice.memoryForm;
+  plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
+  plan.targetLeafProfile = kRVVRuntimeScalarSplatStoreTargetLeafProfile;
+  plan.providerSupportedMirror =
+      kRVVRuntimeScalarSplatStoreProviderSupportedMirror;
+  plan.requiredHeaders.push_back("stddef.h");
+  plan.requiredHeaders.push_back("stdint.h");
+  plan.requiredHeaders.push_back("riscv_vector.h");
+  plan.requiredHeaderDeclarations =
+      kRVVRuntimeScalarSplatStoreRequiredHeaderDeclarations;
+  plan.cTypeMappingSummary =
+      kRVVRuntimeScalarSplatStoreCTypeMappingSummary;
+  plan.vlCType = configProfile.vlCType;
+  plan.vectorTypeName = configProfile.vectorTypeName;
+  plan.vectorCType = configProfile.vectorCType;
+  plan.setVLIntrinsic = configProfile.setVLIntrinsic;
+  plan.rhsScalarSplatIntrinsic = targetLeaves.rhsBroadcastIntrinsic;
+  plan.storeIntrinsic = configProfile.storeIntrinsic;
+  plan.resultName =
+      getRVVSelectedBodyOperationProfile(plan.operation).resultName;
+  plan.runtimeABIParameters.push_back(analysis.slice.rhsABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+  plan.runtimeABIParameters.push_back(plan.runtimeControlPlan.runtimeAVLParameter);
+
+  if (llvm::Error error =
+          validateRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(plan))
+    return std::move(error);
+  return plan;
+}
+
+void applyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(
+    const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan &plan,
+    RVVSelectedBodyEmitCRouteDescription &description) {
+  applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
+                                               description);
+  description.runtimeABIOrder = plan.runtimeABIOrder;
+  description.targetLeafProfile = plan.targetLeafProfile;
+  description.providerSupportedMirror = plan.providerSupportedMirror;
+  description.requiredHeaderDeclarations = plan.requiredHeaderDeclarations;
+  description.cTypeMappingSummary = plan.cTypeMappingSummary;
+  description.vlCType = plan.vlCType;
+  description.vectorTypeName = plan.vectorTypeName;
+  description.vectorCType = plan.vectorCType;
+  description.setVLIntrinsic = plan.setVLIntrinsic;
+  description.rhsBroadcastIntrinsic = plan.rhsScalarSplatIntrinsic;
+  description.storeIntrinsic = plan.storeIntrinsic;
+  description.resultName = plan.resultName;
+  description.runtimeABIParameters.clear();
+  description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
+                                          plan.runtimeABIParameters.end());
+}
+
 bool isRVVSelectedBodyStandaloneReductionRouteOperation(
     RVVSelectedBodyOperationKind op) {
   return isRVVSelectedBodyPlainStandaloneReductionRouteOperation(op) ||
@@ -3745,6 +3991,11 @@ deriveRVVSelectedBodyTargetLeafProfile(
                                              configProfile),
         "", "", configProfile.rhsBroadcastIntrinsic};
 
+  if (description.memoryForm ==
+      RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore)
+    return RVVSelectedBodyTargetLeafProfile{
+        "", "", "", configProfile.rhsBroadcastIntrinsic};
+
   if (description.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad)
     return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
 
@@ -3959,6 +4210,17 @@ llvm::Error validateRVVSelectedBodyIndexVectorTypeAgainstConfig(
 llvm::Error validateRVVSelectedBodyTypedConfigFacts(
     const RVVSelectedBodyRouteSlice &slice,
     const tcrv::rvv::RVVCompileTimeConfig &config) {
+  if (slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::RuntimeI32SplatStore) {
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.rhsValue, "runtime scalar splat result vector", config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.storeValue, "runtime scalar splat stored vector", config))
+      return error;
+    return llvm::Error::success();
+  }
+
   if (slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI32ToI64 ||
       slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI16ToI32) {
     tcrv::rvv::RVVCompileTimeConfig sourceConfig;
@@ -5339,8 +5601,23 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
   const bool isComputedMaskedMAcc =
       slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd;
+  const bool isRuntimeScalarSplatStore =
+      slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
 
   llvm::SmallVector<support::RuntimeABIParameter, 9> ordered;
+  if (isRuntimeScalarSplatStore) {
+    ordered.push_back(slice.rhsABI);
+    ordered.push_back(slice.outABI);
+    ordered.push_back(slice.runtimeElementCountABI);
+    if (llvm::Error error =
+            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+                ordered,
+                "selected RVV EmitC route explicit runtime scalar "
+                "splat-store runtime ABI values"))
+      return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
+    return llvm::Error::success();
+  }
   ordered.push_back(slice.lhsABI);
   if (isComputedMaskedMAcc) {
     ordered.push_back(slice.rhsABI);
@@ -6088,6 +6365,23 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     addRouteOperandBinding(
         plan, "rhs_scalar", slice.rhsABI,
         {"runtime-abi-mirror", "scalar-broadcast-rhs-call"});
+    addRouteOperandBinding(
+        plan, "out", slice.outABI,
+        {"runtime-abi-mirror", "materialized-store-base",
+         "header-mirror"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
+  } else if (slice.memoryForm ==
+             RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore) {
+    plan.planID = kRVVRuntimeScalarSplatStoreOperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVRuntimeScalarSplatStoreRuntimeABIOrder;
+    context = "runtime_i32_splat_store route";
+    addRouteOperandBinding(
+        plan, "rhs_scalar", slice.rhsABI,
+        {"runtime-abi-mirror", "runtime-scalar-splat-call",
+         "header-mirror"});
     addRouteOperandBinding(
         plan, "out", slice.outABI,
         {"runtime-abi-mirror", "materialized-store-base",
@@ -7915,6 +8209,17 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       (slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI32ToI64 ||
        slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI16ToI32);
   const bool hasScalarBroadcast = !genericScalarSplats.empty();
+  const bool isRuntimeScalarSplatStore =
+      hasScalarBroadcast && !slice.arithmeticOp && genericLoads.empty() &&
+      storeCount == 1 && stridedStoreCount == 0 && !hasStridedMemory &&
+      !hasIndexedMemory && !hasSegmentedMemory && !hasMaskedMemory;
+  if (isRuntimeScalarSplatStore) {
+    tcrv::rvv::SplatOp splat = genericScalarSplats.front();
+    slice.arithmeticKind = RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+    slice.memoryForm = RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore;
+    slice.arithmeticOp = splat.getOperation();
+    slice.arithmeticResult = splat.getBroadcast();
+  }
   if (hasIndexedMemory && isIndexedGatherUnitStore &&
       (!genericStridedLoads.empty() || stridedStoreCount != 0 ||
        !genericLoads.empty() || !genericBroadcastLoads.empty() ||
@@ -8590,11 +8895,13 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       (!slice.arithmeticOp ||
        (slice.arithmeticKind != RVVSelectedBodyOperationKind::Add &&
         slice.arithmeticKind != RVVSelectedBodyOperationKind::Sub &&
-        slice.arithmeticKind != RVVSelectedBodyOperationKind::Mul)))
+        slice.arithmeticKind != RVVSelectedBodyOperationKind::Mul &&
+        slice.arithmeticKind !=
+            RVVSelectedBodyOperationKind::RuntimeI32SplatStore)))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV scalar-broadcast route currently requires "
-        "exactly one tcrv_rvv.binary {kind = \"add\", \"sub\", or \"mul\"} "
-        "compute op");
+        "either pure runtime_i32_splat_store splat/store structure or exactly "
+        "one tcrv_rvv.binary {kind = \"add\", \"sub\", or \"mul\"} compute op");
   if (isWideningConversion && genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV widening conversion route requires exactly one "
@@ -8664,10 +8971,15 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       !isComputedMaskStridedStore &&
       !isComputedMaskStridedLoadUnitStore &&
       !isComputedMaskIndexedScatterStoreUnitLoad &&
-      hasScalarBroadcast && genericLoads.size() != 1)
+      hasScalarBroadcast && !isRuntimeScalarSplatStore &&
+      genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV scalar-broadcast route requires exactly one "
         "tcrv_rvv.load op and one tcrv_rvv.splat op");
+  if (isRuntimeScalarSplatStore && !genericLoads.empty())
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV runtime scalar splat-store route must not contain "
+        "lhs loads or binary fallback");
   if (((!hasStridedMemory && !hasIndexedMemory && !hasSegmentedMemory &&
         !isMaskedUnitStore) ||
        isComputedMaskStridedLoadUnitStore ||
@@ -8762,7 +9074,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "explicit compare lhs/rhs and source unit-stride loads; "
         "broadcast/splat reduction is not in this bounded slice");
   const unsigned expectedRVVOps =
-      isWideningConversion
+      isRuntimeScalarSplatStore
+          ? 7
+      : isWideningConversion
           ? 8
       : isComputedMaskStandaloneReduction
           ? 14
@@ -9239,8 +9553,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "segment2_store to consume matching field0 and field1 load results");
   }
 
-  if (!slice.lhsLoadOperation ||
+  if ((!slice.lhsLoadOperation && !isRuntimeScalarSplatStore) ||
       (!isWideningConversion && !isStridedLoadUnitStore &&
+       !isRuntimeScalarSplatStore &&
        !isUnitLoadStridedStore &&
        !isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
        !isMaskedUnitLoadStore &&
@@ -9507,7 +9822,11 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     slice.storeOperation = slice.genericStore.getOperation();
     slice.outBuffer = slice.genericStore.getBuffer();
     slice.storeValue = slice.genericStore.getValue();
-    if (hasScalarBroadcast) {
+    if (isRuntimeScalarSplatStore) {
+      slice.memoryForm = RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore;
+      slice.arithmeticKind = RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+      slice.arithmeticResult = slice.rhsValue;
+    } else if (hasScalarBroadcast) {
       llvm::Expected<RVVSelectedBodyOperationKind> scalarBroadcastKind =
           getRVVScalarBroadcastOperationKind(slice.arithmeticKind);
       if (!scalarBroadcastKind)
@@ -10334,6 +10653,21 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV segment2 interleave route does not support "
           "source, index, mask, accumulator, or segment2_load inputs");
+  } else if (isRuntimeScalarSplatStore) {
+    if (slice.lhsLoadOperation)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV runtime scalar splat-store route must not load "
+          "lhs or substitute a binary fallback");
+    if (!slice.rhsScalarSplat || slice.rhsValue != slice.storeValue ||
+        slice.rhsScalarSplat.getVl() != slice.setvl.getVl())
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV runtime scalar splat-store route requires "
+          "tcrv_rvv.store to consume the vector produced by tcrv_rvv.splat in "
+          "the selected !tcrv_rvv.vl scope");
+    if (slice.rhsABI.role != support::RuntimeABIParameterRole::RHSScalarValue)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV runtime scalar splat-store route requires the "
+          "splat scalar to bind rhs-scalar-value");
   } else if (slice.arithmeticLhs != slice.lhsValue ||
              slice.arithmeticRhs != slice.rhsValue) {
     if (slice.accumulatorLoadOperation)
@@ -10348,6 +10682,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   if (!isSegment2DeinterleaveUnitStore && !isSegment2InterleaveUnitLoad &&
       !isComputedMaskSegment2LoadUnitStore &&
       !isComputedMaskSegment2StoreUnitLoad &&
+      !isRuntimeScalarSplatStore &&
       slice.storeValue != slice.arithmeticResult)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route requires selected-body store to "
@@ -10456,6 +10791,8 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       slice.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
   const bool isConversion =
       slice.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideConversion;
+  const bool isRuntimeScalarSplatStore =
+      slice.memoryForm == RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore;
   const bool isMAcc =
       slice.arithmeticKind == RVVSelectedBodyOperationKind::MAccAdd;
   const bool isComputedMaskedMAcc =
@@ -10484,6 +10821,23 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
           slice.arithmeticKind);
   if (lhsABI && op == lhsABI.getOperation())
     return 0;
+  if (isRuntimeScalarSplatStore) {
+    if (rhsABI && op == rhsABI.getOperation())
+      return 0;
+    if (outABI && op == outABI.getOperation())
+      return 1;
+    if (nABI && op == nABI.getOperation())
+      return 2;
+    if (op == slice.setvl.getOperation())
+      return 3;
+    if (op == slice.withVL.getOperation())
+      return 4;
+    if (op == slice.rhsLoadOperation || op == slice.arithmeticOp)
+      return 5;
+    if (op == slice.storeOperation)
+      return 6;
+    return 7;
+  }
   if (isComputedMaskedMAcc) {
     if (rhsABI && op == rhsABI.getOperation())
       return 1;
@@ -11284,6 +11638,8 @@ llvm::Error verifySelectedRVVRoleSequence(
       slice.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
   const bool isConversion =
       slice.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideConversion;
+  const bool isRuntimeScalarSplatStore =
+      slice.memoryForm == RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore;
   const bool isMAcc =
       slice.arithmeticKind == RVVSelectedBodyOperationKind::MAccAdd;
   const bool isComputedMaskedMAcc =
@@ -11310,7 +11666,7 @@ llvm::Error verifySelectedRVVRoleSequence(
   const bool isComputedMaskStandaloneReduction =
       isRVVSelectedBodyComputedMaskStandaloneReductionRouteOperation(
           slice.arithmeticKind);
-  if (!lhsABI ||
+  if ((!lhsABI && !isRuntimeScalarSplatStore) ||
       (!isConversion && !isStridedLoadUnitStore &&
        !isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
        !isMaskedUnitLoadStore && !isMaskedUnitStore &&
@@ -11325,6 +11681,7 @@ llvm::Error verifySelectedRVVRoleSequence(
        !isComputedMaskedMAcc &&
        !isSegment2DeinterleaveUnitStore && !isSegment2InterleaveUnitLoad &&
        !isUnitLoadStridedStore &&
+       !isRuntimeScalarSplatStore &&
        !isStandaloneReduction &&
        !isComputedMaskStandaloneReduction &&
        !rhsABI) ||
@@ -11364,6 +11721,7 @@ llvm::Error verifySelectedRVVRoleSequence(
       (isComputedMaskStridedInputWideningDotReduce &&
        (!rhsABI || !dotLHSABI || !dotRHSABI || !accumulatorABI ||
         !lhsStrideABI || !rhsStrideABI)) ||
+      (isRuntimeScalarSplatStore && (!rhsABI || !outABI)) ||
       (isSegment2DeinterleaveUnitStore && (!field0ABI || !field1ABI)) ||
       (isSegment2InterleaveUnitLoad && (!rhsABI || !outABI)))
     return makeRVVEmitCRouteProviderError(
@@ -11543,6 +11901,10 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   case RVVSelectedBodyMemoryForm::RHSScalarBroadcast:
     analysis.description.runtimeABIOrder = kRVVScalarBroadcastRuntimeABIOrder;
     break;
+  case RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore:
+    analysis.description.runtimeABIOrder =
+        kRVVRuntimeScalarSplatStoreRuntimeABIOrder;
+    break;
   case RVVSelectedBodyMemoryForm::StridedLoadStore:
     analysis.description.runtimeABIOrder = kRVVStridedRuntimeABIOrder;
     break;
@@ -11712,6 +12074,12 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
         analysis.slice.dotRHSABI);
     analysis.description.runtimeABIParameters.push_back(
         analysis.slice.accumulatorABI);
+    analysis.description.runtimeABIParameters.push_back(analysis.slice.outABI);
+    analysis.description.runtimeABIParameters.push_back(
+        analysis.slice.runtimeElementCountABI);
+  } else if (analysis.slice.memoryForm ==
+             RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore) {
+    analysis.description.runtimeABIParameters.push_back(analysis.slice.rhsABI);
     analysis.description.runtimeABIParameters.push_back(analysis.slice.outABI);
     analysis.description.runtimeABIParameters.push_back(
         analysis.slice.runtimeElementCountABI);
@@ -11992,6 +12360,20 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
         std::move(*scalarBroadcastPlan);
     applyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
         *analysis.scalarBroadcastElementwiseRouteFamilyPlan,
+        analysis.description);
+  }
+  if (isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(
+          routeProfile->operation.operation)) {
+    llvm::Expected<RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan>
+        runtimeSplatPlan =
+            deriveRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(
+                analysis, routeProfile->config, routeProfile->targetLeaves);
+    if (!runtimeSplatPlan)
+      return runtimeSplatPlan.takeError();
+    analysis.runtimeScalarSplatStoreRouteFamilyPlan =
+        std::move(*runtimeSplatPlan);
+    applyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(
+        *analysis.runtimeScalarSplatStoreRouteFamilyPlan,
         analysis.description);
   }
   if (isRVVSelectedBodyStandaloneReductionRouteOperation(
@@ -12434,6 +12816,8 @@ stringifyRVVSelectedBodyMemoryForm(RVVSelectedBodyMemoryForm form) {
     return "rhs-broadcast-load";
   case RVVSelectedBodyMemoryForm::RHSScalarBroadcast:
     return "rhs-scalar-broadcast";
+  case RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore:
+    return "runtime-scalar-splat-store";
   case RVVSelectedBodyMemoryForm::StridedLoadStore:
     return "strided-load-store";
   case RVVSelectedBodyMemoryForm::StridedLoadUnitStore:
@@ -12571,6 +12955,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   const bool isScalarBroadcastElementwiseRoute =
       isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
           operationProfile.operation);
+  const bool isRuntimeScalarSplatStoreRoute =
+      isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(
+          operationProfile.operation);
   const bool isStandaloneReductionRoute =
       isRVVSelectedBodyStandaloneReductionRouteOperation(
           operationProfile.operation);
@@ -12685,6 +13072,25 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "C type mapping summary", description.cTypeMappingSummary,
             kRVVScalarBroadcastElementwiseCTypeMappingSummary))
+      return error;
+  } else if (isRuntimeScalarSplatStoreRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "target leaf profile", description.targetLeafProfile,
+            kRVVRuntimeScalarSplatStoreTargetLeafProfile))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "provider_supported_mirror",
+            description.providerSupportedMirror,
+            kRVVRuntimeScalarSplatStoreProviderSupportedMirror))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "required header declarations",
+            description.requiredHeaderDeclarations,
+            kRVVRuntimeScalarSplatStoreRequiredHeaderDeclarations))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "C type mapping summary", description.cTypeMappingSummary,
+            kRVVRuntimeScalarSplatStoreCTypeMappingSummary))
       return error;
   } else if (isStandaloneReductionRoute) {
     llvm::StringRef expectedTargetLeafProfile =
@@ -12949,6 +13355,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   } else if (description.memoryForm ==
              RVVSelectedBodyMemoryForm::RHSScalarBroadcast) {
     expectedRuntimeABIOrder = kRVVScalarBroadcastRuntimeABIOrder;
+  } else if (description.memoryForm ==
+             RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore) {
+    expectedRuntimeABIOrder = kRVVRuntimeScalarSplatStoreRuntimeABIOrder;
   } else if (isStandaloneReductionRoute) {
     expectedRuntimeABIOrder =
         isComputedMaskStandaloneReductionRoute
@@ -12982,7 +13391,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           " must not carry a route operand ABI binding summary for this "
           "unconverted route");
   }
-  if (isScalarBroadcastElementwiseRoute || isStandaloneReductionRoute)
+  if (isScalarBroadcastElementwiseRoute || isRuntimeScalarSplatStoreRoute ||
+      isStandaloneReductionRoute)
     if (llvm::Error error = requireRouteDescriptionField(
             context, "runtime control plan", description.runtimeControlPlanID,
             getRVVRuntimeAVLVLControlPlanID()))
@@ -14546,7 +14956,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
   }
   if (description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad ||
-      description.memoryForm == RVVSelectedBodyMemoryForm::RHSScalarBroadcast)
+      description.memoryForm == RVVSelectedBodyMemoryForm::RHSScalarBroadcast ||
+      description.memoryForm ==
+          RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore)
     if (llvm::Error error = requireRouteDescriptionText(
             context, "RHS broadcast intrinsic",
             description.rhsBroadcastIntrinsic))
@@ -14627,6 +15039,8 @@ getRVVSelectedBodyConfigArtifactMetadata(
   metadata.push_back({"tcrv_rvv.multi_vl", description.multiVL});
   if (isRVVSelectedBodyContractionRouteOperation(description.operation) ||
       isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
+          description.operation) ||
+      isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(
           description.operation) ||
       isRVVSelectedBodyStandaloneReductionRouteOperation(
           description.operation)) {

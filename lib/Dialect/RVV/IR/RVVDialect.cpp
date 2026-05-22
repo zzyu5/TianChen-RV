@@ -186,6 +186,13 @@ bool isAllowedTypedBinaryPreRealizedBodyAttr(llvm::StringRef name) {
          name == kPolicyAttrName;
 }
 
+bool isAllowedTypedRuntimeScalarSplatStorePreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kSEWAttrName || name == kLMULAttrName ||
+         name == kPolicyAttrName;
+}
+
 bool isAllowedTypedMaskedBinaryPreRealizedBodyAttr(llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
          name == kMaskSourceAttrName || name == kMaskedPassthroughAttrName ||
@@ -587,10 +594,20 @@ bool isSupportedTypedBinaryPreRealizedBodyOpKind(llvm::StringRef opKind) {
   return opKind == "add" || opKind == "sub" || opKind == "mul";
 }
 
+bool isSupportedTypedRuntimeScalarSplatStorePreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "runtime_i32_splat_store";
+}
+
 bool isSupportedTypedBinaryPreRealizedMemoryForm(llvm::StringRef memoryForm) {
   return memoryForm == "vector-rhs-load" ||
          memoryForm == "rhs-scalar-broadcast" ||
          memoryForm == "strided-load-store";
+}
+
+bool isSupportedTypedRuntimeScalarSplatStorePreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "runtime-scalar-splat-store";
 }
 
 bool isSupportedTypedBinaryPreRealizedConfig(llvm::StringRef opKind,
@@ -2775,6 +2792,69 @@ mlir::LogicalResult TypedBinaryPreRealizedBodyOp::verify() {
   return verifyRuntimeABIIndexOperandRole(
       op, strides[2], "out stride",
       {tianchenrv::support::RuntimeABIParameterRole::OutputStride});
+}
+
+mlir::LogicalResult
+TypedRuntimeScalarSplatStorePreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized runtime scalar splat-store bodies carry only "
+                "typed RVV scalar/output/runtime/config SSA facts and must be "
+                "realized by the RVV plugin before route construction";
+
+    if (!isAllowedTypedRuntimeScalarSplatStorePreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '" << kSEWAttrName
+             << "', '" << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires scalar, out, runtime n/AVL operands and no results";
+
+  if (!isSupportedTypedRuntimeScalarSplatStorePreRealizedBodyOpKind(
+          getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"runtime_i32_splat_store\" for the bounded selected-body "
+              "runtime scalar splat-store hook";
+  if (!isSupportedTypedRuntimeScalarSplatStorePreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"runtime-scalar-splat-store\" for the bounded selected-body "
+              "runtime scalar splat-store hook";
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded runtime scalar splat-store config to be "
+              "SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "runtime scalar splat-store hook";
+
+  if (mlir::failed(verifyRuntimeABIScalarOperandRole(
+          op, getScalar(), "runtime scalar",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
 }
 
 mlir::LogicalResult TypedMaskedBinaryPreRealizedBodyOp::verify() {

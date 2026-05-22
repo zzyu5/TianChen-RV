@@ -365,6 +365,39 @@ def TypedBinaryPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedRuntimeScalarSplatStorePreRealizedBodyOp
+    : TCRVRVV_Op<"typed_runtime_scalar_splat_store_pre_realized_body"> {
+  let summary = "typed pre-realized RVV runtime scalar splat-store selected body";
+  let description = [{
+    Carries the RVV plugin-local pre-realized selected body for the bounded
+    runtime i32 scalar-to-vector splat followed by unit-stride store route.
+    The op is nested directly in a selected tcrv.exec.variant and binds an
+    explicit RHS scalar runtime ABI value, output buffer, runtime n/AVL, and
+    compile-time RVV config facts.
+
+    This op is not a route id, helper-string authority, descriptor, source
+    front door, direct-C exporter, constant substitution, artifact mirror, or
+    common EmitC semantic inference hook. The RVV plugin must first realize it
+    into explicit setvl/with_vl/splat/store tcrv_rvv body structure before the
+    provider may construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$scalar,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$scalar `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedMaskedBinaryPreRealizedBodyOp
     : TCRVRVV_Op<"typed_masked_binary_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV masked binary selected body";

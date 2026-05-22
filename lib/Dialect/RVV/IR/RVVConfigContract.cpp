@@ -532,6 +532,20 @@ getRVVSelectedBodyScalarBroadcastRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs_scalar", "int32_t",
+      support::RuntimeABIParameterRole::RHSScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 3>
 getRVVSelectedBodyWideningConversionRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 3> parameters;
@@ -1163,6 +1177,11 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, scalarBroadcastExpected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeSplatExpected =
+      getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, runtimeSplatExpected))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 3> conversionExpected =
       getRVVSelectedBodyWideningConversionRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, conversionExpected))
@@ -1261,7 +1280,8 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "cmp_lhs, cmp_rhs, "
       "true_value, false_value, out, n "
       "for the bounded int32_t computed-mask select route with compare "
-      "producer; or src, out0, out1, n for the bounded int32_t segment2 "
+      "producer; or rhs_scalar, out, n for the bounded runtime int32_t "
+      "scalar splat-store route; or src, out0, out1, n for the bounded int32_t segment2 "
       "deinterleave route; or src0, src1, dst, n for the bounded int32_t "
       "segment2 interleave route; or cmp_lhs, cmp_rhs, src0, src1, dst, n "
       "for the bounded int32_t computed-mask segment2 masked-store route "

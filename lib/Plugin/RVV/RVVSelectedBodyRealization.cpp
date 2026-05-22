@@ -35,6 +35,15 @@ bool isPreRealizedScalarBroadcastMemoryForm(llvm::StringRef memoryForm) {
   return memoryForm == "rhs-scalar-broadcast";
 }
 
+bool isPreRealizedRuntimeScalarSplatStoreOpKind(llvm::StringRef opKind) {
+  return opKind == "runtime_i32_splat_store";
+}
+
+bool isPreRealizedRuntimeScalarSplatStoreMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "runtime-scalar-splat-store";
+}
+
 bool isPreRealizedStridedMemoryForm(llvm::StringRef memoryForm) {
   return memoryForm == "strided-load-store";
 }
@@ -628,6 +637,8 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
   llvm::SmallVector<mlir::Operation *, 2> bodies;
   variant.getBody().walk([&](mlir::Operation *op) {
     if (llvm::isa<tcrv::rvv::TypedBinaryPreRealizedBodyOp,
+                  tcrv::rvv::
+                      TypedRuntimeScalarSplatStorePreRealizedBodyOp,
                   tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp,
                   tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp,
@@ -5231,6 +5242,8 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
   bool found = false;
   variant.getBody().walk([&](mlir::Operation *op) {
     if (llvm::isa<tcrv::rvv::TypedBinaryPreRealizedBodyOp,
+                  tcrv::rvv::
+                      TypedRuntimeScalarSplatStorePreRealizedBodyOp,
                   tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp,
                   tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp,
@@ -5287,6 +5300,53 @@ realizePreRealizedRVVSelectedBody(
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::OpBuilder::InsertionGuard guard(builder);
+
+  if (auto body = llvm::dyn_cast<
+          tcrv::rvv::TypedRuntimeScalarSplatStorePreRealizedBodyOp>(
+          *bodyOp)) {
+    if (!isPreRealizedRuntimeScalarSplatStoreOpKind(body.getOpKind()))
+      return makeRVVPluginError(
+          "pre-realized runtime scalar splat-store realization supports only "
+          "op_kind 'runtime_i32_splat_store'");
+    if (!isPreRealizedRuntimeScalarSplatStoreMemoryForm(body.getMemoryForm()))
+      return makeRVVPluginError(
+          "pre-realized runtime scalar splat-store realization supports only "
+          "memory_form 'runtime-scalar-splat-store'");
+
+    mlir::Location loc = body->getLoc();
+    builder.setInsertionPoint(body.getOperation());
+    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+            variant, body.getN(), static_cast<std::int64_t>(body.getSew()),
+            body.getLmul(), body.getPolicy(), "rhs_scalar,out,n",
+            "pre-realized RVV runtime scalar splat-store selected-body "
+            "realization");
+    if (!runtimeControlPlan)
+      return runtimeControlPlan.takeError();
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc,
+                            runtimeControlPlan->runtimeAVLValue,
+                            runtimeControlPlan->sew,
+                            runtimeControlPlan->lmul,
+                            runtimeControlPlan->policy));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             runtimeControlPlan->sew,
+                             runtimeControlPlan->lmul,
+                             runtimeControlPlan->policy);
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto splat = llvm::cast<tcrv::rvv::SplatOp>(
+        createRealizedGenericSplat(builder, loc, body.getScalar(),
+                                   setvl.getVl(), runtimeControlPlan->sew,
+                                   runtimeControlPlan->lmul));
+    createRealizedGenericStore(builder, loc, body.getOut(),
+                               splat.getBroadcast(), setvl.getVl());
+    body->erase();
+    return withVL;
+  }
 
   if (auto body =
           llvm::dyn_cast<tcrv::rvv::TypedBinaryPreRealizedBodyOp>(*bodyOp)) {

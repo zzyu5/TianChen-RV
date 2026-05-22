@@ -250,6 +250,26 @@ struct RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
 };
 
+struct RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef rhsScalarSplatIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef resultName;
+  llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
+};
+
 struct RVVSelectedBodyStandaloneReductionRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
@@ -291,6 +311,8 @@ struct RVVSelectedBodyRouteAnalysis {
       contractionRouteFamilyPlan;
   std::optional<RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan>
       scalarBroadcastElementwiseRouteFamilyPlan;
+  std::optional<RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan>
+      runtimeScalarSplatStoreRouteFamilyPlan;
   std::optional<RVVSelectedBodyStandaloneReductionRouteFamilyPlan>
       standaloneReductionRouteFamilyPlan;
 };

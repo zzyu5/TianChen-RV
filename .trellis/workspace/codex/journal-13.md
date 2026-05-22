@@ -414,3 +414,36 @@ Final round commit is created after task archive in the same Codex turn.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 158: Stage2 RVV runtime scalar splat store
+
+**Date**: 2026-05-22
+**Task**: Stage2 RVV runtime scalar splat store
+**Branch**: `main`
+
+### Summary
+
+Added closure-gated runtime_i32_splat_store route with explicit/pre-realized selected-body support, RouteOperandBindingPlan closure, generated-bundle dry-run, and real ssh rvv evidence.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `same-squashed-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
