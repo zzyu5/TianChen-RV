@@ -519,6 +519,53 @@ def TypedComputedMaskSelectPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedRuntimeScalarCompareSelectPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_runtime_scalar_compare_select_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV runtime scalar compare/select body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body where a
+    signed i32 vector load is compared against a non-AVL runtime scalar
+    threshold splatted inside the selected VL scope, and the produced mask
+    selects between explicit true-value and false-value vector operands before
+    storing to the output buffer. The op is nested directly in a selected
+    tcrv.exec.variant and binds explicit runtime ABI values for lhs,
+    rhs_scalar, true value, false value, output, and runtime n/AVL together
+    with compare predicate, memory form, mask role/source/config, select
+    layout, compile-time RVV data/mask config, and policy.
+
+    This op is not a scalar-add clone, constant substitution, helper-string
+    authority, route label, descriptor, source-front-door marker, direct-C
+    exporter, intrinsic wrapper, runtime artifact, correctness evidence, or
+    performance evidence. The RVV plugin must realize it into explicit
+    setvl/with_vl/load/splat/load/load/compare/select/store tcrv_rvv body
+    structure before the provider may construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs_scalar,
+    AnyType:$true_value,
+    AnyType:$false_value,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$predicate_kind,
+    StrAttr:$memory_form,
+    StrAttr:$mask_role,
+    StrAttr:$mask_source,
+    StrAttr:$mask_memory_form,
+    StrAttr:$select_layout,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$lhs `,` $rhs_scalar `,` $true_value `,` $false_value `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedReducePreRealizedBodyOp
     : TCRVRVV_Op<"typed_reduce_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV reduce selected body";
