@@ -300,6 +300,38 @@ struct RVVSelectedBodyRuntimeScalarCompareSelectRouteFamilyPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 6> runtimeABIParameters;
 };
 
+struct RVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef maskTypeName;
+  llvm::StringRef maskCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef rhsScalarSplatIntrinsic;
+  llvm::StringRef compareIntrinsic;
+  llvm::StringRef maskedStoreIntrinsic;
+  llvm::StringRef resultName;
+  llvm::StringRef maskName;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef inactiveLaneContract;
+  llvm::StringRef maskedPassthroughLayout;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
+};
+
 struct RVVSelectedBodyStandaloneReductionRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
@@ -345,6 +377,9 @@ struct RVVSelectedBodyRouteAnalysis {
       runtimeScalarSplatStoreRouteFamilyPlan;
   std::optional<RVVSelectedBodyRuntimeScalarCompareSelectRouteFamilyPlan>
       runtimeScalarCompareSelectRouteFamilyPlan;
+  std::optional<
+      RVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan>
+      runtimeScalarComputedMaskStoreRouteFamilyPlan;
   std::optional<RVVSelectedBodyStandaloneReductionRouteFamilyPlan>
       standaloneReductionRouteFamilyPlan;
 };

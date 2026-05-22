@@ -916,6 +916,26 @@ getRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 5>
+getRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs_scalar", "int32_t",
+      support::RuntimeABIParameterRole::RHSScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src", "const int32_t *",
+      support::RuntimeABIParameterRole::SourceInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "dst", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 6>
 getRVVSelectedBodyComputedMaskStridedStoreRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
@@ -1150,6 +1170,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
           getRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters,
                                          runtimeScalarCompareSelect))
+    return llvm::Error::success();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 5>
+      runtimeScalarComputedMaskStore =
+          getRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters,
+                                         runtimeScalarComputedMaskStore))
     return llvm::Error::success();
 
   llvm::SmallVector<support::RuntimeABIParameter, 6>

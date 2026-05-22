@@ -69,6 +69,47 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 159: Stage2 RVV runtime scalar computed-mask masked store
+
+**Date**: 2026-05-22
+**Task**: Stage2 RVV closure-gated runtime scalar computed-mask store boundary
+**Branch**: `main`
+
+### Summary
+
+Added a closure-gated `runtime_scalar_cmp_masked_store` RVV route that carries lhs vector payload, runtime RHS scalar threshold, compare-produced mask, source payload load, output masked store side effect, runtime n/AVL, and typed SEW/LMUL/policy facts through the RVV dialect, selected-body realization, route planning/provider, target artifact export, generated bundle harness, and real ssh rvv evidence.
+
+### Main Changes
+
+- Added `tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body` and verifier rules for `op_kind = "runtime_scalar_cmp_masked_store"`, predicate `sle`, SEW32/LMUL m1, undisturbed tail/mask policy, compare-produced mask facts, source payload role, output role, and runtime element-count role.
+- Realized the pre-realized body into `setvl`, `with_vl`, lhs load, RHS scalar `splat`, source payload load, `compare`, and `masked_store` with false-lane output preservation.
+- Added RVV planning/provider support for `RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore`, `RuntimeScalarComputedMaskStore` memory form, runtime ABI order `lhs,rhs_scalar,src,dst,n`, compact exported `RouteOperandBindingPlan` mirror, target leaf/profile mirrors, header/C type mirrors, and fail-closed route validation.
+- Materialized the provider-owned EmitC/RVV route as lhs load, scalar threshold splat, source load, compare, and masked store; common EmitC/export remains mechanical and does not infer semantics.
+- Added generated-bundle explicit and pre-realized runtime harness support with value-distinguishing lhs/source/destination patterns, positive and negative RHS thresholds, runtime count variation, active lane writes, false-lane preservation, source preservation, and tail/sentinel preservation.
+- Added explicit/pre-realized target fixtures and dialect verifier negative coverage.
+- Self-repair performed: compacted exported binding metadata under the 512-byte artifact limit; shortened the explicit fixture function name under EmitC identifier bounds; fixed runtime-scalar masked-store analysis so the provider bridge sees the real masked-store route; restored computed-mask strided/unit-load-store target leaf behavior after the new masked-memory branch made compare/leaf selection too broad; updated construction-protocol common test expectations for the new route.
+- Checks passed: manual dialect FileCheck; explicit PLAN/HEADER; pre-realized REALIZED/PLAN/HEADER; `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`; generated-bundle dry-runs for explicit and pre-realized `runtime_scalar_cmp_masked_store`; real `ssh rvv` explicit and pre-realized PASS for counts `7,16,23` and `rhs_scalar=-37,91`; focused recovery checks for prior computed-mask strided/unit-load-store dry-runs; `git diff --check`; `ninja -C build check-tianchenrv` with `337/337` tests.
+- Authority scan found no new legacy RVVI32M1/rvv-i32m1/finite `tcrv_rvv.i32_*` positive route authority; hits are PRD negative-boundary wording and typed-provider target leaf intrinsic validation after route closure.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | `rvv: add runtime scalar computed mask store` |
+
+### Testing
+
+- [OK] Manual FileCheck, generated-bundle dry-runs, real ssh rvv evidence, active-authority scan, `git diff --check`, and `check-tianchenrv 337/337`.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 159: Stage2 RVV closure-gated runtime scalar-vector add boundary
 
 **Date**: 2026-05-22

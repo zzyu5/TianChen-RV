@@ -131,6 +131,21 @@ bool isPreRealizedRuntimeScalarCompareSelectLayout(llvm::StringRef layout) {
   return layout == "select-true-value-when-mask-else-false-value";
 }
 
+bool isPreRealizedRuntimeScalarComputedMaskStoreOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "runtime_scalar_cmp_masked_store";
+}
+
+bool isPreRealizedRuntimeScalarComputedMaskStoreMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "runtime-scalar-computed-mask-store";
+}
+
+bool isPreRealizedRuntimeScalarComputedMaskStorePredicateKind(
+    llvm::StringRef predicateKind) {
+  return predicateKind == "sle";
+}
+
 bool isPreRealizedReduceOpKind(llvm::StringRef opKind) {
   return opKind == "reduce_add";
 }
@@ -661,6 +676,8 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedRuntimeScalarCompareSelectPreRealizedBodyOp,
+                  tcrv::rvv::
+                      TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp,
                   tcrv::rvv::TypedReducePreRealizedBodyOp,
                   tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp,
                   tcrv::rvv::
@@ -702,6 +719,8 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.typed_compare_select_pre_realized_body or "
         "tcrv_rvv.typed_computed_mask_select_pre_realized_body or "
         "tcrv_rvv.typed_runtime_scalar_compare_select_pre_realized_body or "
+        "tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body "
+        "or "
         "tcrv_rvv.typed_reduce_pre_realized_body or "
         "tcrv_rvv.typed_standalone_reduce_pre_realized_body or "
         "tcrv_rvv.typed_macc_pre_realized_body or "
@@ -1301,6 +1320,132 @@ llvm::Error validatePreRealizedRVVSelectedRuntimeScalarCompareSelectBody(
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar compare/select realization "
         "requires non-empty selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
+llvm::Error validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVPluginError(
+        "selected RVV runtime scalar computed-mask store realization requires "
+        "a pre-realized runtime scalar computed-mask store body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar computed-mask store body "
+        "must be a direct child of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedRuntimeScalarComputedMaskStoreOpKind(body.getOpKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar computed-mask store body "
+        "currently supports only op_kind 'runtime_scalar_cmp_masked_store'");
+  if (!isPreRealizedRuntimeScalarComputedMaskStorePredicateKind(
+          body.getPredicateKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar computed-mask store body "
+        "currently supports only predicate_kind 'sle'");
+  if (!isPreRealizedRuntimeScalarComputedMaskStoreMemoryForm(
+          body.getMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar computed-mask store body "
+        "currently supports only memory_form "
+        "'runtime-scalar-computed-mask-store'");
+  if (!isPreRealizedComputedMaskMemoryMovementMaskRole(body.getMaskRole()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar computed-mask store body "
+        "currently supports only mask_role "
+        "'predicate-mask-produced-by-compare'");
+  if (!isPreRealizedComputedMaskMemoryMovementMaskSource(
+          body.getMaskSource()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar computed-mask store body "
+        "currently supports only mask_source "
+        "'compare-produced-mask-same-vl-scope'");
+  if (!isPreRealizedComputedMaskMemoryMovementMaskMemoryForm(
+          body.getMaskMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar computed-mask store body "
+        "currently supports only mask_memory_form 'compare-produced-mask'");
+  if (body.getInactiveLanePolicy() != "preserve-output-on-false-lanes")
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar computed-mask store body "
+        "requires inactive_lane_policy 'preserve-output-on-false-lanes'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar computed-mask store body "
+        "requires SEW32 LMUL m1 data/mask config");
+  if (!tcrv::rvv::isRVVUndisturbedPolicy(body.getPolicy()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar computed-mask store body "
+        "requires tail undisturbed, mask undisturbed policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getLhs(),
+          "pre-realized RVV runtime scalar computed-mask store lhs operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!lhs)
+    return lhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsScalar =
+      requirePreRealizedRuntimeABIValue(
+          body.getRhsScalar(),
+          "pre-realized RVV runtime scalar computed-mask store rhs scalar "
+          "operand",
+          support::RuntimeABIParameterRole::RHSScalarValue);
+  if (!rhsScalar)
+    return rhsScalar.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+      requirePreRealizedRuntimeABIValue(
+          body.getSource(),
+          "pre-realized RVV runtime scalar computed-mask store payload source "
+          "operand",
+          support::RuntimeABIParameterRole::SourceInputBuffer);
+  if (!source)
+    return source.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+      requirePreRealizedRuntimeABIValue(
+          body.getDestination(),
+          "pre-realized RVV runtime scalar computed-mask store destination "
+          "operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!destination)
+    return destination.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(),
+          "pre-realized RVV runtime scalar computed-mask store runtime n/AVL "
+          "operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
+                  tcrv::rvv::
+                      TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp>(
+            op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected runtime scalar computed-mask "
+                    "store body must not be mixed with already realized RVV "
+                    "route body op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar computed-mask store "
+        "realization requires non-empty selected variant requires metadata");
 
   return llvm::Error::success();
 }
@@ -5395,6 +5540,8 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                   tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp,
                   tcrv::rvv::TypedRuntimeScalarCompareSelectPreRealizedBodyOp,
+                  tcrv::rvv::
+                      TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp,
                   tcrv::rvv::TypedReducePreRealizedBodyOp,
                   tcrv::rvv::TypedStandaloneReducePreRealizedBodyOp,
                   tcrv::rvv::
@@ -5745,6 +5892,68 @@ realizePreRealizedRVVSelectedBody(
                                runtimeScalarCompareSelectBody.getOut(),
                                select.getSelected(), setvl.getVl());
     runtimeScalarCompareSelectBody->erase();
+    return withVL;
+  }
+
+  if (auto runtimeScalarComputedMaskStoreBody = llvm::dyn_cast<
+          tcrv::rvv::TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp>(
+          *bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(
+                request, runtimeScalarComputedMaskStoreBody))
+      return std::move(error);
+
+    mlir::Location loc = runtimeScalarComputedMaskStoreBody->getLoc();
+    builder.setInsertionPoint(
+        runtimeScalarComputedMaskStoreBody.getOperation());
+
+    std::int64_t sew = static_cast<std::int64_t>(
+        runtimeScalarComputedMaskStoreBody.getSew());
+    llvm::StringRef lmul = runtimeScalarComputedMaskStoreBody.getLmul();
+    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+            variant, runtimeScalarComputedMaskStoreBody.getN(), sew, lmul,
+            runtimeScalarComputedMaskStoreBody.getPolicy(),
+            "lhs,rhs_scalar,src,dst,n",
+            "pre-realized RVV runtime scalar computed-mask store "
+            "selected-body realization");
+    if (!runtimeControlPlan)
+      return runtimeControlPlan.takeError();
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
+        builder, loc, runtimeControlPlan->runtimeAVLValue,
+        runtimeControlPlan->sew, runtimeControlPlan->lmul,
+        runtimeControlPlan->policy));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             runtimeControlPlan->sew,
+                             runtimeControlPlan->lmul,
+                             runtimeControlPlan->policy);
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, runtimeScalarComputedMaskStoreBody.getLhs(),
+        setvl.getVl(), runtimeControlPlan->sew, runtimeControlPlan->lmul));
+    auto rhsSplat = llvm::cast<tcrv::rvv::SplatOp>(
+        createRealizedGenericSplat(
+            builder, loc, runtimeScalarComputedMaskStoreBody.getRhsScalar(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto sourceLoad = llvm::cast<tcrv::rvv::LoadOp>(
+        createRealizedGenericLoad(
+            builder, loc, runtimeScalarComputedMaskStoreBody.getSource(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(
+            builder, loc, lhsLoad.getLoaded(), rhsSplat.getBroadcast(),
+            setvl.getVl(),
+            runtimeScalarComputedMaskStoreBody.getPredicateKind()));
+    createRealizedGenericMaskedStore(
+        builder, loc, runtimeScalarComputedMaskStoreBody.getDestination(),
+        compare.getMask(), sourceLoad.getLoaded(), setvl.getVl());
+    runtimeScalarComputedMaskStoreBody->erase();
     return withVL;
   }
 

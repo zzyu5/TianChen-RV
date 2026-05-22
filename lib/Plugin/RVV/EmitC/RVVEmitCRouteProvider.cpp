@@ -83,6 +83,7 @@ bool isRVVSelectedBodyMaskedMemoryMovementRoute(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::MaskedUnitLoadStore ||
          op == RVVSelectedBodyOperationKind::MaskedUnitStore ||
+         op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
          op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
          op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
          op ==
@@ -98,6 +99,11 @@ bool isRVVSelectedBodyMaskedMemoryMovementRoute(
 
 bool isRVVSelectedBodyMaskedStoreRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::MaskedUnitStore;
+}
+
+bool isRVVSelectedBodyRuntimeScalarComputedMaskStoreRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore;
 }
 
 bool isRVVSelectedBodyComputedMaskMemoryMovementRoute(
@@ -572,6 +578,40 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (llvm::Error error =
               bindOperand(boundOutABI, "out", "materialized-store-base",
                           "runtime_scalar_cmp_select output store"))
+        return error;
+    } else if (description.operation ==
+               RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore) {
+      if (llvm::Error error =
+              bindOperand(boundLHSABI, "lhs", "materialized-load-base",
+                          "runtime_scalar_cmp_masked_store lhs load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "compare-lhs-call",
+              "runtime_scalar_cmp_masked_store compare lhs operand"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundRHSABI, "rhs_scalar", "scalar-broadcast-rhs-call",
+              "runtime_scalar_cmp_masked_store scalar threshold splat"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "rhs_scalar", "compare-rhs-call",
+              "runtime_scalar_cmp_masked_store compare rhs operand"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundSourceABI, "src", "materialized-source-load-base",
+              "runtime_scalar_cmp_masked_store payload source load operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "src", "masked-store-source-call",
+              "runtime_scalar_cmp_masked_store masked-store source operand"))
+        return error;
+      if (llvm::Error error = bindOperand(
+              boundOutABI, "dst", "materialized-masked-store-base",
+              "runtime_scalar_cmp_masked_store destination store operand"))
+        return error;
+      if (llvm::Error error = requireOperandUse(
+              "dst", "masked-store-destination-call",
+              "runtime_scalar_cmp_masked_store destination operand"))
         return error;
     } else if (description.operation == RVVSelectedBodyOperationKind::ReduceAdd) {
       if (llvm::Error error =
@@ -2588,6 +2628,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const bool isRuntimeScalarCompareSelect =
       description.operation ==
       RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect;
+  const bool isRuntimeScalarComputedMaskStore =
+      isRVVSelectedBodyRuntimeScalarComputedMaskStoreRoute(
+          description.operation);
   const bool isComputedMaskedMAcc =
       isRVVSelectedBodyComputedMaskedMAccRoute(description.operation);
   const bool isComputedMaskStridedStore =
@@ -2875,7 +2918,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   } else if (description.memoryForm ==
                  RVVSelectedBodyMemoryForm::RHSScalarBroadcast ||
              description.memoryForm ==
-                 RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect) {
+                 RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect ||
+             description.memoryForm ==
+                 RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore) {
     if (llvm::Error error = addLoopStep(
             slice->rhsLoadOperation, "load",
             rhsScalarBroadcastLeaf,
@@ -2986,7 +3031,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   }
-  if (isComputedMaskStridedStore || isComputedMaskIndexedScatterStore) {
+  if (isRuntimeScalarComputedMaskStore || isComputedMaskStridedStore ||
+      isComputedMaskIndexedScatterStore) {
     if (llvm::Error error = addLoopStep(
             slice->sourceLoadOperation, "load", description.vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{
@@ -3128,7 +3174,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       return error;
   } else if (isRVVSelectedBodyMaskedMemoryMovementRoute(
                  description.operation)) {
-    if (isComputedMaskMemory)
+    if (isRuntimeScalarComputedMaskStore || isComputedMaskMemory)
       if (llvm::Error error = addLoopStep(
               slice->compareOp.getOperation(), "compute",
               description.compareIntrinsic,
@@ -3494,6 +3540,21 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                         boundOutABI->cType},
              TCRVEmitCCallOpaqueOperand{"byte_offsets",
                                         description.indexVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"source_vec",
+                                        description.vectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{storeVLName.str(),
+                                        description.vlCType.str()}}))
+      return error;
+  } else if (description.memoryForm ==
+             RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore) {
+    if (llvm::Error error = addLoopStep(
+            slice->storeOperation, "store", description.storeIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                        description.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(boundOutABI->cName) + " + " + inductionName)
+                     .str(),
+                 boundOutABI->cType},
              TCRVEmitCCallOpaqueOperand{"source_vec",
                                         description.vectorCType.str()},
              TCRVEmitCCallOpaqueOperand{storeVLName.str(),
