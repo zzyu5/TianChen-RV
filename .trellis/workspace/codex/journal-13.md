@@ -546,3 +546,38 @@ Added closure-gated runtime_i32_splat_store route with explicit/pre-realized sel
 ### Next Steps
 
 - None - task complete
+
+
+## Session 160: Stage2 RVV computed-mask composition boundary
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV computed-mask composition boundary
+**Branch**: `main`
+
+### Summary
+
+Implemented runtime_scalar_dual_cmp_mask_and_select across RVV typed body, selected-body realization, route planning/provider, generated bundle harness, ssh rvv evidence, and task archive. Final commit is created after this journal entry.
+
+### Main Changes
+
+- Added rhs-secondary-scalar-value ABI role, typed tcrv_rvv.mask_and, and pre-realized dual runtime scalar compare mask-and select/store body.
+- Rewired RVV construction/realization/planning/provider/export so dual runtime scalar thresholds produce two compare masks, compose them with typed mask_and, and feed select/store through RouteOperandBindingPlan closure.
+- Added explicit and pre-realized generated-bundle harness evidence with counts 7,16,23 and rhs threshold pairs -37,91; real ssh rvv runs passed for both modes.
+- Final validation before archive: check-tianchenrv 349/349, git diff --check, and active-authority scan.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -59,12 +59,15 @@ constexpr llvm::StringLiteral kOwnershipAttrName("ownership");
 constexpr llvm::StringLiteral kPurposeAttrName("purpose");
 constexpr llvm::StringLiteral kOpKindAttrName("op_kind");
 constexpr llvm::StringLiteral kPredicateKindAttrName("predicate_kind");
+constexpr llvm::StringLiteral kPredicateKindAAttrName("predicate_kind_a");
+constexpr llvm::StringLiteral kPredicateKindBAttrName("predicate_kind_b");
 constexpr llvm::StringLiteral kMemoryFormAttrName("memory_form");
 constexpr llvm::StringLiteral kMaskSourceAttrName("mask_source");
 constexpr llvm::StringLiteral kMaskedPassthroughAttrName(
     "masked_passthrough");
 constexpr llvm::StringLiteral kMaskRoleAttrName("mask_role");
 constexpr llvm::StringLiteral kMaskMemoryFormAttrName("mask_memory_form");
+constexpr llvm::StringLiteral kMaskCompositionAttrName("mask_composition");
 constexpr llvm::StringLiteral kInactiveLanePolicyAttrName(
     "inactive_lane_policy");
 constexpr llvm::StringLiteral kSelectLayoutAttrName("select_layout");
@@ -223,6 +226,17 @@ bool isAllowedTypedRuntimeScalarCompareSelectPreRealizedBodyAttr(
          name == kMaskSourceAttrName || name == kMaskMemoryFormAttrName ||
          name == kSelectLayoutAttrName || name == kSEWAttrName ||
          name == kLMULAttrName || name == kPolicyAttrName;
+}
+
+bool isAllowedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kPredicateKindAAttrName ||
+         name == kPredicateKindBAttrName || name == kMemoryFormAttrName ||
+         name == kMaskRoleAttrName || name == kMaskSourceAttrName ||
+         name == kMaskMemoryFormAttrName ||
+         name == kMaskCompositionAttrName || name == kSelectLayoutAttrName ||
+         name == kSEWAttrName || name == kLMULAttrName ||
+         name == kPolicyAttrName;
 }
 
 bool isAllowedTypedRuntimeScalarComputedMaskStorePreRealizedBodyAttr(
@@ -556,6 +570,8 @@ bool isAllowedMaskedBinaryAttr(llvm::StringRef name) {
 
 bool isAllowedCompareAttr(llvm::StringRef name) { return name == "kind"; }
 
+bool isAllowedMaskAndAttr(llvm::StringRef name) { return name == "kind"; }
+
 bool isAllowedSelectAttr(llvm::StringRef) { return false; }
 
 bool isAllowedReduceAttr(llvm::StringRef name) {
@@ -738,6 +754,47 @@ bool isSupportedTypedRuntimeScalarCompareSelectPreRealizedMemoryForm(
 }
 
 bool isSupportedTypedRuntimeScalarCompareSelectPreRealizedSelectLayout(
+    llvm::StringRef layout) {
+  return layout == "select-true-value-when-mask-else-false-value";
+}
+
+bool isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "runtime_scalar_dual_cmp_mask_and_select";
+}
+
+bool isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedPredicateKind(
+    llvm::StringRef predicateKind) {
+  return predicateKind == "sle";
+}
+
+bool isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "runtime-scalar-dual-cmp-mask-and-select";
+}
+
+bool isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedMaskRole(
+    llvm::StringRef role) {
+  return role == "predicate-mask-produced-by-mask-and";
+}
+
+bool isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedMaskSource(
+    llvm::StringRef source) {
+  return source ==
+         "mask-and-of-two-runtime-scalar-compare-produced-masks";
+}
+
+bool isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedMaskMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "composed-compare-produced-mask";
+}
+
+bool isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedMaskComposition(
+    llvm::StringRef composition) {
+  return composition == "and";
+}
+
+bool isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedSelectLayout(
     llvm::StringRef layout) {
   return layout == "select-true-value-when-mask-else-false-value";
 }
@@ -1296,6 +1353,10 @@ bool isSupportedGenericCompareKind(llvm::StringRef kind) {
   return kind == "eq" || kind == "slt" || kind == "sle";
 }
 
+bool isSupportedGenericMaskAndKind(llvm::StringRef kind) {
+  return kind == "and";
+}
+
 bool isSupportedGenericReduceKind(llvm::StringRef kind) {
   return kind == "add";
 }
@@ -1495,10 +1556,11 @@ bool isSupportedBoundedRuntimeABIValueCType(
            cType == "const int64_t *";
   case Role::IndexInputBuffer:
     return cType == "const uint32_t *";
-  case Role::MaskInputBuffer:
-    return cType == "const int32_t *";
-  case Role::RHSScalarValue:
-    return cType == "int32_t";
+	  case Role::MaskInputBuffer:
+	    return cType == "const int32_t *";
+	  case Role::RHSScalarValue:
+	  case Role::RHSSecondaryScalarValue:
+	    return cType == "int32_t";
   case Role::OutputBuffer:
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
@@ -1534,10 +1596,11 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
     return "'const int16_t *', 'const int32_t *', or 'const int64_t *'";
   case Role::IndexInputBuffer:
     return "'const uint32_t *'";
-  case Role::MaskInputBuffer:
-    return "'const int32_t *'";
-  case Role::RHSScalarValue:
-    return "'int32_t'";
+	  case Role::MaskInputBuffer:
+	    return "'const int32_t *'";
+	  case Role::RHSScalarValue:
+	  case Role::RHSSecondaryScalarValue:
+	    return "'int32_t'";
   case Role::OutputBuffer:
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
@@ -1571,7 +1634,8 @@ bool isBoundedInputBufferRole(
 
 bool isBoundedScalarRole(tianchenrv::support::RuntimeABIParameterRole role) {
   using Role = tianchenrv::support::RuntimeABIParameterRole;
-  return role == Role::RHSScalarValue;
+  return role == Role::RHSScalarValue ||
+         role == Role::RHSSecondaryScalarValue;
 }
 
 bool isBoundedBufferRole(tianchenrv::support::RuntimeABIParameterRole role) {
@@ -3337,6 +3401,190 @@ TypedRuntimeScalarCompareSelectPreRealizedBodyOp::verify() {
           op, getOut(), "out",
           {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult
+TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected runtime scalar dual-compare "
+                "mask-and select bodies carry only typed RVV compare/mask/"
+                "select operand roles, two runtime scalar thresholds, "
+                "predicate, mask composition, config, policy, and runtime SSA "
+                "facts and must be realized by the RVV plugin before route "
+                "construction";
+
+    if (!isAllowedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyAttr(
+            attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kPredicateKindAAttrName << "', '"
+             << kPredicateKindBAttrName << "', '" << kMemoryFormAttrName
+             << "', '" << kMaskRoleAttrName << "', '" << kMaskSourceAttrName
+             << "', '" << kMaskMemoryFormAttrName << "', '"
+             << kMaskCompositionAttrName << "', '" << kSelectLayoutAttrName
+             << "', '" << kSEWAttrName << "', '" << kLMULAttrName
+             << "', and '" << kPolicyAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 8 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires compare lhs A, rhs scalar threshold A, compare lhs B, "
+              "rhs scalar threshold B, true value, false value, out, runtime "
+              "n/AVL operands and no results";
+
+  if (!isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOpKind(
+          getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"runtime_scalar_dual_cmp_mask_and_select\" for the bounded "
+              "selected-body runtime scalar dual-compare mask-and select hook";
+  if (!isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedPredicateKind(
+          getPredicateKindA()) ||
+      !isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedPredicateKind(
+          getPredicateKindB()))
+    return emitOpError()
+           << "currently supports only predicate_kind_a and predicate_kind_b "
+              "\"sle\" for the bounded selected-body runtime scalar "
+              "dual-compare mask-and select hook";
+  if (!isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"runtime-scalar-dual-cmp-mask-and-select\" for the bounded "
+              "selected-body runtime scalar dual-compare mask-and select hook";
+  if (!isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedMaskRole(
+          getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-produced-by-mask-and\" for the bounded "
+              "runtime scalar dual-compare mask-and select hook";
+  if (!isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedMaskSource(
+          getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"mask-and-of-two-runtime-scalar-compare-produced-masks\" for "
+              "the bounded runtime scalar dual-compare mask-and select hook";
+  if (!isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedMaskMemoryForm(
+          getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"composed-compare-produced-mask\" for the bounded runtime "
+              "scalar dual-compare mask-and select hook";
+  if (!isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedMaskComposition(
+          getMaskComposition()))
+    return emitOpError()
+           << "currently supports only mask_composition \"and\" for the "
+              "bounded runtime scalar dual-compare mask-and select hook";
+  if (!isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedSelectLayout(
+          getSelectLayout()))
+    return emitOpError()
+           << "currently supports only select_layout "
+              "\"select-true-value-when-mask-else-false-value\" for the "
+              "bounded runtime scalar dual-compare mask-and select hook";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized runtime scalar dual-compare "
+              "mask-and select data config to be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body runtime scalar dual-compare mask-and select hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareLhsA(), "compare lhs A",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIScalarOperandRole(
+          op, getRhsScalarA(), "rhs scalar threshold A",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getCompareLhsB(), "compare lhs B",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIScalarOperandRole(
+          op, getRhsScalarB(), "rhs scalar threshold B",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               RHSSecondaryScalarValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getTrueValue(), "true value",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               TrueValueInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getFalseValue(), "false value",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               FalseValueInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+
+  RuntimeABIValueOp compareLHSABinding =
+      getCompareLhsA().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsScalarABinding =
+      getRhsScalarA().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp compareLHSBBinding =
+      getCompareLhsB().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsScalarBBinding =
+      getRhsScalarB().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp trueValueBinding =
+      getTrueValue().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp falseValueBinding =
+      getFalseValue().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
+  if (!compareLHSABinding || compareLHSABinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires compare lhs A operand C type 'const int32_t *' to "
+              "match typed runtime scalar dual-compare mask-and select "
+              "predicate dtype";
+  if (!rhsScalarABinding || rhsScalarABinding.getCType() != "int32_t")
+    return emitOpError()
+           << "requires rhs scalar threshold A operand C type 'int32_t' to "
+              "match typed runtime scalar dual-compare mask-and select "
+              "predicate dtype";
+  if (!compareLHSBBinding || compareLHSBBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires compare lhs B operand C type 'const int32_t *' to "
+              "match typed runtime scalar dual-compare mask-and select "
+              "predicate dtype";
+  if (!rhsScalarBBinding || rhsScalarBBinding.getCType() != "int32_t")
+    return emitOpError()
+           << "requires rhs scalar threshold B operand C type 'int32_t' to "
+              "match typed runtime scalar dual-compare mask-and select "
+              "predicate dtype";
+  if (!trueValueBinding || trueValueBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires true value operand C type 'const int32_t *' to match "
+              "typed runtime scalar dual-compare mask-and select payload "
+              "dtype";
+  if (!falseValueBinding || falseValueBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires false value operand C type 'const int32_t *' to match "
+              "typed runtime scalar dual-compare mask-and select payload "
+              "dtype";
+  if (!outBinding || outBinding.getCType() != "int32_t *")
+    return emitOpError()
+           << "requires out operand C type 'int32_t *' to match typed runtime "
+              "scalar dual-compare mask-and select result dtype";
+
   return verifyRuntimeElementCountOperand(op, getN());
 }
 
@@ -7689,7 +7937,9 @@ mlir::LogicalResult SplatOp::verify() {
               "!tcrv_rvv.vl operand, and one generic RVV vector result";
   if (mlir::failed(verifyRuntimeABIScalarOperandRole(
           op, getScalar(), "RHS scalar",
-          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue,
+           tianchenrv::support::RuntimeABIParameterRole::
+               RHSSecondaryScalarValue})))
     return mlir::failure();
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
@@ -7909,6 +8159,74 @@ mlir::LogicalResult CompareOp::verify() {
                                         "lhs");
 }
 
+mlir::LogicalResult MaskAndOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.mask_and keeps SEW/LMUL/policy on "
+                "setvl/with_vl, runtime n/AVL/VL in the surrounding "
+                "control-plane IR, and rejects deleted local element_count "
+                "metadata";
+
+    if (!isAllowedMaskAndAttr(attrName))
+      return emitOpError()
+             << "only accepts generic mask composition attribute 'kind"
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!isSupportedGenericMaskAndKind(getKind()))
+    return emitOpError()
+           << "currently supports only kind \"and\" for the bounded Stage 2 "
+              "mask composition route";
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires lhs/rhs generic RVV mask operands, one "
+              "!tcrv_rvv.vl operand, and one generic RVV mask result";
+  if (getLhs().getType() != getRhs().getType() ||
+      getLhs().getType() != getMask().getType())
+    return emitOpError()
+           << "requires lhs, rhs, and result to have the same generic RVV "
+              "mask type";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto lhsCompare = getLhs().getDefiningOp<CompareOp>();
+  auto rhsCompare = getRhs().getDefiningOp<CompareOp>();
+  if (!lhsCompare || !rhsCompare)
+    return emitOpError()
+           << "requires lhs and rhs masks to be produced by "
+              "tcrv_rvv.compare inside the selected RVV typed body";
+  if (lhsCompare == rhsCompare)
+    return emitOpError()
+           << "requires lhs and rhs masks to come from distinct "
+              "tcrv_rvv.compare operations";
+  if (lhsCompare.getVl() != getVl() || rhsCompare.getVl() != getVl())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.compare operations to "
+              "consume the same !tcrv_rvv.vl token as tcrv_rvv.mask_and";
+  if (lhsCompare->getParentOp() != op->getParentOp() ||
+      rhsCompare->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires mask-producing tcrv_rvv.compare operations to be in "
+              "the same tcrv_rvv.with_vl body as tcrv_rvv.mask_and";
+
+  if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getLhs(), "lhs")))
+    return mlir::failure();
+  if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getRhs(), "rhs")))
+    return mlir::failure();
+  return verifyGenericMaskTypeForWithVL(op, getMask(), "result");
+}
+
 mlir::LogicalResult SelectOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -7935,18 +8253,23 @@ mlir::LogicalResult SelectOp::verify() {
     return mlir::failure();
 
   auto compare = getMask().getDefiningOp<CompareOp>();
-  if (!compare)
+  auto maskAnd = getMask().getDefiningOp<MaskAndOp>();
+  if (!compare && !maskAnd)
     return emitOpError()
-           << "requires mask operand to be produced by tcrv_rvv.compare "
-              "inside the selected RVV typed body";
-  if (compare.getVl() != getVl())
+           << "requires mask operand to be produced by tcrv_rvv.compare or "
+              "tcrv_rvv.mask_and inside the selected RVV typed body";
+  mlir::Value maskVL = compare ? compare.getVl() : maskAnd.getVl();
+  mlir::Operation *maskProducer = compare ? compare.getOperation()
+                                          : maskAnd.getOperation();
+  if (maskVL != getVl())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to consume the same "
+           << "requires mask-producing tcrv_rvv.compare or tcrv_rvv.mask_and "
+              "to consume the same "
               "!tcrv_rvv.vl token as tcrv_rvv.select";
-  if (compare->getParentOp() != op->getParentOp())
+  if (maskProducer->getParentOp() != op->getParentOp())
     return emitOpError()
-           << "requires mask-producing tcrv_rvv.compare to be in the same "
-              "tcrv_rvv.with_vl body as tcrv_rvv.select";
+           << "requires mask-producing tcrv_rvv.compare or tcrv_rvv.mask_and "
+              "to be in the same tcrv_rvv.with_vl body as tcrv_rvv.select";
 
   if (mlir::failed(verifyGenericMaskTypeForWithVL(op, getMask(), "mask")))
     return mlir::failure();

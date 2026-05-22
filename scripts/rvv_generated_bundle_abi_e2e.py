@@ -55,6 +55,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "computed_mask_select",
     "computed_mask_select_sle",
     "runtime_scalar_cmp_select",
+    "runtime_scalar_dual_cmp_mask_and_select",
     "runtime_scalar_cmp_masked_store",
     "runtime_scalar_cmp_masked_load_store",
     "reduce_add",
@@ -671,6 +672,40 @@ RUNTIME_SCALAR_CMP_SELECT_C_TYPE_MAPPING = (
     "vl:size_t,lhs:signed-e32m1,rhs_scalar:i32,mask:b32,"
     "true_false:signed-e32m1,result:signed-e32m1"
 )
+RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_RUNTIME_ABI_ORDER = (
+    "cmp_lhs_a,rhs_scalar_a,cmp_lhs_b,rhs_scalar_b,true_value,false_value,out,n"
+)
+RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_TARGET_LEAF_PROFILE = (
+    "rvv-v1-e32m1-runtime-scalar-dual-cmp-mask-and-select-leaf-profile.v1"
+)
+RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-runtime-scalar-dual-cmp-mask-and-select-plan-validated"
+)
+RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_C_TYPE_MAPPING = (
+    "vl:size_t,cmp_lhs_a:signed-e32m1,rhs_scalar_a:i32,"
+    "cmp_lhs_b:signed-e32m1,rhs_scalar_b:i32,mask_a:b32,mask_b:b32,"
+    "mask_and:b32,true_false:signed-e32m1,result:signed-e32m1"
+)
+RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_MEMORY_LAYOUT = (
+    "unit-stride-dual-lhs-runtime-scalar-thresholds-mask-and-true-false-select-"
+    "output-runtime-abi"
+)
+RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:runtime_scalar_dual_cmp_mask_and_select.v1"
+)
+RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "cmp_lhs_a=abi|load|cmp|and;"
+    "rhs_scalar_a=abi|splat|cmp;"
+    "cmp_lhs_b=abi|load|cmp|and;"
+    "rhs_scalar_b=abi|splat|cmp;"
+    "true_value=abi|load|sel;"
+    "false_value=abi|load|sel;"
+    "out=abi|store|hdr;"
+    "n=abi|setvl|loop|hdr"
+)
 RUNTIME_SCALAR_CMP_MASKED_STORE_RUNTIME_ABI_ORDER = "lhs,rhs_scalar,src,dst,n"
 RUNTIME_SCALAR_CMP_MASKED_STORE_TARGET_LEAF_PROFILE = (
     "rvv-v1-e32m1-runtime-scalar-cmp-masked-store-leaf-profile.v1"
@@ -1054,6 +1089,13 @@ class OpExpectation:
                 "int32_t rhs_scalar, const int32_t *true_value, "
                 "const int32_t *false_value, int32_t *out, size_t n);"
             )
+        if self.is_runtime_scalar_dual_compare_mask_and_select:
+            return (
+                f"void {self.function_name}(const int32_t *cmp_lhs_a, "
+                "int32_t rhs_scalar_a, const int32_t *cmp_lhs_b, "
+                "int32_t rhs_scalar_b, const int32_t *true_value, "
+                "const int32_t *false_value, int32_t *out, size_t n);"
+            )
         if (
             self.is_runtime_scalar_computed_mask_store
             or self.is_runtime_scalar_computed_mask_load_store
@@ -1219,6 +1261,8 @@ class OpExpectation:
             return EXPECTED_COMPUTED_MASK_SELECT_RUNTIME_PARAMETERS
         if self.is_runtime_scalar_compare_select:
             return EXPECTED_RUNTIME_SCALAR_CMP_SELECT_RUNTIME_PARAMETERS
+        if self.is_runtime_scalar_dual_compare_mask_and_select:
+            return EXPECTED_RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_RUNTIME_PARAMETERS
         if self.is_runtime_scalar_computed_mask_store:
             return EXPECTED_RUNTIME_SCALAR_CMP_MASKED_STORE_RUNTIME_PARAMETERS
         if self.is_runtime_scalar_computed_mask_load_store:
@@ -1301,6 +1345,8 @@ class OpExpectation:
             return COMPUTED_MASK_SELECT_RUNTIME_ABI_ORDER
         if self.is_runtime_scalar_compare_select:
             return RUNTIME_SCALAR_CMP_SELECT_RUNTIME_ABI_ORDER
+        if self.is_runtime_scalar_dual_compare_mask_and_select:
+            return RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_RUNTIME_ABI_ORDER
         if self.is_runtime_scalar_computed_mask_store:
             return RUNTIME_SCALAR_CMP_MASKED_STORE_RUNTIME_ABI_ORDER
         if self.is_runtime_scalar_computed_mask_load_store:
@@ -1378,6 +1424,10 @@ class OpExpectation:
     @property
     def is_runtime_scalar_compare_select(self) -> bool:
         return self.kind == "runtime_scalar_cmp_select"
+
+    @property
+    def is_runtime_scalar_dual_compare_mask_and_select(self) -> bool:
+        return self.kind == "runtime_scalar_dual_cmp_mask_and_select"
 
     @property
     def is_runtime_scalar_computed_mask_store(self) -> bool:
@@ -1745,6 +1795,39 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         false_value_initializer="(int32_t)(-4100 - (int32_t)(index * 29))",
         expected_expression=(
             "(lhs[index] <= rhs_scalar ? true_value[index] : false_value[index])"
+        ),
+        compare_predicate_kind="sle",
+    ),
+    "runtime_scalar_dual_cmp_mask_and_select": OpExpectation(
+        kind="runtime_scalar_dual_cmp_mask_and_select",
+        input_path=Path(
+            "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-dual-cmp-mask-and-select.mlir"
+        ),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_rvv_dual_cmp_mask_select",
+        external_abi_name="rvv-generic-runtime-scalar-dual-cmp-mask-and-select-callable-c-abi.v1",
+        function_name=(
+            "tcrv_emitc_explicit_dual_cmp_mask_select_kernel_"
+            "explicit_rvv_dual_cmp_mask_select"
+        ),
+        emitc_route="rvv-generic-runtime-scalar-dual-cmp-mask-and-select-emitc-route",
+        typed_compute_op="tcrv_rvv.select",
+        memory_form="runtime-scalar-dual-cmp-mask-and-select",
+        lhs_initializer=(
+            "(int32_t)(((index % 6) == 0) ? -100 : "
+            "((index % 6) == 1) ? -37 : "
+            "((index % 6) == 2) ? -12 : "
+            "((index % 6) == 3) ? 0 : "
+            "((index % 6) == 4) ? 91 : 130)"
+        ),
+        rhs_initializer="rhs_scalar_a",
+        true_value_initializer="(int32_t)(5100 + (int32_t)(index * 31))",
+        false_value_initializer="(int32_t)(-6100 - (int32_t)(index * 37))",
+        expected_expression=(
+            "((cmp_lhs_a[index] <= rhs_scalar_a && "
+            "cmp_lhs_b[index] <= rhs_scalar_b) ? true_value[index] : "
+            "false_value[index])"
         ),
         compare_predicate_kind="sle",
     ),
@@ -2568,6 +2651,20 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_runtime_scalar_cmp_select",
         function_name="tcrv_emitc_pre_realized_body_runtime_scalar_cmp_select_kernel_pre_realized_body_rvv_runtime_scalar_cmp_select",
+    ),
+    "runtime_scalar_dual_cmp_mask_and_select": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "runtime_scalar_dual_cmp_mask_and_select"
+        ],
+        input_path=Path(
+            "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-dual-cmp-mask-and-select.mlir"
+        ),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_rvv_dual_cmp_mask_select",
+        function_name=(
+            "tcrv_emitc_pre_dual_cmp_mask_select_kernel_"
+            "pre_rvv_dual_cmp_mask_select"
+        ),
     ),
     "runtime_scalar_cmp_masked_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["runtime_scalar_cmp_masked_store"],
@@ -3403,6 +3500,36 @@ EXPECTED_RUNTIME_SCALAR_CMP_SELECT_RUNTIME_PARAMETERS = (
         "c_name": "rhs_scalar",
         "c_type": "int32_t",
         "role": "rhs-scalar-value",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_COMPUTED_MASK_SELECT_RUNTIME_PARAMETERS[2],
+    EXPECTED_COMPUTED_MASK_SELECT_RUNTIME_PARAMETERS[3],
+    EXPECTED_RUNTIME_PARAMETERS[2],
+    EXPECTED_RUNTIME_PARAMETERS[3],
+)
+EXPECTED_RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_RUNTIME_PARAMETERS = (
+    {
+        "c_name": "cmp_lhs_a",
+        "c_type": "const int32_t *",
+        "role": "lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "rhs_scalar_a",
+        "c_type": "int32_t",
+        "role": "rhs-scalar-value",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "cmp_lhs_b",
+        "c_type": "const int32_t *",
+        "role": "rhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "rhs_scalar_b",
+        "c_type": "int32_t",
+        "role": "rhs-secondary-scalar-value",
         "ownership": "target-export-abi-owned",
     },
     EXPECTED_COMPUTED_MASK_SELECT_RUNTIME_PARAMETERS[2],
@@ -4753,12 +4880,6 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
                 "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
-                "tcrv_rvv.source_memory_form": (
-                    COMPUTED_MASK_SELECT_SOURCE_MEMORY_FORM
-                ),
-                "tcrv_rvv.destination_memory_form": (
-                    COMPUTED_MASK_SELECT_DESTINATION_MEMORY_FORM
-                ),
                 "tcrv_rvv.select_layout": COMPUTED_MASK_SELECT_LAYOUT,
                 "tcrv_rvv.route_operand_binding_plan": (
                     COMPUTED_MASK_SELECT_ROUTE_OPERAND_BINDING_PLAN
@@ -4801,6 +4922,49 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_CMP_SELECT_C_TYPE_MAPPING
+                ),
+            }
+        )
+    if expectation.is_runtime_scalar_dual_compare_mask_and_select:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.compare_predicate_kind": (
+                    expectation.compare_predicate_kind
+                ),
+                "tcrv_rvv.secondary_compare_predicate_kind": (
+                    expectation.compare_predicate_kind
+                ),
+                "tcrv_rvv.mask_role": "predicate-mask-produced-by-mask-and",
+                "tcrv_rvv.mask_source": (
+                    "mask-and-of-two-runtime-scalar-compare-produced-masks"
+                ),
+                "tcrv_rvv.mask_memory_form": "composed-compare-produced-mask",
+                "tcrv_rvv.mask_composition": "and",
+                "tcrv_rvv.source_memory_form": (
+                    COMPUTED_MASK_SELECT_SOURCE_MEMORY_FORM
+                ),
+                "tcrv_rvv.destination_memory_form": (
+                    COMPUTED_MASK_SELECT_DESTINATION_MEMORY_FORM
+                ),
+                "tcrv_rvv.select_layout": COMPUTED_MASK_SELECT_LAYOUT,
+                "tcrv_rvv.route_operand_binding_plan": (
+                    RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    RUNTIME_SCALAR_DUAL_CMP_MASK_AND_SELECT_C_TYPE_MAPPING
                 ),
             }
         )
@@ -6340,6 +6504,77 @@ def verify_materialized_selected_body(
             "tcrv_rvv.binary",
             "materialized selected-body MLIR computed-mask select",
         )
+    if expectation.is_runtime_scalar_dual_compare_mask_and_select:
+        require_contains(
+            text,
+            'role = "rhs-scalar-value"',
+            "materialized selected-body MLIR primary runtime scalar threshold role",
+        )
+        require_contains(
+            text,
+            'role = "rhs-secondary-scalar-value"',
+            "materialized selected-body MLIR secondary runtime scalar threshold role",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.splat",
+            "materialized selected-body MLIR dual runtime scalar threshold splats",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.compare",
+            "materialized selected-body MLIR dual runtime scalar compare producers",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.mask_and",
+            "materialized selected-body MLIR composed mask-and op",
+        )
+        require_contains(
+            text,
+            'kind = "and"',
+            "materialized selected-body MLIR mask-and kind",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.select",
+            "materialized selected-body MLIR mask-and select op",
+        )
+        require_contains(
+            text,
+            'role = "true-value-input-buffer"',
+            "materialized selected-body MLIR dual compare true-value ABI role",
+        )
+        require_contains(
+            text,
+            'role = "false-value-input-buffer"',
+            "materialized selected-body MLIR dual compare false-value ABI role",
+        )
+        require_contains(
+            text,
+            "tcrv_rvv.store",
+            "materialized selected-body MLIR dual compare select store",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.mask_load",
+            "materialized selected-body MLIR dual compare mask composition",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_store",
+            "materialized selected-body MLIR dual compare mask composition",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_load",
+            "materialized selected-body MLIR dual compare mask composition",
+        )
+        require_no_op_invocation(
+            text,
+            "tcrv_rvv.masked_macc",
+            "materialized selected-body MLIR dual compare mask composition",
+        )
     if expectation.is_runtime_scalar_computed_mask_store:
         require_contains(
             text,
@@ -7426,6 +7661,11 @@ def verify_materialized_selected_body(
         require_not_contains(
             text,
             "tcrv_rvv.typed_runtime_scalar_compare_select_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_runtime_scalar_dual_compare_mask_and_select_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
         require_not_contains(
@@ -11586,6 +11826,185 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
+    if expectation.is_runtime_scalar_dual_compare_mask_and_select:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n, int32_t rhs_scalar_a, int32_t rhs_scalar_b) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n == 0 ? 1 : n;
+  size_t out_alloc_n = alloc_n + 8;
+  int32_t *cmp_lhs_a = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *cmp_lhs_b = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *true_value = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *false_value = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *out = (int32_t *)malloc(sizeof(int32_t) * out_alloc_n);
+  if (!cmp_lhs_a || !cmp_lhs_b || !true_value || !false_value || !out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    free(cmp_lhs_a);
+    free(cmp_lhs_b);
+    free(true_value);
+    free(false_value);
+    free(out);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    cmp_lhs_a[index] = {expectation.lhs_initializer};
+    cmp_lhs_b[index] = (int32_t)(((index % 6) == 0) ? -50 :
+                         ((index % 6) == 1) ? -10 :
+                         ((index % 6) == 2) ? -60 :
+                         ((index % 6) == 3) ? 100 :
+                         ((index % 6) == 4) ? 50 : 120);
+    true_value[index] = {expectation.true_value_initializer};
+    false_value[index] = {expectation.false_value_initializer};
+    out[index] = {expectation.out_initializer};
+  }}
+  for (size_t index = alloc_n; index < out_alloc_n; ++index)
+    out[index] = {OUT_SENTINEL};
+
+  {expectation.function_name}(cmp_lhs_a, rhs_scalar_a, cmp_lhs_b, rhs_scalar_b,
+                              true_value, false_value, out, n);
+
+  size_t mask_a_true = 0;
+  size_t mask_a_false = 0;
+  size_t mask_b_true = 0;
+  size_t mask_b_false = 0;
+  size_t composed_true = 0;
+  size_t composed_false = 0;
+  size_t single_mask_only = 0;
+  size_t true_payload_lanes = 0;
+  size_t false_payload_lanes = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    int predicate_a = cmp_lhs_a[index] <= rhs_scalar_a;
+    int predicate_b = cmp_lhs_b[index] <= rhs_scalar_b;
+    int composed = predicate_a && predicate_b;
+    if (predicate_a)
+      ++mask_a_true;
+    else
+      ++mask_a_false;
+    if (predicate_b)
+      ++mask_b_true;
+    else
+      ++mask_b_false;
+    if (composed)
+      ++composed_true;
+    else
+      ++composed_false;
+    if (predicate_a != predicate_b)
+      ++single_mask_only;
+
+    int32_t expected = {expectation.expected_expression};
+    if (expected == true_value[index])
+      ++true_payload_lanes;
+    if (expected == false_value[index])
+      ++false_payload_lanes;
+    if (out[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d cmp_lhs_a=%d rhs_scalar_a=%d cmp_lhs_b=%d rhs_scalar_b=%d true=%d false=%d mask_a=%d mask_b=%d composed=%d\\n",
+              n, index, out[index], expected, cmp_lhs_a[index], rhs_scalar_a,
+              cmp_lhs_b[index], rhs_scalar_b, true_value[index],
+              false_value[index], predicate_a, predicate_b, composed);
+      free(cmp_lhs_a);
+      free(cmp_lhs_b);
+      free(true_value);
+      free(false_value);
+      free(out);
+      return 12;
+    }}
+  }}
+
+  for (size_t index = n; index < out_alloc_n; ++index) {{
+    if (out[index] != {OUT_SENTINEL}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d rhs_scalar_a=%d rhs_scalar_b=%d\\n",
+              n, index, out[index], {OUT_SENTINEL}, rhs_scalar_a,
+              rhs_scalar_b);
+      free(cmp_lhs_a);
+      free(cmp_lhs_b);
+      free(true_value);
+      free(false_value);
+      free(out);
+      return 13;
+    }}
+  }}
+
+  if (n > 1 && (mask_a_true == 0 || mask_a_false == 0 ||
+                mask_b_true == 0 || mask_b_false == 0 ||
+                composed_true == 0 || composed_false == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} mask coverage missing n=%zu rhs_scalar_a=%d rhs_scalar_b=%d mask_a_true=%zu mask_a_false=%zu mask_b_true=%zu mask_b_false=%zu composed_true=%zu composed_false=%zu\\n",
+            n, rhs_scalar_a, rhs_scalar_b, mask_a_true, mask_a_false,
+            mask_b_true, mask_b_false, composed_true, composed_false);
+    free(cmp_lhs_a);
+    free(cmp_lhs_b);
+    free(true_value);
+    free(false_value);
+    free(out);
+    return 14;
+  }}
+  if (n > 1 && single_mask_only == 0) {{
+    fprintf(stderr,
+            "{expectation.kind} mask-and distinction missing n=%zu rhs_scalar_a=%d rhs_scalar_b=%d\\n",
+            n, rhs_scalar_a, rhs_scalar_b);
+    free(cmp_lhs_a);
+    free(cmp_lhs_b);
+    free(true_value);
+    free(false_value);
+    free(out);
+    return 15;
+  }}
+  if (n > 1 && (true_payload_lanes == 0 || false_payload_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} select payload coverage missing n=%zu rhs_scalar_a=%d rhs_scalar_b=%d true_lanes=%zu false_lanes=%zu\\n",
+            n, rhs_scalar_a, rhs_scalar_b, true_payload_lanes,
+            false_payload_lanes);
+    free(cmp_lhs_a);
+    free(cmp_lhs_b);
+    free(true_value);
+    free(false_value);
+    free(out);
+    return 16;
+  }}
+
+  free(cmp_lhs_a);
+  free(cmp_lhs_b);
+  free(true_value);
+  free(false_value);
+  free(out);
+  printf("{expectation.kind} case n=%zu ok rhs_scalar_a=%d rhs_scalar_b=%d mask_a_true=%zu mask_b_true=%zu composed_true=%zu single_mask_only=%zu tail_preserved\\n",
+         n, rhs_scalar_a, rhs_scalar_b, mask_a_true, mask_b_true,
+         composed_true, single_mask_only);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const int32_t rhs_scalar_a_values[] = {{{scalar_values_literal}}};
+  const int32_t rhs_scalar_b_values[] = {{(int32_t)-37, (int32_t)91}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const size_t scalar_a_count = sizeof(rhs_scalar_a_values) / sizeof(rhs_scalar_a_values[0]);
+  const size_t scalar_b_count = sizeof(rhs_scalar_b_values) / sizeof(rhs_scalar_b_values[0]);
+  for (size_t scalar_a_index = 0; scalar_a_index < scalar_a_count; ++scalar_a_index) {{
+    for (size_t scalar_b_index = 0; scalar_b_index < scalar_b_count; ++scalar_b_index) {{
+      for (size_t index = 0; index < count_count; ++index) {{
+        int status = run_case(counts[index], rhs_scalar_a_values[scalar_a_index],
+                              rhs_scalar_b_values[scalar_b_index]);
+        if (status != 0)
+          return status;
+      }}
+    }}
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} rhs_scalar_a_values={scalar_values_summary} rhs_scalar_b_values=-37,91\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalar_a_values={scalar_values_summary} rhs_scalar_b_values=-37,91\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_runtime_scalar_compare_select:
         return f"""
 #include <stddef.h>
@@ -12441,6 +12860,7 @@ def run_one_op_e2e(
         expectation.is_scalar_broadcast_elementwise
         or expectation.is_runtime_scalar_splat_store
         or expectation.is_runtime_scalar_compare_select
+        or expectation.is_runtime_scalar_dual_compare_mask_and_select
         or expectation.is_runtime_scalar_computed_mask_store
         or expectation.is_runtime_scalar_computed_mask_load_store
         or expectation.is_runtime_scalar_computed_masked_macc_add
@@ -12511,6 +12931,7 @@ def run_one_op_e2e(
             expectation.is_scalar_broadcast_elementwise
             or expectation.is_runtime_scalar_splat_store
             or expectation.is_runtime_scalar_compare_select
+            or expectation.is_runtime_scalar_dual_compare_mask_and_select
             or expectation.is_runtime_scalar_computed_mask_store
             or expectation.is_runtime_scalar_computed_mask_load_store
             or expectation.is_runtime_scalar_computed_masked_macc_add
@@ -12567,6 +12988,16 @@ def run_one_op_e2e(
             evidence["harness"]["select_coverage_contract"] = (
                 "multi-lane runtime_scalar_cmp_select cases require runtime "
                 "scalar threshold true and false select lanes"
+            )
+            evidence["harness"]["tail_lane_contract"] = (
+                "runtime n/AVL must be honored and tail sentinel lanes must be "
+                "preserved"
+            )
+        if expectation.is_runtime_scalar_dual_compare_mask_and_select:
+            evidence["harness"]["mask_composition_coverage_contract"] = (
+                "multi-lane runtime_scalar_dual_cmp_mask_and_select cases "
+                "require both input masks, composed mask-and true/false lanes, "
+                "and single-mask-only lanes that prove intersection semantics"
             )
             evidence["harness"]["tail_lane_contract"] = (
                 "runtime n/AVL must be honored and tail sentinel lanes must be "
@@ -12913,6 +13344,7 @@ def run_e2e(args: argparse.Namespace) -> int:
             expectation.is_scalar_broadcast_elementwise
             or expectation.is_runtime_scalar_splat_store
             or expectation.is_runtime_scalar_compare_select
+            or expectation.is_runtime_scalar_dual_compare_mask_and_select
             or expectation.is_runtime_scalar_computed_mask_store
             or expectation.is_runtime_scalar_computed_mask_load_store
             or expectation.is_runtime_scalar_computed_masked_macc_add
@@ -12938,6 +13370,7 @@ def run_e2e(args: argparse.Namespace) -> int:
                 "--rhs-scalar may only be used when an op kind includes "
                 "scalar_broadcast_add/sub/mul, runtime_i32_splat_store, or "
                 "runtime_scalar_cmp_select/runtime_scalar_cmp_masked_store/"
+                "runtime_scalar_dual_cmp_mask_and_select/"
                 "runtime_scalar_cmp_masked_load_store/"
                 "runtime_scalar_cmp_masked_macc_add/"
                 "runtime_scalar_cmp_masked_standalone_reduce_add"
@@ -13179,18 +13612,26 @@ def run_self_test() -> int:
                 raise AssertionError(
                     f"self-test harness generation lost {expectation.kind} ABI call"
                 )
+            runtime_scalar_coverage = (
+                "rhs_scalar_values" not in harness
+                or "(int32_t)-37" not in harness
+            )
+            if expectation.is_runtime_scalar_dual_compare_mask_and_select:
+                runtime_scalar_coverage = (
+                    "rhs_scalar_a_values" not in harness
+                    or "rhs_scalar_b_values" not in harness
+                    or "(int32_t)-37" not in harness
+                )
             if (
                 expectation.is_scalar_broadcast_elementwise
                 or expectation.is_runtime_scalar_splat_store
                 or expectation.is_runtime_scalar_compare_select
+                or expectation.is_runtime_scalar_dual_compare_mask_and_select
                 or expectation.is_runtime_scalar_computed_mask_store
                 or expectation.is_runtime_scalar_computed_mask_load_store
                 or expectation.is_runtime_scalar_computed_masked_macc_add
                 or expectation.is_runtime_scalar_computed_mask_standalone_reduce
-            ) and (
-                "rhs_scalar_values" not in harness
-                or "(int32_t)-37" not in harness
-            ):
+            ) and runtime_scalar_coverage:
                 raise AssertionError(
                     "self-test harness generation lost runtime scalar "
                     "runtime scalar coverage"
@@ -13627,6 +14068,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=(
             "runtime RHS scalar value for scalar_broadcast_add/sub/mul, "
             "runtime_i32_splat_store, runtime_scalar_cmp_select, or "
+            "runtime_scalar_dual_cmp_mask_and_select, or "
             "runtime_scalar_cmp_masked_store/"
             "runtime_scalar_cmp_masked_load_store; may be "
             "repeated to prove the same generated artifact consumes multiple "

@@ -30,6 +30,7 @@ enum class RVVSelectedBodyOperationKind {
   CmpSelect,
   ComputedMaskSelect,
   RuntimeScalarCompareSelect,
+  RuntimeScalarDualCompareMaskAndSelect,
   RuntimeScalarComputedMaskStore,
   RuntimeScalarComputedMaskLoadStore,
   ReduceAdd,
@@ -81,6 +82,7 @@ enum class RVVSelectedBodyMemoryForm {
   RHSScalarBroadcast,
   RuntimeScalarSplatStore,
   RuntimeScalarCompareSelect,
+  RuntimeScalarDualCompareMaskAndSelect,
   RuntimeScalarComputedMaskStore,
   RuntimeScalarComputedMaskLoadStore,
   StridedLoadStore,
@@ -174,12 +176,16 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef intrinsic;
   llvm::StringRef comparePredicateKind;
   llvm::StringRef compareIntrinsic;
+  llvm::StringRef secondaryComparePredicateKind;
+  llvm::StringRef secondaryCompareIntrinsic;
+  llvm::StringRef maskAndIntrinsic;
   llvm::StringRef maskedMergeIntrinsic;
   llvm::StringRef resultName;
   llvm::StringRef maskName;
   llvm::StringRef maskRole;
   llvm::StringRef maskSource;
   llvm::StringRef maskMemoryForm;
+  llvm::StringRef maskComposition;
   llvm::StringRef inactiveLaneContract;
   llvm::StringRef maskedPassthroughLayout;
   llvm::StringRef reductionAccumulatorLayout;

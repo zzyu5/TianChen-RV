@@ -131,6 +131,47 @@ bool isPreRealizedRuntimeScalarCompareSelectLayout(llvm::StringRef layout) {
   return layout == "select-true-value-when-mask-else-false-value";
 }
 
+bool isPreRealizedRuntimeScalarDualCompareMaskAndSelectOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "runtime_scalar_dual_cmp_mask_and_select";
+}
+
+bool isPreRealizedRuntimeScalarDualCompareMaskAndSelectMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "runtime-scalar-dual-cmp-mask-and-select";
+}
+
+bool isPreRealizedRuntimeScalarDualCompareMaskAndSelectPredicateKind(
+    llvm::StringRef predicateKind) {
+  return predicateKind == "sle";
+}
+
+bool isPreRealizedRuntimeScalarDualCompareMaskAndSelectMaskRole(
+    llvm::StringRef maskRole) {
+  return maskRole == "predicate-mask-produced-by-mask-and";
+}
+
+bool isPreRealizedRuntimeScalarDualCompareMaskAndSelectMaskSource(
+    llvm::StringRef maskSource) {
+  return maskSource ==
+         "mask-and-of-two-runtime-scalar-compare-produced-masks";
+}
+
+bool isPreRealizedRuntimeScalarDualCompareMaskAndSelectMaskMemoryForm(
+    llvm::StringRef maskMemoryForm) {
+  return maskMemoryForm == "composed-compare-produced-mask";
+}
+
+bool isPreRealizedRuntimeScalarDualCompareMaskAndSelectMaskComposition(
+    llvm::StringRef composition) {
+  return composition == "and";
+}
+
+bool isPreRealizedRuntimeScalarDualCompareMaskAndSelectLayout(
+    llvm::StringRef layout) {
+  return layout == "select-true-value-when-mask-else-false-value";
+}
+
 bool isPreRealizedRuntimeScalarComputedMaskStoreOpKind(
     llvm::StringRef opKind) {
   return opKind == "runtime_scalar_cmp_masked_store";
@@ -723,10 +764,12 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                       TypedRuntimeScalarSplatStorePreRealizedBodyOp,
                   tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp,
                   tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp,
-                  tcrv::rvv::TypedRuntimeScalarCompareSelectPreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp,
+	                  tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp,
+	                  tcrv::rvv::TypedRuntimeScalarCompareSelectPreRealizedBodyOp,
+	                  tcrv::rvv::
+	                      TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp,
+	                  tcrv::rvv::
+	                      TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp,
                   tcrv::rvv::
                       TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp,
                   tcrv::rvv::TypedReducePreRealizedBodyOp,
@@ -772,9 +815,12 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.typed_binary_pre_realized_body or "
         "tcrv_rvv.typed_masked_binary_pre_realized_body or "
         "tcrv_rvv.typed_compare_select_pre_realized_body or "
-        "tcrv_rvv.typed_computed_mask_select_pre_realized_body or "
-        "tcrv_rvv.typed_runtime_scalar_compare_select_pre_realized_body or "
-        "tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body "
+	        "tcrv_rvv.typed_computed_mask_select_pre_realized_body or "
+	        "tcrv_rvv.typed_runtime_scalar_compare_select_pre_realized_body or "
+	        "tcrv_rvv."
+	        "typed_runtime_scalar_dual_compare_mask_and_select_pre_realized_body "
+	        "or "
+	        "tcrv_rvv.typed_runtime_scalar_computed_mask_store_pre_realized_body "
         "or "
         "tcrv_rvv.typed_reduce_pre_realized_body or "
         "tcrv_rvv.typed_standalone_reduce_pre_realized_body or "
@@ -1377,6 +1423,165 @@ llvm::Error validatePreRealizedRVVSelectedRuntimeScalarCompareSelectBody(
     return makeRVVPluginError(
         "pre-realized RVV selected runtime scalar compare/select realization "
         "requires non-empty selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
+llvm::Error
+validatePreRealizedRVVSelectedRuntimeScalarDualCompareMaskAndSelectBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp
+        body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVPluginError(
+        "selected RVV runtime scalar dual-compare mask-and select realization "
+        "requires a pre-realized dual-compare mask-and select body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar dual-compare mask-and select "
+        "body must be a direct child of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedRuntimeScalarDualCompareMaskAndSelectOpKind(
+          body.getOpKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar dual-compare mask-and select "
+        "body currently supports only op_kind "
+        "'runtime_scalar_dual_cmp_mask_and_select'");
+  if (!isPreRealizedRuntimeScalarDualCompareMaskAndSelectPredicateKind(
+          body.getPredicateKindA()) ||
+      !isPreRealizedRuntimeScalarDualCompareMaskAndSelectPredicateKind(
+          body.getPredicateKindB()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar dual-compare mask-and select "
+        "body currently supports only predicate_kind_a/b 'sle'");
+  if (!isPreRealizedRuntimeScalarDualCompareMaskAndSelectMemoryForm(
+          body.getMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar dual-compare mask-and select "
+        "body currently supports only memory_form "
+        "'runtime-scalar-dual-cmp-mask-and-select'");
+  if (!isPreRealizedRuntimeScalarDualCompareMaskAndSelectMaskRole(
+          body.getMaskRole()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar dual-compare mask-and select "
+        "body currently supports only mask_role "
+        "'predicate-mask-produced-by-mask-and'");
+  if (!isPreRealizedRuntimeScalarDualCompareMaskAndSelectMaskSource(
+          body.getMaskSource()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar dual-compare mask-and select "
+        "body currently supports only mask_source "
+        "'mask-and-of-two-runtime-scalar-compare-produced-masks'");
+  if (!isPreRealizedRuntimeScalarDualCompareMaskAndSelectMaskMemoryForm(
+          body.getMaskMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar dual-compare mask-and select "
+        "body currently supports only mask_memory_form "
+        "'composed-compare-produced-mask'");
+  if (!isPreRealizedRuntimeScalarDualCompareMaskAndSelectMaskComposition(
+          body.getMaskComposition()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar dual-compare mask-and select "
+        "body currently supports only mask_composition 'and'");
+  if (!isPreRealizedRuntimeScalarDualCompareMaskAndSelectLayout(
+          body.getSelectLayout()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar dual-compare mask-and select "
+        "body currently supports only select_layout "
+        "'select-true-value-when-mask-else-false-value'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar dual-compare mask-and select "
+        "body requires SEW32 LMUL m1 data/mask config");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar dual-compare mask-and select "
+        "body requires tail agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLhsA =
+      requirePreRealizedRuntimeABIValue(
+          body.getCompareLhsA(),
+          "pre-realized RVV dual-compare mask-and select compare lhs A",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!compareLhsA)
+    return compareLhsA.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsScalarA =
+      requirePreRealizedRuntimeABIValue(
+          body.getRhsScalarA(),
+          "pre-realized RVV dual-compare mask-and select rhs scalar A",
+          support::RuntimeABIParameterRole::RHSScalarValue);
+  if (!rhsScalarA)
+    return rhsScalarA.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> compareLhsB =
+      requirePreRealizedRuntimeABIValue(
+          body.getCompareLhsB(),
+          "pre-realized RVV dual-compare mask-and select compare lhs B",
+          support::RuntimeABIParameterRole::RHSInputBuffer);
+  if (!compareLhsB)
+    return compareLhsB.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsScalarB =
+      requirePreRealizedRuntimeABIValue(
+          body.getRhsScalarB(),
+          "pre-realized RVV dual-compare mask-and select rhs scalar B",
+          support::RuntimeABIParameterRole::RHSSecondaryScalarValue);
+  if (!rhsScalarB)
+    return rhsScalarB.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> trueValue =
+      requirePreRealizedRuntimeABIValue(
+          body.getTrueValue(),
+          "pre-realized RVV dual-compare mask-and select true-value operand",
+          support::RuntimeABIParameterRole::TrueValueInputBuffer);
+  if (!trueValue)
+    return trueValue.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> falseValue =
+      requirePreRealizedRuntimeABIValue(
+          body.getFalseValue(),
+          "pre-realized RVV dual-compare mask-and select false-value operand",
+          support::RuntimeABIParameterRole::FalseValueInputBuffer);
+  if (!falseValue)
+    return falseValue.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+      requirePreRealizedRuntimeABIValue(
+          body.getOut(),
+          "pre-realized RVV dual-compare mask-and select out operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!out)
+    return out.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(),
+          "pre-realized RVV dual-compare mask-and select runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<
+            tcrv::rvv::RuntimeABIValueOp,
+            tcrv::rvv::
+                TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp>(
+            op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected runtime scalar dual-compare "
+                    "mask-and select body must not be mixed with already "
+                    "realized RVV route body op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVPluginError(
+        "pre-realized RVV selected runtime scalar dual-compare mask-and select "
+        "realization requires non-empty selected variant requires metadata");
 
   return llvm::Error::success();
 }
@@ -5309,6 +5514,18 @@ mlir::Operation *createRealizedGenericCompare(mlir::OpBuilder &builder,
   return builder.create(state);
 }
 
+mlir::Operation *createRealizedGenericMaskAnd(mlir::OpBuilder &builder,
+                                              mlir::Location loc,
+                                              mlir::Value lhs,
+                                              mlir::Value rhs,
+                                              mlir::Value vl) {
+  mlir::OperationState state(loc, "tcrv_rvv.mask_and");
+  state.addOperands({lhs, rhs, vl});
+  state.addAttribute("kind", builder.getStringAttr("and"));
+  state.addTypes(lhs.getType());
+  return builder.create(state);
+}
+
 mlir::Operation *createRealizedGenericSelect(mlir::OpBuilder &builder,
                                              mlir::Location loc,
                                              mlir::Value mask,
@@ -6019,10 +6236,12 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
                       TypedRuntimeScalarSplatStorePreRealizedBodyOp,
                   tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp,
                   tcrv::rvv::TypedCompareSelectPreRealizedBodyOp,
-                  tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp,
-                  tcrv::rvv::TypedRuntimeScalarCompareSelectPreRealizedBodyOp,
-                  tcrv::rvv::
-                      TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp,
+	                  tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp,
+	                  tcrv::rvv::TypedRuntimeScalarCompareSelectPreRealizedBodyOp,
+	                  tcrv::rvv::
+	                      TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp,
+	                  tcrv::rvv::
+	                      TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp,
                   tcrv::rvv::
                       TypedRuntimeScalarComputedMaskLoadStorePreRealizedBodyOp,
                   tcrv::rvv::TypedReducePreRealizedBodyOp,
@@ -6310,9 +6529,9 @@ realizePreRealizedRVVSelectedBody(
     return withVL;
   }
 
-  if (auto runtimeScalarCompareSelectBody = llvm::dyn_cast<
-          tcrv::rvv::TypedRuntimeScalarCompareSelectPreRealizedBodyOp>(
-          *bodyOp)) {
+	  if (auto runtimeScalarCompareSelectBody = llvm::dyn_cast<
+	          tcrv::rvv::TypedRuntimeScalarCompareSelectPreRealizedBodyOp>(
+	          *bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedRuntimeScalarCompareSelectBody(
                 request, runtimeScalarCompareSelectBody))
@@ -6378,12 +6597,105 @@ realizePreRealizedRVVSelectedBody(
     createRealizedGenericStore(builder, loc,
                                runtimeScalarCompareSelectBody.getOut(),
                                select.getSelected(), setvl.getVl());
-    runtimeScalarCompareSelectBody->erase();
-    return withVL;
-  }
+	    runtimeScalarCompareSelectBody->erase();
+	    return withVL;
+	  }
 
-  if (auto runtimeScalarComputedMaskStoreBody = llvm::dyn_cast<
-          tcrv::rvv::TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp>(
+	  if (auto runtimeScalarDualCompareBody = llvm::dyn_cast<
+	          tcrv::rvv::
+	              TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp>(
+	          *bodyOp)) {
+	    if (llvm::Error error =
+	            validatePreRealizedRVVSelectedRuntimeScalarDualCompareMaskAndSelectBody(
+	                request, runtimeScalarDualCompareBody))
+	      return std::move(error);
+
+	    mlir::Location loc = runtimeScalarDualCompareBody->getLoc();
+	    builder.setInsertionPoint(runtimeScalarDualCompareBody.getOperation());
+
+	    std::int64_t sew =
+	        static_cast<std::int64_t>(runtimeScalarDualCompareBody.getSew());
+	    llvm::StringRef lmul = runtimeScalarDualCompareBody.getLmul();
+	    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+	        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+	            variant, runtimeScalarDualCompareBody.getN(), sew, lmul,
+	            runtimeScalarDualCompareBody.getPolicy(),
+	            "cmp_lhs_a,rhs_scalar_a,cmp_lhs_b,rhs_scalar_b,true_value,"
+	            "false_value,out,n",
+	            "pre-realized RVV runtime scalar dual-compare mask-and select "
+	            "selected-body realization");
+	    if (!runtimeControlPlan)
+	      return runtimeControlPlan.takeError();
+
+	    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
+	        builder, loc, runtimeControlPlan->runtimeAVLValue,
+	        runtimeControlPlan->sew, runtimeControlPlan->lmul,
+	        runtimeControlPlan->policy));
+	    tcrv::rvv::WithVLOp withVL =
+	        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+	                             request.getRole(), requires,
+	                             runtimeControlPlan->sew,
+	                             runtimeControlPlan->lmul,
+	                             runtimeControlPlan->policy);
+
+	    builder.setInsertionPointToStart(&withVL.getBody().front());
+	    auto compareLhsALoad =
+	        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+	            builder, loc, runtimeScalarDualCompareBody.getCompareLhsA(),
+	            setvl.getVl(), runtimeControlPlan->sew,
+	            runtimeControlPlan->lmul));
+	    auto rhsScalarASplat = llvm::cast<tcrv::rvv::SplatOp>(
+	        createRealizedGenericSplat(
+	            builder, loc, runtimeScalarDualCompareBody.getRhsScalarA(),
+	            setvl.getVl(), runtimeControlPlan->sew,
+	            runtimeControlPlan->lmul));
+	    auto compareLhsBLoad =
+	        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+	            builder, loc, runtimeScalarDualCompareBody.getCompareLhsB(),
+	            setvl.getVl(), runtimeControlPlan->sew,
+	            runtimeControlPlan->lmul));
+	    auto rhsScalarBSplat = llvm::cast<tcrv::rvv::SplatOp>(
+	        createRealizedGenericSplat(
+	            builder, loc, runtimeScalarDualCompareBody.getRhsScalarB(),
+	            setvl.getVl(), runtimeControlPlan->sew,
+	            runtimeControlPlan->lmul));
+	    auto trueValueLoad =
+	        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+	            builder, loc, runtimeScalarDualCompareBody.getTrueValue(),
+	            setvl.getVl(), runtimeControlPlan->sew,
+	            runtimeControlPlan->lmul));
+	    auto falseValueLoad =
+	        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+	            builder, loc, runtimeScalarDualCompareBody.getFalseValue(),
+	            setvl.getVl(), runtimeControlPlan->sew,
+	            runtimeControlPlan->lmul));
+	    auto compareA = llvm::cast<tcrv::rvv::CompareOp>(
+	        createRealizedGenericCompare(
+	            builder, loc, compareLhsALoad.getLoaded(),
+	            rhsScalarASplat.getBroadcast(), setvl.getVl(),
+	            runtimeScalarDualCompareBody.getPredicateKindA()));
+	    auto compareB = llvm::cast<tcrv::rvv::CompareOp>(
+	        createRealizedGenericCompare(
+	            builder, loc, compareLhsBLoad.getLoaded(),
+	            rhsScalarBSplat.getBroadcast(), setvl.getVl(),
+	            runtimeScalarDualCompareBody.getPredicateKindB()));
+	    auto maskAnd = llvm::cast<tcrv::rvv::MaskAndOp>(
+	        createRealizedGenericMaskAnd(builder, loc, compareA.getMask(),
+	                                     compareB.getMask(), setvl.getVl()));
+	    auto select = llvm::cast<tcrv::rvv::SelectOp>(
+	        createRealizedGenericSelect(builder, loc, maskAnd.getMask(),
+	                                    trueValueLoad.getLoaded(),
+	                                    falseValueLoad.getLoaded(),
+	                                    setvl.getVl()));
+	    createRealizedGenericStore(builder, loc,
+	                               runtimeScalarDualCompareBody.getOut(),
+	                               select.getSelected(), setvl.getVl());
+	    runtimeScalarDualCompareBody->erase();
+	    return withVL;
+	  }
+
+	  if (auto runtimeScalarComputedMaskStoreBody = llvm::dyn_cast<
+	          tcrv::rvv::TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp>(
           *bodyOp)) {
     if (llvm::Error error =
             validatePreRealizedRVVSelectedRuntimeScalarComputedMaskStoreBody(

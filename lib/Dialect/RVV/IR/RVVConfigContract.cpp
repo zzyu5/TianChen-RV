@@ -965,6 +965,35 @@ getRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 8>
+getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 8> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "cmp_lhs_a", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs_scalar_a", "int32_t",
+      support::RuntimeABIParameterRole::RHSScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "cmp_lhs_b", "const int32_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs_scalar_b", "int32_t",
+      support::RuntimeABIParameterRole::RHSSecondaryScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "true_value", "const int32_t *",
+      support::RuntimeABIParameterRole::TrueValueInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "false_value", "const int32_t *",
+      support::RuntimeABIParameterRole::FalseValueInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 5>
 getRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
@@ -1219,6 +1248,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
           getRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters,
                                          runtimeScalarCompareSelect))
+    return llvm::Error::success();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 8>
+      runtimeScalarDualCompareMaskAndSelect =
+          getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(
+          parameters, runtimeScalarDualCompareMaskAndSelect))
     return llvm::Error::success();
 
   llvm::SmallVector<support::RuntimeABIParameter, 5>

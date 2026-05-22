@@ -1679,7 +1679,8 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "scalar_broadcast_mul";
     llvm::StringRef executableComputeOp = "tcrv_rvv.binary";
     if (route.operationMnemonic == "cmp_select" || isComputedMaskSelectRoute ||
-        isRuntimeScalarCompareSelectRoute)
+        isRuntimeScalarCompareSelectRoute ||
+        route.operationMnemonic == "runtime_scalar_dual_cmp_mask_and_select")
       executableComputeOp = "tcrv_rvv.select";
     else if (route.operationMnemonic == "reduce_add")
       executableComputeOp = "tcrv_rvv.reduce";
@@ -1852,6 +1853,8 @@ int runRVVCommonValidationTest() {
     const bool hasComputedMaskSelect = isComputedMaskSelectRoute;
     const bool hasRuntimeScalarCompareSelect =
         isRuntimeScalarCompareSelectRoute;
+    const bool hasRuntimeScalarDualCompareMaskAndSelect =
+        route.operationMnemonic == "runtime_scalar_dual_cmp_mask_and_select";
     const bool hasRuntimeScalarComputedMaskStore =
         route.operationMnemonic == "runtime_scalar_cmp_masked_store";
     const bool hasRuntimeScalarComputedMaskLoadStore =
@@ -1866,6 +1869,7 @@ int runRVVCommonValidationTest() {
         hasConversion          ? 8u
         : hasComputedMaskSelect                  ? 15u
         : hasRuntimeScalarCompareSelect          ? 15u
+        : hasRuntimeScalarDualCompareMaskAndSelect ? 21u
         : hasRuntimeScalarComputedMaskStore      ? 12u
         : hasRuntimeScalarComputedMaskLoadStore  ? 13u
         : hasComputedMaskStandaloneReduction     ? 14u
@@ -2110,6 +2114,13 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
+               "runtime_scalar_dual_cmp_mask_and_select") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "runtime_scalar_cmp_masked_store" ||

@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-13.md`
-- **Total Sessions**: 159
-- **Last Active**: 2026-05-22
+- **Total Sessions**: 160
+- **Last Active**: 2026-05-23
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-13.md` | ~546 | Active |
+| `journal-13.md` | ~583 | Active |
 | `journal-12.md` | ~2095 | Archived |
 | `journal-11.md` | ~1979 | Archived |
 | `journal-10.md` | ~1968 | Archived |
@@ -41,6 +41,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 160 | 2026-05-23 | Stage2 RVV computed-mask composition boundary | - | `main` |
 | 159 | 2026-05-22 | Stage2 RVV runtime scalar computed-mask masked store | `this commit` | `main` |
 | 158 | 2026-05-22 | Stage2 RVV runtime scalar splat store | `same-squashed-commit` | `main` |
 | 157 | 2026-05-22 | Stage2 RVV closure-gated indexed masked scatter-store movement | - | `main` |

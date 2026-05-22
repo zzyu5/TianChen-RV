@@ -85,7 +85,7 @@ module {
       %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       %rhs = tcrv_rvv.load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
       %mask = "builtin.unrealized_conversion_cast"() : () -> !tcrv_rvv.mask<i32, "m1">
-      // expected-error@+1 {{requires mask operand to be produced by tcrv_rvv.compare inside the selected RVV typed body}}
+      // expected-error@+1 {{requires mask operand to be produced by tcrv_rvv.compare or tcrv_rvv.mask_and inside the selected RVV typed body}}
       %selected = tcrv_rvv.select %mask, %lhs, %rhs, %vl : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
     } : !tcrv_rvv.vl
   }

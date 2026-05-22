@@ -35,6 +35,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::WithVLOp withVL;
   tcrv::rvv::LoadOp lhsGenericLoad;
   tcrv::rvv::LoadOp rhsGenericLoad;
+  tcrv::rvv::LoadOp secondaryCompareLhsGenericLoad;
   tcrv::rvv::LoadOp trueValueGenericLoad;
   tcrv::rvv::LoadOp falseValueGenericLoad;
   tcrv::rvv::LoadOp dotLHSGenericLoad;
@@ -56,7 +57,10 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::MaskedSegment2StoreOp maskedSegment2Store;
   tcrv::rvv::BroadcastLoadOp rhsBroadcastLoad;
   tcrv::rvv::SplatOp rhsScalarSplat;
+  tcrv::rvv::SplatOp rhsSecondaryScalarSplat;
   tcrv::rvv::CompareOp compareOp;
+  tcrv::rvv::CompareOp secondaryCompareOp;
+  tcrv::rvv::MaskAndOp maskAndOp;
   tcrv::rvv::SelectOp selectOp;
   tcrv::rvv::ReduceOp reduceOp;
   tcrv::rvv::StandaloneReduceOp standaloneReduceOp;
@@ -82,6 +86,10 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value compareLhs;
   mlir::Value compareRhs;
   mlir::Value compareMask;
+  mlir::Value secondaryCompareLhs;
+  mlir::Value secondaryCompareRhs;
+  mlir::Value secondaryCompareMask;
+  mlir::Value composedMask;
   mlir::Value maskValue;
   mlir::Value maskedPassthrough;
   mlir::Value maskedActiveValue;
@@ -98,6 +106,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::StridedStoreOp stridedStore;
   mlir::Operation *lhsLoadOperation = nullptr;
   mlir::Operation *rhsLoadOperation = nullptr;
+  mlir::Operation *secondaryCompareLhsLoadOperation = nullptr;
   mlir::Operation *trueValueLoadOperation = nullptr;
   mlir::Operation *falseValueLoadOperation = nullptr;
   mlir::Operation *sourceLoadOperation = nullptr;
@@ -127,6 +136,7 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Operation *maskedStridedStoreOperation = nullptr;
   mlir::Value lhsBuffer;
   mlir::Value rhsBuffer;
+  mlir::Value secondaryCompareLhsBuffer;
   mlir::Value trueValueBuffer;
   mlir::Value falseValueBuffer;
   mlir::Value sourceBuffer;
@@ -160,6 +170,8 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value storeValue;
   support::RuntimeABIParameter lhsABI;
   support::RuntimeABIParameter rhsABI;
+  support::RuntimeABIParameter secondaryCompareLhsABI;
+  support::RuntimeABIParameter secondaryCompareRhsScalarABI;
   support::RuntimeABIParameter trueValueABI;
   support::RuntimeABIParameter falseValueABI;
   support::RuntimeABIParameter sourceABI;
@@ -300,6 +312,39 @@ struct RVVSelectedBodyRuntimeScalarCompareSelectRouteFamilyPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 6> runtimeABIParameters;
 };
 
+struct RVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef maskTypeName;
+  llvm::StringRef maskCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef rhsScalarSplatIntrinsic;
+  llvm::StringRef compareIntrinsic;
+  llvm::StringRef secondaryCompareIntrinsic;
+  llvm::StringRef maskAndIntrinsic;
+  llvm::StringRef selectIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef resultName;
+  llvm::StringRef maskName;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef maskComposition;
+  llvm::StringRef selectLayout;
+  llvm::SmallVector<support::RuntimeABIParameter, 8> runtimeABIParameters;
+};
+
 struct RVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
@@ -380,6 +425,9 @@ struct RVVSelectedBodyRouteAnalysis {
       runtimeScalarSplatStoreRouteFamilyPlan;
   std::optional<RVVSelectedBodyRuntimeScalarCompareSelectRouteFamilyPlan>
       runtimeScalarCompareSelectRouteFamilyPlan;
+  std::optional<
+      RVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan>
+      runtimeScalarDualCompareMaskAndSelectRouteFamilyPlan;
   std::optional<
       RVVSelectedBodyRuntimeScalarComputedMaskStoreRouteFamilyPlan>
       runtimeScalarComputedMaskStoreRouteFamilyPlan;

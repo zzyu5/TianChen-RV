@@ -35,6 +35,7 @@ enum class RuntimeABIParameterRole {
   IndexInputBuffer,
   MaskInputBuffer,
   RHSScalarValue,
+  RHSSecondaryScalarValue,
   OutputBuffer,
   SegmentField0InputBuffer,
   SegmentField1InputBuffer,
@@ -102,6 +103,8 @@ inline llvm::StringRef stringifyRuntimeABIParameterRole(
     return "mask-input-buffer";
   case RuntimeABIParameterRole::RHSScalarValue:
     return "rhs-scalar-value";
+  case RuntimeABIParameterRole::RHSSecondaryScalarValue:
+    return "rhs-secondary-scalar-value";
   case RuntimeABIParameterRole::OutputBuffer:
     return "output-buffer";
   case RuntimeABIParameterRole::SegmentField0InputBuffer:
@@ -156,6 +159,8 @@ symbolizeRuntimeABIParameterRole(llvm::StringRef role) {
     return RuntimeABIParameterRole::MaskInputBuffer;
   if (role == "rhs-scalar-value")
     return RuntimeABIParameterRole::RHSScalarValue;
+  if (role == "rhs-secondary-scalar-value")
+    return RuntimeABIParameterRole::RHSSecondaryScalarValue;
   if (role == "output-buffer")
     return RuntimeABIParameterRole::OutputBuffer;
   if (role == "segment-field0-input-buffer")

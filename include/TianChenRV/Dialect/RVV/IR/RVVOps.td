@@ -566,6 +566,60 @@ def TypedRuntimeScalarCompareSelectPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_runtime_scalar_dual_compare_mask_and_select_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV dual runtime scalar compare mask-and select body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body where two
+    signed i32 vector loads are each compared against independent non-AVL
+    runtime scalar thresholds splatted inside the selected VL scope, both
+    compare-produced mask SSA values are composed by typed mask-and, and the
+    composed mask selects between explicit true-value and false-value vector
+    operands before storing to the output buffer. The op is nested directly in
+    a selected tcrv.exec.variant and binds explicit runtime ABI values for
+    compare lhs A, scalar threshold A, compare lhs B, scalar threshold B,
+    true value, false value, output, and runtime n/AVL together with both
+    compare predicates, mask composition facts, select layout, compile-time
+    RVV data/mask config, and policy.
+
+    This op is not a scalar-add clone, constant substitution, helper-string
+    authority, route label, descriptor, source-front-door marker, direct-C
+    exporter, intrinsic wrapper, runtime artifact, correctness evidence, or
+    performance evidence. The RVV plugin must realize it into explicit
+    setvl/with_vl/load/splat/load/splat/compare/compare/mask_and/load/load/
+    select/store tcrv_rvv body structure before the provider may construct a
+    TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$compare_lhs_a,
+    AnyType:$rhs_scalar_a,
+    AnyType:$compare_lhs_b,
+    AnyType:$rhs_scalar_b,
+    AnyType:$true_value,
+    AnyType:$false_value,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$predicate_kind_a,
+    StrAttr:$predicate_kind_b,
+    StrAttr:$memory_form,
+    StrAttr:$mask_role,
+    StrAttr:$mask_source,
+    StrAttr:$mask_memory_form,
+    StrAttr:$mask_composition,
+    StrAttr:$select_layout,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$compare_lhs_a `,` $rhs_scalar_a `,` $compare_lhs_b `,` $rhs_scalar_b `,` $true_value `,` $false_value `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp
     : TCRVRVV_Op<"typed_runtime_scalar_computed_mask_store_pre_realized_body"> {
   let summary =
@@ -2552,6 +2606,36 @@ def CompareOp : TCRVRVV_Op<"compare",
     For the current bounded Stage 2 predicate slices, kind is limited to eq or
     slt. Compare semantics come only from this typed operation in the selected
     RVV body.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$vl,
+    StrAttr:$kind
+  );
+  let results = (outs AnyType:$mask);
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $vl attr-dict `:` type($lhs) `,` type($rhs) `,` type($vl) `->` type($mask)";
+  let hasVerifier = 1;
+}
+
+def MaskAndOp : TCRVRVV_Op<"mask_and",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary = "generic typed RVV mask-and composition dataflow op";
+  let description = [{
+    Records one bounded plugin-local RVV mask composition step. The op is
+    nested directly under tcrv_rvv.with_vl, consumes two typed
+    !tcrv_rvv.mask predicates produced by tcrv_rvv.compare in the same
+    selected VL scope, consumes the active !tcrv_rvv.vl token, carries
+    explicit composition kind, and produces one typed !tcrv_rvv.mask token.
+
+    The current Stage 2 slice supports only kind = "and". Mask algebra is
+    structural typed-body authority in the RVV plugin; route ids, helper names,
+    ABI strings, artifact names, status fields, exact intrinsic spellings, and
+    common EmitC/export code must not infer or choose mask composition
+    semantics.
   }];
 
   let arguments = (ins

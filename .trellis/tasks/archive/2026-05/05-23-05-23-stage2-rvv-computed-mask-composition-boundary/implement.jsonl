@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project boundary, RVV-first authority chain, and Stage 2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, legality, selected-body realization, route provider, and ssh evidence contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": "include/TianChenRV/Support/RuntimeABI.h", "reason": "Added rhs-secondary-scalar-value ABI role for the second non-AVL runtime scalar threshold."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Added typed mask_and op and pre-realized dual runtime scalar compare mask-and select/store body surface."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Added fail-closed verifiers for mask_and, dual pre-realized body ABI/config/mask semantics, and select-from-mask_and dataflow."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Realized pre-realized dual compare body into setvl/with_vl, two loads/splats/compares, mask_and, select, and store."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Added runtime_scalar_dual_cmp_mask_and_select route profile, binding closure, materialized-use validation, mirrors, target leaf profile, and fail-closed route analysis."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Materialized provider-owned EmitC route with two runtime scalar compares, vmand mask composition, select, and store from RouteOperandBindingPlan operands."}
+{"file": "lib/Plugin/RVV/Construction/RVVConstructionProtocol.cpp", "reason": "Integrated mask_and into RVV compute role realization and construction role sequence for the dual compare route."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Exported secondary compare predicate and mask composition mirrors through RVV target header metadata."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Added explicit/pre-realized generated-bundle dry-run and ssh rvv harness support for value-distinguishing dual threshold mask intersection evidence."}
+{"file": "test/Dialect/RVV/runtime-scalar-dual-compare-mask-and-select-dataflow.mlir", "reason": "Added positive and negative structural verifier coverage for dual compare mask_and select/store dataflow."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-dual-cmp-mask-and-select.mlir", "reason": "Added explicit selected-body target/header artifact route coverage for dual runtime scalar compare mask_and select/store."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-dual-cmp-mask-and-select.mlir", "reason": "Added pre-realized selected-body realization plus target/header artifact coverage for the same route."}

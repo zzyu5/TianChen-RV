@@ -68,6 +68,9 @@ constexpr llvm::StringLiteral
     kRVVRuntimeScalarCompareSelectOperandBindingPlanID(
         "rvv-route-operand-binding:runtime_scalar_cmp_select.v1");
 constexpr llvm::StringLiteral
+    kRVVRuntimeScalarDualCompareMaskAndSelectOperandBindingPlanID(
+        "rvv-route-operand-binding:runtime_scalar_dual_cmp_mask_and_select.v1");
+constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskStoreOperandBindingPlanID(
         "rvv-route-operand-binding:runtime_scalar_cmp_masked_store.v1");
 constexpr llvm::StringLiteral
@@ -169,6 +172,8 @@ llvm::StringRef getExpectedRVVRouteOperandBindingPlanID(
     return kRVVComputedMaskSelectOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
     return kRVVRuntimeScalarCompareSelectOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect:
+    return kRVVRuntimeScalarDualCompareMaskAndSelectOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
     return kRVVRuntimeScalarComputedMaskStoreOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore:
@@ -449,6 +454,25 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
       return RuntimeABIParameterRole::LHSInputBuffer;
     if (logicalOperand == "rhs_scalar")
       return RuntimeABIParameterRole::RHSScalarValue;
+    if (logicalOperand == "true_value")
+      return RuntimeABIParameterRole::TrueValueInputBuffer;
+    if (logicalOperand == "false_value")
+      return RuntimeABIParameterRole::FalseValueInputBuffer;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID ==
+      kRVVRuntimeScalarDualCompareMaskAndSelectOperandBindingPlanID) {
+    if (logicalOperand == "cmp_lhs_a")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "rhs_scalar_a")
+      return RuntimeABIParameterRole::RHSScalarValue;
+    if (logicalOperand == "cmp_lhs_b")
+      return RuntimeABIParameterRole::RHSInputBuffer;
+    if (logicalOperand == "rhs_scalar_b")
+      return RuntimeABIParameterRole::RHSSecondaryScalarValue;
     if (logicalOperand == "true_value")
       return RuntimeABIParameterRole::TrueValueInputBuffer;
     if (logicalOperand == "false_value")
@@ -753,6 +777,8 @@ stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan) {
     const bool usesCompactSummary =
         plan.planID == kRVVRuntimeScalarCompareSelectOperandBindingPlanID ||
         plan.planID ==
+            kRVVRuntimeScalarDualCompareMaskAndSelectOperandBindingPlanID ||
+        plan.planID ==
             kRVVRuntimeScalarComputedMaskStoreOperandBindingPlanID ||
         plan.planID ==
             kRVVRuntimeScalarComputedMaskLoadStoreOperandBindingPlanID;
@@ -768,6 +794,20 @@ stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan) {
       return "cmp-lhs";
     if (use == "compare-rhs-call")
       return "cmp-rhs";
+    if (use == "materialized-secondary-load-base")
+      return "lhs-b-load";
+    if (use == "secondary-scalar-broadcast-rhs-call")
+      return "splat-b";
+    if (use == "secondary-compare-lhs-call")
+      return "cmp-b-lhs";
+    if (use == "secondary-compare-rhs-call")
+      return "cmp-b-rhs";
+    if (use == "mask-and-lhs-call")
+      return "and-lhs";
+    if (use == "mask-and-rhs-call")
+      return "and-rhs";
+    if (use == "select-mask-call")
+      return "sel-mask";
     if (use == "materialized-true-load-base")
       return "true-load";
     if (use == "select-true-call")
@@ -805,6 +845,19 @@ stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan) {
 
   std::string text;
   llvm::raw_string_ostream os(text);
+  if (plan.planID ==
+      kRVVRuntimeScalarDualCompareMaskAndSelectOperandBindingPlanID) {
+    os << "cmp_lhs_a=abi|load|cmp|and;"
+       << "rhs_scalar_a=abi|splat|cmp;"
+       << "cmp_lhs_b=abi|load|cmp|and;"
+       << "rhs_scalar_b=abi|splat|cmp;"
+       << "true_value=abi|load|sel;"
+       << "false_value=abi|load|sel;"
+       << "out=abi|store|hdr;"
+       << "n=abi|setvl|loop|hdr";
+    os.flush();
+    return text;
+  }
   os << plan.planID;
   for (const RVVRouteOperandBinding &binding : plan.bindings) {
     os << ";" << binding.logicalOperand << "="
@@ -1358,6 +1411,9 @@ constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreRuntimeABIOrder(
     "rhs_scalar,out,n");
 constexpr llvm::StringLiteral kRVVRuntimeScalarCompareSelectRuntimeABIOrder(
     "lhs,rhs_scalar,true_value,false_value,out,n");
+constexpr llvm::StringLiteral
+    kRVVRuntimeScalarDualCompareMaskAndSelectRuntimeABIOrder(
+        "cmp_lhs_a,rhs_scalar_a,cmp_lhs_b,rhs_scalar_b,true_value,false_value,out,n");
 constexpr llvm::StringLiteral kRVVRuntimeScalarComputedMaskStoreRuntimeABIOrder(
     "lhs,rhs_scalar,src,dst,n");
 constexpr llvm::StringLiteral
@@ -1434,6 +1490,18 @@ constexpr llvm::StringLiteral
     kRVVRuntimeScalarCompareSelectCTypeMappingSummary(
         "vl:size_t,lhs:signed-e32m1,rhs_scalar:i32,mask:b32,true_false:signed-e32m1,result:signed-e32m1");
 constexpr llvm::StringLiteral
+    kRVVRuntimeScalarDualCompareMaskAndSelectTargetLeafProfile(
+        "rvv-v1-e32m1-runtime-scalar-dual-cmp-mask-and-select-leaf-profile.v1");
+constexpr llvm::StringLiteral
+    kRVVRuntimeScalarDualCompareMaskAndSelectProviderSupportedMirror(
+        "provider_supported_mirror:rvv-runtime-scalar-dual-cmp-mask-and-select-plan-validated");
+constexpr llvm::StringLiteral
+    kRVVRuntimeScalarDualCompareMaskAndSelectRequiredHeaderDeclarations(
+        "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral
+    kRVVRuntimeScalarDualCompareMaskAndSelectCTypeMappingSummary(
+        "vl:size_t,cmp_lhs_a:signed-e32m1,rhs_scalar_a:i32,cmp_lhs_b:signed-e32m1,rhs_scalar_b:i32,mask_a:b32,mask_b:b32,mask_and:b32,true_false:signed-e32m1,result:signed-e32m1");
+constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskStoreTargetLeafProfile(
         "rvv-v1-e32m1-runtime-scalar-cmp-masked-store-leaf-profile.v1");
 constexpr llvm::StringLiteral
@@ -1509,6 +1577,9 @@ constexpr llvm::StringLiteral kRVVComputedMaskSelectMemoryLayout(
     "unit-stride-compare-true-false-select-output-runtime-abi");
 constexpr llvm::StringLiteral kRVVRuntimeScalarComputedMaskStoreMemoryLayout(
     "unit-stride-lhs-runtime-scalar-threshold-source-masked-destination-runtime-abi");
+constexpr llvm::StringLiteral
+    kRVVRuntimeScalarDualCompareMaskAndSelectMemoryLayout(
+        "unit-stride-dual-lhs-runtime-scalar-thresholds-mask-and-true-false-select-output-runtime-abi");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskLoadStoreMemoryLayout(
         "unit-stride-lhs-runtime-scalar-threshold-source-old-destination-runtime-abi");
@@ -1685,6 +1756,7 @@ struct RVVSelectedBodyTargetLeafProfile {
   llvm::StringRef compareIntrinsic;
   llvm::StringRef maskedMergeIntrinsic;
   llvm::StringRef rhsBroadcastIntrinsic;
+  llvm::StringRef maskAndIntrinsic;
 };
 
 struct RVVSelectedBodyRouteProfile {
@@ -1699,6 +1771,7 @@ constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::CmpSelect,
     RVVSelectedBodyOperationKind::ComputedMaskSelect,
     RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect,
+    RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect,
     RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore,
     RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore,
     RVVSelectedBodyOperationKind::ReduceAdd,
@@ -1798,6 +1871,20 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
       /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
       /*isSegmentedMemoryMovement=*/false,
       /*isWideningConversion=*/false};
+  static const RVVSelectedBodyOperationProfile
+      kRuntimeScalarDualCompareMaskAndSelect = {
+          RVVSelectedBodyOperationKind::
+              RuntimeScalarDualCompareMaskAndSelect,
+          "runtime_scalar_dual_cmp_mask_and_select",
+          "runtime_scalar_mask_and_selected_vec",
+          "runtime_scalar_dual_cmp_mask_and_select_mask",
+          /*isCompareSelect=*/true,
+          /*isReduction=*/false, /*isMaskedArithmetic=*/false,
+          /*isMultiplyAccumulate=*/false, /*isStridedMemory=*/false,
+          /*isMemoryMovement=*/false,
+          /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+          /*isSegmentedMemoryMovement=*/false,
+          /*isWideningConversion=*/false};
   static const RVVSelectedBodyOperationProfile
       kRuntimeScalarComputedMaskStore = {
           RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore,
@@ -2244,6 +2331,8 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
     return kComputedMaskSelect;
   case RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
     return kRuntimeScalarCompareSelect;
+  case RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect:
+    return kRuntimeScalarDualCompareMaskAndSelect;
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
     return kRuntimeScalarComputedMaskStore;
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore:
@@ -2529,6 +2618,7 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
   case RVVSelectedBodyOperationKind::CmpSelect:
   case RVVSelectedBodyOperationKind::ComputedMaskSelect:
   case RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
+  case RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect:
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
     llvm_unreachable("compare/select uses dedicated compare and merge leaves");
   case RVVSelectedBodyOperationKind::ReduceAdd:
@@ -2722,6 +2812,11 @@ getRVVSelectedBodySelectIntrinsic(llvm::StringRef lmul) {
   return lmul == tcrv::rvv::getRVVLMULM2()
              ? "__riscv_vmerge_vvm_i32m2"
              : "__riscv_vmerge_vvm_i32m1";
+}
+
+llvm::StringRef getRVVSelectedBodyMaskAndIntrinsic(llvm::StringRef lmul) {
+  return lmul == tcrv::rvv::getRVVLMULM2() ? "__riscv_vmand_mm_b16"
+                                           : "__riscv_vmand_mm_b32";
 }
 
 bool isRVVSelectedBodyContractionRouteOperation(
@@ -3884,6 +3979,350 @@ void applyRVVSelectedBodyRuntimeScalarCompareSelectRouteFamilyPlan(
                                           plan.runtimeABIParameters.end());
 }
 
+bool isRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteOperation(
+    RVVSelectedBodyOperationKind op) {
+  return op ==
+         RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect;
+}
+
+llvm::Error
+requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+    const RVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan
+        &plan,
+    llvm::StringRef field, llvm::StringRef actual,
+    llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("runtime scalar dual-compare mask-and select route-family "
+                  "plan validation for operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
+      field + " '" + expected + "' but found '" + actual + "'");
+}
+
+llvm::Error
+validateRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan(
+    const RVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan
+        &plan) {
+  if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
+          plan.runtimeControlPlan,
+          "runtime scalar dual-compare mask-and select route-family runtime "
+          "AVL/VL control"))
+    return error;
+  if (!isRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteOperation(
+          plan.operation))
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar dual-compare mask-and select route-family plan "
+        "supports only runtime_scalar_dual_cmp_mask_and_select");
+  if (plan.memoryForm !=
+      RVVSelectedBodyMemoryForm::RuntimeScalarDualCompareMaskAndSelect)
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar dual-compare mask-and select route-family plan "
+        "requires runtime-scalar-dual-cmp-mask-and-select memory form");
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "runtime control plan",
+              plan.runtimeControlPlan.controlPlanID,
+              getRVVRuntimeAVLVLControlPlanID()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "runtime ABI order", plan.runtimeABIOrder,
+              kRVVRuntimeScalarDualCompareMaskAndSelectRuntimeABIOrder))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "target leaf profile", plan.targetLeafProfile,
+              kRVVRuntimeScalarDualCompareMaskAndSelectTargetLeafProfile))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "provider_supported_mirror", plan.providerSupportedMirror,
+              kRVVRuntimeScalarDualCompareMaskAndSelectProviderSupportedMirror))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "header declarations", plan.requiredHeaderDeclarations,
+              kRVVRuntimeScalarDualCompareMaskAndSelectRequiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "C type mapping summary", plan.cTypeMappingSummary,
+              kRVVRuntimeScalarDualCompareMaskAndSelectCTypeMappingSummary))
+    return error;
+  if (plan.requiredHeaders.size() != 3 ||
+      plan.requiredHeaders[0] != "stddef.h" ||
+      plan.requiredHeaders[1] != "stdint.h" ||
+      plan.requiredHeaders[2] != "riscv_vector.h")
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar dual-compare mask-and select route-family plan "
+        "requires provider-owned header declarations "
+        "'stddef.h,stdint.h,riscv_vector.h'");
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "VL C type", plan.vlCType, "size_t"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "vector type", plan.vectorTypeName,
+              "!tcrv_rvv.vector<i32, \"m1\">"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "vector C type", plan.vectorCType, "vint32m1_t"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "mask type", plan.maskTypeName,
+              "!tcrv_rvv.mask<i32, \"m1\">"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "mask C type", plan.maskCType, "vbool32_t"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "setvl leaf", plan.setVLIntrinsic,
+              "__riscv_vsetvl_e32m1"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "vector-load leaf", plan.vectorLoadIntrinsic,
+              "__riscv_vle32_v_i32m1"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "RHS scalar splat leaf",
+              plan.rhsScalarSplatIntrinsic, "__riscv_vmv_v_x_i32m1"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "compare A leaf", plan.compareIntrinsic,
+              "__riscv_vmsle_vv_i32m1_b32"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "compare B leaf", plan.secondaryCompareIntrinsic,
+              "__riscv_vmsle_vv_i32m1_b32"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "mask-and leaf", plan.maskAndIntrinsic,
+              "__riscv_vmand_mm_b32"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "select leaf", plan.selectIntrinsic,
+              "__riscv_vmerge_vvm_i32m1"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "store leaf", plan.storeIntrinsic,
+              "__riscv_vse32_v_i32m1"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "result name", plan.resultName,
+              "runtime_scalar_mask_and_selected_vec"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "mask name", plan.maskName,
+              "runtime_scalar_dual_cmp_mask_and_select_mask"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "mask role", plan.maskRole,
+              "predicate-mask-produced-by-mask-and"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "mask source", plan.maskSource,
+              "mask-and-of-two-runtime-scalar-compare-produced-masks"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "mask memory form", plan.maskMemoryForm,
+              "composed-compare-produced-mask"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "mask composition", plan.maskComposition, "and"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectPlanField(
+              plan, "select layout", plan.selectLayout,
+              "select-true-value-when-mask-else-false-value"))
+    return error;
+  if (llvm::Error error =
+          verifyRVVSelectedBodyConstructionRuntimeABIParameters(
+              plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
+  return llvm::Error::success();
+}
+
+llvm::Expected<
+    RVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan>
+deriveRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyConfigProfile &configProfile,
+    const RVVSelectedBodyTargetLeafProfile &targetLeaves) {
+  if (!isRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteOperation(
+          analysis.slice.arithmeticKind))
+    return makeRVVEmitCRouteProviderError(
+        "requested runtime scalar dual-compare mask-and select route-family "
+        "plan for non-runtime-scalar-dual-compare-mask-and-select RVV "
+        "operation");
+  if (analysis.slice.memoryForm !=
+      RVVSelectedBodyMemoryForm::RuntimeScalarDualCompareMaskAndSelect)
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar dual-compare mask-and select route-family plan "
+        "requires runtime-scalar-dual-cmp-mask-and-select typed body "
+        "structure");
+  if (!analysis.slice.lhsGenericLoad || !analysis.slice.rhsScalarSplat ||
+      !analysis.slice.secondaryCompareLhsGenericLoad ||
+      !analysis.slice.rhsSecondaryScalarSplat ||
+      !analysis.slice.trueValueGenericLoad ||
+      !analysis.slice.falseValueGenericLoad || !analysis.slice.compareOp ||
+      !analysis.slice.secondaryCompareOp || !analysis.slice.maskAndOp ||
+      !analysis.slice.selectOp || !analysis.slice.genericStore)
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar dual-compare mask-and select route-family plan "
+        "requires explicit compare lhs A load, RHS scalar A splat, compare "
+        "lhs B load, RHS scalar B splat, true/false loads, two compares, "
+        "mask_and, select, and store body structure");
+  if (analysis.slice.compareOp.getKind() != "sle" ||
+      analysis.slice.secondaryCompareOp.getKind() != "sle")
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar dual-compare mask-and select route-family plan "
+        "currently requires predicate_kind 'sle' for both predicates");
+  if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar dual-compare mask-and select route-family plan "
+        "currently requires SEW32 LMUL m1 typed config");
+  if (analysis.slice.lhsABI.role !=
+          support::RuntimeABIParameterRole::LHSInputBuffer ||
+      analysis.slice.rhsABI.role !=
+          support::RuntimeABIParameterRole::RHSScalarValue ||
+      analysis.slice.secondaryCompareLhsABI.role !=
+          support::RuntimeABIParameterRole::RHSInputBuffer ||
+      analysis.slice.secondaryCompareRhsScalarABI.role !=
+          support::RuntimeABIParameterRole::RHSSecondaryScalarValue ||
+      analysis.slice.trueValueABI.role !=
+          support::RuntimeABIParameterRole::TrueValueInputBuffer ||
+      analysis.slice.falseValueABI.role !=
+          support::RuntimeABIParameterRole::FalseValueInputBuffer ||
+      analysis.slice.outABI.role !=
+          support::RuntimeABIParameterRole::OutputBuffer ||
+      analysis.slice.runtimeElementCountABI.role !=
+          support::RuntimeABIParameterRole::RuntimeElementCount)
+    return makeRVVEmitCRouteProviderError(
+        "runtime scalar dual-compare mask-and select route-family plan "
+        "requires compare lhs A buffer, RHS scalar A threshold, compare lhs B "
+        "buffer, RHS scalar B threshold, true-value buffer, false-value "
+        "buffer, output buffer, and runtime element-count ABI roles");
+
+  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+      deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
+          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl, analysis.slice.withVL,
+          kRVVRuntimeScalarDualCompareMaskAndSelectRuntimeABIOrder,
+          "runtime scalar dual-compare mask-and select route-family plan");
+  if (!runtimeControlPlan)
+    return runtimeControlPlan.takeError();
+
+  RVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan plan;
+  plan.operation = analysis.slice.arithmeticKind;
+  plan.memoryForm = analysis.slice.memoryForm;
+  plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
+  plan.targetLeafProfile =
+      kRVVRuntimeScalarDualCompareMaskAndSelectTargetLeafProfile;
+  plan.providerSupportedMirror =
+      kRVVRuntimeScalarDualCompareMaskAndSelectProviderSupportedMirror;
+  plan.requiredHeaders.push_back("stddef.h");
+  plan.requiredHeaders.push_back("stdint.h");
+  plan.requiredHeaders.push_back("riscv_vector.h");
+  plan.requiredHeaderDeclarations =
+      kRVVRuntimeScalarDualCompareMaskAndSelectRequiredHeaderDeclarations;
+  plan.cTypeMappingSummary =
+      kRVVRuntimeScalarDualCompareMaskAndSelectCTypeMappingSummary;
+  plan.vlCType = configProfile.vlCType;
+  plan.vectorTypeName = configProfile.vectorTypeName;
+  plan.vectorCType = configProfile.vectorCType;
+  plan.maskTypeName = configProfile.maskTypeName;
+  plan.maskCType = configProfile.maskCType;
+  plan.setVLIntrinsic = configProfile.setVLIntrinsic;
+  plan.vectorLoadIntrinsic = configProfile.vectorLoadIntrinsic;
+  plan.rhsScalarSplatIntrinsic = targetLeaves.rhsBroadcastIntrinsic;
+  plan.compareIntrinsic = targetLeaves.compareIntrinsic;
+  plan.secondaryCompareIntrinsic = targetLeaves.compareIntrinsic;
+  plan.maskAndIntrinsic = targetLeaves.maskAndIntrinsic;
+  plan.selectIntrinsic = targetLeaves.intrinsic;
+  plan.storeIntrinsic = configProfile.storeIntrinsic;
+  plan.resultName =
+      getRVVSelectedBodyOperationProfile(plan.operation).resultName;
+  plan.maskName = getRVVSelectedBodyOperationProfile(plan.operation).maskName;
+  plan.maskRole = "predicate-mask-produced-by-mask-and";
+  plan.maskSource =
+      "mask-and-of-two-runtime-scalar-compare-produced-masks";
+  plan.maskMemoryForm = "composed-compare-produced-mask";
+  plan.maskComposition = "and";
+  plan.selectLayout = "select-true-value-when-mask-else-false-value";
+  plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.rhsABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.secondaryCompareLhsABI);
+  plan.runtimeABIParameters.push_back(
+      analysis.slice.secondaryCompareRhsScalarABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.trueValueABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.falseValueABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+  plan.runtimeABIParameters.push_back(
+      plan.runtimeControlPlan.runtimeAVLParameter);
+
+  if (llvm::Error error =
+          validateRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan(
+              plan))
+    return std::move(error);
+  return plan;
+}
+
+void applyRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan(
+    const RVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan
+        &plan,
+    RVVSelectedBodyEmitCRouteDescription &description) {
+  applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
+                                               description);
+  description.runtimeABIOrder = plan.runtimeABIOrder;
+  description.targetLeafProfile = plan.targetLeafProfile;
+  description.providerSupportedMirror = plan.providerSupportedMirror;
+  description.requiredHeaderDeclarations = plan.requiredHeaderDeclarations;
+  description.cTypeMappingSummary = plan.cTypeMappingSummary;
+  description.vlCType = plan.vlCType;
+  description.vectorTypeName = plan.vectorTypeName;
+  description.vectorCType = plan.vectorCType;
+  description.maskTypeName = plan.maskTypeName;
+  description.maskCType = plan.maskCType;
+  description.setVLIntrinsic = plan.setVLIntrinsic;
+  description.vectorLoadIntrinsic = plan.vectorLoadIntrinsic;
+  description.rhsBroadcastIntrinsic = plan.rhsScalarSplatIntrinsic;
+  description.compareIntrinsic = plan.compareIntrinsic;
+  description.secondaryCompareIntrinsic = plan.secondaryCompareIntrinsic;
+  description.maskAndIntrinsic = plan.maskAndIntrinsic;
+  description.intrinsic = plan.selectIntrinsic;
+  description.storeIntrinsic = plan.storeIntrinsic;
+  description.resultName = plan.resultName;
+  description.maskName = plan.maskName;
+  description.maskRole = plan.maskRole;
+  description.maskSource = plan.maskSource;
+  description.maskMemoryForm = plan.maskMemoryForm;
+  description.maskComposition = plan.maskComposition;
+  description.runtimeABIParameters.clear();
+  description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
+                                          plan.runtimeABIParameters.end());
+}
+
 bool isRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteOperation(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
@@ -4713,25 +5152,47 @@ deriveRVVSelectedBodyTargetLeafProfile(
     const bool isRuntimeScalarCompareSelect =
         description.operation ==
         RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect;
+    const bool isRuntimeScalarDualCompareMaskAndSelect =
+        description.operation == RVVSelectedBodyOperationKind::
+                                     RuntimeScalarDualCompareMaskAndSelect;
     if ((!isComputedMaskSelect &&
          !isRuntimeScalarCompareSelect &&
+         !isRuntimeScalarDualCompareMaskAndSelect &&
          description.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad) ||
         (isComputedMaskSelect &&
          description.memoryForm !=
              RVVSelectedBodyMemoryForm::ComputedMaskVectorSelect) ||
         (isRuntimeScalarCompareSelect &&
          description.memoryForm !=
-             RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect))
+             RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect) ||
+        (isRuntimeScalarDualCompareMaskAndSelect &&
+         description.memoryForm != RVVSelectedBodyMemoryForm::
+                                       RuntimeScalarDualCompareMaskAndSelect))
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     llvm::StringRef compareIntrinsic = getRVVSelectedBodyCompareIntrinsic(
         description.comparePredicateKind, configProfile.lmul);
     if (compareIntrinsic.empty())
       return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+    llvm::StringRef secondaryCompareIntrinsic =
+        isRuntimeScalarDualCompareMaskAndSelect
+            ? getRVVSelectedBodyCompareIntrinsic(
+                  description.secondaryComparePredicateKind,
+                  configProfile.lmul)
+            : llvm::StringRef();
+    llvm::StringRef maskAndIntrinsic =
+        isRuntimeScalarDualCompareMaskAndSelect
+            ? getRVVSelectedBodyMaskAndIntrinsic(configProfile.lmul)
+            : llvm::StringRef();
+    if (isRuntimeScalarDualCompareMaskAndSelect &&
+        (secondaryCompareIntrinsic.empty() || maskAndIntrinsic.empty()))
+      return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
     return RVVSelectedBodyTargetLeafProfile{
         getRVVSelectedBodySelectIntrinsic(configProfile.lmul),
-        compareIntrinsic, "", isRuntimeScalarCompareSelect
+        compareIntrinsic, "", (isRuntimeScalarCompareSelect ||
+                               isRuntimeScalarDualCompareMaskAndSelect)
                                   ? configProfile.rhsBroadcastIntrinsic
-                                  : llvm::StringRef()};
+                                  : llvm::StringRef(),
+        maskAndIntrinsic};
   }
 
   if (description.operation ==
@@ -5749,6 +6210,69 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
   }
 
   if (slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect) {
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.lhsValue,
+            "runtime scalar dual-compare mask-and select lhs A vector",
+            config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.rhsValue,
+            "runtime scalar dual-compare mask-and select splatted threshold A "
+            "vector",
+            config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.secondaryCompareLhs,
+            "runtime scalar dual-compare mask-and select lhs B vector",
+            config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.secondaryCompareRhs,
+            "runtime scalar dual-compare mask-and select splatted threshold B "
+            "vector",
+            config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.trueValue,
+            "runtime scalar dual-compare mask-and select true-value vector",
+            config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.falseValue,
+            "runtime scalar dual-compare mask-and select false-value vector",
+            config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyMaskTypeAgainstConfig(
+            slice.compareMask,
+            "runtime scalar dual-compare mask-and select predicate mask A",
+            config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyMaskTypeAgainstConfig(
+            slice.secondaryCompareMask,
+            "runtime scalar dual-compare mask-and select predicate mask B",
+            config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyMaskTypeAgainstConfig(
+            slice.composedMask,
+            "runtime scalar dual-compare mask-and select composed mask",
+            config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.arithmeticResult,
+            "runtime scalar dual-compare mask-and select selected result "
+            "vector",
+            config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.storeValue,
+            "runtime scalar dual-compare mask-and select stored vector",
+            config))
+      return error;
+    return llvm::Error::success();
+  }
+
+  if (slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore) {
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.lhsValue,
@@ -5944,6 +6468,15 @@ assignRVVGenericLoadBinding(RVVSelectedBodyRouteSlice &slice,
     return llvm::Error::success();
   }
   if (parameter.role == support::RuntimeABIParameterRole::RHSInputBuffer) {
+    if (slice.rhsLoadOperation && slice.rhsScalarSplat &&
+        !slice.secondaryCompareLhsLoadOperation) {
+      slice.secondaryCompareLhsGenericLoad = load;
+      slice.secondaryCompareLhsLoadOperation = load.getOperation();
+      slice.secondaryCompareLhsBuffer = load.getBuffer();
+      slice.secondaryCompareLhs = load.getLoaded();
+      slice.secondaryCompareLhsABI = parameter;
+      return llvm::Error::success();
+    }
     if (slice.rhsLoadOperation)
       return makeRVVEmitCRouteProviderError(
           "bounded RVV EmitC route requires a unique rhs-input-buffer load");
@@ -6129,11 +6662,36 @@ llvm::Error assignRVVGenericBroadcastBinding(
 llvm::Error assignRVVGenericScalarSplatBinding(
     RVVSelectedBodyRouteSlice &slice, tcrv::rvv::SplatOp splat,
     const support::RuntimeABIParameter &parameter) {
+  if (parameter.role ==
+      support::RuntimeABIParameterRole::RHSSecondaryScalarValue) {
+    if (slice.rhsSecondaryScalarSplat)
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV dual runtime scalar compare route requires a unique "
+          "secondary RHS scalar splat");
+    slice.rhsSecondaryScalarSplat = splat;
+    slice.secondaryCompareRhs = splat.getBroadcast();
+    slice.secondaryCompareRhsScalarABI = parameter;
+    return llvm::Error::success();
+  }
   if (parameter.role != support::RuntimeABIParameterRole::RHSScalarValue)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported RVV generic scalar splat runtime ABI role '") +
         support::stringifyRuntimeABIParameterRole(parameter.role) +
         "' for bounded EmitC route");
+  if (slice.rhsLoadOperation && slice.rhsGenericLoad && !slice.rhsScalarSplat &&
+      !slice.secondaryCompareLhsLoadOperation &&
+      slice.rhsABI.role == support::RuntimeABIParameterRole::RHSInputBuffer) {
+    slice.secondaryCompareLhsGenericLoad = slice.rhsGenericLoad;
+    slice.secondaryCompareLhsLoadOperation = slice.rhsLoadOperation;
+    slice.secondaryCompareLhsBuffer = slice.rhsBuffer;
+    slice.secondaryCompareLhs = slice.rhsValue;
+    slice.secondaryCompareLhsABI = slice.rhsABI;
+    slice.rhsGenericLoad = {};
+    slice.rhsLoadOperation = nullptr;
+    slice.rhsBuffer = {};
+    slice.rhsValue = {};
+    slice.rhsABI = {};
+  }
   if (slice.rhsLoadOperation)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires a unique RHS source load, "
@@ -6814,6 +7372,24 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
       return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
     return llvm::Error::success();
   }
+  if (slice.arithmeticKind == RVVSelectedBodyOperationKind::
+                                  RuntimeScalarDualCompareMaskAndSelect) {
+    ordered.push_back(slice.lhsABI);
+    ordered.push_back(slice.rhsABI);
+    ordered.push_back(slice.secondaryCompareLhsABI);
+    ordered.push_back(slice.secondaryCompareRhsScalarABI);
+    ordered.push_back(slice.trueValueABI);
+    ordered.push_back(slice.falseValueABI);
+    ordered.push_back(slice.outABI);
+    ordered.push_back(slice.runtimeElementCountABI);
+    if (llvm::Error error =
+            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+                ordered,
+                "selected RVV EmitC route explicit runtime scalar "
+                "dual-compare mask-and select runtime ABI values"))
+      return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
+    return llvm::Error::success();
+  }
   ordered.push_back(slice.lhsABI);
   if (isComputedMaskedMAcc) {
     ordered.push_back(slice.rhsABI);
@@ -7190,6 +7766,44 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
                            {"abi", "store-base", "header"});
     addRouteOperandBinding(plan, "n", slice.runtimeElementCountABI,
                            {"abi", "setvl-avl", "loop-control", "header"});
+  } else if (slice.arithmeticKind == RVVSelectedBodyOperationKind::
+                                      RuntimeScalarDualCompareMaskAndSelect) {
+    plan.planID =
+        kRVVRuntimeScalarDualCompareMaskAndSelectOperandBindingPlanID.str();
+    expectedRuntimeABIOrder =
+        kRVVRuntimeScalarDualCompareMaskAndSelectRuntimeABIOrder;
+    context = "runtime_scalar_dual_cmp_mask_and_select route";
+    addRouteOperandBinding(
+        plan, "cmp_lhs_a", slice.lhsABI,
+        {"runtime-abi-mirror", "materialized-load-base",
+         "compare-lhs-call", "mask-and-lhs-call"});
+    addRouteOperandBinding(
+        plan, "rhs_scalar_a", slice.rhsABI,
+        {"runtime-abi-mirror", "scalar-broadcast-rhs-call",
+         "compare-rhs-call"});
+    addRouteOperandBinding(
+        plan, "cmp_lhs_b", slice.secondaryCompareLhsABI,
+        {"runtime-abi-mirror", "materialized-secondary-load-base",
+         "secondary-compare-lhs-call", "mask-and-rhs-call"});
+    addRouteOperandBinding(
+        plan, "rhs_scalar_b", slice.secondaryCompareRhsScalarABI,
+        {"runtime-abi-mirror", "secondary-scalar-broadcast-rhs-call",
+         "secondary-compare-rhs-call"});
+    addRouteOperandBinding(
+        plan, "true_value", slice.trueValueABI,
+        {"runtime-abi-mirror", "materialized-true-load-base",
+         "select-true-call"});
+    addRouteOperandBinding(
+        plan, "false_value", slice.falseValueABI,
+        {"runtime-abi-mirror", "materialized-false-load-base",
+         "select-false-call"});
+    addRouteOperandBinding(
+        plan, "out", slice.outABI,
+        {"runtime-abi-mirror", "materialized-store-base", "header-mirror"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"runtime-abi-mirror", "setvl-avl", "loop-control",
+         "header-mirror"});
   } else if (slice.arithmeticKind == RVVSelectedBodyOperationKind::ReduceAdd) {
     plan.planID = kRVVReduceAddOperandBindingPlanID.str();
     expectedRuntimeABIOrder = kRVVGenericBinaryRuntimeABIOrder;
@@ -8074,19 +8688,41 @@ llvm::Error recordRVVSelectedBodyOperation(RVVSelectedBodyRouteSlice &slice,
 
 llvm::Error recordRVVSelectedBodyCompare(RVVSelectedBodyRouteSlice &slice,
                                          tcrv::rvv::CompareOp compare) {
-  if (slice.compareOp)
+  if (slice.compareOp && slice.secondaryCompareOp)
     return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route requires exactly one generic "
-        "tcrv_rvv.compare op for mask-producing routes");
+        "bounded RVV EmitC route supports at most two generic "
+        "tcrv_rvv.compare ops for the dual runtime scalar mask-and route");
   if (compare.getKind() != "eq" && compare.getKind() != "slt" &&
       compare.getKind() != "sle")
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic tcrv_rvv.compare kind '") +
         compare.getKind() + "' for bounded RVV EmitC route");
+  if (slice.compareOp) {
+    slice.secondaryCompareOp = compare;
+    slice.secondaryCompareLhs = compare.getLhs();
+    slice.secondaryCompareRhs = compare.getRhs();
+    slice.secondaryCompareMask = compare.getMask();
+    return llvm::Error::success();
+  }
   slice.compareOp = compare;
   slice.compareLhs = compare.getLhs();
   slice.compareRhs = compare.getRhs();
   slice.compareMask = compare.getMask();
+  return llvm::Error::success();
+}
+
+llvm::Error recordRVVSelectedBodyMaskAnd(RVVSelectedBodyRouteSlice &slice,
+                                         tcrv::rvv::MaskAndOp maskAnd) {
+  if (slice.maskAndOp)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route requires exactly one tcrv_rvv.mask_and op "
+        "for the dual runtime scalar mask composition route");
+  if (maskAnd.getKind() != "and")
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.mask_and kind '") +
+        maskAnd.getKind() + "' for bounded RVV EmitC route");
+  slice.maskAndOp = maskAnd;
+  slice.composedMask = maskAnd.getMask();
   return llvm::Error::success();
 }
 
@@ -9104,7 +9740,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   llvm::SmallVector<tcrv::rvv::Segment2LoadOp, 1> genericSegment2Loads;
   llvm::SmallVector<tcrv::rvv::Segment2StoreOp, 1> genericSegment2Stores;
   llvm::SmallVector<tcrv::rvv::BroadcastLoadOp, 1> genericBroadcastLoads;
-  llvm::SmallVector<tcrv::rvv::SplatOp, 1> genericScalarSplats;
+  llvm::SmallVector<tcrv::rvv::SplatOp, 2> genericScalarSplats;
   llvm::SmallVector<tcrv::rvv::StoreOp, 2> genericStores;
   unsigned storeCount = 0;
   unsigned stridedStoreCount = 0;
@@ -9209,6 +9845,11 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     }
     if (auto compare = llvm::dyn_cast<tcrv::rvv::CompareOp>(op)) {
       if (llvm::Error error = recordRVVSelectedBodyCompare(slice, compare))
+        return std::move(error);
+      continue;
+    }
+    if (auto maskAnd = llvm::dyn_cast<tcrv::rvv::MaskAndOp>(op)) {
+      if (llvm::Error error = recordRVVSelectedBodyMaskAnd(slice, maskAnd))
         return std::move(error);
       continue;
     }
@@ -9463,6 +10104,15 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     slice.memoryForm = RVVSelectedBodyMemoryForm::ComputedMaskVectorSelect;
   }
   if (!hasStridedMemory && !hasIndexedMemory && !hasSegmentedMemory &&
+      slice.selectOp && slice.compareOp && slice.secondaryCompareOp &&
+      slice.maskAndOp && genericScalarSplats.size() == 2 &&
+      genericLoads.size() == 4 && storeCount == 1) {
+    slice.arithmeticKind =
+        RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect;
+    slice.memoryForm =
+        RVVSelectedBodyMemoryForm::RuntimeScalarDualCompareMaskAndSelect;
+  }
+  if (!hasStridedMemory && !hasIndexedMemory && !hasSegmentedMemory &&
       slice.selectOp && slice.compareOp && hasScalarBroadcast &&
       genericLoads.size() == 3 && storeCount == 1) {
     slice.arithmeticKind =
@@ -9532,6 +10182,10 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       slice.arithmeticOp &&
       slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect;
+  const bool isRuntimeScalarDualCompareMaskAndSelect =
+      slice.arithmeticOp &&
+      slice.arithmeticKind == RVVSelectedBodyOperationKind::
+                                  RuntimeScalarDualCompareMaskAndSelect;
   const bool isRuntimeScalarComputedMaskStore =
       slice.maskedStore && slice.compareOp && hasScalarBroadcast &&
       slice.arithmeticKind ==
@@ -9680,7 +10334,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "bounded generic RVV indexed scatter route cannot mix indexed store "
         "memory ops with broadcast, scalar splat, unit-stride stores, "
         "strided loads, or strided stores");
-  if (genericScalarSplats.size() > 1)
+  if (genericScalarSplats.size() > 1 &&
+      !isRuntimeScalarDualCompareMaskAndSelect)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route requires at most one "
         "tcrv_rvv.splat op");
@@ -10402,6 +11057,11 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar compare/select route requires "
         "exactly three tcrv_rvv.load ops for lhs, true value, and false value");
+  if (isRuntimeScalarDualCompareMaskAndSelect && genericLoads.size() != 4)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV runtime scalar dual-compare mask-and select "
+        "route requires exactly four tcrv_rvv.load ops for compare lhs A, "
+        "compare lhs B, true value, and false value");
   if (isRuntimeScalarComputedMaskStore && genericLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV runtime scalar computed-mask store route requires "
@@ -10413,6 +11073,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         slice.arithmeticKind != RVVSelectedBodyOperationKind::Mul &&
         slice.arithmeticKind !=
             RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect &&
+        slice.arithmeticKind !=
+            RVVSelectedBodyOperationKind::
+                RuntimeScalarDualCompareMaskAndSelect &&
         slice.arithmeticKind !=
             RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore &&
         slice.arithmeticKind !=
@@ -10457,6 +11120,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       !isComputedMaskStridedInputWideningDotReduceAdd &&
       !isComputedMaskSelect &&
       !isRuntimeScalarCompareSelect &&
+      !isRuntimeScalarDualCompareMaskAndSelect &&
       !isRuntimeScalarComputedMaskStore &&
       !isRuntimeScalarComputedMaskLoadStore &&
       !isMaskedUnitLoadStore &&
@@ -10484,6 +11148,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       !isComputedMaskStridedInputWideningDotReduceAdd &&
       !isComputedMaskSelect &&
       !isRuntimeScalarCompareSelect &&
+      !isRuntimeScalarDualCompareMaskAndSelect &&
       !isRuntimeScalarComputedMaskStore &&
       !isRuntimeScalarComputedMaskLoadStore &&
       !isMaskedUnitLoadStore &&
@@ -10509,6 +11174,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       !isComputedMaskStridedInputWideningDotReduceAdd &&
       !isComputedMaskSelect &&
       !isRuntimeScalarCompareSelect &&
+      !isRuntimeScalarDualCompareMaskAndSelect &&
       !isRuntimeScalarComputedMaskStore &&
       !isRuntimeScalarComputedMaskLoadStore &&
       !isMaskedUnitLoadStore &&
@@ -10528,6 +11194,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "lhs loads or binary fallback");
   if (((!hasStridedMemory && !hasIndexedMemory && !hasSegmentedMemory &&
         !isMaskedUnitStore && !isRuntimeScalarComputedMaskStore &&
+        !isRuntimeScalarDualCompareMaskAndSelect &&
         !isRuntimeScalarComputedMaskLoadStore) ||
        isComputedMaskStridedLoadUnitStore ||
        isComputedMaskIndexedGatherLoadUnitStore) &&
@@ -10551,6 +11218,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.masked_strided_store op");
   if (((!hasStridedMemory && !hasIndexedMemory && !hasSegmentedMemory &&
         !isMaskedUnitStore && !isRuntimeScalarComputedMaskStore &&
+        !isRuntimeScalarDualCompareMaskAndSelect &&
         !isRuntimeScalarComputedMaskLoadStore) ||
        isComputedMaskStridedLoadUnitStore ||
        isComputedMaskIndexedGatherLoadUnitStore) &&
@@ -10567,7 +11235,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "bounded generic RVV strided route must use tcrv_rvv.strided_store "
         "instead of tcrv_rvv.store");
   if ((isCompareSelect || isComputedMaskSelect ||
-       isRuntimeScalarCompareSelect || isRuntimeScalarComputedMaskStore ||
+       isRuntimeScalarCompareSelect ||
+       isRuntimeScalarDualCompareMaskAndSelect ||
+       isRuntimeScalarComputedMaskStore ||
        isRuntimeScalarComputedMaskLoadStore ||
        isMaskedArithmetic ||
        isComputedMaskedMAccAdd ||
@@ -10586,8 +11256,15 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV mask-consuming route requires one "
         "tcrv_rvv.compare op before the mask-consuming compute op");
+  if (isRuntimeScalarDualCompareMaskAndSelect &&
+      (!slice.secondaryCompareOp || !slice.maskAndOp))
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV runtime scalar dual-compare mask-and select "
+        "route requires two compare ops and one tcrv_rvv.mask_and op");
   if (!isCompareSelect && !isComputedMaskSelect &&
-      !isRuntimeScalarCompareSelect && !isRuntimeScalarComputedMaskStore &&
+      !isRuntimeScalarCompareSelect &&
+      !isRuntimeScalarDualCompareMaskAndSelect &&
+      !isRuntimeScalarComputedMaskStore &&
       !isRuntimeScalarComputedMaskLoadStore &&
       !isMaskedArithmetic &&
       !isComputedMaskedMAccAdd &&
@@ -10606,6 +11283,10 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV non-mask route does not support a standalone "
         "tcrv_rvv.compare op");
+  if (!isRuntimeScalarDualCompareMaskAndSelect && slice.maskAndOp)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV non-mask-composition route does not support a "
+        "standalone tcrv_rvv.mask_and op");
   if ((isCompareSelect || isComputedMaskSelect) && hasRHSBroadcastLike)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV compare/select route requires an explicit RHS "
@@ -10678,6 +11359,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           ? 14
       : isComputedMaskSelect
           ? 15
+      : isRuntimeScalarDualCompareMaskAndSelect
+          ? 21
       : isRuntimeScalarCompareSelect
           ? 15
       : isRuntimeScalarComputedMaskStore
@@ -10748,7 +11431,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     llvm::Expected<support::RuntimeABIParameter> parameter =
         getRuntimeABIParameterBindingFromValue(
             splat.getScalar(), "tcrv_rvv.splat scalar operand",
-            {support::RuntimeABIParameterRole::RHSScalarValue});
+            {support::RuntimeABIParameterRole::RHSScalarValue,
+             support::RuntimeABIParameterRole::RHSSecondaryScalarValue});
     if (!parameter)
       return parameter.takeError();
     if (llvm::Error error =
@@ -11419,6 +12103,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       slice.memoryForm = RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore;
       slice.arithmeticKind = RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
       slice.arithmeticResult = slice.rhsValue;
+    } else if (isRuntimeScalarDualCompareMaskAndSelect) {
+      slice.memoryForm =
+          RVVSelectedBodyMemoryForm::RuntimeScalarDualCompareMaskAndSelect;
     } else if (isRuntimeScalarCompareSelect) {
       slice.memoryForm = RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect;
     } else if (isRuntimeScalarComputedMaskStore ||
@@ -11545,6 +12232,80 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV computed-mask select route does not support "
           "source, accumulator, or runtime mask_load inputs");
+  } else if (isRuntimeScalarDualCompareMaskAndSelect) {
+    if (!slice.trueValueLoadOperation || !slice.falseValueLoadOperation ||
+        !slice.secondaryCompareLhsLoadOperation)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV runtime scalar dual-compare mask-and select "
+          "route requires compare lhs B, true-value, and false-value loads");
+    if (!slice.rhsScalarSplat || !slice.rhsSecondaryScalarSplat)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV runtime scalar dual-compare mask-and select "
+          "route requires primary and secondary runtime scalar splats");
+    if (slice.compareOp.getKind() != "sle" ||
+        slice.secondaryCompareOp.getKind() != "sle")
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV runtime scalar dual-compare mask-and select "
+          "route currently supports only tcrv_rvv.compare {kind = \"sle\"} "
+          "for both predicates");
+    if (slice.compareLhs != slice.lhsValue ||
+        slice.compareRhs != slice.rhsValue)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV runtime scalar dual-compare mask-and select "
+          "route requires compare A to consume lhs A load and rhs scalar A "
+          "splat results");
+    if (slice.secondaryCompareLhs !=
+            slice.secondaryCompareLhsGenericLoad.getLoaded() ||
+        slice.secondaryCompareRhs !=
+            slice.rhsSecondaryScalarSplat.getBroadcast())
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV runtime scalar dual-compare mask-and select "
+          "route requires compare B to consume lhs B load and rhs scalar B "
+          "splat results");
+    if (slice.maskAndOp.getLhs() != slice.compareMask ||
+        slice.maskAndOp.getRhs() != slice.secondaryCompareMask ||
+        slice.composedMask != slice.maskAndOp.getMask())
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV runtime scalar dual-compare mask-and select "
+          "route requires tcrv_rvv.mask_and to compose the two compare masks");
+    if (slice.selectOp.getMask() != slice.composedMask)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV runtime scalar dual-compare mask-and select "
+          "route requires tcrv_rvv.select to consume the composed mask");
+    if (slice.arithmeticLhs != slice.trueValue ||
+        slice.arithmeticRhs != slice.falseValue)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV runtime scalar dual-compare mask-and select "
+          "route requires tcrv_rvv.select to consume true-value load as true "
+          "value and false-value load as false value");
+    if (slice.compareOp.getVl() != slice.setvl.getVl() ||
+        slice.secondaryCompareOp.getVl() != slice.setvl.getVl() ||
+        slice.maskAndOp.getVl() != slice.setvl.getVl() ||
+        slice.selectOp.getVl() != slice.setvl.getVl() ||
+        slice.rhsScalarSplat.getVl() != slice.setvl.getVl() ||
+        slice.rhsSecondaryScalarSplat.getVl() != slice.setvl.getVl() ||
+        slice.secondaryCompareLhsGenericLoad.getVl() != slice.setvl.getVl() ||
+        slice.trueValueGenericLoad.getVl() != slice.setvl.getVl() ||
+        slice.falseValueGenericLoad.getVl() != slice.setvl.getVl())
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV runtime scalar dual-compare mask-and select "
+          "route requires splats, compares, mask_and, select, and true/false "
+          "loads to consume the selected !tcrv_rvv.vl token");
+    if (slice.rhsABI.role != support::RuntimeABIParameterRole::RHSScalarValue ||
+        slice.secondaryCompareLhsABI.role !=
+            support::RuntimeABIParameterRole::RHSInputBuffer ||
+        slice.secondaryCompareRhsScalarABI.role !=
+            support::RuntimeABIParameterRole::RHSSecondaryScalarValue)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV runtime scalar dual-compare mask-and select "
+          "route requires rhs-scalar-value, rhs-input-buffer, and "
+          "rhs-secondary-scalar-value ABI roles for the composed predicate");
+    if (slice.sourceLoadOperation || slice.accumulatorLoadOperation ||
+        slice.maskLoadOperation)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV runtime scalar dual-compare mask-and select "
+          "route does not support source, accumulator, or runtime mask_load "
+          "inputs");
   } else if (isRuntimeScalarCompareSelect) {
     if (!slice.trueValueLoadOperation || !slice.falseValueLoadOperation)
       return makeRVVEmitCRouteProviderError(
@@ -12652,6 +13413,12 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       getRuntimeABI(slice.lhsBuffer);
   auto rhsABI =
       getRuntimeABI(slice.rhsBuffer);
+  auto secondaryCompareLhsABI =
+      getRuntimeABI(slice.secondaryCompareLhsBuffer);
+  auto secondaryCompareRhsScalarABI =
+      slice.rhsSecondaryScalarSplat
+          ? getRuntimeABI(slice.rhsSecondaryScalarSplat.getScalar())
+          : nullptr;
   auto trueValueABI =
       getRuntimeABI(slice.trueValueBuffer);
   auto falseValueABI =
@@ -12713,6 +13480,9 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       slice.memoryForm == RVVSelectedBodyMemoryForm::ComputedMaskVectorSelect;
   const bool isRuntimeScalarCompareSelect =
       slice.memoryForm == RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect;
+  const bool isRuntimeScalarDualCompareMaskAndSelect =
+      slice.memoryForm ==
+      RVVSelectedBodyMemoryForm::RuntimeScalarDualCompareMaskAndSelect;
   const bool isRuntimeScalarComputedMaskStore =
       slice.memoryForm ==
       RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore;
@@ -12927,6 +13697,51 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
     if (op == slice.storeOperation)
       return 14;
     return 15;
+  }
+  if (isRuntimeScalarDualCompareMaskAndSelect) {
+    if (rhsABI && op == rhsABI.getOperation())
+      return 1;
+    if (secondaryCompareLhsABI && op == secondaryCompareLhsABI.getOperation())
+      return 2;
+    if (secondaryCompareRhsScalarABI &&
+        op == secondaryCompareRhsScalarABI.getOperation())
+      return 3;
+    if (trueValueABI && op == trueValueABI.getOperation())
+      return 4;
+    if (falseValueABI && op == falseValueABI.getOperation())
+      return 5;
+    if (outABI && op == outABI.getOperation())
+      return 6;
+    if (nABI && op == nABI.getOperation())
+      return 7;
+    if (op == slice.setvl.getOperation())
+      return 8;
+    if (op == slice.withVL.getOperation())
+      return 9;
+    if (op == slice.lhsLoadOperation)
+      return 10;
+    if (op == slice.rhsLoadOperation)
+      return 11;
+    if (op == slice.secondaryCompareLhsLoadOperation)
+      return 12;
+    if (slice.rhsSecondaryScalarSplat &&
+        op == slice.rhsSecondaryScalarSplat.getOperation())
+      return 13;
+    if (op == slice.trueValueLoadOperation)
+      return 14;
+    if (op == slice.falseValueLoadOperation)
+      return 15;
+    if (op == slice.compareOp.getOperation())
+      return 16;
+    if (op == slice.secondaryCompareOp.getOperation())
+      return 17;
+    if (op == slice.maskAndOp.getOperation())
+      return 18;
+    if (op == slice.arithmeticOp)
+      return 19;
+    if (op == slice.storeOperation)
+      return 20;
+    return 21;
   }
   if (isRuntimeScalarComputedMaskStore) {
     if (rhsABI && op == rhsABI.getOperation())
@@ -13660,6 +14475,12 @@ llvm::Error verifySelectedRVVRoleSequence(
       getRuntimeABI(slice.lhsBuffer);
   auto rhsABI =
       getRuntimeABI(slice.rhsBuffer);
+  auto secondaryCompareLhsABI =
+      getRuntimeABI(slice.secondaryCompareLhsBuffer);
+  auto secondaryCompareRhsScalarABI =
+      slice.rhsSecondaryScalarSplat
+          ? getRuntimeABI(slice.rhsSecondaryScalarSplat.getScalar())
+          : nullptr;
   auto trueValueABI =
       getRuntimeABI(slice.trueValueBuffer);
   auto falseValueABI =
@@ -13721,6 +14542,9 @@ llvm::Error verifySelectedRVVRoleSequence(
       slice.memoryForm == RVVSelectedBodyMemoryForm::ComputedMaskVectorSelect;
   const bool isRuntimeScalarCompareSelect =
       slice.memoryForm == RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect;
+  const bool isRuntimeScalarDualCompareMaskAndSelect =
+      slice.memoryForm ==
+      RVVSelectedBodyMemoryForm::RuntimeScalarDualCompareMaskAndSelect;
   const bool isRuntimeScalarComputedMaskStore =
       slice.memoryForm ==
       RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore;
@@ -13792,6 +14616,7 @@ llvm::Error verifySelectedRVVRoleSequence(
        !isComputedMaskUnitLoadStore &&
        !isComputedMaskSelect &&
        !isRuntimeScalarCompareSelect &&
+       !isRuntimeScalarDualCompareMaskAndSelect &&
        !isRuntimeScalarComputedMaskStore &&
        !isRuntimeScalarComputedMaskLoadStore &&
        !isComputedMaskStridedStore &&
@@ -13820,6 +14645,9 @@ llvm::Error verifySelectedRVVRoleSequence(
        (!rhsABI || !trueValueABI || !falseValueABI)) ||
       (isRuntimeScalarCompareSelect &&
        (!rhsABI || !trueValueABI || !falseValueABI)) ||
+      (isRuntimeScalarDualCompareMaskAndSelect &&
+       (!rhsABI || !secondaryCompareLhsABI || !secondaryCompareRhsScalarABI ||
+        !trueValueABI || !falseValueABI)) ||
       (isRuntimeScalarComputedMaskStore && (!rhsABI || !sourceABI)) ||
       (isRuntimeScalarComputedMaskLoadStore && (!rhsABI || !sourceABI)) ||
       (isComputedMaskStridedStore &&
@@ -13936,6 +14764,8 @@ llvm::Error verifySelectedRVVRoleSequence(
           ? slice.compareOp.getOperation()->getName().getStringRef()
       : isRuntimeScalarCompareSelect
           ? slice.rhsLoadOperation->getName().getStringRef()
+      : isRuntimeScalarDualCompareMaskAndSelect
+          ? slice.maskAndOp.getOperation()->getName().getStringRef()
       : isRuntimeScalarComputedMaskStore
           ? slice.compareOp.getOperation()->getName().getStringRef()
       : isRuntimeScalarComputedMaskLoadStore
@@ -14014,6 +14844,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       analysis.slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect ||
       analysis.slice.arithmeticKind ==
+          RVVSelectedBodyOperationKind::
+              RuntimeScalarDualCompareMaskAndSelect ||
+      analysis.slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
       analysis.slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore ||
@@ -14037,6 +14870,11 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       analysis.slice.compareOp)
     analysis.description.comparePredicateKind =
         analysis.slice.compareOp.getKind();
+  if (analysis.slice.arithmeticKind ==
+          RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect &&
+      analysis.slice.secondaryCompareOp)
+    analysis.description.secondaryComparePredicateKind =
+        analysis.slice.secondaryCompareOp.getKind();
   analysis.description.sew = config.sew;
   analysis.description.lmul = config.lmul;
   analysis.description.tailPolicy =
@@ -14061,6 +14899,10 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   case RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect:
     analysis.description.runtimeABIOrder =
         kRVVRuntimeScalarCompareSelectRuntimeABIOrder;
+    break;
+  case RVVSelectedBodyMemoryForm::RuntimeScalarDualCompareMaskAndSelect:
+    analysis.description.runtimeABIOrder =
+        kRVVRuntimeScalarDualCompareMaskAndSelectRuntimeABIOrder;
     break;
   case RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore:
     analysis.description.runtimeABIOrder =
@@ -14272,6 +15114,21 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   } else if (analysis.slice.memoryForm ==
              RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore) {
     analysis.description.runtimeABIParameters.push_back(analysis.slice.rhsABI);
+    analysis.description.runtimeABIParameters.push_back(analysis.slice.outABI);
+    analysis.description.runtimeABIParameters.push_back(
+        analysis.slice.runtimeElementCountABI);
+  } else if (analysis.slice.memoryForm == RVVSelectedBodyMemoryForm::
+                                            RuntimeScalarDualCompareMaskAndSelect) {
+    analysis.description.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+    analysis.description.runtimeABIParameters.push_back(analysis.slice.rhsABI);
+    analysis.description.runtimeABIParameters.push_back(
+        analysis.slice.secondaryCompareLhsABI);
+    analysis.description.runtimeABIParameters.push_back(
+        analysis.slice.secondaryCompareRhsScalarABI);
+    analysis.description.runtimeABIParameters.push_back(
+        analysis.slice.trueValueABI);
+    analysis.description.runtimeABIParameters.push_back(
+        analysis.slice.falseValueABI);
     analysis.description.runtimeABIParameters.push_back(analysis.slice.outABI);
     analysis.description.runtimeABIParameters.push_back(
         analysis.slice.runtimeElementCountABI);
@@ -14558,6 +15415,16 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.description.intrinsic = routeProfile->targetLeaves.intrinsic;
   analysis.description.compareIntrinsic =
       routeProfile->targetLeaves.compareIntrinsic;
+  if (routeProfile->operation.operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect) {
+    analysis.description.secondaryCompareIntrinsic =
+        routeProfile->targetLeaves.compareIntrinsic;
+    analysis.description.maskAndIntrinsic =
+        routeProfile->targetLeaves.maskAndIntrinsic;
+  } else {
+    analysis.description.secondaryCompareIntrinsic = "";
+    analysis.description.maskAndIntrinsic = "";
+  }
   analysis.description.maskedMergeIntrinsic =
       routeProfile->targetLeaves.maskedMergeIntrinsic;
   analysis.description.resultName = routeProfile->operation.resultName;
@@ -14602,6 +15469,21 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
         std::move(*runtimeScalarCompareSelectPlan);
     applyRVVSelectedBodyRuntimeScalarCompareSelectRouteFamilyPlan(
         *analysis.runtimeScalarCompareSelectRouteFamilyPlan,
+        analysis.description);
+  }
+  if (isRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteOperation(
+          routeProfile->operation.operation)) {
+    llvm::Expected<
+        RVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan>
+        runtimeScalarDualCompareMaskAndSelectPlan =
+            deriveRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan(
+                analysis, routeProfile->config, routeProfile->targetLeaves);
+    if (!runtimeScalarDualCompareMaskAndSelectPlan)
+      return runtimeScalarDualCompareMaskAndSelectPlan.takeError();
+    analysis.runtimeScalarDualCompareMaskAndSelectRouteFamilyPlan =
+        std::move(*runtimeScalarDualCompareMaskAndSelectPlan);
+    applyRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteFamilyPlan(
+        *analysis.runtimeScalarDualCompareMaskAndSelectRouteFamilyPlan,
         analysis.description);
   }
   if (isRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteOperation(
@@ -14658,6 +15540,16 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
     analysis.description.indexedMemoryLayout =
         "unit-stride-lhs-runtime-scalar-threshold-true-false-select-output-runtime-abi";
+  }
+  if (routeProfile->operation.operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect) {
+    analysis.description.maskRole = "predicate-mask-produced-by-mask-and";
+    analysis.description.maskSource =
+        "mask-and-of-two-runtime-scalar-compare-produced-masks";
+    analysis.description.maskMemoryForm = "composed-compare-produced-mask";
+    analysis.description.maskComposition = "and";
+    analysis.description.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
+    analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
   }
   if (routeProfile->operation.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) {
@@ -15149,6 +16041,8 @@ stringifyRVVSelectedBodyMemoryForm(RVVSelectedBodyMemoryForm form) {
     return "runtime-scalar-splat-store";
   case RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect:
     return "runtime-scalar-compare-select";
+  case RVVSelectedBodyMemoryForm::RuntimeScalarDualCompareMaskAndSelect:
+    return "runtime-scalar-dual-cmp-mask-and-select";
   case RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore:
     return "runtime-scalar-computed-mask-store";
   case RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskLoadStore:
@@ -15288,6 +16182,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   const bool isRuntimeScalarCompareSelect =
       operationProfile.operation ==
       RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect;
+  const bool isRuntimeScalarDualCompareMaskAndSelect =
+      operationProfile.operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect;
   const bool isRuntimeScalarComputedMaskStore =
       operationProfile.operation ==
       RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore;
@@ -15309,6 +16206,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           operationProfile.operation);
   const bool isRuntimeScalarCompareSelectRoute =
       isRVVSelectedBodyRuntimeScalarCompareSelectRouteOperation(
+          operationProfile.operation);
+  const bool isRuntimeScalarDualCompareMaskAndSelectRoute =
+      isRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteOperation(
           operationProfile.operation);
   const bool isRuntimeScalarComputedMaskStoreRoute =
       isRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteOperation(
@@ -15472,6 +16372,25 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "C type mapping summary", description.cTypeMappingSummary,
             kRVVRuntimeScalarCompareSelectCTypeMappingSummary))
+      return error;
+  } else if (isRuntimeScalarDualCompareMaskAndSelectRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "target leaf profile", description.targetLeafProfile,
+            kRVVRuntimeScalarDualCompareMaskAndSelectTargetLeafProfile))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "provider_supported_mirror",
+            description.providerSupportedMirror,
+            kRVVRuntimeScalarDualCompareMaskAndSelectProviderSupportedMirror))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "required header declarations",
+            description.requiredHeaderDeclarations,
+            kRVVRuntimeScalarDualCompareMaskAndSelectRequiredHeaderDeclarations))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "C type mapping summary", description.cTypeMappingSummary,
+            kRVVRuntimeScalarDualCompareMaskAndSelectCTypeMappingSummary))
       return error;
   } else if (isRuntimeScalarComputedMaskStoreRoute) {
     llvm::StringRef expectedTargetLeafProfile =
@@ -15809,6 +16728,61 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "indexed destination memory form",
             description.indexedDestinationMemoryForm, ""))
       return error;
+  } else if (isRuntimeScalarDualCompareMaskAndSelect) {
+    expectedRuntimeABIOrder =
+        kRVVRuntimeScalarDualCompareMaskAndSelectRuntimeABIOrder;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "strided memory layout", description.stridedMemoryLayout,
+            ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed memory layout", description.indexedMemoryLayout,
+            ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "lhs stride source", description.lhsStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "rhs stride source", description.rhsStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "out stride source", description.outStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source stride source", description.sourceStrideSource,
+            ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source memory form", description.sourceMemoryForm,
+            kRVVUnitStrideSourceMemoryForm))
+      return error;
+    if (llvm::Error error =
+            requireRouteDescriptionField(context, "destination memory form",
+                                         description.destinationMemoryForm,
+                                         kRVVDestinationMemoryForm))
+      return error;
+    if (description.indexEEW != 0)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " index EEW must be empty for runtime scalar dual-compare "
+          "mask-and select routes");
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "offset unit", description.offsetUnit, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "index source", description.indexSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "index uniqueness", description.indexUniqueness, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed data memory form",
+            description.indexedDataMemoryForm, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed destination memory form",
+            description.indexedDestinationMemoryForm, ""))
+      return error;
   } else if (isRuntimeScalarComputedMaskStore) {
     expectedRuntimeABIOrder =
         kRVVRuntimeScalarComputedMaskStoreRuntimeABIOrder;
@@ -15941,6 +16915,112 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
                        RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore
                    ? kRVVComputedMaskMemoryRuntimeABIOrder
                    : kRVVMaskedMemoryRuntimeABIOrder);
+  } else if (isRuntimeScalarDualCompareMaskAndSelect) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "strided memory layout",
+            description.stridedMemoryLayout, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed memory layout", description.indexedMemoryLayout,
+            ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "lhs stride source", description.lhsStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "rhs stride source", description.rhsStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "out stride source", description.outStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source stride source", description.sourceStrideSource,
+            ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source memory form", description.sourceMemoryForm,
+            kRVVUnitStrideSourceMemoryForm))
+      return error;
+    if (llvm::Error error =
+            requireRouteDescriptionField(context, "destination memory form",
+                                         description.destinationMemoryForm,
+                                         kRVVDestinationMemoryForm))
+      return error;
+    if (description.indexEEW != 0)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " index EEW must be empty for runtime scalar dual-compare "
+          "mask-and select routes");
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "offset unit", description.offsetUnit, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "index source", description.indexSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "index uniqueness", description.indexUniqueness, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed data memory form",
+            description.indexedDataMemoryForm, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed destination memory form",
+            description.indexedDestinationMemoryForm, ""))
+      return error;
+  } else if (isRuntimeScalarDualCompareMaskAndSelect) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "strided memory layout",
+            description.stridedMemoryLayout, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed memory layout", description.indexedMemoryLayout,
+            ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "lhs stride source", description.lhsStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "rhs stride source", description.rhsStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "out stride source", description.outStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source stride source", description.sourceStrideSource,
+            ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source memory form", description.sourceMemoryForm,
+            kRVVUnitStrideSourceMemoryForm))
+      return error;
+    if (llvm::Error error =
+            requireRouteDescriptionField(context, "destination memory form",
+                                         description.destinationMemoryForm,
+                                         kRVVDestinationMemoryForm))
+      return error;
+    if (description.indexEEW != 0)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " index EEW must be empty for runtime scalar dual-compare "
+          "mask-and select routes");
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "offset unit", description.offsetUnit, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "index source", description.indexSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "index uniqueness", description.indexUniqueness, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed data memory form",
+            description.indexedDataMemoryForm, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed destination memory form",
+            description.indexedDestinationMemoryForm, ""))
+      return error;
   } else if (operationProfile.isIndexedMemoryMovement) {
     expectedRuntimeABIOrder =
         operationProfile.operation ==
@@ -16013,6 +17093,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   }
   if (isScalarBroadcastElementwiseRoute || isRuntimeScalarSplatStoreRoute ||
       isRuntimeScalarCompareSelectRoute ||
+      isRuntimeScalarDualCompareMaskAndSelectRoute ||
       isRuntimeScalarComputedMaskStoreRoute ||
       isRuntimeScalarComputedMaskedMAcc || isStandaloneReductionRoute)
     if (llvm::Error error = requireRouteDescriptionField(
@@ -16387,6 +17468,33 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "compare intrinsic", description.compareIntrinsic,
             targetLeaves.compareIntrinsic))
       return error;
+    if (isRuntimeScalarDualCompareMaskAndSelect) {
+      if (llvm::Error error = requireRouteDescriptionText(
+              context, "secondary compare predicate kind",
+              description.secondaryComparePredicateKind))
+        return error;
+      if (llvm::Error error = requireRouteDescriptionField(
+              context, "secondary compare intrinsic",
+              description.secondaryCompareIntrinsic,
+              targetLeaves.compareIntrinsic))
+        return error;
+      if (llvm::Error error = requireRouteDescriptionField(
+              context, "mask-and intrinsic", description.maskAndIntrinsic,
+              targetLeaves.maskAndIntrinsic))
+        return error;
+    } else {
+      if (llvm::Error error = requireRouteDescriptionField(
+              context, "secondary compare predicate kind",
+              description.secondaryComparePredicateKind, ""))
+        return error;
+      if (llvm::Error error = requireRouteDescriptionField(
+              context, "secondary compare intrinsic",
+              description.secondaryCompareIntrinsic, ""))
+        return error;
+      if (llvm::Error error = requireRouteDescriptionField(
+              context, "mask-and intrinsic", description.maskAndIntrinsic, ""))
+        return error;
+    }
   } else if (operationProfile.isMaskedArithmetic ||
              operationProfile.isMaskedMemoryMovement ||
              isComputedMaskWideningDotReduce ||
@@ -16401,6 +17509,17 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "compare intrinsic", description.compareIntrinsic, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "secondary compare predicate kind",
+            description.secondaryComparePredicateKind, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "secondary compare intrinsic",
+            description.secondaryCompareIntrinsic, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask-and intrinsic", description.maskAndIntrinsic, ""))
       return error;
   }
   if (operationProfile.isMaskedArithmetic ||
@@ -16442,35 +17561,52 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
   }
   if (operationProfile.isMaskedArithmetic || isComputedMaskSelect ||
-      isRuntimeScalarCompareSelect || isComputedMaskedMAcc) {
+      isRuntimeScalarCompareSelect ||
+      isRuntimeScalarDualCompareMaskAndSelect || isComputedMaskedMAcc) {
     llvm::StringRef expectedMaskMemoryForm =
         (isComputedMaskSelect || isRuntimeScalarCompareSelect ||
          isComputedMaskedMAcc)
             ? llvm::StringRef(kRVVComputedMaskMemoryMaskMemoryForm)
+        : isRuntimeScalarDualCompareMaskAndSelect
+            ? llvm::StringRef("composed-compare-produced-mask")
             : llvm::StringRef();
     llvm::StringRef expectedInactiveLaneContract =
-        (isComputedMaskSelect || isRuntimeScalarCompareSelect)
+        (isComputedMaskSelect || isRuntimeScalarCompareSelect ||
+         isRuntimeScalarDualCompareMaskAndSelect)
             ? llvm::StringRef()
         : isComputedMaskedMAcc
             ? llvm::StringRef("masked-macc-false-lanes-preserve-accumulator")
             : llvm::StringRef(kRVVMaskedInactiveLaneContract);
     llvm::StringRef expectedMaskedPassthroughLayout =
-        (isComputedMaskSelect || isRuntimeScalarCompareSelect)
+        (isComputedMaskSelect || isRuntimeScalarCompareSelect ||
+         isRuntimeScalarDualCompareMaskAndSelect)
             ? llvm::StringRef()
         : isComputedMaskedMAcc
             ? llvm::StringRef("accumulator-vector-preserves-inactive-lanes")
             : llvm::StringRef(kRVVMaskedPassthroughLayout);
+    llvm::StringRef expectedMaskRole =
+        isRuntimeScalarDualCompareMaskAndSelect
+            ? llvm::StringRef("predicate-mask-produced-by-mask-and")
+            : llvm::StringRef(kRVVMaskedPredicateMaskRole);
+    llvm::StringRef expectedMaskSource =
+        isRuntimeScalarDualCompareMaskAndSelect
+            ? llvm::StringRef(
+                  "mask-and-of-two-runtime-scalar-compare-produced-masks")
+            : llvm::StringRef(kRVVMaskedCompareMaskSource);
     if (llvm::Error error = requireRouteDescriptionField(
-            context, "mask role", description.maskRole,
-            kRVVMaskedPredicateMaskRole))
+            context, "mask role", description.maskRole, expectedMaskRole))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "mask source", description.maskSource,
-            kRVVMaskedCompareMaskSource))
+            expectedMaskSource))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "mask memory form", description.maskMemoryForm,
             expectedMaskMemoryForm))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask composition", description.maskComposition,
+            isRuntimeScalarDualCompareMaskAndSelect ? "and" : ""))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "inactive lane contract",
@@ -16514,6 +17650,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "mask memory form", description.maskMemoryForm,
             kRVVComputedMaskMemoryMaskMemoryForm))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask composition", description.maskComposition, ""))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "inactive lane contract",
@@ -16582,6 +17721,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
                            : kRVVMaskMemoryForm))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask composition", description.maskComposition, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
             context, "inactive lane contract",
             description.inactiveLaneContract,
             isComputedMaskStridedStore
@@ -16626,6 +17768,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "mask memory form", description.maskMemoryForm, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "mask composition", description.maskComposition, ""))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "inactive lane contract",
@@ -17109,6 +18254,59 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " index EEW must be empty for runtime scalar compare/select routes");
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "offset unit", description.offsetUnit, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "index source", description.indexSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "index uniqueness", description.indexUniqueness, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed data memory form",
+            description.indexedDataMemoryForm, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed destination memory form",
+            description.indexedDestinationMemoryForm, ""))
+      return error;
+  } else if (isRuntimeScalarDualCompareMaskAndSelect) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "strided memory layout", description.stridedMemoryLayout,
+            ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed memory layout", description.indexedMemoryLayout,
+            ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "lhs stride source", description.lhsStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "rhs stride source", description.rhsStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "out stride source", description.outStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source stride source", description.sourceStrideSource,
+            ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source memory form", description.sourceMemoryForm,
+            kRVVUnitStrideSourceMemoryForm))
+      return error;
+    if (llvm::Error error =
+            requireRouteDescriptionField(context, "destination memory form",
+                                         description.destinationMemoryForm,
+                                         kRVVDestinationMemoryForm))
+      return error;
+    if (description.indexEEW != 0)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " index EEW must be empty for runtime scalar dual-compare "
+          "mask-and select routes");
     if (llvm::Error error = requireRouteDescriptionField(
             context, "offset unit", description.offsetUnit, ""))
       return error;
@@ -17786,6 +18984,8 @@ getRVVSelectedBodyConfigArtifactMetadata(
           description.operation) ||
       isRVVSelectedBodyRuntimeScalarCompareSelectRouteOperation(
           description.operation) ||
+      isRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRouteOperation(
+          description.operation) ||
       isRVVSelectedBodyRuntimeScalarComputedMaskStoreRouteOperation(
           description.operation) ||
       description.operation ==
@@ -17815,11 +19015,20 @@ getRVVSelectedBodyConfigArtifactMetadata(
   }
   if (description.operation == RVVSelectedBodyOperationKind::ComputedMaskSelect ||
       description.operation ==
-          RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect) {
+          RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect) {
     metadata.push_back({"tcrv_rvv.mask_role", description.maskRole});
     metadata.push_back({"tcrv_rvv.mask_source", description.maskSource});
     metadata.push_back(
         {"tcrv_rvv.mask_memory_form", description.maskMemoryForm});
+    if (description.operation ==
+        RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect) {
+      metadata.push_back({"tcrv_rvv.secondary_compare_predicate_kind",
+                          description.secondaryComparePredicateKind});
+      metadata.push_back(
+          {"tcrv_rvv.mask_composition", description.maskComposition});
+    }
     if (description.operation !=
             RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore &&
         description.operation !=

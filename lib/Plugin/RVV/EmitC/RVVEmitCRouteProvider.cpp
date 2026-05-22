@@ -419,6 +419,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
 
   const support::RuntimeABIParameter *boundLHSABI = &slice->lhsABI;
   const support::RuntimeABIParameter *boundRHSABI = &slice->rhsABI;
+  const support::RuntimeABIParameter *boundSecondaryCompareLHSABI =
+      &slice->secondaryCompareLhsABI;
+  const support::RuntimeABIParameter *boundSecondaryCompareRHSScalarABI =
+      &slice->secondaryCompareRhsScalarABI;
   const support::RuntimeABIParameter *boundAccumulatorABI =
       &slice->accumulatorABI;
   const support::RuntimeABIParameter *boundDotLHSABI = &slice->dotLHSABI;
@@ -555,8 +559,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               bindOperand(boundOutABI, "out", "store-base",
                           "computed_mask_select output store"))
         return error;
-    } else if (description.operation ==
-               RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect) {
+	    } else if (description.operation ==
+	               RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect) {
       if (llvm::Error error =
               bindOperand(boundLHSABI, "lhs", "materialized-load-base",
                           "runtime_scalar_cmp_select lhs load operand"))
@@ -590,12 +594,99 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               "false_value", "select-false-call",
               "runtime_scalar_cmp_select selected false-value operand"))
         return error;
-      if (llvm::Error error =
-              bindOperand(boundOutABI, "out", "materialized-store-base",
-                          "runtime_scalar_cmp_select output store"))
-        return error;
-    } else if (description.operation ==
-               RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore) {
+	      if (llvm::Error error =
+	              bindOperand(boundOutABI, "out", "materialized-store-base",
+	                          "runtime_scalar_cmp_select output store"))
+	        return error;
+	    } else if (description.operation ==
+	               RVVSelectedBodyOperationKind::
+	                   RuntimeScalarDualCompareMaskAndSelect) {
+	      if (llvm::Error error =
+	              bindOperand(boundLHSABI, "cmp_lhs_a",
+	                          "materialized-load-base",
+	                          "runtime_scalar_dual_cmp_mask_and_select "
+	                          "compare lhs A load operand"))
+	        return error;
+	      if (llvm::Error error =
+	              requireOperandUse("cmp_lhs_a", "compare-lhs-call",
+	                                "runtime_scalar_dual_cmp_mask_and_select "
+	                                "compare A lhs operand"))
+	        return error;
+	      if (llvm::Error error =
+	              requireOperandUse("cmp_lhs_a", "mask-and-lhs-call",
+	                                "runtime_scalar_dual_cmp_mask_and_select "
+	                                "mask-and lhs provenance"))
+	        return error;
+	      if (llvm::Error error =
+	              bindOperand(boundRHSABI, "rhs_scalar_a",
+	                          "scalar-broadcast-rhs-call",
+	                          "runtime_scalar_dual_cmp_mask_and_select scalar "
+	                          "threshold A splat"))
+	        return error;
+	      if (llvm::Error error =
+	              requireOperandUse("rhs_scalar_a", "compare-rhs-call",
+	                                "runtime_scalar_dual_cmp_mask_and_select "
+	                                "compare A rhs operand"))
+	        return error;
+	      if (llvm::Error error =
+	              bindOperand(boundSecondaryCompareLHSABI, "cmp_lhs_b",
+	                          "materialized-secondary-load-base",
+	                          "runtime_scalar_dual_cmp_mask_and_select "
+	                          "compare lhs B load operand"))
+	        return error;
+	      if (llvm::Error error =
+	              requireOperandUse("cmp_lhs_b", "secondary-compare-lhs-call",
+	                                "runtime_scalar_dual_cmp_mask_and_select "
+	                                "compare B lhs operand"))
+	        return error;
+	      if (llvm::Error error =
+	              requireOperandUse("cmp_lhs_b", "mask-and-rhs-call",
+	                                "runtime_scalar_dual_cmp_mask_and_select "
+	                                "mask-and rhs provenance"))
+	        return error;
+	      if (llvm::Error error =
+	              bindOperand(boundSecondaryCompareRHSScalarABI, "rhs_scalar_b",
+	                          "secondary-scalar-broadcast-rhs-call",
+	                          "runtime_scalar_dual_cmp_mask_and_select scalar "
+	                          "threshold B splat"))
+	        return error;
+	      if (llvm::Error error =
+	              requireOperandUse("rhs_scalar_b", "secondary-compare-rhs-call",
+	                                "runtime_scalar_dual_cmp_mask_and_select "
+	                                "compare B rhs operand"))
+	        return error;
+	      if (llvm::Error error = bindOperand(
+	              boundTrueValueABI, "true_value", "materialized-true-load-base",
+	              "runtime_scalar_dual_cmp_mask_and_select true-value load "
+	              "operand"))
+	        return error;
+	      if (llvm::Error error =
+	              requireOperandUse("true_value", "select-true-call",
+	                                "runtime_scalar_dual_cmp_mask_and_select "
+	                                "selected true-value operand"))
+	        return error;
+	      if (llvm::Error error = bindOperand(
+	              boundFalseValueABI, "false_value", "materialized-false-load-base",
+	              "runtime_scalar_dual_cmp_mask_and_select false-value load "
+	              "operand"))
+	        return error;
+	      if (llvm::Error error =
+	              requireOperandUse("false_value", "select-false-call",
+	                                "runtime_scalar_dual_cmp_mask_and_select "
+	                                "selected false-value operand"))
+	        return error;
+	      if (llvm::Error error =
+	              requireOperandUse("out", "header-mirror",
+	                                "runtime_scalar_dual_cmp_mask_and_select "
+	                                "output header mirror"))
+	        return error;
+	      if (llvm::Error error =
+	              bindOperand(boundOutABI, "out", "materialized-store-base",
+	                          "runtime_scalar_dual_cmp_mask_and_select output "
+	                          "store"))
+	        return error;
+	    } else if (description.operation ==
+	               RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore) {
       if (llvm::Error error =
               bindOperand(boundLHSABI, "lhs", "materialized-load-base",
                           "runtime_scalar_cmp_masked_store lhs load operand"))
@@ -2792,6 +2883,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const bool isRuntimeScalarCompareSelect =
       description.operation ==
       RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect;
+  const bool isRuntimeScalarDualCompareMaskAndSelect =
+      description.operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect;
   const bool isRuntimeScalarComputedMaskStore =
       isRVVSelectedBodyRuntimeScalarComputedMaskStoreRoute(
           description.operation);
@@ -3082,12 +3176,14 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{description.resultName.str(),
                                       description.vectorCType.str()}))
       return error;
-  } else if (description.memoryForm ==
-                 RVVSelectedBodyMemoryForm::RHSScalarBroadcast ||
-             description.memoryForm ==
-                 RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect ||
-             description.memoryForm ==
-                 RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore ||
+	  } else if (description.memoryForm ==
+	                 RVVSelectedBodyMemoryForm::RHSScalarBroadcast ||
+	             description.memoryForm ==
+	                 RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect ||
+	             description.memoryForm == RVVSelectedBodyMemoryForm::
+	                                           RuntimeScalarDualCompareMaskAndSelect ||
+	             description.memoryForm ==
+	                 RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore ||
              description.memoryForm ==
                  RVVSelectedBodyMemoryForm::
                      RuntimeScalarComputedMaskLoadStore ||
@@ -3106,8 +3202,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{"rhs_vec",
                                       description.vectorCType.str()}))
       return error;
-  } else if (description.memoryForm ==
-             RVVSelectedBodyMemoryForm::RHSBroadcastLoad) {
+	  } else if (description.memoryForm ==
+	             RVVSelectedBodyMemoryForm::RHSBroadcastLoad) {
     if (llvm::Error error = addLoopStep(
             slice->rhsLoadOperation, "load",
             description.rhsBroadcastIntrinsic,
@@ -3148,9 +3244,36 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                         description.vlCType.str()}},
             TCRVEmitCCallOpaqueResult{"rhs_vec",
                                       description.vectorCType.str()}))
-      return error;
-  }
-  if (isComputedMaskSelect || isRuntimeScalarCompareSelect) {
+	      return error;
+	  }
+	  if (isRuntimeScalarDualCompareMaskAndSelect) {
+	    if (llvm::Error error = addLoopStep(
+	            slice->secondaryCompareLhsLoadOperation, "load",
+	            description.vectorLoadIntrinsic,
+	            {TCRVEmitCCallOpaqueOperand{
+	                 (llvm::StringRef(boundSecondaryCompareLHSABI->cName) +
+	                  " + " + inductionName)
+	                     .str(),
+	                 boundSecondaryCompareLHSABI->cType},
+	             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+	                                        description.vlCType.str()}},
+	            TCRVEmitCCallOpaqueResult{"cmp_lhs_b_vec",
+	                                      description.vectorCType.str()}))
+	      return error;
+	    if (llvm::Error error = addLoopStep(
+	            slice->rhsSecondaryScalarSplat.getOperation(), "load",
+	            rhsScalarBroadcastLeaf,
+	            {TCRVEmitCCallOpaqueOperand{
+	                 boundSecondaryCompareRHSScalarABI->cName,
+	                 boundSecondaryCompareRHSScalarABI->cType},
+	             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+	                                        description.vlCType.str()}},
+	            TCRVEmitCCallOpaqueResult{"rhs_b_vec",
+	                                      description.vectorCType.str()}))
+	      return error;
+	  }
+	  if (isComputedMaskSelect || isRuntimeScalarCompareSelect ||
+	      isRuntimeScalarDualCompareMaskAndSelect) {
     if (llvm::Error error = addLoopStep(
             slice->trueValueLoadOperation, "load",
             description.vectorLoadIntrinsic,
@@ -3278,7 +3401,57 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   }
-  if (isRVVSelectedBodyCompareSelectRoute(description.operation)) {
+	  if (isRuntimeScalarDualCompareMaskAndSelect) {
+	    if (llvm::Error error = addLoopStep(
+	            slice->compareOp.getOperation(), "compute",
+	            description.compareIntrinsic,
+	            {TCRVEmitCCallOpaqueOperand{"lhs_vec",
+	                                        description.vectorCType.str()},
+	             TCRVEmitCCallOpaqueOperand{"rhs_vec",
+	                                        description.vectorCType.str()},
+	             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+	                                        description.vlCType.str()}},
+	            TCRVEmitCCallOpaqueResult{"mask_a",
+	                                      description.maskCType.str()}))
+	      return error;
+	    if (llvm::Error error = addLoopStep(
+	            slice->secondaryCompareOp.getOperation(), "compute",
+	            description.secondaryCompareIntrinsic,
+	            {TCRVEmitCCallOpaqueOperand{"cmp_lhs_b_vec",
+	                                        description.vectorCType.str()},
+	             TCRVEmitCCallOpaqueOperand{"rhs_b_vec",
+	                                        description.vectorCType.str()},
+	             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+	                                        description.vlCType.str()}},
+	            TCRVEmitCCallOpaqueResult{"mask_b",
+	                                      description.maskCType.str()}))
+	      return error;
+	    if (llvm::Error error = addLoopStep(
+	            slice->maskAndOp.getOperation(), "compute",
+	            description.maskAndIntrinsic,
+	            {TCRVEmitCCallOpaqueOperand{"mask_a",
+	                                        description.maskCType.str()},
+	             TCRVEmitCCallOpaqueOperand{"mask_b",
+	                                        description.maskCType.str()},
+	             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+	                                        description.vlCType.str()}},
+	            TCRVEmitCCallOpaqueResult{description.maskName.str(),
+	                                      description.maskCType.str()}))
+	      return error;
+	    if (llvm::Error error = addLoopStep(
+	            slice->arithmeticOp, "compute", description.intrinsic,
+	            {TCRVEmitCCallOpaqueOperand{"false_value_vec",
+	                                        description.vectorCType.str()},
+	             TCRVEmitCCallOpaqueOperand{"true_value_vec",
+	                                        description.vectorCType.str()},
+	             TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+	                                        description.maskCType.str()},
+	             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+	                                        description.vlCType.str()}},
+	            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+	                                      description.vectorCType.str()}))
+	      return error;
+	  } else if (isRVVSelectedBodyCompareSelectRoute(description.operation)) {
     if (llvm::Error error = addLoopStep(
             slice->compareOp.getOperation(), "compute",
             description.compareIntrinsic,
