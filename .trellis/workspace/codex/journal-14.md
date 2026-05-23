@@ -299,3 +299,58 @@ Closed base memory movement provider runtime AVL/VL mirror and RouteOperandBindi
 ### Next Steps
 
 - None - task complete
+
+
+## Session 178: Stage2 RVV elementwise arithmetic runtime binding closure
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV vector elementwise arithmetic runtime and binding closure
+**Branch**: `main`
+
+### Summary
+
+Closed elementwise arithmetic provider runtime AVL/VL mirror validation and
+RouteOperandBindingPlan closure for existing plain, masked, and strided
+vector-vector add/sub/mul routes.
+
+### Main Changes
+
+- Extended `verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans`
+  to compare full runtime control mirrors against the validated family plan
+  before provider materialization.
+- Added direct `RouteOperandBindingPlan` closure validation to the elementwise
+  arithmetic family verifier.
+- Extended RVV plugin C++ coverage for missing/stale elementwise plans, runtime
+  mirror mismatch, mask/stride/intrinsic mirror mismatch, binding summary
+  mismatch, binding role mismatch, and route binding plan id mismatch.
+- Recorded generated-bundle dry-run and real `ssh rvv` evidence for explicit
+  and pre-realized add/sub/mul, masked add/sub/mul, masked mul, and strided
+  add at counts 7, 16, and 23.
+
+### Git Commits
+
+- this commit
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2 && ./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] explicit generated-bundle dry-run for add/sub/mul, masked add/sub/mul,
+  masked mul, and strided add at counts 7, 16, and 23
+- [OK] pre-realized generated-bundle dry-run for add/sub/mul, masked
+  add/sub/mul, masked mul, and strided add at counts 7, 16, and 23
+- [OK] explicit real `ssh rvv` evidence for add/sub/mul, masked add/sub/mul,
+  masked mul, and strided add at counts 7, 16, and 23
+- [OK] pre-realized real `ssh rvv` evidence for add/sub/mul, masked
+  add/sub/mul, masked mul, and strided add at counts 7, 16, and 23
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (361/361)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

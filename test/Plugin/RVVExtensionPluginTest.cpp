@@ -2304,7 +2304,8 @@ module {
       "binding facts");
 }
 
-int runElementwiseArithmeticRouteFamilyProviderPlanTest() {
+int runElementwiseArithmeticRouteFamilyProviderPlanTest(
+    mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
@@ -2316,6 +2317,7 @@ int runElementwiseArithmeticRouteFamilyProviderPlanTest() {
       isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans;
+  using tianchenrv::support::RuntimeABIParameterRole;
 
   for (RVVSelectedBodyOperationKind op :
        {RVVSelectedBodyOperationKind::Add,
@@ -2414,11 +2416,226 @@ int runElementwiseArithmeticRouteFamilyProviderPlanTest() {
   staleNonConsumer.elementwiseArithmeticRouteFamilyPlan.emplace();
   staleNonConsumer.elementwiseArithmeticRouteFamilyPlan->operation =
       RVVSelectedBodyOperationKind::Add;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              staleNonConsumer, "elementwise arithmetic provider unit test"),
+          {"must not carry an elementwise arithmetic route-family plan",
+           "scalar_broadcast_add"}))
+    return result;
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @elementwise_add_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_add, sew = 32 : i64, source_kernel = "elementwise_add_provider_kernel", status = "selected-lowering-boundary"} {
+        %a = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %b = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %sum = tcrv_rvv.binary %a, %b, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+
+  tcrv.exec.kernel @elementwise_masked_add_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_masked_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_masked_add, sew = 32 : i64, source_kernel = "elementwise_masked_add_provider_kernel", status = "selected-lowering-boundary"} {
+        %a = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %b = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %mask = tcrv_rvv.compare %a, %b, %vl {kind = "eq"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %sum = tcrv_rvv.masked_binary %mask, %a, %a, %b, %vl {kind = "add"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+
+  tcrv.exec.kernel @elementwise_strided_add_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_strided_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %lhs_stride = tcrv_rvv.runtime_abi_value {c_name = "lhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "lhs-input-stride"} : index
+      %rhs_stride = tcrv_rvv.runtime_abi_value {c_name = "rhs_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "rhs-input-stride"} : index
+      %out_stride = tcrv_rvv.runtime_abi_value {c_name = "out_stride", c_type = "size_t", ownership = "target-export-abi-owned", role = "output-stride"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_strided_add, sew = 32 : i64, source_kernel = "elementwise_strided_add_provider_kernel", status = "selected-lowering-boundary"} {
+        %a = tcrv_rvv.strided_load %lhs, %lhs_stride, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %b = tcrv_rvv.strided_load %rhs, %rhs_stride, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %sum = tcrv_rvv.binary %a, %b, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.strided_store %out, %sum, %out_stride, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, index, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse elementwise arithmetic provider test module");
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> addAnalysis =
+      analyzeRouteInModule(*module, "elementwise_add_provider_kernel",
+                           "rvv_add");
+  if (!addAnalysis)
+    return fail("analyze add elementwise provider route: " +
+                llvm::toString(addAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              *addAnalysis, "elementwise arithmetic provider unit test"),
+          "valid add elementwise arithmetic family provider plan"))
+    return result;
+  if (int result = expect(
+          addAnalysis->elementwiseArithmeticRouteFamilyPlan &&
+              addAnalysis->elementwiseArithmeticRouteFamilyPlan
+                  ->usesPlainVector &&
+              addAnalysis->elementwiseArithmeticRouteFamilyPlan
+                      ->runtimeControlPlan.controlPlanID ==
+                  tianchenrv::plugin::rvv::getRVVRuntimeAVLVLControlPlanID() &&
+              addAnalysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:add.v1",
+          "add plan must carry runtime control, plain vector, and binding "
+          "closure facts"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stale = *addAnalysis;
+  stale.description.runtimeAVLASource = "metadata-selected-avl";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              stale, "elementwise arithmetic provider unit test"),
+          {"elementwise arithmetic route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *addAnalysis;
+  stale.description.emitCLoopVLName = "metadata-selected-vl";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              stale, "elementwise arithmetic provider unit test"),
+          {"elementwise arithmetic route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *addAnalysis;
+  stale.description.routeOperandBindingSummary = "stale";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              stale, "elementwise arithmetic provider unit test"),
+          {"route operand binding mirror summary", "stale"}))
+    return result;
+
+  stale = *addAnalysis;
+  stale.routeOperandBindingPlan.bindings[0].parameter.role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              stale, "elementwise arithmetic provider unit test"),
+          {"logical operand 'lhs'", "lhs-input-buffer", "output-buffer"}))
+    return result;
+
+  stale = *addAnalysis;
+  stale.description.routeOperandBindingPlanID =
+      "rvv-route-operand-binding:sub.v1";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              stale, "elementwise arithmetic provider unit test"),
+          {"mirror plan id", "rvv-route-operand-binding:add.v1",
+           "rvv-route-operand-binding:sub.v1"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> maskedAddAnalysis =
+      analyzeRouteInModule(*module, "elementwise_masked_add_provider_kernel",
+                           "rvv_masked_add");
+  if (!maskedAddAnalysis)
+    return fail("analyze masked add elementwise provider route: " +
+                llvm::toString(maskedAddAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              *maskedAddAnalysis, "elementwise arithmetic provider unit test"),
+          "valid masked add elementwise arithmetic family provider plan"))
+    return result;
+  if (int result = expect(
+          maskedAddAnalysis->elementwiseArithmeticRouteFamilyPlan &&
+              maskedAddAnalysis->elementwiseArithmeticRouteFamilyPlan
+                  ->usesMaskedArithmetic &&
+              maskedAddAnalysis->elementwiseArithmeticRouteFamilyPlan
+                      ->maskSource ==
+                  "compare-produced-mask-same-vl-scope" &&
+              maskedAddAnalysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:masked_add.v1",
+          "masked_add plan must carry mask source, inactive lane, and "
+          "binding closure facts"))
+    return result;
+
+  stale = *maskedAddAnalysis;
+  stale.description.maskRole = "metadata-selected-mask";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              stale, "elementwise arithmetic provider unit test"),
+          {"elementwise arithmetic route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *maskedAddAnalysis;
+  stale.description.compareIntrinsic = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              stale, "elementwise arithmetic provider unit test"),
+          {"elementwise arithmetic route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> stridedAddAnalysis =
+      analyzeRouteInModule(*module, "elementwise_strided_add_provider_kernel",
+                           "rvv_strided_add");
+  if (!stridedAddAnalysis)
+    return fail("analyze strided add elementwise provider route: " +
+                llvm::toString(stridedAddAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              *stridedAddAnalysis,
+              "elementwise arithmetic provider unit test"),
+          "valid strided add elementwise arithmetic family provider plan"))
+    return result;
+  if (int result = expect(
+          stridedAddAnalysis->elementwiseArithmeticRouteFamilyPlan &&
+              stridedAddAnalysis->elementwiseArithmeticRouteFamilyPlan
+                  ->usesStridedInputs &&
+              stridedAddAnalysis->elementwiseArithmeticRouteFamilyPlan
+                  ->stridedLoadIntrinsic.size() &&
+              stridedAddAnalysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:strided_add.v1",
+          "strided_add plan must carry stride layout, provider-derived "
+          "intrinsics, and binding closure facts"))
+    return result;
+
+  stale = *stridedAddAnalysis;
+  stale.description.lhsStrideSource = "metadata-selected-stride";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              stale, "elementwise arithmetic provider unit test"),
+          {"elementwise arithmetic route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *stridedAddAnalysis;
+  stale.description.stridedStoreIntrinsic = "";
   return expectErrorContains(
       verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
-          staleNonConsumer, "elementwise arithmetic provider unit test"),
-      {"must not carry an elementwise arithmetic route-family plan",
-       "scalar_broadcast_add"});
+          stale, "elementwise arithmetic provider unit test"),
+      {"elementwise arithmetic route-family mirrors", "validated family plan"});
 }
 
 int runMaskedAddSelectedBodyPolicyRouteTest(mlir::MLIRContext &context) {
@@ -5551,7 +5768,7 @@ int main() {
     return result;
   if (int result = runBaseMemoryMovementRouteFamilyProviderPlanTest(context))
     return result;
-  if (int result = runElementwiseArithmeticRouteFamilyProviderPlanTest())
+  if (int result = runElementwiseArithmeticRouteFamilyProviderPlanTest(context))
     return result;
   if (int result = runMaskedAddSelectedBodyPolicyRouteTest(context))
     return result;
