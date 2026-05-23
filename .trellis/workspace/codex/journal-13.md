@@ -69,6 +69,72 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 168: Stage2 RVV widening conversion route-family ownership
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV widening conversion route-family ownership
+**Branch**: `main`
+
+### Summary
+
+Moved active `widen_i32_to_i64` and `widen_i16_to_i32` conversion routes
+behind a validated RVV plugin-owned widening conversion family plan and proved
+focused lit, generated-bundle, ssh rvv, authority-scan, and check-tianchenrv
+evidence.
+
+### Main Changes
+
+- Added `rvv-widening-conversion-route-family-plan.v1` and carried operation,
+  runtime AVL/VL plan, ABI order, source/result SEW/LMUL/vector/C type facts,
+  conversion relation, target leaf profile, provider mirror, headers, C type
+  mapping, conversion intrinsic leaf, and runtime ABI parameters through RVV
+  planning.
+- Added public widening conversion consumer/provider verification and made
+  provider materialization depend on a validated plan-derived
+  `emitsWideningConversion` boundary.
+- Updated target/header metadata and generated-bundle expectations so the
+  family plan and provider-owned mirrors are externally visible.
+- Added focused C++ missing/stale-plan checks and updated explicit/pre-realized
+  widening conversion FileCheck and script coverage.
+
+### Routes Covered
+
+- `widen_i32_to_i64`
+- `widen_i16_to_i32`
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused `tcrv-opt`/`tcrv-translate` FileCheck for explicit
+  `widen_i32_to_i64`, pre-realized `widen_i32_to_i64`, and pre-realized
+  `widen_i16_to_i32`.
+- [OK] Generated-bundle dry-runs for explicit `widen_i32_to_i64`,
+  pre-realized `widen_i32_to_i64`, and pre-realized `widen_i16_to_i32`, counts
+  `7,16,23`.
+- [OK] Real `ssh rvv` for explicit `widen_i32_to_i64`, counts `7,16,23`.
+- [OK] Real `ssh rvv` for pre-realized `widen_i16_to_i32`, counts `7,16,23`,
+  with `sign_extension_checked tail_preserved`.
+- [OK] Added-line active-authority scan found no new legacy route authority.
+- [OK] `cmake --build build --target check-tianchenrv` passed 361/361.
+- [OK] `git diff --check`.
+
+### Self-Repair
+
+- Corrected route description verification so widening conversion target
+  profile/provider/header/type mapping mirrors are validated from the new
+  family plan instead of being rejected as stale empty mirrors.
+
+### Status
+
+[OK] **Completed and ready to archive**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 168: Stage2 RVV scalar-broadcast and runtime splat-store route-family ownership
 
 **Date**: 2026-05-23

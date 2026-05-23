@@ -1275,6 +1275,68 @@ int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest() {
        "scalar_broadcast_add"});
 }
 
+int runWideningConversionRouteFamilyProviderPlanTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyWideningConversionRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans;
+
+  if (int result = expect(
+          isRVVSelectedBodyWideningConversionRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::WidenI32ToI64),
+          "widen_i32_to_i64 must be a widening conversion family consumer"))
+    return result;
+  if (int result = expect(
+          isRVVSelectedBodyWideningConversionRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::WidenI16ToI32),
+          "widen_i16_to_i32 must be a widening conversion family consumer"))
+    return result;
+  if (int result = expect(
+          !isRVVSelectedBodyWideningConversionRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::WideningMAccAdd),
+          "widening_macc_add must stay outside widening conversion family"))
+    return result;
+  if (int result = expect(
+          !isRVVSelectedBodyWideningConversionRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::Add),
+          "plain add must stay outside widening conversion family"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingI32ToI64Plan;
+  missingI32ToI64Plan.description.operation =
+      RVVSelectedBodyOperationKind::WidenI32ToI64;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+              missingI32ToI64Plan,
+              "widening conversion provider unit test"),
+          {"requires the widening conversion route-family plan",
+           "widen_i32_to_i64"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingI16ToI32Plan;
+  missingI16ToI32Plan.description.operation =
+      RVVSelectedBodyOperationKind::WidenI16ToI32;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+              missingI16ToI32Plan,
+              "widening conversion provider unit test"),
+          {"requires the widening conversion route-family plan",
+           "widen_i16_to_i32"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleNonConsumer;
+  staleNonConsumer.description.operation = RVVSelectedBodyOperationKind::Add;
+  staleNonConsumer.wideningConversionRouteFamilyPlan.emplace();
+  staleNonConsumer.wideningConversionRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::WidenI32ToI64;
+  return expectErrorContains(
+      verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+          staleNonConsumer, "widening conversion provider unit test"),
+      {"must not carry a widening conversion route-family plan", "add"});
+}
+
 int runMaskedAddSelectedBodyPolicyRouteTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -3009,6 +3071,8 @@ int main() {
   if (int result = runScalarBroadcastElementwisePlanValidationTest(context))
     return result;
   if (int result = runScalarBroadcastAndSplatRouteFamilyProviderPlanTest())
+    return result;
+  if (int result = runWideningConversionRouteFamilyProviderPlanTest())
     return result;
   if (int result = runMaskedAddSelectedBodyPolicyRouteTest(context))
     return result;

@@ -1415,6 +1415,22 @@ constexpr llvm::StringLiteral kRVVScalarBroadcastElementwiseRouteFamilyPlanID(
     "rvv-scalar-broadcast-elementwise-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreRouteFamilyPlanID(
     "rvv-runtime-scalar-splat-store-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVWideningConversionRouteFamilyPlanID(
+    "rvv-widening-conversion-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVWidenI32ToI64TargetLeafProfile(
+    "rvv-v1-i32m1-i64m2-widening-conversion-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVWidenI16ToI32TargetLeafProfile(
+    "rvv-v1-i16mf2-i32m1-widening-conversion-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVWidenI32ToI64ProviderSupportedMirror(
+    "provider_supported_mirror:rvv-widen-i32-to-i64-plan-validated");
+constexpr llvm::StringLiteral kRVVWidenI16ToI32ProviderSupportedMirror(
+    "provider_supported_mirror:rvv-widen-i16-to-i32-plan-validated");
+constexpr llvm::StringLiteral kRVVWideningConversionRequiredHeaderDeclarations(
+    "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral kRVVWidenI32ToI64CTypeMappingSummary(
+    "vl:size_t,source:signed-e32m1,result:signed-e64m2");
+constexpr llvm::StringLiteral kRVVWidenI16ToI32CTypeMappingSummary(
+    "vl:size_t,source:signed-e16mf2,result:signed-e32m1");
 constexpr llvm::StringLiteral kRVVRuntimeScalarCompareSelectRuntimeABIOrder(
     "lhs,rhs_scalar,true_value,false_value,out,n");
 constexpr llvm::StringLiteral
@@ -3995,6 +4011,335 @@ void applyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(
   description.rhsBroadcastIntrinsic = plan.rhsScalarSplatIntrinsic;
   description.storeIntrinsic = plan.storeIntrinsic;
   description.resultName = plan.resultName;
+  description.runtimeABIParameters.clear();
+  description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
+                                          plan.runtimeABIParameters.end());
+}
+
+bool isRVVSelectedBodyWideningConversionRouteOperation(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::WidenI32ToI64 ||
+         op == RVVSelectedBodyOperationKind::WidenI16ToI32;
+}
+
+llvm::StringRef getRVVSelectedBodyWideningConversionTargetLeafProfile(
+    RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::WidenI32ToI64:
+    return kRVVWidenI32ToI64TargetLeafProfile;
+  case RVVSelectedBodyOperationKind::WidenI16ToI32:
+    return kRVVWidenI16ToI32TargetLeafProfile;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVSelectedBodyWideningConversionProviderSupportedMirror(
+    RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::WidenI32ToI64:
+    return kRVVWidenI32ToI64ProviderSupportedMirror;
+  case RVVSelectedBodyOperationKind::WidenI16ToI32:
+    return kRVVWidenI16ToI32ProviderSupportedMirror;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef getRVVSelectedBodyWideningConversionCTypeMappingSummary(
+    RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::WidenI32ToI64:
+    return kRVVWidenI32ToI64CTypeMappingSummary;
+  case RVVSelectedBodyOperationKind::WidenI16ToI32:
+    return kRVVWidenI16ToI32CTypeMappingSummary;
+  default:
+    return {};
+  }
+}
+
+llvm::Error requireRVVSelectedBodyWideningConversionPlanField(
+    const RVVSelectedBodyWideningConversionRouteFamilyPlan &plan,
+    llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("widening conversion route-family plan validation for "
+                  "operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
+      field + " '" + expected + "' but found '" + actual + "'");
+}
+
+llvm::Error validateRVVSelectedBodyWideningConversionRouteFamilyPlan(
+    const RVVSelectedBodyWideningConversionRouteFamilyPlan &plan) {
+  if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
+          plan.runtimeControlPlan,
+          "widening conversion route-family runtime AVL/VL control"))
+    return error;
+  if (!isRVVSelectedBodyWideningConversionRouteOperation(plan.operation))
+    return makeRVVEmitCRouteProviderError(
+        "widening conversion route-family plan supports only widen_i32_to_i64 "
+        "and widen_i16_to_i32");
+  if (plan.memoryForm != RVVSelectedBodyMemoryForm::UnitStrideConversion)
+    return makeRVVEmitCRouteProviderError(
+        "widening conversion route-family plan requires unit-stride conversion "
+        "typed body structure");
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "runtime control plan", plan.runtimeControlPlan.controlPlanID,
+          getRVVRuntimeAVLVLControlPlanID()))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "family plan", plan.familyPlanID,
+          kRVVWideningConversionRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "runtime ABI order", plan.runtimeABIOrder,
+          kRVVWideningConversionRuntimeABIOrder))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "target leaf profile", plan.targetLeafProfile,
+          getRVVSelectedBodyWideningConversionTargetLeafProfile(plan.operation)))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "provider_supported_mirror", plan.providerSupportedMirror,
+          getRVVSelectedBodyWideningConversionProviderSupportedMirror(
+              plan.operation)))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "header declarations", plan.requiredHeaderDeclarations,
+          kRVVWideningConversionRequiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "C type mapping summary", plan.cTypeMappingSummary,
+          getRVVSelectedBodyWideningConversionCTypeMappingSummary(
+              plan.operation)))
+    return error;
+  if (plan.requiredHeaders.size() != 3 ||
+      plan.requiredHeaders[0] != "stddef.h" ||
+      plan.requiredHeaders[1] != "stdint.h" ||
+      plan.requiredHeaders[2] != "riscv_vector.h")
+    return makeRVVEmitCRouteProviderError(
+        "widening conversion route-family plan requires provider-owned header "
+        "declarations 'stddef.h,stdint.h,riscv_vector.h'");
+
+  const bool isI16ToI32 =
+      plan.operation == RVVSelectedBodyOperationKind::WidenI16ToI32;
+  const std::int64_t expectedSourceSEW =
+      isI16ToI32 ? tcrv::rvv::getRVVSEW16Bits()
+                 : tcrv::rvv::getRVVFirstSliceSEWBits();
+  const llvm::StringRef expectedSourceLMUL =
+      isI16ToI32 ? tcrv::rvv::getRVVLMULMF2()
+                 : tcrv::rvv::getRVVLMULM1();
+  const llvm::StringRef expectedSourceVectorType =
+      isI16ToI32 ? "!tcrv_rvv.vector<i16, \"mf2\">"
+                 : "!tcrv_rvv.vector<i32, \"m1\">";
+  const llvm::StringRef expectedSourceVectorCType =
+      isI16ToI32 ? "vint16mf2_t" : "vint32m1_t";
+  const llvm::StringRef expectedSourceVectorLoadIntrinsic =
+      isI16ToI32 ? "__riscv_vle16_v_i16mf2" : "__riscv_vle32_v_i32m1";
+  const std::int64_t expectedResultSEW =
+      isI16ToI32 ? tcrv::rvv::getRVVFirstSliceSEWBits()
+                 : tcrv::rvv::getRVVSEW64Bits();
+  const llvm::StringRef expectedResultLMUL =
+      isI16ToI32 ? tcrv::rvv::getRVVLMULM1()
+                 : tcrv::rvv::getRVVLMULM2();
+  const llvm::StringRef expectedResultVectorType =
+      isI16ToI32 ? "!tcrv_rvv.vector<i32, \"m1\">"
+                 : "!tcrv_rvv.vector<i64, \"m2\">";
+  const llvm::StringRef expectedResultVectorCType =
+      isI16ToI32 ? "vint32m1_t" : "vint64m2_t";
+  const llvm::StringRef expectedSetVLIntrinsic =
+      isI16ToI32 ? "__riscv_vsetvl_e32m1" : "__riscv_vsetvl_e64m2";
+  const llvm::StringRef expectedConversionIntrinsic =
+      isI16ToI32 ? "__riscv_vwcvt_x_x_v_i32m1"
+                 : "__riscv_vwcvt_x_x_v_i64m2";
+  const llvm::StringRef expectedStoreIntrinsic =
+      isI16ToI32 ? "__riscv_vse32_v_i32m1" : "__riscv_vse64_v_i64m2";
+  const llvm::StringRef expectedConversionRelation =
+      isI16ToI32 ? kRVVWidenI16ToI32ConversionRelation
+                 : kRVVWideningConversionRelation;
+
+  if (plan.sourceSEW != expectedSourceSEW)
+    return makeRVVEmitCRouteProviderError(
+        "widening conversion route-family plan source SEW must be derived from "
+        "the typed source vector");
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "source LMUL", plan.sourceLMUL, expectedSourceLMUL))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "source vector type", plan.sourceVectorTypeName,
+          expectedSourceVectorType))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "source vector C type", plan.sourceVectorCType,
+          expectedSourceVectorCType))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "source vector-load leaf", plan.sourceVectorLoadIntrinsic,
+          expectedSourceVectorLoadIntrinsic))
+    return error;
+  if (plan.resultSEW != expectedResultSEW)
+    return makeRVVEmitCRouteProviderError(
+        "widening conversion route-family plan result SEW must be derived from "
+        "the typed result vector");
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "result LMUL", plan.resultLMUL, expectedResultLMUL))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "result vector type", plan.resultVectorTypeName,
+          expectedResultVectorType))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "result vector C type", plan.resultVectorCType,
+          expectedResultVectorCType))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "setvl leaf", plan.setVLIntrinsic, expectedSetVLIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "conversion leaf", plan.conversionIntrinsic,
+          expectedConversionIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "store leaf", plan.storeIntrinsic, expectedStoreIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "result name", plan.resultName, "widened_vec"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyWideningConversionPlanField(
+          plan, "conversion relation", plan.conversionRelation,
+          expectedConversionRelation))
+    return error;
+  if (llvm::Error error =
+          verifyRVVSelectedBodyConstructionRuntimeABIParameters(
+              plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
+  return llvm::Error::success();
+}
+
+llvm::Expected<RVVSelectedBodyWideningConversionRouteFamilyPlan>
+deriveRVVSelectedBodyWideningConversionRouteFamilyPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyConfigProfile &configProfile,
+    const RVVSelectedBodyTargetLeafProfile &targetLeaves) {
+  const RVVSelectedBodyOperationKind operation = analysis.slice.arithmeticKind;
+  if (!isRVVSelectedBodyWideningConversionRouteOperation(operation))
+    return makeRVVEmitCRouteProviderError(
+        "requested widening conversion route-family plan for non-conversion RVV "
+        "operation");
+  if (analysis.slice.memoryForm != RVVSelectedBodyMemoryForm::UnitStrideConversion)
+    return makeRVVEmitCRouteProviderError(
+        "widening conversion route-family plan requires unit-stride conversion "
+        "typed body structure");
+  if (!analysis.slice.lhsGenericLoad || !analysis.slice.genericStore ||
+      !analysis.slice.arithmeticOp || analysis.slice.rhsLoadOperation)
+    return makeRVVEmitCRouteProviderError(
+        "widening conversion route-family plan requires exactly one source "
+        "load, one conversion compute op, and one result store body structure");
+  if (analysis.slice.lhsABI.role !=
+          support::RuntimeABIParameterRole::LHSInputBuffer ||
+      analysis.slice.outABI.role !=
+          support::RuntimeABIParameterRole::OutputBuffer ||
+      analysis.slice.runtimeElementCountABI.role !=
+          support::RuntimeABIParameterRole::RuntimeElementCount)
+    return makeRVVEmitCRouteProviderError(
+        "widening conversion route-family plan requires lhs source buffer, "
+        "output buffer, and runtime element-count ABI roles");
+
+  const bool isI16ToI32 =
+      operation == RVVSelectedBodyOperationKind::WidenI16ToI32;
+  if ((!isI16ToI32 &&
+       (configProfile.sew != tcrv::rvv::getRVVSEW64Bits() ||
+        configProfile.lmul != tcrv::rvv::getRVVLMULM2())) ||
+      (isI16ToI32 &&
+       (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+        configProfile.lmul != tcrv::rvv::getRVVLMULM1())))
+    return makeRVVEmitCRouteProviderError(
+        "widening conversion route-family plan result config must match the "
+        "typed destination vector");
+
+  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+      deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
+          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl, analysis.slice.withVL,
+          kRVVWideningConversionRuntimeABIOrder,
+          "widening conversion route-family plan");
+  if (!runtimeControlPlan)
+    return runtimeControlPlan.takeError();
+
+  RVVSelectedBodyWideningConversionRouteFamilyPlan plan;
+  plan.operation = operation;
+  plan.memoryForm = analysis.slice.memoryForm;
+  plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.familyPlanID = kRVVWideningConversionRouteFamilyPlanID;
+  plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
+  plan.targetLeafProfile =
+      getRVVSelectedBodyWideningConversionTargetLeafProfile(operation);
+  plan.providerSupportedMirror =
+      getRVVSelectedBodyWideningConversionProviderSupportedMirror(operation);
+  plan.requiredHeaders.push_back("stddef.h");
+  plan.requiredHeaders.push_back("stdint.h");
+  plan.requiredHeaders.push_back("riscv_vector.h");
+  plan.requiredHeaderDeclarations =
+      kRVVWideningConversionRequiredHeaderDeclarations;
+  plan.cTypeMappingSummary =
+      getRVVSelectedBodyWideningConversionCTypeMappingSummary(operation);
+  plan.vlCType = configProfile.vlCType;
+  plan.sourceSEW = isI16ToI32 ? tcrv::rvv::getRVVSEW16Bits()
+                              : tcrv::rvv::getRVVFirstSliceSEWBits();
+  plan.sourceLMUL = isI16ToI32 ? tcrv::rvv::getRVVLMULMF2()
+                               : tcrv::rvv::getRVVLMULM1();
+  plan.sourceVectorTypeName = isI16ToI32 ? "!tcrv_rvv.vector<i16, \"mf2\">"
+                                         : "!tcrv_rvv.vector<i32, \"m1\">";
+  plan.sourceVectorCType = isI16ToI32 ? "vint16mf2_t" : "vint32m1_t";
+  plan.sourceVectorLoadIntrinsic =
+      isI16ToI32 ? "__riscv_vle16_v_i16mf2" : "__riscv_vle32_v_i32m1";
+  plan.resultSEW = configProfile.sew;
+  plan.resultLMUL = configProfile.lmul;
+  plan.resultVectorTypeName = configProfile.vectorTypeName;
+  plan.resultVectorCType = configProfile.vectorCType;
+  plan.setVLIntrinsic = configProfile.setVLIntrinsic;
+  plan.conversionIntrinsic = targetLeaves.intrinsic;
+  plan.storeIntrinsic = configProfile.storeIntrinsic;
+  plan.resultName = getRVVSelectedBodyOperationProfile(plan.operation).resultName;
+  plan.conversionRelation = isI16ToI32 ? kRVVWidenI16ToI32ConversionRelation
+                                       : kRVVWideningConversionRelation;
+  plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+  plan.runtimeABIParameters.push_back(plan.runtimeControlPlan.runtimeAVLParameter);
+
+  if (llvm::Error error =
+          validateRVVSelectedBodyWideningConversionRouteFamilyPlan(plan))
+    return std::move(error);
+  return plan;
+}
+
+void applyRVVSelectedBodyWideningConversionRouteFamilyPlan(
+    const RVVSelectedBodyWideningConversionRouteFamilyPlan &plan,
+    RVVSelectedBodyEmitCRouteDescription &description) {
+  applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
+                                               description);
+  description.wideningConversionRouteFamilyPlanID = plan.familyPlanID;
+  description.runtimeABIOrder = plan.runtimeABIOrder;
+  description.targetLeafProfile = plan.targetLeafProfile;
+  description.providerSupportedMirror = plan.providerSupportedMirror;
+  description.requiredHeaderDeclarations = plan.requiredHeaderDeclarations;
+  description.cTypeMappingSummary = plan.cTypeMappingSummary;
+  description.vlCType = plan.vlCType;
+  description.sourceSEW = plan.sourceSEW;
+  description.sourceLMUL = plan.sourceLMUL;
+  description.sourceVectorTypeName = plan.sourceVectorTypeName;
+  description.sourceVectorCType = plan.sourceVectorCType;
+  description.sourceVectorLoadIntrinsic = plan.sourceVectorLoadIntrinsic;
+  description.sew = plan.resultSEW;
+  description.lmul = plan.resultLMUL;
+  description.vectorTypeName = plan.resultVectorTypeName;
+  description.vectorCType = plan.resultVectorCType;
+  description.setVLIntrinsic = plan.setVLIntrinsic;
+  description.intrinsic = plan.conversionIntrinsic;
+  description.storeIntrinsic = plan.storeIntrinsic;
+  description.resultName = plan.resultName;
+  description.conversionRelation = plan.conversionRelation;
   description.runtimeABIParameters.clear();
   description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
                                           plan.runtimeABIParameters.end());
@@ -17122,6 +17467,92 @@ llvm::Error verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans
   return llvm::Error::success();
 }
 
+bool isRVVSelectedBodyWideningConversionRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return isRVVSelectedBodyWideningConversionRouteOperation(operation);
+}
+
+llvm::Error verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyWideningConversionRouteFamilyConsumer(operation);
+  if (isConsumer && !analysis.wideningConversionRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the widening conversion route-family plan before provider "
+        "materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!isConsumer && analysis.wideningConversionRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must not carry a widening conversion route-family plan for "
+        "non-widening-conversion operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!analysis.wideningConversionRouteFamilyPlan)
+    return llvm::Error::success();
+
+  const RVVSelectedBodyWideningConversionRouteFamilyPlan &plan =
+      *analysis.wideningConversionRouteFamilyPlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodyWideningConversionRouteFamilyPlan(plan))
+    return error;
+  if (plan.operation != operation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route-family plan operation must match the "
+        "selected route description");
+  if (analysis.description.wideningConversionRouteFamilyPlanID !=
+      plan.familyPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route-family plan mirror must match the "
+        "validated family plan");
+  if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.runtimeControlPlanID !=
+          plan.runtimeControlPlan.controlPlanID ||
+      analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.targetLeafProfile != plan.targetLeafProfile ||
+      analysis.description.providerSupportedMirror !=
+          plan.providerSupportedMirror ||
+      analysis.description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      analysis.description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      analysis.description.vlCType != plan.vlCType ||
+      analysis.description.sourceSEW != plan.sourceSEW ||
+      analysis.description.sourceLMUL != plan.sourceLMUL ||
+      analysis.description.sourceVectorTypeName != plan.sourceVectorTypeName ||
+      analysis.description.sourceVectorCType != plan.sourceVectorCType ||
+      analysis.description.sourceVectorLoadIntrinsic !=
+          plan.sourceVectorLoadIntrinsic ||
+      analysis.description.sew != plan.resultSEW ||
+      analysis.description.lmul != plan.resultLMUL ||
+      analysis.description.vectorTypeName != plan.resultVectorTypeName ||
+      analysis.description.vectorCType != plan.resultVectorCType ||
+      analysis.description.setVLIntrinsic != plan.setVLIntrinsic ||
+      analysis.description.intrinsic != plan.conversionIntrinsic ||
+      analysis.description.storeIntrinsic != plan.storeIntrinsic ||
+      analysis.description.resultName != plan.resultName ||
+      analysis.description.conversionRelation != plan.conversionRelation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route-family mirrors must be populated from the "
+        "validated family plan before provider materialization");
+  if (!support::runtimeABIParametersEqual(
+          analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion route-family runtime ABI parameters must match "
+        "the validated family plan");
+  if (analysis.routeOperandBindingPlan.planID !=
+      getExpectedRVVRouteOperandBindingPlanID(operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening conversion provider requires the route operand binding plan "
+        "for the selected operation");
+  return llvm::Error::success();
+}
+
 bool isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {
@@ -18343,6 +18774,19 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
         *analysis.runtimeScalarSplatStoreRouteFamilyPlan,
         analysis.description);
   }
+  if (isRVVSelectedBodyWideningConversionRouteOperation(
+          routeProfile->operation.operation)) {
+    llvm::Expected<RVVSelectedBodyWideningConversionRouteFamilyPlan>
+        wideningConversionPlan =
+            deriveRVVSelectedBodyWideningConversionRouteFamilyPlan(
+                analysis, routeProfile->config, routeProfile->targetLeaves);
+    if (!wideningConversionPlan)
+      return wideningConversionPlan.takeError();
+    analysis.wideningConversionRouteFamilyPlan =
+        std::move(*wideningConversionPlan);
+    applyRVVSelectedBodyWideningConversionRouteFamilyPlan(
+        *analysis.wideningConversionRouteFamilyPlan, analysis.description);
+  }
   if (isRVVSelectedBodyComputedMaskSelectRouteOperation(
           routeProfile->operation.operation)) {
     llvm::Expected<
@@ -19105,6 +19549,28 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "C type mapping summary", description.cTypeMappingSummary,
             kRVVRuntimeScalarSplatStoreCTypeMappingSummary))
       return error;
+  } else if (operationProfile.isWideningConversion) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "target leaf profile", description.targetLeafProfile,
+            getRVVSelectedBodyWideningConversionTargetLeafProfile(
+                operationProfile.operation)))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "provider_supported_mirror",
+            description.providerSupportedMirror,
+            getRVVSelectedBodyWideningConversionProviderSupportedMirror(
+                operationProfile.operation)))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "required header declarations",
+            description.requiredHeaderDeclarations,
+            kRVVWideningConversionRequiredHeaderDeclarations))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "C type mapping summary", description.cTypeMappingSummary,
+            getRVVSelectedBodyWideningConversionCTypeMappingSummary(
+                operationProfile.operation)))
+      return error;
   } else if (isRuntimeScalarComputedMaskSelectRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "target leaf profile", description.targetLeafProfile,
@@ -19825,6 +20291,18 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             description.runtimeScalarSplatStoreRouteFamilyPlanID, ""))
       return error;
   }
+  if (operationProfile.isWideningConversion) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "widening conversion route family plan",
+            description.wideningConversionRouteFamilyPlanID,
+            kRVVWideningConversionRouteFamilyPlanID))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "widening conversion route family plan",
+            description.wideningConversionRouteFamilyPlanID, ""))
+      return error;
+  }
   if (isRuntimeScalarComputedMaskSelectRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "computed-mask select route family plan",
@@ -19934,6 +20412,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           "unconverted route");
   }
   if (isScalarBroadcastElementwiseRoute || isRuntimeScalarSplatStoreRoute ||
+      operationProfile.isWideningConversion ||
       isRuntimeScalarComputedMaskSelectRoute ||
       isComputedMaskMemoryRouteFamilyRoute ||
       isRuntimeScalarComputedMaskedMAcc || isStandaloneReductionRoute)
@@ -21842,6 +22321,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back(
         {"tcrv_rvv.runtime_scalar_splat_store_route_family_plan",
          description.runtimeScalarSplatStoreRouteFamilyPlanID});
+  if (!description.wideningConversionRouteFamilyPlanID.empty())
+    metadata.push_back(
+        {"tcrv_rvv.widening_conversion_route_family_plan",
+         description.wideningConversionRouteFamilyPlanID});
   if (!description.computedMaskSelectRouteFamilyPlanID.empty()) {
     metadata.push_back({"tcrv_rvv.computed_mask_select_route_family_plan",
                         description.computedMaskSelectRouteFamilyPlanID});
@@ -21878,6 +22361,7 @@ getRVVSelectedBodyConfigArtifactMetadata(
           description.operation) ||
       isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(
           description.operation) ||
+      isRVVSelectedBodyWideningConversionRouteOperation(description.operation) ||
       isRVVSelectedBodyComputedMaskSelectRouteOperation(
           description.operation) ||
       !description.computedMaskMemoryRouteFamilyPlanID.empty() ||

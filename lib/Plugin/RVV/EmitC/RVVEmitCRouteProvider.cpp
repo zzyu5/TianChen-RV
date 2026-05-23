@@ -58,11 +58,6 @@ llvm::StringRef getRVVSelectedBodyMaskedStandaloneReductionInactiveNeutral(
   }
 }
 
-bool isRVVSelectedBodyWideningConversionRoute(RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::WidenI32ToI64 ||
-         op == RVVSelectedBodyOperationKind::WidenI16ToI32;
-}
-
 bool isRVVSelectedBodyMaskedMemoryMovementRoute(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::MaskedUnitLoadStore ||
@@ -243,6 +238,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           analysis.runtimeScalarSplatStoreRouteFamilyPlan
               ? &*analysis.runtimeScalarSplatStoreRouteFamilyPlan
               : nullptr;
+  const RVVSelectedBodyWideningConversionRouteFamilyPlan
+      *wideningConversionPlan =
+          analysis.wideningConversionRouteFamilyPlan
+              ? &*analysis.wideningConversionRouteFamilyPlan
+              : nullptr;
   const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan
       *computedMaskSelectPlan =
           analysis.computedMaskSelectRouteFamilyPlan
@@ -291,6 +291,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               analysis, "selected RVV EmitC route construction"))
     return error;
   if (llvm::Error error =
+          verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+              analysis, "selected RVV EmitC route construction"))
+    return error;
+  if (llvm::Error error =
           verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
               analysis, "selected RVV EmitC route construction"))
     return error;
@@ -308,6 +312,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const bool emitsRuntimeScalarComputedMaskStandaloneReduction =
       standaloneReductionPlan &&
       standaloneReductionPlan->usesRuntimeScalarThreshold;
+  const bool emitsWideningConversion = wideningConversionPlan != nullptr;
   const bool emitsPlainStandaloneReduction =
       standaloneReductionPlan && !standaloneReductionPlan->usesComputedMask;
   const bool emitsComputedMaskAccumulation =
@@ -1209,8 +1214,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (llvm::Error error = requireOperandUse(
               "n", "hdr", "widening_macc runtime header mirror"))
         return error;
-    } else if (isRVVSelectedBodyWideningConversionRoute(
-                   description.operation)) {
+    } else if (emitsWideningConversion) {
       const bool isI16ToI32 =
           description.operation == RVVSelectedBodyOperationKind::WidenI16ToI32;
       const llvm::StringRef sourceConfigUse =
@@ -3137,7 +3141,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{"lhs_vec",
                                       sourceVectorCType.str()}))
       return error;
-  } else if (isRVVSelectedBodyWideningConversionRoute(description.operation) ||
+  } else if (emitsWideningConversion ||
              emitsContractionWideningMAcc || emitsContractionDotReduction) {
     if (llvm::Error error = addLoopStep(
             slice->lhsLoadOperation, "load",
@@ -3262,8 +3266,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.indexVectorCType.str()}))
       return error;
   }
-  if (isRVVSelectedBodyWideningConversionRoute(description.operation) ||
-      isRuntimeMaskMemory ||
+  if (emitsWideningConversion || isRuntimeMaskMemory ||
       isMaskedStore ||
       isRVVSelectedBodyMemoryMovementRoute(description.operation) ||
       (emitsStandaloneReduction && !emitsComputedMaskStandaloneReduction)) {
@@ -3908,7 +3911,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             TCRVEmitCCallOpaqueResult{description.resultName.str(),
                                       resultVectorCType.str()}))
       return error;
-  } else if (isRVVSelectedBodyWideningConversionRoute(description.operation)) {
+  } else if (emitsWideningConversion) {
     if (llvm::Error error = addLoopStep(
             slice->arithmeticOp, "compute", description.intrinsic,
             {TCRVEmitCCallOpaqueOperand{"lhs_vec",

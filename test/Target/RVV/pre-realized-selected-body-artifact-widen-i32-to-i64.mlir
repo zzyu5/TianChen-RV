@@ -48,11 +48,17 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.config_contract", value = "rvv-selected-body-sew64-lmul-m2-tail-agnostic-mask-agnostic.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.sew", value = "64"}
 // PLAN-SAME: {key = "tcrv_rvv.lmul", value = "m2"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "unit-stride-conversion"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "lhs,out,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:widen_i32_to_i64.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:widen_i32_to_i64.v1;lhs=lhs-input-buffer:lhs:abi|src-load|convert-src|src-i32m1|relation-signed-i32m1-to-i64m2|hdr;out=output-buffer:out:abi|res-store|convert-result|res-i64m2|relation-signed-i32m1-to-i64m2|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"}
+// PLAN-SAME: {key = "tcrv_rvv.widening_conversion_route_family_plan", value = "rvv-widening-conversion-route-family-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.bounded_slice", value = "multi-vl-selected-body-sew64-lmul-m2"}
+// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-i32m1-i64m2-widening-conversion-leaf-profile.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-widen-i32-to-i64-plan-validated"}
+// PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
+// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,source:signed-e32m1,result:signed-e64m2"}
 // PLAN-SAME: {key = "tcrv_rvv.source_sew", value = "32"}
 // PLAN-SAME: {key = "tcrv_rvv.source_lmul", value = "m1"}
 // PLAN-SAME: {key = "tcrv_rvv.dest_sew", value = "64"}
@@ -72,7 +78,17 @@ module {
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.config_contract: rvv-selected-body-sew64-lmul-m2-tail-agnostic-mask-agnostic.v1
 // HEADER: tianchenrv.rvv.memory_form: unit-stride-conversion
+// HEADER: tianchenrv.rvv.source_sew: 32
+// HEADER: tianchenrv.rvv.source_lmul: m1
+// HEADER: tianchenrv.rvv.dest_sew: 64
+// HEADER: tianchenrv.rvv.dest_lmul: m2
 // HEADER: tianchenrv.rvv.conversion_relation: signed-i32m1-to-i64m2
+// HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-i32m1-i64m2-widening-conversion-leaf-profile.v1
+// HEADER: tianchenrv.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
+// HEADER: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-widen-i32-to-i64-plan-validated
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:widen_i32_to_i64.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:widen_i32_to_i64.v1;lhs=lhs-input-buffer:lhs:abi|src-load|convert-src|src-i32m1|relation-signed-i32m1-to-i64m2|hdr;out=output-buffer:out:abi|res-store|convert-result|res-i64m2|relation-signed-i32m1-to-i64m2|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr
+// HEADER: tianchenrv.rvv.widening_conversion_route_family_plan: rvv-widening-conversion-route-family-plan.v1
+// HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
+// HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e32m1,result:signed-e64m2
 // HEADER: void tcrv_emitc_pre_realized_body_widen_i32_to_i64_kernel_pre_realized_body_rvv_widen_i32_to_i64(const int32_t *lhs, int64_t *out, size_t n);

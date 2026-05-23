@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global no-legacy-authority and RVV-first chain against final widening conversion diff and evidence."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check widening conversion provider boundary remains RVV plugin-owned and typed-body-derived."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remains a neutral materializer of provider-built widening conversion routes and mirrors."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/lit/generated-bundle/ssh rvv evidence matches runtime/correctness claims."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check no new core semantic branch or non-plugin conversion route authority was introduced."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check widening conversion compute boundary stays inside typed tcrv_rvv/RVV plugin and not tcrv.exec/common EmitC."}

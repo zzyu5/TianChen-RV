@@ -652,6 +652,9 @@ RUNTIME_SCALAR_SPLAT_STORE_ROUTE_OPERAND_BINDING_PLAN = (
 RUNTIME_SCALAR_SPLAT_STORE_ROUTE_FAMILY_PLAN = (
     "rvv-runtime-scalar-splat-store-route-family-plan.v1"
 )
+WIDENING_CONVERSION_ROUTE_FAMILY_PLAN = (
+    "rvv-widening-conversion-route-family-plan.v1"
+)
 RUNTIME_SCALAR_SPLAT_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:runtime_i32_splat_store.v1;"
     "rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|runtime-scalar-splat-call|header-mirror;"
@@ -720,6 +723,27 @@ RUNTIME_SCALAR_SPLAT_STORE_REQUIRED_HEADER_DECLARATIONS = (
 )
 RUNTIME_SCALAR_SPLAT_STORE_C_TYPE_MAPPING = (
     "vl:size_t,rhs_scalar:i32,result:signed-e32m1"
+)
+WIDEN_I32_TO_I64_TARGET_LEAF_PROFILE = (
+    "rvv-v1-i32m1-i64m2-widening-conversion-leaf-profile.v1"
+)
+WIDEN_I16_TO_I32_TARGET_LEAF_PROFILE = (
+    "rvv-v1-i16mf2-i32m1-widening-conversion-leaf-profile.v1"
+)
+WIDEN_I32_TO_I64_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-widen-i32-to-i64-plan-validated"
+)
+WIDEN_I16_TO_I32_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-widen-i16-to-i32-plan-validated"
+)
+WIDENING_CONVERSION_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+WIDEN_I32_TO_I64_C_TYPE_MAPPING = (
+    "vl:size_t,source:signed-e32m1,result:signed-e64m2"
+)
+WIDEN_I16_TO_I32_C_TYPE_MAPPING = (
+    "vl:size_t,source:signed-e16mf2,result:signed-e32m1"
 )
 RUNTIME_SCALAR_CMP_SELECT_RUNTIME_ABI_ORDER = (
     "lhs,rhs_scalar,true_value,false_value,out,n"
@@ -6021,6 +6045,20 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_widen_i32_to_i64:
         per_op_metadata.update(
             {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.widening_conversion_route_family_plan": (
+                    WIDENING_CONVERSION_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    WIDEN_I32_TO_I64_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    WIDEN_I32_TO_I64_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    WIDENING_CONVERSION_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": WIDEN_I32_TO_I64_C_TYPE_MAPPING,
                 "tcrv_rvv.source_sew": "32",
                 "tcrv_rvv.source_lmul": "m1",
                 "tcrv_rvv.dest_sew": "64",
@@ -6037,6 +6075,20 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_widen_i16_to_i32:
         per_op_metadata.update(
             {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.widening_conversion_route_family_plan": (
+                    WIDENING_CONVERSION_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    WIDEN_I16_TO_I32_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    WIDEN_I16_TO_I32_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    WIDENING_CONVERSION_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": WIDEN_I16_TO_I32_C_TYPE_MAPPING,
                 "tcrv_rvv.source_sew": "16",
                 "tcrv_rvv.source_lmul": "mf2",
                 "tcrv_rvv.dest_sew": "32",
