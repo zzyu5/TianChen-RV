@@ -1411,6 +1411,10 @@ constexpr llvm::StringLiteral kRVVScalarBroadcastRuntimeABIOrder(
     "lhs,rhs_scalar,out,n");
 constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreRuntimeABIOrder(
     "rhs_scalar,out,n");
+constexpr llvm::StringLiteral kRVVScalarBroadcastElementwiseRouteFamilyPlanID(
+    "rvv-scalar-broadcast-elementwise-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreRouteFamilyPlanID(
+    "rvv-runtime-scalar-splat-store-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVRuntimeScalarCompareSelectRuntimeABIOrder(
     "lhs,rhs_scalar,true_value,false_value,out,n");
 constexpr llvm::StringLiteral
@@ -3578,6 +3582,11 @@ llvm::Error validateRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
+              plan, "family plan", plan.familyPlanID,
+              kRVVScalarBroadcastElementwiseRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyScalarBroadcastElementwisePlanField(
               plan, "runtime ABI order", plan.runtimeABIOrder,
               kRVVScalarBroadcastRuntimeABIOrder))
     return error;
@@ -3716,6 +3725,7 @@ deriveRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
   plan.operation = analysis.slice.arithmeticKind;
   plan.memoryForm = analysis.slice.memoryForm;
   plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.familyPlanID = kRVVScalarBroadcastElementwiseRouteFamilyPlanID;
   plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
   plan.targetLeafProfile = kRVVScalarBroadcastElementwiseTargetLeafProfile;
   plan.providerSupportedMirror =
@@ -3754,6 +3764,7 @@ void applyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
     RVVSelectedBodyEmitCRouteDescription &description) {
   applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
                                                description);
+  description.scalarBroadcastElementwiseRouteFamilyPlanID = plan.familyPlanID;
   description.runtimeABIOrder = plan.runtimeABIOrder;
   description.targetLeafProfile = plan.targetLeafProfile;
   description.providerSupportedMirror = plan.providerSupportedMirror;
@@ -3809,6 +3820,11 @@ llvm::Error validateRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(
               plan, "runtime control plan",
               plan.runtimeControlPlan.controlPlanID,
               getRVVRuntimeAVLVLControlPlanID()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
+              plan, "family plan", plan.familyPlanID,
+              kRVVRuntimeScalarSplatStoreRouteFamilyPlanID))
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyRuntimeScalarSplatStorePlanField(
@@ -3931,6 +3947,7 @@ deriveRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(
   plan.operation = analysis.slice.arithmeticKind;
   plan.memoryForm = analysis.slice.memoryForm;
   plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.familyPlanID = kRVVRuntimeScalarSplatStoreRouteFamilyPlanID;
   plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
   plan.targetLeafProfile = kRVVRuntimeScalarSplatStoreTargetLeafProfile;
   plan.providerSupportedMirror =
@@ -3965,6 +3982,7 @@ void applyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(
     RVVSelectedBodyEmitCRouteDescription &description) {
   applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
                                                description);
+  description.runtimeScalarSplatStoreRouteFamilyPlanID = plan.familyPlanID;
   description.runtimeABIOrder = plan.runtimeABIOrder;
   description.targetLeafProfile = plan.targetLeafProfile;
   description.providerSupportedMirror = plan.providerSupportedMirror;
@@ -16941,6 +16959,169 @@ llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+bool isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
+  case RVVSelectedBodyOperationKind::ScalarBroadcastSub:
+  case RVVSelectedBodyOperationKind::ScalarBroadcastMul:
+    return true;
+  default:
+    return false;
+  }
+}
+
+llvm::Error
+verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer(operation);
+  if (isConsumer && !analysis.scalarBroadcastElementwiseRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the scalar-broadcast elementwise route-family plan before "
+        "provider materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!isConsumer && analysis.scalarBroadcastElementwiseRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must not carry a scalar-broadcast elementwise route-family plan for "
+        "non-scalar-broadcast operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!analysis.scalarBroadcastElementwiseRouteFamilyPlan)
+    return llvm::Error::success();
+
+  const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan &plan =
+      *analysis.scalarBroadcastElementwiseRouteFamilyPlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan(
+              plan))
+    return error;
+  if (plan.operation != operation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " scalar-broadcast elementwise route-family plan operation must match "
+        "the selected route description");
+  if (analysis.description.scalarBroadcastElementwiseRouteFamilyPlanID !=
+      plan.familyPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " scalar-broadcast elementwise route-family plan mirror must match "
+        "the validated family plan");
+  if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.targetLeafProfile != plan.targetLeafProfile ||
+      analysis.description.providerSupportedMirror !=
+          plan.providerSupportedMirror ||
+      analysis.description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      analysis.description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      analysis.description.vlCType != plan.vlCType ||
+      analysis.description.vectorTypeName != plan.vectorTypeName ||
+      analysis.description.vectorCType != plan.vectorCType ||
+      analysis.description.setVLIntrinsic != plan.setVLIntrinsic ||
+      analysis.description.vectorLoadIntrinsic != plan.vectorLoadIntrinsic ||
+      analysis.description.rhsBroadcastIntrinsic !=
+          plan.rhsScalarSplatIntrinsic ||
+      analysis.description.intrinsic != plan.arithmeticIntrinsic ||
+      analysis.description.storeIntrinsic != plan.storeIntrinsic ||
+      analysis.description.resultName != plan.resultName)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " scalar-broadcast elementwise route-family mirrors must be populated "
+        "from the validated family plan before provider materialization");
+  if (!support::runtimeABIParametersEqual(
+          analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " scalar-broadcast elementwise route-family runtime ABI parameters "
+        "must match the validated family plan");
+  if (analysis.routeOperandBindingPlan.planID !=
+      getExpectedRVVRouteOperandBindingPlanID(operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " scalar-broadcast elementwise provider requires the route operand "
+        "binding plan for the selected operation");
+  return llvm::Error::success();
+}
+
+bool isRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return operation == RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+}
+
+llvm::Error verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyConsumer(operation);
+  if (isConsumer && !analysis.runtimeScalarSplatStoreRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the runtime scalar splat-store route-family plan before "
+        "provider materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!isConsumer && analysis.runtimeScalarSplatStoreRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must not carry a runtime scalar splat-store route-family plan for "
+        "non-runtime-splat-store operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!analysis.runtimeScalarSplatStoreRouteFamilyPlan)
+    return llvm::Error::success();
+
+  const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan &plan =
+      *analysis.runtimeScalarSplatStoreRouteFamilyPlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(plan))
+    return error;
+  if (plan.operation != operation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route-family plan operation must match "
+        "the selected route description");
+  if (analysis.description.runtimeScalarSplatStoreRouteFamilyPlanID !=
+      plan.familyPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route-family plan mirror must match the "
+        "validated family plan");
+  if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.targetLeafProfile != plan.targetLeafProfile ||
+      analysis.description.providerSupportedMirror !=
+          plan.providerSupportedMirror ||
+      analysis.description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      analysis.description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      analysis.description.vlCType != plan.vlCType ||
+      analysis.description.vectorTypeName != plan.vectorTypeName ||
+      analysis.description.vectorCType != plan.vectorCType ||
+      analysis.description.setVLIntrinsic != plan.setVLIntrinsic ||
+      analysis.description.rhsBroadcastIntrinsic !=
+          plan.rhsScalarSplatIntrinsic ||
+      analysis.description.storeIntrinsic != plan.storeIntrinsic ||
+      analysis.description.resultName != plan.resultName)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route-family mirrors must be populated "
+        "from the validated family plan before provider materialization");
+  if (!support::runtimeABIParametersEqual(
+          analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store route-family runtime ABI parameters must "
+        "match the validated family plan");
+  if (analysis.routeOperandBindingPlan.planID !=
+      getExpectedRVVRouteOperandBindingPlanID(operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar splat-store provider requires the route operand "
+        "binding plan for the selected operation");
+  return llvm::Error::success();
+}
+
 bool isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {
@@ -19620,6 +19801,30 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           context, "runtime ABI order", description.runtimeABIOrder,
           expectedRuntimeABIOrder))
     return error;
+  if (isScalarBroadcastElementwiseRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "scalar-broadcast elementwise route family plan",
+            description.scalarBroadcastElementwiseRouteFamilyPlanID,
+            kRVVScalarBroadcastElementwiseRouteFamilyPlanID))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "scalar-broadcast elementwise route family plan",
+            description.scalarBroadcastElementwiseRouteFamilyPlanID, ""))
+      return error;
+  }
+  if (isRuntimeScalarSplatStoreRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "runtime scalar splat-store route family plan",
+            description.runtimeScalarSplatStoreRouteFamilyPlanID,
+            kRVVRuntimeScalarSplatStoreRouteFamilyPlanID))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "runtime scalar splat-store route family plan",
+            description.runtimeScalarSplatStoreRouteFamilyPlanID, ""))
+      return error;
+  }
   if (isRuntimeScalarComputedMaskSelectRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "computed-mask select route family plan",
@@ -21629,6 +21834,14 @@ getRVVSelectedBodyConfigArtifactMetadata(
       metadata.push_back({"tcrv_rvv.accumulation_scalar_carry_contract",
                           description.accumulationScalarCarryContract});
   }
+  if (!description.scalarBroadcastElementwiseRouteFamilyPlanID.empty())
+    metadata.push_back(
+        {"tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+         description.scalarBroadcastElementwiseRouteFamilyPlanID});
+  if (!description.runtimeScalarSplatStoreRouteFamilyPlanID.empty())
+    metadata.push_back(
+        {"tcrv_rvv.runtime_scalar_splat_store_route_family_plan",
+         description.runtimeScalarSplatStoreRouteFamilyPlanID});
   if (!description.computedMaskSelectRouteFamilyPlanID.empty()) {
     metadata.push_back({"tcrv_rvv.computed_mask_select_route_family_plan",
                         description.computedMaskSelectRouteFamilyPlanID});

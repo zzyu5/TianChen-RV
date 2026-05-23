@@ -1093,6 +1093,9 @@ module {
                      routeDescription->memoryForm ==
                          tianchenrv::plugin::rvv::
                              RVVSelectedBodyMemoryForm::RHSScalarBroadcast &&
+                     routeDescription
+                             ->scalarBroadcastElementwiseRouteFamilyPlanID ==
+                         "rvv-scalar-broadcast-elementwise-route-family-plan.v1" &&
                      routeDescription->targetLeafProfile ==
                          "rvv-v1-e32m1-scalar-broadcast-elementwise-leaf-profile.v1" &&
                      routeDescription->providerSupportedMirror ==
@@ -1150,6 +1153,15 @@ module {
     return result;
 
   stale = *routeDescription;
+  stale.scalarBroadcastElementwiseRouteFamilyPlanID =
+      "rvv-stale-helper-selected-plan.v1";
+  if (int result = expectStaleFieldRejected(
+          stale, {"scalar-broadcast elementwise route family plan",
+                  "rvv-scalar-broadcast-elementwise-route-family-plan.v1",
+                  "rvv-stale-helper-selected-plan.v1"}))
+    return result;
+
+  stale = *routeDescription;
   stale.targetLeafProfile = "route-id-selected-profile";
   if (int result = expectStaleFieldRejected(
           stale, {"target leaf profile",
@@ -1169,6 +1181,98 @@ module {
   return expectStaleFieldRejected(
       stale, {"runtime ABI order", "lhs,rhs_scalar,out,n",
               "lhs,rhs,out,n"});
+}
+
+int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans;
+
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::ScalarBroadcastAdd,
+        RVVSelectedBodyOperationKind::ScalarBroadcastSub,
+        RVVSelectedBodyOperationKind::ScalarBroadcastMul}) {
+    if (int result = expect(
+            isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer(op),
+            "scalar-broadcast add/sub/mul must be scalar-broadcast "
+            "elementwise family consumers"))
+      return result;
+  }
+  if (int result = expect(
+          !isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::RuntimeI32SplatStore),
+          "runtime_i32_splat_store must stay outside scalar-broadcast "
+          "elementwise family"))
+    return result;
+  if (int result = expect(
+          isRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::RuntimeI32SplatStore),
+          "runtime_i32_splat_store must be a runtime scalar splat-store "
+          "family consumer"))
+    return result;
+  if (int result = expect(
+          !isRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::ScalarBroadcastAdd),
+          "scalar_broadcast_add must stay outside runtime scalar splat-store "
+          "family"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingScalarBroadcastPlan;
+  missingScalarBroadcastPlan.description.operation =
+      RVVSelectedBodyOperationKind::ScalarBroadcastAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+              missingScalarBroadcastPlan,
+              "scalar-broadcast provider unit test"),
+          {"requires the scalar-broadcast elementwise route-family plan",
+           "scalar_broadcast_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleScalarBroadcastNonConsumer;
+  staleScalarBroadcastNonConsumer.description.operation =
+      RVVSelectedBodyOperationKind::Add;
+  staleScalarBroadcastNonConsumer.scalarBroadcastElementwiseRouteFamilyPlan
+      .emplace();
+  staleScalarBroadcastNonConsumer.scalarBroadcastElementwiseRouteFamilyPlan
+      ->operation = RVVSelectedBodyOperationKind::ScalarBroadcastAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+              staleScalarBroadcastNonConsumer,
+              "scalar-broadcast provider unit test"),
+          {"must not carry a scalar-broadcast elementwise route-family plan",
+           "add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingRuntimeSplatPlan;
+  missingRuntimeSplatPlan.description.operation =
+      RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
+              missingRuntimeSplatPlan,
+              "runtime scalar splat-store provider unit test"),
+          {"requires the runtime scalar splat-store route-family plan",
+           "runtime_i32_splat_store"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleRuntimeSplatNonConsumer;
+  staleRuntimeSplatNonConsumer.description.operation =
+      RVVSelectedBodyOperationKind::ScalarBroadcastAdd;
+  staleRuntimeSplatNonConsumer.runtimeScalarSplatStoreRouteFamilyPlan.emplace();
+  staleRuntimeSplatNonConsumer.runtimeScalarSplatStoreRouteFamilyPlan
+      ->operation = RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+  return expectErrorContains(
+      verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
+          staleRuntimeSplatNonConsumer,
+          "runtime scalar splat-store provider unit test"),
+      {"must not carry a runtime scalar splat-store route-family plan",
+       "scalar_broadcast_add"});
 }
 
 int runMaskedAddSelectedBodyPolicyRouteTest(mlir::MLIRContext &context) {
@@ -2903,6 +3007,8 @@ int main() {
   if (int result = runBroadcastSelectedBodyRouteTest(context))
     return result;
   if (int result = runScalarBroadcastElementwisePlanValidationTest(context))
+    return result;
+  if (int result = runScalarBroadcastAndSplatRouteFamilyProviderPlanTest())
     return result;
   if (int result = runMaskedAddSelectedBodyPolicyRouteTest(context))
     return result;

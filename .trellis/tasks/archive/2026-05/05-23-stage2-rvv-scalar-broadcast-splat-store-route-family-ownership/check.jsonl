@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global no-legacy-authority and RVV-first chain against final diff and evidence."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check scalar-broadcast/runtime splat-store provider boundary remains RVV plugin-owned and typed-body-derived."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remains a neutral materializer of provider-built routes and mirrors."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/lit/generated-bundle/ssh rvv evidence matches runtime/correctness claims."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check no new core semantic branch or non-plugin route authority was introduced."}

@@ -384,6 +384,9 @@ SCALAR_BROADCAST_ROUTE_OPERAND_BINDING_OPERANDS = (
     "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
     "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
 )
+SCALAR_BROADCAST_ELEMENTWISE_ROUTE_FAMILY_PLAN = (
+    "rvv-scalar-broadcast-elementwise-route-family-plan.v1"
+)
 STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_PLAN = "rvv-route-operand-binding:standalone_reduce_add.v1"
 STANDALONE_REDUCE_ROUTE_OPERAND_BINDING_OPERANDS_TEMPLATE = (
     "rvv-route-operand-binding:{kind}.v1;"
@@ -645,6 +648,9 @@ def scalar_broadcast_route_operand_binding_operands(kind: str) -> str:
 
 RUNTIME_SCALAR_SPLAT_STORE_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:runtime_i32_splat_store.v1"
+)
+RUNTIME_SCALAR_SPLAT_STORE_ROUTE_FAMILY_PLAN = (
+    "rvv-runtime-scalar-splat-store-route-family-plan.v1"
 )
 RUNTIME_SCALAR_SPLAT_STORE_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:runtime_i32_splat_store.v1;"
@@ -4887,6 +4893,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_scalar_broadcast_elementwise:
         per_op_metadata.update(
             {
+                "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan": (
+                    SCALAR_BROADCAST_ELEMENTWISE_ROUTE_FAMILY_PLAN
+                ),
                 "tcrv_rvv.route_operand_binding_plan": (
                     scalar_broadcast_route_operand_binding_plan(expectation.kind)
                 ),
@@ -4900,6 +4909,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_runtime_scalar_splat_store:
         per_op_metadata.update(
             {
+                "tcrv_rvv.runtime_scalar_splat_store_route_family_plan": (
+                    RUNTIME_SCALAR_SPLAT_STORE_ROUTE_FAMILY_PLAN
+                ),
                 "tcrv_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_SPLAT_STORE_TARGET_LEAF_PROFILE
                 ),

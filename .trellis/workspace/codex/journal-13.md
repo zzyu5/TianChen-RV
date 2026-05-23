@@ -69,6 +69,81 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 168: Stage2 RVV scalar-broadcast and runtime splat-store route-family ownership
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV scalar-broadcast and runtime splat-store route-family ownership
+**Branch**: `main`
+
+### Summary
+
+Moved active scalar-broadcast elementwise routes and runtime scalar splat-store
+behind RVV planning-owned family plan/provider verification while preserving
+runtime ABI order, scalar RHS/store roles, AVL/VL behavior, route operand
+binding closure, target metadata mirrors, and common EmitC/export neutrality.
+
+### Main Changes
+
+- Added scalar-broadcast and runtime scalar splat-store family plan ids to RVV
+  route planning, provider route descriptions, artifact metadata, and generated
+  bundle expectations.
+- Added public planning-owned consumer predicates and provider-plan verifiers
+  for `scalar_broadcast_add/sub/mul` and `runtime_i32_splat_store`.
+- Made provider materialization require validated family plans for those
+  consumers and reject stale family plans on non-consumers.
+- Updated focused C++ and FileCheck coverage for plan ids, consumer
+  classification, missing/stale-plan fail-closed behavior, binding closure,
+  and generated metadata mirrors.
+
+### Routes Covered
+
+- `scalar_broadcast_add`
+- `scalar_broadcast_sub`
+- `scalar_broadcast_mul`
+- `runtime_i32_splat_store`
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`.
+- [OK] Focused lit/FileCheck selection for scalar-broadcast, runtime splat-store,
+  and generated-bundle script fixtures: 10/10 passed.
+- [OK] Generated-bundle dry-runs for explicit/pre-realized
+  `scalar_broadcast_add/sub/mul` and `runtime_i32_splat_store` with counts
+  `7,16,23` and RHS scalars `-37,91`.
+- [OK] Real `ssh rvv` runs for explicit `scalar_broadcast_add`,
+  `scalar_broadcast_mul`, and `runtime_i32_splat_store` with counts `7,16,23`
+  and RHS scalars `-37,91`, including splat-store tail preservation.
+- [OK] Active-authority scan showed no new positive legacy RVV route authority.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 361/361.
+
+### Self-Repair
+
+- Moved provider verifier definitions out of the anonymous namespace after the
+  first focused C++ build exposed ambiguous declarations.
+- Rebuilt stale `tcrv-opt`/`tcrv-translate` before rerunning focused lit.
+- Removed brittle target-header FileCheck additions and kept stable metadata
+  mirror checks.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+
 ## Session 168: Stage2 RVV computed-mask compare/select route-family ownership
 
 **Date**: 2026-05-23

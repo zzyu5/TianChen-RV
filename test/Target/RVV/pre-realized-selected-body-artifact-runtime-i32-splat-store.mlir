@@ -42,6 +42,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "rhs_scalar,out,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:runtime_i32_splat_store.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:runtime_i32_splat_store.v1;rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|runtime-scalar-splat-call|header-mirror;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_scalar_splat_store_route_family_plan", value = "rvv-runtime-scalar-splat-store-route-family-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-e32m1-runtime-scalar-splat-store-leaf-profile.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-runtime-scalar-splat-store-plan-validated"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-runtime-i32-splat-store-callable-c-abi.v1"
