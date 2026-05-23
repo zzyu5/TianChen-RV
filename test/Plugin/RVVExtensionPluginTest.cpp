@@ -2210,6 +2210,177 @@ int runElementwiseSelectRouteFamilyOwnerRegistryTest() {
        "runtime_i32_splat_store"});
 }
 
+int runReductionAccumulationContractionRouteFamilyOwnerRegistryTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyReductionAccumulationContractionRouteFamilyOwners;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyReductionAccumulationContractionRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans;
+
+  llvm::ArrayRef<tianchenrv::plugin::rvv::
+                     RVVSelectedBodyReductionAccumulationContractionRouteFamilyOwner>
+      owners =
+          getRVVSelectedBodyReductionAccumulationContractionRouteFamilyOwners();
+  if (int result =
+          expect(owners.size() == 3,
+                 "reduction/accumulation/contraction route-family owner "
+                 "registry has exactly three active owner entries"))
+    return result;
+  if (int result = expect(
+          owners[0].familyName == "contraction" &&
+              owners[1].familyName == "standalone reduction" &&
+              owners[2].familyName == "computed-mask accumulation",
+          "reduction/accumulation/contraction route-family owner registry "
+          "preserves explicit math-cluster ownership"))
+    return result;
+  for (const auto &owner : owners) {
+    if (int result =
+            expect(owner.isConsumer != nullptr &&
+                       owner.verifyProviderPlan != nullptr,
+                   "reduction/accumulation/contraction route-family owner "
+                   "registry entries carry consumer and verifier hooks"))
+      return result;
+  }
+  if (int result = expect(
+          owners[0].isConsumer(RVVSelectedBodyOperationKind::WideningMAccAdd) &&
+              owners[0].isConsumer(RVVSelectedBodyOperationKind::
+                                       ComputedMaskStridedInputWideningDotReduceAdd) &&
+              !owners[0].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) &&
+              !owners[0].isConsumer(
+                  RVVSelectedBodyOperationKind::StandaloneReduceAdd),
+          "contraction owner classification is isolated"))
+    return result;
+  if (int result = expect(
+          owners[1].isConsumer(
+              RVVSelectedBodyOperationKind::StandaloneReduceAdd) &&
+              owners[1].isConsumer(RVVSelectedBodyOperationKind::
+                                       ComputedMaskStandaloneReduceAdd) &&
+              owners[1].isConsumer(RVVSelectedBodyOperationKind::
+                                       RuntimeScalarComputedMaskStandaloneReduceAdd) &&
+              !owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::WideningDotReduceAdd) &&
+              !owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
+          "standalone reduction owner classification is isolated"))
+    return result;
+  if (int result = expect(
+          owners[2].isConsumer(
+              RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) &&
+              owners[2].isConsumer(RVVSelectedBodyOperationKind::
+                                       RuntimeScalarComputedMaskedMAccAdd) &&
+              owners[2].isConsumer(RVVSelectedBodyOperationKind::
+                                       ComputedMaskStandaloneReduceAdd) &&
+              !owners[2].isConsumer(RVVSelectedBodyOperationKind::MAccAdd) &&
+              !owners[2].isConsumer(
+                  RVVSelectedBodyOperationKind::WideningMAccAdd),
+          "computed-mask accumulation owner classification is isolated"))
+    return result;
+
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::WideningMAccAdd,
+        RVVSelectedBodyOperationKind::StandaloneReduceAdd,
+        RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd,
+        RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd}) {
+    if (int result = expect(
+            isRVVSelectedBodyReductionAccumulationContractionRouteFamilyConsumer(
+                op),
+            "aggregate reduction/accumulation/contraction consumer predicate "
+            "is registry backed across all three owner families"))
+      return result;
+  }
+  if (int result = expect(
+          !isRVVSelectedBodyReductionAccumulationContractionRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::Add),
+          "elementwise arithmetic remains outside the aggregate "
+          "reduction/accumulation/contraction owner boundary"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingContractionPlan;
+  missingContractionPlan.description.operation =
+      RVVSelectedBodyOperationKind::WideningMAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
+              missingContractionPlan,
+              "reduction/accumulation/contraction owner registry unit test"),
+          {"requires the contraction route-family plan",
+           "widening_macc_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingStandalonePlan;
+  missingStandalonePlan.description.operation =
+      RVVSelectedBodyOperationKind::StandaloneReduceAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
+              missingStandalonePlan,
+              "reduction/accumulation/contraction owner registry unit test"),
+          {"requires the standalone reduction route-family plan",
+           "standalone_reduce_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingAccumulationPlan;
+  missingAccumulationPlan.description.operation =
+      RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
+              missingAccumulationPlan,
+              "reduction/accumulation/contraction owner registry unit test"),
+          {"requires the computed-mask accumulation route-family plan",
+           "computed_masked_macc_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis nonMathClusterAnalysis;
+  nonMathClusterAnalysis.description.operation =
+      RVVSelectedBodyOperationKind::Add;
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
+              nonMathClusterAnalysis,
+              "reduction/accumulation/contraction owner registry unit test"),
+          "non-math-cluster route with no math family plan is accepted by "
+          "aggregate reduction/accumulation/contraction owner verifier"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleContractionNonConsumer =
+      nonMathClusterAnalysis;
+  staleContractionNonConsumer.contractionRouteFamilyPlan.emplace();
+  staleContractionNonConsumer.contractionRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::WideningMAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
+              staleContractionNonConsumer,
+              "reduction/accumulation/contraction owner registry unit test"),
+          {"must not carry a contraction route-family plan", "add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleStandaloneNonConsumer =
+      nonMathClusterAnalysis;
+  staleStandaloneNonConsumer.standaloneReductionRouteFamilyPlan.emplace();
+  staleStandaloneNonConsumer.standaloneReductionRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::StandaloneReduceAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
+              staleStandaloneNonConsumer,
+              "reduction/accumulation/contraction owner registry unit test"),
+          {"must not carry a standalone reduction route-family plan", "add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleAccumulationNonConsumer =
+      nonMathClusterAnalysis;
+  staleAccumulationNonConsumer.computedMaskAccumulationRouteFamilyPlan
+      .emplace();
+  staleAccumulationNonConsumer.computedMaskAccumulationRouteFamilyPlan
+      ->operation = RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd;
+  return expectErrorContains(
+      verifyRVVSelectedBodyReductionAccumulationContractionRouteFamilyProviderPlans(
+          staleAccumulationNonConsumer,
+          "reduction/accumulation/contraction owner registry unit test"),
+      {"must not carry a computed-mask accumulation route-family plan",
+       "add"});
+}
+
 int runBaseMemoryMovementRouteFamilyProviderPlanTest(
     mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
@@ -6808,6 +6979,9 @@ int main() {
   if (int result = runMemoryRouteFamilyOwnerRegistryTest())
     return result;
   if (int result = runElementwiseSelectRouteFamilyOwnerRegistryTest())
+    return result;
+  if (int result =
+          runReductionAccumulationContractionRouteFamilyOwnerRegistryTest())
     return result;
   if (int result = runBaseMemoryMovementRouteFamilyProviderPlanTest(context))
     return result;

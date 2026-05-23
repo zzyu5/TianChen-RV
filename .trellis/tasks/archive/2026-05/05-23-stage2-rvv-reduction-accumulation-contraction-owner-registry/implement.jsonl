@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body authority, route-family owner boundary, provider-owned legality/plan verification, and common EmitC neutrality rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC materialization boundary for selected RVV routes."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry/interface ownership rules and fail-closed RVV route authority constraints."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Plugin-locality contract for keeping route-provider semantics in RVV plugin code rather than common/core paths."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++ and FileCheck evidence for route-provider API changes and RVV Stage1/Stage2 positive/negative test boundaries."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Checklist for plugin-owned route provider output and avoiding common/core RVV semantic branches."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Checklist for preserving typed tcrv_rvv body authority and avoiding high-level compute or core dialect drift."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-memory-route-family-owner-registry/prd.md", "reason": "Prior owner registry extraction pattern and aggregate provider verifier evidence."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-05-23-stage2-rvv-elementwise-select-route-family-owner-registry/prd.md", "reason": "Most recent owner registry extraction pattern immediately preceding this math-cluster task."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-05-23-stage2-rvv-contraction-widening-dot-reduce-route-family-ownership/prd.md", "reason": "Existing contraction family provider-plan boundary and representative contraction evidence."}

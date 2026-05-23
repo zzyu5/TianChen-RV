@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check owner registry extraction against RVV route-family owner boundaries, typed body authority, and fail-closed rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and consumes provider-built routes only."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check registry/interface use does not treat mirrors, metadata, manifests, or source-front-door facts as authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++ and FileCheck coverage requirements for provider API behavior and RVV selected-body artifacts."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-memory-route-family-owner-registry/prd.md", "reason": "Regression baseline for aggregate owner verifier membership, missing-plan, stale-plan, and provider-consumer behavior."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-05-23-stage2-rvv-elementwise-select-route-family-owner-registry/prd.md", "reason": "Regression baseline for latest provider aggregate verifier extraction and task completion evidence shape."}

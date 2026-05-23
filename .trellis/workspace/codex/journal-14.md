@@ -229,7 +229,15 @@ Closed RuntimeI32SplatStore provider runtime AVL/VL mirror and RouteOperandBindi
 
 ### Main Changes
 
-(Add details)
+- Added the reduction/accumulation/contraction owner registry for contraction,
+  standalone reduction, and computed-mask accumulation provider-plan verifiers.
+- Rewired RVV selected-body EmitC route construction to consume the aggregate
+  math-cluster verifier instead of manually sequencing the three per-family
+  verifiers.
+- Added C++ coverage for owner membership, aggregate consumer classification,
+  missing-plan rejection, and stale-plan rejection.
+- Finished and archived Trellis task
+  `05-23-stage2-rvv-reduction-accumulation-contraction-owner-registry`.
 
 ### Git Commits
 
@@ -582,6 +590,49 @@ fixtures and generated-bundle ABI evidence.
   `segment2_interleave_unit_load` at counts 7, 16, and 23
 - [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
 - [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (363/363)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 178: Stage2 RVV math owner registry
+
+**Date**: 2026-05-24
+**Task**: Stage2 RVV math owner registry
+**Branch**: `main`
+
+### Summary
+
+Extracted the reduction/accumulation/contraction route-family owner registry, rewired the RVV provider to consume the aggregate verifier, preserved existing route behavior, and passed focused plus full checks.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-23-stage2-rvv-reduction-accumulation-contraction-owner-registry`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] Focused lit/FileCheck filter for standalone reduction,
+  computed-mask accumulation, contraction, and selected-boundary negative
+  fixtures passed 11/11.
+- [OK] Added-line active-authority scan found no new legacy/source-front-door/
+  descriptor/mirror-authority terms.
 - [OK] `git diff --check`
 - [OK] `cmake --build build --target check-tianchenrv -j2` (363/363)
 
