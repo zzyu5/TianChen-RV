@@ -69,6 +69,69 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 163: Stage2 RVV computed-mask memory producer-source family
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV computed-mask memory producer-source family migration
+**Branch**: `main`
+
+### Summary
+
+Migrated the active vector/non-runtime computed-mask memory consumers
+`computed_masked_unit_load_store` and `computed_masked_strided_store` onto the
+shared RVV plugin-local computed-mask memory route-family plan while preserving
+the already migrated `runtime_scalar_cmp_masked_store` and
+`runtime_scalar_cmp_masked_load_store` routes.
+
+### Main Changes
+
+- Generalized the runtime-scalar-only computed-mask memory plan into
+  `RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan` with explicit
+  `maskProducerSource`, runtime-scalar/vector producer facets, store-only versus
+  load-merge/store facets, target leaf/header/type metadata, and binding closure.
+- Made planning derive the shared plan for four scoped routes:
+  `runtime_scalar_cmp_masked_store`,
+  `runtime_scalar_cmp_masked_load_store`,
+  `computed_masked_unit_load_store`, and
+  `computed_masked_strided_store`.
+- Made provider materialization require the shared plan for those four routes
+  and consume plan-owned setvl/load/splat/compare/store/header facts while
+  keeping common EmitC/export neutral.
+- Added computed-mask memory family mirror metadata to target bundle evidence,
+  generated-bundle expectations, and focused artifact FileCheck assertions.
+- Left strided-load, indexed, segmented, select, accumulation, reduction,
+  frontend, and source-front-door paths out of scope.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] Focused lit filter for migrated computed-mask memory and preserved
+  runtime-scalar memory target artifacts: 5/5 selected tests passed.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Generated-bundle dry-run for pre-realized vector
+  `computed_masked_strided_store` and `computed_masked_unit_load_store` with
+  counts `7,16,23`.
+- [OK] Generated-bundle dry-run for explicit runtime-scalar
+  `runtime_scalar_cmp_masked_store` and
+  `runtime_scalar_cmp_masked_load_store` with counts `7,16,23` and thresholds
+  `-37,91`.
+- [OK] Real `ssh rvv` generated-bundle run for pre-realized vector store and
+  load-store with counts `7,16,23` and destination strides `4,8,12`.
+- [OK] Real `ssh rvv` generated-bundle run for explicit runtime-scalar store
+  and load-store with counts `7,16,23` and thresholds `-37,91`.
+- [OK] Active-authority scan, `git diff --check`, and
+  `cmake --build build --target check-tianchenrv -j2` passed 349/349.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 163: Stage2 RVV computed-mask accumulation producer-source family
 
 **Date**: 2026-05-23

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants for validating the finished route-family migration."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review checklist for RVV typed body authority, provider ownership, and evidence claims."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that common EmitC/export remains neutral and consumes provider-built routes only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused MLIR/C++/runtime evidence and fail-closed coverage expectations."}
+{"file": ".trellis/tasks/05-23-05-23-stage2-rvv-computed-mask-memory-producer-source-family/prd.md", "reason": "Task-specific acceptance criteria and validation checklist."}

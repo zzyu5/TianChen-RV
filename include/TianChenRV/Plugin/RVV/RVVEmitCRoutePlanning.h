@@ -323,11 +323,16 @@ struct RVVSelectedBodyComputedMaskSelectRouteFamilyPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 8> runtimeABIParameters;
 };
 
-struct RVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan {
+struct RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
+  bool usesRuntimeScalarProducer = false;
+  bool usesVectorCompareProducer = false;
+  bool usesStoreOnly = false;
   bool usesLoadMerge = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef familyPlanID;
+  llvm::StringRef maskProducerSource;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
   llvm::StringRef providerSupportedMirror;
@@ -345,6 +350,7 @@ struct RVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan {
   llvm::StringRef compareIntrinsic;
   llvm::StringRef maskedLoadIntrinsic;
   llvm::StringRef maskedStoreIntrinsic;
+  llvm::StringRef stridedStoreIntrinsic;
   llvm::StringRef resultName;
   llvm::StringRef maskName;
   llvm::StringRef maskRole;
@@ -352,9 +358,12 @@ struct RVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan {
   llvm::StringRef maskMemoryForm;
   llvm::StringRef inactiveLaneContract;
   llvm::StringRef maskedPassthroughLayout;
+  llvm::StringRef maskedMemoryLayout;
+  llvm::StringRef stridedMemoryLayout;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
-  llvm::SmallVector<support::RuntimeABIParameter, 5> runtimeABIParameters;
+  llvm::StringRef destinationStrideSource;
+  llvm::SmallVector<support::RuntimeABIParameter, 6> runtimeABIParameters;
 };
 
 struct RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan {
@@ -444,9 +453,8 @@ struct RVVSelectedBodyRouteAnalysis {
       runtimeScalarSplatStoreRouteFamilyPlan;
   std::optional<RVVSelectedBodyComputedMaskSelectRouteFamilyPlan>
       computedMaskSelectRouteFamilyPlan;
-  std::optional<
-      RVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteFamilyPlan>
-      runtimeScalarComputedMaskMemoryRouteFamilyPlan;
+  std::optional<RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan>
+      computedMaskMemoryRouteFamilyPlan;
   std::optional<
       RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan>
       computedMaskAccumulationRouteFamilyPlan;

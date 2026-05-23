@@ -561,6 +561,13 @@ COMPUTED_MASK_SELECT_RUNTIME_SCALAR_PRODUCER_SOURCE = (
 COMPUTED_MASK_SELECT_DUAL_RUNTIME_SCALAR_PRODUCER_SOURCE = (
     "dual-runtime-scalar-splat-compare-rhs-mask-and"
 )
+COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN = (
+    "rvv-computed-mask-memory-route-family-plan.v1"
+)
+COMPUTED_MASK_MEMORY_VECTOR_COMPARE_PRODUCER_SOURCE = "vector-compare-rhs-load"
+COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE = (
+    "runtime-scalar-splat-compare-rhs"
+)
 COMPUTED_MASK_SELECT_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:computed_mask_select.v1;"
     "cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;"
@@ -781,6 +788,31 @@ RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_REQUIRED_HEADER_DECLARATIONS = (
 RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_C_TYPE_MAPPING = (
     "vl:size_t,lhs/source/passthrough:signed-e32m1,rhs_scalar:i32,"
     "mask:b32,result:masked-load-store"
+)
+COMPUTED_MASK_UNIT_LOAD_STORE_TARGET_LEAF_PROFILE = (
+    "rvv-v1-e32m1-computed-mask-unit-load-store-leaf-profile.v1"
+)
+COMPUTED_MASK_UNIT_LOAD_STORE_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-computed-mask-unit-load-store-plan-validated"
+)
+COMPUTED_MASK_UNIT_LOAD_STORE_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+COMPUTED_MASK_UNIT_LOAD_STORE_C_TYPE_MAPPING = (
+    "vl:size_t,compare/source/passthrough:signed-e32m1,mask:b32,"
+    "result:masked-load-store"
+)
+COMPUTED_MASK_STRIDED_STORE_TARGET_LEAF_PROFILE = (
+    "rvv-v1-e32m1-computed-mask-strided-store-leaf-profile.v1"
+)
+COMPUTED_MASK_STRIDED_STORE_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-computed-mask-strided-store-plan-validated"
+)
+COMPUTED_MASK_STRIDED_STORE_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+COMPUTED_MASK_STRIDED_STORE_C_TYPE_MAPPING = (
+    "vl:size_t,compare/source:signed-e32m1,mask:b32,dst:masked-strided-store"
 )
 WIDENING_CONVERSION_RUNTIME_ABI_ORDER = "lhs,out,n"
 WIDENING_CONVERSION_RELATION = "signed-i32m1-to-i64m2"
@@ -2867,6 +2899,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         expected_expression=(
             "(cmp_lhs[index] < cmp_rhs[index] ? src[index] : old_dst[index])"
         ),
+        compare_predicate_kind="slt",
     ),
     "computed_masked_strided_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["masked_unit_load_store"],
@@ -2894,6 +2927,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         expected_expression=(
             "(cmp_lhs[index] < cmp_rhs[index] ? src[index] : old_slot)"
         ),
+        compare_predicate_kind="slt",
     ),
     "computed_masked_strided_load_unit_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -4981,6 +5015,10 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_computed_masked_unit_load_store:
         per_op_metadata.update(
             {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.compare_predicate_kind": (
+                    expectation.compare_predicate_kind
+                ),
                 "tcrv_rvv.masked_memory_layout": COMPUTED_MASK_MEMORY_LAYOUT,
                 "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
@@ -5000,6 +5038,24 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.route_operand_binding_operands": (
                     COMPUTED_MASK_UNIT_LOAD_STORE_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+                "tcrv_rvv.computed_mask_memory_route_family_plan": (
+                    COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.computed_mask_memory_mask_producer_source": (
+                    COMPUTED_MASK_MEMORY_VECTOR_COMPARE_PRODUCER_SOURCE
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    COMPUTED_MASK_UNIT_LOAD_STORE_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    COMPUTED_MASK_UNIT_LOAD_STORE_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    COMPUTED_MASK_UNIT_LOAD_STORE_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    COMPUTED_MASK_UNIT_LOAD_STORE_C_TYPE_MAPPING
                 ),
             }
         )
@@ -5151,6 +5207,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.route_operand_binding_operands": (
                     RUNTIME_SCALAR_CMP_MASKED_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
+                "tcrv_rvv.computed_mask_memory_route_family_plan": (
+                    COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.computed_mask_memory_mask_producer_source": (
+                    COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
+                ),
                 "tcrv_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_CMP_MASKED_STORE_TARGET_LEAF_PROFILE
                 ),
@@ -5194,6 +5256,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.route_operand_binding_operands": (
                     RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
+                "tcrv_rvv.computed_mask_memory_route_family_plan": (
+                    COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.computed_mask_memory_mask_producer_source": (
+                    COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
+                ),
                 "tcrv_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_CMP_MASKED_LOAD_STORE_TARGET_LEAF_PROFILE
                 ),
@@ -5211,6 +5279,10 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_computed_masked_strided_store:
         per_op_metadata.update(
             {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.compare_predicate_kind": (
+                    expectation.compare_predicate_kind
+                ),
                 "tcrv_rvv.masked_memory_layout": (
                     COMPUTED_MASK_STRIDED_STORE_MEMORY_LAYOUT
                 ),
@@ -5238,6 +5310,24 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.route_operand_binding_operands": (
                     COMPUTED_MASK_STRIDED_STORE_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+                "tcrv_rvv.computed_mask_memory_route_family_plan": (
+                    COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.computed_mask_memory_mask_producer_source": (
+                    COMPUTED_MASK_MEMORY_VECTOR_COMPARE_PRODUCER_SOURCE
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    COMPUTED_MASK_STRIDED_STORE_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    COMPUTED_MASK_STRIDED_STORE_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    COMPUTED_MASK_STRIDED_STORE_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    COMPUTED_MASK_STRIDED_STORE_C_TYPE_MAPPING
                 ),
             }
         )
