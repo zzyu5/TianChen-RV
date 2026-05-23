@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants and RVV-first stage gate compliance for final review."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, route authority, source-front-door fail-closed, and evidence checklist for final review."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and mirror-only EmitC/export boundary checks."}
+{"file": ".trellis/tasks/05-23-05-23-stage2-rvv-widening-conversion-runtime-binding-closure/prd.md", "reason": "Task-specific acceptance criteria and non-goal compliance for final verification."}

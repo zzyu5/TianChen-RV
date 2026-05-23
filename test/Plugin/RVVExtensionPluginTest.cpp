@@ -1336,13 +1336,15 @@ int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest() {
        "scalar_broadcast_add"});
 }
 
-int runWideningConversionRouteFamilyProviderPlanTest() {
+int runWideningConversionRouteFamilyProviderPlanTest(
+    mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyWideningConversionRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans;
+  using tianchenrv::support::RuntimeABIParameterRole;
 
   if (int result = expect(
           isRVVSelectedBodyWideningConversionRouteFamilyConsumer(
@@ -1392,10 +1394,176 @@ int runWideningConversionRouteFamilyProviderPlanTest() {
   staleNonConsumer.wideningConversionRouteFamilyPlan.emplace();
   staleNonConsumer.wideningConversionRouteFamilyPlan->operation =
       RVVSelectedBodyOperationKind::WidenI32ToI64;
-  return expectErrorContains(
-      verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
-          staleNonConsumer, "widening conversion provider unit test"),
-      {"must not carry a widening conversion route-family plan", "add"});
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+              staleNonConsumer, "widening conversion provider unit test"),
+          {"must not carry a widening conversion route-family plan", "add"}))
+    return result;
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_widen_i32_to_i64_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_widen_i32_to_i64 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int64_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_widen_i32_to_i64, sew = 64 : i64, source_kernel = "rvv_widen_i32_to_i64_provider_kernel", status = "selected-lowering-boundary"} {
+        %source = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %widened = tcrv_rvv.widening_convert %source, %vl {kind = "widen_i32_to_i64"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i64, "m2">
+        tcrv_rvv.store %out, %widened, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i64, "m2">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+
+  tcrv.exec.kernel @rvv_widen_i16_to_i32_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_widen_i16_to_i32 attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_widen_i16_to_i32, sew = 32 : i64, source_kernel = "rvv_widen_i16_to_i32_provider_kernel", status = "selected-lowering-boundary"} {
+        %source = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %widened = tcrv_rvv.widening_convert %source, %vl {kind = "sign_extend_widen_vf2"} : !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %widened, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse widening conversion provider test module");
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> i32ToI64Analysis =
+      analyzeRouteInModule(*module, "rvv_widen_i32_to_i64_provider_kernel",
+                           "rvv_widen_i32_to_i64");
+  if (!i32ToI64Analysis)
+    return fail("analyze widen_i32_to_i64 conversion provider route: " +
+                llvm::toString(i32ToI64Analysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+              *i32ToI64Analysis,
+              "widen_i32_to_i64 conversion provider unit test"),
+          "valid widen_i32_to_i64 widening conversion family provider plan"))
+    return result;
+  if (int result = expect(
+          i32ToI64Analysis->wideningConversionRouteFamilyPlan &&
+              i32ToI64Analysis->wideningConversionRouteFamilyPlan
+                      ->runtimeControlPlan.controlPlanID ==
+                  tianchenrv::plugin::rvv::getRVVRuntimeAVLVLControlPlanID() &&
+              i32ToI64Analysis->wideningConversionRouteFamilyPlan->sourceSEW ==
+                  32 &&
+              i32ToI64Analysis->wideningConversionRouteFamilyPlan->resultSEW ==
+                  64 &&
+              i32ToI64Analysis->wideningConversionRouteFamilyPlan
+                      ->conversionRelation == "signed-i32m1-to-i64m2",
+          "widen_i32_to_i64 plan must carry runtime control, source/result "
+          "width, and conversion relation facts"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleProvider = *i32ToI64Analysis;
+  staleProvider.description.runtimeAVLASource = "metadata-selected-avl";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+              staleProvider,
+              "widen_i32_to_i64 conversion provider unit test"),
+          {"widening conversion route-family route, runtime, type, "
+           "intrinsic, and conversion mirrors",
+           "validated family plan"}))
+    return result;
+
+  staleProvider = *i32ToI64Analysis;
+  staleProvider.description.sourceVectorLoadIntrinsic =
+      "__riscv_vle16_v_i16mf2";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+              staleProvider,
+              "widen_i32_to_i64 conversion provider unit test"),
+          {"widening conversion route-family route, runtime, type, "
+           "intrinsic, and conversion mirrors",
+           "validated family plan"}))
+    return result;
+
+  staleProvider = *i32ToI64Analysis;
+  staleProvider.description.intrinsic = "__riscv_vadd_vv_i64m2";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+              staleProvider,
+              "widen_i32_to_i64 conversion provider unit test"),
+          {"widening conversion route-family route, runtime, type, "
+           "intrinsic, and conversion mirrors",
+           "validated family plan"}))
+    return result;
+
+  staleProvider = *i32ToI64Analysis;
+  staleProvider.description.conversionRelation =
+      "signed-i16mf2-to-i32m1";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+              staleProvider,
+              "widen_i32_to_i64 conversion provider unit test"),
+          {"widening conversion route-family route, runtime, type, "
+           "intrinsic, and conversion mirrors",
+           "validated family plan"}))
+    return result;
+
+  staleProvider = *i32ToI64Analysis;
+  std::swap(staleProvider.description.runtimeABIParameters[0],
+            staleProvider.description.runtimeABIParameters[1]);
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+              staleProvider,
+              "widen_i32_to_i64 conversion provider unit test"),
+          {"runtime ABI parameters", "validated family plan"}))
+    return result;
+
+  staleProvider = *i32ToI64Analysis;
+  staleProvider.routeOperandBindingPlan.bindings[0].parameter.role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+              staleProvider,
+              "widen_i32_to_i64 conversion provider unit test"),
+          {"logical operand 'lhs'", "lhs-input-buffer", "output-buffer"}))
+    return result;
+
+  staleProvider = *i32ToI64Analysis;
+  staleProvider.description.routeOperandBindingSummary = "stale";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+              staleProvider,
+              "widen_i32_to_i64 conversion provider unit test"),
+          {"route operand binding mirror summary", "stale"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> i16ToI32Analysis =
+      analyzeRouteInModule(*module, "rvv_widen_i16_to_i32_provider_kernel",
+                           "rvv_widen_i16_to_i32");
+  if (!i16ToI32Analysis)
+    return fail("analyze widen_i16_to_i32 conversion provider route: " +
+                llvm::toString(i16ToI32Analysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+              *i16ToI32Analysis,
+              "widen_i16_to_i32 conversion provider unit test"),
+          "valid widen_i16_to_i32 widening conversion family provider plan"))
+    return result;
+  return expect(
+      i16ToI32Analysis->wideningConversionRouteFamilyPlan &&
+          i16ToI32Analysis->wideningConversionRouteFamilyPlan->sourceSEW ==
+              16 &&
+          i16ToI32Analysis->wideningConversionRouteFamilyPlan->resultSEW ==
+              32 &&
+          i16ToI32Analysis->wideningConversionRouteFamilyPlan
+                  ->conversionRelation == "signed-i16mf2-to-i32m1" &&
+          i16ToI32Analysis->routeOperandBindingPlan.planID ==
+              "rvv-route-operand-binding:widen_i16_to_i32.v1",
+      "widen_i16_to_i32 plan must carry source/result width, conversion "
+      "relation, and binding closure facts");
 }
 
 int runBaseMemoryMovementRouteFamilyProviderPlanTest() {
@@ -4585,7 +4753,7 @@ int main() {
     return result;
   if (int result = runScalarBroadcastAndSplatRouteFamilyProviderPlanTest())
     return result;
-  if (int result = runWideningConversionRouteFamilyProviderPlanTest())
+  if (int result = runWideningConversionRouteFamilyProviderPlanTest(context))
     return result;
   if (int result = runBaseMemoryMovementRouteFamilyProviderPlanTest())
     return result;

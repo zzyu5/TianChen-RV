@@ -38,3 +38,56 @@ Closed contraction provider validation for active `widening_macc_add`,
 ### Status
 
 [OK] **Completed and archived**. Commit is created after this journal entry.
+
+---
+
+## Session 173: Stage2 RVV widening conversion runtime and binding closure
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV widening conversion runtime binding closure
+**Branch**: `main`
+
+### Summary
+
+Closed widening conversion provider validation for active `widen_i32_to_i64`
+and `widen_i16_to_i32` routes.
+
+### Main Changes
+
+- Required widening conversion provider materialization to compare full
+  runtime AVL/VL control mirrors from the validated family plan, not only the
+  runtime control plan id.
+- Added family-provider `RouteOperandBindingPlan` closure validation so plan id,
+  runtime ABI order, parameter mirrors, logical operand roles, materialized
+  uses, and summary mirrors fail closed for widening conversion routes.
+- Added focused RVV plugin C++ coverage for consumer isolation, missing/stale
+  plans, runtime-control mismatch, source/type/intrinsic/relation mirror
+  mismatch, runtime ABI mismatch, binding role mismatch, binding summary
+  mismatch, and both active conversion routes.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+  and `./build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused lit from `build/test`: explicit `widen_i32_to_i64` and
+  pre-realized `widen_i32_to_i64` / `widen_i16_to_i32` target artifact tests,
+  3/3 passed.
+- [OK] Generated-bundle dry-runs: explicit `widen_i32_to_i64`; pre-realized
+  `widen_i32_to_i64` and `widen_i16_to_i32`; counts `7,16,23`.
+- [OK] Real `ssh rvv` generated-bundle runs for the same representative
+  widening conversion routes and counts; `widen_i16_to_i32` reported
+  `sign_extension_checked tail_preserved`.
+- [OK] Added-line authority scan, `git diff --check`, and `check-tianchenrv`
+  361/361 passed.
+
+### Spec Update Judgment
+
+No `.trellis/spec/` update is needed. The durable rule already exists in the
+RVV plugin and unified EmitC route specs: plugin-owned typed body facts and
+provider-built routes are authority, while route descriptions and artifacts are
+mirrors. This round applies that existing contract to the widening conversion
+family provider boundary.
+
+### Status
+
+[OK] **Completed and archived**. Commit is created after this journal entry.
