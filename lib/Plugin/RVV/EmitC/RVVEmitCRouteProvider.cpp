@@ -149,7 +149,11 @@ bool isRVVSelectedBodyComputedMaskMemoryRouteFamilyRoute(
          op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
          op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
          op ==
-             RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore;
+             RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore ||
+         op == RVVSelectedBodyOperationKind::
+                   ComputedMaskIndexedGatherLoadUnitStore ||
+         op == RVVSelectedBodyOperationKind::
+                   ComputedMaskIndexedScatterStoreUnitLoad;
 }
 
 bool isRVVSelectedBodyComputedMaskStridedLoadRoute(

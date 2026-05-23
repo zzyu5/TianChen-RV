@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global architecture guardrails for final review."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected body and plugin-owned provider authority review."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC/export neutrality review."}
+{"file": ".trellis/tasks/05-23-stage2-rvv-computed-mask-indexed-memory-route-family/prd.md", "reason": "Task acceptance criteria and validation checklist."}

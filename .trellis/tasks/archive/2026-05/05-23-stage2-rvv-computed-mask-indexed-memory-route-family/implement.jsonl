@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and source-of-truth constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body, plugin-owned route provider, and evidence authority rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and TCRVEmitCLowerableRoute ownership contract."}
+{"file": ".trellis/tasks/05-23-stage2-rvv-computed-mask-indexed-memory-route-family/prd.md", "reason": "Current bounded task scope, active route inventory, and acceptance criteria."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-computed-mask-strided-load-route-family-interface/prd.md", "reason": "Immediate prior family migration pattern and validation expectations."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-05-23-stage2-rvv-computed-mask-memory-producer-source-family/prd.md", "reason": "Producer-source-aware computed-mask memory family background."}
+{"file": ".trellis/tasks/archive/2026-05/05-21-stage2-rvv-route-operand-abi-binding/prd.md", "reason": "RouteOperandBindingPlan closure expectations."}

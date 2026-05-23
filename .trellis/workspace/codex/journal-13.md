@@ -763,7 +763,28 @@ Final round commit is created after task archive in the same Codex turn.
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] Focused build:
+  `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`.
+- [OK] Focused explicit/pre-realized target/header pipelines for indexed
+  gather/scatter selected-body fixtures.
+- [OK] Existing indexed-memory verifier diagnostics:
+  `masked-indexed-load-dataflow.mlir`,
+  `computed-mask-indexed-scatter-store-dataflow.mlir`,
+  `indexed-gather-memory-dataflow.mlir`, and
+  `indexed-scatter-memory-dataflow.mlir`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test` and
+  `build/bin/tianchenrv-target-artifact-export-test`.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py` and
+  `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Generated-bundle dry-runs for explicit and pre-realized
+  `computed_masked_indexed_gather_load_unit_store` and
+  `computed_masked_indexed_scatter_store_unit_load` with counts `7,16,23`.
+- [OK] Real `ssh rvv` generated-bundle runs for explicit and pre-realized
+  indexed gather/scatter with counts `7,16,23`; both routes reported active
+  lanes, inactive preservation, non-contiguous index lanes, source
+  preservation, tail preservation, and `PASS`.
+- [OK] Active-authority scan, `git diff --check`, and
+  `cmake --build build --target check-tianchenrv -j2` passed 349/349.
 
 ### Status
 
@@ -924,6 +945,43 @@ reduction suffix semantics.
   macc/reduction with counts `7,16,23` and thresholds `-37,91`.
 - [OK] Active-authority scan, `git diff --check`, and
   `cmake --build build --target check-tianchenrv -j2` passed 349/349.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 164: Stage2 RVV computed-mask indexed-memory route family
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV computed-mask indexed-memory route family
+**Branch**: `main`
+
+### Summary
+
+Migrated computed-mask indexed gather/scatter routes onto the shared RVV plugin-owned computed-mask memory family and proved explicit/pre-realized generated bundles on ssh rvv.
+
+### Main Changes
+
+- Extended the shared computed-mask memory route-family plan with indexed gather/scatter facets for index vector type, index load/scale leaves, indexed store leaf, index EEW, offset unit, index source, scatter uniqueness, and indexed data/destination forms.
+- Made `computed_masked_indexed_gather_load_unit_store` and `computed_masked_indexed_scatter_store_unit_load` consume family derivation, validation, provider-required planning, target leaf/profile mirrors, headers, C type mapping, and RouteOperandBindingPlan closure.
+- Updated explicit and pre-realized target/header checks plus generated-bundle metadata expectations for family plan id, mask producer source, provider mirror, indexed memory layout, index source/EEW/offset, and indexed source/destination forms.
+- Kept segmented memory and unrelated memory forms outside scope.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 

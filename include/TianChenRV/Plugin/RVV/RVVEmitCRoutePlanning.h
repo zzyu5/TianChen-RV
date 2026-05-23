@@ -330,6 +330,8 @@ struct RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan {
   bool usesVectorCompareProducer = false;
   bool usesStoreOnly = false;
   bool usesLoadMerge = false;
+  bool usesIndexedGather = false;
+  bool usesIndexedScatter = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
   llvm::StringRef familyPlanID;
   llvm::StringRef maskProducerSource;
@@ -342,15 +344,20 @@ struct RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan {
   llvm::StringRef vlCType;
   llvm::StringRef vectorTypeName;
   llvm::StringRef vectorCType;
+  llvm::StringRef indexVectorTypeName;
+  llvm::StringRef indexVectorCType;
   llvm::StringRef maskTypeName;
   llvm::StringRef maskCType;
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef indexLoadIntrinsic;
+  llvm::StringRef indexScaleIntrinsic;
   llvm::StringRef rhsScalarSplatIntrinsic;
   llvm::StringRef compareIntrinsic;
   llvm::StringRef maskedLoadIntrinsic;
   llvm::StringRef maskedStoreIntrinsic;
   llvm::StringRef stridedStoreIntrinsic;
+  llvm::StringRef indexedStoreIntrinsic;
   llvm::StringRef resultName;
   llvm::StringRef maskName;
   llvm::StringRef maskRole;
@@ -364,6 +371,12 @@ struct RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan {
   llvm::StringRef destinationMemoryForm;
   llvm::StringRef sourceStrideSource;
   llvm::StringRef destinationStrideSource;
+  std::int64_t indexEEW = 0;
+  llvm::StringRef offsetUnit;
+  llvm::StringRef indexSource;
+  llvm::StringRef indexUniqueness;
+  llvm::StringRef indexedDataMemoryForm;
+  llvm::StringRef indexedDestinationMemoryForm;
   llvm::SmallVector<support::RuntimeABIParameter, 6> runtimeABIParameters;
 };
 
