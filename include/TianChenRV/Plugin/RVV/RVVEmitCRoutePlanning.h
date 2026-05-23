@@ -241,6 +241,49 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 8> runtimeABIParameters;
 };
 
+struct RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  bool usesPlainVector = false;
+  bool usesMaskedArithmetic = false;
+  bool usesStridedInputs = false;
+  RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef familyPlanID;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef maskTypeName;
+  llvm::StringRef maskCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef stridedLoadIntrinsic;
+  llvm::StringRef arithmeticIntrinsic;
+  llvm::StringRef compareIntrinsic;
+  llvm::StringRef maskedMergeIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef stridedStoreIntrinsic;
+  llvm::StringRef resultName;
+  llvm::StringRef maskName;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef inactiveLaneContract;
+  llvm::StringRef maskedPassthroughLayout;
+  llvm::StringRef stridedMemoryLayout;
+  llvm::StringRef lhsStrideSource;
+  llvm::StringRef rhsStrideSource;
+  llvm::StringRef outStrideSource;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::SmallVector<support::RuntimeABIParameter, 8> runtimeABIParameters;
+};
+
 struct RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
@@ -605,6 +648,8 @@ struct RVVSelectedBodyRouteAnalysis {
   RVVRouteOperandBindingPlan routeOperandBindingPlan;
   std::optional<RVVSelectedBodyContractionRouteFamilyPlan>
       contractionRouteFamilyPlan;
+  std::optional<RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan>
+      elementwiseArithmeticRouteFamilyPlan;
   std::optional<RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan>
       scalarBroadcastElementwiseRouteFamilyPlan;
   std::optional<RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan>
@@ -639,6 +684,13 @@ llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+bool isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error
+verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 bool isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer(

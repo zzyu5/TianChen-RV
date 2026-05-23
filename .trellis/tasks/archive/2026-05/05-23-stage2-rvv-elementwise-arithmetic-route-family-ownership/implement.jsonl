@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV RVV-first authority chain, Stage1/Stage2 boundary, and source-of-truth rules for this elementwise arithmetic ownership round."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership rules for typed tcrv_rvv body authority, provider-built arithmetic routes, selected-body realization, and ssh rvv evidence."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary: RVV provider owns arithmetic payload, type/intrinsic/mask/stride choices, and common EmitC remains neutral."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/generated-bundle/ssh rvv evidence policy and RVV Stage1/Stage2 test authority constraints."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-locality checklist for RVV family planning/provider changes without core semantic branches."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute-boundary checklist ensuring arithmetic semantics stay in typed tcrv_rvv/RVV plugin, not tcrv.exec or common EmitC."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Added elementwise arithmetic route-family plan state, analysis storage, consumer predicate, and provider verifier declaration."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Added route-description mirror for the validated elementwise arithmetic family plan id."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Derived and validated elementwise arithmetic family plans from typed body/config/runtime facts, populated route mirrors, metadata, and fail-closed missing/stale plan checks."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Made provider materialization depend on the validated elementwise arithmetic family boundary before building TCRVEmitCLowerableRoute."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Allowed generated headers to carry the elementwise arithmetic family-plan metadata mirror."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Added focused consumer/missing/stale provider verifier coverage and route-description mirror checks for plain and masked elementwise arithmetic."}

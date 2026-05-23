@@ -1411,6 +1411,34 @@ constexpr llvm::StringLiteral kRVVScalarBroadcastRuntimeABIOrder(
     "lhs,rhs_scalar,out,n");
 constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreRuntimeABIOrder(
     "rhs_scalar,out,n");
+constexpr llvm::StringLiteral kRVVElementwiseArithmeticRouteFamilyPlanID(
+    "rvv-elementwise-arithmetic-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVPlainElementwiseArithmeticTargetLeafProfile(
+    "rvv-v1-typed-plain-elementwise-arithmetic-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVMaskedElementwiseArithmeticTargetLeafProfile(
+    "rvv-v1-typed-masked-elementwise-arithmetic-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVStridedElementwiseArithmeticTargetLeafProfile(
+    "rvv-v1-typed-strided-elementwise-arithmetic-leaf-profile.v1");
+constexpr llvm::StringLiteral
+    kRVVPlainElementwiseArithmeticProviderSupportedMirror(
+        "provider_supported_mirror:rvv-plain-elementwise-arithmetic-plan-validated");
+constexpr llvm::StringLiteral
+    kRVVMaskedElementwiseArithmeticProviderSupportedMirror(
+        "provider_supported_mirror:rvv-masked-elementwise-arithmetic-plan-validated");
+constexpr llvm::StringLiteral
+    kRVVStridedElementwiseArithmeticProviderSupportedMirror(
+        "provider_supported_mirror:rvv-strided-elementwise-arithmetic-plan-validated");
+constexpr llvm::StringLiteral
+    kRVVElementwiseArithmeticRequiredHeaderDeclarations(
+        "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral kRVVPlainElementwiseArithmeticCTypeMappingSummary(
+    "vl:size_t,lhs:typed-vector,rhs:typed-vector,result:typed-vector");
+constexpr llvm::StringLiteral
+    kRVVMaskedElementwiseArithmeticCTypeMappingSummary(
+        "vl:size_t,lhs/rhs/passthrough:typed-vector,mask:typed-mask,result:typed-vector");
+constexpr llvm::StringLiteral
+    kRVVStridedElementwiseArithmeticCTypeMappingSummary(
+        "vl:size_t,lhs:element-strided-typed-vector,rhs:element-strided-typed-vector,result:element-strided-typed-vector");
 constexpr llvm::StringLiteral kRVVScalarBroadcastElementwiseRouteFamilyPlanID(
     "rvv-scalar-broadcast-elementwise-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreRouteFamilyPlanID(
@@ -3574,6 +3602,535 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
     description.sourceMemoryForm = plan.sourceMemoryForm;
     description.destinationMemoryForm = plan.destinationMemoryForm;
   }
+}
+
+bool isRVVSelectedBodyElementwiseArithmeticRouteOperation(
+    RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::Add:
+  case RVVSelectedBodyOperationKind::Sub:
+  case RVVSelectedBodyOperationKind::Mul:
+  case RVVSelectedBodyOperationKind::MaskedAdd:
+  case RVVSelectedBodyOperationKind::MaskedSub:
+  case RVVSelectedBodyOperationKind::MaskedMul:
+  case RVVSelectedBodyOperationKind::StridedAdd:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVSelectedBodyPlainElementwiseArithmeticRouteOperation(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::Add ||
+         op == RVVSelectedBodyOperationKind::Sub ||
+         op == RVVSelectedBodyOperationKind::Mul;
+}
+
+bool isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::MaskedAdd ||
+         op == RVVSelectedBodyOperationKind::MaskedSub ||
+         op == RVVSelectedBodyOperationKind::MaskedMul;
+}
+
+bool isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind op, RVVSelectedBodyMemoryForm memoryForm) {
+  if (isRVVSelectedBodyPlainElementwiseArithmeticRouteOperation(op))
+    return memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  if (isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(op))
+    return memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  return op == RVVSelectedBodyOperationKind::StridedAdd &&
+         memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore;
+}
+
+RVVSelectedBodyMemoryForm
+getElementwiseArithmeticRouteFamilyMemoryForm(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::Add:
+  case RVVSelectedBodyOperationKind::Sub:
+  case RVVSelectedBodyOperationKind::Mul:
+  case RVVSelectedBodyOperationKind::MaskedAdd:
+  case RVVSelectedBodyOperationKind::MaskedSub:
+  case RVVSelectedBodyOperationKind::MaskedMul:
+    return RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  case RVVSelectedBodyOperationKind::StridedAdd:
+    return RVVSelectedBodyMemoryForm::StridedLoadStore;
+  default:
+    llvm_unreachable("unsupported elementwise arithmetic route-family op");
+  }
+}
+
+llvm::StringRef
+getElementwiseArithmeticRuntimeABIOrder(RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::StridedAdd
+             ? llvm::StringRef(kRVVStridedRuntimeABIOrder)
+             : llvm::StringRef(kRVVGenericBinaryRuntimeABIOrder);
+}
+
+llvm::StringRef
+getElementwiseArithmeticTargetLeafProfile(RVVSelectedBodyOperationKind op) {
+  if (op == RVVSelectedBodyOperationKind::StridedAdd)
+    return kRVVStridedElementwiseArithmeticTargetLeafProfile;
+  if (isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(op))
+    return kRVVMaskedElementwiseArithmeticTargetLeafProfile;
+  if (isRVVSelectedBodyPlainElementwiseArithmeticRouteOperation(op))
+    return kRVVPlainElementwiseArithmeticTargetLeafProfile;
+  return {};
+}
+
+llvm::StringRef getElementwiseArithmeticProviderSupportedMirror(
+    RVVSelectedBodyOperationKind op) {
+  if (op == RVVSelectedBodyOperationKind::StridedAdd)
+    return kRVVStridedElementwiseArithmeticProviderSupportedMirror;
+  if (isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(op))
+    return kRVVMaskedElementwiseArithmeticProviderSupportedMirror;
+  if (isRVVSelectedBodyPlainElementwiseArithmeticRouteOperation(op))
+    return kRVVPlainElementwiseArithmeticProviderSupportedMirror;
+  return {};
+}
+
+llvm::StringRef
+getElementwiseArithmeticCTypeMappingSummary(RVVSelectedBodyOperationKind op) {
+  if (op == RVVSelectedBodyOperationKind::StridedAdd)
+    return kRVVStridedElementwiseArithmeticCTypeMappingSummary;
+  if (isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(op))
+    return kRVVMaskedElementwiseArithmeticCTypeMappingSummary;
+  if (isRVVSelectedBodyPlainElementwiseArithmeticRouteOperation(op))
+    return kRVVPlainElementwiseArithmeticCTypeMappingSummary;
+  return {};
+}
+
+llvm::Error requireRVVSelectedBodyElementwiseArithmeticPlanField(
+    const RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan &plan,
+    llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("elementwise arithmetic route-family plan validation for "
+                  "operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
+      field + " '" + expected + "' but found '" + actual + "'");
+}
+
+llvm::Error validateRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
+    const RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan &plan) {
+  if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
+          plan.runtimeControlPlan,
+          "elementwise arithmetic route-family runtime AVL/VL control"))
+    return error;
+  if (!isRVVSelectedBodyElementwiseArithmeticRouteOperation(plan.operation))
+    return makeRVVEmitCRouteProviderError(
+        "elementwise arithmetic route-family plan supports only active "
+        "plain, static masked, and strided-add arithmetic routes");
+
+  const bool isPlain =
+      isRVVSelectedBodyPlainElementwiseArithmeticRouteOperation(plan.operation);
+  const bool isMasked =
+      isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(
+          plan.operation);
+  const bool isStrided =
+      plan.operation == RVVSelectedBodyOperationKind::StridedAdd;
+
+  if (plan.usesPlainVector != isPlain ||
+      plan.usesMaskedArithmetic != isMasked ||
+      plan.usesStridedInputs != isStrided)
+    return makeRVVEmitCRouteProviderError(
+        "elementwise arithmetic route-family plan has stale route consumer "
+        "classification markers");
+  if (plan.memoryForm !=
+      getElementwiseArithmeticRouteFamilyMemoryForm(plan.operation))
+    return makeRVVEmitCRouteProviderError(
+        "elementwise arithmetic route-family plan requires matching typed "
+        "body memory form");
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "runtime control plan",
+              plan.runtimeControlPlan.controlPlanID,
+              getRVVRuntimeAVLVLControlPlanID()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "family plan id", plan.familyPlanID,
+              kRVVElementwiseArithmeticRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "runtime ABI order", plan.runtimeABIOrder,
+              getElementwiseArithmeticRuntimeABIOrder(plan.operation)))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "target leaf profile", plan.targetLeafProfile,
+              getElementwiseArithmeticTargetLeafProfile(plan.operation)))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "provider_supported_mirror",
+              plan.providerSupportedMirror,
+              getElementwiseArithmeticProviderSupportedMirror(plan.operation)))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "header declarations", plan.requiredHeaderDeclarations,
+              kRVVElementwiseArithmeticRequiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "C type mapping summary", plan.cTypeMappingSummary,
+              getElementwiseArithmeticCTypeMappingSummary(plan.operation)))
+    return error;
+  if (plan.requiredHeaders.size() != 3 ||
+      plan.requiredHeaders[0] != "stddef.h" ||
+      plan.requiredHeaders[1] != "stdint.h" ||
+      plan.requiredHeaders[2] != "riscv_vector.h")
+    return makeRVVEmitCRouteProviderError(
+        "elementwise arithmetic route-family plan requires provider-owned "
+        "header declarations 'stddef.h,stdint.h,riscv_vector.h'");
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "VL C type", plan.vlCType, "size_t"))
+    return error;
+  if (plan.vectorTypeName.empty() || plan.vectorCType.empty())
+    return makeRVVEmitCRouteProviderError(
+        "elementwise arithmetic route-family plan requires typed vector "
+        "type and C type facts");
+  if (isMasked) {
+    if (plan.maskTypeName.empty() || plan.maskCType.empty())
+      return makeRVVEmitCRouteProviderError(
+          "masked elementwise arithmetic route-family plan requires typed "
+          "mask type and C type facts");
+  } else {
+    if (llvm::Error error =
+            requireRVVSelectedBodyElementwiseArithmeticPlanField(
+                plan, "mask type", plan.maskTypeName, ""))
+      return error;
+    if (llvm::Error error =
+            requireRVVSelectedBodyElementwiseArithmeticPlanField(
+                plan, "mask C type", plan.maskCType, ""))
+      return error;
+  }
+  if (plan.setVLIntrinsic.empty() || plan.vectorLoadIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        "elementwise arithmetic route-family plan requires provider-derived "
+        "setvl and vector-load leaves");
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "strided-load leaf", plan.stridedLoadIntrinsic,
+              isStrided ? plan.stridedLoadIntrinsic : llvm::StringRef()))
+    return error;
+  if (isStrided && plan.stridedLoadIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        "strided elementwise arithmetic route-family plan requires a "
+        "provider-derived strided-load leaf");
+  if (plan.arithmeticIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        "elementwise arithmetic route-family plan requires a "
+        "provider-derived arithmetic intrinsic leaf");
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "compare leaf", plan.compareIntrinsic,
+              isMasked ? plan.compareIntrinsic : llvm::StringRef()))
+    return error;
+  if (isMasked && plan.compareIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        "masked elementwise arithmetic route-family plan requires a "
+        "provider-derived compare leaf");
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "masked merge leaf", plan.maskedMergeIntrinsic,
+              isMasked ? plan.maskedMergeIntrinsic : llvm::StringRef()))
+    return error;
+  if (isMasked && plan.maskedMergeIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        "masked elementwise arithmetic route-family plan requires a "
+        "provider-derived masked merge leaf");
+  if (plan.storeIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        "elementwise arithmetic route-family plan requires a provider-derived "
+        "store leaf");
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "strided-store leaf", plan.stridedStoreIntrinsic,
+              isStrided ? plan.stridedStoreIntrinsic : llvm::StringRef()))
+    return error;
+  if (isStrided && plan.stridedStoreIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        "strided elementwise arithmetic route-family plan requires a "
+        "provider-derived strided-store leaf");
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "result name", plan.resultName,
+              getRVVSelectedBodyOperationProfile(plan.operation).resultName))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "mask name", plan.maskName,
+              isMasked ? getRVVSelectedBodyOperationProfile(plan.operation)
+                             .maskName
+                       : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "mask role", plan.maskRole,
+              isMasked ? llvm::StringRef(kRVVMaskedPredicateMaskRole)
+                       : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "mask source", plan.maskSource,
+              isMasked ? llvm::StringRef(kRVVMaskedCompareMaskSource)
+                       : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "mask memory form", plan.maskMemoryForm, ""))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "inactive-lane contract", plan.inactiveLaneContract,
+              isMasked ? llvm::StringRef(kRVVMaskedInactiveLaneContract)
+                       : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "masked passthrough layout", plan.maskedPassthroughLayout,
+              isMasked ? llvm::StringRef(kRVVMaskedPassthroughLayout)
+                       : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "strided memory layout", plan.stridedMemoryLayout,
+              isStrided ? llvm::StringRef(kRVVStridedMemoryLayout)
+                        : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "lhs stride source", plan.lhsStrideSource,
+              isStrided ? llvm::StringRef(kRVVLHSStrideSource)
+                        : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "rhs stride source", plan.rhsStrideSource,
+              isStrided ? llvm::StringRef(kRVVRHSStrideSource)
+                        : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "out stride source", plan.outStrideSource,
+              isStrided ? llvm::StringRef(kRVVOutStrideSource)
+                        : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "source memory form", plan.sourceMemoryForm,
+              isStrided ? llvm::StringRef(kRVVSourceMemoryForm)
+                        : llvm::StringRef(kRVVUnitStrideSourceMemoryForm)))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyElementwiseArithmeticPlanField(
+              plan, "destination memory form", plan.destinationMemoryForm,
+              isStrided ? llvm::StringRef("strided-store")
+                        : llvm::StringRef(kRVVDestinationMemoryForm)))
+    return error;
+  if (llvm::Error error =
+          verifyRVVSelectedBodyConstructionRuntimeABIParameters(
+              plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
+  return llvm::Error::success();
+}
+
+llvm::Expected<RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan>
+deriveRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyConfigProfile &configProfile,
+    const RVVSelectedBodyTargetLeafProfile &targetLeaves) {
+  const RVVSelectedBodyOperationKind operation = analysis.slice.arithmeticKind;
+  if (!isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer(
+          operation, analysis.slice.memoryForm))
+    return makeRVVEmitCRouteProviderError(
+        "requested elementwise arithmetic route-family plan for "
+        "non-elementwise RVV operation");
+  if (analysis.slice.memoryForm !=
+      getElementwiseArithmeticRouteFamilyMemoryForm(operation))
+    return makeRVVEmitCRouteProviderError(
+        "elementwise arithmetic route-family plan requires matching typed "
+        "body memory form");
+
+  const bool isPlain =
+      isRVVSelectedBodyPlainElementwiseArithmeticRouteOperation(operation);
+  const bool isMasked =
+      isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(operation);
+  const bool isStrided = operation == RVVSelectedBodyOperationKind::StridedAdd;
+
+  if (isPlain &&
+      (!analysis.slice.lhsGenericLoad || !analysis.slice.rhsGenericLoad ||
+       !analysis.slice.genericStore || !analysis.slice.arithmeticOp))
+    return makeRVVEmitCRouteProviderError(
+        "plain elementwise arithmetic route-family plan requires lhs/rhs unit "
+        "loads, binary compute, and unit store body structure");
+  if (isMasked &&
+      (!analysis.slice.lhsGenericLoad || !analysis.slice.rhsGenericLoad ||
+       !analysis.slice.compareOp || !analysis.slice.maskedBinaryOp ||
+       !analysis.slice.genericStore || !analysis.slice.arithmeticOp))
+    return makeRVVEmitCRouteProviderError(
+        "masked elementwise arithmetic route-family plan requires lhs/rhs "
+        "loads, compare-produced mask, masked binary compute, and unit store");
+  if (isStrided &&
+      (!analysis.slice.lhsStridedLoad || !analysis.slice.rhsStridedLoad ||
+       !analysis.slice.stridedStore || !analysis.slice.arithmeticOp))
+    return makeRVVEmitCRouteProviderError(
+        "strided elementwise arithmetic route-family plan requires strided "
+        "lhs/rhs loads, binary compute, and strided output store");
+  if (analysis.slice.lhsABI.role !=
+          support::RuntimeABIParameterRole::LHSInputBuffer ||
+      analysis.slice.rhsABI.role !=
+          support::RuntimeABIParameterRole::RHSInputBuffer ||
+      analysis.slice.outABI.role !=
+          support::RuntimeABIParameterRole::OutputBuffer ||
+      analysis.slice.runtimeElementCountABI.role !=
+          support::RuntimeABIParameterRole::RuntimeElementCount)
+    return makeRVVEmitCRouteProviderError(
+        "elementwise arithmetic route-family plan requires lhs, rhs, output, "
+        "and runtime element-count ABI roles");
+  if (isStrided &&
+      (analysis.slice.lhsStrideABI.role !=
+           support::RuntimeABIParameterRole::LHSInputStride ||
+       analysis.slice.rhsStrideABI.role !=
+           support::RuntimeABIParameterRole::RHSInputStride ||
+       analysis.slice.outStrideABI.role !=
+           support::RuntimeABIParameterRole::OutputStride))
+    return makeRVVEmitCRouteProviderError(
+        "strided elementwise arithmetic route-family plan requires lhs, rhs, "
+        "and output stride ABI roles");
+
+  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+      deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
+          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl, analysis.slice.withVL,
+          getElementwiseArithmeticRuntimeABIOrder(operation),
+          "elementwise arithmetic route-family plan");
+  if (!runtimeControlPlan)
+    return runtimeControlPlan.takeError();
+
+  RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan plan;
+  plan.operation = operation;
+  plan.memoryForm = analysis.slice.memoryForm;
+  plan.usesPlainVector = isPlain;
+  plan.usesMaskedArithmetic = isMasked;
+  plan.usesStridedInputs = isStrided;
+  plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.familyPlanID = kRVVElementwiseArithmeticRouteFamilyPlanID;
+  plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
+  plan.targetLeafProfile = getElementwiseArithmeticTargetLeafProfile(operation);
+  plan.providerSupportedMirror =
+      getElementwiseArithmeticProviderSupportedMirror(operation);
+  plan.requiredHeaders.push_back("stddef.h");
+  plan.requiredHeaders.push_back("stdint.h");
+  plan.requiredHeaders.push_back("riscv_vector.h");
+  plan.requiredHeaderDeclarations =
+      kRVVElementwiseArithmeticRequiredHeaderDeclarations;
+  plan.cTypeMappingSummary =
+      getElementwiseArithmeticCTypeMappingSummary(operation);
+  plan.vlCType = configProfile.vlCType;
+  plan.vectorTypeName = configProfile.vectorTypeName;
+  plan.vectorCType = configProfile.vectorCType;
+  plan.maskTypeName = isMasked ? configProfile.maskTypeName : "";
+  plan.maskCType = isMasked ? configProfile.maskCType : "";
+  plan.setVLIntrinsic = configProfile.setVLIntrinsic;
+  plan.vectorLoadIntrinsic = configProfile.vectorLoadIntrinsic;
+  plan.stridedLoadIntrinsic =
+      isStrided ? configProfile.stridedLoadIntrinsic : "";
+  plan.arithmeticIntrinsic = targetLeaves.intrinsic;
+  plan.compareIntrinsic = isMasked ? targetLeaves.compareIntrinsic : "";
+  plan.maskedMergeIntrinsic =
+      isMasked ? targetLeaves.maskedMergeIntrinsic : "";
+  plan.storeIntrinsic = configProfile.storeIntrinsic;
+  plan.stridedStoreIntrinsic =
+      isStrided ? configProfile.stridedStoreIntrinsic : "";
+  plan.resultName = getRVVSelectedBodyOperationProfile(operation).resultName;
+  plan.maskName =
+      isMasked ? getRVVSelectedBodyOperationProfile(operation).maskName : "";
+  plan.maskRole = isMasked ? kRVVMaskedPredicateMaskRole : "";
+  plan.maskSource = isMasked ? kRVVMaskedCompareMaskSource : "";
+  plan.maskMemoryForm = "";
+  plan.inactiveLaneContract =
+      isMasked ? llvm::StringRef(kRVVMaskedInactiveLaneContract)
+               : llvm::StringRef();
+  plan.maskedPassthroughLayout =
+      isMasked ? llvm::StringRef(kRVVMaskedPassthroughLayout)
+               : llvm::StringRef();
+  plan.stridedMemoryLayout =
+      isStrided ? llvm::StringRef(kRVVStridedMemoryLayout) : llvm::StringRef();
+  plan.lhsStrideSource =
+      isStrided ? llvm::StringRef(kRVVLHSStrideSource) : llvm::StringRef();
+  plan.rhsStrideSource =
+      isStrided ? llvm::StringRef(kRVVRHSStrideSource) : llvm::StringRef();
+  plan.outStrideSource =
+      isStrided ? llvm::StringRef(kRVVOutStrideSource) : llvm::StringRef();
+  plan.sourceMemoryForm =
+      isStrided ? llvm::StringRef(kRVVSourceMemoryForm)
+                : llvm::StringRef(kRVVUnitStrideSourceMemoryForm);
+  plan.destinationMemoryForm =
+      isStrided ? llvm::StringRef("strided-store")
+                : llvm::StringRef(kRVVDestinationMemoryForm);
+  plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.rhsABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+  plan.runtimeABIParameters.push_back(plan.runtimeControlPlan.runtimeAVLParameter);
+  if (isStrided) {
+    plan.runtimeABIParameters.push_back(analysis.slice.lhsStrideABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.rhsStrideABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.outStrideABI);
+  }
+
+  if (llvm::Error error =
+          validateRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(plan))
+    return std::move(error);
+  return plan;
+}
+
+void applyRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
+    const RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan &plan,
+    RVVSelectedBodyEmitCRouteDescription &description) {
+  applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
+                                               description);
+  description.elementwiseArithmeticRouteFamilyPlanID = plan.familyPlanID;
+  description.runtimeABIOrder = plan.runtimeABIOrder;
+  description.targetLeafProfile = plan.targetLeafProfile;
+  description.providerSupportedMirror = plan.providerSupportedMirror;
+  description.requiredHeaderDeclarations = plan.requiredHeaderDeclarations;
+  description.cTypeMappingSummary = plan.cTypeMappingSummary;
+  description.vlCType = plan.vlCType;
+  description.vectorTypeName = plan.vectorTypeName;
+  description.vectorCType = plan.vectorCType;
+  description.maskTypeName = plan.maskTypeName;
+  description.maskCType = plan.maskCType;
+  description.setVLIntrinsic = plan.setVLIntrinsic;
+  description.vectorLoadIntrinsic = plan.vectorLoadIntrinsic;
+  description.stridedLoadIntrinsic = plan.stridedLoadIntrinsic;
+  description.intrinsic = plan.arithmeticIntrinsic;
+  description.compareIntrinsic = plan.compareIntrinsic;
+  description.maskedMergeIntrinsic = plan.maskedMergeIntrinsic;
+  description.storeIntrinsic = plan.storeIntrinsic;
+  description.stridedStoreIntrinsic = plan.stridedStoreIntrinsic;
+  description.resultName = plan.resultName;
+  description.maskName = plan.maskName;
+  description.maskRole = plan.maskRole;
+  description.maskSource = plan.maskSource;
+  description.maskMemoryForm = plan.maskMemoryForm;
+  description.inactiveLaneContract = plan.inactiveLaneContract;
+  description.maskedPassthroughLayout = plan.maskedPassthroughLayout;
+  description.stridedMemoryLayout = plan.stridedMemoryLayout;
+  description.lhsStrideSource = plan.lhsStrideSource;
+  description.rhsStrideSource = plan.rhsStrideSource;
+  description.outStrideSource = plan.outStrideSource;
+  description.sourceMemoryForm = plan.sourceMemoryForm;
+  description.destinationMemoryForm = plan.destinationMemoryForm;
+  description.runtimeABIParameters.clear();
+  description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
+                                          plan.runtimeABIParameters.end());
 }
 
 bool isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
@@ -18253,6 +18810,109 @@ llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+bool isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return isRVVSelectedBodyElementwiseArithmeticRouteOperation(operation);
+}
+
+llvm::Error
+verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer(
+          operation, analysis.description.memoryForm);
+  if (isConsumer && !analysis.elementwiseArithmeticRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the elementwise arithmetic route-family plan before "
+        "provider materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!isConsumer && analysis.elementwiseArithmeticRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must not carry an elementwise arithmetic route-family plan for "
+        "non-elementwise operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!analysis.elementwiseArithmeticRouteFamilyPlan)
+    return llvm::Error::success();
+
+  const RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan &plan =
+      *analysis.elementwiseArithmeticRouteFamilyPlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(plan))
+    return error;
+  if (plan.operation != operation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " elementwise arithmetic route-family plan operation must match the "
+        "selected route description");
+  if (analysis.description.elementwiseArithmeticRouteFamilyPlanID !=
+      plan.familyPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " elementwise arithmetic route-family plan mirror must match the "
+        "validated family plan");
+  if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.runtimeControlPlanID !=
+          plan.runtimeControlPlan.controlPlanID ||
+      analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.targetLeafProfile != plan.targetLeafProfile ||
+      analysis.description.providerSupportedMirror !=
+          plan.providerSupportedMirror ||
+      analysis.description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      analysis.description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      analysis.description.vlCType != plan.vlCType ||
+      analysis.description.vectorTypeName != plan.vectorTypeName ||
+      analysis.description.vectorCType != plan.vectorCType ||
+      analysis.description.maskTypeName != plan.maskTypeName ||
+      analysis.description.maskCType != plan.maskCType ||
+      analysis.description.setVLIntrinsic != plan.setVLIntrinsic ||
+      analysis.description.vectorLoadIntrinsic != plan.vectorLoadIntrinsic ||
+      analysis.description.stridedLoadIntrinsic != plan.stridedLoadIntrinsic ||
+      analysis.description.intrinsic != plan.arithmeticIntrinsic ||
+      analysis.description.compareIntrinsic != plan.compareIntrinsic ||
+      analysis.description.maskedMergeIntrinsic !=
+          plan.maskedMergeIntrinsic ||
+      analysis.description.storeIntrinsic != plan.storeIntrinsic ||
+      analysis.description.stridedStoreIntrinsic !=
+          plan.stridedStoreIntrinsic ||
+      analysis.description.resultName != plan.resultName ||
+      analysis.description.maskName != plan.maskName ||
+      analysis.description.maskRole != plan.maskRole ||
+      analysis.description.maskSource != plan.maskSource ||
+      analysis.description.maskMemoryForm != plan.maskMemoryForm ||
+      analysis.description.inactiveLaneContract !=
+          plan.inactiveLaneContract ||
+      analysis.description.maskedPassthroughLayout !=
+          plan.maskedPassthroughLayout ||
+      analysis.description.stridedMemoryLayout != plan.stridedMemoryLayout ||
+      analysis.description.lhsStrideSource != plan.lhsStrideSource ||
+      analysis.description.rhsStrideSource != plan.rhsStrideSource ||
+      analysis.description.outStrideSource != plan.outStrideSource ||
+      analysis.description.sourceMemoryForm != plan.sourceMemoryForm ||
+      analysis.description.destinationMemoryForm !=
+          plan.destinationMemoryForm)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " elementwise arithmetic route-family mirrors must be populated from "
+        "the validated family plan before provider materialization");
+  if (!support::runtimeABIParametersEqual(
+          analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " elementwise arithmetic route-family runtime ABI parameters must "
+        "match the validated family plan");
+  if (analysis.routeOperandBindingPlan.planID !=
+      getExpectedRVVRouteOperandBindingPlanID(operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " elementwise arithmetic provider requires the route operand binding "
+        "plan for the selected operation");
+  return llvm::Error::success();
+}
+
 bool isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {
@@ -19695,6 +20355,19 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       routeProfile->targetLeaves.maskedMergeIntrinsic;
   analysis.description.resultName = routeProfile->operation.resultName;
   analysis.description.maskName = routeProfile->operation.maskName;
+  if (isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer(
+          routeProfile->operation.operation, analysis.slice.memoryForm)) {
+    llvm::Expected<RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan>
+        elementwisePlan =
+            deriveRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
+                analysis, routeProfile->config, routeProfile->targetLeaves);
+    if (!elementwisePlan)
+      return elementwisePlan.takeError();
+    analysis.elementwiseArithmeticRouteFamilyPlan =
+        std::move(*elementwisePlan);
+    applyRVVSelectedBodyElementwiseArithmeticRouteFamilyPlan(
+        *analysis.elementwiseArithmeticRouteFamilyPlan, analysis.description);
+  }
   if (isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
           routeProfile->operation.operation)) {
     llvm::Expected<RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan>
@@ -20350,6 +21023,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd;
   const bool isContractionRoute =
       isRVVSelectedBodyContractionRouteOperation(operationProfile.operation);
+  const bool isElementwiseArithmeticRoute =
+      isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer(
+          operationProfile.operation, description.memoryForm);
   const bool isScalarBroadcastElementwiseRoute =
       isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
           operationProfile.operation);
@@ -20475,6 +21151,28 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "C type mapping summary", description.cTypeMappingSummary,
             kRVVContractionCTypeMappingSummary))
+      return error;
+  } else if (isElementwiseArithmeticRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "target leaf profile", description.targetLeafProfile,
+            getElementwiseArithmeticTargetLeafProfile(
+                operationProfile.operation)))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "provider_supported_mirror",
+            description.providerSupportedMirror,
+            getElementwiseArithmeticProviderSupportedMirror(
+                operationProfile.operation)))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "required header declarations",
+            description.requiredHeaderDeclarations,
+            kRVVElementwiseArithmeticRequiredHeaderDeclarations))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "C type mapping summary", description.cTypeMappingSummary,
+            getElementwiseArithmeticCTypeMappingSummary(
+                operationProfile.operation)))
       return error;
   } else if (isScalarBroadcastElementwiseRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -21334,6 +22032,18 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           context, "runtime ABI order", description.runtimeABIOrder,
           expectedRuntimeABIOrder))
     return error;
+  if (isElementwiseArithmeticRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "elementwise arithmetic route family plan",
+            description.elementwiseArithmeticRouteFamilyPlanID,
+            kRVVElementwiseArithmeticRouteFamilyPlanID))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "elementwise arithmetic route family plan",
+            description.elementwiseArithmeticRouteFamilyPlanID, ""))
+      return error;
+  }
   if (isScalarBroadcastElementwiseRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "scalar-broadcast elementwise route family plan",
@@ -21490,7 +22200,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           " must not carry a route operand ABI binding summary for this "
           "unconverted route");
   }
-  if (isScalarBroadcastElementwiseRoute || isRuntimeScalarSplatStoreRoute ||
+  if (isElementwiseArithmeticRoute || isScalarBroadcastElementwiseRoute ||
+      isRuntimeScalarSplatStoreRoute ||
       operationProfile.isWideningConversion ||
       isBaseMemoryMovementRouteFamilyRoute ||
       isRuntimeScalarComputedMaskSelectRoute ||
@@ -22553,11 +23264,13 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             ""))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
-            context, "source memory form", description.sourceMemoryForm, ""))
+            context, "source memory form", description.sourceMemoryForm,
+            kRVVSourceMemoryForm))
       return error;
     if (llvm::Error error =
             requireRouteDescriptionField(context, "destination memory form",
-                                         description.destinationMemoryForm, ""))
+                                         description.destinationMemoryForm,
+                                         "strided-store"))
       return error;
     if (description.indexEEW != 0)
       return makeRVVEmitCRouteProviderError(
@@ -23102,11 +23815,15 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             ""))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
-            context, "source memory form", description.sourceMemoryForm, ""))
+            context, "source memory form", description.sourceMemoryForm,
+            isElementwiseArithmeticRoute ? kRVVUnitStrideSourceMemoryForm : ""))
       return error;
     if (llvm::Error error =
             requireRouteDescriptionField(context, "destination memory form",
-                                         description.destinationMemoryForm, ""))
+                                         description.destinationMemoryForm,
+                                         isElementwiseArithmeticRoute
+                                             ? kRVVDestinationMemoryForm
+                                             : ""))
       return error;
     if (description.indexEEW != 0)
       return makeRVVEmitCRouteProviderError(
@@ -23397,6 +24114,17 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back(
         {"tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
          description.scalarBroadcastElementwiseRouteFamilyPlanID});
+  if (!description.elementwiseArithmeticRouteFamilyPlanID.empty())
+    metadata.push_back(
+        {"tcrv_rvv.elementwise_arithmetic_route_family_plan",
+         description.elementwiseArithmeticRouteFamilyPlanID});
+  if (!description.elementwiseArithmeticRouteFamilyPlanID.empty() &&
+      description.operation != RVVSelectedBodyOperationKind::StridedAdd) {
+    metadata.push_back(
+        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
+    metadata.push_back({"tcrv_rvv.destination_memory_form",
+                        description.destinationMemoryForm});
+  }
   if (!description.runtimeScalarSplatStoreRouteFamilyPlanID.empty())
     metadata.push_back(
         {"tcrv_rvv.runtime_scalar_splat_store_route_family_plan",
@@ -23441,6 +24169,7 @@ getRVVSelectedBodyConfigArtifactMetadata(
   metadata.push_back({"tcrv_rvv.bounded_slice", description.boundedSlice});
   metadata.push_back({"tcrv_rvv.multi_vl", description.multiVL});
   if (isRVVSelectedBodyContractionRouteOperation(description.operation) ||
+      !description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
       isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
           description.operation) ||
       isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(
@@ -23758,6 +24487,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
         {"tcrv_rvv.rhs_stride_source", description.rhsStrideSource});
     metadata.push_back(
         {"tcrv_rvv.out_stride_source", description.outStrideSource});
+    metadata.push_back(
+        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
+    metadata.push_back({"tcrv_rvv.destination_memory_form",
+                        description.destinationMemoryForm});
   }
   if (description.operation ==
       RVVSelectedBodyOperationKind::StridedLoadUnitStore) {

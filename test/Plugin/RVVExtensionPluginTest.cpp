@@ -917,6 +917,50 @@ module {
           "RVV LMUL m2 emission plan mirrors typed selected-body LMUL m2"))
     return result;
 
+  llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
+      routeDescription =
+          tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+              VariantEmitCLowerableRequest(
+                  variant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant));
+  if (!routeDescription)
+    return fail("describe RVV LMUL m2 selected-body route: " +
+                llvm::toString(routeDescription.takeError()));
+  if (int result =
+          expect(routeDescription->operation ==
+                         tianchenrv::plugin::rvv::
+                             RVVSelectedBodyOperationKind::Add &&
+                     routeDescription->memoryForm ==
+                         tianchenrv::plugin::rvv::
+                             RVVSelectedBodyMemoryForm::VectorRHSLoad &&
+                     routeDescription
+                             ->elementwiseArithmeticRouteFamilyPlanID ==
+                         "rvv-elementwise-arithmetic-route-family-plan.v1" &&
+                     routeDescription->targetLeafProfile ==
+                         "rvv-v1-typed-plain-elementwise-arithmetic-leaf-profile.v1" &&
+                     routeDescription->providerSupportedMirror ==
+                         "provider_supported_mirror:rvv-plain-elementwise-arithmetic-plan-validated" &&
+                     routeDescription->requiredHeaderDeclarations ==
+                         "stddef.h,stdint.h,riscv_vector.h" &&
+                     routeDescription->cTypeMappingSummary ==
+                         "vl:size_t,lhs:typed-vector,rhs:typed-vector,result:typed-vector" &&
+                     routeDescription->runtimeControlPlanID ==
+                         "rvv-runtime-avl-vl-control-plan.v1" &&
+                     routeDescription->runtimeABIOrder == "lhs,rhs,out,n" &&
+                     routeDescription->sourceMemoryForm ==
+                         "unit-stride-load" &&
+                     routeDescription->destinationMemoryForm ==
+                         "unit-stride-store" &&
+                     routeDescription->vectorTypeName ==
+                         "!tcrv_rvv.vector<i32, \"m2\">" &&
+                     routeDescription->vectorCType == "vint32m2_t" &&
+                     routeDescription->intrinsic ==
+                         "__riscv_vadd_vv_i32m2",
+                 "RVV plain elementwise arithmetic route records the "
+                 "validated family plan from typed m2 body/config/runtime "
+                 "facts"))
+    return result;
+
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
   if (int result = expectSuccess(
           registry.buildVariantEmitCLowerableRoute(
@@ -1433,6 +1477,123 @@ int runBaseMemoryMovementRouteFamilyProviderPlanTest() {
       {"must not carry a base memory movement route-family plan", "add"});
 }
 
+int runElementwiseArithmeticRouteFamilyProviderPlanTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans;
+
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::Add,
+        RVVSelectedBodyOperationKind::Sub,
+        RVVSelectedBodyOperationKind::Mul,
+        RVVSelectedBodyOperationKind::MaskedAdd,
+        RVVSelectedBodyOperationKind::MaskedSub,
+        RVVSelectedBodyOperationKind::MaskedMul,
+        RVVSelectedBodyOperationKind::StridedAdd}) {
+    if (int result = expect(
+            isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer(op),
+            "plain, static masked, and strided add arithmetic routes must be "
+            "elementwise arithmetic family consumers"))
+      return result;
+  }
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::ScalarBroadcastAdd,
+        RVVSelectedBodyOperationKind::StridedLoadUnitStore,
+        RVVSelectedBodyOperationKind::ComputedMaskSelect,
+        RVVSelectedBodyOperationKind::WidenI32ToI64,
+        RVVSelectedBodyOperationKind::StandaloneReduceAdd,
+        RVVSelectedBodyOperationKind::MAccAdd}) {
+    if (int result = expect(
+            !isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer(op),
+            "adjacent RVV families must stay outside elementwise arithmetic "
+            "family classification"))
+      return result;
+  }
+  if (int result = expect(
+          isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::ScalarBroadcastAdd),
+          "scalar broadcast add must remain owned by scalar-broadcast "
+          "elementwise family"))
+    return result;
+  if (int result = expect(
+          isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::StridedLoadUnitStore),
+          "strided load/unit store must remain owned by base memory movement "
+          "family"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingPlainPlan;
+  missingPlainPlan.description.operation = RVVSelectedBodyOperationKind::Add;
+  missingPlainPlan.description.memoryForm = RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              missingPlainPlan, "elementwise arithmetic provider unit test"),
+          {"requires the elementwise arithmetic route-family plan", "add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingMaskedPlan;
+  missingMaskedPlan.description.operation =
+      RVVSelectedBodyOperationKind::MaskedMul;
+  missingMaskedPlan.description.memoryForm =
+      RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              missingMaskedPlan, "elementwise arithmetic provider unit test"),
+          {"requires the elementwise arithmetic route-family plan",
+           "masked_mul"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingStridedPlan;
+  missingStridedPlan.description.operation =
+      RVVSelectedBodyOperationKind::StridedAdd;
+  missingStridedPlan.description.memoryForm =
+      RVVSelectedBodyMemoryForm::StridedLoadStore;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              missingStridedPlan,
+              "elementwise arithmetic provider unit test"),
+          {"requires the elementwise arithmetic route-family plan",
+           "strided_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleBroadcastPlan;
+  staleBroadcastPlan.description.operation = RVVSelectedBodyOperationKind::Add;
+  staleBroadcastPlan.description.memoryForm =
+      RVVSelectedBodyMemoryForm::RHSBroadcastLoad;
+  staleBroadcastPlan.elementwiseArithmeticRouteFamilyPlan.emplace();
+  staleBroadcastPlan.elementwiseArithmeticRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::Add;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+              staleBroadcastPlan,
+              "elementwise arithmetic provider unit test"),
+          {"must not carry an elementwise arithmetic route-family plan",
+           "add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleNonConsumer;
+  staleNonConsumer.description.operation =
+      RVVSelectedBodyOperationKind::ScalarBroadcastAdd;
+  staleNonConsumer.description.memoryForm =
+      RVVSelectedBodyMemoryForm::RHSScalarBroadcast;
+  staleNonConsumer.elementwiseArithmeticRouteFamilyPlan.emplace();
+  staleNonConsumer.elementwiseArithmeticRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::Add;
+  return expectErrorContains(
+      verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+          staleNonConsumer, "elementwise arithmetic provider unit test"),
+      {"must not carry an elementwise arithmetic route-family plan",
+       "scalar_broadcast_add"});
+}
+
 int runMaskedAddSelectedBodyPolicyRouteTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -1495,6 +1656,24 @@ module {
                              RVVSelectedBodyOperationKind::MaskedAdd &&
                      routeDescription->typedComputeOpName ==
                          "tcrv_rvv.masked_binary" &&
+                     routeDescription
+                             ->elementwiseArithmeticRouteFamilyPlanID ==
+                         "rvv-elementwise-arithmetic-route-family-plan.v1" &&
+                     routeDescription->targetLeafProfile ==
+                         "rvv-v1-typed-masked-elementwise-arithmetic-leaf-profile.v1" &&
+                     routeDescription->providerSupportedMirror ==
+                         "provider_supported_mirror:rvv-masked-elementwise-arithmetic-plan-validated" &&
+                     routeDescription->requiredHeaderDeclarations ==
+                         "stddef.h,stdint.h,riscv_vector.h" &&
+                     routeDescription->cTypeMappingSummary ==
+                         "vl:size_t,lhs/rhs/passthrough:typed-vector,mask:typed-mask,result:typed-vector" &&
+                     routeDescription->runtimeControlPlanID ==
+                         "rvv-runtime-avl-vl-control-plan.v1" &&
+                     routeDescription->runtimeABIOrder == "lhs,rhs,out,n" &&
+                     routeDescription->sourceMemoryForm ==
+                         "unit-stride-load" &&
+                     routeDescription->destinationMemoryForm ==
+                         "unit-stride-store" &&
                      routeDescription->maskRole ==
                          "predicate-mask-produced-by-compare" &&
                      routeDescription->maskSource ==
@@ -3171,6 +3350,8 @@ int main() {
   if (int result = runWideningConversionRouteFamilyProviderPlanTest())
     return result;
   if (int result = runBaseMemoryMovementRouteFamilyProviderPlanTest())
+    return result;
+  if (int result = runElementwiseArithmeticRouteFamilyProviderPlanTest())
     return result;
   if (int result = runMaskedAddSelectedBodyPolicyRouteTest(context))
     return result;
