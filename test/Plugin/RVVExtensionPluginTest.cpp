@@ -1864,7 +1864,8 @@ module {
       "relation, and binding closure facts");
 }
 
-int runBaseMemoryMovementRouteFamilyProviderPlanTest() {
+int runBaseMemoryMovementRouteFamilyProviderPlanTest(
+    mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
@@ -1877,6 +1878,7 @@ int runBaseMemoryMovementRouteFamilyProviderPlanTest() {
       isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans;
+  using tianchenrv::support::RuntimeABIParameterRole;
 
   for (RVVSelectedBodyOperationKind op :
        {RVVSelectedBodyOperationKind::StridedLoadUnitStore,
@@ -1954,10 +1956,352 @@ int runBaseMemoryMovementRouteFamilyProviderPlanTest() {
   staleNonConsumer.baseMemoryMovementRouteFamilyPlan.emplace();
   staleNonConsumer.baseMemoryMovementRouteFamilyPlan->operation =
       RVVSelectedBodyOperationKind::StridedLoadUnitStore;
-  return expectErrorContains(
-      verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
-          staleNonConsumer, "base memory provider unit test"),
-      {"must not carry a base memory movement route-family plan", "add"});
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              staleNonConsumer, "base memory provider unit test"),
+          {"must not carry a base memory movement route-family plan", "add"}))
+    return result;
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @strided_load_unit_store_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_strided_load_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", role = "source-byte-stride"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_strided_load_unit_store, sew = 32 : i64, source_kernel = "strided_load_unit_store_provider_kernel", status = "selected-lowering-boundary"} {
+        %loaded = tcrv_rvv.strided_load %src, %stride_bytes, %vl : !tcrv_rvv.runtime_abi_value, index, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %moved = tcrv_rvv.move %loaded, %vl {kind = "copy"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %moved, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+
+  tcrv.exec.kernel @unit_load_strided_store_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_unit_load_strided_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %dst_stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "dst_stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", role = "destination-byte-stride"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_unit_load_strided_store, sew = 32 : i64, source_kernel = "unit_load_strided_store_provider_kernel", status = "selected-lowering-boundary"} {
+        %loaded = tcrv_rvv.load %src, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %moved = tcrv_rvv.move %loaded, %vl {kind = "copy"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.strided_store %dst, %moved, %dst_stride_bytes, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, index, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+
+  tcrv.exec.kernel @indexed_gather_unit_store_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_indexed_gather_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %data = tcrv_rvv.runtime_abi_value {c_name = "data", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %index = tcrv_rvv.runtime_abi_value {c_name = "index", c_type = "const uint32_t *", ownership = "target-export-abi-owned", role = "index-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_indexed_gather_unit_store, sew = 32 : i64, source_kernel = "indexed_gather_unit_store_provider_kernel", status = "selected-lowering-boundary"} {
+        %indices = tcrv_rvv.index_load %index, %vl {index_eew = 32 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.index_vector<i32, "m1">
+        %loaded = tcrv_rvv.indexed_load %data, %indices, %vl {index_eew = 32 : i64, offset_unit = "element"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.index_vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %moved = tcrv_rvv.move %loaded, %vl {kind = "copy"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %moved, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+
+  tcrv.exec.kernel @indexed_scatter_unit_load_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_indexed_scatter_unit_load attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %index = tcrv_rvv.runtime_abi_value {c_name = "index", c_type = "const uint32_t *", ownership = "target-export-abi-owned", role = "index-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_indexed_scatter_unit_load, sew = 32 : i64, source_kernel = "indexed_scatter_unit_load_provider_kernel", status = "selected-lowering-boundary"} {
+        %loaded = tcrv_rvv.load %src, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %indices = tcrv_rvv.index_load %index, %vl {index_eew = 32 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.index_vector<i32, "m1">
+        %moved = tcrv_rvv.move %loaded, %vl {kind = "copy"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.indexed_store %dst, %indices, %moved, %vl {index_eew = 32 : i64, index_uniqueness = "unique", offset_unit = "element"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.index_vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+
+  tcrv.exec.kernel @masked_unit_load_store_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_masked_unit_load_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %mask = tcrv_rvv.runtime_abi_value {c_name = "mask", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "mask-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_masked_unit_load_store, sew = 32 : i64, source_kernel = "masked_unit_load_store_provider_kernel", status = "selected-lowering-boundary"} {
+        %predicate = tcrv_rvv.mask_load %mask, %vl {mask_memory_form = "unit-stride-mask-load", mask_role = "predicate-mask-input-buffer"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %old = tcrv_rvv.load %dst, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %loaded = tcrv_rvv.masked_load %src, %predicate, %old, %vl {inactive_lane_policy = "preserve-passthrough-on-false-lanes", memory_form = "masked-unit-load"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %dst, %loaded, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+
+  tcrv.exec.kernel @masked_unit_store_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_masked_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = undisturbed, mask = undisturbed>} {
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %mask = tcrv_rvv.runtime_abi_value {c_name = "mask", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "mask-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = undisturbed, mask = undisturbed>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = undisturbed, mask = undisturbed>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_masked_unit_store, sew = 32 : i64, source_kernel = "masked_unit_store_provider_kernel", status = "selected-lowering-boundary"} {
+        %predicate = tcrv_rvv.mask_load %mask, %vl {mask_memory_form = "unit-stride-mask-load", mask_role = "predicate-mask-input-buffer"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %payload = tcrv_rvv.load %src, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.masked_store %dst, %predicate, %payload, %vl {inactive_lane_policy = "preserve-output-on-false-lanes", memory_form = "masked-unit-store"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse base memory provider test module");
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> stridedLoadAnalysis =
+      analyzeRouteInModule(*module, "strided_load_unit_store_provider_kernel",
+                           "rvv_strided_load_unit_store");
+  if (!stridedLoadAnalysis)
+    return fail("analyze strided_load_unit_store provider route: " +
+                llvm::toString(stridedLoadAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              *stridedLoadAnalysis, "base memory provider unit test"),
+          "valid strided_load_unit_store base memory family provider plan"))
+    return result;
+  if (int result = expect(
+          stridedLoadAnalysis->baseMemoryMovementRouteFamilyPlan &&
+              stridedLoadAnalysis->baseMemoryMovementRouteFamilyPlan
+                  ->usesStridedLoad &&
+              stridedLoadAnalysis->baseMemoryMovementRouteFamilyPlan
+                      ->runtimeControlPlan.controlPlanID ==
+                  tianchenrv::plugin::rvv::getRVVRuntimeAVLVLControlPlanID() &&
+              stridedLoadAnalysis->baseMemoryMovementRouteFamilyPlan
+                      ->stridedLoadIntrinsic == "__riscv_vlse32_v_i32m1" &&
+              stridedLoadAnalysis->baseMemoryMovementRouteFamilyPlan
+                      ->sourceStrideSource == "runtime_abi:stride_bytes" &&
+              stridedLoadAnalysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:strided_load_unit_store.v1",
+          "strided_load_unit_store plan must carry runtime control, strided "
+          "layout, intrinsic, and binding facts"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stale = *stridedLoadAnalysis;
+  stale.description.runtimeAVLASource = "metadata-selected-avl";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              stale, "base memory provider unit test"),
+          {"base memory movement route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *stridedLoadAnalysis;
+  stale.description.stridedLoadIntrinsic = "__riscv_vle32_v_i32m1";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              stale, "base memory provider unit test"),
+          {"base memory movement route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *stridedLoadAnalysis;
+  stale.description.routeOperandBindingSummary = "stale";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              stale, "base memory provider unit test"),
+          {"route operand binding mirror summary", "stale"}))
+    return result;
+
+  stale = *stridedLoadAnalysis;
+  stale.routeOperandBindingPlan.bindings[0].parameter.role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              stale, "base memory provider unit test"),
+          {"logical operand 'src'", "source-input-buffer", "output-buffer"}))
+    return result;
+
+  stale = *stridedLoadAnalysis;
+  stale.description.routeOperandBindingPlanID =
+      "rvv-route-operand-binding:unit_load_strided_store.v1";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              stale, "base memory provider unit test"),
+          {"mirror plan id",
+           "rvv-route-operand-binding:strided_load_unit_store.v1",
+           "rvv-route-operand-binding:unit_load_strided_store.v1"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> stridedStoreAnalysis =
+      analyzeRouteInModule(*module, "unit_load_strided_store_provider_kernel",
+                           "rvv_unit_load_strided_store");
+  if (!stridedStoreAnalysis)
+    return fail("analyze unit_load_strided_store provider route: " +
+                llvm::toString(stridedStoreAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              *stridedStoreAnalysis, "base memory provider unit test"),
+          "valid unit_load_strided_store base memory family provider plan"))
+    return result;
+  if (int result = expect(
+          stridedStoreAnalysis->baseMemoryMovementRouteFamilyPlan &&
+              stridedStoreAnalysis->baseMemoryMovementRouteFamilyPlan
+                  ->usesStridedStore &&
+              stridedStoreAnalysis->baseMemoryMovementRouteFamilyPlan
+                      ->stridedStoreIntrinsic == "__riscv_vsse32_v_i32m1" &&
+              stridedStoreAnalysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:unit_load_strided_store.v1",
+          "unit_load_strided_store plan must keep destination stride and "
+          "binding facts isolated"))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> indexedGatherAnalysis =
+      analyzeRouteInModule(*module, "indexed_gather_unit_store_provider_kernel",
+                           "rvv_indexed_gather_unit_store");
+  if (!indexedGatherAnalysis)
+    return fail("analyze indexed_gather_unit_store provider route: " +
+                llvm::toString(indexedGatherAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              *indexedGatherAnalysis, "base memory provider unit test"),
+          "valid indexed_gather_unit_store base memory family provider plan"))
+    return result;
+  if (int result = expect(
+          indexedGatherAnalysis->baseMemoryMovementRouteFamilyPlan &&
+              indexedGatherAnalysis->baseMemoryMovementRouteFamilyPlan
+                  ->usesIndexedGather &&
+              indexedGatherAnalysis->baseMemoryMovementRouteFamilyPlan
+                      ->indexEEW == 32 &&
+              indexedGatherAnalysis->baseMemoryMovementRouteFamilyPlan
+                      ->offsetUnit == "element" &&
+              indexedGatherAnalysis->baseMemoryMovementRouteFamilyPlan
+                      ->indexedLoadIntrinsic == "__riscv_vloxei32_v_i32m1" &&
+              indexedGatherAnalysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:indexed_gather_unit_store.v1",
+          "indexed_gather_unit_store plan must carry index/load layout and "
+          "binding facts"))
+    return result;
+
+  stale = *indexedGatherAnalysis;
+  stale.description.offsetUnit = "byte";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              stale, "base memory provider unit test"),
+          {"base memory movement route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *indexedGatherAnalysis;
+  stale.description.indexedLoadIntrinsic = "__riscv_vle32_v_i32m1";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              stale, "base memory provider unit test"),
+          {"base memory movement route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> indexedScatterAnalysis =
+      analyzeRouteInModule(*module, "indexed_scatter_unit_load_provider_kernel",
+                           "rvv_indexed_scatter_unit_load");
+  if (!indexedScatterAnalysis)
+    return fail("analyze indexed_scatter_unit_load provider route: " +
+                llvm::toString(indexedScatterAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              *indexedScatterAnalysis, "base memory provider unit test"),
+          "valid indexed_scatter_unit_load base memory family provider plan"))
+    return result;
+  if (int result = expect(
+          indexedScatterAnalysis->baseMemoryMovementRouteFamilyPlan &&
+              indexedScatterAnalysis->baseMemoryMovementRouteFamilyPlan
+                  ->usesIndexedScatter &&
+              indexedScatterAnalysis->baseMemoryMovementRouteFamilyPlan
+                      ->indexUniqueness == "unique" &&
+              indexedScatterAnalysis->baseMemoryMovementRouteFamilyPlan
+                      ->indexedStoreIntrinsic == "__riscv_vsoxei32_v_i32m1" &&
+              indexedScatterAnalysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:indexed_scatter_unit_load.v1",
+          "indexed_scatter_unit_load plan must carry index/store layout and "
+          "binding facts"))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> maskedLoadStoreAnalysis =
+      analyzeRouteInModule(*module, "masked_unit_load_store_provider_kernel",
+                           "rvv_masked_unit_load_store");
+  if (!maskedLoadStoreAnalysis)
+    return fail("analyze masked_unit_load_store provider route: " +
+                llvm::toString(maskedLoadStoreAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              *maskedLoadStoreAnalysis, "base memory provider unit test"),
+          "valid masked_unit_load_store base memory family provider plan"))
+    return result;
+  if (int result = expect(
+          maskedLoadStoreAnalysis->baseMemoryMovementRouteFamilyPlan &&
+              maskedLoadStoreAnalysis->baseMemoryMovementRouteFamilyPlan
+                  ->usesStaticMaskLoad &&
+              maskedLoadStoreAnalysis->baseMemoryMovementRouteFamilyPlan
+                      ->maskRole == "predicate-mask-input-buffer" &&
+              maskedLoadStoreAnalysis->baseMemoryMovementRouteFamilyPlan
+                      ->inactiveLaneContract ==
+                  "masked-off-lanes-preserve-old-destination" &&
+              maskedLoadStoreAnalysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:masked_unit_load_store.v1",
+          "masked_unit_load_store plan must carry mask, passthrough, and "
+          "binding facts"))
+    return result;
+
+  stale = *maskedLoadStoreAnalysis;
+  stale.description.maskRole = "metadata-selected-mask";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              stale, "base memory provider unit test"),
+          {"base memory movement route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *maskedLoadStoreAnalysis;
+  stale.description.maskedLoadIntrinsic = "__riscv_vle32_v_i32m1";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              stale, "base memory provider unit test"),
+          {"base memory movement route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> maskedStoreAnalysis =
+      analyzeRouteInModule(*module, "masked_unit_store_provider_kernel",
+                           "rvv_masked_unit_store");
+  if (!maskedStoreAnalysis)
+    return fail("analyze masked_unit_store provider route: " +
+                llvm::toString(maskedStoreAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              *maskedStoreAnalysis, "base memory provider unit test"),
+          "valid masked_unit_store base memory family provider plan"))
+    return result;
+  return expect(
+      maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan &&
+          maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan
+              ->usesStaticMaskStore &&
+          maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan
+                  ->inactiveLaneContract ==
+              "masked-store-false-lanes-preserve-output-buffer" &&
+          maskedStoreAnalysis->routeOperandBindingPlan.planID ==
+              "rvv-route-operand-binding:masked_unit_store.v1",
+      "masked_unit_store plan must carry masked store inactive-lane and "
+      "binding facts");
 }
 
 int runElementwiseArithmeticRouteFamilyProviderPlanTest() {
@@ -5205,7 +5549,7 @@ int main() {
     return result;
   if (int result = runWideningConversionRouteFamilyProviderPlanTest(context))
     return result;
-  if (int result = runBaseMemoryMovementRouteFamilyProviderPlanTest())
+  if (int result = runBaseMemoryMovementRouteFamilyProviderPlanTest(context))
     return result;
   if (int result = runElementwiseArithmeticRouteFamilyProviderPlanTest())
     return result;
