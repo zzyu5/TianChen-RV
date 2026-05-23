@@ -1431,6 +1431,47 @@ constexpr llvm::StringLiteral kRVVWidenI32ToI64CTypeMappingSummary(
     "vl:size_t,source:signed-e32m1,result:signed-e64m2");
 constexpr llvm::StringLiteral kRVVWidenI16ToI32CTypeMappingSummary(
     "vl:size_t,source:signed-e16mf2,result:signed-e32m1");
+constexpr llvm::StringLiteral kRVVBaseMemoryMovementRouteFamilyPlanID(
+    "rvv-base-memory-movement-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreTargetLeafProfile(
+    "rvv-v1-e32m1-strided-load-unit-store-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVUnitLoadStridedStoreTargetLeafProfile(
+    "rvv-v1-e32m1-unit-load-strided-store-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVIndexedGatherUnitStoreTargetLeafProfile(
+    "rvv-v1-e32m1-indexed-gather-unit-store-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVIndexedScatterUnitLoadTargetLeafProfile(
+    "rvv-v1-e32m1-indexed-scatter-unit-load-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVMaskedUnitLoadStoreTargetLeafProfile(
+    "rvv-v1-e32m1-masked-unit-load-store-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVMaskedUnitStoreTargetLeafProfile(
+    "rvv-v1-e32m1-masked-unit-store-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreProviderSupportedMirror(
+    "provider_supported_mirror:rvv-strided-load-unit-store-plan-validated");
+constexpr llvm::StringLiteral kRVVUnitLoadStridedStoreProviderSupportedMirror(
+    "provider_supported_mirror:rvv-unit-load-strided-store-plan-validated");
+constexpr llvm::StringLiteral kRVVIndexedGatherUnitStoreProviderSupportedMirror(
+    "provider_supported_mirror:rvv-indexed-gather-unit-store-plan-validated");
+constexpr llvm::StringLiteral kRVVIndexedScatterUnitLoadProviderSupportedMirror(
+    "provider_supported_mirror:rvv-indexed-scatter-unit-load-plan-validated");
+constexpr llvm::StringLiteral kRVVMaskedUnitLoadStoreProviderSupportedMirror(
+    "provider_supported_mirror:rvv-masked-unit-load-store-plan-validated");
+constexpr llvm::StringLiteral kRVVMaskedUnitStoreProviderSupportedMirror(
+    "provider_supported_mirror:rvv-masked-unit-store-plan-validated");
+constexpr llvm::StringLiteral
+    kRVVBaseMemoryMovementRequiredHeaderDeclarations(
+        "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral kRVVStridedLoadUnitStoreCTypeMappingSummary(
+    "vl:size_t,source:byte-strided-e32m1,result:signed-e32m1");
+constexpr llvm::StringLiteral kRVVUnitLoadStridedStoreCTypeMappingSummary(
+    "vl:size_t,source:signed-e32m1,destination:byte-strided-e32m1");
+constexpr llvm::StringLiteral kRVVIndexedGatherUnitStoreCTypeMappingSummary(
+    "vl:size_t,data:signed-e32m1,index:u32m1,result:signed-e32m1");
+constexpr llvm::StringLiteral kRVVIndexedScatterUnitLoadCTypeMappingSummary(
+    "vl:size_t,source:signed-e32m1,index:u32m1,destination:indexed-e32m1");
+constexpr llvm::StringLiteral kRVVMaskedUnitLoadStoreCTypeMappingSummary(
+    "vl:size_t,source/passthrough:signed-e32m1,mask:b32,result:masked-load-store");
+constexpr llvm::StringLiteral kRVVMaskedUnitStoreCTypeMappingSummary(
+    "vl:size_t,source:signed-e32m1,mask:b32,destination:masked-store");
 constexpr llvm::StringLiteral kRVVRuntimeScalarCompareSelectRuntimeABIOrder(
     "lhs,rhs_scalar,true_value,false_value,out,n");
 constexpr llvm::StringLiteral
@@ -4340,6 +4381,800 @@ void applyRVVSelectedBodyWideningConversionRouteFamilyPlan(
   description.storeIntrinsic = plan.storeIntrinsic;
   description.resultName = plan.resultName;
   description.conversionRelation = plan.conversionRelation;
+  description.runtimeABIParameters.clear();
+  description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
+                                          plan.runtimeABIParameters.end());
+}
+
+bool isRVVSelectedBodyBaseMemoryMovementRouteOperation(
+    RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+  case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+  case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+  case RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+  case RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return true;
+  default:
+    return false;
+  }
+}
+
+RVVSelectedBodyMemoryForm
+getBaseMemoryMovementRouteFamilyMemoryForm(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+    return RVVSelectedBodyMemoryForm::StridedLoadUnitStore;
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    return RVVSelectedBodyMemoryForm::UnitLoadStridedStore;
+  case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+    return RVVSelectedBodyMemoryForm::IndexedLoadUnitStore;
+  case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+    return RVVSelectedBodyMemoryForm::UnitLoadIndexedStore;
+  case RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+    return RVVSelectedBodyMemoryForm::MaskedUnitLoadStore;
+  case RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return RVVSelectedBodyMemoryForm::MaskedUnitStore;
+  default:
+    llvm_unreachable("unsupported base memory movement route-family op");
+  }
+}
+
+llvm::StringRef
+getBaseMemoryMovementRuntimeABIOrder(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+    return kRVVStridedLoadUnitStoreRuntimeABIOrder;
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    return kRVVUnitLoadStridedStoreRuntimeABIOrder;
+  case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+    return kRVVIndexedGatherRuntimeABIOrder;
+  case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+    return kRVVIndexedScatterRuntimeABIOrder;
+  case RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+    return kRVVMaskedMemoryRuntimeABIOrder;
+  case RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return kRVVMaskedStoreRuntimeABIOrder;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef
+getBaseMemoryMovementTargetLeafProfile(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+    return kRVVStridedLoadUnitStoreTargetLeafProfile;
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    return kRVVUnitLoadStridedStoreTargetLeafProfile;
+  case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+    return kRVVIndexedGatherUnitStoreTargetLeafProfile;
+  case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+    return kRVVIndexedScatterUnitLoadTargetLeafProfile;
+  case RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+    return kRVVMaskedUnitLoadStoreTargetLeafProfile;
+  case RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return kRVVMaskedUnitStoreTargetLeafProfile;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef
+getBaseMemoryMovementProviderSupportedMirror(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+    return kRVVStridedLoadUnitStoreProviderSupportedMirror;
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    return kRVVUnitLoadStridedStoreProviderSupportedMirror;
+  case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+    return kRVVIndexedGatherUnitStoreProviderSupportedMirror;
+  case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+    return kRVVIndexedScatterUnitLoadProviderSupportedMirror;
+  case RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+    return kRVVMaskedUnitLoadStoreProviderSupportedMirror;
+  case RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return kRVVMaskedUnitStoreProviderSupportedMirror;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef
+getBaseMemoryMovementCTypeMappingSummary(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+    return kRVVStridedLoadUnitStoreCTypeMappingSummary;
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    return kRVVUnitLoadStridedStoreCTypeMappingSummary;
+  case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+    return kRVVIndexedGatherUnitStoreCTypeMappingSummary;
+  case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+    return kRVVIndexedScatterUnitLoadCTypeMappingSummary;
+  case RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+    return kRVVMaskedUnitLoadStoreCTypeMappingSummary;
+  case RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return kRVVMaskedUnitStoreCTypeMappingSummary;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef
+getBaseMemoryMovementStridedLayout(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+    return kRVVStridedLoadUnitStoreMemoryLayout;
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    return kRVVUnitLoadStridedStoreMemoryLayout;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef
+getBaseMemoryMovementIndexedLayout(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+    return kRVVIndexedGatherMemoryLayout;
+  case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+    return kRVVIndexedScatterMemoryLayout;
+  case RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+    return kRVVMaskedMemoryLayout;
+  case RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return kRVVMaskedStoreMemoryLayout;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef
+getBaseMemoryMovementSourceMemoryForm(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+    return kRVVSourceMemoryForm;
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+  case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+  case RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+  case RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return kRVVUnitStrideSourceMemoryForm;
+  case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+    return {};
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef
+getBaseMemoryMovementDestinationMemoryForm(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::StridedLoadUnitStore:
+  case RVVSelectedBodyOperationKind::IndexedGatherUnitStore:
+  case RVVSelectedBodyOperationKind::MaskedUnitLoadStore:
+    return kRVVDestinationMemoryForm;
+  case RVVSelectedBodyOperationKind::UnitLoadStridedStore:
+    return "strided-store";
+  case RVVSelectedBodyOperationKind::IndexedScatterUnitLoad:
+    return kRVVIndexedDestinationMemoryForm;
+  case RVVSelectedBodyOperationKind::MaskedUnitStore:
+    return kRVVMaskedStoreDestinationMemoryForm;
+  default:
+    return {};
+  }
+}
+
+llvm::Error requireRVVSelectedBodyBaseMemoryMovementPlanField(
+    const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan &plan,
+    llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("base memory movement route-family plan validation for "
+                  "operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
+      field + " '" + expected + "' but found '" + actual + "'");
+}
+
+llvm::Error validateRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(
+    const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan &plan) {
+  if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
+          plan.runtimeControlPlan,
+          "base memory movement route-family runtime AVL/VL control"))
+    return error;
+  if (!isRVVSelectedBodyBaseMemoryMovementRouteOperation(plan.operation))
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement route-family plan supports only active "
+        "strided, indexed, and static masked unit load/store routes");
+
+  const bool isStridedLoad =
+      plan.operation == RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+  const bool isStridedStore =
+      plan.operation == RVVSelectedBodyOperationKind::UnitLoadStridedStore;
+  const bool isIndexedGather =
+      plan.operation == RVVSelectedBodyOperationKind::IndexedGatherUnitStore;
+  const bool isIndexedScatter =
+      plan.operation == RVVSelectedBodyOperationKind::IndexedScatterUnitLoad;
+  const bool isStaticMaskLoad =
+      plan.operation == RVVSelectedBodyOperationKind::MaskedUnitLoadStore;
+  const bool isStaticMaskStore =
+      plan.operation == RVVSelectedBodyOperationKind::MaskedUnitStore;
+  const bool isIndexed = isIndexedGather || isIndexedScatter;
+  const bool isMasked = isStaticMaskLoad || isStaticMaskStore;
+
+  if (plan.usesStridedLoad != isStridedLoad ||
+      plan.usesStridedStore != isStridedStore ||
+      plan.usesIndexedGather != isIndexedGather ||
+      plan.usesIndexedScatter != isIndexedScatter ||
+      plan.usesStaticMaskLoad != isStaticMaskLoad ||
+      plan.usesStaticMaskStore != isStaticMaskStore)
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement route-family plan has stale route consumer "
+        "classification markers");
+  if (plan.memoryForm !=
+      getBaseMemoryMovementRouteFamilyMemoryForm(plan.operation))
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement route-family plan requires matching typed body "
+        "memory form");
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "runtime control plan",
+              plan.runtimeControlPlan.controlPlanID,
+              getRVVRuntimeAVLVLControlPlanID()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "family plan id", plan.familyPlanID,
+              kRVVBaseMemoryMovementRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "runtime ABI order", plan.runtimeABIOrder,
+              getBaseMemoryMovementRuntimeABIOrder(plan.operation)))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "target leaf profile", plan.targetLeafProfile,
+              getBaseMemoryMovementTargetLeafProfile(plan.operation)))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "provider_supported_mirror",
+              plan.providerSupportedMirror,
+              getBaseMemoryMovementProviderSupportedMirror(plan.operation)))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "header declarations", plan.requiredHeaderDeclarations,
+              kRVVBaseMemoryMovementRequiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "C type mapping summary", plan.cTypeMappingSummary,
+              getBaseMemoryMovementCTypeMappingSummary(plan.operation)))
+    return error;
+  if (plan.requiredHeaders.size() != 3 ||
+      plan.requiredHeaders[0] != "stddef.h" ||
+      plan.requiredHeaders[1] != "stdint.h" ||
+      plan.requiredHeaders[2] != "riscv_vector.h")
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement route-family plan requires provider-owned "
+        "header declarations 'stddef.h,stdint.h,riscv_vector.h'");
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "VL C type", plan.vlCType, "size_t"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "vector type", plan.vectorTypeName,
+              "!tcrv_rvv.vector<i32, \"m1\">"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "vector C type", plan.vectorCType, "vint32m1_t"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "index vector type", plan.indexVectorTypeName,
+              isIndexed ? llvm::StringRef("!tcrv_rvv.index_vector<i32, \"m1\">")
+                        : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "index vector C type", plan.indexVectorCType,
+              isIndexed ? llvm::StringRef("vuint32m1_t")
+                        : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "mask type", plan.maskTypeName,
+              isMasked ? llvm::StringRef("!tcrv_rvv.mask<i32, \"m1\">")
+                       : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "mask C type", plan.maskCType,
+              isMasked ? llvm::StringRef("vbool32_t") : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "setvl leaf", plan.setVLIntrinsic,
+              "__riscv_vsetvl_e32m1"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "vector-load leaf", plan.vectorLoadIntrinsic,
+              "__riscv_vle32_v_i32m1"))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "index-load leaf", plan.indexLoadIntrinsic,
+              isIndexed ? llvm::StringRef("__riscv_vle32_v_u32m1")
+                        : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "index-scale leaf", plan.indexScaleIntrinsic,
+              isIndexed ? llvm::StringRef("__riscv_vmul_vx_u32m1")
+                        : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "indexed-load leaf", plan.indexedLoadIntrinsic,
+              isIndexedGather ? llvm::StringRef("__riscv_vloxei32_v_i32m1")
+                              : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "indexed-store leaf", plan.indexedStoreIntrinsic,
+              isIndexedScatter ? llvm::StringRef("__riscv_vsoxei32_v_i32m1")
+                               : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "strided-load leaf", plan.stridedLoadIntrinsic,
+              isStridedLoad ? llvm::StringRef("__riscv_vlse32_v_i32m1")
+                            : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "masked-load leaf", plan.maskedLoadIntrinsic,
+              isStaticMaskLoad ? llvm::StringRef(kRVVMaskedLoadIntrinsic)
+                               : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "store leaf", plan.storeIntrinsic,
+              isStaticMaskStore ? llvm::StringRef(kRVVMaskedStoreIntrinsic)
+                                : llvm::StringRef("__riscv_vse32_v_i32m1")))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "strided-store leaf", plan.stridedStoreIntrinsic,
+              isStridedStore ? llvm::StringRef("__riscv_vsse32_v_i32m1")
+                             : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "result name", plan.resultName,
+              getRVVSelectedBodyOperationProfile(plan.operation).resultName))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "mask name", plan.maskName,
+              isMasked ? getRVVSelectedBodyOperationProfile(plan.operation)
+                             .maskName
+                       : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "mask role", plan.maskRole,
+              isMasked ? llvm::StringRef(kRVVMaskRole) : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "mask source", plan.maskSource,
+              isMasked ? llvm::StringRef(kRVVMaskSource) : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "mask memory form", plan.maskMemoryForm,
+              isMasked ? llvm::StringRef(kRVVMaskMemoryForm)
+                       : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "inactive-lane contract", plan.inactiveLaneContract,
+              isStaticMaskStore
+                  ? llvm::StringRef(kRVVMaskedStoreInactiveLaneContract)
+              : isStaticMaskLoad ? llvm::StringRef(kRVVMaskedMemoryInactiveLaneContract)
+                                 : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "masked passthrough layout", plan.maskedPassthroughLayout,
+              isStaticMaskStore
+                  ? llvm::StringRef(kRVVMaskedStorePassthroughLayout)
+              : isStaticMaskLoad ? llvm::StringRef(kRVVMaskedMemoryPassthroughLayout)
+                                 : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "strided memory layout", plan.stridedMemoryLayout,
+              getBaseMemoryMovementStridedLayout(plan.operation)))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "indexed memory layout", plan.indexedMemoryLayout,
+              getBaseMemoryMovementIndexedLayout(plan.operation)))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "source memory form", plan.sourceMemoryForm,
+              getBaseMemoryMovementSourceMemoryForm(plan.operation)))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "destination memory form", plan.destinationMemoryForm,
+              getBaseMemoryMovementDestinationMemoryForm(plan.operation)))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "source stride source", plan.sourceStrideSource,
+              isStridedLoad ? llvm::StringRef(kRVVSourceStrideSource)
+                            : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "destination stride source",
+              plan.destinationStrideSource,
+              isStridedStore ? llvm::StringRef(kRVVDestinationByteStrideSource)
+                             : llvm::StringRef()))
+    return error;
+  if (plan.indexEEW != (isIndexed ? 32 : 0))
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement route-family plan requires index EEW to mirror "
+        "the selected indexed memory consumer");
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "offset unit", plan.offsetUnit,
+              isIndexed ? llvm::StringRef(kRVVIndexedGatherOffsetUnit)
+                        : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "index source", plan.indexSource,
+              isIndexed ? llvm::StringRef(kRVVIndexSource)
+                        : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "index uniqueness", plan.indexUniqueness,
+              isIndexedScatter ? llvm::StringRef(kRVVIndexedScatterIndexUniqueness)
+                               : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "indexed data memory form", plan.indexedDataMemoryForm,
+              isIndexedGather ? llvm::StringRef(kRVVIndexedDataMemoryForm)
+                              : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyBaseMemoryMovementPlanField(
+              plan, "indexed destination memory form",
+              plan.indexedDestinationMemoryForm,
+              isIndexedScatter ? llvm::StringRef(kRVVIndexedDestinationMemoryForm)
+                               : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          verifyRVVSelectedBodyConstructionRuntimeABIParameters(
+              plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
+  return llvm::Error::success();
+}
+
+llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan>
+deriveRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyConfigProfile &configProfile,
+    const RVVSelectedBodyTargetLeafProfile &targetLeaves) {
+  const RVVSelectedBodyOperationKind operation = analysis.slice.arithmeticKind;
+  if (!isRVVSelectedBodyBaseMemoryMovementRouteOperation(operation))
+    return makeRVVEmitCRouteProviderError(
+        "requested base memory movement route-family plan for non-base-memory "
+        "RVV operation");
+  if (analysis.slice.memoryForm !=
+      getBaseMemoryMovementRouteFamilyMemoryForm(operation))
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement route-family plan requires matching typed body "
+        "memory form");
+
+  const bool isStridedLoad =
+      operation == RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+  const bool isStridedStore =
+      operation == RVVSelectedBodyOperationKind::UnitLoadStridedStore;
+  const bool isIndexedGather =
+      operation == RVVSelectedBodyOperationKind::IndexedGatherUnitStore;
+  const bool isIndexedScatter =
+      operation == RVVSelectedBodyOperationKind::IndexedScatterUnitLoad;
+  const bool isStaticMaskLoad =
+      operation == RVVSelectedBodyOperationKind::MaskedUnitLoadStore;
+  const bool isStaticMaskStore =
+      operation == RVVSelectedBodyOperationKind::MaskedUnitStore;
+  const bool isIndexed = isIndexedGather || isIndexedScatter;
+  const bool isMasked = isStaticMaskLoad || isStaticMaskStore;
+
+  if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement route-family plan requires typed e32m1 vector "
+        "configuration facts");
+  if (isStridedLoad &&
+      (!analysis.slice.lhsStridedLoad || !analysis.slice.genericStore ||
+       !analysis.slice.moveOp ||
+       analysis.slice.lhsStrideABI.role !=
+           support::RuntimeABIParameterRole::SourceByteStride ||
+       analysis.slice.lhsABI.role !=
+           support::RuntimeABIParameterRole::SourceInputBuffer ||
+       analysis.slice.outABI.role !=
+           support::RuntimeABIParameterRole::OutputBuffer))
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement strided-load route-family plan requires a "
+        "strided source load, move, unit store, source buffer, output buffer, "
+        "and source stride ABI roles");
+  if (isStridedStore &&
+      (!analysis.slice.lhsGenericLoad || !analysis.slice.stridedStore ||
+       !analysis.slice.moveOp ||
+       analysis.slice.lhsABI.role !=
+           support::RuntimeABIParameterRole::LHSInputBuffer ||
+       analysis.slice.outABI.role !=
+           support::RuntimeABIParameterRole::OutputBuffer ||
+       analysis.slice.outStrideABI.role !=
+           support::RuntimeABIParameterRole::DestinationByteStride))
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement strided-store route-family plan requires a unit "
+        "source load, move, strided store, source buffer, output buffer, and "
+        "destination stride ABI roles");
+  if (isIndexedGather &&
+      (!analysis.slice.indexLoadOperation || !analysis.slice.indexedLoad ||
+       !analysis.slice.genericStore ||
+       analysis.slice.lhsABI.role !=
+           support::RuntimeABIParameterRole::LHSInputBuffer ||
+       analysis.slice.indexABI.role !=
+           support::RuntimeABIParameterRole::IndexInputBuffer ||
+       analysis.slice.outABI.role !=
+           support::RuntimeABIParameterRole::OutputBuffer))
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement indexed-gather route-family plan requires an "
+        "index load, indexed data load, unit store, data/index/output ABI "
+        "roles, and runtime AVL");
+  if (isIndexedScatter &&
+      (!analysis.slice.lhsGenericLoad || !analysis.slice.indexLoadOperation ||
+       !analysis.slice.indexedStore ||
+       analysis.slice.lhsABI.role !=
+           support::RuntimeABIParameterRole::LHSInputBuffer ||
+       analysis.slice.indexABI.role !=
+           support::RuntimeABIParameterRole::IndexInputBuffer ||
+       analysis.slice.outABI.role !=
+           support::RuntimeABIParameterRole::OutputBuffer))
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement indexed-scatter route-family plan requires a "
+        "unit source load, index load, indexed store, source/index/output ABI "
+        "roles, and runtime AVL");
+  if (isStaticMaskLoad &&
+      (!analysis.slice.maskLoadOperation || !analysis.slice.maskedLoadOp ||
+       !analysis.slice.accumulatorLoadOperation ||
+       !analysis.slice.genericStore ||
+       analysis.slice.lhsABI.role !=
+           support::RuntimeABIParameterRole::LHSInputBuffer ||
+       analysis.slice.maskABI.role !=
+           support::RuntimeABIParameterRole::MaskInputBuffer ||
+       analysis.slice.outABI.role !=
+           support::RuntimeABIParameterRole::OutputBuffer))
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement masked load-store route-family plan requires "
+        "unit source/old-destination/mask loads, masked load, unit store, and "
+        "source/mask/output ABI roles");
+  if (isStaticMaskStore &&
+      (!analysis.slice.lhsGenericLoad || !analysis.slice.maskLoadOperation ||
+       !analysis.slice.maskedStore ||
+       analysis.slice.lhsABI.role !=
+           support::RuntimeABIParameterRole::LHSInputBuffer ||
+       analysis.slice.maskABI.role !=
+           support::RuntimeABIParameterRole::MaskInputBuffer ||
+       analysis.slice.outABI.role !=
+           support::RuntimeABIParameterRole::OutputBuffer))
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement masked-store route-family plan requires a unit "
+        "source load, mask load, masked store, and source/mask/output ABI "
+        "roles");
+  if (analysis.slice.runtimeElementCountABI.role !=
+      support::RuntimeABIParameterRole::RuntimeElementCount)
+    return makeRVVEmitCRouteProviderError(
+        "base memory movement route-family plan requires runtime element-count "
+        "ABI role for AVL/VL control");
+
+  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+      deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
+          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl, analysis.slice.withVL,
+          getBaseMemoryMovementRuntimeABIOrder(operation),
+          "base memory movement route-family plan");
+  if (!runtimeControlPlan)
+    return runtimeControlPlan.takeError();
+
+  RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan plan;
+  plan.operation = operation;
+  plan.memoryForm = analysis.slice.memoryForm;
+  plan.usesStridedLoad = isStridedLoad;
+  plan.usesStridedStore = isStridedStore;
+  plan.usesIndexedGather = isIndexedGather;
+  plan.usesIndexedScatter = isIndexedScatter;
+  plan.usesStaticMaskLoad = isStaticMaskLoad;
+  plan.usesStaticMaskStore = isStaticMaskStore;
+  plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.familyPlanID = kRVVBaseMemoryMovementRouteFamilyPlanID;
+  plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
+  plan.targetLeafProfile =
+      getBaseMemoryMovementTargetLeafProfile(operation);
+  plan.providerSupportedMirror =
+      getBaseMemoryMovementProviderSupportedMirror(operation);
+  plan.requiredHeaders.push_back("stddef.h");
+  plan.requiredHeaders.push_back("stdint.h");
+  plan.requiredHeaders.push_back("riscv_vector.h");
+  plan.requiredHeaderDeclarations =
+      kRVVBaseMemoryMovementRequiredHeaderDeclarations;
+  plan.cTypeMappingSummary =
+      getBaseMemoryMovementCTypeMappingSummary(operation);
+  plan.vlCType = configProfile.vlCType;
+  plan.vectorTypeName = configProfile.vectorTypeName;
+  plan.vectorCType = configProfile.vectorCType;
+  plan.indexVectorTypeName = isIndexed ? configProfile.indexVectorTypeName : "";
+  plan.indexVectorCType = isIndexed ? configProfile.indexVectorCType : "";
+  plan.maskTypeName = isMasked ? configProfile.maskTypeName : "";
+  plan.maskCType = isMasked ? configProfile.maskCType : "";
+  plan.setVLIntrinsic = configProfile.setVLIntrinsic;
+  plan.vectorLoadIntrinsic = configProfile.vectorLoadIntrinsic;
+  plan.indexLoadIntrinsic = isIndexed ? configProfile.indexLoadIntrinsic : "";
+  plan.indexScaleIntrinsic = isIndexed ? configProfile.indexScaleIntrinsic : "";
+  plan.indexedLoadIntrinsic =
+      isIndexedGather ? configProfile.indexedLoadIntrinsic : "";
+  plan.indexedStoreIntrinsic =
+      isIndexedScatter ? configProfile.indexedStoreIntrinsic : "";
+  plan.stridedLoadIntrinsic =
+      isStridedLoad ? configProfile.stridedLoadIntrinsic : "";
+  plan.maskedLoadIntrinsic =
+      isStaticMaskLoad ? targetLeaves.intrinsic : "";
+  plan.storeIntrinsic =
+      isStaticMaskStore ? llvm::StringRef(kRVVMaskedStoreIntrinsic)
+                        : configProfile.storeIntrinsic;
+  plan.stridedStoreIntrinsic =
+      isStridedStore ? configProfile.stridedStoreIntrinsic : "";
+  plan.resultName = getRVVSelectedBodyOperationProfile(operation).resultName;
+  plan.maskName =
+      isMasked ? getRVVSelectedBodyOperationProfile(operation).maskName : "";
+  plan.maskRole = isMasked ? kRVVMaskRole : "";
+  plan.maskSource = isMasked ? kRVVMaskSource : "";
+  plan.maskMemoryForm = isMasked ? kRVVMaskMemoryForm : "";
+  plan.inactiveLaneContract =
+      isStaticMaskStore ? llvm::StringRef(kRVVMaskedStoreInactiveLaneContract)
+      : isStaticMaskLoad ? llvm::StringRef(kRVVMaskedMemoryInactiveLaneContract)
+                         : llvm::StringRef();
+  plan.maskedPassthroughLayout =
+      isStaticMaskStore ? llvm::StringRef(kRVVMaskedStorePassthroughLayout)
+      : isStaticMaskLoad ? llvm::StringRef(kRVVMaskedMemoryPassthroughLayout)
+                         : llvm::StringRef();
+  plan.stridedMemoryLayout = getBaseMemoryMovementStridedLayout(operation);
+  plan.indexedMemoryLayout = getBaseMemoryMovementIndexedLayout(operation);
+  plan.sourceMemoryForm = getBaseMemoryMovementSourceMemoryForm(operation);
+  plan.destinationMemoryForm =
+      getBaseMemoryMovementDestinationMemoryForm(operation);
+  plan.sourceStrideSource =
+      isStridedLoad ? llvm::StringRef(kRVVSourceStrideSource)
+                    : llvm::StringRef();
+  plan.destinationStrideSource =
+      isStridedStore ? llvm::StringRef(kRVVDestinationByteStrideSource)
+                     : llvm::StringRef();
+  plan.indexEEW = isIndexed
+                      ? static_cast<std::int64_t>(
+                            analysis.slice.indexLoad.getIndexEew())
+                      : 0;
+  plan.offsetUnit =
+      isIndexedGather ? analysis.slice.indexedLoad.getOffsetUnit()
+      : isIndexedScatter ? analysis.slice.indexedStore.getOffsetUnit()
+                         : llvm::StringRef();
+  plan.indexSource = isIndexed ? llvm::StringRef(kRVVIndexSource)
+                               : llvm::StringRef();
+  plan.indexUniqueness =
+      isIndexedScatter ? analysis.slice.indexedStore.getIndexUniqueness()
+                       : llvm::StringRef();
+  plan.indexedDataMemoryForm =
+      isIndexedGather ? llvm::StringRef(kRVVIndexedDataMemoryForm)
+                      : llvm::StringRef();
+  plan.indexedDestinationMemoryForm =
+      isIndexedScatter ? llvm::StringRef(kRVVIndexedDestinationMemoryForm)
+                       : llvm::StringRef();
+  if (isStridedLoad) {
+    plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+    plan.runtimeABIParameters.push_back(
+        plan.runtimeControlPlan.runtimeAVLParameter);
+    plan.runtimeABIParameters.push_back(analysis.slice.lhsStrideABI);
+  } else if (isStridedStore) {
+    plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+    plan.runtimeABIParameters.push_back(
+        plan.runtimeControlPlan.runtimeAVLParameter);
+    plan.runtimeABIParameters.push_back(analysis.slice.outStrideABI);
+  } else if (isIndexedGather || isIndexedScatter) {
+    plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.indexABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+    plan.runtimeABIParameters.push_back(
+        plan.runtimeControlPlan.runtimeAVLParameter);
+  } else {
+    plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.maskABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+    plan.runtimeABIParameters.push_back(
+        plan.runtimeControlPlan.runtimeAVLParameter);
+  }
+
+  if (llvm::Error error =
+          validateRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(plan))
+    return std::move(error);
+  return plan;
+}
+
+void applyRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(
+    const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan &plan,
+    RVVSelectedBodyEmitCRouteDescription &description) {
+  applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
+                                               description);
+  description.baseMemoryMovementRouteFamilyPlanID = plan.familyPlanID;
+  description.runtimeABIOrder = plan.runtimeABIOrder;
+  description.targetLeafProfile = plan.targetLeafProfile;
+  description.providerSupportedMirror = plan.providerSupportedMirror;
+  description.requiredHeaderDeclarations = plan.requiredHeaderDeclarations;
+  description.cTypeMappingSummary = plan.cTypeMappingSummary;
+  description.vlCType = plan.vlCType;
+  description.vectorTypeName = plan.vectorTypeName;
+  description.vectorCType = plan.vectorCType;
+  description.indexVectorTypeName = plan.indexVectorTypeName;
+  description.indexVectorCType = plan.indexVectorCType;
+  description.maskTypeName = plan.maskTypeName;
+  description.maskCType = plan.maskCType;
+  description.setVLIntrinsic = plan.setVLIntrinsic;
+  description.vectorLoadIntrinsic = plan.vectorLoadIntrinsic;
+  description.indexLoadIntrinsic = plan.indexLoadIntrinsic;
+  description.indexScaleIntrinsic = plan.indexScaleIntrinsic;
+  description.indexedLoadIntrinsic = plan.indexedLoadIntrinsic;
+  description.indexedStoreIntrinsic = plan.indexedStoreIntrinsic;
+  description.stridedLoadIntrinsic = plan.stridedLoadIntrinsic;
+  description.maskedLoadIntrinsic = plan.maskedLoadIntrinsic;
+  description.storeIntrinsic = plan.storeIntrinsic;
+  description.stridedStoreIntrinsic = plan.stridedStoreIntrinsic;
+  description.intrinsic = plan.maskedLoadIntrinsic;
+  description.resultName = plan.resultName;
+  description.maskName = plan.maskName;
+  description.maskRole = plan.maskRole;
+  description.maskSource = plan.maskSource;
+  description.maskMemoryForm = plan.maskMemoryForm;
+  description.inactiveLaneContract = plan.inactiveLaneContract;
+  description.maskedPassthroughLayout = plan.maskedPassthroughLayout;
+  description.stridedMemoryLayout = plan.stridedMemoryLayout;
+  description.indexedMemoryLayout = plan.indexedMemoryLayout;
+  description.sourceMemoryForm = plan.sourceMemoryForm;
+  description.destinationMemoryForm = plan.destinationMemoryForm;
+  description.sourceStrideSource = plan.sourceStrideSource;
+  description.outStrideSource = plan.destinationStrideSource;
+  description.indexEEW = plan.indexEEW;
+  description.offsetUnit = plan.offsetUnit;
+  description.indexSource = plan.indexSource;
+  description.indexUniqueness = plan.indexUniqueness;
+  description.indexedDataMemoryForm = plan.indexedDataMemoryForm;
+  description.indexedDestinationMemoryForm =
+      plan.indexedDestinationMemoryForm;
   description.runtimeABIParameters.clear();
   description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
                                           plan.runtimeABIParameters.end());
@@ -17278,9 +18113,15 @@ bool isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(
   }
 }
 
+bool isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return isRVVSelectedBodyBaseMemoryMovementRouteOperation(operation);
+}
+
 bool isRVVSelectedBodyMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   return isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(operation) ||
+         isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(operation) ||
          isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(operation);
 }
 
@@ -17301,6 +18142,114 @@ llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
         " requires the plain segment2 memory route-family plan before "
         "provider materialization for operation '" +
         stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(operation);
+  if (isConsumer && !analysis.baseMemoryMovementRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the base memory movement route-family plan before provider "
+        "materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!isConsumer && analysis.baseMemoryMovementRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must not carry a base memory movement route-family plan for "
+        "non-base-memory operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!analysis.baseMemoryMovementRouteFamilyPlan)
+    return llvm::Error::success();
+
+  const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan &plan =
+      *analysis.baseMemoryMovementRouteFamilyPlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(plan))
+    return error;
+  if (plan.operation != operation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement route-family plan operation must match the "
+        "selected route description");
+  if (analysis.description.baseMemoryMovementRouteFamilyPlanID !=
+      plan.familyPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement route-family plan mirror must match the "
+        "validated family plan");
+  if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.runtimeControlPlanID !=
+          plan.runtimeControlPlan.controlPlanID ||
+      analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.targetLeafProfile != plan.targetLeafProfile ||
+      analysis.description.providerSupportedMirror !=
+          plan.providerSupportedMirror ||
+      analysis.description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      analysis.description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      analysis.description.vlCType != plan.vlCType ||
+      analysis.description.vectorTypeName != plan.vectorTypeName ||
+      analysis.description.vectorCType != plan.vectorCType ||
+      analysis.description.indexVectorTypeName != plan.indexVectorTypeName ||
+      analysis.description.indexVectorCType != plan.indexVectorCType ||
+      analysis.description.maskTypeName != plan.maskTypeName ||
+      analysis.description.maskCType != plan.maskCType ||
+      analysis.description.setVLIntrinsic != plan.setVLIntrinsic ||
+      analysis.description.vectorLoadIntrinsic != plan.vectorLoadIntrinsic ||
+      analysis.description.indexLoadIntrinsic != plan.indexLoadIntrinsic ||
+      analysis.description.indexScaleIntrinsic != plan.indexScaleIntrinsic ||
+      analysis.description.indexedLoadIntrinsic != plan.indexedLoadIntrinsic ||
+      analysis.description.indexedStoreIntrinsic !=
+          plan.indexedStoreIntrinsic ||
+      analysis.description.stridedLoadIntrinsic != plan.stridedLoadIntrinsic ||
+      analysis.description.maskedLoadIntrinsic != plan.maskedLoadIntrinsic ||
+      analysis.description.storeIntrinsic != plan.storeIntrinsic ||
+      analysis.description.stridedStoreIntrinsic !=
+          plan.stridedStoreIntrinsic ||
+      analysis.description.resultName != plan.resultName ||
+      analysis.description.maskName != plan.maskName ||
+      analysis.description.maskRole != plan.maskRole ||
+      analysis.description.maskSource != plan.maskSource ||
+      analysis.description.maskMemoryForm != plan.maskMemoryForm ||
+      analysis.description.inactiveLaneContract !=
+          plan.inactiveLaneContract ||
+      analysis.description.maskedPassthroughLayout !=
+          plan.maskedPassthroughLayout ||
+      analysis.description.stridedMemoryLayout != plan.stridedMemoryLayout ||
+      analysis.description.indexedMemoryLayout != plan.indexedMemoryLayout ||
+      analysis.description.sourceMemoryForm != plan.sourceMemoryForm ||
+      analysis.description.destinationMemoryForm !=
+          plan.destinationMemoryForm ||
+      analysis.description.sourceStrideSource != plan.sourceStrideSource ||
+      analysis.description.outStrideSource != plan.destinationStrideSource ||
+      analysis.description.indexEEW != plan.indexEEW ||
+      analysis.description.offsetUnit != plan.offsetUnit ||
+      analysis.description.indexSource != plan.indexSource ||
+      analysis.description.indexUniqueness != plan.indexUniqueness ||
+      analysis.description.indexedDataMemoryForm !=
+          plan.indexedDataMemoryForm ||
+      analysis.description.indexedDestinationMemoryForm !=
+          plan.indexedDestinationMemoryForm)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement route-family mirrors must be populated from "
+        "the validated family plan before provider materialization");
+  if (!support::runtimeABIParametersEqual(
+          analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement route-family runtime ABI parameters must match "
+        "the validated family plan");
+  if (analysis.routeOperandBindingPlan.planID !=
+      getExpectedRVVRouteOperandBindingPlanID(operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " base memory movement provider requires the route operand binding "
+        "plan for the selected operation");
   return llvm::Error::success();
 }
 
@@ -18787,6 +19736,19 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     applyRVVSelectedBodyWideningConversionRouteFamilyPlan(
         *analysis.wideningConversionRouteFamilyPlan, analysis.description);
   }
+  if (isRVVSelectedBodyBaseMemoryMovementRouteOperation(
+          routeProfile->operation.operation)) {
+    llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan>
+        baseMemoryMovementPlan =
+            deriveRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(
+                analysis, routeProfile->config, routeProfile->targetLeaves);
+    if (!baseMemoryMovementPlan)
+      return baseMemoryMovementPlan.takeError();
+    analysis.baseMemoryMovementRouteFamilyPlan =
+        std::move(*baseMemoryMovementPlan);
+    applyRVVSelectedBodyBaseMemoryMovementRouteFamilyPlan(
+        *analysis.baseMemoryMovementRouteFamilyPlan, analysis.description);
+  }
   if (isRVVSelectedBodyComputedMaskSelectRouteOperation(
           routeProfile->operation.operation)) {
     llvm::Expected<
@@ -19400,6 +20362,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   const bool isComputedMaskMemoryRouteFamilyRoute =
       isRVVSelectedBodyComputedMaskMemoryRouteOperation(
           operationProfile.operation);
+  const bool isBaseMemoryMovementRouteFamilyRoute =
+      isRVVSelectedBodyBaseMemoryMovementRouteOperation(
+          operationProfile.operation);
   const bool isSegment2MemoryRouteFamilyRoute =
       isRVVSelectedBodySegment2MemoryRouteOperation(operationProfile.operation);
   const bool isComputedMaskIndexedGather =
@@ -19593,6 +20558,26 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "C type mapping summary", description.cTypeMappingSummary,
             getComputedMaskSelectCTypeMappingSummary(
                 operationProfile.operation)))
+      return error;
+  } else if (isBaseMemoryMovementRouteFamilyRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "target leaf profile", description.targetLeafProfile,
+            getBaseMemoryMovementTargetLeafProfile(operationProfile.operation)))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "provider_supported_mirror",
+            description.providerSupportedMirror,
+            getBaseMemoryMovementProviderSupportedMirror(
+                operationProfile.operation)))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "required header declarations",
+            description.requiredHeaderDeclarations,
+            kRVVBaseMemoryMovementRequiredHeaderDeclarations))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "C type mapping summary", description.cTypeMappingSummary,
+            getBaseMemoryMovementCTypeMappingSummary(operationProfile.operation)))
       return error;
   } else if (isComputedMaskMemoryRouteFamilyRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -19838,6 +20823,88 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
                 RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad
             ? kRVVSegment2InterleaveRuntimeABIOrder
             : kRVVSegment2RuntimeABIOrder;
+  } else if (isBaseMemoryMovementRouteFamilyRoute) {
+    const bool isStridedLoad =
+        operationProfile.operation ==
+        RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+    const bool isStridedStore =
+        operationProfile.operation ==
+        RVVSelectedBodyOperationKind::UnitLoadStridedStore;
+    const bool isIndexedGather =
+        operationProfile.operation ==
+        RVVSelectedBodyOperationKind::IndexedGatherUnitStore;
+    const bool isIndexedScatter =
+        operationProfile.operation ==
+        RVVSelectedBodyOperationKind::IndexedScatterUnitLoad;
+    const bool isIndexed = isIndexedGather || isIndexedScatter;
+    expectedRuntimeABIOrder =
+        getBaseMemoryMovementRuntimeABIOrder(operationProfile.operation);
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "strided memory layout",
+            description.stridedMemoryLayout,
+            getBaseMemoryMovementStridedLayout(operationProfile.operation)))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed memory layout", description.indexedMemoryLayout,
+            getBaseMemoryMovementIndexedLayout(operationProfile.operation)))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "lhs stride source", description.lhsStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "rhs stride source", description.rhsStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "out stride source", description.outStrideSource,
+            isStridedStore ? llvm::StringRef(kRVVDestinationByteStrideSource)
+                           : llvm::StringRef()))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source stride source", description.sourceStrideSource,
+            isStridedLoad ? llvm::StringRef(kRVVSourceStrideSource)
+                          : llvm::StringRef()))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source memory form", description.sourceMemoryForm,
+            getBaseMemoryMovementSourceMemoryForm(operationProfile.operation)))
+      return error;
+    if (llvm::Error error =
+            requireRouteDescriptionField(
+                context, "destination memory form",
+                description.destinationMemoryForm,
+                getBaseMemoryMovementDestinationMemoryForm(
+                    operationProfile.operation)))
+      return error;
+    if (description.indexEEW != (isIndexed ? 32 : 0))
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " index EEW must mirror base memory movement indexed route facts");
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "offset unit", description.offsetUnit,
+            isIndexed ? llvm::StringRef(kRVVIndexedGatherOffsetUnit)
+                      : llvm::StringRef()))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "index source", description.indexSource,
+            isIndexed ? llvm::StringRef(kRVVIndexSource) : llvm::StringRef()))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "index uniqueness", description.indexUniqueness,
+            isIndexedScatter ? llvm::StringRef(kRVVIndexedScatterIndexUniqueness)
+                             : llvm::StringRef()))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed data memory form",
+            description.indexedDataMemoryForm,
+            isIndexedGather ? llvm::StringRef(kRVVIndexedDataMemoryForm)
+                            : llvm::StringRef()))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "indexed destination memory form",
+            description.indexedDestinationMemoryForm,
+            isIndexedScatter ? llvm::StringRef(kRVVIndexedDestinationMemoryForm)
+                             : llvm::StringRef()))
+      return error;
   } else if (operationProfile.isMemoryMovement) {
     expectedRuntimeABIOrder =
         operationProfile.operation ==
@@ -20303,6 +21370,18 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             description.wideningConversionRouteFamilyPlanID, ""))
       return error;
   }
+  if (isBaseMemoryMovementRouteFamilyRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "base memory movement route family plan",
+            description.baseMemoryMovementRouteFamilyPlanID,
+            kRVVBaseMemoryMovementRouteFamilyPlanID))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "base memory movement route family plan",
+            description.baseMemoryMovementRouteFamilyPlanID, ""))
+      return error;
+  }
   if (isRuntimeScalarComputedMaskSelectRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "computed-mask select route family plan",
@@ -20413,6 +21492,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   }
   if (isScalarBroadcastElementwiseRoute || isRuntimeScalarSplatStoreRoute ||
       operationProfile.isWideningConversion ||
+      isBaseMemoryMovementRouteFamilyRoute ||
       isRuntimeScalarComputedMaskSelectRoute ||
       isComputedMaskMemoryRouteFamilyRoute ||
       isRuntimeScalarComputedMaskedMAcc || isStandaloneReductionRoute)
@@ -22325,6 +23405,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back(
         {"tcrv_rvv.widening_conversion_route_family_plan",
          description.wideningConversionRouteFamilyPlanID});
+  if (!description.baseMemoryMovementRouteFamilyPlanID.empty())
+    metadata.push_back(
+        {"tcrv_rvv.base_memory_movement_route_family_plan",
+         description.baseMemoryMovementRouteFamilyPlanID});
   if (!description.computedMaskSelectRouteFamilyPlanID.empty()) {
     metadata.push_back({"tcrv_rvv.computed_mask_select_route_family_plan",
                         description.computedMaskSelectRouteFamilyPlanID});
@@ -22362,6 +23446,8 @@ getRVVSelectedBodyConfigArtifactMetadata(
       isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(
           description.operation) ||
       isRVVSelectedBodyWideningConversionRouteOperation(description.operation) ||
+      isRVVSelectedBodyBaseMemoryMovementRouteOperation(
+          description.operation) ||
       isRVVSelectedBodyComputedMaskSelectRouteOperation(
           description.operation) ||
       !description.computedMaskMemoryRouteFamilyPlanID.empty() ||

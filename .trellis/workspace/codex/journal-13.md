@@ -69,6 +69,74 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 168: Stage2 RVV base memory movement route-family ownership
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV base memory movement route-family ownership
+**Branch**: `main`
+
+### Summary
+
+Moved active non-computed-mask, non-segment2 RVV base memory movement routes
+behind a validated RVV plugin-owned family plan and proved focused lit,
+generated-bundle, ssh rvv, authority scan, and check-tianchenrv evidence.
+
+### Main Changes
+
+- Added `rvv-base-memory-movement-route-family-plan.v1` for
+  `strided_load_unit_store`, `unit_load_strided_store`,
+  `indexed_gather_unit_store`, `indexed_scatter_unit_load`,
+  `masked_unit_load_store`, and `masked_unit_store`.
+- Added planning-owned consumer classification and provider-plan verification,
+  including fail-closed missing-plan and stale-plan checks.
+- Carried runtime AVL/VL, runtime ABI order, target leaf/profile mirrors,
+  provider-supported mirror, required headers, C type mapping, vector/index/mask
+  type facts, memory forms, stride/index/mask roles, intrinsic leaves, inactive
+  lane contracts, and RouteOperandBindingPlan closure through route analysis,
+  provider construction, target metadata, and generated-bundle expectations.
+- Kept computed-mask memory and plain segment2 memory family boundaries
+  isolated.
+
+### Routes Covered
+
+- `strided_load_unit_store`
+- `unit_load_strided_store`
+- `indexed_gather_unit_store`
+- `indexed_scatter_unit_load`
+- `masked_unit_load_store`
+- `masked_unit_store`
+
+### Testing
+
+- [OK] Focused build: `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused target lit for the six route-family evidence fixtures: 6/6 passed.
+- [OK] Focused generated-bundle script lit for explicit and pre-realized base memory routes: 11/11 passed.
+- [OK] Direct generated-bundle dry-runs for explicit strided/indexed/masked-load routes and pre-realized strided/indexed/static masked routes with counts `7,16,23`.
+- [OK] Real `ssh rvv` explicit run for strided load/store, indexed gather/scatter, and `masked_unit_load_store`, counts `7,16,23`.
+- [OK] Real `ssh rvv` pre-realized run for all six base memory routes, counts `7,16,23`.
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Added-line active-authority scan found no new legacy RVV/i32 route authority or descriptor/source-front-door/direct-C authority. Exact `__riscv_*_i32m1` additions are provider-owned typed e32m1 intrinsic leaf mirrors, not route ids.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 361/361.
+
+### Self-Repair
+
+- Corrected indexed gather/scatter route-family leaf validation from unordered
+  `vluxei`/`vsuxei` expectations to the ordered indexed intrinsics used by the
+  current generated route.
+- Corrected indexed gather source-memory-form mirroring so provider validation
+  accepts the plan-populated mirrors.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 168: Stage2 RVV widening conversion route-family ownership
 
 **Date**: 2026-05-23

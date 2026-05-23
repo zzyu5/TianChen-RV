@@ -1337,6 +1337,102 @@ int runWideningConversionRouteFamilyProviderPlanTest() {
       {"must not carry a widening conversion route-family plan", "add"});
 }
 
+int runBaseMemoryMovementRouteFamilyProviderPlanTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyMemoryRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans;
+
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::StridedLoadUnitStore,
+        RVVSelectedBodyOperationKind::UnitLoadStridedStore,
+        RVVSelectedBodyOperationKind::IndexedGatherUnitStore,
+        RVVSelectedBodyOperationKind::IndexedScatterUnitLoad,
+        RVVSelectedBodyOperationKind::MaskedUnitLoadStore,
+        RVVSelectedBodyOperationKind::MaskedUnitStore}) {
+    if (int result = expect(
+            isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(op),
+            "active strided, indexed, and static masked memory movement "
+            "routes must be base memory movement family consumers"))
+      return result;
+    if (int result =
+            expect(isRVVSelectedBodyMemoryRouteFamilyConsumer(op),
+                   "base memory movement family consumers must be included in "
+                   "the aggregate memory route-family consumer boundary"))
+      return result;
+  }
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::Add,
+        RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore,
+        RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore}) {
+    if (int result = expect(
+            !isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(op),
+            "non-base memory routes must stay outside the base memory "
+            "movement family"))
+      return result;
+  }
+  if (int result = expect(
+          isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore),
+          "computed-mask unit load/store must remain owned by the "
+          "computed-mask memory family"))
+    return result;
+  if (int result = expect(
+          isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore),
+          "plain segment2 deinterleave must remain owned by the segment2 "
+          "memory family"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingStridedPlan;
+  missingStridedPlan.description.operation =
+      RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              missingStridedPlan, "base memory provider unit test"),
+          {"requires the base memory movement route-family plan",
+           "strided_load_unit_store"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingIndexedPlan;
+  missingIndexedPlan.description.operation =
+      RVVSelectedBodyOperationKind::IndexedScatterUnitLoad;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              missingIndexedPlan, "base memory provider unit test"),
+          {"requires the base memory movement route-family plan",
+           "indexed_scatter_unit_load"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingMaskedPlan;
+  missingMaskedPlan.description.operation =
+      RVVSelectedBodyOperationKind::MaskedUnitStore;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              missingMaskedPlan, "base memory provider unit test"),
+          {"requires the base memory movement route-family plan",
+           "masked_unit_store"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleNonConsumer;
+  staleNonConsumer.description.operation = RVVSelectedBodyOperationKind::Add;
+  staleNonConsumer.baseMemoryMovementRouteFamilyPlan.emplace();
+  staleNonConsumer.baseMemoryMovementRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+  return expectErrorContains(
+      verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+          staleNonConsumer, "base memory provider unit test"),
+      {"must not carry a base memory movement route-family plan", "add"});
+}
+
 int runMaskedAddSelectedBodyPolicyRouteTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -3073,6 +3169,8 @@ int main() {
   if (int result = runScalarBroadcastAndSplatRouteFamilyProviderPlanTest())
     return result;
   if (int result = runWideningConversionRouteFamilyProviderPlanTest())
+    return result;
+  if (int result = runBaseMemoryMovementRouteFamilyProviderPlanTest())
     return result;
   if (int result = runMaskedAddSelectedBodyPolicyRouteTest(context))
     return result;

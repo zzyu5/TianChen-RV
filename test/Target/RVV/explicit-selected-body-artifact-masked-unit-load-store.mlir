@@ -36,10 +36,16 @@ module {
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "masked_unit_load_store"}
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.masked_load"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "masked-unit-load-store"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "src,mask,dst,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:masked_unit_load_store.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:masked_unit_load_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-masked-load-base|masked-load-source-call|header-mirror;mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-load-mask-call;dst=output-buffer:dst:runtime-abi-mirror|materialized-old-destination-load-base|masked-load-passthrough-call|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"}
+// PLAN-SAME: {key = "tcrv_rvv.base_memory_movement_route_family_plan", value = "rvv-base-memory-movement-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-e32m1-masked-unit-load-store-leaf-profile.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-masked-unit-load-store-plan-validated"}
+// PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
+// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,source/passthrough:signed-e32m1,mask:b32,result:masked-load-store"}
 // PLAN-SAME: {key = "tcrv_rvv.masked_memory_layout", value = "unit-stride-source-mask-old-destination-runtime-abi"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_role", value = "predicate-mask-input-buffer"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_source", value = "runtime_abi:mask"}
@@ -61,6 +67,11 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-masked-unit-load-store-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.runtime_abi_order: src,mask,dst,n
+// HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-e32m1-masked-unit-load-store-leaf-profile.v1
+// HEADER: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-masked-unit-load-store-plan-validated
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:masked_unit_load_store.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:masked_unit_load_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-masked-load-base|masked-load-source-call|header-mirror;mask=mask-input-buffer:mask:runtime-abi-mirror|materialized-mask-load-base|masked-load-mask-call;dst=output-buffer:dst:runtime-abi-mirror|materialized-old-destination-load-base|masked-load-passthrough-call|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror
+// HEADER: tianchenrv.rvv.base_memory_movement_route_family_plan: rvv-base-memory-movement-route-family-plan.v1
+// HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
+// HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source/passthrough:signed-e32m1,mask:b32,result:masked-load-store
 // HEADER: void tcrv_emitc_explicit_selected_body_masked_unit_load_store_kernel_explicit_selected_body_rvv_masked_unit_load_store(const int32_t *src, const int32_t *mask, int32_t *dst, size_t n);

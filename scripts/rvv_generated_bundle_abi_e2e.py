@@ -745,6 +745,34 @@ WIDEN_I32_TO_I64_C_TYPE_MAPPING = (
 WIDEN_I16_TO_I32_C_TYPE_MAPPING = (
     "vl:size_t,source:signed-e16mf2,result:signed-e32m1"
 )
+BASE_MEMORY_MOVEMENT_ROUTE_FAMILY_PLAN = (
+    "rvv-base-memory-movement-route-family-plan.v1"
+)
+BASE_MEMORY_REQUIRED_HEADER_DECLARATIONS = "stddef.h,stdint.h,riscv_vector.h"
+BASE_MEMORY_TARGET_LEAF_PROFILE_BY_KIND = {
+    "strided_load_unit_store": "rvv-v1-e32m1-strided-load-unit-store-leaf-profile.v1",
+    "unit_load_strided_store": "rvv-v1-e32m1-unit-load-strided-store-leaf-profile.v1",
+    "indexed_gather_unit_store": "rvv-v1-e32m1-indexed-gather-unit-store-leaf-profile.v1",
+    "indexed_scatter_unit_load": "rvv-v1-e32m1-indexed-scatter-unit-load-leaf-profile.v1",
+    "masked_unit_load_store": "rvv-v1-e32m1-masked-unit-load-store-leaf-profile.v1",
+    "masked_unit_store": "rvv-v1-e32m1-masked-unit-store-leaf-profile.v1",
+}
+BASE_MEMORY_PROVIDER_SUPPORTED_MIRROR_BY_KIND = {
+    "strided_load_unit_store": "provider_supported_mirror:rvv-strided-load-unit-store-plan-validated",
+    "unit_load_strided_store": "provider_supported_mirror:rvv-unit-load-strided-store-plan-validated",
+    "indexed_gather_unit_store": "provider_supported_mirror:rvv-indexed-gather-unit-store-plan-validated",
+    "indexed_scatter_unit_load": "provider_supported_mirror:rvv-indexed-scatter-unit-load-plan-validated",
+    "masked_unit_load_store": "provider_supported_mirror:rvv-masked-unit-load-store-plan-validated",
+    "masked_unit_store": "provider_supported_mirror:rvv-masked-unit-store-plan-validated",
+}
+BASE_MEMORY_C_TYPE_MAPPING_BY_KIND = {
+    "strided_load_unit_store": "vl:size_t,source:byte-strided-e32m1,result:signed-e32m1",
+    "unit_load_strided_store": "vl:size_t,source:signed-e32m1,destination:byte-strided-e32m1",
+    "indexed_gather_unit_store": "vl:size_t,data:signed-e32m1,index:u32m1,result:signed-e32m1",
+    "indexed_scatter_unit_load": "vl:size_t,source:signed-e32m1,index:u32m1,destination:indexed-e32m1",
+    "masked_unit_load_store": "vl:size_t,source/passthrough:signed-e32m1,mask:b32,result:masked-load-store",
+    "masked_unit_store": "vl:size_t,source:signed-e32m1,mask:b32,destination:masked-store",
+}
 RUNTIME_SCALAR_CMP_SELECT_RUNTIME_ABI_ORDER = (
     "lhs,rhs_scalar,true_value,false_value,out,n"
 )
@@ -4736,6 +4764,29 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_masked_unit_store:
         per_op_metadata["tcrv_rvv.tail_policy"] = "undisturbed"
         per_op_metadata["tcrv_rvv.mask_policy"] = "undisturbed"
+    if expectation.kind in BASE_MEMORY_TARGET_LEAF_PROFILE_BY_KIND:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.base_memory_movement_route_family_plan": (
+                    BASE_MEMORY_MOVEMENT_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    BASE_MEMORY_TARGET_LEAF_PROFILE_BY_KIND[expectation.kind]
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    BASE_MEMORY_PROVIDER_SUPPORTED_MIRROR_BY_KIND[
+                        expectation.kind
+                    ]
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    BASE_MEMORY_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    BASE_MEMORY_C_TYPE_MAPPING_BY_KIND[expectation.kind]
+                ),
+            }
+        )
     if expectation.is_reduce_add:
         per_op_metadata.update(
             {

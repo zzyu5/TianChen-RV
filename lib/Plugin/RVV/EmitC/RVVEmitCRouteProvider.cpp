@@ -243,6 +243,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           analysis.wideningConversionRouteFamilyPlan
               ? &*analysis.wideningConversionRouteFamilyPlan
               : nullptr;
+  const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan
+      *baseMemoryMovementPlan =
+          analysis.baseMemoryMovementRouteFamilyPlan
+              ? &*analysis.baseMemoryMovementRouteFamilyPlan
+              : nullptr;
   const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan
       *computedMaskSelectPlan =
           analysis.computedMaskSelectRouteFamilyPlan
@@ -295,6 +300,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               analysis, "selected RVV EmitC route construction"))
     return error;
   if (llvm::Error error =
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              analysis, "selected RVV EmitC route construction"))
+    return error;
+  if (llvm::Error error =
           verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
               analysis, "selected RVV EmitC route construction"))
     return error;
@@ -328,6 +337,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           ? computedMaskAccumulationPlan->vlCType
       : computedMaskSelectPlan
           ? computedMaskSelectPlan->vlCType
+      : baseMemoryMovementPlan
+          ? baseMemoryMovementPlan->vlCType
       : contractionPlan
           ? contractionPlan->vlCType
           : (standaloneReductionPlan ? standaloneReductionPlan->vlCType
@@ -337,6 +348,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           ? computedMaskAccumulationPlan->vectorTypeName
       : computedMaskSelectPlan
           ? computedMaskSelectPlan->vectorTypeName
+      : baseMemoryMovementPlan
+          ? baseMemoryMovementPlan->vectorTypeName
       : contractionPlan ? contractionPlan->resultVectorTypeName
       : standaloneReductionPlan ? standaloneReductionPlan->vectorTypeName
                       : description.vectorTypeName;
@@ -345,6 +358,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           ? computedMaskAccumulationPlan->vectorCType
       : computedMaskSelectPlan
           ? computedMaskSelectPlan->vectorCType
+      : baseMemoryMovementPlan
+          ? baseMemoryMovementPlan->vectorCType
       : contractionPlan ? contractionPlan->resultVectorCType
       : standaloneReductionPlan ? standaloneReductionPlan->vectorCType
                       : description.vectorCType;
@@ -359,12 +374,16 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           ? computedMaskAccumulationPlan->maskTypeName
       : computedMaskSelectPlan
           ? computedMaskSelectPlan->maskTypeName
+      : baseMemoryMovementPlan
+          ? baseMemoryMovementPlan->maskTypeName
       : contractionPlan ? contractionPlan->maskTypeName : description.maskTypeName;
   llvm::StringRef maskCType =
       computedMaskAccumulationPlan
           ? computedMaskAccumulationPlan->maskCType
       : computedMaskSelectPlan
           ? computedMaskSelectPlan->maskCType
+      : baseMemoryMovementPlan
+          ? baseMemoryMovementPlan->maskCType
       : contractionPlan ? contractionPlan->maskCType : description.maskCType;
   llvm::StringRef setVLLeaf = description.setVLIntrinsic;
   if (computedMaskAccumulationPlan)
@@ -377,6 +396,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     setVLLeaf = scalarBroadcastPlan->setVLIntrinsic;
   else if (runtimeSplatStorePlan)
     setVLLeaf = runtimeSplatStorePlan->setVLIntrinsic;
+  else if (baseMemoryMovementPlan)
+    setVLLeaf = baseMemoryMovementPlan->setVLIntrinsic;
   else if (computedMaskMemoryPlan)
     setVLLeaf = computedMaskMemoryPlan->setVLIntrinsic;
   else if (standaloneReductionPlan)
@@ -390,6 +411,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     sourceLoadLeaf = contractionPlan->sourceVectorLoadIntrinsic;
   else if (scalarBroadcastPlan)
     sourceLoadLeaf = scalarBroadcastPlan->vectorLoadIntrinsic;
+  else if (baseMemoryMovementPlan)
+    sourceLoadLeaf = baseMemoryMovementPlan->vectorLoadIntrinsic;
   else if (computedMaskMemoryPlan)
     sourceLoadLeaf = computedMaskMemoryPlan->vectorLoadIntrinsic;
   else if (standaloneReductionPlan)
@@ -401,13 +424,17 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           ? computedMaskSelectPlan->vectorLoadIntrinsic
       : scalarBroadcastPlan
           ? scalarBroadcastPlan->vectorLoadIntrinsic
+      : baseMemoryMovementPlan
+          ? baseMemoryMovementPlan->vectorLoadIntrinsic
       : computedMaskMemoryPlan
           ? computedMaskMemoryPlan->vectorLoadIntrinsic
       : (standaloneReductionPlan ? standaloneReductionPlan->vectorLoadIntrinsic
                                  : description.vectorLoadIntrinsic);
   llvm::StringRef stridedSourceLoadLeaf =
-      contractionPlan ? contractionPlan->stridedLoadIntrinsic
-                      : description.stridedLoadIntrinsic;
+      baseMemoryMovementPlan && !baseMemoryMovementPlan->stridedLoadIntrinsic.empty()
+          ? baseMemoryMovementPlan->stridedLoadIntrinsic
+      : contractionPlan ? contractionPlan->stridedLoadIntrinsic
+                        : description.stridedLoadIntrinsic;
   llvm::StringRef storeLeaf = description.storeIntrinsic;
   if (computedMaskAccumulationPlan)
     storeLeaf = computedMaskAccumulationPlan->storeIntrinsic;
@@ -419,6 +446,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     storeLeaf = scalarBroadcastPlan->storeIntrinsic;
   else if (runtimeSplatStorePlan)
     storeLeaf = runtimeSplatStorePlan->storeIntrinsic;
+  else if (baseMemoryMovementPlan)
+    storeLeaf = baseMemoryMovementPlan->storeIntrinsic;
   else if (computedMaskMemoryPlan)
     storeLeaf = computedMaskMemoryPlan->maskedStoreIntrinsic;
   else if (standaloneReductionPlan)
@@ -476,6 +505,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       analysis.description.emitCRouteID,
       "extension-family-ops-to-emitc-call-opaque");
   if (contractionPlan || scalarBroadcastPlan || runtimeSplatStorePlan ||
+      baseMemoryMovementPlan ||
       computedMaskSelectPlan ||
       computedMaskMemoryPlan ||
       computedMaskAccumulationPlan || standaloneReductionPlan) {
@@ -492,6 +522,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                     scalarBroadcastPlan->requiredHeaders)
         : runtimeSplatStorePlan ? llvm::ArrayRef<llvm::StringRef>(
                                       runtimeSplatStorePlan->requiredHeaders)
+        : baseMemoryMovementPlan
+            ? llvm::ArrayRef<llvm::StringRef>(
+                  baseMemoryMovementPlan->requiredHeaders)
         : computedMaskMemoryPlan
             ? llvm::ArrayRef<llvm::StringRef>(
                   computedMaskMemoryPlan->requiredHeaders)

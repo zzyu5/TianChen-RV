@@ -190,6 +190,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef scalarBroadcastElementwiseRouteFamilyPlanID;
   llvm::StringRef runtimeScalarSplatStoreRouteFamilyPlanID;
   llvm::StringRef wideningConversionRouteFamilyPlanID;
+  llvm::StringRef baseMemoryMovementRouteFamilyPlanID;
   llvm::StringRef computedMaskMemoryRouteFamilyPlanID;
   llvm::StringRef computedMaskMemoryMaskProducerSource;
   llvm::StringRef segment2MemoryRouteFamilyPlanID;

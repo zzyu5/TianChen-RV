@@ -314,6 +314,62 @@ struct RVVSelectedBodyWideningConversionRouteFamilyPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
 };
 
+struct RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  bool usesStridedLoad = false;
+  bool usesStridedStore = false;
+  bool usesIndexedGather = false;
+  bool usesIndexedScatter = false;
+  bool usesStaticMaskLoad = false;
+  bool usesStaticMaskStore = false;
+  RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef familyPlanID;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef indexVectorTypeName;
+  llvm::StringRef indexVectorCType;
+  llvm::StringRef maskTypeName;
+  llvm::StringRef maskCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef indexLoadIntrinsic;
+  llvm::StringRef indexScaleIntrinsic;
+  llvm::StringRef indexedLoadIntrinsic;
+  llvm::StringRef indexedStoreIntrinsic;
+  llvm::StringRef stridedLoadIntrinsic;
+  llvm::StringRef maskedLoadIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef stridedStoreIntrinsic;
+  llvm::StringRef resultName;
+  llvm::StringRef maskName;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef inactiveLaneContract;
+  llvm::StringRef maskedPassthroughLayout;
+  llvm::StringRef stridedMemoryLayout;
+  llvm::StringRef indexedMemoryLayout;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::StringRef sourceStrideSource;
+  llvm::StringRef destinationStrideSource;
+  std::int64_t indexEEW = 0;
+  llvm::StringRef offsetUnit;
+  llvm::StringRef indexSource;
+  llvm::StringRef indexUniqueness;
+  llvm::StringRef indexedDataMemoryForm;
+  llvm::StringRef indexedDestinationMemoryForm;
+  llvm::SmallVector<support::RuntimeABIParameter, 6> runtimeABIParameters;
+};
+
 struct RVVSelectedBodyComputedMaskSelectRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
@@ -555,6 +611,8 @@ struct RVVSelectedBodyRouteAnalysis {
       runtimeScalarSplatStoreRouteFamilyPlan;
   std::optional<RVVSelectedBodyWideningConversionRouteFamilyPlan>
       wideningConversionRouteFamilyPlan;
+  std::optional<RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan>
+      baseMemoryMovementRouteFamilyPlan;
   std::optional<RVVSelectedBodyComputedMaskSelectRouteFamilyPlan>
       computedMaskSelectRouteFamilyPlan;
   std::optional<RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan>
@@ -572,10 +630,15 @@ bool isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 bool isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
+bool isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
 bool isRVVSelectedBodyMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
 llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 bool isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer(
