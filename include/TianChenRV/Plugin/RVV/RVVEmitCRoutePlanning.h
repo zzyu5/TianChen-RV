@@ -724,6 +724,10 @@ bool isRVVSelectedBodyMemoryRouteFamilyConsumer(
 llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
+llvm::Error
+verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
 llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 

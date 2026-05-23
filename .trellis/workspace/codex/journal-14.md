@@ -250,6 +250,70 @@ Closed RuntimeI32SplatStore provider runtime AVL/VL mirror and RouteOperandBindi
 - None - task complete
 
 
+## Session 179: Stage2 RVV computed-mask memory runtime binding closure
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV computed-mask memory runtime and binding closure
+**Branch**: `main`
+
+### Summary
+
+Closed the computed-mask memory provider boundary for existing runtime-scalar,
+vector-compare, strided, indexed, and segment2 computed-mask memory routes.
+Provider materialization now requires the validated computed-mask memory
+family plan, runtime AVL/VL mirrors, runtime ABI mirrors, mask/memory/index/
+segment mirrors, and RouteOperandBindingPlan closure.
+
+### Main Changes
+
+- Added `verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans` and
+  wired it into RVV selected-body EmitC route construction before provider
+  materialization.
+- Validated computed-mask memory operation, memory form, mask producer source,
+  runtime control facts, ABI order/parameters, target/header/type mirrors,
+  route intrinsics, mask/stride/index/segment layout facts, and binding
+  closure against the computed-mask memory route-family plan.
+- Added RVV plugin C++ coverage for computed-mask memory family
+  classification, adjacent-family isolation, missing/stale plan rejection,
+  runtime/mask/intrinsic/stride/index/segment mirror mismatch rejection,
+  runtime ABI mismatch rejection, and route operand binding closure failures.
+- Recorded generated-bundle dry-run and real `ssh rvv` evidence for explicit
+  supported computed-mask memory routes and pre-realized full computed-mask
+  memory route set at counts 7, 16, and 23.
+
+### Git Commits
+
+- this commit
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] explicit generated-bundle dry-run for supported computed-mask memory
+  subset at counts 7, 16, and 23
+- [OK] pre-realized generated-bundle dry-run for all nine active computed-mask
+  memory op kinds at counts 7, 16, and 23
+- [OK] explicit real `ssh rvv` evidence for supported computed-mask memory
+  subset at counts 7, 16, and 23
+- [OK] pre-realized real `ssh rvv` evidence for all nine active computed-mask
+  memory op kinds at counts 7, 16, and 23
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (361/361)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Optional later harness work: add explicit selected-body generated-bundle
+  support for `computed_masked_unit_load_store` and
+  `computed_masked_strided_store`; pre-realized coverage for both is already
+  passing.
+
+
 ## Session 177: Stage2 RVV base memory runtime binding closure
 
 **Date**: 2026-05-23

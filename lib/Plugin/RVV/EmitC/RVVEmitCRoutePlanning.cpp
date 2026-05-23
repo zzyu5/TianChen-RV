@@ -19045,6 +19045,204 @@ llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+llvm::Error
+verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(operation);
+  if (isConsumer && !analysis.computedMaskMemoryRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the computed-mask memory route-family plan before "
+        "provider materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!isConsumer && analysis.computedMaskMemoryRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must not carry a computed-mask memory route-family plan for "
+        "non-computed-mask-memory operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!analysis.computedMaskMemoryRouteFamilyPlan)
+    return llvm::Error::success();
+
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &plan =
+      *analysis.computedMaskMemoryRouteFamilyPlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(plan))
+    return error;
+  if (plan.operation != operation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory route-family plan operation must match the "
+        "selected route description");
+  if (analysis.description.computedMaskMemoryRouteFamilyPlanID !=
+      plan.familyPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory route-family plan mirror must match the "
+        "validated family plan");
+  if (analysis.description.computedMaskMemoryMaskProducerSource !=
+      plan.maskProducerSource)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory mask-producer mirror must match the "
+        "validated family plan");
+
+  const llvm::StringRef expectedPrimaryIntrinsic =
+      plan.usesSegment2Store ? plan.segmentStoreIntrinsic
+      : !plan.maskedLoadIntrinsic.empty()
+          ? plan.maskedLoadIntrinsic
+      : !plan.stridedStoreIntrinsic.empty()
+          ? plan.stridedStoreIntrinsic
+      : !plan.indexedStoreIntrinsic.empty() ? plan.indexedStoreIntrinsic
+                                            : plan.maskedStoreIntrinsic;
+  if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.sew != plan.runtimeControlPlan.sew ||
+      analysis.description.lmul != plan.runtimeControlPlan.lmul ||
+      analysis.description.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      analysis.description.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      analysis.description.runtimeControlPlanID !=
+          plan.runtimeControlPlan.controlPlanID ||
+      analysis.description.configContractID !=
+          plan.runtimeControlPlan.configContractID ||
+      analysis.description.runtimeVLContractID !=
+          plan.runtimeControlPlan.runtimeVLContractID ||
+      analysis.description.runtimeAVLASource !=
+          plan.runtimeControlPlan.runtimeAVLASource ||
+      analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.vlDefOpName != plan.runtimeControlPlan.vlDefOpName ||
+      analysis.description.vlScopeOpName !=
+          plan.runtimeControlPlan.vlScopeOpName ||
+      analysis.description.vlUses != plan.runtimeControlPlan.vlUses ||
+      analysis.description.emitCLoopKind !=
+          plan.runtimeControlPlan.emitCLoopKind ||
+      analysis.description.emitCLoopInductionName !=
+          plan.runtimeControlPlan.emitCLoopInductionName ||
+      analysis.description.emitCFullChunkVLName !=
+          plan.runtimeControlPlan.emitCFullChunkVLName ||
+      analysis.description.emitCLoopVLName !=
+          plan.runtimeControlPlan.emitCLoopVLName ||
+      analysis.description.remainingAVLMetadata !=
+          plan.runtimeControlPlan.remainingAVLMetadata ||
+      analysis.description.pointerAdvanceMetadata !=
+          plan.runtimeControlPlan.pointerAdvanceMetadata ||
+      analysis.description.boundedSlice != plan.runtimeControlPlan.boundedSlice ||
+      analysis.description.multiVL != plan.runtimeControlPlan.multiVL ||
+      analysis.description.targetLeafProfile != plan.targetLeafProfile ||
+      analysis.description.providerSupportedMirror !=
+          plan.providerSupportedMirror ||
+      analysis.description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      analysis.description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      analysis.description.vlCType != plan.vlCType ||
+      analysis.description.vectorTypeName != plan.vectorTypeName ||
+      analysis.description.vectorCType != plan.vectorCType ||
+      analysis.description.indexVectorTypeName != plan.indexVectorTypeName ||
+      analysis.description.indexVectorCType != plan.indexVectorCType ||
+      analysis.description.maskTypeName != plan.maskTypeName ||
+      analysis.description.maskCType != plan.maskCType ||
+      analysis.description.setVLIntrinsic != plan.setVLIntrinsic ||
+      analysis.description.vectorLoadIntrinsic != plan.vectorLoadIntrinsic ||
+      analysis.description.indexLoadIntrinsic != plan.indexLoadIntrinsic ||
+      analysis.description.indexScaleIntrinsic != plan.indexScaleIntrinsic ||
+      analysis.description.rhsBroadcastIntrinsic !=
+          plan.rhsScalarSplatIntrinsic ||
+      analysis.description.comparePredicateKind !=
+          getComputedMaskMemoryComparePredicateKind(plan.operation) ||
+      analysis.description.compareIntrinsic != plan.compareIntrinsic ||
+      analysis.description.maskedLoadIntrinsic != plan.maskedLoadIntrinsic ||
+      analysis.description.storeIntrinsic != plan.maskedStoreIntrinsic ||
+      analysis.description.stridedStoreIntrinsic !=
+          plan.stridedStoreIntrinsic ||
+      analysis.description.indexedStoreIntrinsic !=
+          plan.indexedStoreIntrinsic ||
+      analysis.description.intrinsic != expectedPrimaryIntrinsic ||
+      analysis.description.resultName != plan.resultName ||
+      analysis.description.maskName != plan.maskName ||
+      analysis.description.maskRole != plan.maskRole ||
+      analysis.description.maskSource != plan.maskSource ||
+      analysis.description.maskMemoryForm != plan.maskMemoryForm ||
+      analysis.description.inactiveLaneContract !=
+          plan.inactiveLaneContract ||
+      analysis.description.maskedPassthroughLayout !=
+          plan.maskedPassthroughLayout ||
+      analysis.description.indexedMemoryLayout != plan.maskedMemoryLayout ||
+      analysis.description.stridedMemoryLayout != plan.stridedMemoryLayout ||
+      analysis.description.sourceMemoryForm != plan.sourceMemoryForm ||
+      analysis.description.destinationMemoryForm !=
+          plan.destinationMemoryForm ||
+      analysis.description.sourceStrideSource != plan.sourceStrideSource ||
+      analysis.description.outStrideSource != plan.destinationStrideSource ||
+      analysis.description.indexEEW != plan.indexEEW ||
+      analysis.description.offsetUnit != plan.offsetUnit ||
+      analysis.description.indexSource != plan.indexSource ||
+      analysis.description.indexUniqueness != plan.indexUniqueness ||
+      analysis.description.indexedDataMemoryForm !=
+          plan.indexedDataMemoryForm ||
+      analysis.description.indexedDestinationMemoryForm !=
+          plan.indexedDestinationMemoryForm ||
+      analysis.description.segmentMemoryLayout != plan.segmentMemoryLayout ||
+      analysis.description.segmentCount != plan.segmentCount ||
+      analysis.description.segmentTupleCType != plan.segmentTupleCType ||
+      analysis.description.segmentLoadIntrinsic !=
+          plan.segmentLoadIntrinsic ||
+      analysis.description.segmentStoreIntrinsic !=
+          plan.segmentStoreIntrinsic ||
+      analysis.description.segmentFieldExtractIntrinsic !=
+          plan.segmentFieldExtractIntrinsic ||
+      analysis.description.field0Role != plan.field0Role ||
+      analysis.description.field1Role != plan.field1Role ||
+      analysis.description.field0Name != plan.field0Name ||
+      analysis.description.field1Name != plan.field1Name ||
+      analysis.description.field0SourceMemoryForm !=
+          plan.field0SourceMemoryForm ||
+      analysis.description.field1SourceMemoryForm !=
+          plan.field1SourceMemoryForm ||
+      analysis.description.field0DestinationMemoryForm !=
+          plan.field0DestinationMemoryForm ||
+      analysis.description.field1DestinationMemoryForm !=
+          plan.field1DestinationMemoryForm)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory route-family route, runtime, type, intrinsic, "
+        "mask, memory-form, and layout mirrors must be populated from the "
+        "validated family plan before provider materialization");
+  if (!support::runtimeABIParametersEqual(
+          analysis.description.runtimeABIParameters,
+          plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory route-family runtime ABI parameters must "
+        "match the validated family plan");
+  if (analysis.routeOperandBindingPlan.planID !=
+      getExpectedRVVRouteOperandBindingPlanID(operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory provider requires the route operand binding "
+        "plan for the selected operation");
+  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
+          analysis.routeOperandBindingPlan, analysis.description, context))
+    return error;
+  if (plan.usesRuntimeScalarProducer ==
+          plan.usesVectorCompareProducer ||
+      plan.maskProducerSource !=
+          getComputedMaskMemoryProducerSource(operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory provider requires the selected mask producer "
+        "source to be validated by the route-family plan");
+  if (plan.usesStoreOnly !=
+          isRVVSelectedBodyComputedMaskMemoryStoreOnlyRoute(operation) ||
+      plan.usesLoadMerge !=
+          isRVVSelectedBodyComputedMaskMemoryLoadMergeRoute(operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory provider requires store-only/load-merge "
+        "classification to match the selected operation");
+  return llvm::Error::success();
+}
+
 llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
   const RVVSelectedBodyOperationKind operation = analysis.description.operation;
