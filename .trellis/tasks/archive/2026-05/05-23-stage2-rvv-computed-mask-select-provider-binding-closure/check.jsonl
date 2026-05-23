@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Final verification against global TianChen-RV stack, RVV-first authority chain, and Stage gate boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final verification that computed-mask select stays RVV plugin-owned and typed-body driven."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final verification that common EmitC/export remains neutral and provider-built route remains authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final verification of focused MLIR/C++/ssh rvv evidence and no legacy authority."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Final verification that selected-body realization and route-provider metadata remain mirrors only."}

@@ -19634,9 +19634,38 @@ llvm::Error verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
         " computed-mask select mask-producer mirror must match the "
         "validated family plan");
   if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.sew != plan.runtimeControlPlan.sew ||
+      analysis.description.lmul != plan.runtimeControlPlan.lmul ||
+      analysis.description.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      analysis.description.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
       analysis.description.runtimeControlPlanID !=
           plan.runtimeControlPlan.controlPlanID ||
+      analysis.description.configContractID !=
+          plan.runtimeControlPlan.configContractID ||
+      analysis.description.runtimeVLContractID !=
+          plan.runtimeControlPlan.runtimeVLContractID ||
+      analysis.description.runtimeAVLASource !=
+          plan.runtimeControlPlan.runtimeAVLASource ||
       analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.vlDefOpName !=
+          plan.runtimeControlPlan.vlDefOpName ||
+      analysis.description.vlScopeOpName !=
+          plan.runtimeControlPlan.vlScopeOpName ||
+      analysis.description.vlUses != plan.runtimeControlPlan.vlUses ||
+      analysis.description.emitCLoopKind !=
+          plan.runtimeControlPlan.emitCLoopKind ||
+      analysis.description.emitCLoopInductionName !=
+          plan.runtimeControlPlan.emitCLoopInductionName ||
+      analysis.description.emitCFullChunkVLName !=
+          plan.runtimeControlPlan.emitCFullChunkVLName ||
+      analysis.description.emitCLoopVLName !=
+          plan.runtimeControlPlan.emitCLoopVLName ||
+      analysis.description.remainingAVLMetadata !=
+          plan.runtimeControlPlan.remainingAVLMetadata ||
+      analysis.description.pointerAdvanceMetadata !=
+          plan.runtimeControlPlan.pointerAdvanceMetadata ||
+      analysis.description.boundedSlice != plan.runtimeControlPlan.boundedSlice ||
+      analysis.description.multiVL != plan.runtimeControlPlan.multiVL ||
       analysis.description.targetLeafProfile != plan.targetLeafProfile ||
       analysis.description.providerSupportedMirror !=
           plan.providerSupportedMirror ||
@@ -19671,8 +19700,9 @@ llvm::Error verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
       analysis.description.indexedMemoryLayout != plan.indexedMemoryLayout)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " computed-mask select route-family mirrors must be populated from "
-        "the validated family plan before provider materialization");
+        " computed-mask select route-family route, runtime, type, intrinsic, "
+        "mask, and memory mirrors must be populated from the validated family "
+        "plan before provider materialization");
   if (!support::runtimeABIParametersEqual(
           analysis.description.runtimeABIParameters,
           plan.runtimeABIParameters))
@@ -19686,6 +19716,37 @@ llvm::Error verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
         llvm::Twine(context) +
         " computed-mask select provider requires the route operand binding "
         "plan for the selected operation");
+  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
+          analysis.routeOperandBindingPlan, analysis.description, context))
+    return error;
+  if (operation == RVVSelectedBodyOperationKind::ComputedMaskSelect) {
+    if (!plan.usesVectorCompareProducer || plan.usesRuntimeScalarProducer ||
+        plan.usesDualCompareMaskAnd ||
+        plan.maskProducerSource != "vector-compare-rhs-load")
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed_mask_select provider requires a vector-compare "
+          "computed-mask select producer plan");
+  } else if (operation ==
+             RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect) {
+    if (!plan.usesRuntimeScalarProducer || plan.usesVectorCompareProducer ||
+        plan.usesDualCompareMaskAnd ||
+        plan.maskProducerSource != "runtime-scalar-splat-compare-rhs")
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime_scalar_cmp_select provider requires a runtime-scalar "
+          "computed-mask select producer plan");
+  } else if (operation == RVVSelectedBodyOperationKind::
+                              RuntimeScalarDualCompareMaskAndSelect) {
+    if (!plan.usesRuntimeScalarProducer || plan.usesVectorCompareProducer ||
+        !plan.usesDualCompareMaskAnd ||
+        plan.maskProducerSource !=
+            "dual-runtime-scalar-splat-compare-rhs-mask-and")
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime_scalar_dual_cmp_mask_and_select provider requires a "
+          "dual runtime-scalar mask-and computed-mask select producer plan");
+  }
   return llvm::Error::success();
 }
 

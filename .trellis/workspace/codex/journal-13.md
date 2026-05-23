@@ -69,6 +69,71 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 172: Stage2 RVV computed-mask select provider binding closure
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV computed-mask select provider binding closure
+**Branch**: `main`
+
+### Summary
+
+Deepened RVV computed-mask select route-family provider validation for active
+`computed_mask_select`, `runtime_scalar_cmp_select`, and
+`runtime_scalar_dual_cmp_mask_and_select` routes. Provider validation now checks
+full runtime-control mirrors and `RouteOperandBindingPlan` closure before
+provider materialization.
+
+### Main Changes
+
+- `verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans` now validates
+  SEW/LMUL/policy, runtime VL/AVL/control mirrors, EmitC loop metadata,
+  target/header/type/intrinsic mirrors, mask producer/source/composition,
+  select/source/destination layout, runtime ABI parameters, and binding closure.
+- Added focused RVV plugin tests that analyze real selected-body MLIR for the
+  three active computed-mask select routes and reject stale operation, runtime,
+  target, compare intrinsic, ABI parameter, binding role, binding summary,
+  runtime-scalar producer, and dual mask-and mirrors.
+- Kept plain compare-select and computed-mask MAcc as separate family
+  boundaries; this task only added isolation checks for their classification.
+
+### Spec Update Judgment
+
+- No `.trellis/spec/**` update was needed. Existing RVV plugin, EmitC route,
+  variant pipeline, and testing specs already require plugin-owned typed route
+  facts, mirror-only metadata, common EmitC neutrality, binding closure, and
+  real `ssh rvv` evidence for runtime/correctness claims.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused lit filter from `build/test`: 9/9 computed-mask select,
+  runtime-scalar select, dual mask-and select, and adjacent plain cmp-select
+  fixtures passed.
+- [OK] Generated-bundle dry-runs for explicit `computed_mask_select_sle`,
+  `runtime_scalar_cmp_select`, `runtime_scalar_dual_cmp_mask_and_select`, and
+  pre-realized `computed_mask_select`, `runtime_scalar_cmp_select`,
+  `runtime_scalar_dual_cmp_mask_and_select`, counts `7,16,23`, runtime scalar
+  values `-37,91` where applicable.
+- [OK] Real `ssh rvv` generated-bundle runs for the same explicit and
+  pre-realized select representatives, counts `7,16,23`, runtime scalar values
+  `-37,91`, with selected/false lane counts, dual-mask composition counts,
+  tail preservation, and runtime `n` variation.
+- [OK] Added-line active-authority scan found no new legacy i32m1,
+  source-front-door, source-artifact, descriptor, direct-C, or exact i32m1
+  intrinsic authority matches.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv`, 361/361 passed.
+
+### Status
+
+[OK] **Completed; archive and commit pending in this round**
+
+### Next Steps
+
+- Archive the task and commit the completed round.
+
+
 ## Session 168: Stage2 RVV base memory movement route-family ownership
 
 **Date**: 2026-05-23

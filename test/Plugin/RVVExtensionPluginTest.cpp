@@ -1916,13 +1916,18 @@ module {
               "rvv-i32m1-stale-route"});
 }
 
-int runComputedMaskSelectRouteFamilyProviderPlanTest() {
+int runComputedMaskSelectRouteFamilyProviderPlanTest(
+    mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::analyzeRVVSelectedBodyRoute;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans;
+  using tianchenrv::support::RuntimeABIParameterRole;
 
   if (int result = expect(
           isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(
@@ -1948,6 +1953,22 @@ int runComputedMaskSelectRouteFamilyProviderPlanTest() {
               RVVSelectedBodyOperationKind::CmpSelect),
           "plain cmp_select must remain outside computed-mask select family"))
     return result;
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd,
+        RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd,
+        RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd}) {
+    if (int result = expect(
+            !isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(op),
+            "computed-mask accumulation and standalone reduction routes must "
+            "stay outside the computed-mask select family"))
+      return result;
+  }
+  if (int result = expect(
+          isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
+          "computed-mask MAcc remains owned by the computed-mask accumulation "
+          "family"))
+    return result;
 
   RVVSelectedBodyRouteAnalysis missingPlan;
   missingPlan.description.operation =
@@ -1972,7 +1993,266 @@ int runComputedMaskSelectRouteFamilyProviderPlanTest() {
            "cmp_select"}))
     return result;
 
-  return 0;
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @computed_mask_select_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_computed_mask_select attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %true_value = tcrv_rvv.runtime_abi_value {c_name = "true_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "true-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %false_value = tcrv_rvv.runtime_abi_value {c_name = "false_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "false-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_computed_mask_select, sew = 32 : i64, source_kernel = "computed_mask_select_provider_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %true_vec = tcrv_rvv.load %true_value, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %false_vec = tcrv_rvv.load %false_value, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "sle"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %selected = tcrv_rvv.select %mask, %true_vec, %false_vec, %vl : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %selected, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+  tcrv.exec.kernel @runtime_scalar_cmp_select_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_runtime_scalar_cmp_select attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %true_value = tcrv_rvv.runtime_abi_value {c_name = "true_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "true-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %false_value = tcrv_rvv.runtime_abi_value {c_name = "false_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "false-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_runtime_scalar_cmp_select, sew = 32 : i64, source_kernel = "runtime_scalar_cmp_select_provider_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %true_vec = tcrv_rvv.load %true_value, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %false_vec = tcrv_rvv.load %false_value, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "sle"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %selected = tcrv_rvv.select %mask, %true_vec, %false_vec, %vl : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %selected, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+  tcrv.exec.kernel @runtime_scalar_dual_cmp_select_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_runtime_scalar_dual_cmp_select attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs_a = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs_a", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar_a = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar_a", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %cmp_lhs_b = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs_b", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar_b = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar_b", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-secondary-scalar-value"} : i32
+      %true_value = tcrv_rvv.runtime_abi_value {c_name = "true_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "true-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %false_value = tcrv_rvv.runtime_abi_value {c_name = "false_value", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "false-value-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_runtime_scalar_dual_cmp_select, sew = 32 : i64, source_kernel = "runtime_scalar_dual_cmp_select_provider_kernel", status = "selected-lowering-boundary"} {
+        %cmp_a_vec = tcrv_rvv.load %cmp_lhs_a, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_a_vec = tcrv_rvv.splat %rhs_scalar_a, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %cmp_b_vec = tcrv_rvv.load %cmp_lhs_b, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_b_vec = tcrv_rvv.splat %rhs_scalar_b, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %true_vec = tcrv_rvv.load %true_value, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %false_vec = tcrv_rvv.load %false_value, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %mask_a = tcrv_rvv.compare %cmp_a_vec, %rhs_a_vec, %vl {kind = "sle"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %mask_b = tcrv_rvv.compare %cmp_b_vec, %rhs_b_vec, %vl {kind = "sle"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %mask = tcrv_rvv.mask_and %mask_a, %mask_b, %vl {kind = "and"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %selected = tcrv_rvv.select %mask, %true_vec, %false_vec, %vl : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %selected, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse computed-mask select provider test module");
+
+  auto analyzeRoute = [&](llvm::StringRef kernelName,
+                          llvm::StringRef variantName)
+      -> llvm::Expected<RVVSelectedBodyRouteAnalysis> {
+    KernelOp kernel = findKernel(*module, kernelName);
+    VariantOp variant = findVariant(kernel, variantName);
+    return analyzeRVVSelectedBodyRoute(VariantEmitCLowerableRequest(
+        variant, kernel, TargetCapabilitySet::buildFromKernel(kernel),
+        VariantEmissionRole::DirectVariant));
+  };
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> computedAnalysis =
+      analyzeRoute("computed_mask_select_provider_kernel",
+                   "rvv_computed_mask_select");
+  if (!computedAnalysis)
+    return fail("analyze computed-mask select provider route: " +
+                llvm::toString(computedAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+              *computedAnalysis, "computed-mask select provider unit test"),
+          "valid computed-mask select family provider plan"))
+    return result;
+  if (int result = expect(
+          computedAnalysis->computedMaskSelectRouteFamilyPlan &&
+              computedAnalysis->computedMaskSelectRouteFamilyPlan
+                  ->usesVectorCompareProducer &&
+              !computedAnalysis->computedMaskSelectRouteFamilyPlan
+                   ->usesRuntimeScalarProducer &&
+              computedAnalysis->description
+                      .computedMaskSelectMaskProducerSource ==
+                  "vector-compare-rhs-load",
+          "computed_mask_select must carry vector-compare producer facts"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stale = *computedAnalysis;
+  stale.description.operation =
+      RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+              stale, "computed-mask select provider unit test"),
+          {"computed-mask select route-family plan operation must match",
+           "selected route description"}))
+    return result;
+
+  stale = *computedAnalysis;
+  stale.description.runtimeAVLASource = "metadata-selected-avl";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+              stale, "computed-mask select provider unit test"),
+          {"computed-mask select route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *computedAnalysis;
+  stale.description.targetLeafProfile = "metadata-selected-profile";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+              stale, "computed-mask select provider unit test"),
+          {"computed-mask select route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *computedAnalysis;
+  stale.description.compareIntrinsic = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+              stale, "computed-mask select provider unit test"),
+          {"computed-mask select route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *computedAnalysis;
+  std::swap(stale.description.runtimeABIParameters[2],
+            stale.description.runtimeABIParameters[3]);
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+              stale, "computed-mask select provider unit test"),
+          {"runtime ABI parameters", "validated family plan"}))
+    return result;
+
+  stale = *computedAnalysis;
+  stale.routeOperandBindingPlan.bindings[0].parameter.role =
+      RuntimeABIParameterRole::RHSInputBuffer;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+              stale, "computed-mask select provider unit test"),
+          {"logical operand 'cmp_lhs'", "lhs-input-buffer",
+           "rhs-input-buffer"}))
+    return result;
+
+  stale = *computedAnalysis;
+  stale.description.routeOperandBindingSummary = "stale";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+              stale, "computed-mask select provider unit test"),
+          {"route operand binding mirror summary", "stale"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> runtimeScalarAnalysis =
+      analyzeRoute("runtime_scalar_cmp_select_provider_kernel",
+                   "rvv_runtime_scalar_cmp_select");
+  if (!runtimeScalarAnalysis)
+    return fail("analyze runtime-scalar compare-select provider route: " +
+                llvm::toString(runtimeScalarAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+              *runtimeScalarAnalysis,
+              "runtime-scalar compare-select provider unit test"),
+          "valid runtime-scalar compare-select family provider plan"))
+    return result;
+  if (int result = expect(
+          runtimeScalarAnalysis->computedMaskSelectRouteFamilyPlan &&
+              runtimeScalarAnalysis->computedMaskSelectRouteFamilyPlan
+                  ->usesRuntimeScalarProducer &&
+              !runtimeScalarAnalysis->computedMaskSelectRouteFamilyPlan
+                   ->usesVectorCompareProducer &&
+              runtimeScalarAnalysis->description
+                      .computedMaskSelectMaskProducerSource ==
+                  "runtime-scalar-splat-compare-rhs",
+          "runtime_scalar_cmp_select must carry runtime-scalar producer facts"))
+    return result;
+
+  stale = *runtimeScalarAnalysis;
+  stale.computedMaskSelectRouteFamilyPlan->usesVectorCompareProducer = true;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+              stale, "runtime-scalar compare-select provider unit test"),
+          {"stale producer-source marker"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> dualAnalysis =
+      analyzeRoute("runtime_scalar_dual_cmp_select_provider_kernel",
+                   "rvv_runtime_scalar_dual_cmp_select");
+  if (!dualAnalysis)
+    return fail("analyze runtime-scalar dual compare-select provider route: " +
+                llvm::toString(dualAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+              *dualAnalysis,
+              "runtime-scalar dual compare-select provider unit test"),
+          "valid runtime-scalar dual compare-select family provider plan"))
+    return result;
+  if (int result = expect(
+          dualAnalysis->computedMaskSelectRouteFamilyPlan &&
+              dualAnalysis->computedMaskSelectRouteFamilyPlan
+                  ->usesRuntimeScalarProducer &&
+              dualAnalysis->computedMaskSelectRouteFamilyPlan
+                  ->usesDualCompareMaskAnd &&
+              dualAnalysis->description.maskComposition == "and" &&
+              dualAnalysis->description.maskAndIntrinsic ==
+                  "__riscv_vmand_mm_b32",
+          "runtime_scalar_dual_cmp_mask_and_select must carry dual mask-and "
+          "producer facts"))
+    return result;
+
+  stale = *dualAnalysis;
+  stale.description.maskAndIntrinsic = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+              stale,
+              "runtime-scalar dual compare-select provider unit test"),
+          {"computed-mask select route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *dualAnalysis;
+  stale.description.maskComposition = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+              stale,
+              "runtime-scalar dual compare-select provider unit test"),
+          {"computed-mask select route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *dualAnalysis;
+  stale.routeOperandBindingPlan.bindings[2].parameter.role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  return expectErrorContains(
+      verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+          stale, "runtime-scalar dual compare-select provider unit test"),
+      {"logical operand 'cmp_lhs_b'", "rhs-input-buffer",
+       "lhs-input-buffer"});
 }
 
 int runPlainCompareSelectRouteFamilyProviderPlanTest() {
@@ -4083,7 +4363,7 @@ int main() {
   if (int result =
           runComputedMaskAccumulationRouteFamilyProviderPlanTest(context))
     return result;
-  if (int result = runComputedMaskSelectRouteFamilyProviderPlanTest())
+  if (int result = runComputedMaskSelectRouteFamilyProviderPlanTest(context))
     return result;
   if (int result = runCompareSelectSelectedBodyRouteTest(context))
     return result;
