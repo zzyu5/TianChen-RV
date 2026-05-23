@@ -321,6 +321,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               analysis, "selected RVV EmitC route construction"))
     return error;
   if (llvm::Error error =
+          verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+              analysis, "selected RVV EmitC route construction"))
+    return error;
+  if (llvm::Error error =
           verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
               analysis, "selected RVV EmitC route construction"))
     return error;

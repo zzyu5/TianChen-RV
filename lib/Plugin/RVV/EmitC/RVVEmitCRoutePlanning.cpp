@@ -19383,6 +19383,151 @@ llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+llvm::Error verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(operation);
+  if (isConsumer && !analysis.segment2MemoryRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the plain segment2 memory route-family plan before "
+        "provider materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!isConsumer && analysis.segment2MemoryRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must not carry a plain segment2 memory route-family plan for "
+        "non-plain-segment2-memory operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!analysis.segment2MemoryRouteFamilyPlan)
+    return llvm::Error::success();
+
+  const RVVSelectedBodySegment2MemoryRouteFamilyPlan &plan =
+      *analysis.segment2MemoryRouteFamilyPlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodySegment2MemoryRouteFamilyPlan(plan))
+    return error;
+  if (plan.operation != operation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain segment2 memory route-family plan operation must match the "
+        "selected route description");
+  if (analysis.description.segment2MemoryRouteFamilyPlanID !=
+      plan.familyPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain segment2 memory route-family plan mirror must match the "
+        "validated family plan");
+
+  if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.sew != plan.runtimeControlPlan.sew ||
+      analysis.description.lmul != plan.runtimeControlPlan.lmul ||
+      analysis.description.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      analysis.description.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      analysis.description.runtimeControlPlanID !=
+          plan.runtimeControlPlan.controlPlanID ||
+      analysis.description.configContractID !=
+          plan.runtimeControlPlan.configContractID ||
+      analysis.description.runtimeVLContractID !=
+          plan.runtimeControlPlan.runtimeVLContractID ||
+      analysis.description.runtimeAVLASource !=
+          plan.runtimeControlPlan.runtimeAVLASource ||
+      analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.vlDefOpName != plan.runtimeControlPlan.vlDefOpName ||
+      analysis.description.vlScopeOpName !=
+          plan.runtimeControlPlan.vlScopeOpName ||
+      analysis.description.vlUses != plan.runtimeControlPlan.vlUses ||
+      analysis.description.emitCLoopKind !=
+          plan.runtimeControlPlan.emitCLoopKind ||
+      analysis.description.emitCLoopInductionName !=
+          plan.runtimeControlPlan.emitCLoopInductionName ||
+      analysis.description.emitCFullChunkVLName !=
+          plan.runtimeControlPlan.emitCFullChunkVLName ||
+      analysis.description.emitCLoopVLName !=
+          plan.runtimeControlPlan.emitCLoopVLName ||
+      analysis.description.remainingAVLMetadata !=
+          plan.runtimeControlPlan.remainingAVLMetadata ||
+      analysis.description.pointerAdvanceMetadata !=
+          plan.runtimeControlPlan.pointerAdvanceMetadata ||
+      analysis.description.boundedSlice != plan.runtimeControlPlan.boundedSlice ||
+      analysis.description.multiVL != plan.runtimeControlPlan.multiVL ||
+      analysis.description.targetLeafProfile != plan.targetLeafProfile ||
+      analysis.description.providerSupportedMirror !=
+          plan.providerSupportedMirror ||
+      analysis.description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      analysis.description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      analysis.description.vlCType != plan.vlCType ||
+      analysis.description.vectorTypeName != plan.vectorTypeName ||
+      analysis.description.vectorCType != plan.vectorCType ||
+      analysis.description.setVLIntrinsic != plan.setVLIntrinsic ||
+      analysis.description.vectorLoadIntrinsic != plan.vectorLoadIntrinsic ||
+      analysis.description.storeIntrinsic != plan.storeIntrinsic ||
+      analysis.description.resultName != plan.resultName ||
+      analysis.description.sourceMemoryForm != plan.sourceMemoryForm ||
+      analysis.description.destinationMemoryForm !=
+          plan.destinationMemoryForm ||
+      analysis.description.segmentMemoryLayout != plan.segmentMemoryLayout ||
+      analysis.description.segmentCount != plan.segmentCount ||
+      analysis.description.segmentTupleCType != plan.segmentTupleCType ||
+      analysis.description.segmentLoadIntrinsic !=
+          plan.segmentLoadIntrinsic ||
+      analysis.description.segmentStoreIntrinsic !=
+          plan.segmentStoreIntrinsic ||
+      analysis.description.segmentFieldExtractIntrinsic !=
+          plan.segmentFieldExtractIntrinsic ||
+      analysis.description.field0Role != plan.field0Role ||
+      analysis.description.field1Role != plan.field1Role ||
+      analysis.description.field0Name != plan.field0Name ||
+      analysis.description.field1Name != plan.field1Name ||
+      analysis.description.field0SourceMemoryForm !=
+          plan.field0SourceMemoryForm ||
+      analysis.description.field1SourceMemoryForm !=
+          plan.field1SourceMemoryForm ||
+      analysis.description.field0DestinationMemoryForm !=
+          plan.field0DestinationMemoryForm ||
+      analysis.description.field1DestinationMemoryForm !=
+          plan.field1DestinationMemoryForm)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain segment2 memory route-family route, runtime, type, "
+        "intrinsic, field, memory-form, and layout mirrors must be populated "
+        "from the validated family plan before provider materialization");
+  if (!support::runtimeABIParametersEqual(
+          analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain segment2 memory route-family runtime ABI parameters must "
+        "match the validated family plan");
+  if (analysis.routeOperandBindingPlan.planID !=
+      getExpectedRVVRouteOperandBindingPlanID(operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain segment2 memory provider requires the route operand binding "
+        "plan for the selected operation");
+  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
+          analysis.routeOperandBindingPlan, analysis.description, context))
+    return error;
+  if (plan.usesDeinterleaveLoad ==
+      plan.usesInterleaveStore)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain segment2 memory provider requires exactly one segment "
+        "direction classification");
+  if (plan.usesDeinterleaveLoad !=
+          (operation ==
+           RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore) ||
+      plan.usesInterleaveStore !=
+          (operation ==
+           RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain segment2 memory provider requires direction classification "
+        "to match the selected operation");
+  return llvm::Error::success();
+}
+
 bool isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   return isRVVSelectedBodyElementwiseArithmeticRouteOperation(operation);

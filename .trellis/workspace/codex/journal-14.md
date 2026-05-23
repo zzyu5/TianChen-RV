@@ -418,3 +418,67 @@ vector-vector add/sub/mul routes.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 180: Stage2 RVV plain segment2 memory runtime binding closure
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV plain segment2 memory runtime and binding closure
+**Branch**: `main`
+
+### Summary
+
+Closed the plain segment2 memory provider boundary for existing
+`segment2_deinterleave_unit_store` and `segment2_interleave_unit_load` routes.
+The RVV provider now validates the segment2 family plan, runtime AVL/VL
+mirrors, runtime ABI mirrors, segment field/layout mirrors, and
+`RouteOperandBindingPlan` closure before materialization.
+
+### Main Changes
+
+- Added `verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans` beside
+  the existing base memory and computed-mask memory provider verifiers.
+- Wired the plain segment2 verifier into RVV EmitC route construction before
+  route materialization.
+- Extended RVV plugin C++ coverage for active plain segment2 consumer
+  inventory, adjacent-family isolation, missing/stale plan rejection, runtime
+  mirror mismatch, ABI mismatch, binding role/summary mismatch, direction
+  mismatch, segment count mismatch, field mirror mismatch, and segment
+  intrinsic mirror mismatch.
+- Recorded generated-bundle dry-run and real `ssh rvv` evidence for
+  pre-realized plain segment2 deinterleave/interleave routes at counts 7, 16,
+  and 23. Explicit selected-body mode remains fail-closed for those op kinds.
+
+### Git Commits
+
+- this commit
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] selected-body realization and header export commands for pre-realized
+  plain segment2 deinterleave/interleave fixtures
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] pre-realized generated-bundle dry-run for
+  `segment2_deinterleave_unit_store` and `segment2_interleave_unit_load` at
+  counts 7, 16, and 23
+- [OK] pre-realized real `ssh rvv` evidence for
+  `segment2_deinterleave_unit_store` and `segment2_interleave_unit_load` at
+  counts 7, 16, and 23
+- [OK] explicit selected-body generated-bundle mode fail-closed for both plain
+  segment2 op kinds with exact unsupported-mode diagnostic
+- [OK] active-authority scan over touched RVV/plugin/test diff
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (361/361)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Optional later harness work: add explicit selected-body generated-bundle
+  support for `segment2_deinterleave_unit_store` and
+  `segment2_interleave_unit_load`; pre-realized coverage for both is passing.

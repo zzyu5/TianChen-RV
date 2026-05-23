@@ -2706,6 +2706,297 @@ module {
        "validated family plan"});
 }
 
+int runPlainSegment2MemoryRouteFamilyProviderPlanTest(
+    mlir::MLIRContext &context) {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyMemoryRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans;
+  using tianchenrv::support::RuntimeABIParameterRole;
+
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore,
+        RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad}) {
+    if (int result = expect(
+            isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(op),
+            "plain segment2 deinterleave/interleave routes must be segment2 "
+            "memory family consumers"))
+      return result;
+    if (int result = expect(
+            isRVVSelectedBodyMemoryRouteFamilyConsumer(op),
+            "plain segment2 memory family consumers must be included in the "
+            "aggregate memory route-family consumer boundary"))
+      return result;
+  }
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::Add,
+        RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore,
+        RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad,
+        RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore,
+        RVVSelectedBodyOperationKind::StridedLoadUnitStore,
+        RVVSelectedBodyOperationKind::ComputedMaskSelect,
+        RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd,
+        RVVSelectedBodyOperationKind::StandaloneReduceAdd}) {
+    if (int result = expect(
+            !isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(op),
+            "adjacent RVV families must stay outside the plain segment2 "
+            "memory family classification"))
+      return result;
+  }
+  if (int result = expect(
+          isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore),
+          "computed-mask segment2 load remains owned by computed-mask "
+          "memory"))
+    return result;
+  if (int result = expect(
+          isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad),
+          "computed-mask segment2 store remains owned by computed-mask "
+          "memory"))
+    return result;
+  if (int result = expect(
+          isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::StridedLoadUnitStore),
+          "strided load/unit store remains owned by base memory movement"))
+    return result;
+  if (int result = expect(
+          isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::ComputedMaskSelect),
+          "computed_mask_select remains owned by computed-mask select"))
+    return result;
+  if (int result = expect(
+          isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
+          "computed_masked_macc_add remains owned by computed-mask "
+          "accumulation"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingPlan;
+  missingPlan.description.operation =
+      RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+              missingPlan, "plain segment2 memory provider unit test"),
+          {"requires the plain segment2 memory route-family plan",
+           "segment2_deinterleave_unit_store"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleNonConsumer;
+  staleNonConsumer.description.operation = RVVSelectedBodyOperationKind::Add;
+  staleNonConsumer.segment2MemoryRouteFamilyPlan.emplace();
+  staleNonConsumer.segment2MemoryRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+              staleNonConsumer, "plain segment2 memory provider unit test"),
+          {"must not carry a plain segment2 memory route-family plan", "add"}))
+    return result;
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @segment2_deinterleave_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_segment2_deinterleave attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out0 = tcrv_rvv.runtime_abi_value {c_name = "out0", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-field0-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out1 = tcrv_rvv.runtime_abi_value {c_name = "out1", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-field1-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_segment2_deinterleave, sew = 32 : i64, source_kernel = "segment2_deinterleave_provider_kernel", status = "selected-lowering-boundary"} {
+        %field0, %field1 = tcrv_rvv.segment2_load %src, %vl {field0_role = "segment-field0-output-buffer", field1_role = "segment-field1-output-buffer", segment_count = 2 : i64, source_memory_form = "segment2-interleaved-unit-stride-load"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">
+        %moved0 = tcrv_rvv.move %field0, %vl {kind = "copy"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %moved1 = tcrv_rvv.move %field1, %vl {kind = "copy"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out0, %moved0, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+        tcrv_rvv.store %out1, %moved1, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+
+  tcrv.exec.kernel @segment2_interleave_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_segment2_interleave attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %src0 = tcrv_rvv.runtime_abi_value {c_name = "src0", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "segment-field0-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src1 = tcrv_rvv.runtime_abi_value {c_name = "src1", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "segment-field1-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-interleaved-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_segment2_interleave, sew = 32 : i64, source_kernel = "segment2_interleave_provider_kernel", status = "selected-lowering-boundary"} {
+        %field0 = tcrv_rvv.load %src0, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %field1 = tcrv_rvv.load %src1, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.segment2_store %dst, %field0, %field1, %vl {destination_memory_form = "segment2-interleaved-unit-stride-store", field0_role = "segment-field0-input-buffer", field1_role = "segment-field1-input-buffer", segment_count = 2 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse plain segment2 memory provider test module");
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> deinterleaveAnalysis =
+      analyzeRouteInModule(*module, "segment2_deinterleave_provider_kernel",
+                           "rvv_segment2_deinterleave");
+  if (!deinterleaveAnalysis)
+    return fail("analyze plain segment2 deinterleave provider route: " +
+                llvm::toString(deinterleaveAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+              *deinterleaveAnalysis,
+              "plain segment2 memory provider unit test"),
+          "valid plain segment2 deinterleave family provider plan"))
+    return result;
+  if (int result = expect(
+          deinterleaveAnalysis->segment2MemoryRouteFamilyPlan &&
+              deinterleaveAnalysis->segment2MemoryRouteFamilyPlan
+                  ->usesDeinterleaveLoad &&
+              !deinterleaveAnalysis->segment2MemoryRouteFamilyPlan
+                   ->usesInterleaveStore &&
+              deinterleaveAnalysis->segment2MemoryRouteFamilyPlan
+                      ->segmentCount == 2 &&
+              deinterleaveAnalysis->segment2MemoryRouteFamilyPlan
+                      ->segmentLoadIntrinsic ==
+                  "__riscv_vlseg2e32_v_i32m1x2" &&
+              deinterleaveAnalysis->segment2MemoryRouteFamilyPlan
+                      ->field0Role ==
+                  "segment-field0-output-buffer" &&
+              deinterleaveAnalysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:segment2_deinterleave_unit_store.v1",
+          "segment2_deinterleave_unit_store plan must carry direction, "
+          "segment, field role, intrinsic, and binding facts"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stale = *deinterleaveAnalysis;
+  stale.segment2MemoryRouteFamilyPlan->usesDeinterleaveLoad = false;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+              stale, "plain segment2 memory provider unit test"),
+          {"direction booleans", "selected route"}))
+    return result;
+
+  stale = *deinterleaveAnalysis;
+  stale.description.runtimeAVLASource = "metadata-selected-avl";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+              stale, "plain segment2 memory provider unit test"),
+          {"plain segment2 memory route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *deinterleaveAnalysis;
+  std::swap(stale.description.runtimeABIParameters[1],
+            stale.description.runtimeABIParameters[2]);
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+              stale, "plain segment2 memory provider unit test"),
+          {"runtime ABI parameters", "validated family plan"}))
+    return result;
+
+  stale = *deinterleaveAnalysis;
+  stale.routeOperandBindingPlan.bindings[1].parameter.role =
+      RuntimeABIParameterRole::SegmentField1OutputBuffer;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+              stale, "plain segment2 memory provider unit test"),
+          {"logical operand 'out0'", "segment-field0-output-buffer",
+           "segment-field1-output-buffer"}))
+    return result;
+
+  stale = *deinterleaveAnalysis;
+  stale.description.routeOperandBindingSummary = "stale";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+              stale, "plain segment2 memory provider unit test"),
+          {"route operand binding mirror summary", "stale"}))
+    return result;
+
+  stale = *deinterleaveAnalysis;
+  stale.description.segmentLoadIntrinsic = "__riscv_vle32_v_i32m1";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+              stale, "plain segment2 memory provider unit test"),
+          {"plain segment2 memory route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *deinterleaveAnalysis;
+  stale.description.field0Role = "metadata-selected-field0";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+              stale, "plain segment2 memory provider unit test"),
+          {"plain segment2 memory route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *deinterleaveAnalysis;
+  stale.description.segmentCount = 3;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+              stale, "plain segment2 memory provider unit test"),
+          {"plain segment2 memory route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> interleaveAnalysis =
+      analyzeRouteInModule(*module, "segment2_interleave_provider_kernel",
+                           "rvv_segment2_interleave");
+  if (!interleaveAnalysis)
+    return fail("analyze plain segment2 interleave provider route: " +
+                llvm::toString(interleaveAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+              *interleaveAnalysis,
+              "plain segment2 memory provider unit test"),
+          "valid plain segment2 interleave family provider plan"))
+    return result;
+  if (int result = expect(
+          interleaveAnalysis->segment2MemoryRouteFamilyPlan &&
+              !interleaveAnalysis->segment2MemoryRouteFamilyPlan
+                   ->usesDeinterleaveLoad &&
+              interleaveAnalysis->segment2MemoryRouteFamilyPlan
+                  ->usesInterleaveStore &&
+              interleaveAnalysis->segment2MemoryRouteFamilyPlan
+                      ->segmentStoreIntrinsic ==
+                  "__riscv_vsseg2e32_v_i32m1x2" &&
+              interleaveAnalysis->segment2MemoryRouteFamilyPlan
+                      ->field0SourceMemoryForm == "unit-stride-load" &&
+              interleaveAnalysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:segment2_interleave_unit_load.v1",
+          "segment2_interleave_unit_load plan must carry direction, "
+          "segment store, field source form, and binding facts"))
+    return result;
+
+  stale = *interleaveAnalysis;
+  stale.description.segmentStoreIntrinsic = "__riscv_vse32_v_i32m1";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+              stale, "plain segment2 memory provider unit test"),
+          {"plain segment2 memory route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *interleaveAnalysis;
+  stale.description.field0SourceMemoryForm = "metadata-selected-source";
+  return expectErrorContains(
+      verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+          stale, "plain segment2 memory provider unit test"),
+      {"plain segment2 memory route-family route, runtime, type",
+       "validated family plan"});
+}
+
 int runElementwiseArithmeticRouteFamilyProviderPlanTest(
     mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
@@ -6172,6 +6463,9 @@ int main() {
     return result;
   if (int result =
           runComputedMaskMemoryRouteFamilyProviderPlanTest(context))
+    return result;
+  if (int result =
+          runPlainSegment2MemoryRouteFamilyProviderPlanTest(context))
     return result;
   if (int result = runElementwiseArithmeticRouteFamilyProviderPlanTest(context))
     return result;

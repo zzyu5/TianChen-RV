@@ -731,6 +731,9 @@ verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans(
 llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
+llvm::Error verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
 bool isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
