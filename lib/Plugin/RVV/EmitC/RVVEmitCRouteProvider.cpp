@@ -282,6 +282,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
               analysis, "selected RVV EmitC route construction"))
     return error;
+  if (llvm::Error error =
+          verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+              analysis, "selected RVV EmitC route construction"))
+    return error;
   const bool emitsContractionDotReduction =
       contractionPlan && contractionPlan->usesDotReduction;
   const bool emitsContractionWideningMAcc =
@@ -306,16 +310,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return makeRVVEmitCRouteProviderError(
         "computed-mask accumulation route requires the shared accumulation "
         "route-family plan before provider materialization");
-  const bool emitsComputedMaskSelectFamily =
-      description.operation == RVVSelectedBodyOperationKind::ComputedMaskSelect ||
-      description.operation ==
-          RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect ||
-      description.operation == RVVSelectedBodyOperationKind::
-                               RuntimeScalarDualCompareMaskAndSelect;
-  if (emitsComputedMaskSelectFamily && !computedMaskSelectPlan)
-    return makeRVVEmitCRouteProviderError(
-        "computed-mask select route requires the shared select route-family "
-        "plan before provider materialization");
   llvm::StringRef vlCType =
       computedMaskAccumulationPlan
           ? computedMaskAccumulationPlan->vlCType

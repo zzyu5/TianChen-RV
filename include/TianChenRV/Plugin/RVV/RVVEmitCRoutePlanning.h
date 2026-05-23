@@ -545,6 +545,12 @@ bool isRVVSelectedBodyMemoryRouteFamilyConsumer(
 llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
+bool isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
 bool isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 bool isRVVSelectedBodyWideningDotReductionContractionRouteFamilyConsumer(

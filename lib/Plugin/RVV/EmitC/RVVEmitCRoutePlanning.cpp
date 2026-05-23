@@ -4528,6 +4528,7 @@ void applyRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(
   description.maskSource = plan.maskSource;
   description.maskMemoryForm = plan.maskMemoryForm;
   description.maskComposition = plan.maskComposition;
+  description.selectLayout = plan.selectLayout;
   description.sourceMemoryForm = plan.sourceMemoryForm;
   description.destinationMemoryForm = plan.destinationMemoryForm;
   description.indexedMemoryLayout = plan.indexedMemoryLayout;
@@ -16940,6 +16941,116 @@ llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+bool isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskSelect:
+  case RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
+  case RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect:
+    return true;
+  default:
+    return false;
+  }
+}
+
+llvm::Error verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(operation);
+  if (isConsumer && !analysis.computedMaskSelectRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the computed-mask select route-family plan before "
+        "provider materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!isConsumer && analysis.computedMaskSelectRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must not carry a computed-mask select route-family plan for "
+        "non-computed-mask-select operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!analysis.computedMaskSelectRouteFamilyPlan)
+    return llvm::Error::success();
+
+  const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan &plan =
+      *analysis.computedMaskSelectRouteFamilyPlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodyComputedMaskSelectRouteFamilyPlan(plan))
+    return error;
+  if (plan.operation != operation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask select route-family plan operation must match the "
+        "selected route description");
+  if (analysis.description.computedMaskSelectRouteFamilyPlanID !=
+      plan.familyPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask select route-family plan mirror must match the "
+        "validated family plan");
+  if (analysis.description.computedMaskSelectMaskProducerSource !=
+      plan.maskProducerSource)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask select mask-producer mirror must match the "
+        "validated family plan");
+  if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.runtimeControlPlanID !=
+          plan.runtimeControlPlan.controlPlanID ||
+      analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.targetLeafProfile != plan.targetLeafProfile ||
+      analysis.description.providerSupportedMirror !=
+          plan.providerSupportedMirror ||
+      analysis.description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      analysis.description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      analysis.description.vlCType != plan.vlCType ||
+      analysis.description.vectorTypeName != plan.vectorTypeName ||
+      analysis.description.vectorCType != plan.vectorCType ||
+      analysis.description.maskTypeName != plan.maskTypeName ||
+      analysis.description.maskCType != plan.maskCType ||
+      analysis.description.setVLIntrinsic != plan.setVLIntrinsic ||
+      analysis.description.vectorLoadIntrinsic != plan.vectorLoadIntrinsic ||
+      analysis.description.rhsBroadcastIntrinsic !=
+          plan.rhsScalarSplatIntrinsic ||
+      analysis.description.compareIntrinsic != plan.compareIntrinsic ||
+      analysis.description.secondaryCompareIntrinsic !=
+          plan.secondaryCompareIntrinsic ||
+      analysis.description.maskAndIntrinsic != plan.maskAndIntrinsic ||
+      analysis.description.intrinsic != plan.selectIntrinsic ||
+      analysis.description.storeIntrinsic != plan.storeIntrinsic ||
+      analysis.description.resultName != plan.resultName ||
+      analysis.description.maskName != plan.maskName ||
+      analysis.description.maskRole != plan.maskRole ||
+      analysis.description.maskSource != plan.maskSource ||
+      analysis.description.maskMemoryForm != plan.maskMemoryForm ||
+      analysis.description.maskComposition != plan.maskComposition ||
+      analysis.description.selectLayout != plan.selectLayout ||
+      analysis.description.sourceMemoryForm != plan.sourceMemoryForm ||
+      analysis.description.destinationMemoryForm !=
+          plan.destinationMemoryForm ||
+      analysis.description.indexedMemoryLayout != plan.indexedMemoryLayout)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask select route-family mirrors must be populated from "
+        "the validated family plan before provider materialization");
+  if (!support::runtimeABIParametersEqual(
+          analysis.description.runtimeABIParameters,
+          plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask select route-family runtime ABI parameters must "
+        "match the validated family plan");
+  if (analysis.routeOperandBindingPlan.planID !=
+      getExpectedRVVRouteOperandBindingPlanID(operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask select provider requires the route operand binding "
+        "plan for the selected operation");
+  return llvm::Error::success();
+}
+
 bool isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   return operation == RVVSelectedBodyOperationKind::WideningMAccAdd;
@@ -19520,6 +19631,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             description.computedMaskSelectMaskProducerSource,
             getComputedMaskSelectMaskProducerSource(operationProfile.operation)))
       return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "select layout", description.selectLayout,
+            "select-true-value-when-mask-else-false-value"))
+      return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "computed-mask select route family plan",
@@ -19528,6 +19643,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "computed-mask select mask producer source",
             description.computedMaskSelectMaskProducerSource, ""))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "select layout", description.selectLayout, ""))
       return error;
   }
   if (isComputedMaskMemoryRouteFamilyRoute) {
@@ -21601,9 +21719,7 @@ getRVVSelectedBodyConfigArtifactMetadata(
       metadata.push_back({"tcrv_rvv.destination_memory_form",
                           description.destinationMemoryForm});
     }
-    metadata.push_back(
-        {"tcrv_rvv.select_layout",
-         "select-true-value-when-mask-else-false-value"});
+    metadata.push_back({"tcrv_rvv.select_layout", description.selectLayout});
   }
   if (description.operation ==
           RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd ||

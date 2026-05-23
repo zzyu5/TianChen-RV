@@ -69,6 +69,70 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 168: Stage2 RVV computed-mask compare/select route-family ownership
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV computed-mask compare/select route-family ownership
+**Branch**: `main`
+
+### Summary
+
+Moved active computed-mask compare/select consumers behind a shared RVV
+plugin-owned provider-plan verifier, while preserving plain `cmp_select` as an
+adjacent non-consumer route.
+
+### Main Changes
+
+- Added `isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer`.
+- Added `verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans`.
+- Rewired provider materialization to require/revalidate the computed-mask
+  select family plan before route construction.
+- Carried `selectLayout` through route description metadata from the validated
+  family plan.
+- Added focused C++ coverage for consumer predicate, missing-plan rejection,
+  and stale non-consumer plan rejection.
+
+### Routes Covered
+
+- `computed_mask_select_sle`
+- `computed_mask_select` in pre-realized mode
+- `runtime_scalar_cmp_select`
+- `runtime_scalar_dual_cmp_mask_and_select`
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused direct `tcrv-opt` metadata checks for explicit and pre-realized
+  select fixtures.
+- [OK] Generated-bundle dry-runs for explicit `computed_mask_select_sle`,
+  pre-realized `computed_mask_select`, `runtime_scalar_cmp_select`, and
+  `runtime_scalar_dual_cmp_mask_and_select`, counts `7,16,23`.
+- [OK] Real `ssh rvv` runs for `computed_mask_select_sle`,
+  `runtime_scalar_cmp_select`, and
+  `runtime_scalar_dual_cmp_mask_and_select`, counts `7,16,23`.
+- [OK] Added-line active-authority scan and `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 361/361.
+
+### Self-Repair
+
+- Re-ran generated-bundle evidence with `/usr/lib/llvm-20/bin/llvm-readobj`
+  because `llvm-readobj` was not in `PATH`.
+- Used explicit `computed_mask_select_sle` for explicit vector select evidence
+  because bare `computed_mask_select` is not supported by the script's explicit
+  selected-body mode.
+- `clang-format` was unavailable in this shell; compilation and manual review
+  covered formatting-sensitive changes.
+
+### Status
+
+[OK] **Completed and ready to archive**
+
+### Next Steps
+
+- None - task complete.
+
+
 ## Session 168: Stage2 RVV contraction explicit strided/masked selected-body realization
 
 **Date**: 2026-05-23
