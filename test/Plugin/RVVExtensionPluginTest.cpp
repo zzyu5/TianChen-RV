@@ -2010,6 +2010,206 @@ int runMemoryRouteFamilyOwnerRegistryTest() {
       {"must not carry a plain segment2 memory route-family plan", "add"});
 }
 
+int runElementwiseSelectRouteFamilyOwnerRegistryTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyElementwiseSelectRouteFamilyOwners;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyElementwiseSelectRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans;
+
+  llvm::ArrayRef<tianchenrv::plugin::rvv::
+                     RVVSelectedBodyElementwiseSelectRouteFamilyOwner>
+      owners = getRVVSelectedBodyElementwiseSelectRouteFamilyOwners();
+  if (int result =
+          expect(owners.size() == 4,
+                 "elementwise/select route-family owner registry has exactly "
+                 "four active owner entries"))
+    return result;
+  if (int result = expect(
+          owners[0].familyName == "elementwise arithmetic" &&
+              owners[1].familyName == "scalar-broadcast elementwise" &&
+              owners[2].familyName == "plain compare-select" &&
+              owners[3].familyName == "computed-mask select",
+          "elementwise/select route-family owner registry preserves explicit "
+          "compute/select ownership"))
+    return result;
+  for (const auto &owner : owners) {
+    if (int result =
+            expect(owner.isConsumer != nullptr &&
+                       owner.verifyProviderPlan != nullptr,
+                   "elementwise/select route-family owner registry entries "
+                   "carry consumer and verifier hooks"))
+      return result;
+  }
+  if (int result = expect(
+          owners[0].isConsumer(RVVSelectedBodyOperationKind::Add) &&
+              owners[0].isConsumer(RVVSelectedBodyOperationKind::MaskedAdd) &&
+              owners[0].isConsumer(RVVSelectedBodyOperationKind::StridedAdd) &&
+              !owners[0].isConsumer(
+                  RVVSelectedBodyOperationKind::ScalarBroadcastAdd) &&
+              !owners[0].isConsumer(RVVSelectedBodyOperationKind::CmpSelect),
+          "elementwise arithmetic owner classification is isolated"))
+    return result;
+  if (int result = expect(
+          owners[1].isConsumer(
+              RVVSelectedBodyOperationKind::ScalarBroadcastAdd) &&
+              owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::ScalarBroadcastSub) &&
+              owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::ScalarBroadcastMul) &&
+              !owners[1].isConsumer(RVVSelectedBodyOperationKind::Add) &&
+              !owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::RuntimeI32SplatStore),
+          "scalar-broadcast elementwise owner classification is isolated"))
+    return result;
+  if (int result = expect(
+          owners[2].isConsumer(RVVSelectedBodyOperationKind::CmpSelect) &&
+              !owners[2].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskSelect) &&
+              !owners[2].isConsumer(
+                  RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect),
+          "plain compare-select owner classification is isolated"))
+    return result;
+  if (int result = expect(
+          owners[3].isConsumer(
+              RVVSelectedBodyOperationKind::ComputedMaskSelect) &&
+              owners[3].isConsumer(
+                  RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect) &&
+              owners[3].isConsumer(RVVSelectedBodyOperationKind::
+                                       RuntimeScalarDualCompareMaskAndSelect) &&
+              !owners[3].isConsumer(RVVSelectedBodyOperationKind::CmpSelect),
+          "computed-mask select owner classification is isolated"))
+    return result;
+
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::Add,
+        RVVSelectedBodyOperationKind::ScalarBroadcastAdd,
+        RVVSelectedBodyOperationKind::CmpSelect,
+        RVVSelectedBodyOperationKind::ComputedMaskSelect}) {
+    if (int result = expect(
+            isRVVSelectedBodyElementwiseSelectRouteFamilyConsumer(op),
+            "aggregate elementwise/select route-family consumer predicate is "
+            "registry backed across all four owner families"))
+      return result;
+  }
+  if (int result = expect(
+          !isRVVSelectedBodyElementwiseSelectRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::RuntimeI32SplatStore),
+          "runtime scalar splat-store remains outside the aggregate "
+          "elementwise/select owner boundary"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingElementwisePlan;
+  missingElementwisePlan.description.operation =
+      RVVSelectedBodyOperationKind::Add;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
+              missingElementwisePlan,
+              "elementwise/select owner registry unit test"),
+          {"requires the elementwise arithmetic route-family plan", "add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingScalarBroadcastPlan;
+  missingScalarBroadcastPlan.description.operation =
+      RVVSelectedBodyOperationKind::ScalarBroadcastAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
+              missingScalarBroadcastPlan,
+              "elementwise/select owner registry unit test"),
+          {"requires the scalar-broadcast elementwise route-family plan",
+           "scalar_broadcast_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingPlainComparePlan;
+  missingPlainComparePlan.description.operation =
+      RVVSelectedBodyOperationKind::CmpSelect;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
+              missingPlainComparePlan,
+              "elementwise/select owner registry unit test"),
+          {"requires the plain compare-select route-family plan",
+           "cmp_select"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingComputedMaskSelectPlan;
+  missingComputedMaskSelectPlan.description.operation =
+      RVVSelectedBodyOperationKind::ComputedMaskSelect;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
+              missingComputedMaskSelectPlan,
+              "elementwise/select owner registry unit test"),
+          {"requires the computed-mask select route-family plan",
+           "computed_mask_select"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis nonElementwiseSelectAnalysis;
+  nonElementwiseSelectAnalysis.description.operation =
+      RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
+              nonElementwiseSelectAnalysis,
+              "elementwise/select owner registry unit test"),
+          "non-elementwise/select route with no compute/select family plan is "
+          "accepted by aggregate elementwise/select owner verifier"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleElementwiseNonConsumer =
+      nonElementwiseSelectAnalysis;
+  staleElementwiseNonConsumer.elementwiseArithmeticRouteFamilyPlan.emplace();
+  staleElementwiseNonConsumer.elementwiseArithmeticRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::Add;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
+              staleElementwiseNonConsumer,
+              "elementwise/select owner registry unit test"),
+          {"must not carry an elementwise arithmetic route-family plan",
+           "runtime_i32_splat_store"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleScalarBroadcastNonConsumer =
+      nonElementwiseSelectAnalysis;
+  staleScalarBroadcastNonConsumer.scalarBroadcastElementwiseRouteFamilyPlan
+      .emplace();
+  staleScalarBroadcastNonConsumer.scalarBroadcastElementwiseRouteFamilyPlan
+      ->operation = RVVSelectedBodyOperationKind::ScalarBroadcastAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
+              staleScalarBroadcastNonConsumer,
+              "elementwise/select owner registry unit test"),
+          {"must not carry a scalar-broadcast elementwise route-family plan",
+           "runtime_i32_splat_store"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stalePlainCompareNonConsumer =
+      nonElementwiseSelectAnalysis;
+  stalePlainCompareNonConsumer.plainCompareSelectRouteFamilyPlan.emplace();
+  stalePlainCompareNonConsumer.plainCompareSelectRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::CmpSelect;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
+              stalePlainCompareNonConsumer,
+              "elementwise/select owner registry unit test"),
+          {"must not carry a plain compare-select route-family plan",
+           "runtime_i32_splat_store"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleComputedMaskSelectNonConsumer =
+      nonElementwiseSelectAnalysis;
+  staleComputedMaskSelectNonConsumer.computedMaskSelectRouteFamilyPlan
+      .emplace();
+  staleComputedMaskSelectNonConsumer.computedMaskSelectRouteFamilyPlan
+      ->operation = RVVSelectedBodyOperationKind::ComputedMaskSelect;
+  return expectErrorContains(
+      verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
+          staleComputedMaskSelectNonConsumer,
+          "elementwise/select owner registry unit test"),
+      {"must not carry a computed-mask select route-family plan",
+       "runtime_i32_splat_store"});
+}
+
 int runBaseMemoryMovementRouteFamilyProviderPlanTest(
     mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
@@ -6606,6 +6806,8 @@ int main() {
   if (int result = runWideningConversionRouteFamilyProviderPlanTest(context))
     return result;
   if (int result = runMemoryRouteFamilyOwnerRegistryTest())
+    return result;
+  if (int result = runElementwiseSelectRouteFamilyOwnerRegistryTest())
     return result;
   if (int result = runBaseMemoryMovementRouteFamilyProviderPlanTest(context))
     return result;

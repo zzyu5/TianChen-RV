@@ -20326,6 +20326,49 @@ llvm::Error verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+llvm::ArrayRef<RVVSelectedBodyElementwiseSelectRouteFamilyOwner>
+getRVVSelectedBodyElementwiseSelectRouteFamilyOwners() {
+  static const RVVSelectedBodyElementwiseSelectRouteFamilyOwner owners[] = {
+      {"elementwise arithmetic",
+       isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer,
+       verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans},
+      {"scalar-broadcast elementwise",
+       isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer,
+       verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans},
+      {"plain compare-select",
+       isRVVSelectedBodyPlainCompareSelectRouteFamilyConsumer,
+       verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans},
+      {"computed-mask select",
+       isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer,
+       verifyRVVSelectedBodyComputedMaskSelectRouteFamilyProviderPlans},
+  };
+  return owners;
+}
+
+bool isRVVSelectedBodyElementwiseSelectRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  for (const RVVSelectedBodyElementwiseSelectRouteFamilyOwner &owner :
+       getRVVSelectedBodyElementwiseSelectRouteFamilyOwners())
+    if (owner.isConsumer && owner.isConsumer(operation))
+      return true;
+  return false;
+}
+
+llvm::Error verifyRVVSelectedBodyElementwiseSelectRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  for (const RVVSelectedBodyElementwiseSelectRouteFamilyOwner &owner :
+       getRVVSelectedBodyElementwiseSelectRouteFamilyOwners()) {
+    if (!owner.verifyProviderPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " encountered an incomplete elementwise/select route-family owner "
+          "registry entry");
+    if (llvm::Error error = owner.verifyProviderPlan(analysis, context))
+      return error;
+  }
+  return llvm::Error::success();
+}
+
 bool isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   return operation == RVVSelectedBodyOperationKind::WideningMAccAdd;

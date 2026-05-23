@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/05-23-05-23-stage2-rvv-elementwise-select-route-family-owner-registry/prd.md", "reason": "Task acceptance criteria and validation plan for this round."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Route-family owner boundary and RVV plugin ownership checks."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built route contract checks."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin registry/interface locality checks."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required C++/lit/fail-closed/runtime evidence checks."}
