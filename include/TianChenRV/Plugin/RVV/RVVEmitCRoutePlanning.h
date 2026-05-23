@@ -554,6 +554,15 @@ bool isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
 llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
+bool isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+bool isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error
+verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);
 
 llvm::Expected<const support::RuntimeABIParameter *>

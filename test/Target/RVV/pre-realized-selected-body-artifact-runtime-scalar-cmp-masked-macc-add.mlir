@@ -66,6 +66,16 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.accumulation_accumulator_contract", value = "vector-accumulator-input-preserves-inactive-lanes"}
 // PLAN-SAME: {key = "tcrv_rvv.accumulation_result_contract", value = "vector-macc-result-stored-to-output-buffer"}
 // PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-e32m1-runtime-scalar-cmp-masked-macc-add-leaf-profile.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-macc-add-plan-validated"}
+// PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
+// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,cmp_lhs/lhs/rhs/acc:signed-e32m1,rhs_scalar:i32,mask:b32,result:signed-e32m1"}
+// PLAN-SAME: {key = "tcrv_rvv.mask_role", value = "predicate-mask-produced-by-compare"}
+// PLAN-SAME: {key = "tcrv_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
+// PLAN-SAME: {key = "tcrv_rvv.mask_memory_form", value = "compare-produced-mask"}
+// PLAN-SAME: {key = "tcrv_rvv.inactive_lane_contract", value = "masked-macc-false-lanes-preserve-accumulator"}
+// PLAN-SAME: {key = "tcrv_rvv.masked_passthrough_layout", value = "accumulator-vector-preserves-inactive-lanes"}
+// PLAN-SAME: {key = "tcrv_rvv.macc_accumulator_layout", value = "separate-i32-vector-accumulator-input"}
+// PLAN-SAME: {key = "tcrv_rvv.macc_result_layout", value = "store-multiply-accumulate-result-to-output-buffer"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-runtime-scalar-cmp-masked-macc-add-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_pr_rt_scalar_masked_macc
@@ -74,11 +84,23 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-runtime-scalar-cmp-masked-macc-add-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.runtime_abi_order: cmp_lhs,rhs_scalar,lhs,rhs,acc,out,n
 // HEADER: tianchenrv.rvv.compare_predicate_kind: sle
+// HEADER: tianchenrv.rvv.mask_role: predicate-mask-produced-by-compare
+// HEADER: tianchenrv.rvv.mask_source: compare-produced-mask-same-vl-scope
+// HEADER: tianchenrv.rvv.mask_memory_form: compare-produced-mask
+// HEADER: tianchenrv.rvv.inactive_lane_contract: masked-macc-false-lanes-preserve-accumulator
+// HEADER: tianchenrv.rvv.masked_passthrough_layout: accumulator-vector-preserves-inactive-lanes
+// HEADER: tianchenrv.rvv.macc_accumulator_layout: separate-i32-vector-accumulator-input
+// HEADER: tianchenrv.rvv.macc_result_layout: store-multiply-accumulate-result-to-output-buffer
+// HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-e32m1-runtime-scalar-cmp-masked-macc-add-leaf-profile.v1
 // HEADER: tianchenrv.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
+// HEADER: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-runtime-scalar-cmp-masked-macc-add-plan-validated
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:runtime_scalar_cmp_masked_macc_add.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs|cmp-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs|hdr;lhs=dot-lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;rhs=dot-rhs-input-buffer:rhs:abi|rhs-load|macc-rhs|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr
 // HEADER: tianchenrv.rvv.accumulation_route_family_plan: rvv-computed-mask-accumulation-route-family-plan.v1
 // HEADER: tianchenrv.rvv.accumulation_compute_suffix: vector-masked-macc-add
 // HEADER: tianchenrv.rvv.accumulation_mask_producer_source: runtime-scalar-splat-compare-rhs
 // HEADER: tianchenrv.rvv.accumulation_accumulator_contract: vector-accumulator-input-preserves-inactive-lanes
 // HEADER: tianchenrv.rvv.accumulation_result_contract: vector-macc-result-stored-to-output-buffer
+// HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
+// HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,cmp_lhs/lhs/rhs/acc:signed-e32m1,rhs_scalar:i32,mask:b32,result:signed-e32m1
 // HEADER: void tcrv_emitc_pr_rt_scalar_masked_macc_kernel_rvv_pr_rt_scalar_masked_macc(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *lhs, const int32_t *rhs, const int32_t *acc, int32_t *out, size_t n);

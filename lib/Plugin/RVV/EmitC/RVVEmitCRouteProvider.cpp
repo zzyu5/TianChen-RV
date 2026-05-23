@@ -38,12 +38,6 @@ bool isRVVSelectedBodyMAccRoute(RVVSelectedBodyOperationKind op) {
          op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd;
 }
 
-bool isRVVSelectedBodyComputedMaskedMAccRoute(
-    RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd ||
-         op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd;
-}
-
 bool isRVVSelectedBodyReductionRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::ReduceAdd;
 }
@@ -280,6 +274,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
               analysis, "selected RVV EmitC route construction"))
     return error;
+  if (llvm::Error error =
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              analysis, "selected RVV EmitC route construction"))
+    return error;
   const bool emitsContractionDotReduction =
       contractionPlan && contractionPlan->usesDotReduction;
   const bool emitsContractionWideningMAcc =
@@ -297,14 +295,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const bool emitsPlainStandaloneReduction =
       standaloneReductionPlan && !standaloneReductionPlan->usesComputedMask;
   const bool emitsComputedMaskAccumulation =
-      description.operation ==
-          RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd ||
-      description.operation ==
-          RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd ||
-      description.operation ==
-          RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd ||
-      description.operation == RVVSelectedBodyOperationKind::
-                               RuntimeScalarComputedMaskStandaloneReduceAdd;
+      isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(
+          description.operation);
   if (emitsComputedMaskAccumulation &&
       !computedMaskAccumulationPlan)
     return makeRVVEmitCRouteProviderError(
@@ -3027,7 +3019,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
         "plain segment2 memory provider requires the shared route-family plan "
         "before materializing deinterleave or interleave routes");
   const bool isComputedMaskedMAcc =
-      isRVVSelectedBodyComputedMaskedMAccRoute(description.operation);
+      isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer(
+          description.operation);
   const bool isComputedMaskStridedStore =
       isRVVSelectedBodyComputedMaskStridedStoreRoute(description.operation);
   const bool isComputedMaskStridedLoad =

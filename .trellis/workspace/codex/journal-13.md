@@ -69,6 +69,74 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 168: Stage2 RVV computed-mask MAcc accumulation route-family ownership
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV computed-mask MAcc accumulation route-family ownership
+**Branch**: `main`
+
+### Summary
+
+Moved active computed-mask MAcc provider materialization behind a
+planning-owned computed-mask accumulation family verifier and proved focused
+lit, generated-bundle dry-run, real `ssh rvv`, authority scan, and
+`check-tianchenrv` evidence.
+
+### Main Changes
+
+- Added planning-owned computed-mask MAcc accumulation consumer predicates and
+  provider-plan verification.
+- Made RVV EmitC provider require the validated computed-mask accumulation
+  family plan before materializing `computed_masked_macc_add` and
+  `runtime_scalar_cmp_masked_macc_add`.
+- Replaced the provider-local computed-mask MAcc consumer predicate in the
+  materialization path with the planning-owned MAcc accumulation consumer
+  predicate.
+- Preserved plain `macc_add` as a separate route outside computed-mask
+  accumulation family metadata.
+- Tightened focused FileCheck/generated-bundle evidence for vector compare and
+  runtime-scalar mask producer distinction, accumulator/result contracts,
+  inactive-lane passthrough, route operand binding closure, provider mirrors,
+  and header metadata.
+
+### Routes Covered
+
+- `computed_masked_macc_add`
+- `runtime_scalar_cmp_masked_macc_add`
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused lit filter for computed-mask MAcc and adjacent MAcc fixtures:
+  15/15 selected tests passed.
+- [OK] Generated-bundle dry-runs for explicit and pre-realized
+  `computed_masked_macc_add` and `runtime_scalar_cmp_masked_macc_add`, counts
+  `7,16,23`, with runtime scalar thresholds `-37,91`.
+- [OK] Real `ssh rvv` explicit run for both active routes, counts `7,16,23`,
+  runtime scalar thresholds `-37,91`.
+- [OK] Real `ssh rvv` pre-realized run for both active routes, counts
+  `7,16,23`, runtime scalar thresholds `-37,91`.
+- [OK] Added-line active-authority scan; full touched-file scan only found
+  negative FileCheck guards and existing rejection code.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 351/351.
+
+### Self-Repair
+
+- Corrected the new runtime-scalar generated-bundle harness FileCheck ordering
+  by switching independent harness checks to `HARNESS-DAG`.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- Commit this coherent round.
+
+
 ## Session 163: Stage2 RVV computed-mask strided-load route family
 
 **Date**: 2026-05-23

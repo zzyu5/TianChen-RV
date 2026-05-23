@@ -16858,6 +16858,135 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+bool isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd:
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceAdd:
+    return true;
+  default:
+    return false;
+  }
+}
+
+llvm::Error
+verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(operation);
+  const bool isMAccConsumer =
+      isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer(
+          operation);
+  if (isConsumer && !analysis.computedMaskAccumulationRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the computed-mask accumulation route-family plan before "
+        "provider materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!isConsumer && analysis.computedMaskAccumulationRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must not carry a computed-mask accumulation route-family plan for "
+        "non-computed-mask-accumulation operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!analysis.computedMaskAccumulationRouteFamilyPlan)
+    return llvm::Error::success();
+
+  const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan &plan =
+      *analysis.computedMaskAccumulationRouteFamilyPlan;
+  if (plan.operation != operation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask accumulation route-family plan operation must match "
+        "the selected route description");
+  if (analysis.description.accumulationRouteFamilyPlanID !=
+      plan.familyPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask accumulation route-family plan mirror must match "
+        "the validated family plan");
+  if (analysis.description.accumulationComputeSuffix !=
+          plan.computeSuffix ||
+      analysis.description.accumulationMaskProducerSource !=
+          plan.maskProducerSource ||
+      analysis.description.accumulationAccumulatorContract !=
+          plan.accumulatorContract ||
+      analysis.description.accumulationResultContract !=
+          plan.resultContract ||
+      analysis.description.accumulationScalarCarryContract !=
+          plan.scalarCarryContract)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask accumulation route-family mirrors must be populated "
+        "from the validated family plan before provider materialization");
+  if (isMAccConsumer) {
+    if (!plan.usesVectorMAccSuffix ||
+        plan.usesScalarHorizontalReductionSuffix)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask MAcc provider requires a vector MAcc suffix family "
+          "plan, not the standalone-reduction suffix");
+    if (plan.accumulatorContract !=
+            "vector-accumulator-input-preserves-inactive-lanes" ||
+        plan.resultContract !=
+            "vector-macc-result-stored-to-output-buffer" ||
+        plan.inactiveLaneContract !=
+            "masked-macc-false-lanes-preserve-accumulator" ||
+        plan.maskedPassthroughLayout !=
+            "accumulator-vector-preserves-inactive-lanes")
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask MAcc provider requires family-plan accumulator, "
+          "result, inactive-lane, and passthrough contracts");
+    if (analysis.routeOperandBindingPlan.planID !=
+        getExpectedRVVRouteOperandBindingPlanID(operation))
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed-mask MAcc provider requires the route operand binding "
+          "plan for the selected operation");
+  } else if (plan.usesVectorMAccSuffix ||
+             !plan.usesScalarHorizontalReductionSuffix) {
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask standalone reduction provider requires the shared "
+        "accumulation plan to carry only the standalone-reduction suffix");
+  }
+
+  if (operation == RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) {
+    if (!plan.usesVectorCompareProducer || plan.usesRuntimeScalarProducer ||
+        plan.maskProducerSource != "vector-compare-rhs-load")
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed_masked_macc_add provider requires a vector-compare "
+          "computed-mask accumulation producer plan");
+  } else if (operation ==
+             RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd) {
+    if (!plan.usesRuntimeScalarProducer || plan.usesVectorCompareProducer ||
+        plan.maskProducerSource != "runtime-scalar-splat-compare-rhs")
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime_scalar_cmp_masked_macc_add provider requires a "
+          "runtime-scalar computed-mask accumulation producer plan");
+  }
+
+  return llvm::Error::success();
+}
+
 void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(
     const RVVSelectedBodyEmitCRouteDescription &description,
     llvm::SmallVectorImpl<support::ArtifactMetadataEntry> &metadata) {
