@@ -1840,3 +1840,67 @@ facts and route operand binding closure before provider materialization.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 171: Stage2 RVV computed-mask MAcc accumulation provider validation
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV computed-mask MAcc accumulation provider validation
+**Branch**: `main`
+
+### Summary
+
+Deepened RVV computed-mask accumulation route-family provider validation for
+active `computed_masked_macc_add` and
+`runtime_scalar_cmp_masked_macc_add` routes. The adjacent computed-mask
+standalone-reduction cases were kept only as shared-boundary isolation checks.
+
+### Main Changes
+
+- `verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans` now
+  validates the computed-mask accumulation family plan before provider
+  materialization.
+- The verifier now checks operation, memory form, runtime AVL/VL mirrors,
+  runtime ABI order and parameters, target/header/type mirrors, vector/mask/VL
+  type mirrors, setvl/load/splat/compare/store intrinsic mirrors, mask role and
+  memory-form facts, MAcc source/destination/inactive-lane/passthrough mirrors,
+  suffix selection, mask producer selection, and `RouteOperandBindingPlan`
+  closure.
+- Added focused RVV plugin tests for missing plan, stale non-consumer plan,
+  mirror mismatches, runtime ABI mismatch, binding role mismatch, binding
+  summary mismatch, runtime-scalar producer selection, and standalone-reduction
+  isolation.
+
+### Spec Update Judgment
+
+- No `.trellis/spec/**` change was needed. Existing RVV plugin, EmitC route,
+  variant pipeline, and testing specs already state the durable boundary:
+  provider-owned typed-route facts, mirror-only metadata, common EmitC neutrality,
+  binding closure, and real `ssh rvv` evidence for runtime claims.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused lit filter from `build/test`: 8/8 selected computed-mask MAcc
+  tests passed.
+- [OK] Generated-bundle dry-runs for explicit and pre-realized
+  `computed_masked_macc_add` and `runtime_scalar_cmp_masked_macc_add`, counts
+  `7,16,23`, runtime scalar values `-37,91` where applicable.
+- [OK] Real `ssh rvv` generated-bundle runs for explicit and pre-realized
+  computed-mask MAcc routes, counts `7,16,23`, runtime scalar values `-37,91`,
+  with masked accumulation values, inactive accumulator preservation, and tail
+  preservation.
+- [OK] Added-line active-authority scan found no new legacy i32m1,
+  source-front-door, source-artifact, descriptor, direct-C, or source-export
+  authority matches.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv`, 361/361 passed.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete

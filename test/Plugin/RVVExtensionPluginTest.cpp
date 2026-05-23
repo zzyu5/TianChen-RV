@@ -113,6 +113,23 @@ VariantOp findVariant(KernelOp kernel, llvm::StringRef name) {
   return variant;
 }
 
+llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis>
+analyzeRouteInModule(mlir::ModuleOp module, llvm::StringRef kernelName,
+                     llvm::StringRef variantName) {
+  KernelOp kernel = findKernel(module, kernelName);
+  if (!kernel)
+    return tianchenrv::plugin::rvv::makeRVVEmitCRouteProviderError(
+        llvm::Twine("missing test kernel '") + kernelName + "'");
+  VariantOp variant = findVariant(kernel, variantName);
+  if (!variant)
+    return tianchenrv::plugin::rvv::makeRVVEmitCRouteProviderError(
+        llvm::Twine("missing test variant '") + variantName + "'");
+  return tianchenrv::plugin::rvv::analyzeRVVSelectedBodyRoute(
+      VariantEmitCLowerableRequest(
+          variant, kernel, TargetCapabilitySet::buildFromKernel(kernel),
+          VariantEmissionRole::DirectVariant));
+}
+
 mlir::Operation *findFirstNestedOp(VariantOp variant, llvm::StringRef name) {
   mlir::Operation *found = nullptr;
   if (!variant)
@@ -2291,6 +2308,374 @@ module {
   return 0;
 }
 
+int runComputedMaskAccumulationRouteFamilyProviderPlanTest(
+    mlir::MLIRContext &context) {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans;
+  using tianchenrv::support::RuntimeABIParameterRole;
+
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd,
+        RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd}) {
+    if (int result = expect(
+            isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(op),
+            "computed-mask MAcc routes must be accumulation family consumers"))
+      return result;
+    if (int result = expect(
+            isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer(
+                op),
+            "computed-mask MAcc routes must use the vector MAcc accumulation "
+            "suffix boundary"))
+      return result;
+  }
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd,
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarComputedMaskStandaloneReduceAdd}) {
+    if (int result = expect(
+            isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(op),
+            "directly shared computed-mask standalone reductions must remain "
+            "inside the accumulation isolation boundary"))
+      return result;
+    if (int result = expect(
+            !isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer(
+                op),
+            "computed-mask standalone reductions must not use the vector MAcc "
+            "suffix boundary"))
+      return result;
+  }
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::MAccAdd,
+        RVVSelectedBodyOperationKind::WideningMAccAdd,
+        RVVSelectedBodyOperationKind::ComputedMaskSelect,
+        RVVSelectedBodyOperationKind::Add}) {
+    if (int result = expect(
+            !isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer(op),
+            "plain/widening MAcc, select, and arithmetic routes must stay "
+            "outside the computed-mask accumulation family"))
+      return result;
+  }
+
+  RVVSelectedBodyRouteAnalysis missingPlan;
+  missingPlan.description.operation =
+      RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              missingPlan,
+              "computed-mask accumulation provider unit test"),
+          {"requires the computed-mask accumulation route-family plan",
+           "computed_masked_macc_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingRuntimeScalarPlan;
+  missingRuntimeScalarPlan.description.operation =
+      RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              missingRuntimeScalarPlan,
+              "computed-mask accumulation provider unit test"),
+          {"requires the computed-mask accumulation route-family plan",
+           "runtime_scalar_cmp_masked_macc_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleNonConsumer;
+  staleNonConsumer.description.operation = RVVSelectedBodyOperationKind::MAccAdd;
+  staleNonConsumer.computedMaskAccumulationRouteFamilyPlan.emplace();
+  staleNonConsumer.computedMaskAccumulationRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              staleNonConsumer,
+              "computed-mask accumulation provider unit test"),
+          {"must not carry a computed-mask accumulation route-family plan",
+           "macc_add"}))
+    return result;
+
+  constexpr llvm::StringLiteral computedMaskedMAccSource = R"mlir(
+module {
+  tcrv.exec.kernel @cm_macc_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @rvv_cm_macc attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "cm-macc-provider-test:cmp_lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "cm-macc-provider-test:cmp_rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "cm-macc-provider-test:lhs", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "cm-macc-provider-test:rhs", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "cm-macc-provider-test:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "cm-macc-provider-test:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "cm-macc-provider-test:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_cm_macc, sew = 32 : i64, source_kernel = "cm_macc_provider_kernel", status = "selected-lowering-boundary"} {
+        %cmp_lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %cmp_rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %acc_vec = tcrv_rvv.load %acc, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %mask = tcrv_rvv.compare %cmp_lhs_vec, %cmp_rhs_vec, %vl {kind = "slt"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %sum = tcrv_rvv.masked_macc %mask, %lhs_vec, %rhs_vec, %acc_vec, %vl {accumulator_layout = "separate-i32-vector-accumulator-input", kind = "add", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", result_layout = "store-multiply-accumulate-result-to-output-buffer"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+    tcrv.exec.variant @cm_macc_provider_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @rvv_cm_macc {origin = "rvv-plugin"}
+      tcrv.exec.fallback @cm_macc_provider_scalar_fallback {origin = "scalar-plugin"}
+    }
+  }
+}
+)mlir";
+  mlir::OwningOpRef<mlir::ModuleOp> computedMaskedMAccModule =
+      parseModule(context, computedMaskedMAccSource);
+  if (!computedMaskedMAccModule)
+    return fail("failed to parse computed-mask MAcc provider test module");
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> computedMaskedMAccAnalysis =
+      analyzeRouteInModule(*computedMaskedMAccModule, "cm_macc_provider_kernel",
+                           "rvv_cm_macc");
+  if (!computedMaskedMAccAnalysis)
+    return fail("analyze computed-mask MAcc provider route: " +
+                llvm::toString(computedMaskedMAccAnalysis.takeError()));
+
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              *computedMaskedMAccAnalysis,
+              "computed-mask MAcc provider unit test"),
+          "valid computed-mask MAcc accumulation family provider plan"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stale = *computedMaskedMAccAnalysis;
+  stale.description.targetLeafProfile = "metadata-selected-profile";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              stale, "computed-mask MAcc provider unit test"),
+          {"computed-mask accumulation route-family route, runtime, type, "
+           "intrinsic, and mask mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *computedMaskedMAccAnalysis;
+  stale.description.runtimeControlPlanID = "metadata-runtime-control";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              stale, "computed-mask MAcc provider unit test"),
+          {"computed-mask accumulation route-family route, runtime, type, "
+           "intrinsic, and mask mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *computedMaskedMAccAnalysis;
+  stale.description.accumulationComputeSuffix =
+      "scalar-horizontal-standalone-reduction";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              stale, "computed-mask MAcc provider unit test"),
+          {"computed-mask accumulation route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *computedMaskedMAccAnalysis;
+  stale.description.rhsBroadcastIntrinsic = "stale-rhs-splat-leaf";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              stale, "computed-mask MAcc provider unit test"),
+          {"computed-mask accumulation route-family route, runtime, type, "
+           "intrinsic, and mask mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *computedMaskedMAccAnalysis;
+  stale.description.inactiveLaneContract = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              stale, "computed-mask MAcc provider unit test"),
+          {"computed-mask MAcc route-family memory and inactive-lane mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *computedMaskedMAccAnalysis;
+  std::swap(stale.description.runtimeABIParameters[2],
+            stale.description.runtimeABIParameters[3]);
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              stale, "computed-mask MAcc provider unit test"),
+          {"runtime ABI parameters", "validated family plan"}))
+    return result;
+
+  stale = *computedMaskedMAccAnalysis;
+  stale.routeOperandBindingPlan.bindings[2].parameter.role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              stale, "computed-mask MAcc provider unit test"),
+          {"logical operand 'lhs'", "dot-lhs-input-buffer",
+           "output-buffer"}))
+    return result;
+
+  stale = *computedMaskedMAccAnalysis;
+  stale.description.routeOperandBindingSummary = "stale";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              stale, "computed-mask MAcc provider unit test"),
+          {"route operand binding mirror summary", "stale"}))
+    return result;
+
+  constexpr llvm::StringLiteral runtimeScalarMAccSource = R"mlir(
+module {
+  tcrv.exec.kernel @rt_scalar_cm_macc_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @rvv_rt_scalar_cm_macc attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "rt-scalar-cm-macc-provider-test:cmp_lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", purpose = "rt-scalar-cm-macc-provider-test:rhs_scalar", role = "rhs-scalar-value"} : i32
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "rt-scalar-cm-macc-provider-test:lhs", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "rt-scalar-cm-macc-provider-test:rhs", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "rt-scalar-cm-macc-provider-test:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "rt-scalar-cm-macc-provider-test:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "rt-scalar-cm-macc-provider-test:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_rt_scalar_cm_macc, sew = 32 : i64, source_kernel = "rt_scalar_cm_macc_provider_kernel", status = "selected-lowering-boundary"} {
+        %cmp_lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_payload_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %acc_vec = tcrv_rvv.load %acc, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %mask = tcrv_rvv.compare %cmp_lhs_vec, %rhs_vec, %vl {kind = "sle"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %sum = tcrv_rvv.masked_macc %mask, %lhs_vec, %rhs_payload_vec, %acc_vec, %vl {accumulator_layout = "separate-i32-vector-accumulator-input", kind = "add", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", result_layout = "store-multiply-accumulate-result-to-output-buffer"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+    tcrv.exec.variant @rt_scalar_cm_macc_provider_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @rvv_rt_scalar_cm_macc {origin = "rvv-plugin"}
+      tcrv.exec.fallback @rt_scalar_cm_macc_provider_scalar_fallback {origin = "scalar-plugin"}
+    }
+  }
+}
+)mlir";
+  mlir::OwningOpRef<mlir::ModuleOp> runtimeScalarMAccModule =
+      parseModule(context, runtimeScalarMAccSource);
+  if (!runtimeScalarMAccModule)
+    return fail("failed to parse runtime-scalar computed-mask MAcc provider "
+                "test module");
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> runtimeScalarMAccAnalysis =
+      analyzeRouteInModule(*runtimeScalarMAccModule,
+                           "rt_scalar_cm_macc_provider_kernel",
+                           "rvv_rt_scalar_cm_macc");
+  if (!runtimeScalarMAccAnalysis)
+    return fail("analyze runtime-scalar computed-mask MAcc provider route: " +
+                llvm::toString(runtimeScalarMAccAnalysis.takeError()));
+
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              *runtimeScalarMAccAnalysis,
+              "runtime-scalar computed-mask MAcc provider unit test"),
+          "valid runtime-scalar computed-mask MAcc accumulation family "
+          "provider plan"))
+    return result;
+
+  stale = *runtimeScalarMAccAnalysis;
+  stale.description.accumulationMaskProducerSource = "vector-compare-rhs-load";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              stale, "runtime-scalar computed-mask MAcc provider unit test"),
+          {"computed-mask accumulation route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *runtimeScalarMAccAnalysis;
+  stale.description.rhsBroadcastIntrinsic = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              stale, "runtime-scalar computed-mask MAcc provider unit test"),
+          {"computed-mask accumulation route-family route, runtime, type, "
+           "intrinsic, and mask mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *runtimeScalarMAccAnalysis;
+  stale.routeOperandBindingPlan.bindings[1].parameter.role =
+      RuntimeABIParameterRole::LHSInputBuffer;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              stale, "runtime-scalar computed-mask MAcc provider unit test"),
+          {"logical operand 'rhs_scalar'", "rhs-scalar-value",
+           "lhs-input-buffer"}))
+    return result;
+
+  constexpr llvm::StringLiteral computedMaskStandaloneSource = R"mlir(
+module {
+  tcrv.exec.kernel @cm_standalone_accumulation_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @rvv_cm_standalone_accumulation attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "cm-standalone-accumulation-provider-test:cmp_lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "cm-standalone-accumulation-provider-test:cmp_rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "cm-standalone-accumulation-provider-test:src", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "cm-standalone-accumulation-provider-test:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "cm-standalone-accumulation-provider-test:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "cm-standalone-accumulation-provider-test:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_cm_standalone_accumulation, sew = 32 : i64, source_kernel = "cm_standalone_accumulation_provider_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %src_vec = tcrv_rvv.load %src, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "sle"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %reduced = tcrv_rvv.masked_standalone_reduce %mask, %src_vec, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "add", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %reduced, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+    tcrv.exec.variant @cm_standalone_accumulation_provider_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @rvv_cm_standalone_accumulation {origin = "rvv-plugin"}
+      tcrv.exec.fallback @cm_standalone_accumulation_provider_scalar_fallback {origin = "scalar-plugin"}
+    }
+  }
+}
+)mlir";
+  mlir::OwningOpRef<mlir::ModuleOp> computedMaskStandaloneModule =
+      parseModule(context, computedMaskStandaloneSource);
+  if (!computedMaskStandaloneModule)
+    return fail("failed to parse shared computed-mask standalone reduction "
+                "provider test module");
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> computedMaskStandaloneAnalysis =
+      analyzeRouteInModule(*computedMaskStandaloneModule,
+                           "cm_standalone_accumulation_provider_kernel",
+                           "rvv_cm_standalone_accumulation");
+  if (!computedMaskStandaloneAnalysis)
+    return fail("analyze shared computed-mask standalone reduction provider "
+                "route: " +
+                llvm::toString(computedMaskStandaloneAnalysis.takeError()));
+
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              *computedMaskStandaloneAnalysis,
+              "computed-mask standalone reduction accumulation isolation unit "
+              "test"),
+          "valid directly shared computed-mask standalone reduction "
+          "accumulation boundary"))
+    return result;
+
+  stale = *computedMaskStandaloneAnalysis;
+  stale.computedMaskAccumulationRouteFamilyPlan->usesVectorMAccSuffix = true;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+              stale,
+              "computed-mask standalone reduction accumulation isolation unit "
+              "test"),
+          {"usesVectorMAccSuffix", "selected operation"}))
+    return result;
+
+  return 0;
+}
+
 int runCompareSelectSelectedBodyRouteTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -3694,6 +4079,9 @@ int main() {
     return result;
   if (int result =
           runStandaloneReductionRouteFamilyProviderPlanTest(context))
+    return result;
+  if (int result =
+          runComputedMaskAccumulationRouteFamilyProviderPlanTest(context))
     return result;
   if (int result = runComputedMaskSelectRouteFamilyProviderPlanTest())
     return result;
