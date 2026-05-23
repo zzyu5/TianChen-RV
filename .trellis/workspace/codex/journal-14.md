@@ -91,3 +91,61 @@ family provider boundary.
 ### Status
 
 [OK] **Completed and archived**. Commit is created after this journal entry.
+
+
+## Session 174: Stage2 RVV plain compare-select runtime and binding closure
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV plain compare-select runtime and binding closure
+**Branch**: `main`
+
+### Summary
+
+Closed plain `cmp_select` provider runtime AVL/VL mirror validation and
+`RouteOperandBindingPlan` closure for active explicit and pre-realized
+`cmp_select` / `cmp_select_sle` routes.
+
+### Main Changes
+
+- Required
+  `verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans` to compare
+  full runtime AVL/VL control mirrors from the validated plain compare-select
+  family plan before provider materialization.
+- Added family-provider `RouteOperandBindingPlan` closure validation so plan id,
+  runtime ABI order, parameter mirrors, logical operand roles, materialized
+  uses, and summary mirrors fail closed for plain compare-select routes.
+- Added focused RVV plugin C++ coverage for consumer isolation, missing/stale
+  plans, runtime-control mismatch, predicate/intrinsic/layout mirror mismatch,
+  runtime ABI mismatch, binding role mismatch, binding summary mismatch, and
+  `cmp_select_sle` signed predicate facts.
+- Updated explicit/pre-realized target fixtures to check runtime-control,
+  runtime-VL, AVL-source, bounded-slice, binding, and plain family-plan mirrors.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+  and `./build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused materialization/header export for explicit and pre-realized
+  `cmp_select` / `cmp_select_sle` target artifact fixtures.
+- [OK] Generated-bundle dry-runs for explicit and pre-realized
+  `cmp_select` / `cmp_select_sle`, counts `7,16,23`.
+- [OK] Real `ssh rvv` generated-bundle runs for explicit and pre-realized
+  `cmp_select` / `cmp_select_sle`, counts `7,16,23`, with true/false lane
+  distributions and signed `sle` predicate coverage.
+- [OK] Added-line active-authority scan found no new legacy i32m1,
+  source-front-door, source-artifact, descriptor, direct-C, or exact i32m1
+  intrinsic authority matches.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`, 361/361 passed.
+
+### Spec Update Judgment
+
+No `.trellis/spec/` update is needed. The RVV plugin and unified EmitC route
+specs already require plugin-owned typed route facts, runtime/binding closure,
+mirror-only metadata, common EmitC neutrality, and real `ssh rvv` evidence for
+runtime/correctness claims. This round applies that existing contract to the
+plain compare-select family provider boundary.
+
+### Status
+
+[OK] **Completed and archived**. Commit is created after this journal entry.

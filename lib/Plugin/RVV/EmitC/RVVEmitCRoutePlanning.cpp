@@ -19461,9 +19461,38 @@ llvm::Error verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
         " plain compare-select route-family plan mirror must match the "
         "validated family plan");
   if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.sew != plan.runtimeControlPlan.sew ||
+      analysis.description.lmul != plan.runtimeControlPlan.lmul ||
+      analysis.description.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      analysis.description.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
       analysis.description.runtimeControlPlanID !=
           plan.runtimeControlPlan.controlPlanID ||
+      analysis.description.configContractID !=
+          plan.runtimeControlPlan.configContractID ||
+      analysis.description.runtimeVLContractID !=
+          plan.runtimeControlPlan.runtimeVLContractID ||
+      analysis.description.runtimeAVLASource !=
+          plan.runtimeControlPlan.runtimeAVLASource ||
       analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.vlDefOpName !=
+          plan.runtimeControlPlan.vlDefOpName ||
+      analysis.description.vlScopeOpName !=
+          plan.runtimeControlPlan.vlScopeOpName ||
+      analysis.description.vlUses != plan.runtimeControlPlan.vlUses ||
+      analysis.description.emitCLoopKind !=
+          plan.runtimeControlPlan.emitCLoopKind ||
+      analysis.description.emitCLoopInductionName !=
+          plan.runtimeControlPlan.emitCLoopInductionName ||
+      analysis.description.emitCFullChunkVLName !=
+          plan.runtimeControlPlan.emitCFullChunkVLName ||
+      analysis.description.emitCLoopVLName !=
+          plan.runtimeControlPlan.emitCLoopVLName ||
+      analysis.description.remainingAVLMetadata !=
+          plan.runtimeControlPlan.remainingAVLMetadata ||
+      analysis.description.pointerAdvanceMetadata !=
+          plan.runtimeControlPlan.pointerAdvanceMetadata ||
+      analysis.description.boundedSlice != plan.runtimeControlPlan.boundedSlice ||
+      analysis.description.multiVL != plan.runtimeControlPlan.multiVL ||
       analysis.description.targetLeafProfile != plan.targetLeafProfile ||
       analysis.description.providerSupportedMirror !=
           plan.providerSupportedMirror ||
@@ -19497,8 +19526,9 @@ llvm::Error verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
           plan.destinationMemoryForm)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
-        " plain compare-select route-family mirrors must be populated from "
-        "the validated family plan before provider materialization");
+        " plain compare-select route-family route, runtime, type, intrinsic, "
+        "predicate, mask, and layout mirrors must be populated from the "
+        "validated family plan before provider materialization");
   if (!support::runtimeABIParametersEqual(
           analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
     return makeRVVEmitCRouteProviderError(
@@ -19511,6 +19541,9 @@ llvm::Error verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
         llvm::Twine(context) +
         " plain compare-select provider requires the route operand binding "
         "plan for the selected operation");
+  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
+          analysis.routeOperandBindingPlan, analysis.description, context))
+    return error;
   return llvm::Error::success();
 }
 

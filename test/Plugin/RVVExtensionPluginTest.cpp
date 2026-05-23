@@ -2663,7 +2663,8 @@ module {
        "lhs-input-buffer"});
 }
 
-int runPlainCompareSelectRouteFamilyProviderPlanTest() {
+int runPlainCompareSelectRouteFamilyProviderPlanTest(
+    mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
@@ -2672,6 +2673,7 @@ int runPlainCompareSelectRouteFamilyProviderPlanTest() {
       isRVVSelectedBodyPlainCompareSelectRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans;
+  using tianchenrv::support::RuntimeABIParameterRole;
 
   if (int result = expect(
           isRVVSelectedBodyPlainCompareSelectRouteFamilyConsumer(
@@ -2719,7 +2721,156 @@ int runPlainCompareSelectRouteFamilyProviderPlanTest() {
            "computed_mask_select"}))
     return result;
 
-  return 0;
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @plain_cmp_select_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_plain_cmp_select attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_plain_cmp_select, sew = 32 : i64, source_kernel = "plain_cmp_select_provider_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "eq"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %selected = tcrv_rvv.select %mask, %lhs_vec, %rhs_vec, %vl : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %selected, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+  tcrv.exec.kernel @plain_cmp_select_sle_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_plain_cmp_select_sle attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_plain_cmp_select_sle, sew = 32 : i64, source_kernel = "plain_cmp_select_sle_provider_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "sle"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %selected = tcrv_rvv.select %mask, %lhs_vec, %rhs_vec, %vl : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %selected, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse plain compare-select provider test module");
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> eqAnalysis =
+      analyzeRouteInModule(*module, "plain_cmp_select_provider_kernel",
+                           "rvv_plain_cmp_select");
+  if (!eqAnalysis)
+    return fail("analyze plain cmp_select provider route: " +
+                llvm::toString(eqAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
+              *eqAnalysis, "plain compare-select provider unit test"),
+          "valid plain compare-select family provider plan"))
+    return result;
+  if (int result = expect(
+          eqAnalysis->plainCompareSelectRouteFamilyPlan &&
+              eqAnalysis->plainCompareSelectRouteFamilyPlan
+                      ->runtimeControlPlan.controlPlanID ==
+                  tianchenrv::plugin::rvv::getRVVRuntimeAVLVLControlPlanID() &&
+              eqAnalysis->plainCompareSelectRouteFamilyPlan
+                      ->comparePredicateKind == "eq" &&
+              eqAnalysis->description.selectLayout ==
+                  "select-lhs-when-mask-else-rhs" &&
+              eqAnalysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:cmp_select.v1",
+          "plain cmp_select plan must carry runtime control, predicate, "
+          "layout, and binding facts"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stale = *eqAnalysis;
+  stale.description.runtimeAVLASource = "metadata-selected-avl";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
+              stale, "plain compare-select provider unit test"),
+          {"plain compare-select route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *eqAnalysis;
+  stale.description.comparePredicateKind = "ne";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
+              stale, "plain compare-select provider unit test"),
+          {"plain compare-select route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *eqAnalysis;
+  stale.description.compareIntrinsic = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
+              stale, "plain compare-select provider unit test"),
+          {"plain compare-select route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *eqAnalysis;
+  stale.description.selectLayout = "metadata-selected-layout";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
+              stale, "plain compare-select provider unit test"),
+          {"plain compare-select route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *eqAnalysis;
+  std::swap(stale.description.runtimeABIParameters[0],
+            stale.description.runtimeABIParameters[1]);
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
+              stale, "plain compare-select provider unit test"),
+          {"runtime ABI parameters", "validated family plan"}))
+    return result;
+
+  stale = *eqAnalysis;
+  stale.routeOperandBindingPlan.bindings[0].parameter.role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
+              stale, "plain compare-select provider unit test"),
+          {"logical operand 'lhs'", "lhs-input-buffer", "output-buffer"}))
+    return result;
+
+  stale = *eqAnalysis;
+  stale.description.routeOperandBindingSummary = "stale";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
+              stale, "plain compare-select provider unit test"),
+          {"route operand binding mirror summary", "stale"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> sleAnalysis =
+      analyzeRouteInModule(*module, "plain_cmp_select_sle_provider_kernel",
+                           "rvv_plain_cmp_select_sle");
+  if (!sleAnalysis)
+    return fail("analyze plain cmp_select_sle provider route: " +
+                llvm::toString(sleAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
+              *sleAnalysis, "plain compare-select provider unit test"),
+          "valid plain compare-select SLE family provider plan"))
+    return result;
+  return expect(
+      sleAnalysis->plainCompareSelectRouteFamilyPlan &&
+          sleAnalysis->plainCompareSelectRouteFamilyPlan
+                  ->comparePredicateKind == "sle" &&
+          sleAnalysis->routeOperandBindingPlan.planID ==
+              "rvv-route-operand-binding:cmp_select.v1",
+      "plain cmp_select_sle plan must remain the same plain family consumer "
+      "with signed predicate facts");
 }
 
 int runStandaloneReductionRouteFamilyProviderPlanTest(
@@ -4763,7 +4914,7 @@ int main() {
     return result;
   if (int result = runContractionTargetLeafProfileValidationTest(context))
     return result;
-  if (int result = runPlainCompareSelectRouteFamilyProviderPlanTest())
+  if (int result = runPlainCompareSelectRouteFamilyProviderPlanTest(context))
     return result;
   if (int result =
           runStandaloneReductionRouteFamilyProviderPlanTest(context))
