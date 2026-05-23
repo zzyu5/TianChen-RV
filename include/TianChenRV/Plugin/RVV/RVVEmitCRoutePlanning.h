@@ -332,6 +332,8 @@ struct RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan {
   bool usesLoadMerge = false;
   bool usesIndexedGather = false;
   bool usesIndexedScatter = false;
+  bool usesSegment2Load = false;
+  bool usesSegment2Store = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
   llvm::StringRef familyPlanID;
   llvm::StringRef maskProducerSource;
@@ -377,6 +379,20 @@ struct RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan {
   llvm::StringRef indexUniqueness;
   llvm::StringRef indexedDataMemoryForm;
   llvm::StringRef indexedDestinationMemoryForm;
+  llvm::StringRef segmentMemoryLayout;
+  std::int64_t segmentCount = 0;
+  llvm::StringRef segmentTupleCType;
+  llvm::StringRef segmentLoadIntrinsic;
+  llvm::StringRef segmentStoreIntrinsic;
+  llvm::StringRef segmentFieldExtractIntrinsic;
+  llvm::StringRef field0Role;
+  llvm::StringRef field1Role;
+  llvm::StringRef field0Name;
+  llvm::StringRef field1Name;
+  llvm::StringRef field0SourceMemoryForm;
+  llvm::StringRef field1SourceMemoryForm;
+  llvm::StringRef field0DestinationMemoryForm;
+  llvm::StringRef field1DestinationMemoryForm;
   llvm::SmallVector<support::RuntimeABIParameter, 6> runtimeABIParameters;
 };
 

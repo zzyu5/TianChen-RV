@@ -1538,6 +1538,10 @@ constexpr llvm::StringLiteral kRVVComputedMaskIndexedGatherTargetLeafProfile(
     "rvv-v1-e32m1-computed-mask-indexed-gather-load-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVComputedMaskIndexedScatterTargetLeafProfile(
     "rvv-v1-e32m1-computed-mask-indexed-scatter-store-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadTargetLeafProfile(
+    "rvv-v1-e32m1-computed-mask-segment2-load-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreTargetLeafProfile(
+    "rvv-v1-e32m1-computed-mask-segment2-store-leaf-profile.v1");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskStoreTargetLeafProfile(
         "rvv-v1-e32m1-runtime-scalar-cmp-masked-store-leaf-profile.v1");
@@ -1576,6 +1580,12 @@ constexpr llvm::StringLiteral
     kRVVComputedMaskIndexedScatterProviderSupportedMirror(
         "provider_supported_mirror:rvv-computed-mask-indexed-scatter-store-plan-validated");
 constexpr llvm::StringLiteral
+    kRVVComputedMaskSegment2LoadProviderSupportedMirror(
+        "provider_supported_mirror:rvv-computed-mask-segment2-load-plan-validated");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskSegment2StoreProviderSupportedMirror(
+        "provider_supported_mirror:rvv-computed-mask-segment2-store-plan-validated");
+constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskStoreRequiredHeaderDeclarations(
         "stddef.h,stdint.h,riscv_vector.h");
 constexpr llvm::StringLiteral
@@ -1602,6 +1612,12 @@ constexpr llvm::StringLiteral
     kRVVComputedMaskIndexedScatterRequiredHeaderDeclarations(
         "stddef.h,stdint.h,riscv_vector.h");
 constexpr llvm::StringLiteral
+    kRVVComputedMaskSegment2LoadRequiredHeaderDeclarations(
+        "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskSegment2StoreRequiredHeaderDeclarations(
+        "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskStoreCTypeMappingSummary(
         "vl:size_t,lhs_payload:signed-e32m1,rhs_scalar:i32,mask:b32,dst:masked-store");
 constexpr llvm::StringLiteral
@@ -1624,6 +1640,12 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVComputedMaskIndexedScatterCTypeMappingSummary(
         "vl:size_t,compare/source:signed-e32m1,index:u32m1,mask:b32,dst:masked-indexed-store");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskSegment2LoadCTypeMappingSummary(
+        "vl:size_t,compare/source/passthrough-fields:signed-e32m1,mask:b32,segment2:vint32m1x2,result:masked-segment2-load-store");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskSegment2StoreCTypeMappingSummary(
+        "vl:size_t,compare/field-payloads:signed-e32m1,mask:b32,segment2:vint32m1x2,dst:masked-segment2-store");
 constexpr llvm::StringLiteral
     kRVVComputedMaskAccumulationRouteFamilyPlanID(
         "rvv-computed-mask-accumulation-route-family-plan.v1");
@@ -4371,6 +4393,8 @@ bool isRVVSelectedBodyComputedMaskMemoryRouteOperation(
   case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
     return true;
   default:
     return false;
@@ -4384,7 +4408,8 @@ bool isRVVSelectedBodyComputedMaskMemoryLoadMergeRoute(
          op ==
              RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore ||
          op == RVVSelectedBodyOperationKind::
-                   ComputedMaskIndexedGatherLoadUnitStore;
+                   ComputedMaskIndexedGatherLoadUnitStore ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
 }
 
 bool isRVVSelectedBodyComputedMaskMemoryStoreOnlyRoute(
@@ -4392,7 +4417,8 @@ bool isRVVSelectedBodyComputedMaskMemoryStoreOnlyRoute(
   return op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
          op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
          op == RVVSelectedBodyOperationKind::
-                   ComputedMaskIndexedScatterStoreUnitLoad;
+                   ComputedMaskIndexedScatterStoreUnitLoad ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
 }
 
 RVVSelectedBodyMemoryForm getComputedMaskMemoryRouteFamilyMemoryForm(
@@ -4412,6 +4438,10 @@ RVVSelectedBodyMemoryForm getComputedMaskMemoryRouteFamilyMemoryForm(
     return RVVSelectedBodyMemoryForm::ComputedMaskIndexedGatherLoadUnitStore;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
     return RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadIndexedScatterStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store;
   default:
     llvm_unreachable("unsupported computed-mask memory route-family op");
   }
@@ -4448,6 +4478,10 @@ llvm::StringRef getComputedMaskMemoryRuntimeABIOrder(
     return kRVVComputedMaskIndexedGatherRuntimeABIOrder;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
     return kRVVComputedMaskIndexedScatterRuntimeABIOrder;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return kRVVComputedMaskSegment2LoadRuntimeABIOrder;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return kRVVComputedMaskSegment2StoreRuntimeABIOrder;
   default:
     return {};
   }
@@ -4470,6 +4504,10 @@ llvm::StringRef getComputedMaskMemoryTargetLeafProfile(
     return kRVVComputedMaskIndexedGatherTargetLeafProfile;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
     return kRVVComputedMaskIndexedScatterTargetLeafProfile;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return kRVVComputedMaskSegment2LoadTargetLeafProfile;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return kRVVComputedMaskSegment2StoreTargetLeafProfile;
   default:
     return {};
   }
@@ -4492,6 +4530,10 @@ llvm::StringRef getComputedMaskMemoryProviderSupportedMirror(
     return kRVVComputedMaskIndexedGatherProviderSupportedMirror;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
     return kRVVComputedMaskIndexedScatterProviderSupportedMirror;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return kRVVComputedMaskSegment2LoadProviderSupportedMirror;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return kRVVComputedMaskSegment2StoreProviderSupportedMirror;
   default:
     return {};
   }
@@ -4514,6 +4556,10 @@ llvm::StringRef getComputedMaskMemoryRequiredHeaderDeclarations(
     return kRVVComputedMaskIndexedGatherRequiredHeaderDeclarations;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
     return kRVVComputedMaskIndexedScatterRequiredHeaderDeclarations;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return kRVVComputedMaskSegment2LoadRequiredHeaderDeclarations;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return kRVVComputedMaskSegment2StoreRequiredHeaderDeclarations;
   default:
     return {};
   }
@@ -4536,6 +4582,10 @@ llvm::StringRef getComputedMaskMemoryCTypeMappingSummary(
     return kRVVComputedMaskIndexedGatherCTypeMappingSummary;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
     return kRVVComputedMaskIndexedScatterCTypeMappingSummary;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return kRVVComputedMaskSegment2LoadCTypeMappingSummary;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return kRVVComputedMaskSegment2StoreCTypeMappingSummary;
   default:
     return {};
   }
@@ -4558,6 +4608,10 @@ llvm::StringRef getComputedMaskMemoryLayout(
     return kRVVComputedMaskIndexedGatherMemoryLayout;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
     return kRVVComputedMaskIndexedScatterMemoryLayout;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return kRVVComputedMaskSegment2LoadMemoryLayout;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return kRVVComputedMaskSegment2StoreMemoryLayout;
   default:
     return {};
   }
@@ -4572,11 +4626,14 @@ llvm::StringRef getComputedMaskMemoryInactiveLaneContract(
   case RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
   case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
     return kRVVMaskedMemoryInactiveLaneContract;
   case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
     return kRVVMaskedStridedStoreInactiveLaneContract;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
     return kRVVMaskedIndexedStoreInactiveLaneContract;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return kRVVMaskedStoreInactiveLaneContract;
   default:
     return {};
   }
@@ -4591,11 +4648,14 @@ llvm::StringRef getComputedMaskMemoryPassthroughLayout(
   case RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
   case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
     return kRVVMaskedMemoryPassthroughLayout;
   case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
     return kRVVMaskedStridedStorePassthroughLayout;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
     return kRVVMaskedIndexedStorePassthroughLayout;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return kRVVMaskedStorePassthroughLayout;
   default:
     return {};
   }
@@ -4614,6 +4674,10 @@ llvm::StringRef getComputedMaskMemorySourceMemoryForm(
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
     return kRVVMaskedIndexedLoadSourceMemoryForm;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+    return kRVVUnitStrideSourceMemoryForm;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return kRVVSegment2SourceMemoryForm;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
     return kRVVUnitStrideSourceMemoryForm;
   default:
     return {};
@@ -4635,6 +4699,10 @@ llvm::StringRef getComputedMaskMemoryDestinationMemoryForm(
     return kRVVDestinationMemoryForm;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
     return kRVVMaskedIndexedStoreDestinationMemoryForm;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return kRVVDestinationMemoryForm;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return kRVVSegment2InterleavedDestinationMemoryForm;
   default:
     return {};
   }
@@ -4666,7 +4734,9 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
         "computed_masked_unit_load_store, computed_masked_strided_store, "
         "computed_masked_strided_load_unit_store, "
         "computed_masked_indexed_gather_load_unit_store, or "
-        "computed_masked_indexed_scatter_store_unit_load routes");
+        "computed_masked_indexed_scatter_store_unit_load, "
+        "computed_masked_segment2_load_unit_store, or "
+        "computed_masked_segment2_store_unit_load routes");
   const bool isRuntimeScalar =
       isRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteOperation(
           plan.operation);
@@ -4680,6 +4750,12 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
   const bool isIndexedScatter =
       plan.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad;
+  const bool isSegment2Load =
+      plan.operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
+  const bool isSegment2Store =
+      plan.operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "family plan id", plan.familyPlanID,
@@ -4714,6 +4790,14 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "computed-mask memory route-family plan requires usesIndexedScatter to "
         "mirror the selected indexed scatter consumer");
+  if (plan.usesSegment2Load != isSegment2Load)
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask memory route-family plan requires usesSegment2Load to "
+        "mirror the selected segment2 load consumer");
+  if (plan.usesSegment2Store != isSegment2Store)
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask memory route-family plan requires usesSegment2Store to "
+        "mirror the selected segment2 store consumer");
   if (plan.memoryForm !=
       getComputedMaskMemoryRouteFamilyMemoryForm(plan.operation))
     return makeRVVEmitCRouteProviderError(
@@ -4833,15 +4917,17 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
     return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
-              plan, "masked-load leaf", plan.maskedLoadIntrinsic,
-              isIndexedGather ? llvm::StringRef(kRVVMaskedIndexedLoadIntrinsic)
-              : plan.operation ==
-                      RVVSelectedBodyOperationKind::
-                          ComputedMaskStridedLoadUnitStore
-                  ? llvm::StringRef(kRVVMaskedStridedLoadIntrinsic)
-              : isLoadMerge ? llvm::StringRef(kRVVMaskedLoadIntrinsic)
-                            : llvm::StringRef()))
-    return error;
+	              plan, "masked-load leaf", plan.maskedLoadIntrinsic,
+	              isIndexedGather ? llvm::StringRef(kRVVMaskedIndexedLoadIntrinsic)
+	              : plan.operation ==
+	                      RVVSelectedBodyOperationKind::
+	                          ComputedMaskStridedLoadUnitStore
+	                  ? llvm::StringRef(kRVVMaskedStridedLoadIntrinsic)
+	              : isSegment2Load
+	                  ? llvm::StringRef(kRVVMaskedSegment2LoadIntrinsic)
+	              : isLoadMerge ? llvm::StringRef(kRVVMaskedLoadIntrinsic)
+	                            : llvm::StringRef()))
+	    return error;
   if (plan.operation ==
       RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore) {
     if (llvm::Error error =
@@ -4849,7 +4935,7 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
                 plan, "masked-store leaf", plan.maskedStoreIntrinsic,
                 kRVVMaskedStoreIntrinsic))
       return error;
-  } else if (isLoadMerge || isIndexedScatter) {
+  } else if (isLoadMerge || isIndexedScatter || isSegment2Store) {
     if (llvm::Error error =
             requireRVVSelectedBodyComputedMaskMemoryPlanField(
                 plan, "store leaf", plan.maskedStoreIntrinsic,
@@ -4988,6 +5074,101 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
                   : llvm::StringRef()))
     return error;
   if (llvm::Error error =
+          requireRVVSelectedBodyComputedMaskMemoryPlanField(
+              plan, "segment memory layout", plan.segmentMemoryLayout,
+              isSegment2Load
+                  ? llvm::StringRef(kRVVComputedMaskSegment2LoadMemoryLayout)
+              : isSegment2Store
+                  ? llvm::StringRef(kRVVComputedMaskSegment2StoreMemoryLayout)
+                  : llvm::StringRef()))
+    return error;
+  if (plan.segmentCount != ((isSegment2Load || isSegment2Store) ? 2 : 0))
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask memory route-family plan requires segment count to "
+        "mirror the selected segment2 memory consumer");
+  if (llvm::Error error =
+          requireRVVSelectedBodyComputedMaskMemoryPlanField(
+              plan, "segment tuple C type", plan.segmentTupleCType,
+              (isSegment2Load || isSegment2Store)
+                  ? llvm::StringRef(kRVVSegment2TupleCType)
+                  : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyComputedMaskMemoryPlanField(
+              plan, "segment-load leaf", plan.segmentLoadIntrinsic,
+              isSegment2Load ? llvm::StringRef(kRVVMaskedSegment2LoadIntrinsic)
+                             : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyComputedMaskMemoryPlanField(
+              plan, "segment-store leaf", plan.segmentStoreIntrinsic,
+              isSegment2Load ? llvm::StringRef(kRVVSegment2TupleCreateIntrinsic)
+              : isSegment2Store ? llvm::StringRef(kRVVMaskedSegment2StoreIntrinsic)
+                                : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyComputedMaskMemoryPlanField(
+              plan, "segment field extract leaf",
+              plan.segmentFieldExtractIntrinsic,
+              isSegment2Load ? llvm::StringRef(kRVVSegment2FieldExtractIntrinsic)
+              : isSegment2Store ? llvm::StringRef(kRVVSegment2TupleCreateIntrinsic)
+                                : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyComputedMaskMemoryPlanField(
+              plan, "field0 role", plan.field0Role,
+              isSegment2Load ? llvm::StringRef(kRVVSegment2Field0Role)
+              : isSegment2Store ? llvm::StringRef(kRVVSegment2Field0InputRole)
+                                : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyComputedMaskMemoryPlanField(
+              plan, "field1 role", plan.field1Role,
+              isSegment2Load ? llvm::StringRef(kRVVSegment2Field1Role)
+              : isSegment2Store ? llvm::StringRef(kRVVSegment2Field1InputRole)
+                                : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyComputedMaskMemoryPlanField(
+              plan, "field0 name", plan.field0Name,
+              isSegment2Load ? llvm::StringRef("masked_segment2_field0_vec")
+              : isSegment2Store ? llvm::StringRef("masked_segment2_store_field0_vec")
+                                : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyComputedMaskMemoryPlanField(
+              plan, "field1 name", plan.field1Name,
+              isSegment2Load ? llvm::StringRef("masked_segment2_field1_vec")
+              : isSegment2Store ? llvm::StringRef("masked_segment2_store_field1_vec")
+                                : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyComputedMaskMemoryPlanField(
+              plan, "field0 source memory form", plan.field0SourceMemoryForm,
+              isSegment2Store ? llvm::StringRef(kRVVUnitStrideSourceMemoryForm)
+                              : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyComputedMaskMemoryPlanField(
+              plan, "field1 source memory form", plan.field1SourceMemoryForm,
+              isSegment2Store ? llvm::StringRef(kRVVUnitStrideSourceMemoryForm)
+                              : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyComputedMaskMemoryPlanField(
+              plan, "field0 destination memory form",
+              plan.field0DestinationMemoryForm,
+              isSegment2Load ? llvm::StringRef(kRVVDestinationMemoryForm)
+                             : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyComputedMaskMemoryPlanField(
+              plan, "field1 destination memory form",
+              plan.field1DestinationMemoryForm,
+              isSegment2Load ? llvm::StringRef(kRVVDestinationMemoryForm)
+                             : llvm::StringRef()))
+    return error;
+  if (llvm::Error error =
           verifyRVVSelectedBodyConstructionRuntimeABIParameters(
               plan.runtimeABIParameters))
     return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
@@ -5021,6 +5202,12 @@ deriveRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
   const bool isComputedMaskIndexedScatter =
       operation == RVVSelectedBodyOperationKind::
                        ComputedMaskIndexedScatterStoreUnitLoad;
+  const bool isComputedMaskSegment2Load =
+      operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
+  const bool isComputedMaskSegment2Store =
+      operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
   if (analysis.slice.memoryForm !=
       getComputedMaskMemoryRouteFamilyMemoryForm(operation))
     return makeRVVEmitCRouteProviderError(
@@ -5056,6 +5243,7 @@ deriveRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
         "masked_indexed_store structure");
   if (isLoadMerge && !isComputedMaskStridedLoad &&
       !isComputedMaskIndexedGather &&
+      !isComputedMaskSegment2Load &&
       (!analysis.slice.maskedLoadOp ||
        !analysis.slice.accumulatorLoadOperation || !analysis.slice.genericStore))
     return makeRVVEmitCRouteProviderError(
@@ -5077,6 +5265,24 @@ deriveRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
         "computed-mask memory route-family plan requires indexed gather "
         "load-merge/store routes to carry index_load, masked_indexed_load, "
         "old-destination passthrough, and final store body structure");
+  if (isComputedMaskSegment2Load &&
+      (!analysis.slice.maskedSegment2LoadOperation ||
+       !analysis.slice.field0LoadOperation ||
+       !analysis.slice.field1LoadOperation ||
+       !analysis.slice.field0StoreOperation ||
+       !analysis.slice.field1StoreOperation))
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask memory route-family plan requires segment2 load "
+        "load-merge/store routes to carry masked_segment2_load, old field "
+        "passthrough loads, and final field stores");
+  if (isComputedMaskSegment2Store &&
+      (!analysis.slice.field0LoadOperation ||
+       !analysis.slice.field1LoadOperation ||
+       !analysis.slice.maskedSegment2StoreOperation))
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask memory route-family plan requires segment2 store "
+        "store-only routes to carry field payload loads and "
+        "masked_segment2_store structure");
   llvm::StringRef expectedPredicate = isRuntimeScalar ? "sle" : "slt";
   if (analysis.slice.compareOp.getKind() != expectedPredicate)
     return makeRVVEmitCRouteProviderError(
@@ -5095,16 +5301,39 @@ deriveRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
       (!isRuntimeScalar &&
        analysis.slice.rhsABI.role !=
            support::RuntimeABIParameterRole::RHSInputBuffer) ||
-      analysis.slice.sourceABI.role !=
-          support::RuntimeABIParameterRole::SourceInputBuffer ||
-      analysis.slice.outABI.role !=
-          support::RuntimeABIParameterRole::OutputBuffer ||
       analysis.slice.runtimeElementCountABI.role !=
           support::RuntimeABIParameterRole::RuntimeElementCount)
     return makeRVVEmitCRouteProviderError(
         "computed-mask memory route-family plan requires compare lhs, selected "
-        "RHS producer, source payload buffer, output buffer, and runtime "
-        "element-count ABI roles");
+        "RHS producer, and runtime element-count ABI roles");
+  if (!isComputedMaskSegment2Load && !isComputedMaskSegment2Store &&
+      (analysis.slice.sourceABI.role !=
+           support::RuntimeABIParameterRole::SourceInputBuffer ||
+       analysis.slice.outABI.role !=
+           support::RuntimeABIParameterRole::OutputBuffer))
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask memory route-family plan requires source payload buffer "
+        "and output buffer ABI roles for non-segmented memory consumers");
+  if (isComputedMaskSegment2Load &&
+      (analysis.slice.sourceABI.role !=
+           support::RuntimeABIParameterRole::SourceInputBuffer ||
+       analysis.slice.field0ABI.role !=
+           support::RuntimeABIParameterRole::SegmentField0OutputBuffer ||
+       analysis.slice.field1ABI.role !=
+           support::RuntimeABIParameterRole::SegmentField1OutputBuffer))
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask memory route-family plan requires segment2 load source "
+        "and field output ABI roles");
+  if (isComputedMaskSegment2Store &&
+      (analysis.slice.field0ABI.role !=
+           support::RuntimeABIParameterRole::SegmentField0InputBuffer ||
+       analysis.slice.field1ABI.role !=
+           support::RuntimeABIParameterRole::SegmentField1InputBuffer ||
+       analysis.slice.outABI.role !=
+           support::RuntimeABIParameterRole::SegmentInterleavedOutputBuffer))
+    return makeRVVEmitCRouteProviderError(
+        "computed-mask memory route-family plan requires segment2 store field "
+        "input and interleaved output ABI roles");
   if ((isComputedMaskIndexedGather || isComputedMaskIndexedScatter) &&
       analysis.slice.indexABI.role !=
           support::RuntimeABIParameterRole::IndexInputBuffer)
@@ -5142,6 +5371,8 @@ deriveRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
   plan.usesLoadMerge = isLoadMerge;
   plan.usesIndexedGather = isComputedMaskIndexedGather;
   plan.usesIndexedScatter = isComputedMaskIndexedScatter;
+  plan.usesSegment2Load = isComputedMaskSegment2Load;
+  plan.usesSegment2Store = isComputedMaskSegment2Store;
   plan.runtimeControlPlan = std::move(*runtimeControlPlan);
   plan.familyPlanID = kRVVComputedMaskMemoryRouteFamilyPlanID;
   plan.maskProducerSource = getComputedMaskMemoryProducerSource(operation);
@@ -5182,11 +5413,13 @@ deriveRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
   plan.rhsScalarSplatIntrinsic =
       isRuntimeScalar ? targetLeaves.rhsBroadcastIntrinsic : llvm::StringRef();
   plan.compareIntrinsic = targetLeaves.compareIntrinsic;
-  plan.maskedLoadIntrinsic = isLoadMerge ? targetLeaves.intrinsic : "";
+  plan.maskedLoadIntrinsic =
+      (isLoadMerge || isComputedMaskSegment2Load) ? targetLeaves.intrinsic : "";
   plan.maskedStoreIntrinsic =
       operation == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore
           ? targetLeaves.intrinsic
-      : (isLoadMerge || isComputedMaskIndexedScatter)
+      : (isLoadMerge || isComputedMaskIndexedScatter ||
+         isComputedMaskSegment2Store)
           ? configProfile.storeIntrinsic
           : llvm::StringRef();
   plan.stridedStoreIntrinsic =
@@ -5233,17 +5466,74 @@ deriveRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
         isComputedMaskIndexedGather
             ? llvm::StringRef(kRVVMaskedIndexedLoadSourceMemoryForm)
             : llvm::StringRef();
-    plan.indexedDestinationMemoryForm =
-        isComputedMaskIndexedScatter
-            ? llvm::StringRef(kRVVMaskedIndexedStoreDestinationMemoryForm)
-            : llvm::StringRef();
+	    plan.indexedDestinationMemoryForm =
+	        isComputedMaskIndexedScatter
+	            ? llvm::StringRef(kRVVMaskedIndexedStoreDestinationMemoryForm)
+	            : llvm::StringRef();
+	  }
+  if (isComputedMaskSegment2Load || isComputedMaskSegment2Store) {
+    plan.segmentMemoryLayout =
+        isComputedMaskSegment2Load
+            ? llvm::StringRef(kRVVComputedMaskSegment2LoadMemoryLayout)
+            : llvm::StringRef(kRVVComputedMaskSegment2StoreMemoryLayout);
+    plan.segmentCount =
+        isComputedMaskSegment2Load
+            ? static_cast<std::int64_t>(
+                  analysis.slice.maskedSegment2LoadOp.getSegmentCount())
+            : static_cast<std::int64_t>(
+                  analysis.slice.maskedSegment2Store.getSegmentCount());
+    plan.segmentTupleCType = kRVVSegment2TupleCType;
+    plan.segmentLoadIntrinsic =
+        isComputedMaskSegment2Load ? llvm::StringRef(kRVVMaskedSegment2LoadIntrinsic)
+                                   : llvm::StringRef();
+    plan.segmentStoreIntrinsic =
+        isComputedMaskSegment2Load ? llvm::StringRef(kRVVSegment2TupleCreateIntrinsic)
+        : isComputedMaskSegment2Store ? llvm::StringRef(kRVVMaskedSegment2StoreIntrinsic)
+                                      : llvm::StringRef();
+    plan.segmentFieldExtractIntrinsic =
+        isComputedMaskSegment2Load ? llvm::StringRef(kRVVSegment2FieldExtractIntrinsic)
+                                   : llvm::StringRef(kRVVSegment2TupleCreateIntrinsic);
+    plan.field0Role =
+        isComputedMaskSegment2Load ? llvm::StringRef(kRVVSegment2Field0Role)
+                                   : llvm::StringRef(kRVVSegment2Field0InputRole);
+    plan.field1Role =
+        isComputedMaskSegment2Load ? llvm::StringRef(kRVVSegment2Field1Role)
+                                   : llvm::StringRef(kRVVSegment2Field1InputRole);
+    plan.field0Name = isComputedMaskSegment2Load
+                          ? llvm::StringRef("masked_segment2_field0_vec")
+                          : llvm::StringRef("masked_segment2_store_field0_vec");
+    plan.field1Name = isComputedMaskSegment2Load
+                          ? llvm::StringRef("masked_segment2_field1_vec")
+                          : llvm::StringRef("masked_segment2_store_field1_vec");
+    plan.field0SourceMemoryForm =
+        isComputedMaskSegment2Store ? llvm::StringRef(kRVVUnitStrideSourceMemoryForm)
+                                    : llvm::StringRef();
+    plan.field1SourceMemoryForm =
+        isComputedMaskSegment2Store ? llvm::StringRef(kRVVUnitStrideSourceMemoryForm)
+                                    : llvm::StringRef();
+    plan.field0DestinationMemoryForm =
+        isComputedMaskSegment2Load ? llvm::StringRef(kRVVDestinationMemoryForm)
+                                   : llvm::StringRef();
+    plan.field1DestinationMemoryForm =
+        isComputedMaskSegment2Load ? llvm::StringRef(kRVVDestinationMemoryForm)
+                                   : llvm::StringRef();
   }
   plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
   plan.runtimeABIParameters.push_back(analysis.slice.rhsABI);
-  plan.runtimeABIParameters.push_back(analysis.slice.sourceABI);
-  if (isComputedMaskIndexedGather || isComputedMaskIndexedScatter)
-    plan.runtimeABIParameters.push_back(analysis.slice.indexABI);
-  plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+  if (isComputedMaskSegment2Load) {
+    plan.runtimeABIParameters.push_back(analysis.slice.sourceABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.field0ABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.field1ABI);
+  } else if (isComputedMaskSegment2Store) {
+    plan.runtimeABIParameters.push_back(analysis.slice.field0ABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.field1ABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+  } else {
+    plan.runtimeABIParameters.push_back(analysis.slice.sourceABI);
+    if (isComputedMaskIndexedGather || isComputedMaskIndexedScatter)
+      plan.runtimeABIParameters.push_back(analysis.slice.indexABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+  }
   plan.runtimeABIParameters.push_back(
       plan.runtimeControlPlan.runtimeAVLParameter);
   if (isComputedMaskStridedStore)
@@ -5290,7 +5580,8 @@ void applyRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
   description.stridedStoreIntrinsic = plan.stridedStoreIntrinsic;
   description.indexedStoreIntrinsic = plan.indexedStoreIntrinsic;
   description.intrinsic =
-      !plan.maskedLoadIntrinsic.empty()
+      plan.usesSegment2Store ? plan.segmentStoreIntrinsic
+      : !plan.maskedLoadIntrinsic.empty()
           ? plan.maskedLoadIntrinsic
       : (!plan.stridedStoreIntrinsic.empty()
              ? plan.stridedStoreIntrinsic
@@ -5316,6 +5607,20 @@ void applyRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
   description.indexedDataMemoryForm = plan.indexedDataMemoryForm;
   description.indexedDestinationMemoryForm =
       plan.indexedDestinationMemoryForm;
+  description.segmentMemoryLayout = plan.segmentMemoryLayout;
+  description.segmentCount = plan.segmentCount;
+  description.segmentTupleCType = plan.segmentTupleCType;
+  description.segmentLoadIntrinsic = plan.segmentLoadIntrinsic;
+  description.segmentStoreIntrinsic = plan.segmentStoreIntrinsic;
+  description.segmentFieldExtractIntrinsic = plan.segmentFieldExtractIntrinsic;
+  description.field0Role = plan.field0Role;
+  description.field1Role = plan.field1Role;
+  description.field0Name = plan.field0Name;
+  description.field1Name = plan.field1Name;
+  description.field0SourceMemoryForm = plan.field0SourceMemoryForm;
+  description.field1SourceMemoryForm = plan.field1SourceMemoryForm;
+  description.field0DestinationMemoryForm = plan.field0DestinationMemoryForm;
+  description.field1DestinationMemoryForm = plan.field1DestinationMemoryForm;
   description.runtimeABIParameters.clear();
   description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
                                           plan.runtimeABIParameters.end());
@@ -17001,7 +17306,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     else
       analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
   }
-  if (routeProfile->operation.isSegmentedMemoryMovement) {
+  if (routeProfile->operation.isSegmentedMemoryMovement &&
+      !isComputedMaskSegment2Load && !isComputedMaskSegment2Store) {
     const bool isInterleave =
         routeProfile->operation.operation ==
         RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
@@ -18546,6 +18852,13 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "masked-load intrinsic",
             description.maskedLoadIntrinsic, kRVVMaskedIndexedLoadIntrinsic))
+      return error;
+  } else if (operationProfile.operation ==
+             RVVSelectedBodyOperationKind::
+                 ComputedMaskSegment2LoadUnitStore) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "masked-load intrinsic",
+            description.maskedLoadIntrinsic, kRVVMaskedSegment2LoadIntrinsic))
       return error;
   } else {
     if (llvm::Error error = requireRouteDescriptionField(
