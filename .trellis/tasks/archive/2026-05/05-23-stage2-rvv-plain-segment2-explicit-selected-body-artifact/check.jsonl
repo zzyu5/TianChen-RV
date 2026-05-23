@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV boundary, RVV-first Stage2 order, and source-of-truth rules"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, selected typed body boundary, and Stage2 realization rules"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider-built TCRVEmitCLowerableRoute and common EmitC neutrality contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused FileCheck/C++/runtime evidence expectations"}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-plain-segment2-memory-runtime-binding-closure/prd.md", "reason": "immediately previous plain segment2 provider binding closure and continuation boundary"}

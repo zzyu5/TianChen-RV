@@ -51,6 +51,13 @@ Use for:
 - route-provider handoff visible through emitted IR/mirrors;
 - common EmitC materialization.
 
+For positive selected-body target artifact fixtures, keep kernel and variant
+symbol names concise. The generated C/EmitC function name is derived from the
+kernel and selected variant symbols, and target export must fail closed when
+that derived identifier is outside the bounded C/EmitC identifier contract.
+Do not treat a shortened fixture symbol as route authority; it is only a
+packaging constraint around an already provider-built route.
+
 ### C++ Tests
 
 Use for:

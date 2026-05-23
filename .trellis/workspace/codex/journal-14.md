@@ -482,3 +482,65 @@ mirrors, runtime ABI mirrors, segment field/layout mirrors, and
 - Optional later harness work: add explicit selected-body generated-bundle
   support for `segment2_deinterleave_unit_store` and
   `segment2_interleave_unit_load`; pre-realized coverage for both is passing.
+
+
+## Session 181: Stage2 RVV plain segment2 explicit selected-body artifact closure
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV plain segment2 explicit selected-body artifact closure
+**Branch**: `main`
+
+### Summary
+
+Closed the previous optional continuation point for plain segment2 explicit
+selected-body artifact/evidence. Complete explicit typed `tcrv_rvv` bodies for
+segment2 deinterleave and interleave now have positive target artifact/header
+fixtures and generated-bundle ABI evidence.
+
+### Main Changes
+
+- Added explicit selected-body artifact fixtures for
+  `segment2_deinterleave_unit_store` and
+  `segment2_interleave_unit_load`.
+- Added explicit generated-bundle ABI expectations for the same two op kinds in
+  `scripts/rvv_generated_bundle_abi_e2e.py`.
+- Recorded the selected-body artifact fixture naming gotcha in the testing
+  spec: kernel/variant symbols should stay concise because target export
+  derives a bounded C/EmitC function identifier from them.
+- Kept the existing explicit segment2 interleave incomplete-body negative as
+  the fail-closed evidence for mismatched explicit structure.
+- No production C++ path changes were required; current RVV provider/export
+  already accepted complete explicit typed segment2 bodies.
+
+### Git Commits
+
+- this commit
+
+### Testing
+
+- [OK] Manual `./build/bin/tcrv-opt` emission-plan materialization for both new
+  explicit plain segment2 fixtures.
+- [OK] Manual `./build/bin/tcrv-translate --tcrv-export-target-header-artifact`
+  export for both new explicit plain segment2 fixtures.
+- [OK] Existing explicit segment2 negative still fail-closes on incomplete
+  interleave body structure.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] explicit generated-bundle dry-run for
+  `segment2_deinterleave_unit_store` and
+  `segment2_interleave_unit_load` at counts 7, 16, and 23
+- [OK] explicit real `ssh rvv` evidence for
+  `segment2_deinterleave_unit_store` and
+  `segment2_interleave_unit_load` at counts 7, 16, and 23
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (363/363)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
