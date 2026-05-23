@@ -44,6 +44,7 @@ module {
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "computed_masked_strided_input_widening_dot_reduce_add"}
 // PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.masked_widening_dot_reduce"}
+// PLAN-SAME: {key = "tcrv_rvv.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "computed-mask-strided-input-widening-dot-reduce"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:masked_strided_wdot.v1"}
@@ -77,6 +78,7 @@ module {
 // HEADER: tianchenrv.rvv.destination_memory_form: unit-stride-store
 // HEADER: tianchenrv.rvv.mask_source: compare-produced-mask-same-vl-scope
 // HEADER: tianchenrv.rvv.widening_dot_relation: signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32
+// HEADER: tianchenrv.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:masked_strided_wdot.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:masked_strided_wdot.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask;dot_lhs=dot-lhs-input-buffer:lhs:abi|sld|mlhs|i16;dot_rhs=dot-rhs-input-buffer:rhs:abi|sld|mrhs|i16;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr;lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr;rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr
 // HEADER: tianchenrv.rvv.contraction_route_family_plan: rvv-contraction-route-family-plan.v1

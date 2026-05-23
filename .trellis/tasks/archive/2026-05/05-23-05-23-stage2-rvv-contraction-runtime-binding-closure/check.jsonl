@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants for final verification"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV route authority and plugin locality verification"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC route boundary verification"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing/evidence quality gate"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant pipeline and selected-body mirror checks"}

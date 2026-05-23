@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-13.md`
-- **Total Sessions**: 170
+- **Active File**: `journal-14.md`
+- **Total Sessions**: 172
 - **Last Active**: 2026-05-23
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-13.md` | ~1842 | Active |
+| `journal-14.md` | ~40 | Active |
+| `journal-13.md` | ~1971 | Archived |
 | `journal-12.md` | ~2095 | Archived |
 | `journal-11.md` | ~1979 | Archived |
 | `journal-10.md` | ~1968 | Archived |

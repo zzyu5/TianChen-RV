@@ -199,6 +199,7 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   bool usesStridedInputs = false;
   bool usesScalarSeed = false;
   bool usesVectorAccumulator = false;
+  RVVRuntimeAVLVLControlPlan runtimeControlPlan;
   llvm::StringRef familyPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;

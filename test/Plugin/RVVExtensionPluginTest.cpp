@@ -1759,6 +1759,73 @@ module {
 }
 
 int runContractionTargetLeafProfileValidationTest(mlir::MLIRContext &context) {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::analyzeRVVSelectedBodyRoute;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyWideningDotReductionContractionRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyContractionRouteFamilyProviderPlans;
+  using tianchenrv::support::RuntimeABIParameterRole;
+
+  if (int result = expect(
+          isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::WideningMAccAdd),
+          "widening_macc_add must be a widening MAcc contraction family "
+          "consumer"))
+    return result;
+  if (int result = expect(
+          !isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd),
+          "computed_masked_macc_add must stay outside the widening MAcc "
+          "contraction family"))
+    return result;
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::WideningDotReduceAdd,
+        RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd,
+        RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd,
+        RVVSelectedBodyOperationKind::
+            ComputedMaskStridedInputWideningDotReduceAdd}) {
+    if (int result = expect(
+            isRVVSelectedBodyWideningDotReductionContractionRouteFamilyConsumer(
+                op),
+            "widening dot-reduction variants must be contraction family "
+            "consumers"))
+      return result;
+  }
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::WideningMAccAdd,
+        RVVSelectedBodyOperationKind::WideningDotReduceAdd,
+        RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd,
+        RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd,
+        RVVSelectedBodyOperationKind::
+            ComputedMaskStridedInputWideningDotReduceAdd}) {
+    RVVSelectedBodyRouteAnalysis missingPlan;
+    missingPlan.description.operation = op;
+    if (int result = expectErrorContains(
+            verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+                missingPlan, "contraction provider unit test"),
+            {"requires the contraction route-family plan",
+             tianchenrv::plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+                 op)}))
+      return result;
+  }
+
+  RVVSelectedBodyRouteAnalysis staleNonConsumer;
+  staleNonConsumer.description.operation =
+      RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd;
+  staleNonConsumer.contractionRouteFamilyPlan.emplace();
+  staleNonConsumer.contractionRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::WideningMAccAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              staleNonConsumer, "contraction provider unit test"),
+          {"must not carry a contraction route-family plan",
+           "computed_masked_macc_add"}))
+    return result;
+
   constexpr llvm::StringLiteral source = R"mlir(
 module {
   tcrv.exec.kernel @rvv_contraction_leaf_profile_kernel {
@@ -1805,6 +1872,107 @@ module {
   if (!routeDescription)
     return fail("describe RVV contraction leaf-profile route: " +
                 llvm::toString(routeDescription.takeError()));
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> computedStridedAnalysis =
+      analyzeRVVSelectedBodyRoute(VariantEmitCLowerableRequest(
+          variant, kernel, capabilities, VariantEmissionRole::DirectVariant));
+  if (!computedStridedAnalysis)
+    return fail("analyze computed-mask strided contraction provider route: " +
+                llvm::toString(computedStridedAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              *computedStridedAnalysis,
+              "computed-mask strided contraction provider unit test"),
+          "valid computed-mask strided contraction family provider plan"))
+    return result;
+  if (int result = expect(
+          computedStridedAnalysis->contractionRouteFamilyPlan &&
+              computedStridedAnalysis->contractionRouteFamilyPlan
+                  ->usesDotReduction &&
+              computedStridedAnalysis->contractionRouteFamilyPlan
+                  ->usesComputedMask &&
+              computedStridedAnalysis->contractionRouteFamilyPlan
+                  ->usesStridedInputs &&
+              !computedStridedAnalysis->contractionRouteFamilyPlan
+                   ->usesWideningMAcc &&
+              computedStridedAnalysis->contractionRouteFamilyPlan
+                      ->runtimeControlPlan.controlPlanID ==
+                  tianchenrv::plugin::rvv::getRVVRuntimeAVLVLControlPlanID(),
+          "computed-mask strided widening dot-reduction must carry computed "
+          "mask, strided-input, dot-reduction, and runtime control facts"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleProvider = *computedStridedAnalysis;
+  staleProvider.description.runtimeControlPlanID = "metadata-runtime-control";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              staleProvider,
+              "computed-mask strided contraction provider unit test"),
+          {"contraction route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  staleProvider = *computedStridedAnalysis;
+  staleProvider.description.runtimeAVLASource = "metadata-selected-avl";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              staleProvider,
+              "computed-mask strided contraction provider unit test"),
+          {"contraction route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  staleProvider = *computedStridedAnalysis;
+  staleProvider.description.maskRole = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              staleProvider,
+              "computed-mask strided contraction provider unit test"),
+          {"computed-mask contraction mirrors",
+           "validated family plan"}))
+    return result;
+
+  staleProvider = *computedStridedAnalysis;
+  staleProvider.description.stridedLoadIntrinsic =
+      "metadata-selected-strided-load";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              staleProvider,
+              "computed-mask strided contraction provider unit test"),
+          {"contraction route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  staleProvider = *computedStridedAnalysis;
+  std::swap(staleProvider.description.runtimeABIParameters[2],
+            staleProvider.description.runtimeABIParameters[3]);
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              staleProvider,
+              "computed-mask strided contraction provider unit test"),
+          {"runtime ABI parameters", "validated family plan"}))
+    return result;
+
+  staleProvider = *computedStridedAnalysis;
+  staleProvider.routeOperandBindingPlan.bindings[2].parameter.role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              staleProvider,
+              "computed-mask strided contraction provider unit test"),
+          {"logical operand 'dot_lhs'", "dot-lhs-input-buffer",
+           "output-buffer"}))
+    return result;
+
+  staleProvider = *computedStridedAnalysis;
+  staleProvider.description.routeOperandBindingSummary = "stale";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              staleProvider,
+              "computed-mask strided contraction provider unit test"),
+          {"route operand binding mirror summary", "stale"}))
+    return result;
+
   if (int result = expect(
           routeDescription->targetLeafProfile ==
                   "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1" &&
@@ -1907,6 +2075,78 @@ module {
           stale, {"inactive-lane zeroing requirement",
                   "masked-widening-products-zero-inactive-lanes-before-reduction",
                   "mask-policy-metadata"}))
+    return result;
+
+  constexpr llvm::StringLiteral maccSource = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_widening_macc_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_widening_macc attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_widening_macc, sew = 32 : i64, source_kernel = "rvv_widening_macc_provider_kernel", status = "selected-lowering-boundary"} {
+        %a = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %b = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %seed = tcrv_rvv.load %acc, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %sum = tcrv_rvv.widening_macc %a, %b, %seed, %vl {accumulator_layout = "separate-i32-vector-accumulator-input", kind = "signed_widening_macc_add", macc_relation = "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1", result_layout = "store-widening-multiply-accumulate-result-to-output-buffer"} : !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> maccModule =
+      parseModule(context, maccSource);
+  if (!maccModule)
+    return fail("failed to parse widening MAcc provider test module");
+  KernelOp maccKernel =
+      findKernel(*maccModule, "rvv_widening_macc_provider_kernel");
+  VariantOp maccVariant = findVariant(maccKernel, "rvv_widening_macc");
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> maccAnalysis =
+      analyzeRVVSelectedBodyRoute(VariantEmitCLowerableRequest(
+          maccVariant, maccKernel,
+          TargetCapabilitySet::buildFromKernel(maccKernel),
+          VariantEmissionRole::DirectVariant));
+  if (!maccAnalysis)
+    return fail("analyze widening MAcc contraction provider route: " +
+                llvm::toString(maccAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              *maccAnalysis, "widening MAcc contraction provider unit test"),
+          "valid widening MAcc contraction family provider plan"))
+    return result;
+  if (int result = expect(
+          maccAnalysis->contractionRouteFamilyPlan &&
+              maccAnalysis->contractionRouteFamilyPlan->usesWideningMAcc &&
+              !maccAnalysis->contractionRouteFamilyPlan->usesDotReduction &&
+              !maccAnalysis->contractionRouteFamilyPlan->usesComputedMask &&
+              !maccAnalysis->contractionRouteFamilyPlan->usesStridedInputs &&
+              maccAnalysis->description.maskRole.empty() &&
+              maccAnalysis->description.stridedLoadIntrinsic.empty(),
+          "widening_macc_add must carry only widening MAcc contraction facts"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleMAcc = *maccAnalysis;
+  staleMAcc.description.wideningMAccRelation = "metadata-selected-macc";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              staleMAcc, "widening MAcc contraction provider unit test"),
+          {"widening MAcc contraction mirrors",
+           "validated family plan"}))
+    return result;
+
+  staleMAcc = *maccAnalysis;
+  staleMAcc.routeOperandBindingPlan.bindings[0].parameter.role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              staleMAcc, "widening MAcc contraction provider unit test"),
+          {"logical operand 'lhs'", "lhs-input-buffer", "output-buffer"}))
     return result;
 
   stale = *routeDescription;

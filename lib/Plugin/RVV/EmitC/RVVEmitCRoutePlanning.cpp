@@ -3156,6 +3156,10 @@ llvm::Error requireRVVSelectedBodyContractionPlanField(
 
 llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
+          plan.runtimeControlPlan,
+          "contraction route-family runtime AVL/VL control"))
+    return error;
   if (!isRVVSelectedBodyContractionRouteOperation(plan.operation))
     return makeRVVEmitCRouteProviderError(
         "contraction route-family plan supports only active widening_macc_add "
@@ -3195,6 +3199,11 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "contraction route-family plan requires the operation-specific memory "
         "form");
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "runtime control plan",
+          plan.runtimeControlPlan.controlPlanID,
+          getRVVRuntimeAVLVLControlPlanID()))
+    return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "family plan", plan.familyPlanID,
           kRVVContractionRouteFamilyPlanID))
@@ -3448,6 +3457,15 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
         "requested contraction route-family plan for non-contraction RVV "
         "operation");
 
+  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+      deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
+          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl, analysis.slice.withVL,
+          getRVVSelectedBodyContractionRuntimeABIOrder(operation),
+          "contraction route-family plan");
+  if (!runtimeControlPlan)
+    return runtimeControlPlan.takeError();
+
   RVVSelectedBodyContractionRouteFamilyPlan plan;
   plan.operation = operation;
   plan.memoryForm = analysis.slice.memoryForm;
@@ -3461,9 +3479,9 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
       isRVVSelectedBodyContractionStridedInputs(operation);
   plan.usesScalarSeed = plan.usesDotReduction;
   plan.usesVectorAccumulator = plan.usesWideningMAcc;
+  plan.runtimeControlPlan = std::move(*runtimeControlPlan);
   plan.familyPlanID = kRVVContractionRouteFamilyPlanID;
-  plan.runtimeABIOrder =
-      getRVVSelectedBodyContractionRuntimeABIOrder(operation);
+  plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
   plan.targetLeafProfile = kRVVContractionTargetLeafProfile;
   plan.providerSupportedMirror = kRVVContractionProviderSupportedMirror;
   plan.requiredHeaders.push_back("stddef.h");
@@ -3494,7 +3512,8 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   }
   plan.runtimeABIParameters.push_back(analysis.slice.accumulatorABI);
   plan.runtimeABIParameters.push_back(analysis.slice.outABI);
-  plan.runtimeABIParameters.push_back(analysis.slice.runtimeElementCountABI);
+  plan.runtimeABIParameters.push_back(
+      plan.runtimeControlPlan.runtimeAVLParameter);
   if (plan.usesStridedInputs) {
     plan.runtimeABIParameters.push_back(analysis.slice.lhsStrideABI);
     plan.runtimeABIParameters.push_back(analysis.slice.rhsStrideABI);
@@ -3564,6 +3583,8 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
 void applyRVVSelectedBodyContractionRouteFamilyPlan(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan,
     RVVSelectedBodyEmitCRouteDescription &description) {
+  applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
+                                               description);
   description.contractionRouteFamilyPlanID = plan.familyPlanID;
   description.runtimeABIOrder = plan.runtimeABIOrder;
   description.targetLeafProfile = plan.targetLeafProfile;
@@ -19804,7 +19825,39 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
         " contraction route-family plan mirror must match the validated "
         "family plan");
   if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.sew != plan.runtimeControlPlan.sew ||
+      analysis.description.lmul != plan.runtimeControlPlan.lmul ||
+      analysis.description.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      analysis.description.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      analysis.description.runtimeControlPlanID !=
+          plan.runtimeControlPlan.controlPlanID ||
+      analysis.description.configContractID !=
+          plan.runtimeControlPlan.configContractID ||
+      analysis.description.runtimeVLContractID !=
+          plan.runtimeControlPlan.runtimeVLContractID ||
+      analysis.description.runtimeAVLASource !=
+          plan.runtimeControlPlan.runtimeAVLASource ||
       analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.vlDefOpName !=
+          plan.runtimeControlPlan.vlDefOpName ||
+      analysis.description.vlScopeOpName !=
+          plan.runtimeControlPlan.vlScopeOpName ||
+      analysis.description.vlUses != plan.runtimeControlPlan.vlUses ||
+      analysis.description.emitCLoopKind !=
+          plan.runtimeControlPlan.emitCLoopKind ||
+      analysis.description.emitCLoopInductionName !=
+          plan.runtimeControlPlan.emitCLoopInductionName ||
+      analysis.description.emitCFullChunkVLName !=
+          plan.runtimeControlPlan.emitCFullChunkVLName ||
+      analysis.description.emitCLoopVLName !=
+          plan.runtimeControlPlan.emitCLoopVLName ||
+      analysis.description.remainingAVLMetadata !=
+          plan.runtimeControlPlan.remainingAVLMetadata ||
+      analysis.description.pointerAdvanceMetadata !=
+          plan.runtimeControlPlan.pointerAdvanceMetadata ||
+      analysis.description.boundedSlice !=
+          plan.runtimeControlPlan.boundedSlice ||
+      analysis.description.multiVL != plan.runtimeControlPlan.multiVL ||
       analysis.description.targetLeafProfile != plan.targetLeafProfile ||
       analysis.description.providerSupportedMirror !=
           plan.providerSupportedMirror ||
@@ -19841,6 +19894,9 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
         llvm::Twine(context) +
         " contraction route provider requires the route operand binding plan "
         "for the selected operation");
+  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
+          analysis.routeOperandBindingPlan, analysis.description, context))
+    return error;
 
   if (plan.usesWideningMAcc) {
     if (analysis.description.wideningMAccAccumulatorLayout !=
@@ -22886,7 +22942,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       isBaseMemoryMovementRouteFamilyRoute ||
       isRuntimeScalarComputedMaskSelectRoute ||
       isComputedMaskMemoryRouteFamilyRoute ||
-      isRuntimeScalarComputedMaskedMAcc || isStandaloneReductionRoute)
+      isRuntimeScalarComputedMaskedMAcc || isStandaloneReductionRoute ||
+      isContractionRoute)
     if (llvm::Error error = requireRouteDescriptionField(
             context, "runtime control plan", description.runtimeControlPlanID,
             getRVVRuntimeAVLVLControlPlanID()))
