@@ -197,6 +197,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef accumulationAccumulatorContract;
   llvm::StringRef accumulationResultContract;
   llvm::StringRef accumulationScalarCarryContract;
+  llvm::StringRef standaloneReductionRouteFamilyPlanID;
   llvm::StringRef inactiveLaneContract;
   llvm::StringRef maskedPassthroughLayout;
   llvm::StringRef reductionAccumulatorLayout;

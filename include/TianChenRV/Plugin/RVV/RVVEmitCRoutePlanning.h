@@ -481,6 +481,7 @@ struct RVVSelectedBodyStandaloneReductionRouteFamilyPlan {
   bool usesComputedMask = false;
   bool usesRuntimeScalarThreshold = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef familyPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
   llvm::StringRef providerSupportedMirror;
@@ -541,6 +542,16 @@ bool isRVVSelectedBodyMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
 llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+bool isRVVSelectedBodyPlainStandaloneReductionRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+bool isRVVSelectedBodyComputedMaskStandaloneReductionRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+bool isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);

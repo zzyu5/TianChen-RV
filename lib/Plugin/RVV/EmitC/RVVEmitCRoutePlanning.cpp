@@ -1426,6 +1426,8 @@ constexpr llvm::StringLiteral kRVVComputedMaskStandaloneReductionRuntimeABIOrder
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskStandaloneReductionRuntimeABIOrder(
         "cmp_lhs,rhs_scalar,src,acc,out,n");
+constexpr llvm::StringLiteral kRVVStandaloneReductionRouteFamilyPlanID(
+    "rvv-standalone-reduction-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVStandaloneReductionTargetLeafProfile(
     "rvv-v1-e32m1-standalone-reduction-leaf-profile.v1");
 constexpr llvm::StringLiteral
@@ -6723,6 +6725,10 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
         "standalone reduction route-family plan requires "
         "operation-specific unit-stride standalone-reduction memory form");
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
+          plan, "family plan id", plan.familyPlanID,
+          kRVVStandaloneReductionRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "runtime control plan", plan.runtimeControlPlan.controlPlanID,
           getRVVRuntimeAVLVLControlPlanID()))
     return error;
@@ -6947,6 +6953,7 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   plan.usesComputedMask = isComputedMask;
   plan.usesRuntimeScalarThreshold = isRuntimeScalarComputedMask;
   plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.familyPlanID = kRVVStandaloneReductionRouteFamilyPlanID;
   plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
   plan.targetLeafProfile =
       isRuntimeScalarComputedMask
@@ -7022,6 +7029,7 @@ void applyRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
     RVVSelectedBodyEmitCRouteDescription &description) {
   applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
                                                description);
+  description.standaloneReductionRouteFamilyPlanID = plan.familyPlanID;
   description.runtimeABIOrder = plan.runtimeABIOrder;
   description.targetLeafProfile = plan.targetLeafProfile;
   description.providerSupportedMirror = plan.providerSupportedMirror;
@@ -16790,6 +16798,66 @@ llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+bool isRVVSelectedBodyPlainStandaloneReductionRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
+  case RVVSelectedBodyOperationKind::StandaloneReduceMin:
+  case RVVSelectedBodyOperationKind::StandaloneReduceMax:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVSelectedBodyComputedMaskStandaloneReductionRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceAdd:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return isRVVSelectedBodyPlainStandaloneReductionRouteFamilyConsumer(
+             operation) ||
+         isRVVSelectedBodyComputedMaskStandaloneReductionRouteFamilyConsumer(
+             operation);
+}
+
+llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  if (isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(operation) &&
+      !analysis.standaloneReductionRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the standalone reduction route-family plan before provider "
+        "materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(operation) &&
+      analysis.standaloneReductionRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must not carry a standalone reduction route-family plan for "
+        "non-standalone-reduction operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (analysis.standaloneReductionRouteFamilyPlan &&
+      analysis.standaloneReductionRouteFamilyPlan->operation != operation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction route-family plan operation must match the "
+        "selected route description");
+  return llvm::Error::success();
+}
+
 void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(
     const RVVSelectedBodyEmitCRouteDescription &description,
     llvm::SmallVectorImpl<support::ArtifactMetadataEntry> &metadata) {
@@ -19063,6 +19131,18 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             description.segment2MemoryRouteFamilyPlanID, ""))
       return error;
   }
+  if (isStandaloneReductionRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "standalone reduction route family plan",
+            description.standaloneReductionRouteFamilyPlanID,
+            kRVVStandaloneReductionRouteFamilyPlanID))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "standalone reduction route family plan",
+            description.standaloneReductionRouteFamilyPlanID, ""))
+      return error;
+  }
   llvm::StringRef expectedOperandBindingPlanID =
       getExpectedRVVRouteOperandBindingPlanID(operationProfile.operation);
   if (!expectedOperandBindingPlanID.empty()) {
@@ -21002,6 +21082,9 @@ getRVVSelectedBodyConfigArtifactMetadata(
   if (!description.segment2MemoryRouteFamilyPlanID.empty())
     metadata.push_back({"tcrv_rvv.segment2_memory_route_family_plan",
                         description.segment2MemoryRouteFamilyPlanID});
+  if (!description.standaloneReductionRouteFamilyPlanID.empty())
+    metadata.push_back({"tcrv_rvv.standalone_reduction_route_family_plan",
+                        description.standaloneReductionRouteFamilyPlanID});
   metadata.push_back({"tcrv_rvv.emitc_loop", description.emitCLoopKind});
   metadata.push_back(
       {"tcrv_rvv.loop_induction", description.emitCLoopInductionName});
@@ -21022,6 +21105,7 @@ getRVVSelectedBodyConfigArtifactMetadata(
       !description.computedMaskMemoryRouteFamilyPlanID.empty() ||
       !description.segment2MemoryRouteFamilyPlanID.empty() ||
       !description.accumulationRouteFamilyPlanID.empty() ||
+      !description.standaloneReductionRouteFamilyPlanID.empty() ||
       isRVVSelectedBodyStandaloneReductionRouteOperation(
           description.operation)) {
     metadata.push_back(

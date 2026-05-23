@@ -48,22 +48,6 @@ bool isRVVSelectedBodyReductionRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::ReduceAdd;
 }
 
-bool isRVVSelectedBodyComputedMaskStandaloneReductionRoute(
-    RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax ||
-         op == RVVSelectedBodyOperationKind::
-                   RuntimeScalarComputedMaskStandaloneReduceAdd;
-}
-
-bool isRVVSelectedBodyPlainStandaloneReductionRoute(
-    RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::StandaloneReduceAdd ||
-         op == RVVSelectedBodyOperationKind::StandaloneReduceMin ||
-         op == RVVSelectedBodyOperationKind::StandaloneReduceMax;
-}
-
 llvm::StringRef getRVVSelectedBodyMaskedStandaloneReductionInactiveNeutral(
     RVVSelectedBodyOperationKind op) {
   switch (op) {
@@ -292,6 +276,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   if (llvm::Error error = verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
           analysis, "selected RVV EmitC route construction"))
     return error;
+  if (llvm::Error error =
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              analysis, "selected RVV EmitC route construction"))
+    return error;
   const bool emitsContractionDotReduction =
       contractionPlan && contractionPlan->usesDotReduction;
   const bool emitsContractionWideningMAcc =
@@ -303,6 +291,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const bool emitsStandaloneReduction = standaloneReductionPlan != nullptr;
   const bool emitsComputedMaskStandaloneReduction =
       standaloneReductionPlan && standaloneReductionPlan->usesComputedMask;
+  const bool emitsRuntimeScalarComputedMaskStandaloneReduction =
+      standaloneReductionPlan &&
+      standaloneReductionPlan->usesRuntimeScalarThreshold;
+  const bool emitsPlainStandaloneReduction =
+      standaloneReductionPlan && !standaloneReductionPlan->usesComputedMask;
   const bool emitsComputedMaskAccumulation =
       description.operation ==
           RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd ||
@@ -1792,11 +1785,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               "n", "header-mirror",
               "scalar broadcast runtime count header mirror operand"))
         return error;
-    } else if (isRVVSelectedBodyComputedMaskStandaloneReductionRoute(
-                   description.operation)) {
+    } else if (emitsComputedMaskStandaloneReduction) {
       const bool isRuntimeScalarThreshold =
-          description.operation == RVVSelectedBodyOperationKind::
-                                       RuntimeScalarComputedMaskStandaloneReduceAdd;
+          emitsRuntimeScalarComputedMaskStandaloneReduction;
       const bool isVectorComputedMaskAccumulationAdd =
           description.operation ==
           RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd;
@@ -1888,8 +1879,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       if (!outStore)
         return outStore.takeError();
       boundOutABI = *outStore;
-    } else if (isRVVSelectedBodyPlainStandaloneReductionRoute(
-                   description.operation)) {
+    } else if (emitsPlainStandaloneReduction) {
       llvm::Expected<const support::RuntimeABIParameter *> lhs =
           getRequiredBinding(bindingPlan, "lhs", "materialized-load-base",
                              "standalone reduction input load operand");

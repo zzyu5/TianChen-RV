@@ -1099,3 +1099,72 @@ Extracted planning-owned memory family provider predicates and segment2 family m
 ### Next Steps
 
 - None - task complete
+
+
+## Session 167: Stage2 RVV standalone reduction route-family ownership
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV standalone reduction route-family ownership
+**Branch**: `main`
+
+### Summary
+
+Moved active standalone reduction routes behind a validated RVV plugin-owned family plan and proved focused lit, bundle, ssh rvv, authority scan, and check-tianchenrv evidence.
+
+### Main Changes
+
+### Main Changes
+
+- Added `rvv-standalone-reduction-route-family-plan.v1` as an explicit standalone reduction family plan mirror carried through route description, target metadata, and generated-bundle expectations.
+- Added planning-owned standalone reduction family consumer predicates and provider-plan verification.
+- Made provider materialization require the validated standalone reduction family plan for plain, computed-mask, and runtime-scalar computed-mask standalone reduction routes.
+- Replaced provider-local standalone reduction route predicates with plan-derived materialization booleans while preserving shared computed-mask accumulation producer mechanics for add/runtime-scalar add.
+- Updated focused explicit/pre-realized target/header FileCheck coverage for standalone family plan presence.
+
+### Routes Covered
+
+- `standalone_reduce_add/min/max`
+- `computed_mask_standalone_reduce_add/min/max`
+- `runtime_scalar_cmp_masked_standalone_reduce_add`
+
+### Testing
+
+- [OK] Focused build: `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused lit filter for standalone reduction target/dialect/script fixtures: 21/21 selected tests passed.
+- [OK] Generated-bundle dry-runs for explicit and pre-realized standalone reduction routes, all seven active op kinds, counts `7,16,23`, thresholds `-37,91` where applicable.
+- [OK] Real `ssh rvv` explicit representative run for plain, computed-mask, and runtime-scalar masked standalone reduce add.
+- [OK] Real `ssh rvv` pre-realized representative run for plain and runtime-scalar masked standalone reduce add.
+- [OK] Added-line active-authority scan, full touched-file scan review, `git diff --check`, and `cmake --build build --target check-tianchenrv -j2` passed 349/349.
+
+### Self-Repair
+
+- Moved provider-facing standalone family verifier out of the anonymous implementation namespace after compile ambiguity.
+- Corrected FileCheck ordering for diagnostic metadata versus target header metadata.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

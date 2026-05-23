@@ -197,6 +197,9 @@ COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_ABI_ORDER = "cmp_lhs,cmp_rhs,src,acc,out
 RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_RUNTIME_ABI_ORDER = (
     "cmp_lhs,rhs_scalar,src,acc,out,n"
 )
+STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN = (
+    "rvv-standalone-reduction-route-family-plan.v1"
+)
 RUNTIME_AVL_VL_CONTROL_PLAN = "rvv-runtime-avl-vl-control-plan.v1"
 STANDALONE_REDUCE_TARGET_LEAF_PROFILE = (
     "rvv-v1-e32m1-standalone-reduction-leaf-profile.v1"
@@ -4576,6 +4579,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     STANDALONE_REDUCE_RESULT_LAYOUT
                 ),
                 "tcrv_rvv.reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
+                "tcrv_rvv.standalone_reduction_route_family_plan": (
+                    STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN
+                ),
                 "tcrv_rvv.target_leaf_profile": (
                     STANDALONE_REDUCE_TARGET_LEAF_PROFILE
                 ),
@@ -4617,6 +4623,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     STANDALONE_REDUCE_RESULT_LAYOUT
                 ),
                 "tcrv_rvv.reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
+                "tcrv_rvv.standalone_reduction_route_family_plan": (
+                    STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN
+                ),
                 "tcrv_rvv.target_leaf_profile": (
                     COMPUTED_MASK_STANDALONE_REDUCE_TARGET_LEAF_PROFILE
                 ),
@@ -4683,6 +4692,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     STANDALONE_REDUCE_RESULT_LAYOUT
                 ),
                 "tcrv_rvv.reduction_store_vl": STANDALONE_REDUCE_STORE_VL,
+                "tcrv_rvv.standalone_reduction_route_family_plan": (
+                    STANDALONE_REDUCTION_ROUTE_FAMILY_PLAN
+                ),
                 "tcrv_rvv.target_leaf_profile": (
                     RUNTIME_SCALAR_COMPUTED_MASK_STANDALONE_REDUCE_TARGET_LEAF_PROFILE
                 ),
