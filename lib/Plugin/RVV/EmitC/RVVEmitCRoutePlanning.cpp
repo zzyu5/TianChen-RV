@@ -16735,6 +16735,171 @@ llvm::Error verifySelectedRVVRoleSequence(
 
 } // namespace
 
+bool isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVSelectedBodyMemoryRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(operation) ||
+         isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(operation);
+}
+
+llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  if (isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(operation) &&
+      !analysis.computedMaskMemoryRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the computed-mask memory route-family plan before "
+        "provider materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(operation) &&
+      !analysis.segment2MemoryRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the plain segment2 memory route-family plan before "
+        "provider materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  return llvm::Error::success();
+}
+
+void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::SmallVectorImpl<support::ArtifactMetadataEntry> &metadata) {
+  if (description.operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore) {
+    metadata.push_back(
+        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
+    metadata.push_back({"tcrv_rvv.destination_memory_form",
+                        description.destinationMemoryForm});
+    metadata.push_back({"tcrv_rvv.segment_memory_layout",
+                        description.segmentMemoryLayout});
+    metadata.push_back({"tcrv_rvv.segment_count",
+                        llvm::Twine(description.segmentCount).str()});
+    metadata.push_back({"tcrv_rvv.segment_tuple_c_type",
+                        description.segmentTupleCType});
+    metadata.push_back({"tcrv_rvv.segment_load_intrinsic",
+                        description.segmentLoadIntrinsic});
+    metadata.push_back({"tcrv_rvv.segment_store_intrinsic",
+                        description.segmentStoreIntrinsic});
+    metadata.push_back({"tcrv_rvv.segment_field_extract_intrinsic",
+                        description.segmentFieldExtractIntrinsic});
+    metadata.push_back({"tcrv_rvv.field0_role", description.field0Role});
+    metadata.push_back({"tcrv_rvv.field1_role", description.field1Role});
+    metadata.push_back({"tcrv_rvv.field0_name", description.field0Name});
+    metadata.push_back({"tcrv_rvv.field1_name", description.field1Name});
+    metadata.push_back({"tcrv_rvv.field0_destination_memory_form",
+                        description.field0DestinationMemoryForm});
+    metadata.push_back({"tcrv_rvv.field1_destination_memory_form",
+                        description.field1DestinationMemoryForm});
+    return;
+  }
+  if (description.operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad) {
+    metadata.push_back({"tcrv_rvv.segment_memory_layout",
+                        description.segmentMemoryLayout});
+    metadata.push_back({"tcrv_rvv.segment_count",
+                        llvm::Twine(description.segmentCount).str()});
+    metadata.push_back({"tcrv_rvv.segment_tuple_c_type",
+                        description.segmentTupleCType});
+    metadata.push_back({"tcrv_rvv.segment_store_intrinsic",
+                        description.segmentStoreIntrinsic});
+    metadata.push_back({"tcrv_rvv.segment_tuple_create_intrinsic",
+                        description.segmentFieldExtractIntrinsic});
+    metadata.push_back(
+        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
+    metadata.push_back({"tcrv_rvv.destination_memory_form",
+                        description.destinationMemoryForm});
+    metadata.push_back({"tcrv_rvv.field0_role", description.field0Role});
+    metadata.push_back({"tcrv_rvv.field1_role", description.field1Role});
+    metadata.push_back({"tcrv_rvv.field0_name", description.field0Name});
+    metadata.push_back({"tcrv_rvv.field1_name", description.field1Name});
+    metadata.push_back({"tcrv_rvv.field0_source_memory_form",
+                        description.field0SourceMemoryForm});
+    metadata.push_back({"tcrv_rvv.field1_source_memory_form",
+                        description.field1SourceMemoryForm});
+    return;
+  }
+  if (description.operation ==
+      RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore) {
+    metadata.push_back({"tcrv_rvv.segment_memory_layout",
+                        description.segmentMemoryLayout});
+    metadata.push_back({"tcrv_rvv.segment_count",
+                        llvm::Twine(description.segmentCount).str()});
+    metadata.push_back({"tcrv_rvv.segment_tuple_c_type",
+                        description.segmentTupleCType});
+    metadata.push_back({"tcrv_rvv.segment_load_intrinsic",
+                        description.segmentLoadIntrinsic});
+    metadata.push_back({"tcrv_rvv.segment_field_extract_intrinsic",
+                        description.segmentFieldExtractIntrinsic});
+    metadata.push_back(
+        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
+    metadata.push_back({"tcrv_rvv.destination_memory_form",
+                        description.destinationMemoryForm});
+    metadata.push_back({"tcrv_rvv.field0_role", description.field0Role});
+    metadata.push_back({"tcrv_rvv.field1_role", description.field1Role});
+    metadata.push_back({"tcrv_rvv.field0_name", description.field0Name});
+    metadata.push_back({"tcrv_rvv.field1_name", description.field1Name});
+    metadata.push_back({"tcrv_rvv.field0_destination_memory_form",
+                        description.field0DestinationMemoryForm});
+    metadata.push_back({"tcrv_rvv.field1_destination_memory_form",
+                        description.field1DestinationMemoryForm});
+    return;
+  }
+  if (description.operation ==
+      RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad) {
+    metadata.push_back({"tcrv_rvv.segment_memory_layout",
+                        description.segmentMemoryLayout});
+    metadata.push_back({"tcrv_rvv.segment_count",
+                        llvm::Twine(description.segmentCount).str()});
+    metadata.push_back({"tcrv_rvv.segment_tuple_c_type",
+                        description.segmentTupleCType});
+    metadata.push_back({"tcrv_rvv.segment_store_intrinsic",
+                        description.segmentStoreIntrinsic});
+    metadata.push_back({"tcrv_rvv.segment_tuple_create_intrinsic",
+                        description.segmentFieldExtractIntrinsic});
+    metadata.push_back(
+        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
+    metadata.push_back({"tcrv_rvv.destination_memory_form",
+                        description.destinationMemoryForm});
+    metadata.push_back({"tcrv_rvv.field0_role", description.field0Role});
+    metadata.push_back({"tcrv_rvv.field1_role", description.field1Role});
+    metadata.push_back({"tcrv_rvv.field0_name", description.field0Name});
+    metadata.push_back({"tcrv_rvv.field1_name", description.field1Name});
+    metadata.push_back({"tcrv_rvv.field0_source_memory_form",
+                        description.field0SourceMemoryForm});
+    metadata.push_back({"tcrv_rvv.field1_source_memory_form",
+                        description.field1SourceMemoryForm});
+  }
+}
+
 llvm::Expected<RVVSelectedBodyRouteAnalysis>
 analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   if (!request.getVariant())
@@ -21224,58 +21389,8 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back({"tcrv_rvv.indexed_destination_memory_form",
                         description.indexedDestinationMemoryForm});
   }
-  if (description.operation ==
-      RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore) {
-    metadata.push_back(
-        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
-    metadata.push_back({"tcrv_rvv.destination_memory_form",
-                        description.destinationMemoryForm});
-    metadata.push_back({"tcrv_rvv.segment_memory_layout",
-                        description.segmentMemoryLayout});
-    metadata.push_back({"tcrv_rvv.segment_count",
-                        llvm::Twine(description.segmentCount).str()});
-    metadata.push_back({"tcrv_rvv.segment_tuple_c_type",
-                        description.segmentTupleCType});
-    metadata.push_back({"tcrv_rvv.segment_load_intrinsic",
-                        description.segmentLoadIntrinsic});
-    metadata.push_back({"tcrv_rvv.segment_store_intrinsic",
-                        description.segmentStoreIntrinsic});
-    metadata.push_back({"tcrv_rvv.segment_field_extract_intrinsic",
-                        description.segmentFieldExtractIntrinsic});
-    metadata.push_back({"tcrv_rvv.field0_role", description.field0Role});
-    metadata.push_back({"tcrv_rvv.field1_role", description.field1Role});
-    metadata.push_back({"tcrv_rvv.field0_name", description.field0Name});
-    metadata.push_back({"tcrv_rvv.field1_name", description.field1Name});
-    metadata.push_back({"tcrv_rvv.field0_destination_memory_form",
-                        description.field0DestinationMemoryForm});
-    metadata.push_back({"tcrv_rvv.field1_destination_memory_form",
-                        description.field1DestinationMemoryForm});
-  }
-  if (description.operation ==
-      RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad) {
-    metadata.push_back({"tcrv_rvv.segment_memory_layout",
-                        description.segmentMemoryLayout});
-    metadata.push_back({"tcrv_rvv.segment_count",
-                        llvm::Twine(description.segmentCount).str()});
-    metadata.push_back({"tcrv_rvv.segment_tuple_c_type",
-                        description.segmentTupleCType});
-    metadata.push_back({"tcrv_rvv.segment_store_intrinsic",
-                        description.segmentStoreIntrinsic});
-    metadata.push_back({"tcrv_rvv.segment_tuple_create_intrinsic",
-                        description.segmentFieldExtractIntrinsic});
-    metadata.push_back(
-        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
-    metadata.push_back({"tcrv_rvv.destination_memory_form",
-                        description.destinationMemoryForm});
-    metadata.push_back({"tcrv_rvv.field0_role", description.field0Role});
-    metadata.push_back({"tcrv_rvv.field1_role", description.field1Role});
-    metadata.push_back({"tcrv_rvv.field0_name", description.field0Name});
-    metadata.push_back({"tcrv_rvv.field1_name", description.field1Name});
-    metadata.push_back({"tcrv_rvv.field0_source_memory_form",
-                        description.field0SourceMemoryForm});
-    metadata.push_back({"tcrv_rvv.field1_source_memory_form",
-                        description.field1SourceMemoryForm});
-  }
+  addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(description,
+                                                             metadata);
   if (description.operation ==
       RVVSelectedBodyOperationKind::IndexedScatterUnitLoad) {
     metadata.push_back({"tcrv_rvv.indexed_memory_layout",
@@ -21293,56 +21408,6 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         description.indexedDestinationMemoryForm});
     metadata.push_back({"tcrv_rvv.destination_memory_form",
                         description.destinationMemoryForm});
-  }
-  if (description.operation ==
-      RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore) {
-    metadata.push_back({"tcrv_rvv.segment_memory_layout",
-                        description.segmentMemoryLayout});
-    metadata.push_back({"tcrv_rvv.segment_count",
-                        llvm::Twine(description.segmentCount).str()});
-    metadata.push_back({"tcrv_rvv.segment_tuple_c_type",
-                        description.segmentTupleCType});
-    metadata.push_back({"tcrv_rvv.segment_load_intrinsic",
-                        description.segmentLoadIntrinsic});
-    metadata.push_back({"tcrv_rvv.segment_field_extract_intrinsic",
-                        description.segmentFieldExtractIntrinsic});
-    metadata.push_back(
-        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
-    metadata.push_back({"tcrv_rvv.destination_memory_form",
-                        description.destinationMemoryForm});
-    metadata.push_back({"tcrv_rvv.field0_role", description.field0Role});
-    metadata.push_back({"tcrv_rvv.field1_role", description.field1Role});
-    metadata.push_back({"tcrv_rvv.field0_name", description.field0Name});
-    metadata.push_back({"tcrv_rvv.field1_name", description.field1Name});
-    metadata.push_back({"tcrv_rvv.field0_destination_memory_form",
-                        description.field0DestinationMemoryForm});
-    metadata.push_back({"tcrv_rvv.field1_destination_memory_form",
-                        description.field1DestinationMemoryForm});
-  }
-  if (description.operation ==
-      RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad) {
-    metadata.push_back({"tcrv_rvv.segment_memory_layout",
-                        description.segmentMemoryLayout});
-    metadata.push_back({"tcrv_rvv.segment_count",
-                        llvm::Twine(description.segmentCount).str()});
-    metadata.push_back({"tcrv_rvv.segment_tuple_c_type",
-                        description.segmentTupleCType});
-    metadata.push_back({"tcrv_rvv.segment_store_intrinsic",
-                        description.segmentStoreIntrinsic});
-    metadata.push_back({"tcrv_rvv.segment_tuple_create_intrinsic",
-                        description.segmentFieldExtractIntrinsic});
-    metadata.push_back(
-        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
-    metadata.push_back({"tcrv_rvv.destination_memory_form",
-                        description.destinationMemoryForm});
-    metadata.push_back({"tcrv_rvv.field0_role", description.field0Role});
-    metadata.push_back({"tcrv_rvv.field1_role", description.field1Role});
-    metadata.push_back({"tcrv_rvv.field0_name", description.field0Name});
-    metadata.push_back({"tcrv_rvv.field1_name", description.field1Name});
-    metadata.push_back({"tcrv_rvv.field0_source_memory_form",
-                        description.field0SourceMemoryForm});
-    metadata.push_back({"tcrv_rvv.field1_source_memory_form",
-                        description.field1SourceMemoryForm});
   }
   if (description.operation == RVVSelectedBodyOperationKind::WidenI32ToI64 ||
       description.operation == RVVSelectedBodyOperationKind::WidenI16ToI32) {

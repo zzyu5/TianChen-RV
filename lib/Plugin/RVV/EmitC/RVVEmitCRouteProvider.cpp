@@ -141,24 +141,6 @@ bool isRVVSelectedBodyComputedMaskStridedStoreRoute(
   return op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
 }
 
-bool isRVVSelectedBodyComputedMaskMemoryRouteFamilyRoute(
-    RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
-         op ==
-             RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
-         op ==
-             RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore ||
-         op == RVVSelectedBodyOperationKind::
-                   ComputedMaskIndexedGatherLoadUnitStore ||
-         op == RVVSelectedBodyOperationKind::
-                   ComputedMaskIndexedScatterStoreUnitLoad ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore ||
-         op ==
-             RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
-}
-
 bool isRVVSelectedBodyComputedMaskStridedLoadRoute(
     RVVSelectedBodyOperationKind op) {
   return op ==
@@ -184,12 +166,6 @@ bool isRVVSelectedBodySegmentedMemoryMovementRoute(
          op == RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore ||
          op ==
              RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
-}
-
-bool isRVVSelectedBodyPlainSegment2MemoryRoute(
-    RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore ||
-         op == RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
 }
 
 bool isRVVSelectedBodyMemoryMovementRoute(RVVSelectedBodyOperationKind op) {
@@ -313,6 +289,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           analysis.standaloneReductionRouteFamilyPlan
               ? &*analysis.standaloneReductionRouteFamilyPlan
               : nullptr;
+  if (llvm::Error error = verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
+          analysis, "selected RVV EmitC route construction"))
+    return error;
   const bool emitsContractionDotReduction =
       contractionPlan && contractionPlan->usesDotReduction;
   const bool emitsContractionWideningMAcc =
@@ -2680,7 +2659,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     const bool isComputedMaskSegment2Store =
         description.operation ==
         RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
-    if (isRVVSelectedBodyPlainSegment2MemoryRoute(description.operation) &&
+    if (isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(
+            description.operation) &&
         !segment2MemoryPlan)
       return makeRVVEmitCRouteProviderError(
           "plain segment2 memory provider requires the shared route-family "
@@ -3044,13 +3024,14 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const bool isRuntimeScalarComputedMaskLoadStore =
       isRVVSelectedBodyRuntimeScalarComputedMaskLoadStoreRoute(
           description.operation);
-  if (isRVVSelectedBodyComputedMaskMemoryRouteFamilyRoute(
+  if (isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(
           description.operation) &&
       !computedMaskMemoryPlan)
     return makeRVVEmitCRouteProviderError(
         "computed-mask memory provider requires the shared route-family plan "
         "before materializing store or load-store routes");
-  if (isRVVSelectedBodyPlainSegment2MemoryRoute(description.operation) &&
+  if (isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(
+          description.operation) &&
       !segment2MemoryPlan)
     return makeRVVEmitCRouteProviderError(
         "plain segment2 memory provider requires the shared route-family plan "

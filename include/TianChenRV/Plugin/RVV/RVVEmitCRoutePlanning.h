@@ -533,6 +533,16 @@ struct RVVSelectedBodyRouteAnalysis {
       standaloneReductionRouteFamilyPlan;
 };
 
+bool isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+bool isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+bool isRVVSelectedBodyMemoryRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);
 
 llvm::Expected<const support::RuntimeABIParameter *>

@@ -807,7 +807,16 @@ Added closure-gated runtime_i32_splat_store route with explicit/pre-realized sel
 
 ### Main Changes
 
-(Add details)
+- Added planning-owned memory family predicates for computed-mask memory,
+  plain segment2 memory, and the combined memory-family consumer set.
+- Added `verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans` and made the
+  RVV EmitC provider call it before materializing active memory-family routes.
+- Removed duplicated provider-local computed-mask memory and plain segment2
+  family predicate tables.
+- Factored computed-mask segment2 and plain segment2 metadata mirror emission
+  into `addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors`.
+- Preserved route ids, selected-body semantics, ABI order, binding closure,
+  generated artifacts, and common EmitC/export neutrality.
 
 ### Git Commits
 
@@ -817,7 +826,20 @@ Added closure-gated runtime_i32_splat_store route with explicit/pre-realized sel
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] Focused build:
+  `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused lit filter for representative memory-family routes:
+  29/29 selected tests passed.
+- [OK] Generated-bundle dry-run for representative computed-mask memory,
+  computed-mask strided/indexed/segment2, and plain segment2 routes with
+  counts `7,16,23`.
+- [OK] Real `ssh rvv` smoke for `runtime_scalar_cmp_masked_store` with counts
+  `7,16,23`.
+- [OK] Real `ssh rvv` smoke for `segment2_deinterleave_unit_store` with counts
+  `7,16,23`.
+- [OK] Active-authority scan, `git diff --check`, and
+  `cmake --build build --target check-tianchenrv -j2` passed 349/349.
 
 ### Status
 
@@ -1036,6 +1058,39 @@ Migrated Segment2DeinterleaveUnitStore and Segment2InterleaveUnitLoad onto a plu
   counts `7,16,23`, including field-order and tail preservation checks.
 - [OK] Active-authority scan, `git diff --check`, and
   `cmake --build build --target check-tianchenrv -j2` passed 349/349.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 166: Stage2 RVV memory route-family ownership extraction
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV memory route-family ownership extraction
+**Branch**: `main`
+
+### Summary
+
+Extracted planning-owned memory family provider predicates and segment2 family metadata mirror production while preserving active RVV memory route semantics; focused build/lit/dry-run/ssh rvv/check-tianchenrv passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 
