@@ -215,3 +215,36 @@ plain compare-select family provider boundary.
 ### Status
 
 [OK] **Completed and archived**. Commit is created after this journal entry.
+
+
+## Session 176: Stage2 RVV runtime scalar splat-store runtime binding closure
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV runtime scalar splat-store runtime binding closure
+**Branch**: `main`
+
+### Summary
+
+Closed RuntimeI32SplatStore provider runtime AVL/VL mirror and RouteOperandBindingPlan closure; added focused provider tests and refreshed generated-bundle plus ssh rvv evidence.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

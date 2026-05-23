@@ -1390,6 +1390,20 @@ module {
       } : !tcrv_rvv.vl
     }
   }
+
+  tcrv.exec.kernel @runtime_i32_splat_store_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_runtime_i32_splat_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_runtime_i32_splat_store, sew = 32 : i64, source_kernel = "runtime_i32_splat_store_provider_kernel", status = "selected-lowering-boundary"} {
+        %splat_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %splat_vec, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
 }
 )mlir";
 
@@ -1512,7 +1526,7 @@ module {
               *mulAnalysis, "scalar-broadcast provider unit test"),
           "valid scalar_broadcast_mul family provider plan"))
     return result;
-  return expect(
+  if (int result = expect(
       mulAnalysis->scalarBroadcastElementwiseRouteFamilyPlan &&
           mulAnalysis->scalarBroadcastElementwiseRouteFamilyPlan->operation ==
               RVVSelectedBodyOperationKind::ScalarBroadcastMul &&
@@ -1521,7 +1535,103 @@ module {
           mulAnalysis->routeOperandBindingPlan.planID ==
               "rvv-route-operand-binding:scalar_broadcast_mul.v1",
       "scalar_broadcast_mul plan must keep mul operation and binding facts "
-      "isolated");
+      "isolated"))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> runtimeSplatAnalysis =
+      analyzeRouteInModule(*module, "runtime_i32_splat_store_provider_kernel",
+                           "rvv_runtime_i32_splat_store");
+  if (!runtimeSplatAnalysis)
+    return fail("analyze runtime_i32_splat_store provider route: " +
+                llvm::toString(runtimeSplatAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
+              *runtimeSplatAnalysis,
+              "runtime scalar splat-store provider unit test"),
+          "valid runtime_i32_splat_store family provider plan"))
+    return result;
+  if (int result = expect(
+          runtimeSplatAnalysis->runtimeScalarSplatStoreRouteFamilyPlan &&
+              runtimeSplatAnalysis->runtimeScalarSplatStoreRouteFamilyPlan
+                      ->operation ==
+                  RVVSelectedBodyOperationKind::RuntimeI32SplatStore &&
+              runtimeSplatAnalysis->runtimeScalarSplatStoreRouteFamilyPlan
+                      ->runtimeControlPlan.controlPlanID ==
+                  tianchenrv::plugin::rvv::getRVVRuntimeAVLVLControlPlanID() &&
+              runtimeSplatAnalysis->runtimeScalarSplatStoreRouteFamilyPlan
+                      ->rhsScalarSplatIntrinsic ==
+                  "__riscv_vmv_v_x_i32m1" &&
+              runtimeSplatAnalysis->runtimeScalarSplatStoreRouteFamilyPlan
+                      ->storeIntrinsic == "__riscv_vse32_v_i32m1" &&
+              runtimeSplatAnalysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:runtime_i32_splat_store.v1",
+          "runtime_i32_splat_store plan must carry runtime control, scalar "
+          "splat, store, and binding facts"))
+    return result;
+
+  stale = *runtimeSplatAnalysis;
+  stale.description.runtimeAVLASource = "metadata-selected-avl";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
+              stale, "runtime scalar splat-store provider unit test"),
+          {"runtime scalar splat-store route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *runtimeSplatAnalysis;
+  stale.description.rhsBroadcastIntrinsic = "__riscv_vle32_v_i32m1";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
+              stale, "runtime scalar splat-store provider unit test"),
+          {"runtime scalar splat-store route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *runtimeSplatAnalysis;
+  stale.description.resultName = "metadata_result";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
+              stale, "runtime scalar splat-store provider unit test"),
+          {"runtime scalar splat-store route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *runtimeSplatAnalysis;
+  std::swap(stale.description.runtimeABIParameters[0],
+            stale.description.runtimeABIParameters[1]);
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
+              stale, "runtime scalar splat-store provider unit test"),
+          {"runtime ABI parameters", "validated family plan"}))
+    return result;
+
+  stale = *runtimeSplatAnalysis;
+  stale.routeOperandBindingPlan.bindings[0].parameter.role =
+      RuntimeABIParameterRole::RHSInputBuffer;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
+              stale, "runtime scalar splat-store provider unit test"),
+          {"logical operand 'rhs_scalar'", "rhs-scalar-value",
+           "rhs-input-buffer"}))
+    return result;
+
+  stale = *runtimeSplatAnalysis;
+  stale.description.routeOperandBindingSummary = "stale";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
+              stale, "runtime scalar splat-store provider unit test"),
+          {"route operand binding mirror summary", "stale"}))
+    return result;
+
+  stale = *runtimeSplatAnalysis;
+  stale.description.routeOperandBindingPlanID =
+      "rvv-route-operand-binding:scalar_broadcast_add.v1";
+  return expectErrorContains(
+      verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
+          stale, "runtime scalar splat-store provider unit test"),
+      {"mirror plan id",
+       "rvv-route-operand-binding:runtime_i32_splat_store.v1",
+       "rvv-route-operand-binding:scalar_broadcast_add.v1"});
 }
 
 int runWideningConversionRouteFamilyProviderPlanTest(
