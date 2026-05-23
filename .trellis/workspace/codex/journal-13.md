@@ -69,6 +69,58 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 168: Stage2 RVV contraction explicit selected-body realization
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV contraction explicit selected-body realization
+**Branch**: `main`
+
+### Summary
+
+Enabled explicit selected-body generated-bundle and real `ssh rvv` evidence for
+the base RVV contraction routes `widening_macc_add` and
+`widening_dot_reduce_add`, reusing the existing plugin-owned generic typed body
+planning/provider path and validated contraction family plan.
+
+### Main Changes
+
+- Added explicit generic `tcrv_rvv` body target fixtures for
+  `widening_macc_add` and `widening_dot_reduce_add`.
+- Added explicit generated-bundle expectations for both routes in
+  `scripts/rvv_generated_bundle_abi_e2e.py`.
+- Required contraction generated-bundle metadata verification to include
+  `tcrv_rvv.contraction_route_family_plan =
+  rvv-contraction-route-family-plan.v1`.
+- Added focused script dry-run tests for both explicit contraction routes.
+- Left strided-input and computed-mask contraction explicit selected bodies as
+  the exact continuation point; pre-realized preservation for all five active
+  contraction routes was verified.
+
+### Testing
+
+- [OK] Focused PLAN/HEADER FileCheck for both new explicit target fixtures.
+- [OK] Explicit generated-bundle dry-runs for `widening_macc_add` and
+  `widening_dot_reduce_add`, counts `7,16,23`.
+- [OK] Pre-realized generated-bundle preservation dry-run for all five active
+  contraction op kinds, counts `7,16,23`.
+- [OK] Real `ssh rvv` explicit generated-bundle run for `widening_macc_add`
+  and `widening_dot_reduce_add`, counts `7,16,23`.
+- [OK] Focused build:
+  `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Active-authority scan and `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 355/355.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Continue within the same family by enabling explicit selected-body fixtures
+  and evidence for strided-input and computed-mask widening dot-reduce variants.
+
+
 ## Session 168: Stage2 RVV contraction and widening dot-reduce route-family ownership
 
 **Date**: 2026-05-23

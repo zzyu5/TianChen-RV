@@ -1,0 +1,56 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id explicit-widening-dot-reduce-add --overwrite --op-kind widening_dot_reduce_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/explicit-widening-dot-reduce-add/evidence.json
+# RUN: FileCheck %s --check-prefix=WDOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/explicit-widening-dot-reduce-add/widening_dot_reduce_add/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/explicit-widening-dot-reduce-add/widening_dot_reduce_add/rvv_generated_bundle_abi_widening_dot_reduce_add_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "explicit-selected-body"
+# ROOT: "widening_dot_reduce_add"
+# ROOT: "pre_realized_selected_body": false
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# WDOT-DAG: "input_mode": "explicit-selected-body"
+# WDOT-DAG: "op_kind": "widening_dot_reduce_add"
+# WDOT-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-widening-dot-reduce-add.mlir"
+# WDOT-DAG: "prototype": "void tcrv_emitc_explicit_selected_body_widening_dot_reduce_add_kernel_explicit_selected_body_rvv_widening_dot_reduce_add(const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n);"
+# WDOT-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_widening_dot_reduce_add_kernel_explicit_selected_body_rvv_widening_dot_reduce_add"
+# WDOT-DAG: "expected_runtime_abi_name": "rvv-generic-widening-dot-reduce-add-callable-c-abi.v1"
+# WDOT-DAG: "expected_selected_variant": "explicit_selected_body_rvv_widening_dot_reduce_add"
+# WDOT-DAG: "front_door": "explicit-selected-tcrv-exec-rvv-body"
+# WDOT-DAG: "materializer": "none-selected-body-already-explicit"
+# WDOT-DAG: "pre_realized_body_consumed": false
+# WDOT-DAG: "key": "rvv_emitc_lowerable_route"
+# WDOT-DAG: "value": "rvv-generic-widening-dot-reduce-add-emitc-route"
+# WDOT-DAG: "key": "rvv_selected_body_operation"
+# WDOT-DAG: "value": "widening_dot_reduce_add"
+# WDOT-DAG: "key": "rvv_selected_body_typed_compute_op"
+# WDOT-DAG: "value": "tcrv_rvv.widening_dot_reduce"
+# WDOT-DAG: "key": "tcrv_rvv.memory_form"
+# WDOT-DAG: "value": "vector-rhs-load"
+# WDOT-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# WDOT-DAG: "value": "lhs,rhs,acc,out,n"
+# WDOT-DAG: "key": "tcrv_rvv.contraction_route_family_plan"
+# WDOT-DAG: "value": "rvv-contraction-route-family-plan.v1"
+# WDOT-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# WDOT-DAG: "value": "rvv-route-operand-binding:widening_dot_reduce.v1"
+# WDOT-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# WDOT-DAG: "value": "rvv-route-operand-binding:widening_dot_reduce.v1;lhs=lhs-input-buffer:lhs:abi|ld|dot-lhs|i16|hdr;rhs=rhs-input-buffer:rhs:abi|ld|dot-rhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+# WDOT-DAG: "typed_compute_op": "tcrv_rvv.widening_dot_reduce"
+# WDOT-DAG: "memory_form": "vector-rhs-load"
+# WDOT-DAG: "status": "dry_run_success"
+
+# HARNESS: int16_t *lhs = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
+# HARNESS: int16_t *rhs = (int16_t *)malloc(sizeof(int16_t) * alloc_n);
+# HARNESS: int32_t *acc = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+# HARNESS: int32_t *out = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+# HARNESS: tcrv_emitc_explicit_selected_body_widening_dot_reduce_add_kernel_explicit_selected_body_rvv_widening_dot_reduce_add(lhs, rhs, acc, out, n);
+# HARNESS: int32_t expected = acc[0];
+# HARNESS: expected = (int32_t)(expected + product);
+# HARNESS: signed_horizontal_dot seed_added scalar_output tail_preserved
+# HARNESS: tcrv_rvv_generated_bundle_abi_widening_dot_reduce_add_ok counts=7,16,23
+# HARNESS: PASS op=widening_dot_reduce_add counts=7,16,23

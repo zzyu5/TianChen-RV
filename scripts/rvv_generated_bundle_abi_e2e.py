@@ -2419,6 +2419,56 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         ),
         compare_predicate_kind="sle",
     ),
+    "widening_macc_add": OpExpectation(
+        kind="widening_macc_add",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-widening-macc-add.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_widening_macc_add",
+        external_abi_name="rvv-generic-widening-macc-add-callable-c-abi.v1",
+        function_name=(
+            "tcrv_emitc_explicit_selected_body_widening_macc_add_kernel_"
+            "explicit_selected_body_rvv_widening_macc_add"
+        ),
+        emitc_route="rvv-generic-widening-macc-add-emitc-route",
+        typed_compute_op="tcrv_rvv.widening_macc",
+        memory_form="vector-rhs-load",
+        lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 97) + 2) : ((int)(index % 97) + 3))",
+        rhs_initializer="(int16_t)(((index % 3) == 0) ? -((int)(index % 41) + 5) : ((int)(index % 41) + 7))",
+        source_initializer="(int32_t)(300 + (int32_t)(index * 11))",
+        expected_expression="(int32_t)(acc[index] + (int32_t)lhs[index] * (int32_t)rhs[index])",
+        out_initializer=OUT_SENTINEL,
+        lmul="m1",
+        sew="32",
+        element_c_type="int32_t",
+        config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
+    ),
+    "widening_dot_reduce_add": OpExpectation(
+        kind="widening_dot_reduce_add",
+        input_path=Path("test/Target/RVV/explicit-selected-body-artifact-widening-dot-reduce-add.mlir"),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_widening_dot_reduce_add",
+        external_abi_name="rvv-generic-widening-dot-reduce-add-callable-c-abi.v1",
+        function_name=(
+            "tcrv_emitc_explicit_selected_body_widening_dot_reduce_add_kernel_"
+            "explicit_selected_body_rvv_widening_dot_reduce_add"
+        ),
+        emitc_route="rvv-generic-widening-dot-reduce-add-emitc-route",
+        typed_compute_op="tcrv_rvv.widening_dot_reduce",
+        memory_form="vector-rhs-load",
+        lhs_initializer="(int16_t)(((index % 4) < 2) ? -((int)(index % 53) + 2) : ((int)(index % 53) + 5))",
+        rhs_initializer="(int16_t)(((index % 5) == 0) ? -((int)(index % 37) + 3) : ((int)(index % 37) + 7))",
+        source_initializer="(int32_t)17",
+        expected_expression="(int32_t)(acc[0] + sum_i((int32_t)lhs[i] * (int32_t)rhs[i]))",
+        out_initializer=OUT_SENTINEL,
+        lmul="m1",
+        sew="32",
+        element_c_type="int32_t",
+        config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
+    ),
     "strided_add": OpExpectation(
         kind="strided_add",
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-strided-add.mlir"),
@@ -5904,6 +5954,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     CONTRACTION_REQUIRED_HEADER_DECLARATIONS
                 ),
                 "tcrv_rvv.c_type_mapping": CONTRACTION_C_TYPE_MAPPING,
+                "tcrv_rvv.contraction_route_family_plan": (
+                    "rvv-contraction-route-family-plan.v1"
+                ),
             }
         )
     if expectation.is_widening_macc_add:
