@@ -38,6 +38,11 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.compare_predicate_kind", value = "sle"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:cmp_select.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:cmp_select.v1;lhs=lhs-input-buffer:lhs:abi|load-base|compare-lhs-call|select-true-call;rhs=rhs-input-buffer:rhs:abi|load-base|compare-rhs-call|select-false-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header"}
+// PLAN-SAME: {key = "tcrv_rvv.plain_compare_select_route_family_plan", value = "rvv-plain-compare-select-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-typed-plain-compare-select-leaf-profile.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-plain-compare-select-plan-validated"}
+// PLAN-SAME: {key = "tcrv_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
+// PLAN-SAME: {key = "tcrv_rvv.select_layout", value = "select-lhs-when-mask-else-rhs"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-cmp-select-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @explicit_selected_body_rvv_i32_cmp_select_sle
@@ -45,4 +50,5 @@ module {
 // HEADER: tianchenrv.rvv.selected_variant: @explicit_selected_body_rvv_i32_cmp_select_sle
 // HEADER: tianchenrv.rvv.compare_predicate_kind: sle
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:cmp_select.v1
+// HEADER: tianchenrv.rvv.plain_compare_select_route_family_plan: rvv-plain-compare-select-route-family-plan.v1
 // HEADER: void tcrv_emitc_explicit_selected_body_cmp_select_sle_kernel_explicit_selected_body_rvv_i32_cmp_select_sle(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

@@ -38,6 +38,11 @@ module {
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "cmp_select"}
 // PLAN-SAME: {key = "tcrv_rvv.compare_predicate_kind", value = "sle"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:cmp_select.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.plain_compare_select_route_family_plan", value = "rvv-plain-compare-select-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-typed-plain-compare-select-leaf-profile.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-plain-compare-select-plan-validated"}
+// PLAN-SAME: {key = "tcrv_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
+// PLAN-SAME: {key = "tcrv_rvv.select_layout", value = "select-lhs-when-mask-else-rhs"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-cmp-select-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_cmp_select_sle
@@ -45,4 +50,5 @@ module {
 // HEADER: tianchenrv.rvv.selected_variant: @pre_realized_body_rvv_cmp_select_sle
 // HEADER: tianchenrv.rvv.compare_predicate_kind: sle
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:cmp_select.v1
+// HEADER: tianchenrv.rvv.plain_compare_select_route_family_plan: rvv-plain-compare-select-route-family-plan.v1
 // HEADER: void tcrv_emitc_pre_realized_body_cmp_select_sle_kernel_pre_realized_body_rvv_cmp_select_sle(const int32_t *lhs, const int32_t *rhs, int32_t *out, size_t n);

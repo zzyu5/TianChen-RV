@@ -1594,6 +1594,24 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarDualCompareMaskAndSelectCTypeMappingSummary(
         "vl:size_t,cmp_lhs_a:signed-e32m1,rhs_scalar_a:i32,cmp_lhs_b:signed-e32m1,rhs_scalar_b:i32,mask_a:b32,mask_b:b32,mask_and:b32,true_false:signed-e32m1,result:signed-e32m1");
+constexpr llvm::StringLiteral kRVVPlainCompareSelectRouteFamilyPlanID(
+    "rvv-plain-compare-select-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVPlainCompareSelectTargetLeafProfile(
+    "rvv-v1-typed-plain-compare-select-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVPlainCompareSelectProviderSupportedMirror(
+    "provider_supported_mirror:rvv-plain-compare-select-plan-validated");
+constexpr llvm::StringLiteral kRVVPlainCompareSelectRequiredHeaderDeclarations(
+    "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral kRVVPlainCompareSelectCTypeMappingSummary(
+    "vl:size_t,lhs/rhs:typed-vector,mask:typed-mask,result:typed-vector");
+constexpr llvm::StringLiteral kRVVPlainCompareSelectLayout(
+    "select-lhs-when-mask-else-rhs");
+constexpr llvm::StringLiteral kRVVPlainCompareSelectTrueValueRole(
+    "lhs-vector-when-mask-true");
+constexpr llvm::StringLiteral kRVVPlainCompareSelectFalseValueRole(
+    "rhs-vector-when-mask-false");
+constexpr llvm::StringLiteral kRVVPlainCompareSelectSelectedResultRole(
+    "selected-vector-output");
 constexpr llvm::StringLiteral kRVVComputedMaskSelectRouteFamilyPlanID(
     "rvv-computed-mask-select-route-family-plan.v1");
 constexpr llvm::StringLiteral
@@ -4609,6 +4627,310 @@ void applyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(
   description.rhsBroadcastIntrinsic = plan.rhsScalarSplatIntrinsic;
   description.storeIntrinsic = plan.storeIntrinsic;
   description.resultName = plan.resultName;
+  description.runtimeABIParameters.clear();
+  description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
+                                          plan.runtimeABIParameters.end());
+}
+
+bool isRVVSelectedBodyPlainCompareSelectRouteOperation(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::CmpSelect;
+}
+
+llvm::Error requireRVVSelectedBodyPlainCompareSelectPlanField(
+    const RVVSelectedBodyPlainCompareSelectRouteFamilyPlan &plan,
+    llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("plain compare-select route-family plan validation for "
+                  "operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
+      field + " '" + expected + "' but found '" + actual + "'");
+}
+
+bool isSupportedPlainCompareSelectPredicateKind(llvm::StringRef predicate) {
+  return predicate == "eq" || predicate == "slt" || predicate == "sle";
+}
+
+llvm::Error validateRVVSelectedBodyPlainCompareSelectRouteFamilyPlan(
+    const RVVSelectedBodyPlainCompareSelectRouteFamilyPlan &plan) {
+  if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
+          plan.runtimeControlPlan,
+          "plain compare-select route-family runtime AVL/VL control"))
+    return error;
+  if (!isRVVSelectedBodyPlainCompareSelectRouteOperation(plan.operation))
+    return makeRVVEmitCRouteProviderError(
+        "plain compare-select route-family plan supports only active "
+        "cmp_select routes");
+  if (plan.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad)
+    return makeRVVEmitCRouteProviderError(
+        "plain compare-select route-family plan requires vector-rhs-load "
+        "typed body memory form");
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "runtime control plan",
+              plan.runtimeControlPlan.controlPlanID,
+              getRVVRuntimeAVLVLControlPlanID()))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "family plan", plan.familyPlanID,
+              kRVVPlainCompareSelectRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "runtime ABI order", plan.runtimeABIOrder,
+              kRVVGenericBinaryRuntimeABIOrder))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "target leaf profile", plan.targetLeafProfile,
+              kRVVPlainCompareSelectTargetLeafProfile))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "provider_supported_mirror",
+              plan.providerSupportedMirror,
+              kRVVPlainCompareSelectProviderSupportedMirror))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "header declarations", plan.requiredHeaderDeclarations,
+              kRVVPlainCompareSelectRequiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "C type mapping summary", plan.cTypeMappingSummary,
+              kRVVPlainCompareSelectCTypeMappingSummary))
+    return error;
+  if (plan.requiredHeaders.size() != 3 ||
+      plan.requiredHeaders[0] != "stddef.h" ||
+      plan.requiredHeaders[1] != "stdint.h" ||
+      plan.requiredHeaders[2] != "riscv_vector.h")
+    return makeRVVEmitCRouteProviderError(
+        "plain compare-select route-family plan requires provider-owned "
+        "header declarations 'stddef.h,stdint.h,riscv_vector.h'");
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "VL C type", plan.vlCType, "size_t"))
+    return error;
+  if (plan.vectorTypeName.empty() || plan.vectorCType.empty() ||
+      plan.maskTypeName.empty() || plan.maskCType.empty())
+    return makeRVVEmitCRouteProviderError(
+        "plain compare-select route-family plan requires typed vector and "
+        "mask type/C type facts");
+  if (!isSupportedPlainCompareSelectPredicateKind(plan.comparePredicateKind))
+    return makeRVVEmitCRouteProviderError(
+        "plain compare-select route-family plan requires active compare "
+        "predicate kind eq, slt, or sle from typed tcrv_rvv.compare");
+  if (plan.setVLIntrinsic.empty() || plan.vectorLoadIntrinsic.empty() ||
+      plan.compareIntrinsic.empty() || plan.selectIntrinsic.empty() ||
+      plan.storeIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        "plain compare-select route-family plan requires provider-derived "
+        "setvl, load, compare, select, and store leaves");
+  const RVVSelectedBodyOperationProfile &operationProfile =
+      getRVVSelectedBodyOperationProfile(plan.operation);
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "result name", plan.resultName,
+              operationProfile.resultName))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "mask name", plan.maskName, operationProfile.maskName))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "mask role", plan.maskRole,
+              kRVVMaskedPredicateMaskRole))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "mask source", plan.maskSource,
+              kRVVMaskedCompareMaskSource))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "mask memory form", plan.maskMemoryForm,
+              kRVVComputedMaskMemoryMaskMemoryForm))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "inactive-lane contract", plan.inactiveLaneContract,
+              kRVVMaskedInactiveLaneContract))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "masked passthrough layout",
+              plan.maskedPassthroughLayout, kRVVMaskedPassthroughLayout))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "select layout", plan.selectLayout,
+              kRVVPlainCompareSelectLayout))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "true-value role", plan.trueValueRole,
+              kRVVPlainCompareSelectTrueValueRole))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "false-value role", plan.falseValueRole,
+              kRVVPlainCompareSelectFalseValueRole))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "selected-result role", plan.selectedResultRole,
+              kRVVPlainCompareSelectSelectedResultRole))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "source memory form", plan.sourceMemoryForm,
+              kRVVUnitStrideSourceMemoryForm))
+    return error;
+  if (llvm::Error error =
+          requireRVVSelectedBodyPlainCompareSelectPlanField(
+              plan, "destination memory form", plan.destinationMemoryForm,
+              kRVVDestinationMemoryForm))
+    return error;
+  if (llvm::Error error =
+          verifyRVVSelectedBodyConstructionRuntimeABIParameters(
+              plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
+  return llvm::Error::success();
+}
+
+llvm::Expected<RVVSelectedBodyPlainCompareSelectRouteFamilyPlan>
+deriveRVVSelectedBodyPlainCompareSelectRouteFamilyPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyConfigProfile &configProfile,
+    const RVVSelectedBodyTargetLeafProfile &targetLeaves) {
+  if (!isRVVSelectedBodyPlainCompareSelectRouteOperation(
+          analysis.slice.arithmeticKind))
+    return makeRVVEmitCRouteProviderError(
+        "requested plain compare-select route-family plan for non-cmp_select "
+        "RVV operation");
+  if (analysis.slice.memoryForm != RVVSelectedBodyMemoryForm::VectorRHSLoad)
+    return makeRVVEmitCRouteProviderError(
+        "plain compare-select route-family plan requires vector-rhs-load "
+        "typed body structure");
+  if (!analysis.slice.lhsGenericLoad || !analysis.slice.rhsGenericLoad ||
+      !analysis.slice.compareOp || !analysis.slice.selectOp ||
+      !analysis.slice.genericStore || !analysis.slice.arithmeticOp)
+    return makeRVVEmitCRouteProviderError(
+        "plain compare-select route-family plan requires lhs/rhs loads, "
+        "compare-produced mask, select, and unit store body structure");
+  if (!isSupportedPlainCompareSelectPredicateKind(
+          analysis.slice.compareOp.getKind()))
+    return makeRVVEmitCRouteProviderError(
+        "plain compare-select route-family plan requires compare predicate "
+        "kind eq, slt, or sle from typed tcrv_rvv.compare");
+  if (analysis.slice.lhsABI.role !=
+          support::RuntimeABIParameterRole::LHSInputBuffer ||
+      analysis.slice.rhsABI.role !=
+          support::RuntimeABIParameterRole::RHSInputBuffer ||
+      analysis.slice.outABI.role !=
+          support::RuntimeABIParameterRole::OutputBuffer ||
+      analysis.slice.runtimeElementCountABI.role !=
+          support::RuntimeABIParameterRole::RuntimeElementCount)
+    return makeRVVEmitCRouteProviderError(
+        "plain compare-select route-family plan requires lhs, rhs, output, "
+        "and runtime element-count ABI roles");
+
+  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+      deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
+          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl, analysis.slice.withVL,
+          kRVVGenericBinaryRuntimeABIOrder,
+          "plain compare-select route-family plan");
+  if (!runtimeControlPlan)
+    return runtimeControlPlan.takeError();
+
+  RVVSelectedBodyPlainCompareSelectRouteFamilyPlan plan;
+  plan.operation = analysis.slice.arithmeticKind;
+  plan.memoryForm = analysis.slice.memoryForm;
+  plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.familyPlanID = kRVVPlainCompareSelectRouteFamilyPlanID;
+  plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
+  plan.targetLeafProfile = kRVVPlainCompareSelectTargetLeafProfile;
+  plan.providerSupportedMirror = kRVVPlainCompareSelectProviderSupportedMirror;
+  plan.requiredHeaders.push_back("stddef.h");
+  plan.requiredHeaders.push_back("stdint.h");
+  plan.requiredHeaders.push_back("riscv_vector.h");
+  plan.requiredHeaderDeclarations =
+      kRVVPlainCompareSelectRequiredHeaderDeclarations;
+  plan.cTypeMappingSummary = kRVVPlainCompareSelectCTypeMappingSummary;
+  plan.vlCType = configProfile.vlCType;
+  plan.vectorTypeName = configProfile.vectorTypeName;
+  plan.vectorCType = configProfile.vectorCType;
+  plan.maskTypeName = configProfile.maskTypeName;
+  plan.maskCType = configProfile.maskCType;
+  plan.setVLIntrinsic = configProfile.setVLIntrinsic;
+  plan.vectorLoadIntrinsic = configProfile.vectorLoadIntrinsic;
+  plan.comparePredicateKind = analysis.slice.compareOp.getKind();
+  plan.compareIntrinsic = targetLeaves.compareIntrinsic;
+  plan.selectIntrinsic = targetLeaves.intrinsic;
+  plan.storeIntrinsic = configProfile.storeIntrinsic;
+  plan.resultName =
+      getRVVSelectedBodyOperationProfile(plan.operation).resultName;
+  plan.maskName = getRVVSelectedBodyOperationProfile(plan.operation).maskName;
+  plan.maskRole = kRVVMaskedPredicateMaskRole;
+  plan.maskSource = kRVVMaskedCompareMaskSource;
+  plan.maskMemoryForm = kRVVComputedMaskMemoryMaskMemoryForm;
+  plan.inactiveLaneContract = kRVVMaskedInactiveLaneContract;
+  plan.maskedPassthroughLayout = kRVVMaskedPassthroughLayout;
+  plan.selectLayout = kRVVPlainCompareSelectLayout;
+  plan.trueValueRole = kRVVPlainCompareSelectTrueValueRole;
+  plan.falseValueRole = kRVVPlainCompareSelectFalseValueRole;
+  plan.selectedResultRole = kRVVPlainCompareSelectSelectedResultRole;
+  plan.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
+  plan.destinationMemoryForm = kRVVDestinationMemoryForm;
+  plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.rhsABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+  plan.runtimeABIParameters.push_back(plan.runtimeControlPlan.runtimeAVLParameter);
+
+  if (llvm::Error error =
+          validateRVVSelectedBodyPlainCompareSelectRouteFamilyPlan(plan))
+    return std::move(error);
+  return plan;
+}
+
+void applyRVVSelectedBodyPlainCompareSelectRouteFamilyPlan(
+    const RVVSelectedBodyPlainCompareSelectRouteFamilyPlan &plan,
+    RVVSelectedBodyEmitCRouteDescription &description) {
+  applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
+                                               description);
+  description.plainCompareSelectRouteFamilyPlanID = plan.familyPlanID;
+  description.runtimeABIOrder = plan.runtimeABIOrder;
+  description.targetLeafProfile = plan.targetLeafProfile;
+  description.providerSupportedMirror = plan.providerSupportedMirror;
+  description.requiredHeaderDeclarations = plan.requiredHeaderDeclarations;
+  description.cTypeMappingSummary = plan.cTypeMappingSummary;
+  description.vlCType = plan.vlCType;
+  description.vectorTypeName = plan.vectorTypeName;
+  description.vectorCType = plan.vectorCType;
+  description.maskTypeName = plan.maskTypeName;
+  description.maskCType = plan.maskCType;
+  description.setVLIntrinsic = plan.setVLIntrinsic;
+  description.vectorLoadIntrinsic = plan.vectorLoadIntrinsic;
+  description.comparePredicateKind = plan.comparePredicateKind;
+  description.compareIntrinsic = plan.compareIntrinsic;
+  description.intrinsic = plan.selectIntrinsic;
+  description.storeIntrinsic = plan.storeIntrinsic;
+  description.resultName = plan.resultName;
+  description.maskName = plan.maskName;
+  description.maskRole = plan.maskRole;
+  description.maskSource = plan.maskSource;
+  description.maskMemoryForm = plan.maskMemoryForm;
+  description.inactiveLaneContract = plan.inactiveLaneContract;
+  description.maskedPassthroughLayout = plan.maskedPassthroughLayout;
+  description.selectLayout = plan.selectLayout;
+  description.sourceMemoryForm = plan.sourceMemoryForm;
+  description.destinationMemoryForm = plan.destinationMemoryForm;
   description.runtimeABIParameters.clear();
   description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
                                           plan.runtimeABIParameters.end());
@@ -19076,6 +19398,101 @@ llvm::Error verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans
   return llvm::Error::success();
 }
 
+bool isRVVSelectedBodyPlainCompareSelectRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return isRVVSelectedBodyPlainCompareSelectRouteOperation(operation);
+}
+
+llvm::Error verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyPlainCompareSelectRouteFamilyConsumer(operation);
+  if (isConsumer && !analysis.plainCompareSelectRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the plain compare-select route-family plan before "
+        "provider materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!isConsumer && analysis.plainCompareSelectRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must not carry a plain compare-select route-family plan for "
+        "non-cmp-select operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!analysis.plainCompareSelectRouteFamilyPlan)
+    return llvm::Error::success();
+
+  const RVVSelectedBodyPlainCompareSelectRouteFamilyPlan &plan =
+      *analysis.plainCompareSelectRouteFamilyPlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodyPlainCompareSelectRouteFamilyPlan(plan))
+    return error;
+  if (plan.operation != operation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain compare-select route-family plan operation must match the "
+        "selected route description");
+  if (analysis.description.plainCompareSelectRouteFamilyPlanID !=
+      plan.familyPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain compare-select route-family plan mirror must match the "
+        "validated family plan");
+  if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.runtimeControlPlanID !=
+          plan.runtimeControlPlan.controlPlanID ||
+      analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.targetLeafProfile != plan.targetLeafProfile ||
+      analysis.description.providerSupportedMirror !=
+          plan.providerSupportedMirror ||
+      analysis.description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      analysis.description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      analysis.description.vlCType != plan.vlCType ||
+      analysis.description.vectorTypeName != plan.vectorTypeName ||
+      analysis.description.vectorCType != plan.vectorCType ||
+      analysis.description.maskTypeName != plan.maskTypeName ||
+      analysis.description.maskCType != plan.maskCType ||
+      analysis.description.setVLIntrinsic != plan.setVLIntrinsic ||
+      analysis.description.vectorLoadIntrinsic != plan.vectorLoadIntrinsic ||
+      analysis.description.comparePredicateKind !=
+          plan.comparePredicateKind ||
+      analysis.description.compareIntrinsic != plan.compareIntrinsic ||
+      analysis.description.intrinsic != plan.selectIntrinsic ||
+      analysis.description.storeIntrinsic != plan.storeIntrinsic ||
+      analysis.description.resultName != plan.resultName ||
+      analysis.description.maskName != plan.maskName ||
+      analysis.description.maskRole != plan.maskRole ||
+      analysis.description.maskSource != plan.maskSource ||
+      analysis.description.maskMemoryForm != plan.maskMemoryForm ||
+      analysis.description.inactiveLaneContract !=
+          plan.inactiveLaneContract ||
+      analysis.description.maskedPassthroughLayout !=
+          plan.maskedPassthroughLayout ||
+      analysis.description.selectLayout != plan.selectLayout ||
+      analysis.description.sourceMemoryForm != plan.sourceMemoryForm ||
+      analysis.description.destinationMemoryForm !=
+          plan.destinationMemoryForm)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain compare-select route-family mirrors must be populated from "
+        "the validated family plan before provider materialization");
+  if (!support::runtimeABIParametersEqual(
+          analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain compare-select route-family runtime ABI parameters must match "
+        "the validated family plan");
+  if (analysis.routeOperandBindingPlan.planID !=
+      getExpectedRVVRouteOperandBindingPlanID(operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain compare-select provider requires the route operand binding "
+        "plan for the selected operation");
+  return llvm::Error::success();
+}
+
 bool isRVVSelectedBodyWideningConversionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   return isRVVSelectedBodyWideningConversionRouteOperation(operation);
@@ -20396,6 +20813,19 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
         *analysis.runtimeScalarSplatStoreRouteFamilyPlan,
         analysis.description);
   }
+  if (isRVVSelectedBodyPlainCompareSelectRouteOperation(
+          routeProfile->operation.operation)) {
+    llvm::Expected<RVVSelectedBodyPlainCompareSelectRouteFamilyPlan>
+        plainCompareSelectPlan =
+            deriveRVVSelectedBodyPlainCompareSelectRouteFamilyPlan(
+                analysis, routeProfile->config, routeProfile->targetLeaves);
+    if (!plainCompareSelectPlan)
+      return plainCompareSelectPlan.takeError();
+    analysis.plainCompareSelectRouteFamilyPlan =
+        std::move(*plainCompareSelectPlan);
+    applyRVVSelectedBodyPlainCompareSelectRouteFamilyPlan(
+        *analysis.plainCompareSelectRouteFamilyPlan, analysis.description);
+  }
   if (isRVVSelectedBodyWideningConversionRouteOperation(
           routeProfile->operation.operation)) {
     llvm::Expected<RVVSelectedBodyWideningConversionRouteFamilyPlan>
@@ -21007,6 +21437,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           ComputedMaskStridedInputWideningDotReduceAdd;
   const bool isComputedMaskSelect =
       operationProfile.operation == RVVSelectedBodyOperationKind::ComputedMaskSelect;
+  const bool isPlainCompareSelect =
+      operationProfile.operation == RVVSelectedBodyOperationKind::CmpSelect;
   const bool isRuntimeScalarCompareSelect =
       operationProfile.operation ==
       RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect;
@@ -21211,6 +21643,25 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "C type mapping summary", description.cTypeMappingSummary,
             kRVVRuntimeScalarSplatStoreCTypeMappingSummary))
+      return error;
+  } else if (isPlainCompareSelect) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "target leaf profile", description.targetLeafProfile,
+            kRVVPlainCompareSelectTargetLeafProfile))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "provider_supported_mirror",
+            description.providerSupportedMirror,
+            kRVVPlainCompareSelectProviderSupportedMirror))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "required header declarations",
+            description.requiredHeaderDeclarations,
+            kRVVPlainCompareSelectRequiredHeaderDeclarations))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "C type mapping summary", description.cTypeMappingSummary,
+            kRVVPlainCompareSelectCTypeMappingSummary))
       return error;
   } else if (operationProfile.isWideningConversion) {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -22068,6 +22519,22 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             description.runtimeScalarSplatStoreRouteFamilyPlanID, ""))
       return error;
   }
+  if (isPlainCompareSelect) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "plain compare-select route family plan",
+            description.plainCompareSelectRouteFamilyPlanID,
+            kRVVPlainCompareSelectRouteFamilyPlanID))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "select layout", description.selectLayout,
+            kRVVPlainCompareSelectLayout))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "plain compare-select route family plan",
+            description.plainCompareSelectRouteFamilyPlanID, ""))
+      return error;
+  }
   if (operationProfile.isWideningConversion) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "widening conversion route family plan",
@@ -22116,9 +22583,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "computed-mask select mask producer source",
             description.computedMaskSelectMaskProducerSource, ""))
       return error;
-    if (llvm::Error error = requireRouteDescriptionField(
-            context, "select layout", description.selectLayout, ""))
-      return error;
+    if (!isPlainCompareSelect)
+      if (llvm::Error error = requireRouteDescriptionField(
+              context, "select layout", description.selectLayout, ""))
+        return error;
   }
   if (isComputedMaskMemoryRouteFamilyRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -22202,6 +22670,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   }
   if (isElementwiseArithmeticRoute || isScalarBroadcastElementwiseRoute ||
       isRuntimeScalarSplatStoreRoute ||
+      isPlainCompareSelect ||
       operationProfile.isWideningConversion ||
       isBaseMemoryMovementRouteFamilyRoute ||
       isRuntimeScalarComputedMaskSelectRoute ||
@@ -22681,11 +23150,13 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "mask value name", description.maskName, ""))
       return error;
   }
-  if (operationProfile.isMaskedArithmetic || isComputedMaskSelect ||
+  if (operationProfile.isMaskedArithmetic || isPlainCompareSelect ||
+      isComputedMaskSelect ||
       isRuntimeScalarCompareSelect ||
       isRuntimeScalarDualCompareMaskAndSelect || isComputedMaskedMAcc) {
     llvm::StringRef expectedMaskMemoryForm =
-        (isComputedMaskSelect || isRuntimeScalarCompareSelect ||
+        (isPlainCompareSelect || isComputedMaskSelect ||
+         isRuntimeScalarCompareSelect ||
          isComputedMaskedMAcc)
             ? llvm::StringRef(kRVVComputedMaskMemoryMaskMemoryForm)
         : isRuntimeScalarDualCompareMaskAndSelect
@@ -23816,12 +24287,15 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "source memory form", description.sourceMemoryForm,
-            isElementwiseArithmeticRoute ? kRVVUnitStrideSourceMemoryForm : ""))
+            (isElementwiseArithmeticRoute || isPlainCompareSelect)
+                ? kRVVUnitStrideSourceMemoryForm
+                : ""))
       return error;
     if (llvm::Error error =
             requireRouteDescriptionField(context, "destination memory form",
                                          description.destinationMemoryForm,
-                                         isElementwiseArithmeticRoute
+                                         (isElementwiseArithmeticRoute ||
+                                          isPlainCompareSelect)
                                              ? kRVVDestinationMemoryForm
                                              : ""))
       return error;
@@ -24125,6 +24599,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back({"tcrv_rvv.destination_memory_form",
                         description.destinationMemoryForm});
   }
+  if (!description.plainCompareSelectRouteFamilyPlanID.empty()) {
+    metadata.push_back({"tcrv_rvv.plain_compare_select_route_family_plan",
+                        description.plainCompareSelectRouteFamilyPlanID});
+  }
   if (!description.runtimeScalarSplatStoreRouteFamilyPlanID.empty())
     metadata.push_back(
         {"tcrv_rvv.runtime_scalar_splat_store_route_family_plan",
@@ -24174,6 +24652,7 @@ getRVVSelectedBodyConfigArtifactMetadata(
           description.operation) ||
       isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(
           description.operation) ||
+      !description.plainCompareSelectRouteFamilyPlanID.empty() ||
       isRVVSelectedBodyWideningConversionRouteOperation(description.operation) ||
       isRVVSelectedBodyBaseMemoryMovementRouteOperation(
           description.operation) ||
@@ -24206,7 +24685,8 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back({"tcrv_rvv.masked_passthrough_layout",
                         description.maskedPassthroughLayout});
   }
-  if (description.operation == RVVSelectedBodyOperationKind::ComputedMaskSelect ||
+  if (description.operation == RVVSelectedBodyOperationKind::CmpSelect ||
+      description.operation == RVVSelectedBodyOperationKind::ComputedMaskSelect ||
       description.operation ==
           RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect ||
       description.operation ==

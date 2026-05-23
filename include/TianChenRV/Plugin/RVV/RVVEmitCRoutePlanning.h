@@ -328,6 +328,44 @@ struct RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
 };
 
+struct RVVSelectedBodyPlainCompareSelectRouteFamilyPlan {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef familyPlanID;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef maskTypeName;
+  llvm::StringRef maskCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef comparePredicateKind;
+  llvm::StringRef compareIntrinsic;
+  llvm::StringRef selectIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef resultName;
+  llvm::StringRef maskName;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef inactiveLaneContract;
+  llvm::StringRef maskedPassthroughLayout;
+  llvm::StringRef selectLayout;
+  llvm::StringRef trueValueRole;
+  llvm::StringRef falseValueRole;
+  llvm::StringRef selectedResultRole;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
+};
+
 struct RVVSelectedBodyWideningConversionRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
@@ -654,6 +692,8 @@ struct RVVSelectedBodyRouteAnalysis {
       scalarBroadcastElementwiseRouteFamilyPlan;
   std::optional<RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan>
       runtimeScalarSplatStoreRouteFamilyPlan;
+  std::optional<RVVSelectedBodyPlainCompareSelectRouteFamilyPlan>
+      plainCompareSelectRouteFamilyPlan;
   std::optional<RVVSelectedBodyWideningConversionRouteFamilyPlan>
       wideningConversionRouteFamilyPlan;
   std::optional<RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan>
@@ -704,6 +744,12 @@ bool isRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
 llvm::Error verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+bool isRVVSelectedBodyPlainCompareSelectRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 bool isRVVSelectedBodyWideningConversionRouteFamilyConsumer(

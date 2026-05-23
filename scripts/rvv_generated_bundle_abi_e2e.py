@@ -554,6 +554,22 @@ CMP_SELECT_ROUTE_OPERAND_BINDING_OPERANDS = (
     "out=output-buffer:out:abi|store-base|header;"
     "n=runtime-element-count:n:abi|setvl-avl|loop-control|header"
 )
+PLAIN_COMPARE_SELECT_ROUTE_FAMILY_PLAN = (
+    "rvv-plain-compare-select-route-family-plan.v1"
+)
+PLAIN_COMPARE_SELECT_TARGET_LEAF_PROFILE = (
+    "rvv-v1-typed-plain-compare-select-leaf-profile.v1"
+)
+PLAIN_COMPARE_SELECT_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-plain-compare-select-plan-validated"
+)
+PLAIN_COMPARE_SELECT_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+PLAIN_COMPARE_SELECT_C_TYPE_MAPPING = (
+    "vl:size_t,lhs/rhs:typed-vector,mask:typed-mask,result:typed-vector"
+)
+PLAIN_COMPARE_SELECT_LAYOUT = "select-lhs-when-mask-else-rhs"
 COMPUTED_MASK_SELECT_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:computed_mask_select.v1"
 )
@@ -5049,8 +5065,34 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_cmp_select:
         per_op_metadata.update(
             {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
                 "tcrv_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
+                ),
+                "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "tcrv_rvv.mask_memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "tcrv_rvv.source_memory_form": (
+                    COMPUTED_MASK_SELECT_SOURCE_MEMORY_FORM
+                ),
+                "tcrv_rvv.destination_memory_form": (
+                    COMPUTED_MASK_SELECT_DESTINATION_MEMORY_FORM
+                ),
+                "tcrv_rvv.select_layout": PLAIN_COMPARE_SELECT_LAYOUT,
+                "tcrv_rvv.plain_compare_select_route_family_plan": (
+                    PLAIN_COMPARE_SELECT_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    PLAIN_COMPARE_SELECT_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    PLAIN_COMPARE_SELECT_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    PLAIN_COMPARE_SELECT_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    PLAIN_COMPARE_SELECT_C_TYPE_MAPPING
                 ),
                 "tcrv_rvv.route_operand_binding_plan": (
                     CMP_SELECT_ROUTE_OPERAND_BINDING_PLAN

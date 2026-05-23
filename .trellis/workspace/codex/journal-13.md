@@ -1728,3 +1728,59 @@ Added RVV plugin-owned elementwise arithmetic family planning/provider validatio
 ### Next Steps
 
 - None - task complete
+
+
+## Session 169: Stage2 RVV plain compare-select route-family ownership
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV plain compare-select route-family ownership
+**Branch**: `main`
+
+### Summary
+
+Added RVV plugin-owned plain compare-select family planning/provider validation
+for active `CmpSelect` routes while keeping computed-mask and runtime-scalar
+select families isolated.
+
+### Main Changes
+
+- Added `RVVSelectedBodyPlainCompareSelectRouteFamilyPlan` and route-analysis
+  storage for typed compare/select body facts.
+- Required provider materialization for `CmpSelect` to pass validated plain
+  compare-select family-plan checks before building an EmitC route.
+- Mirrored family-plan metadata into emission plans and target bundle headers,
+  including plan id, target leaf profile, provider-supported mirror, mask
+  role/source/form, select layout, inactive-lane contract, runtime ABI order,
+  and route operand binding closure.
+- Added focused C++ classification and missing/stale-plan checks; updated
+  explicit/pre-realized CmpSelect and SLE lit coverage and generated-bundle
+  expectations.
+
+### Testing
+
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused cmp-select lit filter from `build/test`: 10/10 selected tests
+  passed.
+- [OK] Generated-bundle dry-runs for explicit and pre-realized
+  `cmp_select`/`cmp_select_sle`, counts `7,16,23`.
+- [OK] Real `ssh rvv` generated-bundle runs for explicit and pre-realized
+  `cmp_select`/`cmp_select_sle`, counts `7,16,23`.
+- [OK] Added-line active-authority scan over touched RVV/plugin/export/script/test
+  paths found no legacy route-authority matches.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`, 361/361 passed.
+
+### Self-Repair
+
+- Focused lit first failed because the plain family plan did not mirror the
+  selected-body inactive-lane contract into the route description. The plan now
+  carries inactive-lane and passthrough layout facts, and provider validation
+  remains fail-closed.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete

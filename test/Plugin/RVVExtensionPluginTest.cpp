@@ -1958,6 +1958,65 @@ int runComputedMaskSelectRouteFamilyProviderPlanTest() {
   return 0;
 }
 
+int runPlainCompareSelectRouteFamilyProviderPlanTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyPlainCompareSelectRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans;
+
+  if (int result = expect(
+          isRVVSelectedBodyPlainCompareSelectRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::CmpSelect),
+          "plain cmp_select must be a plain compare-select family consumer"))
+    return result;
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::ComputedMaskSelect,
+        RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect,
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarDualCompareMaskAndSelect,
+        RVVSelectedBodyOperationKind::Add}) {
+    if (int result = expect(
+            !isRVVSelectedBodyPlainCompareSelectRouteFamilyConsumer(op),
+            "computed-mask, runtime-scalar select, and arithmetic routes must "
+            "stay outside the plain compare-select family"))
+      return result;
+  }
+  if (int result = expect(
+          isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(
+              RVVSelectedBodyOperationKind::ComputedMaskSelect),
+          "computed_mask_select must remain owned by the computed-mask select "
+          "family"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingPlan;
+  missingPlan.description.operation = RVVSelectedBodyOperationKind::CmpSelect;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
+              missingPlan, "plain compare-select provider unit test"),
+          {"requires the plain compare-select route-family plan",
+           "cmp_select"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleNonConsumer;
+  staleNonConsumer.description.operation =
+      RVVSelectedBodyOperationKind::ComputedMaskSelect;
+  staleNonConsumer.plainCompareSelectRouteFamilyPlan.emplace();
+  staleNonConsumer.plainCompareSelectRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::CmpSelect;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyPlainCompareSelectRouteFamilyProviderPlans(
+              staleNonConsumer, "plain compare-select provider unit test"),
+          {"must not carry a plain compare-select route-family plan",
+           "computed_mask_select"}))
+    return result;
+
+  return 0;
+}
+
 int runCompareSelectSelectedBodyRouteTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -3356,6 +3415,8 @@ int main() {
   if (int result = runMaskedAddSelectedBodyPolicyRouteTest(context))
     return result;
   if (int result = runContractionTargetLeafProfileValidationTest(context))
+    return result;
+  if (int result = runPlainCompareSelectRouteFamilyProviderPlanTest())
     return result;
   if (int result = runComputedMaskSelectRouteFamilyProviderPlanTest())
     return result;

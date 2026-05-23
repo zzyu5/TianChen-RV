@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage1/Stage2 boundary, and source-of-truth constraints for this compare-select ownership round."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership rules for typed tcrv_rvv body authority, selected-body realization, provider-built routes, and ssh rvv evidence."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary: RVV provider owns compare/select payload, type/intrinsic/mask choices, and common EmitC remains neutral."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin interface boundary for legality, selected-body realization, route provider dispatch, and mirror-only diagnostics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/generated-bundle/ssh rvv evidence policy and RVV Stage1/Stage2 test authority constraints."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-locality checklist for RVV family planning/provider changes without core semantic branches."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute-boundary checklist ensuring compare/select semantics stay in typed tcrv_rvv/RVV plugin, not tcrv.exec or common EmitC."}

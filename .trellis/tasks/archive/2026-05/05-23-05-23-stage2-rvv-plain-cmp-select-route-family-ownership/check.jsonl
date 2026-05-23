@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final compare-select diff against global no-legacy-authority and RVV-first chain constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check plain compare-select route ownership remains RVV plugin-owned and typed-body-derived."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export remains a neutral materializer of provider-built compare-select routes and mirrors."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Check provider/realization boundary and diagnostic mirrors remain plugin-interface compliant."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/lit/generated-bundle/ssh rvv evidence matches runtime/correctness claims."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check no new core semantic branch or non-plugin compare-select route authority was introduced."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check compare/select execution boundary stays inside typed tcrv_rvv/RVV plugin and not tcrv.exec/common EmitC."}
