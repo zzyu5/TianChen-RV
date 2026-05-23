@@ -19887,15 +19887,15 @@ bool isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(
 llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
   const RVVSelectedBodyOperationKind operation = analysis.description.operation;
-  if (isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(operation) &&
-      !analysis.standaloneReductionRouteFamilyPlan)
+  const bool isConsumer =
+      isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(operation);
+  if (isConsumer && !analysis.standaloneReductionRouteFamilyPlan)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " requires the standalone reduction route-family plan before provider "
         "materialization for operation '" +
         stringifyRVVSelectedBodyOperationKind(operation) + "'");
-  if (!isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(operation) &&
-      analysis.standaloneReductionRouteFamilyPlan)
+  if (!isConsumer && analysis.standaloneReductionRouteFamilyPlan)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " must not carry a standalone reduction route-family plan for "
@@ -19907,6 +19907,73 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
         llvm::Twine(context) +
         " standalone reduction route-family plan operation must match the "
         "selected route description");
+  if (!analysis.standaloneReductionRouteFamilyPlan)
+    return llvm::Error::success();
+
+  const RVVSelectedBodyStandaloneReductionRouteFamilyPlan &plan =
+      *analysis.standaloneReductionRouteFamilyPlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(plan))
+    return error;
+  if (analysis.description.standaloneReductionRouteFamilyPlanID !=
+      plan.familyPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction route-family plan mirror must match the "
+        "validated family plan");
+  if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.runtimeControlPlanID !=
+          plan.runtimeControlPlan.controlPlanID ||
+      analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.targetLeafProfile != plan.targetLeafProfile ||
+      analysis.description.providerSupportedMirror !=
+          plan.providerSupportedMirror ||
+      analysis.description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      analysis.description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      analysis.description.vlCType != plan.vlCType ||
+      analysis.description.vectorTypeName != plan.vectorTypeName ||
+      analysis.description.vectorCType != plan.vectorCType ||
+      analysis.description.setVLIntrinsic != plan.setVLIntrinsic ||
+      analysis.description.vectorLoadIntrinsic != plan.vectorLoadIntrinsic ||
+      analysis.description.rhsBroadcastIntrinsic !=
+          plan.rhsScalarSplatIntrinsic ||
+      analysis.description.scalarSeedSplatIntrinsic !=
+          plan.scalarSeedSplatIntrinsic ||
+      analysis.description.intrinsic != plan.reductionIntrinsic ||
+      analysis.description.compareIntrinsic != plan.compareIntrinsic ||
+      analysis.description.maskedMergeIntrinsic !=
+          plan.maskedMergeIntrinsic ||
+      analysis.description.storeIntrinsic != plan.storeIntrinsic ||
+      analysis.description.reductionAccumulatorLayout !=
+          plan.accumulatorLayout ||
+      analysis.description.reductionResultLayout != plan.resultLayout ||
+      analysis.description.reductionStoreVL != plan.reductionStoreVL ||
+      analysis.description.inactiveLaneZeroingRequirement !=
+          plan.inactiveLaneZeroingRequirement ||
+      analysis.description.maskRole != plan.maskRole ||
+      analysis.description.maskSource != plan.maskSource ||
+      analysis.description.maskMemoryForm != plan.maskMemoryForm ||
+      analysis.description.resultName != plan.resultName)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction route-family mirrors must be populated from "
+        "the validated family plan before provider materialization");
+  if (!support::runtimeABIParametersEqual(
+          analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction route-family runtime ABI parameters must match "
+        "the validated family plan");
+  if (analysis.routeOperandBindingPlan.planID !=
+      getExpectedRVVRouteOperandBindingPlanID(operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " standalone reduction provider requires the route operand binding "
+        "plan for the selected operation");
+  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
+          analysis.routeOperandBindingPlan, analysis.description, context))
+    return error;
   return llvm::Error::success();
 }
 

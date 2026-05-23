@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-13.md`
-- **Total Sessions**: 168
+- **Total Sessions**: 170
 - **Last Active**: 2026-05-23
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-13.md` | ~1730 | Active |
+| `journal-13.md` | ~1842 | Active |
 | `journal-12.md` | ~2095 | Archived |
 | `journal-11.md` | ~1979 | Archived |
 | `journal-10.md` | ~1968 | Archived |
@@ -41,6 +41,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 170 | 2026-05-23 | Stage2 RVV standalone reduction provider validation repair | - | `main` |
+| 169 | 2026-05-23 | Stage2 RVV plain compare-select route-family ownership | this commit | `main` |
 | 168 | 2026-05-23 | Stage2 RVV elementwise arithmetic route-family ownership | - | `main` |
 | 167 | 2026-05-23 | Stage2 RVV standalone reduction route-family ownership | this commit | `main` |
 | 166 | 2026-05-23 | Stage2 RVV memory route-family ownership extraction | this commit | `main` |

@@ -2017,6 +2017,280 @@ int runPlainCompareSelectRouteFamilyProviderPlanTest() {
   return 0;
 }
 
+int runStandaloneReductionRouteFamilyProviderPlanTest(
+    mlir::MLIRContext &context) {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      analyzeRVVSelectedBodyRoute;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyComputedMaskStandaloneReductionRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyPlainStandaloneReductionRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans;
+  using tianchenrv::support::RuntimeABIParameterRole;
+
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::StandaloneReduceAdd,
+        RVVSelectedBodyOperationKind::StandaloneReduceMin,
+        RVVSelectedBodyOperationKind::StandaloneReduceMax}) {
+    if (int result = expect(
+            isRVVSelectedBodyPlainStandaloneReductionRouteFamilyConsumer(op),
+            "plain standalone add/min/max must be standalone reduction "
+            "family consumers"))
+      return result;
+  }
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd,
+        RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin,
+        RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax,
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarComputedMaskStandaloneReduceAdd}) {
+    if (int result = expect(
+            isRVVSelectedBodyComputedMaskStandaloneReductionRouteFamilyConsumer(
+                op),
+            "computed-mask and directly coupled runtime-scalar standalone "
+            "reductions must be standalone reduction family consumers"))
+      return result;
+  }
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::Add,
+        RVVSelectedBodyOperationKind::CmpSelect,
+        RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd,
+        RVVSelectedBodyOperationKind::ReduceAdd}) {
+    if (int result = expect(
+            !isRVVSelectedBodyStandaloneReductionRouteFamilyConsumer(op),
+            "non-standalone reduction operations must stay outside the "
+            "standalone reduction family"))
+      return result;
+  }
+
+  RVVSelectedBodyRouteAnalysis missingPlan;
+  missingPlan.description.operation =
+      RVVSelectedBodyOperationKind::StandaloneReduceAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              missingPlan, "standalone reduction provider unit test"),
+          {"requires the standalone reduction route-family plan",
+           "standalone_reduce_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingRuntimeScalarPlan;
+  missingRuntimeScalarPlan.description.operation =
+      RVVSelectedBodyOperationKind::
+          RuntimeScalarComputedMaskStandaloneReduceAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              missingRuntimeScalarPlan,
+              "standalone reduction provider unit test"),
+          {"requires the standalone reduction route-family plan",
+           "runtime_scalar_cmp_masked_standalone_reduce_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleNonConsumer;
+  staleNonConsumer.description.operation = RVVSelectedBodyOperationKind::Add;
+  staleNonConsumer.standaloneReductionRouteFamilyPlan.emplace();
+  staleNonConsumer.standaloneReductionRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::StandaloneReduceAdd;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              staleNonConsumer, "standalone reduction provider unit test"),
+          {"must not carry a standalone reduction route-family plan",
+           "add"}))
+    return result;
+
+  constexpr llvm::StringLiteral plainSource = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_standalone_reduction_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @rvv_standalone_reduce attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_standalone_reduce, sew = 32 : i64, source_kernel = "rvv_standalone_reduction_provider_kernel", status = "selected-lowering-boundary"} {
+        %input = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %reduced = tcrv_rvv.standalone_reduce %input, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %reduced, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+    tcrv.exec.variant @standalone_provider_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @rvv_standalone_reduce {origin = "rvv-plugin"}
+      tcrv.exec.fallback @standalone_provider_scalar_fallback {origin = "scalar-plugin"}
+    }
+  }
+}
+)mlir";
+  mlir::OwningOpRef<mlir::ModuleOp> plainModule =
+      parseModule(context, plainSource);
+  if (!plainModule)
+    return fail("failed to parse standalone reduction provider test module");
+  KernelOp plainKernel =
+      findKernel(*plainModule, "rvv_standalone_reduction_provider_kernel");
+  VariantOp plainVariant = findVariant(plainKernel, "rvv_standalone_reduce");
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> plainAnalysis =
+      analyzeRVVSelectedBodyRoute(VariantEmitCLowerableRequest(
+          plainVariant, plainKernel,
+          TargetCapabilitySet::buildFromKernel(plainKernel),
+          VariantEmissionRole::DirectVariant));
+  if (!plainAnalysis)
+    return fail("analyze standalone reduction provider route: " +
+                llvm::toString(plainAnalysis.takeError()));
+
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              *plainAnalysis, "standalone reduction provider unit test"),
+          "valid standalone reduction family provider plan"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stale = *plainAnalysis;
+  stale.standaloneReductionRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::StandaloneReduceMin;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "standalone reduction provider unit test"),
+          {"standalone reduction route-family plan operation must match",
+           "selected route description"}))
+    return result;
+
+  stale = *plainAnalysis;
+  stale.description.targetLeafProfile = "metadata-selected-profile";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "standalone reduction provider unit test"),
+          {"standalone reduction route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *plainAnalysis;
+  stale.description.runtimeABIOrder = "lhs,out,acc,n";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "standalone reduction provider unit test"),
+          {"standalone reduction route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *plainAnalysis;
+  stale.description.scalarSeedSplatIntrinsic = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "standalone reduction provider unit test"),
+          {"standalone reduction route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *plainAnalysis;
+  std::swap(stale.description.runtimeABIParameters[1],
+            stale.description.runtimeABIParameters[2]);
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "standalone reduction provider unit test"),
+          {"runtime ABI parameters", "validated family plan"}))
+    return result;
+
+  stale = *plainAnalysis;
+  stale.routeOperandBindingPlan.bindings[1].parameter.role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "standalone reduction provider unit test"),
+          {"logical operand 'acc'", "accumulator-input-buffer",
+           "output-buffer"}))
+    return result;
+
+  stale = *plainAnalysis;
+  stale.description.routeOperandBindingSummary = "stale";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "standalone reduction provider unit test"),
+          {"route operand binding mirror summary", "stale"}))
+    return result;
+
+  constexpr llvm::StringLiteral computedMaskSource = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_cm_standalone_reduction_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @rvv_cm_standalone_reduce attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:cmp_lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:cmp_rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:src", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_cm_standalone_reduce, sew = 32 : i64, source_kernel = "rvv_cm_standalone_reduction_provider_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.load %cmp_rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %src_vec = tcrv_rvv.load %src, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "sle"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %reduced = tcrv_rvv.masked_standalone_reduce %mask, %src_vec, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "add", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %reduced, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+    tcrv.exec.variant @cm_standalone_provider_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @rvv_cm_standalone_reduce {origin = "rvv-plugin"}
+      tcrv.exec.fallback @cm_standalone_provider_scalar_fallback {origin = "scalar-plugin"}
+    }
+  }
+}
+)mlir";
+  mlir::OwningOpRef<mlir::ModuleOp> computedMaskModule =
+      parseModule(context, computedMaskSource);
+  if (!computedMaskModule)
+    return fail("failed to parse computed-mask standalone reduction provider "
+                "test module");
+  KernelOp computedMaskKernel = findKernel(
+      *computedMaskModule, "rvv_cm_standalone_reduction_provider_kernel");
+  VariantOp computedMaskVariant =
+      findVariant(computedMaskKernel, "rvv_cm_standalone_reduce");
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> computedMaskAnalysis =
+      analyzeRVVSelectedBodyRoute(VariantEmitCLowerableRequest(
+          computedMaskVariant, computedMaskKernel,
+          TargetCapabilitySet::buildFromKernel(computedMaskKernel),
+          VariantEmissionRole::DirectVariant));
+  if (!computedMaskAnalysis)
+    return fail("analyze computed-mask standalone reduction provider route: " +
+                llvm::toString(computedMaskAnalysis.takeError()));
+
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              *computedMaskAnalysis,
+              "computed-mask standalone reduction provider unit test"),
+          "valid computed-mask standalone reduction family provider plan"))
+    return result;
+
+  stale = *computedMaskAnalysis;
+  stale.description.maskRole = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "computed-mask standalone reduction provider unit test"),
+          {"standalone reduction route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  stale = *computedMaskAnalysis;
+  stale.description.compareIntrinsic = "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              stale, "computed-mask standalone reduction provider unit test"),
+          {"standalone reduction route-family mirrors",
+           "validated family plan"}))
+    return result;
+
+  return 0;
+}
+
 int runCompareSelectSelectedBodyRouteTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -3417,6 +3691,9 @@ int main() {
   if (int result = runContractionTargetLeafProfileValidationTest(context))
     return result;
   if (int result = runPlainCompareSelectRouteFamilyProviderPlanTest())
+    return result;
+  if (int result =
+          runStandaloneReductionRouteFamilyProviderPlanTest(context))
     return result;
   if (int result = runComputedMaskSelectRouteFamilyProviderPlanTest())
     return result;

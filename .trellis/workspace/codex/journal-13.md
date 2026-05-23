@@ -1784,3 +1784,59 @@ select families isolated.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 170: Stage2 RVV standalone reduction provider validation repair
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV standalone reduction provider validation repair
+**Branch**: `main`
+
+### Summary
+
+Deepened RVV standalone reduction route-family provider validation for plain
+and adjacent computed-mask/runtime-scalar standalone reductions. The stale-brief
+mistake was repaired against current HEAD by requiring real validated family
+facts and route operand binding closure before provider materialization.
+
+### Main Changes
+
+- `verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans` now validates
+  the standalone reduction family plan, plan mirrors, runtime ABI order and
+  parameters, target/header/type/intrinsic mirrors, accumulator/result/seed/mask
+  contracts, result name, and `RouteOperandBindingPlan` closure.
+- Added focused RVV plugin tests for missing plan, stale plan on non-consumers,
+  operation mismatch, mirror mismatch, runtime ABI mismatch, operand binding
+  role mismatch, binding summary mismatch, and computed-mask standalone
+  reduction boundary checks.
+- Kept the included adjacent cases limited to existing standalone-reduction
+  family consumers: computed-mask standalone add/min/max and the runtime-scalar
+  computed-mask standalone add case.
+
+### Git Commits
+
+(Final commit is created after this journal entry in the same round.)
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused standalone-reduce lit filter from `build/test`: 18/18 selected
+  tests passed.
+- [OK] Generated-bundle dry-runs for explicit and pre-realized standalone
+  `add`/`min`/`max`, counts `7,16,23`.
+- [OK] Real `ssh rvv` generated-bundle runs for explicit and pre-realized
+  standalone `add`/`min`/`max`, counts `7,16,23`, seeds `-11,17`, with tail
+  preservation.
+- [OK] Added-line authority scan found no new legacy i32m1, source-front-door,
+  source-artifact, descriptor, or direct-C authority matches.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv`, 361/361 passed.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete
