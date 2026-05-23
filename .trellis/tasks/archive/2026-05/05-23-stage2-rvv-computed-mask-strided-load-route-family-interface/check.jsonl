@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority chain, Stage1/Stage2 boundaries, and source-of-truth rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, typed tcrv_rvv body requirements, selected-body realization, route-provider ownership, and ssh rvv evidence rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute boundary for RVV lowering."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck, C++ tests, fail-closed coverage, and real RVV runtime evidence policy."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-stage2-rvv-computed-mask-strided-load-route-family-interface/prd.md", "reason": "Archived task PRD with bounded routes, acceptance criteria, implementation results, and validation evidence."}

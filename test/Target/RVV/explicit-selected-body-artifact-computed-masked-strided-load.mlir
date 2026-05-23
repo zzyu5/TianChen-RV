@@ -46,6 +46,12 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "cmp_lhs,cmp_rhs,src,dst,n,src_stride_bytes"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:computed_masked_strided_load_unit_store.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:computed_masked_strided_load_unit_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;src=source-input-buffer:src:abi|mstr-base|mstr-load-call;dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr-mirror;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr-mirror;src_stride_bytes=source-byte-stride:src_stride_bytes:abi|mstr-stride|byte|hdr-mirror"}
+// PLAN-SAME: {key = "tcrv_rvv.computed_mask_memory_route_family_plan", value = "rvv-computed-mask-memory-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.computed_mask_memory_mask_producer_source", value = "vector-compare-rhs-load"}
+// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-e32m1-computed-mask-strided-load-leaf-profile.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-computed-mask-strided-load-plan-validated"}
+// PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
+// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,compare/source/passthrough:signed-e32m1,mask:b32,result:masked-strided-load-store"}
 // PLAN-SAME: {key = "tcrv_rvv.masked_memory_layout", value = "unit-stride-compare-byte-strided-masked-source-old-destination-runtime-abi"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_role", value = "predicate-mask-produced-by-compare"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
@@ -64,6 +70,12 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-computed-masked-strided-load-unit-store-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.runtime_abi_order: cmp_lhs,cmp_rhs,src,dst,n,src_stride_bytes
+// HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-e32m1-computed-mask-strided-load-leaf-profile.v1
+// HEADER: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-computed-mask-strided-load-plan-validated
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:computed_masked_strided_load_unit_store.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:computed_masked_strided_load_unit_store.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call;src=source-input-buffer:src:abi|mstr-base|mstr-load-call;dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr-mirror;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr-mirror;src_stride_bytes=source-byte-stride:src_stride_bytes:abi|mstr-stride|byte|hdr-mirror
+// HEADER: tianchenrv.rvv.computed_mask_memory_route_family_plan: rvv-computed-mask-memory-route-family-plan.v1
+// HEADER: tianchenrv.rvv.computed_mask_memory_mask_producer_source: vector-compare-rhs-load
+// HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
+// HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,compare/source/passthrough:signed-e32m1,mask:b32,result:masked-strided-load-store
 // HEADER: void tcrv_emitc_explicit_selected_body_computed_masked_strided_load_kernel_explicit_selected_body_rvv_computed_masked_strided_load(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int32_t *src, int32_t *dst, size_t n, size_t src_stride_bytes);

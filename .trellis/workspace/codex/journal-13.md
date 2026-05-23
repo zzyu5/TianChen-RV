@@ -69,6 +69,71 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 163: Stage2 RVV computed-mask strided-load route family
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV computed-mask strided-load route-family interface
+**Branch**: `main`
+
+### Summary
+
+Migrated the active `computed_masked_strided_load_unit_store` route onto the
+shared RVV plugin-owned computed-mask memory route-family interface. The route
+now carries source byte-stride, masked strided-load leaf, strided layout,
+provider mirror/header/type facts, and binding closure through the family plan
+instead of relying on strided-load-specific post-analysis fallback fields.
+
+### Main Changes
+
+- Added `ComputedMaskStridedLoadUnitStore` to
+  `RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan` membership.
+- Added source-stride and strided-load metadata to the family plan, including
+  `runtime_abi:src_stride_bytes`, computed-mask strided-load memory layout,
+  target leaf profile, provider-supported mirror, headers, and C type mapping.
+- Made family validation require `tcrv_rvv.masked_strided_load`, old output
+  passthrough, final unit store, runtime `n/AVL`, and source byte-stride role.
+- Made the provider require the shared computed-mask memory family before
+  materializing the strided-load route.
+- Updated explicit/pre-realized target/header tests and generated-bundle
+  metadata expectations for family-derived strided-load facts.
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`.
+- [OK] Focused explicit/pre-realized FileCheck runs for computed-mask
+  strided-load target/header artifacts and selected-body realization.
+- [OK] Negative FileCheck for bad source stride binding.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test` and
+  `build/bin/tianchenrv-target-artifact-export-test`.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py` and
+  script `--self-test`.
+- [OK] Generated-bundle dry-runs for explicit and pre-realized
+  `computed_masked_strided_load_unit_store`, counts `7,16,23`, stride bytes
+  `8,12`.
+- [OK] Real `ssh rvv` evidence for explicit and pre-realized
+  `computed_masked_strided_load_unit_store`, counts `7,16,23`, stride bytes
+  `8,12`, proving active lanes, inactive passthrough, skipped source slots,
+  tail preservation, and runtime `n` variation.
+- [OK] Active-authority scan, added-line forbidden-authority scan,
+  `git diff --check`, and `cmake --build build --target check-tianchenrv -j2`
+  passed 349/349.
+
+### Spec Update
+
+- No `.trellis/spec/**` update needed. This task applied existing RVV
+  plugin-owned route-family and EmitC neutrality rules; it did not add a new
+  durable rule.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 163: Stage2 RVV computed-mask memory producer-source family
 
 **Date**: 2026-05-23

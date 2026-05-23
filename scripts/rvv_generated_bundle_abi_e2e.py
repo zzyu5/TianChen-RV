@@ -814,6 +814,19 @@ COMPUTED_MASK_STRIDED_STORE_REQUIRED_HEADER_DECLARATIONS = (
 COMPUTED_MASK_STRIDED_STORE_C_TYPE_MAPPING = (
     "vl:size_t,compare/source:signed-e32m1,mask:b32,dst:masked-strided-store"
 )
+COMPUTED_MASK_STRIDED_LOAD_TARGET_LEAF_PROFILE = (
+    "rvv-v1-e32m1-computed-mask-strided-load-leaf-profile.v1"
+)
+COMPUTED_MASK_STRIDED_LOAD_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-computed-mask-strided-load-plan-validated"
+)
+COMPUTED_MASK_STRIDED_LOAD_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+COMPUTED_MASK_STRIDED_LOAD_C_TYPE_MAPPING = (
+    "vl:size_t,compare/source/passthrough:signed-e32m1,mask:b32,"
+    "result:masked-strided-load-store"
+)
 WIDENING_CONVERSION_RUNTIME_ABI_ORDER = "lhs,out,n"
 WIDENING_CONVERSION_RELATION = "signed-i32m1-to-i64m2"
 WIDEN_I16_TO_I32_CONVERSION_RELATION = "signed-i16mf2-to-i32m1"
@@ -5363,6 +5376,24 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.route_operand_binding_operands": (
                     COMPUTED_MASK_STRIDED_LOAD_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+                "tcrv_rvv.computed_mask_memory_route_family_plan": (
+                    COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.computed_mask_memory_mask_producer_source": (
+                    COMPUTED_MASK_MEMORY_VECTOR_COMPARE_PRODUCER_SOURCE
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    COMPUTED_MASK_STRIDED_LOAD_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    COMPUTED_MASK_STRIDED_LOAD_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    COMPUTED_MASK_STRIDED_LOAD_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    COMPUTED_MASK_STRIDED_LOAD_C_TYPE_MAPPING
                 ),
             }
         )

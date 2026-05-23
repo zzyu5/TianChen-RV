@@ -362,6 +362,7 @@ struct RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan {
   llvm::StringRef stridedMemoryLayout;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
+  llvm::StringRef sourceStrideSource;
   llvm::StringRef destinationStrideSource;
   llvm::SmallVector<support::RuntimeABIParameter, 6> runtimeABIParameters;
 };
