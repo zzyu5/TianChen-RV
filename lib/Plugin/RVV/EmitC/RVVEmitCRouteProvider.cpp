@@ -186,6 +186,12 @@ bool isRVVSelectedBodySegmentedMemoryMovementRoute(
              RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
 }
 
+bool isRVVSelectedBodyPlainSegment2MemoryRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore ||
+         op == RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
+}
+
 bool isRVVSelectedBodyMemoryMovementRoute(RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::StridedLoadUnitStore ||
          op == RVVSelectedBodyOperationKind::UnitLoadStridedStore ||
@@ -293,6 +299,10 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           analysis.computedMaskMemoryRouteFamilyPlan
               ? &*analysis.computedMaskMemoryRouteFamilyPlan
               : nullptr;
+  const RVVSelectedBodySegment2MemoryRouteFamilyPlan *segment2MemoryPlan =
+      analysis.segment2MemoryRouteFamilyPlan
+          ? &*analysis.segment2MemoryRouteFamilyPlan
+          : nullptr;
   const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan
       *computedMaskAccumulationPlan =
           analysis.computedMaskAccumulationRouteFamilyPlan
@@ -2670,6 +2680,16 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     const bool isComputedMaskSegment2Store =
         description.operation ==
         RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
+    if (isRVVSelectedBodyPlainSegment2MemoryRoute(description.operation) &&
+        !segment2MemoryPlan)
+      return makeRVVEmitCRouteProviderError(
+          "plain segment2 memory provider requires the shared route-family "
+          "plan before materializing deinterleave or interleave routes");
+    if ((isComputedMaskSegment2Load || isComputedMaskSegment2Store) &&
+        !computedMaskMemoryPlan)
+      return makeRVVEmitCRouteProviderError(
+          "computed-mask segment2 memory provider requires the shared "
+          "computed-mask memory route-family plan before materialization");
     if (isSegment2Interleave) {
       if (llvm::Error error = addLoopStep(
               slice->lhsLoadOperation, "load", description.vectorLoadIntrinsic,
@@ -3030,6 +3050,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return makeRVVEmitCRouteProviderError(
         "computed-mask memory provider requires the shared route-family plan "
         "before materializing store or load-store routes");
+  if (isRVVSelectedBodyPlainSegment2MemoryRoute(description.operation) &&
+      !segment2MemoryPlan)
+    return makeRVVEmitCRouteProviderError(
+        "plain segment2 memory provider requires the shared route-family plan "
+        "before materializing deinterleave or interleave routes");
   const bool isComputedMaskedMAcc =
       isRVVSelectedBodyComputedMaskedMAccRoute(description.operation);
   const bool isComputedMaskStridedStore =

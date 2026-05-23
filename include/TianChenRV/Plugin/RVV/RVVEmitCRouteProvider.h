@@ -188,6 +188,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef maskComposition;
   llvm::StringRef computedMaskMemoryRouteFamilyPlanID;
   llvm::StringRef computedMaskMemoryMaskProducerSource;
+  llvm::StringRef segment2MemoryRouteFamilyPlanID;
   llvm::StringRef computedMaskSelectRouteFamilyPlanID;
   llvm::StringRef computedMaskSelectMaskProducerSource;
   llvm::StringRef accumulationRouteFamilyPlanID;

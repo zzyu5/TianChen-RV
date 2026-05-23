@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global architecture guardrails for final review."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected body and plugin-owned provider authority review."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC/export neutrality review."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Plugin interface and route-provider boundary review."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Testing and evidence standard for the changed routes."}
+{"file": ".trellis/tasks/archive/2026-05/05-23-05-23-stage2-rvv-plain-segment2-memory-route-family/prd.md", "reason": "Task acceptance criteria and validation checklist."}

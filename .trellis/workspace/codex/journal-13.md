@@ -990,3 +990,57 @@ Migrated computed-mask indexed gather/scatter routes onto the shared RVV plugin-
 ### Next Steps
 
 - None - task complete
+
+
+## Session 165: Stage2 RVV plain segment2 memory route family
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV plain segment2 memory route family
+**Branch**: `main`
+
+### Summary
+
+Migrated Segment2DeinterleaveUnitStore and Segment2InterleaveUnitLoad onto a plugin-owned plain segment2 memory route-family plan; focused positive and negative lit, dry-runs, ssh rvv, authority scan, and check-tianchenrv passed.
+
+### Main Changes
+
+- Added `RVVSelectedBodySegment2MemoryRouteFamilyPlan` and made both
+  `Segment2DeinterleaveUnitStore` and `Segment2InterleaveUnitLoad` derive
+  route support through that plugin-local family plan.
+- Moved segment count/layout, field roles, source/destination memory forms,
+  runtime AVL/VL order, target leaf/profile mirrors, headers, C type mapping,
+  and operand binding evidence into plan-owned/provider-validated facts.
+- Removed the residual plain segment2 one-off description authority and made
+  the provider fail closed unless the family plan is present.
+- Updated target-header and generated-bundle script evidence while keeping
+  common EmitC/export neutral.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] Focused build:
+  `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] Focused positive lit for the two migrated plain segment2 target/script
+  fixtures: 4/4 selected tests passed.
+- [OK] Focused negative/dataflow lit for segment2 dataflow, operand binding,
+  and incomplete typed-body fail-closed surfaces: 5/5 selected tests passed.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Generated-bundle dry-runs for pre-realized deinterleave/interleave
+  routes with counts `7,16,23`.
+- [OK] Real `ssh rvv` generated-bundle runs for both migrated routes with
+  counts `7,16,23`, including field-order and tail preservation checks.
+- [OK] Active-authority scan, `git diff --check`, and
+  `cmake --build build --target check-tianchenrv -j2` passed 349/349.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

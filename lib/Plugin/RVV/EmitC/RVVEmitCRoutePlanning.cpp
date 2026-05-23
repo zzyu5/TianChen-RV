@@ -1646,6 +1646,22 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVComputedMaskSegment2StoreCTypeMappingSummary(
         "vl:size_t,compare/field-payloads:signed-e32m1,mask:b32,segment2:vint32m1x2,dst:masked-segment2-store");
+constexpr llvm::StringLiteral kRVVSegment2MemoryRouteFamilyPlanID(
+    "rvv-segment2-memory-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVSegment2DeinterleaveTargetLeafProfile(
+    "rvv-v1-e32m1-segment2-deinterleave-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVSegment2InterleaveTargetLeafProfile(
+    "rvv-v1-e32m1-segment2-interleave-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVSegment2DeinterleaveProviderSupportedMirror(
+    "provider_supported_mirror:rvv-segment2-deinterleave-plan-validated");
+constexpr llvm::StringLiteral kRVVSegment2InterleaveProviderSupportedMirror(
+    "provider_supported_mirror:rvv-segment2-interleave-plan-validated");
+constexpr llvm::StringLiteral kRVVSegment2RequiredHeaderDeclarations(
+    "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral kRVVSegment2DeinterleaveCTypeMappingSummary(
+    "vl:size_t,segment2:vint32m1x2,field-outputs:signed-e32m1");
+constexpr llvm::StringLiteral kRVVSegment2InterleaveCTypeMappingSummary(
+    "vl:size_t,field-inputs:signed-e32m1,segment2:vint32m1x2");
 constexpr llvm::StringLiteral
     kRVVComputedMaskAccumulationRouteFamilyPlanID(
         "rvv-computed-mask-accumulation-route-family-plan.v1");
@@ -5607,6 +5623,439 @@ void applyRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
   description.indexedDataMemoryForm = plan.indexedDataMemoryForm;
   description.indexedDestinationMemoryForm =
       plan.indexedDestinationMemoryForm;
+  description.segmentMemoryLayout = plan.segmentMemoryLayout;
+  description.segmentCount = plan.segmentCount;
+  description.segmentTupleCType = plan.segmentTupleCType;
+  description.segmentLoadIntrinsic = plan.segmentLoadIntrinsic;
+  description.segmentStoreIntrinsic = plan.segmentStoreIntrinsic;
+  description.segmentFieldExtractIntrinsic = plan.segmentFieldExtractIntrinsic;
+  description.field0Role = plan.field0Role;
+  description.field1Role = plan.field1Role;
+  description.field0Name = plan.field0Name;
+  description.field1Name = plan.field1Name;
+  description.field0SourceMemoryForm = plan.field0SourceMemoryForm;
+  description.field1SourceMemoryForm = plan.field1SourceMemoryForm;
+  description.field0DestinationMemoryForm = plan.field0DestinationMemoryForm;
+  description.field1DestinationMemoryForm = plan.field1DestinationMemoryForm;
+  description.runtimeABIParameters.clear();
+  description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
+                                          plan.runtimeABIParameters.end());
+}
+
+bool isRVVSelectedBodySegment2MemoryRouteOperation(
+    RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isRVVSelectedBodySegment2DeinterleaveRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore;
+}
+
+bool isRVVSelectedBodySegment2InterleaveRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
+}
+
+RVVSelectedBodyMemoryForm
+getSegment2MemoryRouteFamilyMemoryForm(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    return RVVSelectedBodyMemoryForm::Segment2LoadUnitStore;
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
+  default:
+    llvm_unreachable("unsupported plain segment2 memory route-family op");
+  }
+}
+
+llvm::StringRef
+getSegment2MemoryRuntimeABIOrder(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    return kRVVSegment2RuntimeABIOrder;
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return kRVVSegment2InterleaveRuntimeABIOrder;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef
+getSegment2MemoryTargetLeafProfile(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    return kRVVSegment2DeinterleaveTargetLeafProfile;
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return kRVVSegment2InterleaveTargetLeafProfile;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef
+getSegment2MemoryProviderSupportedMirror(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    return kRVVSegment2DeinterleaveProviderSupportedMirror;
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return kRVVSegment2InterleaveProviderSupportedMirror;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef
+getSegment2MemoryCTypeMappingSummary(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    return kRVVSegment2DeinterleaveCTypeMappingSummary;
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return kRVVSegment2InterleaveCTypeMappingSummary;
+  default:
+    return {};
+  }
+}
+
+llvm::StringRef
+getSegment2MemoryLayout(RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
+    return kRVVSegment2MemoryLayout;
+  case RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad:
+    return kRVVSegment2InterleaveMemoryLayout;
+  default:
+    return {};
+  }
+}
+
+llvm::Error requireRVVSelectedBodySegment2MemoryPlanField(
+    const RVVSelectedBodySegment2MemoryRouteFamilyPlan &plan,
+    llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("plain segment2 memory route-family plan validation for "
+                  "operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
+      field + " '" + expected + "' but found '" + actual + "'");
+}
+
+llvm::Error validateRVVSelectedBodySegment2MemoryRouteFamilyPlan(
+    const RVVSelectedBodySegment2MemoryRouteFamilyPlan &plan) {
+  if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
+          plan.runtimeControlPlan,
+          "plain segment2 memory route-family runtime AVL/VL control"))
+    return error;
+  if (!isRVVSelectedBodySegment2MemoryRouteOperation(plan.operation))
+    return makeRVVEmitCRouteProviderError(
+        "plain segment2 memory route-family plan supports only "
+        "segment2_deinterleave_unit_store or segment2_interleave_unit_load "
+        "routes");
+
+  const bool isDeinterleave =
+      isRVVSelectedBodySegment2DeinterleaveRoute(plan.operation);
+  const bool isInterleave =
+      isRVVSelectedBodySegment2InterleaveRoute(plan.operation);
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "family plan id", plan.familyPlanID,
+          kRVVSegment2MemoryRouteFamilyPlanID))
+    return error;
+  if (plan.usesDeinterleaveLoad != isDeinterleave ||
+      plan.usesInterleaveStore != isInterleave)
+    return makeRVVEmitCRouteProviderError(
+        "plain segment2 memory route-family plan requires direction booleans "
+        "to mirror the selected route");
+  if (plan.memoryForm != getSegment2MemoryRouteFamilyMemoryForm(plan.operation))
+    return makeRVVEmitCRouteProviderError(
+        "plain segment2 memory route-family plan memory form does not match "
+        "the selected route");
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "runtime ABI order", plan.runtimeABIOrder,
+          getSegment2MemoryRuntimeABIOrder(plan.operation)))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "target leaf profile", plan.targetLeafProfile,
+          getSegment2MemoryTargetLeafProfile(plan.operation)))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "provider_supported_mirror", plan.providerSupportedMirror,
+          getSegment2MemoryProviderSupportedMirror(plan.operation)))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "required header declarations", plan.requiredHeaderDeclarations,
+          kRVVSegment2RequiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "C type mapping summary", plan.cTypeMappingSummary,
+          getSegment2MemoryCTypeMappingSummary(plan.operation)))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "segment memory layout", plan.segmentMemoryLayout,
+          getSegment2MemoryLayout(plan.operation)))
+    return error;
+  if (plan.segmentCount != 2)
+    return makeRVVEmitCRouteProviderError(
+        "plain segment2 memory route-family plan requires segment_count 2");
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "segment tuple C type", plan.segmentTupleCType,
+          kRVVSegment2TupleCType))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "source memory form", plan.sourceMemoryForm,
+          isDeinterleave ? llvm::StringRef(kRVVSegment2SourceMemoryForm)
+                         : llvm::StringRef(kRVVUnitStrideSourceMemoryForm)))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "destination memory form", plan.destinationMemoryForm,
+          isInterleave
+              ? llvm::StringRef(kRVVSegment2InterleavedDestinationMemoryForm)
+              : llvm::StringRef(kRVVDestinationMemoryForm)))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "segment-load intrinsic", plan.segmentLoadIntrinsic,
+          isDeinterleave ? llvm::StringRef(kRVVSegment2LoadIntrinsic)
+                         : llvm::StringRef()))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "segment-store intrinsic", plan.segmentStoreIntrinsic,
+          isInterleave ? llvm::StringRef(kRVVSegment2StoreIntrinsic)
+                       : llvm::StringRef()))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "segment field extract intrinsic",
+          plan.segmentFieldExtractIntrinsic,
+          isInterleave ? llvm::StringRef(kRVVSegment2TupleCreateIntrinsic)
+                       : llvm::StringRef(kRVVSegment2FieldExtractIntrinsic)))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "field0 role", plan.field0Role,
+          isInterleave ? llvm::StringRef(kRVVSegment2Field0InputRole)
+                       : llvm::StringRef(kRVVSegment2Field0Role)))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "field1 role", plan.field1Role,
+          isInterleave ? llvm::StringRef(kRVVSegment2Field1InputRole)
+                       : llvm::StringRef(kRVVSegment2Field1Role)))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "field0 result name", plan.field0Name, "field0_vec"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "field1 result name", plan.field1Name, "field1_vec"))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "field0 source memory form", plan.field0SourceMemoryForm,
+          isInterleave ? llvm::StringRef(kRVVUnitStrideSourceMemoryForm)
+                       : llvm::StringRef()))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "field1 source memory form", plan.field1SourceMemoryForm,
+          isInterleave ? llvm::StringRef(kRVVUnitStrideSourceMemoryForm)
+                       : llvm::StringRef()))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "field0 destination memory form",
+          plan.field0DestinationMemoryForm,
+          isDeinterleave ? llvm::StringRef(kRVVDestinationMemoryForm)
+                         : llvm::StringRef()))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodySegment2MemoryPlanField(
+          plan, "field1 destination memory form",
+          plan.field1DestinationMemoryForm,
+          isDeinterleave ? llvm::StringRef(kRVVDestinationMemoryForm)
+                         : llvm::StringRef()))
+    return error;
+
+  if (plan.runtimeABIParameters.size() != 4)
+    return makeRVVEmitCRouteProviderError(
+        "plain segment2 memory route-family plan requires exactly four "
+        "runtime ABI parameters");
+  if (isDeinterleave &&
+      (plan.runtimeABIParameters[0].role !=
+           support::RuntimeABIParameterRole::LHSInputBuffer ||
+       plan.runtimeABIParameters[1].role !=
+           support::RuntimeABIParameterRole::SegmentField0OutputBuffer ||
+       plan.runtimeABIParameters[2].role !=
+           support::RuntimeABIParameterRole::SegmentField1OutputBuffer ||
+       plan.runtimeABIParameters[3].role !=
+           support::RuntimeABIParameterRole::RuntimeElementCount))
+    return makeRVVEmitCRouteProviderError(
+        "plain segment2 deinterleave family plan requires src,out0,out1,n "
+        "ABI roles");
+  if (isInterleave &&
+      (plan.runtimeABIParameters[0].role !=
+           support::RuntimeABIParameterRole::SegmentField0InputBuffer ||
+       plan.runtimeABIParameters[1].role !=
+           support::RuntimeABIParameterRole::SegmentField1InputBuffer ||
+       plan.runtimeABIParameters[2].role !=
+           support::RuntimeABIParameterRole::SegmentInterleavedOutputBuffer ||
+       plan.runtimeABIParameters[3].role !=
+           support::RuntimeABIParameterRole::RuntimeElementCount))
+    return makeRVVEmitCRouteProviderError(
+        "plain segment2 interleave family plan requires src0,src1,dst,n "
+        "ABI roles");
+
+  return llvm::Error::success();
+}
+
+llvm::Expected<RVVSelectedBodySegment2MemoryRouteFamilyPlan>
+deriveRVVSelectedBodySegment2MemoryRouteFamilyPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyConfigProfile &configProfile,
+    const RVVSelectedBodyTargetLeafProfile &targetLeaves) {
+  RVVSelectedBodyOperationKind operation = analysis.slice.arithmeticKind;
+  if (!isRVVSelectedBodySegment2MemoryRouteOperation(operation))
+    return makeRVVEmitCRouteProviderError(
+        "plain segment2 memory route-family derivation received an "
+        "unsupported route operation");
+
+  const bool isDeinterleave =
+      isRVVSelectedBodySegment2DeinterleaveRoute(operation);
+  const bool isInterleave =
+      isRVVSelectedBodySegment2InterleaveRoute(operation);
+  if (configProfile.sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+    return makeRVVEmitCRouteProviderError(
+        "plain segment2 memory route-family plan currently requires SEW32 "
+        "LMUL m1 typed config");
+  if (isDeinterleave &&
+      (!analysis.slice.segment2LoadOperation ||
+       !analysis.slice.field0MoveOperation ||
+       !analysis.slice.field1MoveOperation ||
+       !analysis.slice.field0StoreOperation ||
+       !analysis.slice.field1StoreOperation))
+    return makeRVVEmitCRouteProviderError(
+        "plain segment2 memory route-family plan requires deinterleave routes "
+        "to carry segment2_load, field moves, and field stores");
+  if (isInterleave &&
+      (!analysis.slice.field0LoadOperation ||
+       !analysis.slice.field1LoadOperation ||
+       !analysis.slice.segment2StoreOperation))
+    return makeRVVEmitCRouteProviderError(
+        "plain segment2 memory route-family plan requires interleave routes "
+        "to carry field loads and segment2_store");
+
+  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+      deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
+          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl, analysis.slice.withVL,
+          getSegment2MemoryRuntimeABIOrder(operation),
+          "plain segment2 memory route-family consumer");
+  if (!runtimeControlPlan)
+    return runtimeControlPlan.takeError();
+
+  RVVSelectedBodySegment2MemoryRouteFamilyPlan plan;
+  plan.operation = operation;
+  plan.memoryForm = analysis.slice.memoryForm;
+  plan.usesDeinterleaveLoad = isDeinterleave;
+  plan.usesInterleaveStore = isInterleave;
+  plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.familyPlanID = kRVVSegment2MemoryRouteFamilyPlanID;
+  plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
+  plan.targetLeafProfile = getSegment2MemoryTargetLeafProfile(operation);
+  plan.providerSupportedMirror =
+      getSegment2MemoryProviderSupportedMirror(operation);
+  plan.requiredHeaders.push_back("stddef.h");
+  plan.requiredHeaders.push_back("stdint.h");
+  plan.requiredHeaders.push_back("riscv_vector.h");
+  plan.requiredHeaderDeclarations = kRVVSegment2RequiredHeaderDeclarations;
+  plan.cTypeMappingSummary = getSegment2MemoryCTypeMappingSummary(operation);
+  plan.vlCType = configProfile.vlCType;
+  plan.vectorTypeName = configProfile.vectorTypeName;
+  plan.vectorCType = configProfile.vectorCType;
+  plan.setVLIntrinsic = configProfile.setVLIntrinsic;
+  plan.vectorLoadIntrinsic = configProfile.vectorLoadIntrinsic;
+  plan.storeIntrinsic = configProfile.storeIntrinsic;
+  plan.resultName =
+      getRVVSelectedBodyOperationProfile(plan.operation).resultName;
+  plan.sourceMemoryForm =
+      isDeinterleave ? analysis.slice.segment2Load.getSourceMemoryForm()
+                     : llvm::StringRef(kRVVUnitStrideSourceMemoryForm);
+  plan.destinationMemoryForm =
+      isInterleave ? analysis.slice.segment2Store.getDestinationMemoryForm()
+                   : llvm::StringRef(kRVVDestinationMemoryForm);
+  plan.segmentMemoryLayout = getSegment2MemoryLayout(operation);
+  plan.segmentCount =
+      isInterleave ? static_cast<std::int64_t>(
+                         analysis.slice.segment2Store.getSegmentCount())
+                   : static_cast<std::int64_t>(
+                         analysis.slice.segment2Load.getSegmentCount());
+  plan.segmentTupleCType = kRVVSegment2TupleCType;
+  plan.segmentLoadIntrinsic =
+      isDeinterleave ? llvm::StringRef(kRVVSegment2LoadIntrinsic)
+                     : llvm::StringRef();
+  plan.segmentStoreIntrinsic =
+      isInterleave ? llvm::StringRef(kRVVSegment2StoreIntrinsic)
+                   : llvm::StringRef();
+  plan.segmentFieldExtractIntrinsic =
+      isInterleave ? llvm::StringRef(kRVVSegment2TupleCreateIntrinsic)
+                   : llvm::StringRef(kRVVSegment2FieldExtractIntrinsic);
+  plan.field0Role =
+      isInterleave ? analysis.slice.segment2Store.getField0Role()
+                   : analysis.slice.segment2Load.getField0Role();
+  plan.field1Role =
+      isInterleave ? analysis.slice.segment2Store.getField1Role()
+                   : analysis.slice.segment2Load.getField1Role();
+  plan.field0Name = "field0_vec";
+  plan.field1Name = "field1_vec";
+  plan.field0SourceMemoryForm =
+      isInterleave ? llvm::StringRef(kRVVUnitStrideSourceMemoryForm)
+                   : llvm::StringRef();
+  plan.field1SourceMemoryForm =
+      isInterleave ? llvm::StringRef(kRVVUnitStrideSourceMemoryForm)
+                   : llvm::StringRef();
+  plan.field0DestinationMemoryForm =
+      isDeinterleave ? llvm::StringRef(kRVVDestinationMemoryForm)
+                     : llvm::StringRef();
+  plan.field1DestinationMemoryForm =
+      isDeinterleave ? llvm::StringRef(kRVVDestinationMemoryForm)
+                     : llvm::StringRef();
+  if (isDeinterleave) {
+    plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.field0ABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.field1ABI);
+  } else {
+    plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.rhsABI);
+    plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+  }
+  plan.runtimeABIParameters.push_back(
+      plan.runtimeControlPlan.runtimeAVLParameter);
+
+  (void)targetLeaves;
+  if (llvm::Error error =
+          validateRVVSelectedBodySegment2MemoryRouteFamilyPlan(plan))
+    return std::move(error);
+  return plan;
+}
+
+void applyRVVSelectedBodySegment2MemoryRouteFamilyPlan(
+    const RVVSelectedBodySegment2MemoryRouteFamilyPlan &plan,
+    RVVSelectedBodyEmitCRouteDescription &description) {
+  applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
+                                               description);
+  description.segment2MemoryRouteFamilyPlanID = plan.familyPlanID;
+  description.runtimeABIOrder = plan.runtimeABIOrder;
+  description.targetLeafProfile = plan.targetLeafProfile;
+  description.providerSupportedMirror = plan.providerSupportedMirror;
+  description.requiredHeaderDeclarations = plan.requiredHeaderDeclarations;
+  description.cTypeMappingSummary = plan.cTypeMappingSummary;
+  description.vlCType = plan.vlCType;
+  description.vectorTypeName = plan.vectorTypeName;
+  description.vectorCType = plan.vectorCType;
+  description.setVLIntrinsic = plan.setVLIntrinsic;
+  description.vectorLoadIntrinsic = plan.vectorLoadIntrinsic;
+  description.storeIntrinsic = plan.storeIntrinsic;
+  description.resultName = plan.resultName;
+  description.sourceMemoryForm = plan.sourceMemoryForm;
+  description.destinationMemoryForm = plan.destinationMemoryForm;
   description.segmentMemoryLayout = plan.segmentMemoryLayout;
   description.segmentCount = plan.segmentCount;
   description.segmentTupleCType = plan.segmentTupleCType;
@@ -16967,6 +17416,18 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
         *analysis.computedMaskMemoryRouteFamilyPlan,
         analysis.description);
   }
+  if (isRVVSelectedBodySegment2MemoryRouteOperation(
+          routeProfile->operation.operation)) {
+    llvm::Expected<RVVSelectedBodySegment2MemoryRouteFamilyPlan>
+        segment2MemoryPlan =
+            deriveRVVSelectedBodySegment2MemoryRouteFamilyPlan(
+                analysis, routeProfile->config, routeProfile->targetLeaves);
+    if (!segment2MemoryPlan)
+      return segment2MemoryPlan.takeError();
+    analysis.segment2MemoryRouteFamilyPlan = std::move(*segment2MemoryPlan);
+    applyRVVSelectedBodySegment2MemoryRouteFamilyPlan(
+        *analysis.segment2MemoryRouteFamilyPlan, analysis.description);
+  }
   if (isRVVSelectedBodyStandaloneReductionRouteOperation(
           routeProfile->operation.operation)) {
     llvm::Expected<RVVSelectedBodyStandaloneReductionRouteFamilyPlan>
@@ -17306,107 +17767,12 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     else
       analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
   }
-  if (routeProfile->operation.isSegmentedMemoryMovement &&
-      !isComputedMaskSegment2Load && !isComputedMaskSegment2Store) {
-    const bool isInterleave =
-        routeProfile->operation.operation ==
-        RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
-    analysis.description.segmentMemoryLayout =
-        isComputedMaskSegment2Load
-            ? kRVVComputedMaskSegment2LoadMemoryLayout
-        : isComputedMaskSegment2Store
-            ? kRVVComputedMaskSegment2StoreMemoryLayout
-            : (isInterleave ? kRVVSegment2InterleaveMemoryLayout
-                            : kRVVSegment2MemoryLayout);
-    analysis.description.segmentCount =
-        isComputedMaskSegment2Load
-            ? static_cast<std::int64_t>(
-                  analysis.slice.maskedSegment2LoadOp.getSegmentCount())
-        : isComputedMaskSegment2Store
-            ? static_cast<std::int64_t>(
-                  analysis.slice.maskedSegment2Store.getSegmentCount())
-        : isInterleave
-            ? static_cast<std::int64_t>(
-                  analysis.slice.segment2Store.getSegmentCount())
-            : static_cast<std::int64_t>(
-                  analysis.slice.segment2Load.getSegmentCount());
-    analysis.description.segmentTupleCType = kRVVSegment2TupleCType;
-    analysis.description.segmentLoadIntrinsic =
-        isComputedMaskSegment2Load
-            ? llvm::StringRef(kRVVMaskedSegment2LoadIntrinsic)
-        : isComputedMaskSegment2Store
-            ? llvm::StringRef()
-            : (isInterleave ? llvm::StringRef()
-                            : llvm::StringRef(kRVVSegment2LoadIntrinsic));
-    analysis.description.segmentStoreIntrinsic =
-        isComputedMaskSegment2Load
-            ? llvm::StringRef(kRVVSegment2TupleCreateIntrinsic)
-        : isComputedMaskSegment2Store
-            ? llvm::StringRef(kRVVMaskedSegment2StoreIntrinsic)
-            : (isInterleave ? llvm::StringRef(kRVVSegment2StoreIntrinsic)
-                            : llvm::StringRef());
-    analysis.description.segmentFieldExtractIntrinsic =
-        (isInterleave || isComputedMaskSegment2Store)
-            ? kRVVSegment2TupleCreateIntrinsic
-            : kRVVSegment2FieldExtractIntrinsic;
-    if (isInterleave) {
-      analysis.description.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
-      analysis.description.destinationMemoryForm =
-          analysis.slice.segment2Store.getDestinationMemoryForm();
-      analysis.description.field0Role =
-          analysis.slice.segment2Store.getField0Role();
-      analysis.description.field1Role =
-          analysis.slice.segment2Store.getField1Role();
-      analysis.description.field0Name = "field0_vec";
-      analysis.description.field1Name = "field1_vec";
-      analysis.description.field0SourceMemoryForm =
-          kRVVUnitStrideSourceMemoryForm;
-      analysis.description.field1SourceMemoryForm =
-          kRVVUnitStrideSourceMemoryForm;
-    } else if (isComputedMaskSegment2Load) {
-      analysis.description.sourceMemoryForm =
-          analysis.slice.maskedSegment2LoadOp.getSourceMemoryForm();
-      analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
-      analysis.description.field0Role =
-          analysis.slice.maskedSegment2LoadOp.getField0Role();
-      analysis.description.field1Role =
-          analysis.slice.maskedSegment2LoadOp.getField1Role();
-      analysis.description.field0Name = "masked_segment2_field0_vec";
-      analysis.description.field1Name = "masked_segment2_field1_vec";
-      analysis.description.field0DestinationMemoryForm =
-          kRVVDestinationMemoryForm;
-      analysis.description.field1DestinationMemoryForm =
-          kRVVDestinationMemoryForm;
-    } else if (isComputedMaskSegment2Store) {
-      analysis.description.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
-      analysis.description.destinationMemoryForm =
-          analysis.slice.maskedSegment2Store.getDestinationMemoryForm();
-      analysis.description.field0Role =
-          analysis.slice.maskedSegment2Store.getField0Role();
-      analysis.description.field1Role =
-          analysis.slice.maskedSegment2Store.getField1Role();
-      analysis.description.field0Name = "masked_segment2_store_field0_vec";
-      analysis.description.field1Name = "masked_segment2_store_field1_vec";
-      analysis.description.field0SourceMemoryForm =
-          kRVVUnitStrideSourceMemoryForm;
-      analysis.description.field1SourceMemoryForm =
-          kRVVUnitStrideSourceMemoryForm;
-    } else {
-      analysis.description.sourceMemoryForm =
-          analysis.slice.segment2Load.getSourceMemoryForm();
-      analysis.description.destinationMemoryForm = kRVVDestinationMemoryForm;
-      analysis.description.field0Role =
-          analysis.slice.segment2Load.getField0Role();
-      analysis.description.field1Role =
-          analysis.slice.segment2Load.getField1Role();
-      analysis.description.field0Name = "field0_vec";
-      analysis.description.field1Name = "field1_vec";
-      analysis.description.field0DestinationMemoryForm =
-          kRVVDestinationMemoryForm;
-      analysis.description.field1DestinationMemoryForm =
-          kRVVDestinationMemoryForm;
-    }
-  }
+  if (isRVVSelectedBodySegment2MemoryRouteOperation(
+          routeProfile->operation.operation) &&
+      !analysis.segment2MemoryRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        "plain segment2 memory routes require the shared route-family plan "
+        "before description population");
 
   if (llvm::Error error = validateRVVSelectedBodyRuntimeABIParameters(
           analysis.slice, *analysis.constructionRoute,
@@ -17633,6 +17999,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   const bool isComputedMaskMemoryRouteFamilyRoute =
       isRVVSelectedBodyComputedMaskMemoryRouteOperation(
           operationProfile.operation);
+  const bool isSegment2MemoryRouteFamilyRoute =
+      isRVVSelectedBodySegment2MemoryRouteOperation(operationProfile.operation);
   const bool isComputedMaskIndexedGather =
       operationProfile.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore;
@@ -17823,6 +18191,26 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "C type mapping summary", description.cTypeMappingSummary,
             getComputedMaskMemoryCTypeMappingSummary(operationProfile.operation)))
+      return error;
+  } else if (isSegment2MemoryRouteFamilyRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "target leaf profile", description.targetLeafProfile,
+            getSegment2MemoryTargetLeafProfile(operationProfile.operation)))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "provider_supported_mirror",
+            description.providerSupportedMirror,
+            getSegment2MemoryProviderSupportedMirror(
+                operationProfile.operation)))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "required header declarations",
+            description.requiredHeaderDeclarations,
+            kRVVSegment2RequiredHeaderDeclarations))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "C type mapping summary", description.cTypeMappingSummary,
+            getSegment2MemoryCTypeMappingSummary(operationProfile.operation)))
       return error;
   } else if (isComputedMaskedMAcc) {
     llvm::StringRef expectedTargetLeafProfile =
@@ -18496,6 +18884,18 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "computed-mask memory mask producer source",
             description.computedMaskMemoryMaskProducerSource, ""))
+      return error;
+  }
+  if (isSegment2MemoryRouteFamilyRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "plain segment2 memory route family plan",
+            description.segment2MemoryRouteFamilyPlanID,
+            kRVVSegment2MemoryRouteFamilyPlanID))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "plain segment2 memory route family plan",
+            description.segment2MemoryRouteFamilyPlanID, ""))
       return error;
   }
   llvm::StringRef expectedOperandBindingPlanID =
@@ -20434,6 +20834,9 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back({"tcrv_rvv.computed_mask_memory_mask_producer_source",
                         description.computedMaskMemoryMaskProducerSource});
   }
+  if (!description.segment2MemoryRouteFamilyPlanID.empty())
+    metadata.push_back({"tcrv_rvv.segment2_memory_route_family_plan",
+                        description.segment2MemoryRouteFamilyPlanID});
   metadata.push_back({"tcrv_rvv.emitc_loop", description.emitCLoopKind});
   metadata.push_back(
       {"tcrv_rvv.loop_induction", description.emitCLoopInductionName});
@@ -20452,6 +20855,7 @@ getRVVSelectedBodyConfigArtifactMetadata(
       isRVVSelectedBodyComputedMaskSelectRouteOperation(
           description.operation) ||
       !description.computedMaskMemoryRouteFamilyPlanID.empty() ||
+      !description.segment2MemoryRouteFamilyPlanID.empty() ||
       !description.accumulationRouteFamilyPlanID.empty() ||
       isRVVSelectedBodyStandaloneReductionRouteOperation(
           description.operation)) {

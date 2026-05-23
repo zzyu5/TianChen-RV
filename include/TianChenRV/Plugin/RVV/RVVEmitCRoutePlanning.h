@@ -396,6 +396,45 @@ struct RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 6> runtimeABIParameters;
 };
 
+struct RVVSelectedBodySegment2MemoryRouteFamilyPlan {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  bool usesDeinterleaveLoad = false;
+  bool usesInterleaveStore = false;
+  RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef familyPlanID;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef vlCType;
+  llvm::StringRef vectorTypeName;
+  llvm::StringRef vectorCType;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vectorLoadIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef resultName;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::StringRef segmentMemoryLayout;
+  std::int64_t segmentCount = 0;
+  llvm::StringRef segmentTupleCType;
+  llvm::StringRef segmentLoadIntrinsic;
+  llvm::StringRef segmentStoreIntrinsic;
+  llvm::StringRef segmentFieldExtractIntrinsic;
+  llvm::StringRef field0Role;
+  llvm::StringRef field1Role;
+  llvm::StringRef field0Name;
+  llvm::StringRef field1Name;
+  llvm::StringRef field0SourceMemoryForm;
+  llvm::StringRef field1SourceMemoryForm;
+  llvm::StringRef field0DestinationMemoryForm;
+  llvm::StringRef field1DestinationMemoryForm;
+  llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
+};
+
 struct RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
@@ -485,6 +524,8 @@ struct RVVSelectedBodyRouteAnalysis {
       computedMaskSelectRouteFamilyPlan;
   std::optional<RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan>
       computedMaskMemoryRouteFamilyPlan;
+  std::optional<RVVSelectedBodySegment2MemoryRouteFamilyPlan>
+      segment2MemoryRouteFamilyPlan;
   std::optional<
       RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan>
       computedMaskAccumulationRouteFamilyPlan;

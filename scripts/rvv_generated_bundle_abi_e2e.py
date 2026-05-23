@@ -1050,6 +1050,26 @@ COMPUTED_MASK_INDEXED_SCATTER_PASSTHROUGH_LAYOUT = (
 COMPUTED_MASK_MEMORY_MASK_ROLE = "predicate-mask-produced-by-compare"
 COMPUTED_MASK_MEMORY_MASK_SOURCE = "compare-produced-mask-same-vl-scope"
 COMPUTED_MASK_MEMORY_MASK_FORM = "compare-produced-mask"
+SEGMENT2_MEMORY_ROUTE_FAMILY_PLAN = "rvv-segment2-memory-route-family-plan.v1"
+SEGMENT2_DEINTERLEAVE_TARGET_LEAF_PROFILE = (
+    "rvv-v1-e32m1-segment2-deinterleave-leaf-profile.v1"
+)
+SEGMENT2_INTERLEAVE_TARGET_LEAF_PROFILE = (
+    "rvv-v1-e32m1-segment2-interleave-leaf-profile.v1"
+)
+SEGMENT2_DEINTERLEAVE_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-segment2-deinterleave-plan-validated"
+)
+SEGMENT2_INTERLEAVE_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-segment2-interleave-plan-validated"
+)
+SEGMENT2_REQUIRED_HEADER_DECLARATIONS = "stddef.h,stdint.h,riscv_vector.h"
+SEGMENT2_DEINTERLEAVE_C_TYPE_MAPPING = (
+    "vl:size_t,segment2:vint32m1x2,field-outputs:signed-e32m1"
+)
+SEGMENT2_INTERLEAVE_C_TYPE_MAPPING = (
+    "vl:size_t,field-inputs:signed-e32m1,segment2:vint32m1x2"
+)
 SEGMENT2_RUNTIME_ABI_ORDER = "src,out0,out1,n"
 SEGMENT2_MEMORY_LAYOUT = (
     "segment2-interleaved-source-dual-unit-stride-destination-runtime-abi"
@@ -5726,6 +5746,22 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_segment2_deinterleave_unit_store:
         per_op_metadata.update(
             {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.segment2_memory_route_family_plan": (
+                    SEGMENT2_MEMORY_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    SEGMENT2_DEINTERLEAVE_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    SEGMENT2_DEINTERLEAVE_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    SEGMENT2_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    SEGMENT2_DEINTERLEAVE_C_TYPE_MAPPING
+                ),
                 "tcrv_rvv.segment_memory_layout": SEGMENT2_MEMORY_LAYOUT,
                 "tcrv_rvv.segment_count": "2",
                 "tcrv_rvv.segment_tuple_c_type": SEGMENT2_TUPLE_C_TYPE,
@@ -5758,6 +5794,22 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
     if expectation.is_segment2_interleave_unit_load:
         per_op_metadata.update(
             {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.segment2_memory_route_family_plan": (
+                    SEGMENT2_MEMORY_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    SEGMENT2_INTERLEAVE_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    SEGMENT2_INTERLEAVE_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    SEGMENT2_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    SEGMENT2_INTERLEAVE_C_TYPE_MAPPING
+                ),
                 "tcrv_rvv.segment_memory_layout": (
                     SEGMENT2_INTERLEAVE_MEMORY_LAYOUT
                 ),
