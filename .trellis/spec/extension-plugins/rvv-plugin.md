@@ -254,6 +254,50 @@ No Stage1 spec or test may require positive RVV artifact generation from
 source-front-door/source-artifact metadata. Positive RVV generated artifacts
 must come from corrected typed `tcrv_rvv` bodies and plugin-built routes.
 
+## Route-Family Owner Boundaries
+
+When several active selected-body routes have been closed as one RVV
+route-family cluster, the family ownership boundary should be explicit in
+RVV planning/provider code rather than recreated as a manual list in the
+central provider path.
+
+For a family cluster, the planning-owned owner surface should expose:
+
+```text
+family name
+consumer predicate over RVVSelectedBodyOperationKind
+provider-plan verifier over RVVSelectedBodyRouteAnalysis
+```
+
+The production provider should consume an aggregate owner verifier for that
+cluster. The aggregate verifier dispatches to each registered owner and must
+fail closed when:
+
+- a route-family consumer is missing its validated family plan;
+- a non-consumer carries a stale family plan;
+- route description mirrors, runtime ABI parameters, intrinsic/type/header
+  mirrors, or `RouteOperandBindingPlan` closure no longer match the validated
+  plan.
+
+The registry is dispatch/locality structure only. It must not merge family
+semantics: mask producer/source facts, segment field roles, stride/index facts,
+inactive-lane contracts, dtype/config facts, runtime ABI order, and intrinsic
+mapping remain in the owning RVV family plan and verifier. Common EmitC and
+target export may consume mirrors after route construction, but they must not
+own the route-family registry or infer RVV semantics from it.
+
+Required tests for a new or changed owner registry:
+
+- C++ tests for registry membership, owner names, consumer classification,
+  missing-plan diagnostics, stale-plan diagnostics, and aggregate verifier
+  dispatch;
+- representative lit/FileCheck coverage showing existing explicit or
+  pre-realized selected-body artifacts still flow from typed `tcrv_rvv` bodies;
+- at least one fail-closed typed-body mismatch diagnostic before
+  materialization;
+- runtime `ssh rvv` evidence only when emitted target sequence, ABI, or
+  materialized operands changed.
+
 ## Emission Diagnostics And Artifacts
 
 Emission-plan diagnostics, route ids, artifact metadata, manifests, and

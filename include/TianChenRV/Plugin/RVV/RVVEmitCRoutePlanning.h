@@ -8,6 +8,7 @@
 #include "TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h"
 #include "TianChenRV/Support/RuntimeABIContract.h"
 
+#include "llvm/ADT/ArrayRef.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/StringRef.h"
@@ -711,6 +712,19 @@ struct RVVSelectedBodyRouteAnalysis {
   std::optional<RVVSelectedBodyStandaloneReductionRouteFamilyPlan>
       standaloneReductionRouteFamilyPlan;
 };
+
+struct RVVSelectedBodyMemoryRouteFamilyOwner {
+  using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
+  using ProviderPlanVerifier = llvm::Error (*)(
+      const RVVSelectedBodyRouteAnalysis &, llvm::StringRef);
+
+  llvm::StringRef familyName;
+  ConsumerPredicate isConsumer = nullptr;
+  ProviderPlanVerifier verifyProviderPlan = nullptr;
+};
+
+llvm::ArrayRef<RVVSelectedBodyMemoryRouteFamilyOwner>
+getRVVSelectedBodyMemoryRouteFamilyOwners();
 
 bool isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);

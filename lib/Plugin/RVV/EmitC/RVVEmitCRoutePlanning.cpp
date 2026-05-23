@@ -19018,30 +19018,43 @@ bool isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
   return isRVVSelectedBodyBaseMemoryMovementRouteOperation(operation);
 }
 
+llvm::ArrayRef<RVVSelectedBodyMemoryRouteFamilyOwner>
+getRVVSelectedBodyMemoryRouteFamilyOwners() {
+  static const RVVSelectedBodyMemoryRouteFamilyOwner owners[] = {
+      {"base memory movement",
+       isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer,
+       verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans},
+      {"computed-mask memory",
+       isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer,
+       verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans},
+      {"plain segment2 memory",
+       isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer,
+       verifyRVVSelectedBodySegment2MemoryRouteFamilyProviderPlans},
+  };
+  return owners;
+}
+
 bool isRVVSelectedBodyMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
-  return isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(operation) ||
-         isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(operation) ||
-         isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(operation);
+  for (const RVVSelectedBodyMemoryRouteFamilyOwner &owner :
+       getRVVSelectedBodyMemoryRouteFamilyOwners())
+    if (owner.isConsumer && owner.isConsumer(operation))
+      return true;
+  return false;
 }
 
 llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
-  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
-  if (isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(operation) &&
-      !analysis.computedMaskMemoryRouteFamilyPlan)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " requires the computed-mask memory route-family plan before "
-        "provider materialization for operation '" +
-        stringifyRVVSelectedBodyOperationKind(operation) + "'");
-  if (isRVVSelectedBodyPlainSegment2MemoryRouteFamilyConsumer(operation) &&
-      !analysis.segment2MemoryRouteFamilyPlan)
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " requires the plain segment2 memory route-family plan before "
-        "provider materialization for operation '" +
-        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  for (const RVVSelectedBodyMemoryRouteFamilyOwner &owner :
+       getRVVSelectedBodyMemoryRouteFamilyOwners()) {
+    if (!owner.verifyProviderPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " encountered an incomplete memory route-family owner registry "
+          "entry");
+    if (llvm::Error error = owner.verifyProviderPlan(analysis, context))
+      return error;
+  }
   return llvm::Error::success();
 }
 

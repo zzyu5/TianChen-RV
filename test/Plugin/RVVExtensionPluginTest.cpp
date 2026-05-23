@@ -1864,6 +1864,152 @@ module {
       "relation, and binding closure facts");
 }
 
+int runMemoryRouteFamilyOwnerRegistryTest() {
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMemoryRouteFamilyOwners;
+  using tianchenrv::plugin::rvv::
+      isRVVSelectedBodyMemoryRouteFamilyConsumer;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans;
+
+  llvm::ArrayRef<tianchenrv::plugin::rvv::
+                     RVVSelectedBodyMemoryRouteFamilyOwner>
+      owners = getRVVSelectedBodyMemoryRouteFamilyOwners();
+  if (int result =
+          expect(owners.size() == 3,
+                 "memory route-family owner registry has exactly three "
+                 "active owner entries"))
+    return result;
+  if (int result =
+          expect(owners[0].familyName == "base memory movement" &&
+                     owners[1].familyName == "computed-mask memory" &&
+                     owners[2].familyName == "plain segment2 memory",
+                 "memory route-family owner registry preserves explicit "
+                 "base/computed-mask/plain-segment2 ownership"))
+    return result;
+  for (const auto &owner : owners) {
+    if (int result =
+            expect(owner.isConsumer != nullptr &&
+                       owner.verifyProviderPlan != nullptr,
+                   "memory route-family owner registry entries carry "
+                   "consumer and verifier hooks"))
+      return result;
+  }
+  if (int result = expect(
+          owners[0].isConsumer(
+              RVVSelectedBodyOperationKind::StridedLoadUnitStore) &&
+              !owners[0].isConsumer(
+                  RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore) &&
+              !owners[0].isConsumer(
+                  RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore),
+          "base memory owner classification is isolated"))
+    return result;
+  if (int result = expect(
+          owners[1].isConsumer(
+              RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore) &&
+              owners[1].isConsumer(RVVSelectedBodyOperationKind::
+                                       ComputedMaskSegment2LoadUnitStore) &&
+              !owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::StridedLoadUnitStore) &&
+              !owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad),
+          "computed-mask memory owner classification is isolated"))
+    return result;
+  if (int result = expect(
+          owners[2].isConsumer(
+              RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore) &&
+              owners[2].isConsumer(
+                  RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad) &&
+              !owners[2].isConsumer(RVVSelectedBodyOperationKind::
+                                        ComputedMaskSegment2StoreUnitLoad) &&
+              !owners[2].isConsumer(
+                  RVVSelectedBodyOperationKind::MaskedUnitStore),
+          "plain segment2 memory owner classification is isolated"))
+    return result;
+
+  for (RVVSelectedBodyOperationKind op :
+       {RVVSelectedBodyOperationKind::StridedLoadUnitStore,
+        RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore,
+        RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad}) {
+    if (int result = expect(
+            isRVVSelectedBodyMemoryRouteFamilyConsumer(op),
+            "aggregate memory route-family consumer predicate is registry "
+            "backed for base, computed-mask, and plain segment2 routes"))
+      return result;
+  }
+
+  RVVSelectedBodyRouteAnalysis missingBasePlan;
+  missingBasePlan.description.operation =
+      RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
+              missingBasePlan, "memory owner registry unit test"),
+          {"requires the base memory movement route-family plan",
+           "strided_load_unit_store"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingComputedMaskPlan;
+  missingComputedMaskPlan.description.operation =
+      RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
+              missingComputedMaskPlan, "memory owner registry unit test"),
+          {"requires the computed-mask memory route-family plan",
+           "computed_masked_strided_load_unit_store"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingSegment2Plan;
+  missingSegment2Plan.description.operation =
+      RVVSelectedBodyOperationKind::Segment2InterleaveUnitLoad;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
+              missingSegment2Plan, "memory owner registry unit test"),
+          {"requires the plain segment2 memory route-family plan",
+           "segment2_interleave_unit_load"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis nonMemoryAnalysis;
+  nonMemoryAnalysis.description.operation = RVVSelectedBodyOperationKind::Add;
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
+              nonMemoryAnalysis, "memory owner registry unit test"),
+          "non-memory route with no memory family plan is accepted by "
+          "aggregate memory owner verifier"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleBaseNonConsumer = nonMemoryAnalysis;
+  staleBaseNonConsumer.baseMemoryMovementRouteFamilyPlan.emplace();
+  staleBaseNonConsumer.baseMemoryMovementRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
+              staleBaseNonConsumer, "memory owner registry unit test"),
+          {"must not carry a base memory movement route-family plan", "add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleComputedMaskNonConsumer =
+      nonMemoryAnalysis;
+  staleComputedMaskNonConsumer.computedMaskMemoryRouteFamilyPlan.emplace();
+  staleComputedMaskNonConsumer.computedMaskMemoryRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
+              staleComputedMaskNonConsumer, "memory owner registry unit test"),
+          {"must not carry a computed-mask memory route-family plan", "add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis staleSegment2NonConsumer = nonMemoryAnalysis;
+  staleSegment2NonConsumer.segment2MemoryRouteFamilyPlan.emplace();
+  staleSegment2NonConsumer.segment2MemoryRouteFamilyPlan->operation =
+      RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore;
+  return expectErrorContains(
+      verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
+          staleSegment2NonConsumer, "memory owner registry unit test"),
+      {"must not carry a plain segment2 memory route-family plan", "add"});
+}
+
 int runBaseMemoryMovementRouteFamilyProviderPlanTest(
     mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
@@ -6458,6 +6604,8 @@ int main() {
           runScalarBroadcastAndSplatRouteFamilyProviderPlanTest(context))
     return result;
   if (int result = runWideningConversionRouteFamilyProviderPlanTest(context))
+    return result;
+  if (int result = runMemoryRouteFamilyOwnerRegistryTest())
     return result;
   if (int result = runBaseMemoryMovementRouteFamilyProviderPlanTest(context))
     return result;

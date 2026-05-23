@@ -250,6 +250,54 @@ Closed RuntimeI32SplatStore provider runtime AVL/VL mirror and RouteOperandBindi
 - None - task complete
 
 
+## Session 182: Stage2 RVV memory route-family owner registry extraction
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV memory route-family owner registry extraction
+**Branch**: `main`
+
+### Summary
+
+Extracted an explicit planning-owned memory route-family owner registry for
+the active RVV base memory movement, computed-mask memory, and plain segment2
+memory families. The selected-body EmitC provider now consumes one aggregate
+memory owner verifier instead of manually chaining each memory-family verifier.
+
+### Main Changes
+
+- Added `RVVSelectedBodyMemoryRouteFamilyOwner` and
+  `getRVVSelectedBodyMemoryRouteFamilyOwners()`.
+- Rewired aggregate memory-family consumer classification and provider-plan
+  verification to dispatch through the registry.
+- Removed manual base/computed-mask/plain-segment2 verifier calls from
+  production selected-body EmitC route construction.
+- Added C++ coverage for registry membership, owner isolation, aggregate
+  missing-plan rejection, and stale-plan rejection.
+- Recorded the durable owner-registry contract in the RVV plugin spec.
+
+### Git Commits
+
+- this commit
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused lit/FileCheck representative memory/provider tests (9/9)
+- [OK] focused generated-bundle dry-run representative memory tests (5/5)
+- [OK] added-line active-authority scan over touched RVV planning/provider/test diff
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2` (363/363)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 179: Stage2 RVV computed-mask memory runtime binding closure
 
 **Date**: 2026-05-23
