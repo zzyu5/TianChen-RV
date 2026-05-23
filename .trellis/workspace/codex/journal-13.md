@@ -69,6 +69,73 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 168: Stage2 RVV contraction explicit strided/masked selected-body realization
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV contraction explicit strided masked selected-body realization
+**Branch**: `main`
+
+### Summary
+
+Enabled the remaining explicit selected-body contraction routes for strided
+input and computed-mask widening dot-reduce, proved they reach the validated
+RVV contraction family plan and generated bundle boundary, and validated them
+with real `ssh rvv` execution.
+
+### Main Changes
+
+- Added explicit selected-body `tcrv.exec` RVV fixtures for
+  `strided_input_widening_dot_reduce_add`,
+  `computed_masked_widening_dot_reduce_add`, and
+  `computed_masked_strided_input_widening_dot_reduce_add`.
+- Extended `scripts/rvv_generated_bundle_abi_e2e.py` expectations so the three
+  explicit routes use the new fixtures and verify generated-bundle evidence.
+- Added focused generated-bundle dry-run lit tests for the three explicit
+  routes, including plan metadata, binding closure, stride/mask facts, harness
+  behavior, and correctness markers.
+
+### Routes Covered
+
+- `strided_input_widening_dot_reduce_add`
+- `computed_masked_widening_dot_reduce_add`
+- `computed_masked_strided_input_widening_dot_reduce_add`
+
+### Testing
+
+- [OK] Focused PLAN/HEADER FileCheck for the three new target fixtures.
+- [OK] Focused lit filter for the three target fixtures plus three script
+  fixtures: 6/6 selected tests passed.
+- [OK] Explicit generated-bundle dry-run for the three new routes with counts
+  `7,16,23`.
+- [OK] Base explicit preservation dry-run for `widening_macc_add` and
+  `widening_dot_reduce_add` with counts `7,16,23`.
+- [OK] Pre-realized preservation dry-run for all five active contraction routes
+  with counts `7,16,23`.
+- [OK] Real `ssh rvv` explicit run for all three new routes with counts
+  `7,16,23`, including stride `2,3`, inactive-lane, accumulator, scalar output,
+  and tail-preservation checks.
+- [OK] Focused build:
+  `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Active-authority scan over touched paths, `git diff --check`, and
+  `cmake --build build --target check-tianchenrv -j2` passed 361/361.
+
+### Self-Repair
+
+- Shortened explicit fixture kernel/variant names after bundle export rejected
+  overlong C/EmitC function identifiers.
+- Reordered two FileCheck assertions to match the actual diagnostic metadata
+  order while keeping the stride/mask facts checked.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 168: Stage2 RVV contraction explicit selected-body realization
 
 **Date**: 2026-05-23
