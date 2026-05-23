@@ -41,6 +41,72 @@ Closed contraction provider validation for active `widening_macc_add`,
 
 ---
 
+## Session 175: Stage2 RVV scalar-broadcast elementwise runtime binding closure
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV scalar-broadcast elementwise runtime binding closure
+**Branch**: `main`
+
+### Summary
+
+Closed scalar-broadcast elementwise provider runtime AVL/VL mirror validation
+and `RouteOperandBindingPlan` closure for active explicit and pre-realized
+`scalar_broadcast_add`, `scalar_broadcast_sub`, and `scalar_broadcast_mul`
+routes.
+
+### Main Changes
+
+- Required
+  `verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans` to
+  compare full runtime AVL/VL control mirrors from the validated scalar
+  broadcast family plan before provider materialization.
+- Added family-provider `RouteOperandBindingPlan` closure validation so plan
+  id, runtime ABI order, parameter mirrors, logical operand roles,
+  materialized uses, and summary mirrors fail closed for scalar-broadcast
+  routes.
+- Added focused RVV plugin C++ coverage for consumer isolation,
+  missing/stale plans, runtime-control mismatch, scalar RHS ABI and binding
+  mismatch, intrinsic/type/result mirror mismatch, and add/sub/mul operation
+  isolation.
+- Updated explicit/pre-realized scalar-broadcast target fixtures to check
+  runtime-control, runtime-VL, AVL-source, bounded-slice, binding, and family
+  plan mirrors.
+- Tightened generated-bundle scalar-broadcast runtime evidence so
+  memory-writing routes check sentinel tail preservation across runtime `n`.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+  and `./build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Focused materialization/header export for all six scalar-broadcast
+  target fixtures: explicit add/sub/mul and pre-realized add/sub/mul.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py` and
+  `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Generated-bundle dry-runs for explicit and pre-realized
+  scalar-broadcast add/sub/mul, counts `7,16,23`, RHS scalars `5,-3`.
+- [OK] Real `ssh rvv` generated-bundle runs for explicit and pre-realized
+  scalar-broadcast add/sub/mul, counts `7,16,23`, RHS scalars `5,-3`, with
+  signed RHS behavior and `tail_preserved`.
+- [OK] Added-line active-authority scan found no new legacy i32m1,
+  source-front-door, source-artifact, descriptor, direct-C, or exact i32m1
+  intrinsic authority matches; exact intrinsic additions are C++ mirror and
+  stale-mirror tests only.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2`, 361/361 passed.
+
+### Spec Update Judgment
+
+Updated `.trellis/spec/testing/mlir-testing-contract.md` with a durable
+evidence rule: RVV generated-bundle runtime evidence over runtime `n` for
+memory-writing routes must check active lanes and guard/tail sentinel
+preservation. This is evidence quality guidance only, not route authority.
+
+### Status
+
+[OK] **Completed and archived**. Commit is created after this journal entry.
+
+---
+
 ## Session 173: Stage2 RVV widening conversion runtime and binding closure
 
 **Date**: 2026-05-23

@@ -11008,7 +11008,7 @@ int main(void) {{
 
 static int run_case(size_t n, int32_t rhs_scalar) {{
   /* expected: {expectation.expected_expression} */
-  size_t alloc_n = n == 0 ? 1 : n;
+  size_t alloc_n = (n == 0 ? 1 : n) + 8;
   {expectation.element_c_type} *lhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
   {expectation.element_c_type} *out = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
   if (!lhs || !out) {{
@@ -11018,7 +11018,7 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
     return 11;
   }}
 
-  for (size_t index = 0; index < n; ++index) {{
+  for (size_t index = 0; index < alloc_n; ++index) {{
     lhs[index] = {expectation.lhs_initializer};
     out[index] = {expectation.out_initializer};
   }}
@@ -11037,9 +11037,21 @@ static int run_case(size_t n, int32_t rhs_scalar) {{
     }}
   }}
 
+  for (size_t index = n; index < alloc_n; ++index) {{
+    if (out[index] != {expectation.out_initializer}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d rhs_scalar=%d\\n",
+              n, index, out[index], {expectation.out_initializer}, rhs_scalar);
+      free(lhs);
+      free(out);
+      return 13;
+    }}
+  }}
+
   free(lhs);
   free(out);
-  printf("{expectation.kind} case n=%zu ok rhs_scalar=%d\\n", n, rhs_scalar);
+  printf("{expectation.kind} case n=%zu ok rhs_scalar=%d tail_preserved\\n",
+         n, rhs_scalar);
   return 0;
 }}
 

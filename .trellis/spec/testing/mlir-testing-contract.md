@@ -67,6 +67,13 @@ Runtime, correctness, or performance claims require actual execution evidence.
 For RVV claims, use real `ssh rvv` output. Local compile-only, static MLIR
 checks, or Python smoke tests are not RVV runtime evidence.
 
+For RVV generated-bundle evidence over runtime `n`, memory-writing routes must
+check both active-lane arithmetic/data movement and guard/tail preservation.
+Harnesses should initialize output storage beyond `n` (or inactive/passthrough
+lanes when applicable) with sentinels and fail if the generated route writes
+outside the runtime element count. These sentinel checks are evidence quality
+guards only; they do not become route, dtype, or artifact authority.
+
 ## Source Front Door Tests
 
 Default source-front-door policy is explicit-only or disabled. During RVV

@@ -1244,7 +1244,8 @@ module {
               "lhs,rhs,out,n"});
 }
 
-int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest() {
+int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest(
+    mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::
@@ -1255,6 +1256,7 @@ int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest() {
       verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans;
+  using tianchenrv::support::RuntimeABIParameterRole;
 
   for (RVVSelectedBodyOperationKind op :
        {RVVSelectedBodyOperationKind::ScalarBroadcastAdd,
@@ -1328,12 +1330,198 @@ int runScalarBroadcastAndSplatRouteFamilyProviderPlanTest() {
   staleRuntimeSplatNonConsumer.runtimeScalarSplatStoreRouteFamilyPlan.emplace();
   staleRuntimeSplatNonConsumer.runtimeScalarSplatStoreRouteFamilyPlan
       ->operation = RVVSelectedBodyOperationKind::RuntimeI32SplatStore;
-  return expectErrorContains(
-      verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
-          staleRuntimeSplatNonConsumer,
-          "runtime scalar splat-store provider unit test"),
-      {"must not carry a runtime scalar splat-store route-family plan",
-       "scalar_broadcast_add"});
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyProviderPlans(
+              staleRuntimeSplatNonConsumer,
+              "runtime scalar splat-store provider unit test"),
+          {"must not carry a runtime scalar splat-store route-family plan",
+           "scalar_broadcast_add"}))
+    return result;
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @scalar_broadcast_add_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_scalar_broadcast_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_scalar_broadcast_add, sew = 32 : i64, source_kernel = "scalar_broadcast_add_provider_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %sum = tcrv_rvv.binary %lhs_vec, %rhs_vec, %vl {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+
+  tcrv.exec.kernel @scalar_broadcast_sub_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_scalar_broadcast_sub attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_scalar_broadcast_sub, sew = 32 : i64, source_kernel = "scalar_broadcast_sub_provider_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %diff = tcrv_rvv.binary %lhs_vec, %rhs_vec, %vl {kind = "sub"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %diff, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+
+  tcrv.exec.kernel @scalar_broadcast_mul_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_scalar_broadcast_mul attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_scalar_broadcast_mul, sew = 32 : i64, source_kernel = "scalar_broadcast_mul_provider_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %product = tcrv_rvv.binary %lhs_vec, %rhs_vec, %vl {kind = "mul"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %product, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse scalar-broadcast provider test module");
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> addAnalysis =
+      analyzeRouteInModule(*module, "scalar_broadcast_add_provider_kernel",
+                           "rvv_scalar_broadcast_add");
+  if (!addAnalysis)
+    return fail("analyze scalar_broadcast_add provider route: " +
+                llvm::toString(addAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+              *addAnalysis, "scalar-broadcast provider unit test"),
+          "valid scalar_broadcast_add family provider plan"))
+    return result;
+  if (int result = expect(
+          addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->runtimeControlPlan.controlPlanID ==
+                  tianchenrv::plugin::rvv::getRVVRuntimeAVLVLControlPlanID() &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->rhsScalarSplatIntrinsic == "__riscv_vmv_v_x_i32m1" &&
+              addAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->arithmeticIntrinsic == "__riscv_vadd_vv_i32m1" &&
+              addAnalysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:scalar_broadcast_add.v1",
+          "scalar_broadcast_add plan must carry runtime control, RHS scalar "
+          "splat, arithmetic, and binding facts"))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis stale = *addAnalysis;
+  stale.description.runtimeAVLASource = "metadata-selected-avl";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+              stale, "scalar-broadcast provider unit test"),
+          {"scalar-broadcast elementwise route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *addAnalysis;
+  stale.description.rhsBroadcastIntrinsic = "__riscv_vle32_v_i32m1";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+              stale, "scalar-broadcast provider unit test"),
+          {"scalar-broadcast elementwise route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *addAnalysis;
+  stale.description.intrinsic = "__riscv_vsub_vv_i32m1";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+              stale, "scalar-broadcast provider unit test"),
+          {"scalar-broadcast elementwise route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *addAnalysis;
+  std::swap(stale.description.runtimeABIParameters[0],
+            stale.description.runtimeABIParameters[1]);
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+              stale, "scalar-broadcast provider unit test"),
+          {"runtime ABI parameters", "validated family plan"}))
+    return result;
+
+  stale = *addAnalysis;
+  stale.routeOperandBindingPlan.bindings[1].parameter.role =
+      RuntimeABIParameterRole::RHSInputBuffer;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+              stale, "scalar-broadcast provider unit test"),
+          {"logical operand 'rhs_scalar'", "rhs-scalar-value",
+           "rhs-input-buffer"}))
+    return result;
+
+  stale = *addAnalysis;
+  stale.description.routeOperandBindingSummary = "stale";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+              stale, "scalar-broadcast provider unit test"),
+          {"route operand binding mirror summary", "stale"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> subAnalysis =
+      analyzeRouteInModule(*module, "scalar_broadcast_sub_provider_kernel",
+                           "rvv_scalar_broadcast_sub");
+  if (!subAnalysis)
+    return fail("analyze scalar_broadcast_sub provider route: " +
+                llvm::toString(subAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+              *subAnalysis, "scalar-broadcast provider unit test"),
+          "valid scalar_broadcast_sub family provider plan"))
+    return result;
+  if (int result = expect(
+          subAnalysis->scalarBroadcastElementwiseRouteFamilyPlan &&
+              subAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->operation == RVVSelectedBodyOperationKind::
+                                         ScalarBroadcastSub &&
+              subAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                      ->arithmeticIntrinsic == "__riscv_vsub_vv_i32m1" &&
+              subAnalysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:scalar_broadcast_sub.v1",
+          "scalar_broadcast_sub plan must keep sub operation and binding "
+          "facts isolated"))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> mulAnalysis =
+      analyzeRouteInModule(*module, "scalar_broadcast_mul_provider_kernel",
+                           "rvv_scalar_broadcast_mul");
+  if (!mulAnalysis)
+    return fail("analyze scalar_broadcast_mul provider route: " +
+                llvm::toString(mulAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+              *mulAnalysis, "scalar-broadcast provider unit test"),
+          "valid scalar_broadcast_mul family provider plan"))
+    return result;
+  return expect(
+      mulAnalysis->scalarBroadcastElementwiseRouteFamilyPlan &&
+          mulAnalysis->scalarBroadcastElementwiseRouteFamilyPlan->operation ==
+              RVVSelectedBodyOperationKind::ScalarBroadcastMul &&
+          mulAnalysis->scalarBroadcastElementwiseRouteFamilyPlan
+                  ->arithmeticIntrinsic == "__riscv_vmul_vv_i32m1" &&
+          mulAnalysis->routeOperandBindingPlan.planID ==
+              "rvv-route-operand-binding:scalar_broadcast_mul.v1",
+      "scalar_broadcast_mul plan must keep mul operation and binding facts "
+      "isolated");
 }
 
 int runWideningConversionRouteFamilyProviderPlanTest(
@@ -4902,7 +5090,8 @@ int main() {
     return result;
   if (int result = runScalarBroadcastElementwisePlanValidationTest(context))
     return result;
-  if (int result = runScalarBroadcastAndSplatRouteFamilyProviderPlanTest())
+  if (int result =
+          runScalarBroadcastAndSplatRouteFamilyProviderPlanTest(context))
     return result;
   if (int result = runWideningConversionRouteFamilyProviderPlanTest(context))
     return result;
