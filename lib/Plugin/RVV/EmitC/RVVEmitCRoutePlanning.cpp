@@ -1358,6 +1358,8 @@ constexpr llvm::StringLiteral kRVVWideningDotProductResultLayout(
 constexpr llvm::StringLiteral kRVVWideningDotProductRelation(
     "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32");
 constexpr llvm::StringLiteral kRVVWideningDotProductStoreVL("1");
+constexpr llvm::StringLiteral kRVVContractionRouteFamilyPlanID(
+    "rvv-contraction-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVContractionTargetLeafProfile(
     "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVContractionProviderSupportedMirror(
@@ -3047,6 +3049,53 @@ llvm::Error requireRVVSelectedBodyContractionPlanField(
 
 llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  if (!isRVVSelectedBodyContractionRouteOperation(plan.operation))
+    return makeRVVEmitCRouteProviderError(
+        "contraction route-family plan supports only active widening_macc_add "
+        "and widening dot-reduce routes");
+  const bool isWideningMAcc =
+      plan.operation == RVVSelectedBodyOperationKind::WideningMAccAdd;
+  const bool isDotReduction =
+      isRVVSelectedBodyContractionDotReduction(plan.operation);
+  const bool isComputedMask =
+      isRVVSelectedBodyContractionComputedMask(plan.operation);
+  const bool isStridedInput =
+      isRVVSelectedBodyContractionStridedInputs(plan.operation);
+  const RVVSelectedBodyMemoryForm expectedMemoryForm =
+      isWideningMAcc
+          ? RVVSelectedBodyMemoryForm::VectorRHSLoad
+      : plan.operation == RVVSelectedBodyOperationKind::WideningDotReduceAdd
+          ? RVVSelectedBodyMemoryForm::VectorRHSLoad
+      : plan.operation ==
+              RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd
+          ? RVVSelectedBodyMemoryForm::StridedInputWideningDotReduce
+      : plan.operation ==
+              RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd
+          ? RVVSelectedBodyMemoryForm::
+                ComputedMaskUnitStrideWideningDotReduce
+          : RVVSelectedBodyMemoryForm::
+                ComputedMaskStridedInputWideningDotReduce;
+  if (plan.usesWideningMAcc != isWideningMAcc ||
+      plan.usesDotReduction != isDotReduction ||
+      plan.usesComputedMask != isComputedMask ||
+      plan.usesStridedInputs != isStridedInput ||
+      plan.usesScalarSeed != isDotReduction ||
+      plan.usesVectorAccumulator != isWideningMAcc)
+    return makeRVVEmitCRouteProviderError(
+        "contraction route-family plan stale operation classification "
+        "markers");
+  if (plan.memoryForm != expectedMemoryForm)
+    return makeRVVEmitCRouteProviderError(
+        "contraction route-family plan requires the operation-specific memory "
+        "form");
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "family plan", plan.familyPlanID,
+          kRVVContractionRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+          plan, "runtime ABI order", plan.runtimeABIOrder,
+          getRVVSelectedBodyContractionRuntimeABIOrder(plan.operation)))
+    return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "target leaf profile", plan.targetLeafProfile,
           kRVVContractionTargetLeafProfile))
@@ -3102,13 +3151,64 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
             plan, "strided source-load leaf", plan.stridedLoadIntrinsic,
             "__riscv_vlse16_v_i16mf2"))
       return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "strided memory layout", plan.stridedMemoryLayout,
+            plan.usesComputedMask
+                ? kRVVComputedMaskStridedInputWideningDotMemoryLayout
+                : kRVVStridedInputWideningDotMemoryLayout))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "lhs stride source", plan.lhsStrideSource,
+            kRVVLHSStrideSource))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "rhs stride source", plan.rhsStrideSource,
+            kRVVRHSStrideSource))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "source memory form", plan.sourceMemoryForm,
+            kRVVStridedInputDotSourceMemoryForm))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "destination memory form", plan.destinationMemoryForm,
+            kRVVDestinationMemoryForm))
+      return error;
   } else if (llvm::Error error =
                  requireRVVSelectedBodyContractionPlanField(
                      plan, "strided source-load leaf",
                      plan.stridedLoadIntrinsic, ""))
     return error;
+  if (!plan.usesStridedInputs) {
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "strided memory layout", plan.stridedMemoryLayout, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "lhs stride source", plan.lhsStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "rhs stride source", plan.rhsStrideSource, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "source memory form", plan.sourceMemoryForm, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "destination memory form", plan.destinationMemoryForm, ""))
+      return error;
+  }
 
   if (plan.usesWideningMAcc) {
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "accumulator layout", plan.accumulatorLayout,
+            kRVVWideningMAccAccumulatorLayout))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "result layout", plan.resultLayout,
+            kRVVWideningMAccResultLayout))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "widening macc relation", plan.relation,
+            kRVVWideningMAccRelation))
+      return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "widening macc leaf", plan.contractionComputeIntrinsic,
             "__riscv_vwmacc_vv_i32m1"))
@@ -3123,7 +3223,22 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "scalar seed splat leaf", plan.scalarSeedSplatIntrinsic, ""))
       return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "reduction store VL", plan.reductionStoreVL, ""))
+      return error;
   } else {
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "accumulator layout", plan.accumulatorLayout,
+            kRVVWideningDotProductAccumulatorLayout))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "result layout", plan.resultLayout,
+            kRVVWideningDotProductResultLayout))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "widening dot relation", plan.relation,
+            kRVVWideningDotProductRelation))
+      return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "widening product leaf", plan.wideningProductIntrinsic,
             "__riscv_vwmul_vv_i32m1"))
@@ -3135,6 +3250,10 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "scalar seed splat leaf", plan.scalarSeedSplatIntrinsic,
             "__riscv_vmv_v_x_i32m1"))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "reduction store VL", plan.reductionStoreVL,
+            kRVVWideningDotProductStoreVL))
       return error;
   }
 
@@ -3164,6 +3283,18 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
             plan.inactiveLaneZeroingRequirement,
             kRVVContractionMaskedInactiveLaneZeroingRequirement))
       return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "mask role", plan.maskRole,
+            kRVVMaskedPredicateMaskRole))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "mask source", plan.maskSource,
+            kRVVMaskedCompareMaskSource))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "mask memory form", plan.maskMemoryForm,
+            kRVVComputedMaskMemoryMaskMemoryForm))
+      return error;
   } else {
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "mask type", plan.maskTypeName, ""))
@@ -3184,6 +3315,15 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "inactive-lane zeroing requirement",
             plan.inactiveLaneZeroingRequirement, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "mask role", plan.maskRole, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "mask source", plan.maskSource, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "mask memory form", plan.maskMemoryForm, ""))
       return error;
   }
 
@@ -3214,6 +3354,7 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
       isRVVSelectedBodyContractionStridedInputs(operation);
   plan.usesScalarSeed = plan.usesDotReduction;
   plan.usesVectorAccumulator = plan.usesWideningMAcc;
+  plan.familyPlanID = kRVVContractionRouteFamilyPlanID;
   plan.runtimeABIOrder =
       getRVVSelectedBodyContractionRuntimeABIOrder(operation);
   plan.targetLeafProfile = kRVVContractionTargetLeafProfile;
@@ -3316,6 +3457,7 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
 void applyRVVSelectedBodyContractionRouteFamilyPlan(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan,
     RVVSelectedBodyEmitCRouteDescription &description) {
+  description.contractionRouteFamilyPlanID = plan.familyPlanID;
   description.runtimeABIOrder = plan.runtimeABIOrder;
   description.targetLeafProfile = plan.targetLeafProfile;
   description.providerSupportedMirror = plan.providerSupportedMirror;
@@ -16798,6 +16940,167 @@ llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+bool isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return operation == RVVSelectedBodyOperationKind::WideningMAccAdd;
+}
+
+bool isRVVSelectedBodyWideningDotReductionContractionRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return isRVVSelectedBodyContractionDotReduction(operation);
+}
+
+bool isRVVSelectedBodyContractionRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
+             operation) ||
+         isRVVSelectedBodyWideningDotReductionContractionRouteFamilyConsumer(
+             operation);
+}
+
+llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyContractionRouteFamilyConsumer(operation);
+  if (isConsumer && !analysis.contractionRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the contraction route-family plan before provider "
+        "materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!isConsumer && analysis.contractionRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must not carry a contraction route-family plan for "
+        "non-contraction operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!analysis.contractionRouteFamilyPlan)
+    return llvm::Error::success();
+
+  const RVVSelectedBodyContractionRouteFamilyPlan &plan =
+      *analysis.contractionRouteFamilyPlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodyContractionRouteFamilyPlan(plan))
+    return error;
+  if (plan.operation != operation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " contraction route-family plan operation must match the selected "
+        "route description");
+  if (analysis.description.contractionRouteFamilyPlanID != plan.familyPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " contraction route-family plan mirror must match the validated "
+        "family plan");
+  if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.targetLeafProfile != plan.targetLeafProfile ||
+      analysis.description.providerSupportedMirror !=
+          plan.providerSupportedMirror ||
+      analysis.description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      analysis.description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      analysis.description.vlCType != plan.vlCType ||
+      analysis.description.vectorTypeName != plan.resultVectorTypeName ||
+      analysis.description.vectorCType != plan.resultVectorCType ||
+      analysis.description.maskTypeName != plan.maskTypeName ||
+      analysis.description.maskCType != plan.maskCType ||
+      analysis.description.setVLIntrinsic != plan.setVLIntrinsic ||
+      analysis.description.sourceSEW != plan.sourceSEW ||
+      analysis.description.sourceLMUL != plan.sourceLMUL ||
+      analysis.description.sourceVectorTypeName != plan.sourceVectorTypeName ||
+      analysis.description.sourceVectorCType != plan.sourceVectorCType ||
+      analysis.description.sourceVectorLoadIntrinsic !=
+          plan.sourceVectorLoadIntrinsic ||
+      analysis.description.stridedLoadIntrinsic != plan.stridedLoadIntrinsic ||
+      analysis.description.storeIntrinsic != plan.storeIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " contraction route-family mirrors must be populated from the "
+        "validated family plan before provider materialization");
+  if (!support::runtimeABIParametersEqual(
+          analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " contraction route-family runtime ABI parameters must match the "
+        "validated family plan");
+  if (analysis.routeOperandBindingPlan.planID !=
+      getExpectedRVVRouteOperandBindingPlanID(operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " contraction route provider requires the route operand binding plan "
+        "for the selected operation");
+
+  if (plan.usesWideningMAcc) {
+    if (analysis.description.wideningMAccAccumulatorLayout !=
+            plan.accumulatorLayout ||
+        analysis.description.wideningMAccResultLayout != plan.resultLayout ||
+        analysis.description.wideningMAccRelation != plan.relation ||
+        analysis.description.intrinsic != plan.contractionComputeIntrinsic)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " widening MAcc contraction mirrors must come from the validated "
+          "family plan");
+  } else if (analysis.description.wideningDotProductAccumulatorLayout !=
+                 plan.accumulatorLayout ||
+             analysis.description.wideningDotProductResultLayout !=
+                 plan.resultLayout ||
+             analysis.description.wideningDotProductRelation !=
+                 plan.relation ||
+             analysis.description.intrinsic !=
+                 plan.contractionComputeIntrinsic ||
+             analysis.description.wideningProductIntrinsic !=
+                 plan.wideningProductIntrinsic ||
+             analysis.description.maskedWideningProductIntrinsic !=
+                 plan.maskedWideningProductIntrinsic ||
+             analysis.description.scalarSeedSplatIntrinsic !=
+                 plan.scalarSeedSplatIntrinsic ||
+             analysis.description.reductionStoreVL != plan.reductionStoreVL) {
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " widening dot-reduce contraction mirrors must come from the "
+        "validated family plan");
+  }
+
+  if (plan.usesComputedMask &&
+      (analysis.description.compareIntrinsic != plan.compareIntrinsic ||
+       analysis.description.maskedMergeIntrinsic !=
+           plan.maskedMergeIntrinsic ||
+       analysis.description.maskRole != plan.maskRole ||
+       analysis.description.maskSource != plan.maskSource ||
+       analysis.description.maskMemoryForm != plan.maskMemoryForm ||
+       analysis.description.inactiveLaneZeroingRequirement !=
+           plan.inactiveLaneZeroingRequirement))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask contraction mirrors must come from the validated "
+        "family plan");
+  if (!plan.usesComputedMask &&
+      (!analysis.description.compareIntrinsic.empty() ||
+       !analysis.description.maskedMergeIntrinsic.empty() ||
+       !analysis.description.maskRole.empty() ||
+       !analysis.description.maskSource.empty() ||
+       !analysis.description.maskMemoryForm.empty() ||
+       !analysis.description.inactiveLaneZeroingRequirement.empty()))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " non-masked contraction routes must not carry computed-mask "
+        "contraction mirrors");
+  if (plan.usesStridedInputs &&
+      (analysis.description.stridedMemoryLayout != plan.stridedMemoryLayout ||
+       analysis.description.lhsStrideSource != plan.lhsStrideSource ||
+       analysis.description.rhsStrideSource != plan.rhsStrideSource ||
+       analysis.description.sourceMemoryForm != plan.sourceMemoryForm ||
+       analysis.description.destinationMemoryForm !=
+           plan.destinationMemoryForm))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " strided-input contraction mirrors must come from the validated "
+        "family plan");
+  return llvm::Error::success();
+}
+
 bool isRVVSelectedBodyPlainStandaloneReductionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {
@@ -19272,6 +19575,18 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             description.standaloneReductionRouteFamilyPlanID, ""))
       return error;
   }
+  if (isContractionRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "contraction route family plan",
+            description.contractionRouteFamilyPlanID,
+            kRVVContractionRouteFamilyPlanID))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "contraction route family plan",
+            description.contractionRouteFamilyPlanID, ""))
+      return error;
+  }
   llvm::StringRef expectedOperandBindingPlanID =
       getExpectedRVVRouteOperandBindingPlanID(operationProfile.operation);
   if (!expectedOperandBindingPlanID.empty()) {
@@ -21214,6 +21529,9 @@ getRVVSelectedBodyConfigArtifactMetadata(
   if (!description.standaloneReductionRouteFamilyPlanID.empty())
     metadata.push_back({"tcrv_rvv.standalone_reduction_route_family_plan",
                         description.standaloneReductionRouteFamilyPlanID});
+  if (!description.contractionRouteFamilyPlanID.empty())
+    metadata.push_back({"tcrv_rvv.contraction_route_family_plan",
+                        description.contractionRouteFamilyPlanID});
   metadata.push_back({"tcrv_rvv.emitc_loop", description.emitCLoopKind});
   metadata.push_back(
       {"tcrv_rvv.loop_induction", description.emitCLoopInductionName});

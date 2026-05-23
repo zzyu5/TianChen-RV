@@ -69,6 +69,75 @@ Final round commit is created after task archive in the same Codex turn.
 - None - task complete
 
 
+## Session 168: Stage2 RVV contraction and widening dot-reduce route-family ownership
+
+**Date**: 2026-05-23
+**Task**: Stage2 RVV contraction and widening dot-reduce route-family ownership
+**Branch**: `main`
+
+### Summary
+
+Moved active widening MAcc and widening dot-reduce routes behind a validated RVV
+plugin-owned contraction family plan and proved target/header mirrors,
+generated-bundle evidence, ssh rvv runtime evidence, authority scan, and
+check-tianchenrv.
+
+### Main Changes
+
+- Added `rvv-contraction-route-family-plan.v1` as the validated family plan
+  mirror for contraction routes.
+- Added planning-owned contraction route-family consumer predicates and
+  provider-plan verification.
+- Made provider materialization require the validated contraction plan before
+  building `TCRVEmitCLowerableRoute`.
+- Strengthened plan validation for operation/memory-form classification,
+  runtime ABI order, target leaf/header/type facts, strided-input facts,
+  computed-mask facts, accumulator/result contracts, and route operand binding
+  closure.
+- Added target/header/generated-bundle checks for
+  `tcrv_rvv.contraction_route_family_plan`.
+
+### Routes Covered
+
+- `widening_macc_add`
+- `widening_dot_reduce_add`
+- `strided_input_widening_dot_reduce_add`
+- `computed_masked_widening_dot_reduce_add`
+- `computed_masked_strided_input_widening_dot_reduce_add`
+
+### Testing
+
+- [OK] Focused build: `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test -j2`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- [OK] Manual REALIZED/PLAN/HEADER FileCheck for all five pre-realized target fixtures.
+- [OK] Pre-realized generated-bundle dry-runs for all five active op kinds, counts `7,16,23`.
+- [OK] Real `ssh rvv` for `widening_macc_add`, `widening_dot_reduce_add`, and `computed_masked_strided_input_widening_dot_reduce_add`, counts `7,16,23`.
+- [OK] Added-line active-authority scan and full touched-file scan review.
+- [OK] `git diff --check`.
+- [OK] `cmake --build build --target check-tianchenrv -j2` passed 351/351.
+
+### Self-Repair
+
+- Trellis task slug was created with a duplicated date prefix by the task tool;
+  left the directory stable and kept task metadata truthful.
+- Explicit-selected-body dry-run was tried and rejected by the script as
+  unsupported for contraction op kinds; recorded the current active surface as
+  pre-realized selected-body.
+
+### Spec Update Judgment
+
+- No `.trellis/spec/**` update needed. This round applied existing RVV plugin
+  ownership and EmitC-neutrality rules rather than introducing a new rule.
+
+### Status
+
+[OK] **Completed; pending archive and commit**
+
+### Next Steps
+
+- Archive the Trellis task and create one coherent commit.
+
+
 ## Session 168: Stage2 RVV computed-mask MAcc accumulation route-family ownership
 
 **Date**: 2026-05-23

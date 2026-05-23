@@ -199,6 +199,7 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   bool usesStridedInputs = false;
   bool usesScalarSeed = false;
   bool usesVectorAccumulator = false;
+  llvm::StringRef familyPlanID;
   llvm::StringRef runtimeABIOrder;
   llvm::StringRef targetLeafProfile;
   llvm::StringRef providerSupportedMirror;
@@ -542,6 +543,16 @@ bool isRVVSelectedBodyMemoryRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
 llvm::Error verifyRVVSelectedBodyMemoryRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+bool isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+bool isRVVSelectedBodyWideningDotReductionContractionRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+bool isRVVSelectedBodyContractionRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 bool isRVVSelectedBodyPlainStandaloneReductionRouteFamilyConsumer(
