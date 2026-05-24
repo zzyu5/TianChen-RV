@@ -1812,3 +1812,36 @@ on real `ssh rvv` hardware for counts `7,16,23`.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 202: Stage2 RVV compare/select predicate route closure
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV compare/select predicate route closure
+**Branch**: `main`
+
+### Summary
+
+Closed the pre-realized cmp_select predicate boundary through generated-bundle evidence, ssh rvv correctness, testing spec update, task archive, and full check-tianchenrv validation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| this commit | rvv: prove compare select predicate boundary |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

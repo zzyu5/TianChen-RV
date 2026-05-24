@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, stack boundaries, and RVV Stage 2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV compare/select selected-body realization, operand-binding facts, statement-plan boundary, and artifact mirror rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "MLIR/FileCheck, generated-bundle, and ssh rvv evidence expectations."}
+{"file": ".trellis/tasks/archive/2026-05/05-25-05-25-stage2-rvv-mask-tail-policy-route-closure/prd.md", "reason": "Previous completed boundary-evidence pattern for generated-bundle artifact mirrors and ssh rvv proof."}

@@ -10,6 +10,7 @@
 
 # ROOT: "input_mode": "pre-realized-selected-body"
 # ROOT: "cmp_select"
+# ROOT: "compare_select_predicate_boundary"
 # ROOT: "pre_realized_selected_body": true
 # ROOT: "ssh_evidence": false
 # ROOT: "status": "dry_run_success"
@@ -32,6 +33,26 @@
 # CMP-DAG: "value": "tcrv_rvv.select"
 # CMP-DAG: "typed_compute_op": "tcrv_rvv.select"
 # CMP-DAG: "memory_form": "vector-rhs-load"
+# CMP-DAG: "vector_c_type": "vint32m1_t"
+# CMP-DAG: "__riscv_vmseq_vv_i32m1_b32"
+# CMP-DAG: "__riscv_vmerge_vvm_i32m1"
+# CMP-DAG: "compare_select_predicate_boundary": {
+# CMP-DAG: "authority": "provider-derived typed tcrv_rvv compare/select body/config/runtime facts"
+# CMP-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# CMP-DAG: "compare_predicate_kind": "eq"
+# CMP-DAG: "predicate_role": "predicate-mask-produced-by-compare"
+# CMP-DAG: "predicate_source": "compare-produced-mask-same-vl-scope"
+# CMP-DAG: "predicate_memory_form": "compare-produced-mask"
+# CMP-DAG: "select_layout": "select-lhs-when-mask-else-rhs"
+# CMP-DAG: "selected_value_operands": {
+# CMP-DAG: "true_value": "lhs"
+# CMP-DAG: "false_value": "rhs"
+# CMP-DAG: "output": "out"
+# CMP-DAG: "compare_intrinsic": "__riscv_vmseq_vv_i32m1_b32"
+# CMP-DAG: "select_intrinsic": "__riscv_vmerge_vvm_i32m1"
+# CMP-DAG: "select_true_vector"
+# CMP-DAG: "select_false_vector"
+# CMP-DAG: "runtime_counts_are_execution_cases_not_predicate_authority": true
 # CMP-DAG: "predicate_coverage_contract": "multi-lane cmp_select cases require predicate true and false lanes"
 # CMP-DAG: "status": "dry_run_success"
 

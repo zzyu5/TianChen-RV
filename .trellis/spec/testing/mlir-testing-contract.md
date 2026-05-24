@@ -174,6 +174,117 @@ typed body/config/runtime mask facts
   -> mirror metadata plus executable harness evidence
 ```
 
+## Compare/Select Predicate Generated-Bundle Evidence
+
+### 1. Scope / Trigger
+
+Use compare/select predicate generated-bundle evidence whenever an RVV
+generated-bundle test claims executable compare/select correctness for a
+route-supported typed `tcrv_rvv` path. This evidence is required for bounded
+plain compare/select closure and should be extended to computed-mask or
+runtime-scalar compare/select only when those paths are the selected task
+scope.
+
+### 2. Signatures
+
+The per-op evidence JSON should expose a bounded summary key such as:
+
+```json
+"compare_select_predicate_boundary": {
+  "authority": "provider-derived typed tcrv_rvv compare/select body/config/runtime facts",
+  "artifact_metadata_role": "mirror-only-after-provider-route",
+  "compare_predicate_kind": "eq",
+  "predicate_source": "compare-produced-mask-same-vl-scope",
+  "predicate_role": "predicate-mask-produced-by-compare",
+  "select_layout": "select-lhs-when-mask-else-rhs",
+  "selected_value_operands": {"true_value": "lhs", "false_value": "rhs"},
+  "materialized_body": {},
+  "emitted_cpp": {},
+  "route_metadata": {},
+  "runtime_counts_are_execution_cases_not_predicate_authority": true
+}
+```
+
+### 3. Contracts
+
+- `authority` must identify typed `tcrv_rvv` body/config/runtime facts as the
+  source of route support.
+- `artifact_metadata_role` must make mirror-only status explicit.
+- `compare_predicate_kind`, `predicate_source`, and `predicate_role` must come
+  from realized typed `tcrv_rvv.compare` / route-family facts, not from route
+  ids, test names, artifact names, ABI strings, or harness constants.
+- `select_layout` and `selected_value_operands` must identify the true/false
+  value inputs and output that feed the generated select/merge operation.
+- `materialized_body` must prove the typed/pre-realized body was consumed into
+  realized `setvl`, `with_vl`, `load`, `compare`, `select`, and `store`
+  structure.
+- `emitted_cpp` must prove generated RVV C/C++ uses the expected setvl, load,
+  compare, select/merge, store intrinsics, runtime loop VL, predicate variable,
+  and true/false operands.
+- `route_metadata` may mirror provider/export metadata only after provider
+  route construction. It must not be used as route authority.
+- Runtime counts are execution cases only. They must not define predicate kind,
+  select semantics, dtype, route support, or artifact authority.
+
+### 4. Validation & Error Matrix
+
+- Missing realized compare or select op -> evidence failure.
+- Missing compare predicate kind, predicate source, or select layout ->
+  evidence failure.
+- Generated C/C++ omits the compare predicate, uses the wrong predicate
+  intrinsic, omits the select/merge intrinsic, reverses true/false operands for
+  the declared layout, or omits runtime loop VL operands -> evidence failure.
+- Object/header mirror metadata disagree on compare predicate, operand binding,
+  mask source/role/form, select layout, dtype/config, or provider-supported
+  mirror -> evidence failure.
+- Descriptor, direct-C/source-export, route-id, artifact-name, ABI-string, or
+  test-name residue is required to explain predicate/select semantics ->
+  evidence failure.
+- `ssh rvv` compile/run failure -> report blocked/failed evidence and do not
+  claim runtime correctness.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed selected body carries compare/select facts -> RVV plugin realizes
+  or validates those facts -> route-family/operand-binding/statement-plan facts
+  feed provider emission -> evidence mirrors the facts and harness checks both
+  predicate-true and predicate-false lanes.
+- Base: non compare/select routes omit `compare_select_predicate_boundary` and
+  keep ordinary runtime AVL/VL, typed-config, or family-specific evidence.
+- Bad: evidence infers predicate kind or select true/false operands from route
+  id, ABI string, artifact name, exact intrinsic spelling, or harness expected
+  expression.
+
+### 6. Tests Required
+
+- lit/FileCheck for the generated-bundle dry-run must check representative
+  `compare_select_predicate_boundary` fields and mirror metadata.
+- Provider or C++ API tests must check route-family facts, operand-binding
+  facts, and statement-plan facts before common EmitC materialization when
+  textual MLIR cannot fully prove the boundary.
+- Runtime RVV claims must include `ssh rvv` output and harness checks that
+  multi-lane cases cover both predicate-true and predicate-false lanes.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+artifact metadata says compare_predicate_kind=eq
+  -> claim compare/select route support
+```
+
+Correct:
+
+```text
+typed body/config/runtime compare/select facts
+  -> RVV plugin legality/realization
+  -> route-family facts + operand-binding facts + statement plan
+  -> provider-built compare/select route
+  -> common EmitC
+  -> mirror metadata plus executable harness evidence
+```
+
 ## Direct Pre-Realized Route-Entry Generated-Bundle Evidence
 
 ### 1. Scope / Trigger
