@@ -764,6 +764,19 @@ bool isPreRealizedRVVElementwiseCompareSelectClusterOp(
       op);
 }
 
+bool isPreRealizedRVVBaseMemoryMovementRouteEntryOp(mlir::Operation *op) {
+  return llvm::isa<tcrv::rvv::TypedStridedMemoryPreRealizedBodyOp,
+                   tcrv::rvv::TypedStridedStoreMemoryPreRealizedBodyOp,
+                   tcrv::rvv::TypedIndexedGatherMemoryPreRealizedBodyOp,
+                   tcrv::rvv::TypedIndexedScatterMemoryPreRealizedBodyOp,
+                   tcrv::rvv::TypedMaskedMemoryPreRealizedBodyOp>(op);
+}
+
+bool isPreRealizedRVVRouteEntrySelectedBodyOp(mlir::Operation *op) {
+  return isPreRealizedRVVElementwiseCompareSelectClusterOp(op) ||
+         isPreRealizedRVVBaseMemoryMovementRouteEntryOp(op);
+}
+
 llvm::Expected<mlir::Operation *>
 findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
   if (!variant)
@@ -6311,6 +6324,21 @@ bool variantContainsPreRealizedRVVElementwiseCompareSelectSelectedBody(
   return found;
 }
 
+bool variantContainsPreRealizedRVVRouteEntrySelectedBody(
+    tcrv::exec::VariantOp variant) {
+  if (!variant || variant.getBody().empty())
+    return false;
+
+  bool found = false;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (found)
+      return;
+    if (isPreRealizedRVVRouteEntrySelectedBodyOp(op))
+      found = true;
+  });
+  return found;
+}
+
 llvm::Expected<RVVElementwiseCompareSelectRealizationResult>
 realizePreRealizedRVVElementwiseCompareSelectCluster(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
@@ -6752,6 +6780,30 @@ realizePreRealizedRVVElementwiseCompareSelectSelectedBody(
         "pre-realized elementwise or compare/select tcrv_rvv body; selected "
         "body belongs to another RVV realization family");
   return realization->boundary;
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVRouteEntrySelectedBody(
+    const VariantLoweringBoundaryRequest &request) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  if (!variant || !kernel)
+    return makeRVVPluginError(
+        "selected-body route-entry realization requires materialized kernel "
+        "and variant");
+
+  llvm::Expected<mlir::Operation *> bodyOp =
+      findUniquePreRealizedRVVSelectedBody(variant);
+  if (!bodyOp)
+    return bodyOp.takeError();
+  if (!isPreRealizedRVVRouteEntrySelectedBodyOp(*bodyOp))
+    return makeRVVPluginError(
+        "selected-body route-entry realization currently supports only "
+        "pre-realized elementwise/compare-select or base memory movement "
+        "tcrv_rvv bodies; selected body belongs to another RVV realization "
+        "family");
+
+  return realizePreRealizedRVVSelectedBody(request);
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>

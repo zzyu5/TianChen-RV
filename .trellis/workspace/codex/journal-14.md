@@ -1306,3 +1306,34 @@ Rewired RVV route and emission entries to realize bounded elementwise/compare-se
 ### Next Steps
 
 - None - task complete
+
+
+## Session 195: Stage2 RVV selected-body family-neutral route-entry bridge
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV selected-body family-neutral route-entry bridge
+**Branch**: `main`
+
+### Summary
+
+Generalized RVV pre-realized selected-body route-entry realization beyond elementwise-specific handling, proved compare/select plus base-memory direct EmitC route-entry coverage, updated RVV plugin spec, archived Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

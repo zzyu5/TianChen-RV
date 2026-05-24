@@ -13,6 +13,9 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant);
 bool variantContainsPreRealizedRVVElementwiseCompareSelectSelectedBody(
     tcrv::exec::VariantOp variant);
 
+bool variantContainsPreRealizedRVVRouteEntrySelectedBody(
+    tcrv::exec::VariantOp variant);
+
 struct RVVElementwiseCompareSelectRealizationResult {
   tcrv::rvv::WithVLOp boundary;
 
@@ -25,6 +28,10 @@ realizePreRealizedRVVElementwiseCompareSelectCluster(
 
 llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVElementwiseCompareSelectSelectedBody(
+    const VariantLoweringBoundaryRequest &request);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVRouteEntrySelectedBody(
     const VariantLoweringBoundaryRequest &request);
 
 llvm::Expected<tcrv::rvv::WithVLOp>

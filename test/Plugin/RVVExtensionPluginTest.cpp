@@ -1048,6 +1048,13 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_compare_select_pre_realized_body %lhs, %rhs, %out, %n {lmul = "m1", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "vector-rhs-load", op_kind = "cmp_select", predicate_kind = "eq", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, select_layout = "select-lhs-when-mask-else-rhs", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_route_strided_load_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %stride_bytes = tcrv_rvv.runtime_abi_value {c_name = "stride_bytes", c_type = "size_t", ownership = "target-export-abi-owned", role = "source-byte-stride"} : index
+      tcrv_rvv.typed_strided_memory_pre_realized_body %src, %out, %n, %stride_bytes {lmul = "m1", memory_form = "strided-load-unit-store", op_kind = "strided_load_unit_store", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64, stride_unit = "byte"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_route_reduce attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -1176,6 +1183,8 @@ module {
             routeDescription->elementwiseArithmeticRouteFamilyPlanID ==
                     expectedProviderPlanID ||
                 routeDescription->plainCompareSelectRouteFamilyPlanID ==
+                    expectedProviderPlanID ||
+                routeDescription->baseMemoryMovementRouteFamilyPlanID ==
                     expectedProviderPlanID,
             llvm::Twine("realized @") + variantName +
                 " reaches the expected provider plan"))
@@ -1207,6 +1216,12 @@ module {
           "rvv-plain-compare-select-route-family-plan.v1",
           /*buildRouteBeforePlan=*/false))
     return result;
+  if (int result = exerciseVariant(
+          "rvv_pre_route_strided_load_unit_store",
+          "tcrv_rvv.typed_strided_memory_pre_realized_body",
+          "rvv-base-memory-movement-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
 
   VariantOp reduceVariant = findVariant(kernel, "rvv_pre_route_reduce");
   VariantEmissionPlan reducePlan;
@@ -1215,8 +1230,8 @@ module {
               VariantEmissionRequest(reduceVariant, kernel, capabilities,
                                      VariantEmissionRole::DirectVariant),
               reducePlan),
-          {"selected RVV typed lowering boundary requires exactly one "
-           "tcrv_rvv.setvl op"}))
+          {"selected-body route-entry realization currently supports only",
+           "selected body belongs to another RVV realization family"}))
     return result;
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute reduceRoute;
   return expectErrorContains(
@@ -1224,8 +1239,8 @@ module {
           VariantEmitCLowerableRequest(reduceVariant, kernel, capabilities,
                                        VariantEmissionRole::DirectVariant),
           reduceRoute),
-      {"selected RVV typed lowering boundary requires exactly one "
-       "tcrv_rvv.setvl op"});
+      {"selected-body route-entry realization currently supports only",
+       "selected body belongs to another RVV realization family"});
 }
 
 int runStaleWithVLRouteMetadataDoesNotAuthorizeEmissionTest(

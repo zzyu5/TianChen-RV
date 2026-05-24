@@ -120,7 +120,7 @@ findSelectedRVVSelectedBodyBoundary(tcrv::exec::VariantOp variant) {
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>
-getOrRealizeRVVElementwiseCompareSelectRouteBoundary(
+getOrRealizeRVVSelectedBodyRouteBoundary(
     const VariantLoweringBoundaryRequest &request) {
   llvm::Expected<tcrv::rvv::WithVLOp> boundary =
       findSelectedRVVSelectedBodyBoundary(request.getVariant());
@@ -133,13 +133,11 @@ getOrRealizeRVVElementwiseCompareSelectRouteBoundary(
   }
 
   llvm::Error boundaryError = boundary.takeError();
-  if (!rvv::variantContainsPreRealizedRVVElementwiseCompareSelectSelectedBody(
-          request.getVariant()))
+  if (!rvv::variantContainsPreRealizedRVVSelectedBody(request.getVariant()))
     return std::move(boundaryError);
   llvm::consumeError(std::move(boundaryError));
 
-  return rvv::realizePreRealizedRVVElementwiseCompareSelectSelectedBody(
-      request);
+  return rvv::realizePreRealizedRVVRouteEntrySelectedBody(request);
 }
 
 llvm::Error verifySelectedRVVLoweringBoundaryConformance(
@@ -415,7 +413,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
 
   mlir::OpBuilder builder(request.getVariant().getContext());
   llvm::Expected<tcrv::rvv::WithVLOp> selectedBoundary =
-      getOrRealizeRVVElementwiseCompareSelectRouteBoundary(
+      getOrRealizeRVVSelectedBodyRouteBoundary(
           VariantLoweringBoundaryRequest(
               request.getVariant(), request.getKernel(),
               request.getCapabilities(), request.getRole(), builder));
@@ -538,7 +536,7 @@ llvm::Error RVVExtensionPlugin::buildVariantEmitCLowerableRoute(
 
   mlir::OpBuilder builder(request.getVariant().getContext());
   llvm::Expected<tcrv::rvv::WithVLOp> selectedBoundary =
-      getOrRealizeRVVElementwiseCompareSelectRouteBoundary(
+      getOrRealizeRVVSelectedBodyRouteBoundary(
           VariantLoweringBoundaryRequest(
               request.getVariant(), request.getKernel(),
               request.getCapabilities(), request.getRole(), builder));

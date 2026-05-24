@@ -347,6 +347,133 @@ selected pre-realized elementwise/compare-select tcrv_rvv body
   -> provider-built TCRVEmitCLowerableRoute
 ```
 
+## Selected-Body Route-Entry Realization Bridge
+
+### 1. Scope / Trigger
+
+RVV production route/emission entries must use an RVV plugin-owned
+selected-body route-entry realization bridge when a selected variant reaches
+route construction with a supported pre-realized selected body. This bridge is
+for statement-plan-backed selected-body families whose realization already
+exists in RVV plugin code. It must not turn provider/common EmitC into a
+semantic realization fallback.
+
+The route-entry bridge may support bounded family groups such as:
+
+- elementwise/compare-select pre-realized bodies owned by
+  `realizePreRealizedRVVElementwiseCompareSelectCluster(...)`;
+- base memory movement pre-realized bodies whose realized structure already
+  feeds RVV-owned base-memory materialization facts, memory operand-binding
+  facts, and statement plans.
+
+Unlisted pre-realized families must fail closed at the route-entry bridge
+unless their owning route-entry support is explicitly added with matching
+facts, statement-plan, and tests.
+
+### 2. Signatures
+
+The durable route-entry predicates/helpers are:
+
+```c++
+bool variantContainsPreRealizedRVVRouteEntrySelectedBody(
+    tcrv::exec::VariantOp variant);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVRouteEntrySelectedBody(
+    const VariantLoweringBoundaryRequest &request);
+```
+
+`RVVExtensionPlugin::buildVariantEmissionPlan(...)` and
+`RVVExtensionPlugin::buildVariantEmitCLowerableRoute(...)` must call a
+route-entry helper that either returns the existing unique realized
+`tcrv_rvv.with_vl` boundary or invokes
+`realizePreRealizedRVVRouteEntrySelectedBody(...)` before route facts are
+collected.
+
+### 3. Contracts
+
+The route-entry bridge consumes only RVV-owned inputs:
+
+- selected `tcrv.exec.kernel` and `tcrv.exec.variant`;
+- typed pre-realized `tcrv_rvv` body structure;
+- runtime ABI SSA imports and selected variant `requires` metadata;
+- attrs carried by the pre-realized body, such as SEW, LMUL, policy, operation
+  kind, memory form, predicate/mask/layout, stride/index facts, and runtime
+  `n`/AVL values.
+
+It produces a realized `tcrv_rvv.with_vl` boundary by calling the owning RVV
+realization path. It does not build `TCRVEmitCLowerableRoute`; route
+construction still occurs after route analysis, materialization facts,
+operand-binding facts, and family statement plans validate realized typed body
+structure.
+
+### 4. Validation & Error Matrix
+
+- Missing kernel or variant -> fail closed before realization.
+- Existing realized `setvl`/`with_vl` boundary and no pre-realized body ->
+  return the realized boundary.
+- Existing realized `setvl`/`with_vl` boundary mixed with any pre-realized
+  body -> fail closed before route construction.
+- No realized boundary and no pre-realized body -> preserve the structural
+  missing-boundary diagnostic.
+- No realized boundary and an unsupported pre-realized route-entry family ->
+  fail closed with a route-entry realization diagnostic.
+- Supported route-entry family with malformed runtime ABI roles, attrs, or
+  incomplete realization facts -> fail closed in the owning RVV realization
+  path before provider/common route construction.
+- Provider route analysis sees any pre-realized body -> fail closed with a
+  selected-body realization diagnostic; provider/common code must not invent
+  missing typed structure.
+
+### 5. Good/Base/Bad Cases
+
+- Good: selected RVV variant -> pre-realized compare/select or base-memory
+  body -> route-entry realization bridge -> realized `tcrv_rvv` body ->
+  RVV-owned facts/statement plan -> provider-built route -> common EmitC.
+- Base: explicit already-realized selected body -> route-entry helper returns
+  the unique `with_vl` boundary and preserves existing route behavior.
+- Bad: route provider sees `typed_*_pre_realized_body` and synthesizes
+  setvl/load/store/compare/select/memory structure itself.
+- Bad: common EmitC infers RVV dtype, operation kind, memory form, intrinsic
+  spelling, or route support from route ids, status fields, artifact metadata,
+  ABI names, or test names.
+
+### 6. Tests Required
+
+- C++ tests showing production emission/provider route entries realize at
+  least one compare/select pre-realized body and one base-memory pre-realized
+  body before route facts are collected.
+- C++ fail-closed coverage for an unsupported route-entry family or incomplete
+  realization dependency.
+- Representative lit/FileCheck coverage proving direct pre-realized route
+  materialization works without first running
+  `--tcrv-materialize-selected-lowering-boundaries`.
+- Regression coverage showing explicit already-realized selected-body
+  artifacts and explicit selected-boundary materialization still pass.
+- Bounded scans showing common EmitC/export and provider/common code did not
+  become semantic realization owners.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider/common EmitC:
+  sees pre-realized body or route metadata
+  -> chooses RVV family, memory form, dtype, and statement sequence
+```
+
+Correct:
+
+```text
+selected pre-realized tcrv_rvv body
+  -> RVV route-entry realization bridge
+  -> realized typed tcrv_rvv body
+  -> existing RVV facts / operand bindings / statement plan
+  -> provider-built TCRVEmitCLowerableRoute
+  -> common EmitC materialization
+```
+
 ### Stage 3: Other Families After RVV Maturity
 
 IME, Offload, TensorExtLite, Template/Toy source-front-door examples, and
