@@ -6287,6 +6287,23 @@ module {
     }
   }
 
+  tcrv.exec.kernel @stmt_scalar_broadcast_sub_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_scalar_broadcast_sub attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_scalar_broadcast_sub, sew = 32 : i64, source_kernel = "stmt_scalar_broadcast_sub_kernel", status = "selected-lowering-boundary"} {
+        %a = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %b = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %r = tcrv_rvv.binary %a, %b, %vl {kind = "sub"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %r, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+
   tcrv.exec.kernel @stmt_masked_add_kernel {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     tcrv.exec.variant @rvv_masked_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
@@ -6375,7 +6392,7 @@ module {
 
   auto expectStatementPlan =
       [&](llvm::StringRef kernelName, llvm::StringRef variantName,
-          bool ordinary, bool scalarBroadcastAdd, bool masked, bool strided,
+          bool ordinary, bool scalarBroadcast, bool masked, bool strided,
           std::initializer_list<llvm::StringRef> expectedBodyCallees)
       -> int {
     llvm::Expected<RVVSelectedBodyRouteAnalysis> analysis =
@@ -6421,8 +6438,8 @@ module {
     if (int result = expect(
             statementPlan->plansElementwiseArithmeticRoute &&
                 statementPlan->plansOrdinaryElementwiseArithmetic == ordinary &&
-                statementPlan->plansScalarBroadcastElementwiseAdd ==
-                    scalarBroadcastAdd &&
+                statementPlan->plansScalarBroadcastElementwise ==
+                    scalarBroadcast &&
                 statementPlan->plansMaskedElementwiseArithmetic == masked &&
                 statementPlan->plansStridedElementwiseAdd == strided,
             "statement plan exposes the expected elementwise arithmetic "
@@ -6527,6 +6544,13 @@ module {
           false, true, false, false,
           {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vmv_v_x_i32m1", "__riscv_vadd_vv_i32m1",
+           "__riscv_vse32_v_i32m1"}))
+    return result;
+  if (int result = expectStatementPlan(
+          "stmt_scalar_broadcast_sub_kernel", "rvv_scalar_broadcast_sub",
+          false, true, false, false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmv_v_x_i32m1", "__riscv_vsub_vv_i32m1",
            "__riscv_vse32_v_i32m1"}))
     return result;
   if (int result = expectStatementPlan(
@@ -6643,7 +6667,7 @@ module {
        "elementwise arithmetic route-family plan",
        "before route statement construction"}))
     return result;
-  return expectErrorContains(
+  if (int result = expectErrorContains(
       getRVVSelectedBodyMigratedRouteStatementPlan(
           *addAnalysis, staleMaterializationFacts, *addElementwiseFacts,
           emptyMemoryFacts, emptyMathFacts, *addResidualFacts,
@@ -6651,7 +6675,75 @@ module {
           .takeError(),
       {"elementwise arithmetic statement plan requires the verified "
        "elementwise arithmetic route-family plan",
-       "before route statement construction"});
+       "before route statement construction"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> scalarBroadcastSubAnalysis =
+      analyzeRouteInModule(*module, "stmt_scalar_broadcast_sub_kernel",
+                           "rvv_scalar_broadcast_sub");
+  if (!scalarBroadcastSubAnalysis)
+    return fail("analyze statement-plan stale dependency scalar-broadcast sub "
+                "route: " +
+                llvm::toString(scalarBroadcastSubAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              *scalarBroadcastSubAnalysis,
+              "scalar-broadcast elementwise statement plan stale dependency "
+              "unit test"),
+          "verify scalar-broadcast sub route before stale statement-plan "
+          "dependency test"))
+    return result;
+  auto scalarBroadcastSubMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *scalarBroadcastSubAnalysis,
+          "scalar-broadcast elementwise statement plan stale dependency unit "
+          "test");
+  if (!scalarBroadcastSubMaterializationFacts)
+    return fail("stale scalar-broadcast statement-plan materialization "
+                "facts: " +
+                llvm::toString(
+                    scalarBroadcastSubMaterializationFacts.takeError()));
+  auto scalarBroadcastSubElementwiseFacts =
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+          *scalarBroadcastSubAnalysis,
+          "scalar-broadcast elementwise statement plan stale dependency unit "
+          "test");
+  if (!scalarBroadcastSubElementwiseFacts)
+    return fail("stale scalar-broadcast statement-plan elementwise facts: " +
+                llvm::toString(
+                    scalarBroadcastSubElementwiseFacts.takeError()));
+  auto scalarBroadcastSubResidualFacts =
+      getRVVSelectedBodyResidualRouteOperandBindingFacts(
+          *scalarBroadcastSubAnalysis,
+          "scalar-broadcast elementwise statement plan stale dependency unit "
+          "test");
+  if (!scalarBroadcastSubResidualFacts)
+    return fail("stale scalar-broadcast statement-plan residual facts: " +
+                llvm::toString(scalarBroadcastSubResidualFacts.takeError()));
+  auto staleScalarBroadcastFacts = *scalarBroadcastSubMaterializationFacts;
+  staleScalarBroadcastFacts.scalarBroadcastPlan = nullptr;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
+              *scalarBroadcastSubAnalysis, staleScalarBroadcastFacts,
+              *scalarBroadcastSubElementwiseFacts,
+              *scalarBroadcastSubResidualFacts,
+              "scalar-broadcast elementwise statement plan stale dependency "
+              "unit test")
+              .takeError(),
+          {"scalar-broadcast elementwise route-family plan",
+           "before route statement construction",
+           "scalar_broadcast_sub"}))
+    return result;
+  return expectErrorContains(
+      getRVVSelectedBodyMigratedRouteStatementPlan(
+          *scalarBroadcastSubAnalysis, staleScalarBroadcastFacts,
+          *scalarBroadcastSubElementwiseFacts, emptyMemoryFacts,
+          emptyMathFacts, *scalarBroadcastSubResidualFacts,
+          "scalar-broadcast migrated statement-plan stale dependency unit "
+          "test")
+          .takeError(),
+      {"scalar-broadcast elementwise route-family plan",
+       "before route statement construction", "scalar_broadcast_sub"});
 }
 
 int runCompareSelectStatementPlanBoundaryTest(mlir::MLIRContext &context) {

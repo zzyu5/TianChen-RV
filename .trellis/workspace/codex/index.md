@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-14.md`
-- **Total Sessions**: 205
+- **Active File**: `journal-15.md`
+- **Total Sessions**: 206
 - **Last Active**: 2026-05-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-14.md` | ~1974 | Active |
+| `journal-15.md` | ~40 | Active |
+| `journal-14.md` | ~1982 | Archived |
 | `journal-13.md` | ~1971 | Archived |
 | `journal-12.md` | ~2095 | Archived |
 | `journal-11.md` | ~1979 | Archived |
@@ -42,6 +43,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 206 | 2026-05-25 | Stage2 RVV elementwise broadcast route closure | pending-final-session-commit | `main` |
 | 205 | 2026-05-25 | Stage2 RVV contraction multiply-add route closure | pending-final-session-commit | `main` |
 | 204 | 2026-05-25 | Stage2 RVV reduction accumulation route closure | pending-final-session-commit | `main` |
 | 203 | 2026-05-25 | Stage2 RVV conversion SEW policy route closure | pending-final-session-commit | `main` |

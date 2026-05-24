@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global compiler-stack and RVV-first authority constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV scalar-broadcast semantics remain plugin-owned and fail-closed."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export did not acquire RVV scalar-broadcast semantics or metadata authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests and ssh-rvv evidence boundaries."}

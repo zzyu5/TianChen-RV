@@ -1,0 +1,57 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-scalar-broadcast-sub --overwrite --op-kind scalar_broadcast_sub --runtime-count 7 --runtime-count 16 --runtime-count 23 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-scalar-broadcast-sub/evidence.json
+# RUN: FileCheck %s --check-prefix=SCALAR --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-scalar-broadcast-sub/scalar_broadcast_sub/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-scalar-broadcast-sub/scalar_broadcast_sub/rvv_generated_bundle_abi_scalar_broadcast_sub_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "pre-realized-selected-body"
+# ROOT: "scalar_broadcast_sub"
+# ROOT: "pre_realized_selected_body": true
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# SCALAR-DAG: "input_mode": "pre-realized-selected-body"
+# SCALAR-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-scalar-broadcast-sub.mlir"
+# SCALAR-DAG: "prototype": "void tcrv_emitc_pre_realized_body_scalar_broadcast_sub_kernel_pre_realized_body_rvv_scalar_broadcast_sub(const int32_t *lhs, int32_t rhs_scalar, int32_t *out, size_t n);"
+# SCALAR-DAG: "expected_function": "tcrv_emitc_pre_realized_body_scalar_broadcast_sub_kernel_pre_realized_body_rvv_scalar_broadcast_sub"
+# SCALAR-DAG: "expected_runtime_abi_name": "rvv-generic-scalar-broadcast-sub-callable-c-abi.v1"
+# SCALAR-DAG: "expected_selected_variant": "pre_realized_body_rvv_scalar_broadcast_sub"
+# SCALAR-DAG: "rhs_scalar_values": [
+# SCALAR-DAG: -37
+# SCALAR-DAG: 91
+# SCALAR-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# SCALAR-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# SCALAR-DAG: --tcrv-materialize-selected-lowering-boundaries
+# SCALAR-DAG: "pre_realized_body_consumed": true
+# SCALAR-DAG: "key": "rvv_emitc_lowerable_route"
+# SCALAR-DAG: "value": "rvv-generic-scalar-broadcast-sub-emitc-route"
+# SCALAR-DAG: "key": "rvv_selected_body_operation"
+# SCALAR-DAG: "value": "scalar_broadcast_sub"
+# SCALAR-DAG: "key": "rvv_selected_body_typed_compute_op"
+# SCALAR-DAG: "value": "tcrv_rvv.binary"
+# SCALAR-DAG: "key": "tcrv_rvv.memory_form"
+# SCALAR-DAG: "value": "rhs-scalar-broadcast"
+# SCALAR-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# SCALAR-DAG: "value": "lhs,rhs_scalar,out,n"
+# SCALAR-DAG: "key": "tcrv_rvv.runtime_control_plan"
+# SCALAR-DAG: "value": "rvv-runtime-avl-vl-control-plan.v1"
+# SCALAR-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# SCALAR-DAG: "value": "rvv-route-operand-binding:scalar_broadcast_sub.v1"
+# SCALAR-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# SCALAR-DAG: "value": "rvv-route-operand-binding:scalar_broadcast_sub.v1;lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|scalar-broadcast-lhs-call|header-mirror;rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call|header-mirror;out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+# SCALAR-DAG: "key": "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan"
+# SCALAR-DAG: "value": "rvv-scalar-broadcast-elementwise-route-family-plan.v1"
+# SCALAR-DAG: "typed_compute_op": "tcrv_rvv.binary"
+# SCALAR-DAG: "memory_form": "rhs-scalar-broadcast"
+# SCALAR-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_pre_realized_body_scalar_broadcast_sub_kernel_pre_realized_body_rvv_scalar_broadcast_sub(lhs, rhs_scalar, out, n);
+# HARNESS: int32_t expected = lhs[index] - rhs_scalar;
+# HARNESS: rhs_scalar=%d
+# HARNESS: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESS: run_case(counts[index], rhs_scalar_values[scalar_index]);
+# HARNESS: rhs_scalars=-37,91

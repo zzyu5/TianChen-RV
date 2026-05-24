@@ -24252,7 +24252,8 @@ bool isRVVSelectedBodyElementwiseArithmeticStatementPlanConsumer(
           description.operation))
     return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad ||
            description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad;
-  if (description.operation == RVVSelectedBodyOperationKind::ScalarBroadcastAdd)
+  if (isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
+          description.operation))
     return description.memoryForm ==
            RVVSelectedBodyMemoryForm::RHSScalarBroadcast;
   if (isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(
@@ -25541,8 +25542,9 @@ getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
   const bool isBroadcastLoad =
       isPlainArithmetic &&
       description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad;
-  const bool isScalarBroadcastAdd =
-      description.operation == RVVSelectedBodyOperationKind::ScalarBroadcastAdd;
+  const bool isScalarBroadcastElementwise =
+      isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
+          description.operation);
   const bool isMaskedArithmetic =
       isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(
           description.operation);
@@ -25551,7 +25553,7 @@ getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
 
   plan.plansElementwiseArithmeticRoute = true;
   plan.plansOrdinaryElementwiseArithmetic = isPlainArithmetic;
-  plan.plansScalarBroadcastElementwiseAdd = isScalarBroadcastAdd;
+  plan.plansScalarBroadcastElementwise = isScalarBroadcastElementwise;
   plan.plansMaskedElementwiseArithmetic = isMaskedArithmetic;
   plan.plansStridedElementwiseAdd = isStridedAdd;
   plan.elementwiseArithmeticPlan =
@@ -25568,12 +25570,13 @@ getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
           "construction for operation '" +
           stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
   }
-  if (isScalarBroadcastAdd && !materializationFacts.scalarBroadcastPlan)
+  if (isScalarBroadcastElementwise && !materializationFacts.scalarBroadcastPlan)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " elementwise arithmetic statement plan requires the verified "
         "scalar-broadcast elementwise route-family plan before route statement "
-        "construction for scalar_broadcast_add");
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
 
   const support::RuntimeABIParameter *lhsABI = nullptr;
   const support::RuntimeABIParameter *rhsABI = nullptr;
@@ -25583,7 +25586,7 @@ getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
   const support::RuntimeABIParameter *rhsStrideABI = nullptr;
   const support::RuntimeABIParameter *outStrideABI = nullptr;
 
-  if (isPlainArithmetic || isScalarBroadcastAdd) {
+  if (isPlainArithmetic || isScalarBroadcastElementwise) {
     if (isPlainArithmetic &&
         !elementwiseSelectOperandBindingFacts
              .bindsOrdinaryElementwiseArithmetic)
@@ -25592,7 +25595,7 @@ getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
           " elementwise arithmetic statement plan requires ordinary "
           "elementwise operand-binding facts before route statement "
           "construction");
-    if (isScalarBroadcastAdd &&
+    if (isScalarBroadcastElementwise &&
         !elementwiseSelectOperandBindingFacts.bindsScalarBroadcastElementwise)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
@@ -25630,8 +25633,8 @@ getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
           lhsABI, "lhs", description, context))
     return std::move(error);
   if (llvm::Error error = requireRVVElementwiseArithmeticStatementPlanABI(
-          rhsABI, isScalarBroadcastAdd ? "rhs_scalar" : "rhs", description,
-          context))
+          rhsABI, isScalarBroadcastElementwise ? "rhs_scalar" : "rhs",
+          description, context))
     return std::move(error);
   if (llvm::Error error = requireRVVElementwiseArithmeticStatementPlanABI(
           outABI, "out", description, context))
@@ -25668,7 +25671,7 @@ getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
           materializationFacts.elementwiseComputeLeaf,
           "elementwise compute callee", description, context))
     return std::move(error);
-  if ((isScalarBroadcastAdd || isBroadcastLoad) &&
+  if ((isScalarBroadcastElementwise || isBroadcastLoad) &&
       materializationFacts.rhsScalarBroadcastLeaf.empty())
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -25770,7 +25773,7 @@ getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
       return std::move(error);
   }
 
-  if (isScalarBroadcastAdd) {
+  if (isScalarBroadcastElementwise) {
     if (llvm::Error error = addRVVElementwiseArithmeticStatementPlanLoopStep(
             plan, slice.rhsLoadOperation, "load",
             materializationFacts.rhsScalarBroadcastLeaf,

@@ -901,7 +901,7 @@ struct RVVSelectedBodyElementwiseArithmeticRouteStatementPlan {
 
   bool plansElementwiseArithmeticRoute = false;
   bool plansOrdinaryElementwiseArithmetic = false;
-  bool plansScalarBroadcastElementwiseAdd = false;
+  bool plansScalarBroadcastElementwise = false;
   bool plansMaskedElementwiseArithmetic = false;
   bool plansStridedElementwiseAdd = false;
 

@@ -1078,8 +1078,9 @@ For mature selected-body elementwise arithmetic routes,
 from operation names, ABI strings, or memory-form branches after RVV-owned
 family plans, materialization facts, and operand-binding facts have been
 validated. The RVV planning layer must expose one RVV-owned statement-plan
-boundary for ordinary `Add`/`Sub`/`Mul`, scalar-broadcast `Add`, masked
-`Add`/`Sub`/`Mul`, and strided `Add` where those routes are production-active.
+boundary for ordinary `Add`/`Sub`/`Mul`, scalar-broadcast `Add`/`Sub`/`Mul`,
+masked `Add`/`Sub`/`Mul`, and strided `Add` where those routes are
+production-active.
 
 The provider remains the owner that instantiates `TCRVEmitCLowerableRoute`,
 adds neutral headers, type mappings, ABI mappings, selected-boundary source
@@ -1116,8 +1117,9 @@ input. It may carry:
 
 - pointers to the verified elementwise arithmetic and scalar-broadcast family
   plans that justify the statement sequence;
-- sub-family booleans for ordinary elementwise arithmetic, scalar-broadcast
-  add, masked elementwise arithmetic, and strided elementwise add;
+- sub-family booleans for ordinary elementwise arithmetic,
+  scalar-broadcast elementwise arithmetic, masked elementwise arithmetic, and
+  strided elementwise add;
 - provider-ready `TCRVEmitCCallOpaqueStep` entries for full-chunk `setvl`;
 - one provider-ready `TCRVEmitCForLoop` with loop `setvl`, load/broadcast or
   strided-load steps, compute/compare/merge steps where needed, and the store
@@ -1163,7 +1165,7 @@ not a route-support declaration by itself.
 ### 6. Tests Required
 
 - C++ tests for positive statement-plan construction and provider consumption
-  for ordinary `Add`/`Sub`/`Mul`, scalar-broadcast `Add`, masked
+  for ordinary `Add`/`Sub`/`Mul`, scalar-broadcast `Add`/`Sub`/`Mul`, masked
   `Add`/`Sub`/`Mul`, and strided `Add`.
 - C++ fail-closed diagnostics for at least one missing or stale statement-plan
   dependency before route statement construction.
@@ -1184,9 +1186,9 @@ Wrong:
 
 ```text
 provider body:
-  if operation is add/sub/mul/masked_add/strided_add,
-  locally assemble setvl/load/compute/merge/store statements from operation
-  names, memory forms, and ABI strings
+  if operation is add/sub/mul/scalar_broadcast_sub/masked_add/strided_add,
+  locally assemble setvl/load/splat/compute/merge/store statements from
+  operation names, memory forms, and ABI strings
 ```
 
 Correct:
