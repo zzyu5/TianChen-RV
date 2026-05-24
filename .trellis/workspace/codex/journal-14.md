@@ -1180,3 +1180,43 @@ Added one RVV-owned aggregate migrated statement-plan consumption boundary, rewi
 ### Next Steps
 
 - None - task complete
+
+
+## Session 192: Stage2 RVV selected-body realization boundary
+
+**Date**: 2026-05-24
+**Task**: Stage2 RVV selected-body realization boundary
+**Branch**: `main`
+
+### Summary
+
+Added an RVV plugin-owned elementwise/compare-select selected-body realization boundary, updated the RVV plugin spec, archived the Trellis task, and passed check-tianchenrv.
+
+### Main Changes
+
+- Created and archived Trellis task 05-24-stage2-rvv-selected-body-realization-boundary.
+- Added public RVVSelectedBodyRealization boundary API for elementwise/compare-select pre-realized bodies.
+- Rewired realizePreRealizedRVVSelectedBody to invoke the boundary before route planning/provider construction.
+- Added plugin test coverage for add and compare-select realization into setvl/with_vl typed bodies, provider statement-plan consumption, non-applicable reduce bodies, and fail-closed mixed realized/pre-realized bodies.
+- Updated .trellis/spec/extension-plugins/rvv-plugin.md with the durable code contract for this boundary.
+- Validation: focused RVV plugin test passed, focused lit fixtures passed, provider/common semantic-realization scan clean, active-authority diff scan clean, git diff --check passed, and check-tianchenrv passed 363/363.
+- Note: final coherent commit is created after this journal entry in the same round.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

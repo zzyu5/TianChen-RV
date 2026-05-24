@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority chain, and Stage2 selected-body realization constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, selected-body realization, route provider, materialization facts, operand-binding facts, and statement-plan boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and common EmitC neutrality constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/FileCheck and evidence expectations for compiler behavior changes."}
+{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-statement-plan-provider-neutral-closure/prd.md", "reason": "Previous completed migrated statement-plan provider-neutral boundary and continuation notes."}
+{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-selected-body-realization-boundary/prd.md", "reason": "Current task requirements, acceptance criteria, non-goals, and validation plan."}

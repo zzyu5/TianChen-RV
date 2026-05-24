@@ -6283,6 +6283,422 @@ bool variantContainsPreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
   return found;
 }
 
+llvm::Expected<RVVElementwiseCompareSelectRealizationResult>
+realizePreRealizedRVVElementwiseCompareSelectCluster(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+  RVVElementwiseCompareSelectRealizationResult result;
+  if (!bodyOp)
+    return makeRVVPluginError(
+        "elementwise/compare-select selected-body realization requires a "
+        "pre-realized body op");
+
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  if (!variant || !kernel)
+    return makeRVVPluginError(
+        "elementwise/compare-select selected-body realization requires "
+        "materialized kernel and variant");
+
+  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  mlir::OpBuilder &builder = request.getBuilder();
+  mlir::OpBuilder::InsertionGuard guard(builder);
+
+  if (auto body =
+          llvm::dyn_cast<tcrv::rvv::TypedBinaryPreRealizedBodyOp>(bodyOp)) {
+    if (llvm::Error error = validatePreRealizedRVVSelectedBody(request, body))
+      return std::move(error);
+
+    mlir::Location loc = body->getLoc();
+    builder.setInsertionPoint(body.getOperation());
+
+    std::int64_t sew = static_cast<std::int64_t>(body.getSew());
+    llvm::StringRef lmul = body.getLmul();
+    auto policy = body.getPolicy();
+    std::optional<RVVRuntimeAVLVLControlPlan> runtimeControlPlan;
+    if (isPreRealizedScalarBroadcastMemoryForm(body.getMemoryForm())) {
+      llvm::Expected<RVVRuntimeAVLVLControlPlan> plan =
+          deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+              variant, body.getN(), sew, lmul, policy,
+              "lhs,rhs_scalar,out,n",
+              "pre-realized RVV scalar-broadcast selected-body realization");
+      if (!plan)
+        return plan.takeError();
+      runtimeControlPlan = std::move(*plan);
+      sew = runtimeControlPlan->sew;
+      lmul = runtimeControlPlan->lmul;
+      policy = runtimeControlPlan->policy;
+    }
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
+        builder, loc,
+        runtimeControlPlan ? runtimeControlPlan->runtimeAVLValue
+                           : body.getN(),
+        sew, lmul, policy));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires, sew, lmul, policy);
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    mlir::Value lhsValue;
+    mlir::Value rhsValue;
+    if (isPreRealizedStridedMemoryForm(body.getMemoryForm())) {
+      mlir::OperandRange strides = body.getStrides();
+      auto lhsLoad = llvm::cast<tcrv::rvv::StridedLoadOp>(
+          createRealizedGenericStridedLoad(builder, loc, body.getLhs(),
+                                           strides[0], setvl.getVl()));
+      auto rhsLoad = llvm::cast<tcrv::rvv::StridedLoadOp>(
+          createRealizedGenericStridedLoad(builder, loc, body.getRhs(),
+                                           strides[1], setvl.getVl()));
+      lhsValue = lhsLoad.getLoaded();
+      rhsValue = rhsLoad.getLoaded();
+    } else if (isPreRealizedScalarBroadcastMemoryForm(body.getMemoryForm())) {
+      auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+          builder, loc, body.getLhs(), setvl.getVl(), sew, lmul));
+      auto rhsSplat = llvm::cast<tcrv::rvv::SplatOp>(
+          createRealizedGenericSplat(builder, loc, body.getRhs(),
+                                     setvl.getVl(), sew, lmul));
+      lhsValue = lhsLoad.getLoaded();
+      rhsValue = rhsSplat.getBroadcast();
+    } else {
+      auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+          builder, loc, body.getLhs(), setvl.getVl(), sew, lmul));
+      auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+          builder, loc, body.getRhs(), setvl.getVl(), sew, lmul));
+      lhsValue = lhsLoad.getLoaded();
+      rhsValue = rhsLoad.getLoaded();
+    }
+    llvm::Expected<mlir::Operation *> compute =
+        createRealizedGenericBinaryCompute(builder, loc, body.getOpKind(),
+                                           lhsValue, rhsValue, setvl.getVl());
+    if (!compute)
+      return compute.takeError();
+    if (isPreRealizedStridedMemoryForm(body.getMemoryForm())) {
+      mlir::OperandRange strides = body.getStrides();
+      createRealizedGenericStridedStore(builder, loc, body.getOut(),
+                                        (*compute)->getResult(0), strides[2],
+                                        setvl.getVl());
+    } else {
+      createRealizedGenericStore(builder, loc, body.getOut(),
+                                 (*compute)->getResult(0), setvl.getVl());
+    }
+    body->erase();
+    result.boundary = withVL;
+    return result;
+  }
+
+  if (auto maskedBody = llvm::dyn_cast<
+          tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp>(bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedMaskedBody(request, maskedBody))
+      return std::move(error);
+
+    mlir::Location loc = maskedBody->getLoc();
+    builder.setInsertionPoint(maskedBody.getOperation());
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
+        builder, loc, maskedBody.getN(),
+        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1(),
+        maskedBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             tcrv::rvv::getRVVFirstSliceSEWBits(),
+                             tcrv::rvv::getRVVLMULM1(),
+                             maskedBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, maskedBody.getLhs(), setvl.getVl(),
+        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+    auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, maskedBody.getRhs(), setvl.getVl(),
+        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+    mlir::Value lhsValue = lhsLoad.getLoaded();
+    mlir::Value rhsValue = rhsLoad.getLoaded();
+    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(builder, loc, lhsValue, rhsValue,
+                                     setvl.getVl(), "eq"));
+    llvm::Expected<mlir::Operation *> compute =
+        createRealizedGenericMaskedBinaryCompute(
+            builder, loc, maskedBody.getOpKind(), compare.getMask(), lhsValue,
+            lhsValue, rhsValue, setvl.getVl());
+    if (!compute)
+      return compute.takeError();
+    createRealizedGenericStore(builder, loc, maskedBody.getOut(),
+                               (*compute)->getResult(0), setvl.getVl());
+    maskedBody->erase();
+    result.boundary = withVL;
+    return result;
+  }
+
+  if (auto compareSelectBody =
+          llvm::dyn_cast<tcrv::rvv::TypedCompareSelectPreRealizedBodyOp>(
+              bodyOp)) {
+    if (llvm::Error error = validatePreRealizedRVVSelectedCompareSelectBody(
+            request, compareSelectBody))
+      return std::move(error);
+
+    mlir::Location loc = compareSelectBody->getLoc();
+    builder.setInsertionPoint(compareSelectBody.getOperation());
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
+        builder, loc, compareSelectBody.getN(),
+        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1(),
+        compareSelectBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             tcrv::rvv::getRVVFirstSliceSEWBits(),
+                             tcrv::rvv::getRVVLMULM1(),
+                             compareSelectBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, compareSelectBody.getLhs(), setvl.getVl(),
+        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+    auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, compareSelectBody.getRhs(), setvl.getVl(),
+        tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
+    mlir::Value lhsValue = lhsLoad.getLoaded();
+    mlir::Value rhsValue = rhsLoad.getLoaded();
+    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(builder, loc, lhsValue, rhsValue,
+                                     setvl.getVl(),
+                                     compareSelectBody.getPredicateKind()));
+    auto select = llvm::cast<tcrv::rvv::SelectOp>(
+        createRealizedGenericSelect(builder, loc, compare.getMask(), lhsValue,
+                                    rhsValue, setvl.getVl()));
+    createRealizedGenericStore(builder, loc, compareSelectBody.getOut(),
+                               select.getSelected(), setvl.getVl());
+    compareSelectBody->erase();
+    result.boundary = withVL;
+    return result;
+  }
+
+  if (auto computedMaskSelectBody = llvm::dyn_cast<
+          tcrv::rvv::TypedComputedMaskSelectPreRealizedBodyOp>(bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedComputedMaskSelectBody(
+                request, computedMaskSelectBody))
+      return std::move(error);
+
+    mlir::Location loc = computedMaskSelectBody->getLoc();
+    builder.setInsertionPoint(computedMaskSelectBody.getOperation());
+
+    std::int64_t sew =
+        static_cast<std::int64_t>(computedMaskSelectBody.getSew());
+    llvm::StringRef lmul = computedMaskSelectBody.getLmul();
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+        createRealizedSetVL(builder, loc, computedMaskSelectBody.getN(), sew,
+                            lmul, computedMaskSelectBody.getPolicy()));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires, sew, lmul,
+                             computedMaskSelectBody.getPolicy());
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto compareLhsLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, computedMaskSelectBody.getCompareLhs(),
+            setvl.getVl(), sew, lmul));
+    auto compareRhsLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, computedMaskSelectBody.getCompareRhs(),
+            setvl.getVl(), sew, lmul));
+    auto trueValueLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, computedMaskSelectBody.getTrueValue(),
+            setvl.getVl(), sew, lmul));
+    auto falseValueLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, computedMaskSelectBody.getFalseValue(),
+            setvl.getVl(), sew, lmul));
+    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(
+            builder, loc, compareLhsLoad.getLoaded(),
+            compareRhsLoad.getLoaded(), setvl.getVl(),
+            computedMaskSelectBody.getPredicateKind()));
+    auto select = llvm::cast<tcrv::rvv::SelectOp>(
+        createRealizedGenericSelect(builder, loc, compare.getMask(),
+                                    trueValueLoad.getLoaded(),
+                                    falseValueLoad.getLoaded(),
+                                    setvl.getVl()));
+    createRealizedGenericStore(builder, loc, computedMaskSelectBody.getOut(),
+                               select.getSelected(), setvl.getVl());
+    computedMaskSelectBody->erase();
+    result.boundary = withVL;
+    return result;
+  }
+
+  if (auto runtimeScalarCompareSelectBody = llvm::dyn_cast<
+          tcrv::rvv::TypedRuntimeScalarCompareSelectPreRealizedBodyOp>(
+          bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedRuntimeScalarCompareSelectBody(
+                request, runtimeScalarCompareSelectBody))
+      return std::move(error);
+
+    mlir::Location loc = runtimeScalarCompareSelectBody->getLoc();
+    builder.setInsertionPoint(runtimeScalarCompareSelectBody.getOperation());
+
+    std::int64_t sew =
+        static_cast<std::int64_t>(runtimeScalarCompareSelectBody.getSew());
+    llvm::StringRef lmul = runtimeScalarCompareSelectBody.getLmul();
+    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+            variant, runtimeScalarCompareSelectBody.getN(), sew, lmul,
+            runtimeScalarCompareSelectBody.getPolicy(),
+            "lhs,rhs_scalar,true_value,false_value,out,n",
+            "pre-realized RVV runtime scalar compare/select selected-body "
+            "realization");
+    if (!runtimeControlPlan)
+      return runtimeControlPlan.takeError();
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
+        builder, loc, runtimeControlPlan->runtimeAVLValue,
+        runtimeControlPlan->sew, runtimeControlPlan->lmul,
+        runtimeControlPlan->policy));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             runtimeControlPlan->sew,
+                             runtimeControlPlan->lmul,
+                             runtimeControlPlan->policy);
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, runtimeScalarCompareSelectBody.getLhs(),
+        setvl.getVl(), runtimeControlPlan->sew, runtimeControlPlan->lmul));
+    auto rhsSplat = llvm::cast<tcrv::rvv::SplatOp>(
+        createRealizedGenericSplat(
+            builder, loc, runtimeScalarCompareSelectBody.getRhsScalar(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto trueValueLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, runtimeScalarCompareSelectBody.getTrueValue(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto falseValueLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, runtimeScalarCompareSelectBody.getFalseValue(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(
+            builder, loc, lhsLoad.getLoaded(), rhsSplat.getBroadcast(),
+            setvl.getVl(),
+            runtimeScalarCompareSelectBody.getPredicateKind()));
+    auto select = llvm::cast<tcrv::rvv::SelectOp>(
+        createRealizedGenericSelect(builder, loc, compare.getMask(),
+                                    trueValueLoad.getLoaded(),
+                                    falseValueLoad.getLoaded(),
+                                    setvl.getVl()));
+    createRealizedGenericStore(builder, loc,
+                               runtimeScalarCompareSelectBody.getOut(),
+                               select.getSelected(), setvl.getVl());
+    runtimeScalarCompareSelectBody->erase();
+    result.boundary = withVL;
+    return result;
+  }
+
+  if (auto runtimeScalarDualCompareBody = llvm::dyn_cast<
+          tcrv::rvv::
+              TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp>(
+          bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedRuntimeScalarDualCompareMaskAndSelectBody(
+                request, runtimeScalarDualCompareBody))
+      return std::move(error);
+
+    mlir::Location loc = runtimeScalarDualCompareBody->getLoc();
+    builder.setInsertionPoint(runtimeScalarDualCompareBody.getOperation());
+
+    std::int64_t sew =
+        static_cast<std::int64_t>(runtimeScalarDualCompareBody.getSew());
+    llvm::StringRef lmul = runtimeScalarDualCompareBody.getLmul();
+    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+            variant, runtimeScalarDualCompareBody.getN(), sew, lmul,
+            runtimeScalarDualCompareBody.getPolicy(),
+            "cmp_lhs_a,rhs_scalar_a,cmp_lhs_b,rhs_scalar_b,true_value,"
+            "false_value,out,n",
+            "pre-realized RVV runtime scalar dual-compare mask-and select "
+            "selected-body realization");
+    if (!runtimeControlPlan)
+      return runtimeControlPlan.takeError();
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
+        builder, loc, runtimeControlPlan->runtimeAVLValue,
+        runtimeControlPlan->sew, runtimeControlPlan->lmul,
+        runtimeControlPlan->policy));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             runtimeControlPlan->sew,
+                             runtimeControlPlan->lmul,
+                             runtimeControlPlan->policy);
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto compareLhsALoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, runtimeScalarDualCompareBody.getCompareLhsA(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto rhsScalarASplat = llvm::cast<tcrv::rvv::SplatOp>(
+        createRealizedGenericSplat(
+            builder, loc, runtimeScalarDualCompareBody.getRhsScalarA(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto compareLhsBLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, runtimeScalarDualCompareBody.getCompareLhsB(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto rhsScalarBSplat = llvm::cast<tcrv::rvv::SplatOp>(
+        createRealizedGenericSplat(
+            builder, loc, runtimeScalarDualCompareBody.getRhsScalarB(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto trueValueLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, runtimeScalarDualCompareBody.getTrueValue(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto falseValueLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, runtimeScalarDualCompareBody.getFalseValue(),
+            setvl.getVl(), runtimeControlPlan->sew,
+            runtimeControlPlan->lmul));
+    auto compareA = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(
+            builder, loc, compareLhsALoad.getLoaded(),
+            rhsScalarASplat.getBroadcast(), setvl.getVl(),
+            runtimeScalarDualCompareBody.getPredicateKindA()));
+    auto compareB = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(
+            builder, loc, compareLhsBLoad.getLoaded(),
+            rhsScalarBSplat.getBroadcast(), setvl.getVl(),
+            runtimeScalarDualCompareBody.getPredicateKindB()));
+    auto maskAnd = llvm::cast<tcrv::rvv::MaskAndOp>(
+        createRealizedGenericMaskAnd(builder, loc, compareA.getMask(),
+                                     compareB.getMask(), setvl.getVl()));
+    auto select = llvm::cast<tcrv::rvv::SelectOp>(
+        createRealizedGenericSelect(builder, loc, maskAnd.getMask(),
+                                    trueValueLoad.getLoaded(),
+                                    falseValueLoad.getLoaded(),
+                                    setvl.getVl()));
+    createRealizedGenericStore(builder, loc,
+                               runtimeScalarDualCompareBody.getOut(),
+                               select.getSelected(), setvl.getVl());
+    runtimeScalarDualCompareBody->erase();
+    result.boundary = withVL;
+    return result;
+  }
+
+  return result;
+}
+
 llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVSelectedBody(
     const VariantLoweringBoundaryRequest &request) {
@@ -6301,6 +6717,15 @@ realizePreRealizedRVVSelectedBody(
   auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
   mlir::OpBuilder &builder = request.getBuilder();
   mlir::OpBuilder::InsertionGuard guard(builder);
+
+  llvm::Expected<RVVElementwiseCompareSelectRealizationResult>
+      elementwiseCompareSelectRealization =
+          realizePreRealizedRVVElementwiseCompareSelectCluster(request,
+                                                               *bodyOp);
+  if (!elementwiseCompareSelectRealization)
+    return elementwiseCompareSelectRealization.takeError();
+  if (elementwiseCompareSelectRealization->applies())
+    return elementwiseCompareSelectRealization->boundary;
 
   if (auto body = llvm::dyn_cast<
           tcrv::rvv::TypedRuntimeScalarSplatStorePreRealizedBodyOp>(
@@ -8061,52 +8486,8 @@ realizePreRealizedRVVSelectedBody(
     return withVL;
   }
 
-  auto maskedBody =
-      llvm::dyn_cast<tcrv::rvv::TypedMaskedBinaryPreRealizedBodyOp>(*bodyOp);
-  if (!maskedBody)
-    return makeRVVPluginError(
-        "selected RVV realization found an unsupported pre-realized body op");
-  if (llvm::Error error =
-          validatePreRealizedRVVSelectedMaskedBody(request, maskedBody))
-    return std::move(error);
-
-  mlir::Location loc = maskedBody->getLoc();
-  builder.setInsertionPoint(maskedBody.getOperation());
-
-  auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
-      createRealizedSetVL(builder, loc, maskedBody.getN(),
-                          tcrv::rvv::getRVVFirstSliceSEWBits(),
-                          tcrv::rvv::getRVVLMULM1(),
-                          maskedBody.getPolicy()));
-  tcrv::rvv::WithVLOp withVL =
-      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                           request.getRole(), requires,
-                           tcrv::rvv::getRVVFirstSliceSEWBits(),
-                           tcrv::rvv::getRVVLMULM1(),
-                           maskedBody.getPolicy());
-
-  builder.setInsertionPointToStart(&withVL.getBody().front());
-  auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-      builder, loc, maskedBody.getLhs(), setvl.getVl(),
-      tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
-  auto rhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
-      builder, loc, maskedBody.getRhs(), setvl.getVl(),
-      tcrv::rvv::getRVVFirstSliceSEWBits(), tcrv::rvv::getRVVLMULM1()));
-  mlir::Value lhsValue = lhsLoad.getLoaded();
-  mlir::Value rhsValue = rhsLoad.getLoaded();
-  auto compare = llvm::cast<tcrv::rvv::CompareOp>(
-      createRealizedGenericCompare(builder, loc, lhsValue, rhsValue,
-                                   setvl.getVl(), "eq"));
-  llvm::Expected<mlir::Operation *> compute =
-      createRealizedGenericMaskedBinaryCompute(
-          builder, loc, maskedBody.getOpKind(), compare.getMask(), lhsValue,
-          lhsValue, rhsValue, setvl.getVl());
-  if (!compute)
-    return compute.takeError();
-  createRealizedGenericStore(builder, loc, maskedBody.getOut(),
-                             (*compute)->getResult(0), setvl.getVl());
-  maskedBody->erase();
-  return withVL;
+  return makeRVVPluginError(
+      "selected RVV realization found an unsupported pre-realized body op");
 }
 
 } // namespace tianchenrv::plugin::rvv

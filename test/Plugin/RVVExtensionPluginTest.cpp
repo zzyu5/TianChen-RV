@@ -7,6 +7,7 @@
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
 
@@ -141,6 +142,17 @@ mlir::Operation *findFirstNestedOp(VariantOp variant, llvm::StringRef name) {
       found = op;
   });
   return found;
+}
+
+unsigned countNestedOps(VariantOp variant, llvm::StringRef name) {
+  unsigned count = 0;
+  if (!variant)
+    return count;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (op != variant.getOperation() && op->getName().getStringRef() == name)
+      ++count;
+  });
+  return count;
 }
 
 mlir::func::FuncOp findHighLevelPlaceholder(mlir::ModuleOp module) {
@@ -825,6 +837,195 @@ module {
           boundaryResult),
       {"selected RVV typed lowering boundary requires exactly one "
        "tcrv_rvv.with_vl op"});
+}
+
+int runElementwiseCompareSelectRealizationBoundaryTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_realization_boundary_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_pre_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_binary_pre_realized_body %lhs, %rhs, %out, %n {lmul = "m1", memory_form = "vector-rhs-load", op_kind = "add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_cmp_select attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_compare_select_pre_realized_body %lhs, %rhs, %out, %n {lmul = "m1", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "vector-rhs-load", op_kind = "cmp_select", predicate_kind = "eq", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, select_layout = "select-lhs-when-mask-else-rhs", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_reduce attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_reduce_pre_realized_body %lhs, %rhs, %out, %n {accumulator_layout = "rhs-vector-seed-lane0-per-vl-chunk", accumulator_role = "rhs-input-buffer", lmul = "m1", memory_form = "vector-rhs-load", op_kind = "reduce_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-reduction-lane0-to-output-chunk-base", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @rvv_pre_bad_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_binary_pre_realized_body %lhs, %rhs, %out, %n {lmul = "m1", memory_form = "vector-rhs-load", op_kind = "add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_pre_bad_add, sew = 32 : i64, source_kernel = "rvv_realization_boundary_kernel", status = "selected-lowering-boundary"} {
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse RVV realization-boundary module");
+  KernelOp kernel = findKernel(*module, "rvv_realization_boundary_kernel");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(kernel);
+
+  auto realizeClusterVariant =
+      [&](llvm::StringRef variantName, llvm::StringRef preRealizedOpName,
+          llvm::StringRef realizedComputeOpName,
+          llvm::StringRef providerPlanID) -> int {
+    VariantOp variant = findVariant(kernel, variantName);
+    mlir::Operation *preRealized =
+        findFirstNestedOp(variant, preRealizedOpName);
+    if (int result = expect(preRealized != nullptr,
+                            llvm::Twine("found pre-realized body for @") +
+                                variantName))
+      return result;
+
+    mlir::OpBuilder builder(module->getContext());
+    llvm::Expected<tianchenrv::plugin::rvv::
+                       RVVElementwiseCompareSelectRealizationResult>
+        realization =
+            tianchenrv::plugin::rvv::
+                realizePreRealizedRVVElementwiseCompareSelectCluster(
+                    VariantLoweringBoundaryRequest(
+                        variant, kernel, capabilities,
+                        VariantEmissionRole::DirectVariant, builder),
+                    preRealized);
+    if (!realization)
+      return fail(llvm::Twine("realize elementwise/compare-select boundary "
+                              "for @") +
+                  variantName + ": " +
+                  llvm::toString(realization.takeError()));
+    if (int result = expect(realization->applies(),
+                            llvm::Twine("cluster boundary applies to @") +
+                                variantName))
+      return result;
+    if (int result =
+            expect(countNestedOps(variant, preRealizedOpName) == 0,
+                   llvm::Twine("cluster boundary consumes pre-realized body "
+                               "for @") +
+                       variantName))
+      return result;
+    if (int result =
+            expect(countNestedOps(variant, "tcrv_rvv.setvl") == 1 &&
+                       countNestedOps(variant, "tcrv_rvv.with_vl") == 1 &&
+                       countNestedOps(variant, realizedComputeOpName) == 1,
+                   llvm::Twine("cluster boundary materializes typed tcrv_rvv "
+                               "structure for @") +
+                       variantName))
+      return result;
+
+    llvm::Expected<tianchenrv::plugin::rvv::
+                       RVVSelectedBodyEmitCRouteDescription>
+        routeDescription =
+            tianchenrv::plugin::rvv::describeRVVSelectedBodyEmitCRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant));
+    if (!routeDescription)
+      return fail(llvm::Twine("describe realized selected-body route for @") +
+                  variantName + ": " +
+                  llvm::toString(routeDescription.takeError()));
+    if (int result = expect(
+            routeDescription->elementwiseArithmeticRouteFamilyPlanID ==
+                    providerPlanID ||
+                routeDescription->plainCompareSelectRouteFamilyPlanID ==
+                    providerPlanID,
+            llvm::Twine("realized @") + variantName +
+                " records the expected RVV-owned provider plan"))
+      return result;
+
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route;
+    if (int result = expectSuccess(
+            tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel, capabilities,
+                    VariantEmissionRole::DirectVariant),
+                route),
+            llvm::Twine("provider consumes realized boundary for @") +
+                variantName))
+      return result;
+    return expect(route.getForLoops().size() == 1,
+                  llvm::Twine("provider builds one realized-route loop for @") +
+                      variantName);
+  };
+
+  if (int result = realizeClusterVariant(
+          "rvv_pre_add", "tcrv_rvv.typed_binary_pre_realized_body",
+          "tcrv_rvv.binary", "rvv-elementwise-arithmetic-route-family-plan.v1"))
+    return result;
+  if (int result = realizeClusterVariant(
+          "rvv_pre_cmp_select",
+          "tcrv_rvv.typed_compare_select_pre_realized_body",
+          "tcrv_rvv.select", "rvv-plain-compare-select-route-family-plan.v1"))
+    return result;
+
+  VariantOp reduceVariant = findVariant(kernel, "rvv_pre_reduce");
+  mlir::Operation *reducePreRealized =
+      findFirstNestedOp(reduceVariant, "tcrv_rvv.typed_reduce_pre_realized_body");
+  if (int result =
+          expect(reducePreRealized != nullptr,
+                 "found unrelated pre-realized reduce body for empty result"))
+    return result;
+  mlir::OpBuilder builder(module->getContext());
+  llvm::Expected<
+      tianchenrv::plugin::rvv::RVVElementwiseCompareSelectRealizationResult>
+      reduceResult =
+          tianchenrv::plugin::rvv::
+              realizePreRealizedRVVElementwiseCompareSelectCluster(
+                  VariantLoweringBoundaryRequest(
+                      reduceVariant, kernel, capabilities,
+                      VariantEmissionRole::DirectVariant, builder),
+                  reducePreRealized);
+  if (!reduceResult)
+    return fail("elementwise/compare-select boundary should not reject "
+                "unrelated reduce body: " +
+                llvm::toString(reduceResult.takeError()));
+  if (int result =
+          expect(!reduceResult->applies() &&
+                     countNestedOps(reduceVariant,
+                                    "tcrv_rvv.typed_reduce_pre_realized_body") ==
+                         1,
+                 "elementwise/compare-select boundary returns empty for "
+                 "unrelated reduce family"))
+    return result;
+
+  VariantOp badVariant = findVariant(kernel, "rvv_pre_bad_add");
+  mlir::Operation *badPreRealized =
+      findFirstNestedOp(badVariant, "tcrv_rvv.typed_binary_pre_realized_body");
+  llvm::Expected<
+      tianchenrv::plugin::rvv::RVVElementwiseCompareSelectRealizationResult>
+      badResult =
+          tianchenrv::plugin::rvv::
+              realizePreRealizedRVVElementwiseCompareSelectCluster(
+                  VariantLoweringBoundaryRequest(
+                      badVariant, kernel, capabilities,
+                      VariantEmissionRole::DirectVariant, builder),
+                  badPreRealized);
+  if (badResult)
+    return fail("expected mixed pre-realized/realized body to fail closed");
+  return expectErrorContains(
+      badResult.takeError(),
+      {"must not be mixed with already realized RVV route body op",
+       "tcrv_rvv.setvl"});
 }
 
 int runStaleWithVLRouteMetadataDoesNotAuthorizeEmissionTest(
@@ -10111,6 +10312,9 @@ int main() {
     return result;
   if (int result =
           runWithVLSelectedLoweringBoundaryDuplicateRejectionTest(context))
+    return result;
+  if (int result =
+          runElementwiseCompareSelectRealizationBoundaryTest(context))
     return result;
   if (int result =
           runStaleWithVLRouteMetadataDoesNotAuthorizeEmissionTest(context))

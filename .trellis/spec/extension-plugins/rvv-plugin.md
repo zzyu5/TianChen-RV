@@ -217,6 +217,132 @@ prefetch/software-pipeline structure
 accumulator/reduction layout
 ```
 
+## Elementwise/Compare-Select Selected-Body Realization Boundary
+
+### 1. Scope / Trigger
+
+For statement-plan-backed elementwise arithmetic and compare/select
+pre-realized selected bodies, RVV selected-body realization must be an
+explicit RVV plugin-owned compiler boundary before route planning/provider
+construction. The boundary applies when a selected `tcrv.exec` RVV variant
+contains a pre-realized body for:
+
+- plain, scalar-broadcast, strided, or masked elementwise arithmetic;
+- plain compare-select;
+- computed-mask select;
+- runtime-scalar compare-select;
+- runtime-scalar dual compare-mask-and-select.
+
+Unrelated pre-realized families, such as reduction, memory, conversion, or
+contraction, must receive an empty/not-applicable result from this boundary and
+continue through their own realization path.
+
+### 2. Signatures
+
+The durable RVV plugin-local API is:
+
+```c++
+struct RVVElementwiseCompareSelectRealizationResult {
+  tcrv::rvv::WithVLOp boundary;
+  bool applies() const;
+};
+
+llvm::Expected<RVVElementwiseCompareSelectRealizationResult>
+realizePreRealizedRVVElementwiseCompareSelectCluster(
+    const VariantLoweringBoundaryRequest &request,
+    mlir::Operation *bodyOp);
+```
+
+The production `realizePreRealizedRVVSelectedBody(...)` path must call this
+boundary before unrelated selected-body realization fallbacks.
+
+### 3. Contracts
+
+The boundary consumes only RVV-owned compiler facts:
+
+- the selected `tcrv.exec.variant` and enclosing kernel from
+  `VariantLoweringBoundaryRequest`;
+- typed pre-realized `tcrv_rvv` body structure;
+- runtime ABI SSA imports;
+- SEW, LMUL, policy, memory form, predicate, mask/source/layout attrs carried
+  by the pre-realized body;
+- selected variant `requires` metadata;
+- RVV runtime AVL/VL control helpers where runtime-scalar routes need them.
+
+The boundary emits realized typed `tcrv_rvv` structure such as `setvl`,
+`with_vl`, `load`, `splat`, `strided_load`, `compare`, `mask_and`,
+`select`, `binary`, `masked_binary`, `store`, or `strided_store`, then erases
+the consumed pre-realized body. It does not build
+`TCRVEmitCLowerableRoute`; route construction remains provider-owned after
+route analysis, materialization facts, operand-binding facts, and statement
+plans are validated.
+
+### 4. Validation & Error Matrix
+
+- Null body operation -> fail closed before realization.
+- Missing kernel or selected variant -> fail closed before realization.
+- Body is outside the elementwise/compare-select cluster -> return
+  not-applicable without mutation.
+- Missing or wrong runtime ABI role -> fail closed with the logical operand
+  name and expected role.
+- Unsupported op kind, predicate, policy, SEW/LMUL, memory form, mask role,
+  mask source, mask memory form, select layout, or stride operand shape ->
+  fail closed before creating route/provider facts.
+- Pre-realized cluster body is mixed with an already realized `setvl`,
+  `with_vl`, or other realized `tcrv_rvv` route body op -> fail closed before
+  route construction.
+- Runtime-scalar route cannot derive an AVL/VL control plan -> fail closed
+  before route construction.
+
+### 5. Good/Base/Bad Cases
+
+- Good: selected RVV variant -> typed pre-realized elementwise/compare-select
+  body -> `realizePreRealizedRVVElementwiseCompareSelectCluster` -> realized
+  `tcrv_rvv` body -> RVV route analysis/materialization/operand-binding/
+  statement-plan facts -> provider-built route.
+- Base: selected RVV variant -> typed pre-realized reduction/memory/math body
+  -> empty/not-applicable cluster result -> owning family realization path.
+- Bad: provider/common EmitC sees a pre-realized body and invents missing
+  loads, compares, masks, select layout, arithmetic, dtype, policy, schedule,
+  or body shape.
+- Bad: the cluster boundary treats route ids, artifact names, status fields,
+  C ABI names, or intrinsic spellings as realization authority.
+
+### 6. Tests Required
+
+- C++ positive tests for at least one elementwise arithmetic pre-realized body
+  and one compare/select pre-realized body showing the boundary creates
+  realized `setvl`/`with_vl`/typed dataflow ops and the realized body still
+  reaches the RVV provider route path.
+- C++ not-applicable coverage for an unrelated pre-realized family.
+- C++ fail-closed diagnostics for at least one missing, stale, or unsupported
+  realization dependency before route construction.
+- Representative lit/FileCheck coverage proving pre-realized and explicit
+  selected-body elementwise/compare-select artifacts still pass.
+- Bounded provider/common scan proving no semantic realization logic moved
+  into route planning/provider construction or common EmitC.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider/common EmitC:
+  sees typed_*_pre_realized_body or route metadata
+  -> synthesizes setvl/load/compare/select/binary/store sequence
+```
+
+Correct:
+
+```text
+selected pre-realized elementwise/compare-select tcrv_rvv body
+  -> RVV plugin-owned realization boundary
+  -> realized typed tcrv_rvv body
+  -> route analysis / materialization facts / operand-binding facts
+  -> RVV-owned statement plan
+  -> provider-built TCRVEmitCLowerableRoute
+```
+
 ### Stage 3: Other Families After RVV Maturity
 
 IME, Offload, TensorExtLite, Template/Toy source-front-door examples, and
