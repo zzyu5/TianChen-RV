@@ -14342,6 +14342,76 @@ def run_one_op_e2e(
         ) from exc
 
 
+def command_summary(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "command": record.get("command", ""),
+        "exit_code": record.get("exit_code"),
+        "stdout": sanitize_text(record.get("stdout", ""), limit=4096),
+        "stderr": sanitize_text(record.get("stderr", ""), limit=4096),
+    }
+
+
+def root_op_result_summary(
+    *,
+    expectation: OpExpectation,
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    bundle_checks = result["bundle_checks"]
+    harness = result["harness"]
+    local_generation = result["local_bundle_generation"]
+    summary: dict[str, Any] = {
+        "status": result["status"],
+        "artifact_dir": result["artifact_dir"],
+        "selected_input": result["selected_input"]["path"],
+        "materialized_selected_body": local_generation["materialized_selected_body"],
+        "generated_rvv_cpp": local_generation["emitted_rvv_cpp"],
+        "generated_bundle": {
+            "index": bundle_checks["index"]["path"],
+            "object": bundle_checks["object"]["path"],
+            "header": bundle_checks["header"]["path"],
+            "header_prototype": bundle_checks["header"]["prototype"],
+        },
+        "harness": harness["path"],
+        "ssh_evidence": result["ssh_evidence"],
+        "pass_marker": harness["pass_marker"],
+        "runtime_counts": result["runtime_counts"],
+        "typed_config_artifact_closure": result.get(
+            "typed_config_artifact_closure", {}
+        ),
+        "correctness_oracle": {
+            "boundary": harness["boundary"],
+            "element_c_type": expectation.element_c_type,
+            "lhs_initializer": expectation.lhs_initializer,
+            "rhs_initializer": expectation.rhs_initializer,
+            "expected_expression": expectation.expected_expression,
+            "runtime_counts": result["runtime_counts"],
+            "pass_marker": harness["pass_marker"],
+        },
+    }
+    remote = result.get("remote")
+    if remote:
+        commands = remote.get("commands", {})
+        summary["ssh_execution_summary"] = {
+            "ssh_target": remote.get("ssh_target", ""),
+            "remote_dir": remote.get("remote_dir", ""),
+            "remote_object": remote.get("remote_object", ""),
+            "remote_header": remote.get("remote_header", ""),
+            "remote_harness": remote.get("remote_harness", ""),
+            "remote_binary": remote.get("remote_binary", ""),
+            "scp_command": command_summary(commands.get("scp", {})),
+            "compile_command": command_summary(commands.get("compile", {})),
+            "run_command": command_summary(commands.get("run", {})),
+            "remote_compile_succeeded": remote.get(
+                "remote_compile_succeeded", False
+            ),
+            "remote_run_succeeded": remote.get("remote_run_succeeded", False),
+            "remote_output": sanitize_text(
+                remote.get("remote_output", ""), limit=4096
+            ),
+        }
+    return summary
+
+
 def run_e2e(args: argparse.Namespace) -> int:
     run_id = safe_run_id(args.run_id or utc_run_id())
     artifact_dir = prepare_artifact_dir(args.artifact_root, run_id, args.overwrite)
@@ -14454,13 +14524,10 @@ def run_e2e(args: argparse.Namespace) -> int:
                 rhs_scalar_values=rhs_scalar_values,
                 stride_bytes_values=stride_bytes_values,
             )
-            evidence["op_results"][expectation.kind] = {
-                "status": result["status"],
-                "artifact_dir": result["artifact_dir"],
-                "ssh_evidence": result["ssh_evidence"],
-                "pass_marker": result["harness"]["pass_marker"],
-                "remote_output": result.get("remote", {}).get("remote_output", ""),
-            }
+            evidence["op_results"][expectation.kind] = root_op_result_summary(
+                expectation=expectation,
+                result=result,
+            )
 
         evidence["ssh_evidence"] = not args.dry_run
         evidence["status"] = "success" if not args.dry_run else "dry_run_success"
@@ -14470,7 +14537,10 @@ def run_e2e(args: argparse.Namespace) -> int:
         print(f"artifact_dir: {artifact_dir}")
         if evidence.get("ssh_evidence"):
             for op_kind, result in evidence["op_results"].items():
-                print(f"[{op_kind}] {str(result['remote_output']).strip()}")
+                remote_output = result.get("ssh_execution_summary", {}).get(
+                    "remote_output", ""
+                )
+                print(f"[{op_kind}] {str(remote_output).strip()}")
         return 0
     except Exception as exc:  # noqa: BLE001 - evidence should record exact blocker.
         evidence["status"] = "blocked" if not args.dry_run else "failed"

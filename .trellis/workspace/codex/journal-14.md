@@ -1570,3 +1570,90 @@ Closed pre-realized i64_add generated-bundle typed-config artifact evidence thro
 ### Next Steps
 
 - None - task complete
+
+---
+
+## Session 200 - Stage2 RVV typed config real hardware executable closure
+
+### Date
+
+2026-05-25
+
+### Summary
+
+Closed the follow-up real-hardware evidence gap for the typed-config
+generated-bundle path. The generated-bundle script now exposes root-level
+hardware evidence summary fields so the top-level `evidence.json` names the
+generated RVV C/C++ source, object, header, harness, deterministic oracle, and
+remote scp/compile/run command records instead of requiring reviewers to dig
+through nested per-op evidence only.
+
+### Main Changes
+
+- Added root `op_results[op_kind]` summaries in
+  `scripts/rvv_generated_bundle_abi_e2e.py` with generated artifact paths,
+  typed-config closure facts, deterministic oracle, and
+  `ssh_execution_summary` for non-dry-run runs.
+- Updated the focused pre-realized `i64_add` generated-bundle dry-run lit test
+  to check the new root evidence fields.
+- Created and completed Trellis task
+  `05-25-stage2-rvv-typed-config-real-hardware-executable-closure`.
+
+### Real Hardware Evidence
+
+- Command:
+  `python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --artifact-root artifacts/tmp/stage2_typed_config_real_hardware_executable_closure --run-id pre-realized-i64-add-ssh-rvv --overwrite --op-kind i64_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --ssh-target rvv`
+- Evidence root:
+  `artifacts/tmp/stage2_typed_config_real_hardware_executable_closure/pre-realized-i64-add-ssh-rvv/evidence.json`
+- Generated C/C++:
+  `artifacts/tmp/stage2_typed_config_real_hardware_executable_closure/pre-realized-i64-add-ssh-rvv/i64_add/materialized_rvv_emitc.cpp`
+- Generated object:
+  `artifacts/tmp/stage2_typed_config_real_hardware_executable_closure/pre-realized-i64-add-ssh-rvv/i64_add/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o`
+- Generated header:
+  `artifacts/tmp/stage2_typed_config_real_hardware_executable_closure/pre-realized-i64-add-ssh-rvv/i64_add/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h`
+- Generated harness:
+  `artifacts/tmp/stage2_typed_config_real_hardware_executable_closure/pre-realized-i64-add-ssh-rvv/i64_add/rvv_generated_bundle_abi_i64_add_harness.c`
+- Oracle: `lhs[index] + rhs[index]` over `int64_t` buffers, runtime counts
+  `7,16,23`.
+- Remote compile evidence: `remote_arch=riscv64`,
+  `clang_path=/usr/bin/clang`,
+  `clang_version=Ubuntu clang version 18.1.3 (1ubuntu1)`.
+- Remote run evidence ended with:
+  `PASS op=i64_add counts=7,16,23`.
+
+### Self-Repair
+
+- First real `ssh rvv` attempt reached remote compile/run success but the
+  script process returned non-zero because final stdout printing still read
+  the old root `remote_output` field. Fixed the printer to read
+  `ssh_execution_summary.remote_output`, then reran the same command
+  successfully.
+- Focused lit initially failed because new `ROOT-DAG` checks appeared after a
+  later JSON key. Reordered the FileCheck expectations to match the sorted JSON
+  layout.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/05-25-stage2-rvv-typed-config-real-hardware-executable-closure`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] focused pre-realized `i64_add` dry-run after test update.
+- [OK] real `ssh rvv` generated-bundle compile/run for pre-realized
+  `i64_add`, counts `7,16,23`.
+- [OK] focused lit from `build/test` for
+  `rvv-generated-bundle-abi-e2e-pre-realized-i64-add-dry-run`, 1/1 passed.
+- [OK] bounded authority scan over touched task/script/test files and relevant
+  provider/target/fixture files showed only negative guards, PRD non-goals,
+  existing fail-closed diagnostics, or self-test residue checks.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`, 365/365 passed.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | `rvv: expose real typed config hardware evidence` |
+
+### Status
+
+[OK] **Completed**

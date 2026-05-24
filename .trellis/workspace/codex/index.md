@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-14.md` | ~1572 | Active |
+| `journal-14.md` | ~1659 | Active |
 | `journal-13.md` | ~1971 | Archived |
 | `journal-12.md` | ~2095 | Archived |
 | `journal-11.md` | ~1979 | Archived |
@@ -42,6 +42,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 200 | 2026-05-25 | Stage2 RVV typed config real hardware executable closure | this commit | `main` |
 | 199 | 2026-05-25 | Stage2 RVV typed config artifact executable closure | created-after-journal-entry | `main` |
 | 198 | 2026-05-25 | Stage2 RVV typed config emission consumption closure | pending-final-session-commit | `main` |
 | 197 | 2026-05-25 | Stage2 RVV typed dtype/config derivation boundary | pending-final-session-commit | `main` |

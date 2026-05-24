@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain and project red lines"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body/config, provider route, artifact, and real ssh rvv runtime evidence contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route neutrality and target artifact handoff"}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Emission/runtime artifact authority and mirror-only metadata contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle and ssh rvv correctness evidence rules"}
+{"file": ".trellis/spec/validation/index.md", "reason": "Evidence wording and ssh rvv claim classification"}
+{"file": ".trellis/tasks/archive/2026-05/05-25-stage2-rvv-typed-config-artifact-executable-closure/prd.md", "reason": "Previous typed-config artifact closure result and gap to repair"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle ABI/e2e script to expose root hardware execution summary and run ssh rvv evidence"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-i64-add-dry-run.test", "reason": "Focused local companion coverage for typed-config i64 generated-bundle evidence"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-i64-add.mlir", "reason": "Selected pre-realized i64 add fixture for the real hardware closure"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Bounded authority scan for route planning semantics"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Bounded authority scan for provider-owned route facts"}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Bounded authority scan for target artifact mirror/export behavior"}

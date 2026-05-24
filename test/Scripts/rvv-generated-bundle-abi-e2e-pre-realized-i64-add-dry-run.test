@@ -11,6 +11,14 @@
 
 # ROOT: "input_mode": "pre-realized-selected-body"
 # ROOT: "i64_add"
+# ROOT-DAG: "generated_rvv_cpp": "{{.*}}materialized_rvv_emitc.cpp"
+# ROOT-DAG: "generated_bundle"
+# ROOT-DAG: "object": "{{.*}}artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o"
+# ROOT-DAG: "header": "{{.*}}artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h"
+# ROOT-DAG: "harness": "{{.*}}rvv_generated_bundle_abi_i64_add_harness.c"
+# ROOT-DAG: "correctness_oracle"
+# ROOT-DAG: "expected_expression": "lhs[index] + rhs[index]"
+# ROOT-DAG: "pass_marker": "tcrv_rvv_generated_bundle_abi_i64_add_ok"
 # ROOT: "pre_realized_selected_body": true
 # ROOT: "ssh_evidence": false
 # ROOT: "status": "dry_run_success"
