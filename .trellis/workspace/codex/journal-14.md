@@ -1367,7 +1367,10 @@ Added one RVV-owned aggregate migrated statement-plan consumption boundary, rewi
 
 ### Main Changes
 
-(Add details)
+- Added `RVVSelectedBodyPlainMAccRouteStatementPlan`, routed it through the migrated statement-plan aggregate, and made the provider consume the RVV-owned setvl/lhs-load/rhs-load/acc-load/vmacc/store plan.
+- Added plugin-level positive and fail-closed coverage for plain MAcc statement planning, including missing math facts and stale materialization leaves.
+- Extended generated-bundle ABI/e2e evidence with `multiply_accumulate_boundary`, emitted `__riscv_vmacc_vv_i32m1` operand extraction, mirror-only route metadata checks, and explicit/pre-realized dry-run FileCheck coverage.
+- Updated RVV plugin spec with the durable plain MAcc statement-plan boundary and migrated aggregate membership.
 
 ### Git Commits
 
@@ -1377,7 +1380,12 @@ Added one RVV-owned aggregate migrated statement-plan consumption boundary, rewi
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] explicit and pre-realized `macc_add` generated-bundle dry-runs for counts 0/7/16/23
+- [OK] `ssh rvv` pre-realized `macc_add` generated-bundle ABI/e2e for counts 0/7/16/23
+- [OK] bounded authority scan, `git diff --check`, and `cmake --build build --target check-tianchenrv -j2`
 
 ### Status
 
@@ -1917,6 +1925,39 @@ pending-final-session-commit
 ### Summary
 
 Closed the bounded pre-realized RVV standalone_reduce_add reduction/accumulation route with RVV-owned statement-plan consumption, reduction_accumulation_boundary generated-bundle evidence, ssh rvv correctness for counts 0/7/16/23, and archived Trellis state.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-session-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 205: Stage2 RVV contraction multiply-add route closure
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV contraction multiply-add route closure
+**Branch**: `main`
+
+### Summary
+
+Closed the bounded plain macc_add route with RVV-owned statement-plan consumption, generated-bundle multiply_accumulate_boundary evidence, ssh rvv correctness for counts 0/7/16/23, and archived Trellis state.
 
 ### Main Changes
 

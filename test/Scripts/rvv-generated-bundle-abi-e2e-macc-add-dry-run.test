@@ -26,6 +26,15 @@
 # MACC-DAG: "value": "separate-i32-vector-accumulator-input"
 # MACC-DAG: "key": "tcrv_rvv.macc_result_layout"
 # MACC-DAG: "value": "store-multiply-accumulate-result-to-output-buffer"
+# MACC-DAG: "multiply_accumulate_boundary": {
+# MACC-DAG: "authority": "provider-derived typed tcrv_rvv multiply-accumulate body/config/runtime facts"
+# MACC-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# MACC-DAG: "macc_kind": "add"
+# MACC-DAG: "macc_intrinsic": "__riscv_vmacc_vv_i32m1"
+# MACC-DAG: "macc_operand_order": "acc,lhs,rhs,vl"
+# MACC-DAG: "store_advances_by_loop_induction": true
+# MACC-DAG: "store_pointer": "out + loop_induction"
+# MACC-DAG: "runtime_counts_are_execution_cases_not_macc_authority": true
 # MACC-DAG: "typed_compute_op": "tcrv_rvv.macc"
 # MACC-DAG: "status": "dry_run_success"
 

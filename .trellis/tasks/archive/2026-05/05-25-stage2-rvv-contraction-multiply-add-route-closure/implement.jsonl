@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV-first authority chain, Stage 1/2 ordering, and descriptor/source-front-door red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership for typed body facts, selected-body realization, math route operand binding, contraction/accumulation statement planning, and artifact mirror-only rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route contract: provider-built TCRVEmitCLowerableRoute, neutral materialization, and fail-closed metadata/source-front-door boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck, C++ route/provider, generated bundle, and ssh rvv evidence policy for runtime/correctness claims."}

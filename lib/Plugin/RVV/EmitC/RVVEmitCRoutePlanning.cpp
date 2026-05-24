@@ -24755,6 +24755,123 @@ llvm::Error addRVVStandaloneReductionStatementPlanLoopStep(
   return llvm::Error::success();
 }
 
+bool isRVVSelectedBodyPlainMAccStatementPlanConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return description.operation == RVVSelectedBodyOperationKind::MAccAdd &&
+         description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
+}
+
+llvm::Error requireRVVPlainMAccStatementPlanLeaf(
+    llvm::StringRef leaf, const llvm::Twine &leafName,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  if (!leaf.empty())
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) + " plain MAcc statement plan requires " +
+      leafName + " before route statement construction for operation '" +
+      stringifyRVVSelectedBodyOperationKind(description.operation) +
+      "', memory_form '" +
+      stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
+}
+
+llvm::Error requireRVVPlainMAccStatementPlanABI(
+    const support::RuntimeABIParameter *parameter, llvm::StringRef logicalName,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  if (parameter)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " plain MAcc statement plan requires bound ABI operand '" + logicalName +
+      "' before route statement construction for operation '" +
+      stringifyRVVSelectedBodyOperationKind(description.operation) +
+      "', memory_form '" +
+      stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
+}
+
+llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance>
+getRVVPlainMAccStatementPlanSourceProvenance(
+    mlir::Operation *op, llvm::StringRef expectedRole,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  if (!op)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain MAcc statement plan requires a materialized " + expectedRole +
+        " role op before route statement construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) +
+        "', memory_form '" +
+        stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
+  if (llvm::Error error = verifyRVVRoleOperationInterface(op, expectedRole))
+    return std::move(error);
+
+  auto lowerable =
+      llvm::dyn_cast<conversion::emitc::TCRVEmitCLowerableOpInterface>(op);
+  if (!lowerable)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " operation '" + op->getName().getStringRef() +
+        "' must implement " + kRVVStatementPlanEmitCLowerableOpInterfaceName +
+        " before RVV plain MAcc statement-plan construction");
+
+  llvm::StringRef sourceRole = lowerable.getTCRVEmitCLowerableSourceRole();
+  if (sourceRole != expectedRole)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " operation '" + op->getName().getStringRef() +
+        "' reports EmitC source role '" + sourceRole +
+        "' but RVV plain MAcc statement plan expected '" + expectedRole + "'");
+
+  conversion::emitc::TCRVEmitCSourceOpProvenance source;
+  source.opName = lowerable.getTCRVEmitCLowerableSourceOpName().str();
+  source.role = sourceRole.str();
+  source.opInterface = kRVVStatementPlanEmitCLowerableOpInterfaceName.str();
+  return source;
+}
+
+llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep>
+makeRVVPlainMAccStatementPlanStep(
+    mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef callee,
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context,
+    std::optional<conversion::emitc::TCRVEmitCCallOpaqueResult> result =
+        std::nullopt) {
+  if (llvm::Error error = requireRVVPlainMAccStatementPlanLeaf(
+          callee, llvm::Twine(expectedRole) + " callee", description,
+          context))
+    return std::move(error);
+  llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance> source =
+      getRVVPlainMAccStatementPlanSourceProvenance(op, expectedRole,
+                                                   description, context);
+  if (!source)
+    return source.takeError();
+
+  conversion::emitc::TCRVEmitCCallOpaqueStep step;
+  step.sourceOp = std::move(*source);
+  step.callee = callee.str();
+  step.operands.append(operands.begin(), operands.end());
+  step.result = std::move(result);
+  return step;
+}
+
+llvm::Error addRVVPlainMAccStatementPlanLoopStep(
+    RVVSelectedBodyPlainMAccRouteStatementPlan &plan, mlir::Operation *op,
+    llvm::StringRef expectedRole, llvm::StringRef callee,
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context,
+    std::optional<conversion::emitc::TCRVEmitCCallOpaqueResult> result =
+        std::nullopt) {
+  llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> step =
+      makeRVVPlainMAccStatementPlanStep(op, expectedRole, callee, operands,
+                                        description, context,
+                                        std::move(result));
+  if (!step)
+    return step.takeError();
+  plan.loop.bodySteps.push_back(std::move(*step));
+  return llvm::Error::success();
+}
+
 bool isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   switch (description.operation) {
@@ -25312,6 +25429,8 @@ llvm::StringRef stringifyRVVSelectedBodyMigratedRouteStatementPlanFamily(
     return "widening conversion";
   case RVVSelectedBodyMigratedRouteStatementPlanFamily::StandaloneReduction:
     return "standalone reduction";
+  case RVVSelectedBodyMigratedRouteStatementPlanFamily::PlainMAcc:
+    return "plain MAcc";
   case RVVSelectedBodyMigratedRouteStatementPlanFamily::BaseMemoryMovement:
     return "base memory movement";
   case RVVSelectedBodyMigratedRouteStatementPlanFamily::ComputedMaskMemory:
@@ -25373,6 +25492,8 @@ llvm::Error requireRVVSelectedBodyMigratedRouteStatementPlanIfNeeded(
   else if (isRVVSelectedBodyStandaloneReductionStatementPlanConsumer(
                description))
     familyName = "standalone reduction";
+  else if (isRVVSelectedBodyPlainMAccStatementPlanConsumer(description))
+    familyName = "plain MAcc";
   else if (isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(description))
     familyName = "base memory movement";
   else if (isRVVSelectedBodyComputedMaskMemoryStatementPlanConsumer(description))
@@ -26561,6 +26682,188 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
                description.resultName.str(),
                materializationFacts.resultVectorCType.str()},
            TCRVEmitCCallOpaqueOperand{reductionPlan.reductionStoreVL.str(),
+                                      materializationFacts.vlCType.str()}},
+          description, context))
+    return std::move(error);
+
+  return plan;
+}
+
+llvm::Expected<RVVSelectedBodyPlainMAccRouteStatementPlan>
+getRVVSelectedBodyPlainMAccRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    llvm::StringRef context) {
+  RVVSelectedBodyRouteSlice &slice = analysis.slice;
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  RVVSelectedBodyPlainMAccRouteStatementPlan plan;
+  if (!isRVVSelectedBodyPlainMAccStatementPlanConsumer(description))
+    return plan;
+
+  plan.plansPlainMAccRoute = true;
+  plan.plansMAccAdd = true;
+  plan.bindingPlan = mathOperandBindingFacts.bindingPlan;
+
+  if (!mathOperandBindingFacts.bindsPlainMAcc)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " plain MAcc statement plan requires plain MAcc math "
+        "operand-binding facts before route statement construction");
+
+  const support::RuntimeABIParameter *lhsABI = mathOperandBindingFacts.lhsABI;
+  const support::RuntimeABIParameter *rhsABI = mathOperandBindingFacts.rhsABI;
+  const support::RuntimeABIParameter *accumulatorABI =
+      mathOperandBindingFacts.accumulatorABI;
+  const support::RuntimeABIParameter *outABI = mathOperandBindingFacts.outABI;
+  const support::RuntimeABIParameter *runtimeElementCountABI =
+      mathOperandBindingFacts.runtimeElementCountABI;
+  if (llvm::Error error = requireRVVPlainMAccStatementPlanABI(
+          lhsABI, "lhs", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVPlainMAccStatementPlanABI(
+          rhsABI, "rhs", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVPlainMAccStatementPlanABI(
+          accumulatorABI, "acc", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVPlainMAccStatementPlanABI(
+          outABI, "out", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVPlainMAccStatementPlanABI(
+          runtimeElementCountABI, "n", description, context))
+    return std::move(error);
+
+  if (llvm::Error error = requireRVVPlainMAccStatementPlanLeaf(
+          materializationFacts.setVLLeaf, "setvl callee", description,
+          context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVPlainMAccStatementPlanLeaf(
+          materializationFacts.vectorLoadLeaf, "vector load callee",
+          description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVPlainMAccStatementPlanLeaf(
+          materializationFacts.elementwiseComputeLeaf, "macc callee",
+          description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVPlainMAccStatementPlanLeaf(
+          materializationFacts.storeLeaf, "store callee", description,
+          context))
+    return std::move(error);
+
+  using conversion::emitc::TCRVEmitCCallOpaqueOperand;
+  using conversion::emitc::TCRVEmitCCallOpaqueResult;
+  llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> fullChunkSetVL =
+      makeRVVPlainMAccStatementPlanStep(
+          slice.setvl.getOperation(), "configure",
+          materializationFacts.setVLLeaf,
+          {TCRVEmitCCallOpaqueOperand{runtimeElementCountABI->cName,
+                                      runtimeElementCountABI->cType}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{
+              description.emitCFullChunkVLName.str(),
+              materializationFacts.vlCType.str()});
+  if (!fullChunkSetVL)
+    return fullChunkSetVL.takeError();
+  plan.preLoopSteps.push_back(std::move(*fullChunkSetVL));
+
+  llvm::StringRef inductionName = description.emitCLoopInductionName;
+  llvm::StringRef fullChunkVLName = description.emitCFullChunkVLName;
+  llvm::StringRef loopVLName = description.emitCLoopVLName;
+  plan.loop.inductionVarName = inductionName.str();
+  plan.loop.lowerBound =
+      TCRVEmitCCallOpaqueOperand{"0", materializationFacts.vlCType.str()};
+  plan.loop.upperBound = TCRVEmitCCallOpaqueOperand{
+      runtimeElementCountABI->cName, runtimeElementCountABI->cType};
+  plan.loop.step = TCRVEmitCCallOpaqueOperand{
+      fullChunkVLName.str(), materializationFacts.vlCType.str()};
+
+  if (llvm::Error error = addRVVPlainMAccStatementPlanLoopStep(
+          plan, slice.setvl.getOperation(), "configure",
+          materializationFacts.setVLLeaf,
+          {TCRVEmitCCallOpaqueOperand{
+              tcrv::rvv::getRVVSelectedBodyEmitCRemainingAVLExpression(
+                  runtimeElementCountABI->cName, inductionName),
+              materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{loopVLName.str(),
+                                    materializationFacts.vlCType.str()}))
+    return std::move(error);
+
+  if (llvm::Error error = addRVVPlainMAccStatementPlanLoopStep(
+          plan, slice.lhsLoadOperation, "load",
+          materializationFacts.vectorLoadLeaf,
+          {TCRVEmitCCallOpaqueOperand{
+               (llvm::StringRef(lhsABI->cName) + " + " + inductionName).str(),
+               lhsABI->cType},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                      materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{"lhs_vec",
+                                    materializationFacts.resultVectorCType
+                                        .str()}))
+    return std::move(error);
+
+  if (llvm::Error error = addRVVPlainMAccStatementPlanLoopStep(
+          plan, slice.rhsLoadOperation, "load",
+          materializationFacts.vectorLoadLeaf,
+          {TCRVEmitCCallOpaqueOperand{
+               (llvm::StringRef(rhsABI->cName) + " + " + inductionName).str(),
+               rhsABI->cType},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                      materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{"rhs_vec",
+                                    materializationFacts.resultVectorCType
+                                        .str()}))
+    return std::move(error);
+
+  if (llvm::Error error = addRVVPlainMAccStatementPlanLoopStep(
+          plan, slice.accumulatorLoadOperation, "load",
+          materializationFacts.vectorLoadLeaf,
+          {TCRVEmitCCallOpaqueOperand{
+               (llvm::StringRef(accumulatorABI->cName) + " + " +
+                inductionName)
+                   .str(),
+               accumulatorABI->cType},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                      materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{"acc_vec",
+                                    materializationFacts.resultVectorCType
+                                        .str()}))
+    return std::move(error);
+
+  if (llvm::Error error = addRVVPlainMAccStatementPlanLoopStep(
+          plan, slice.arithmeticOp, "compute",
+          materializationFacts.elementwiseComputeLeaf,
+          {TCRVEmitCCallOpaqueOperand{"acc_vec",
+                                      materializationFacts.resultVectorCType
+                                          .str()},
+           TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                      materializationFacts.resultVectorCType
+                                          .str()},
+           TCRVEmitCCallOpaqueOperand{"rhs_vec",
+                                      materializationFacts.resultVectorCType
+                                          .str()},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                      materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                    materializationFacts.resultVectorCType
+                                        .str()}))
+    return std::move(error);
+
+  if (llvm::Error error = addRVVPlainMAccStatementPlanLoopStep(
+          plan, slice.storeOperation, "store", materializationFacts.storeLeaf,
+          {TCRVEmitCCallOpaqueOperand{
+               (llvm::StringRef(outABI->cName) + " + " + inductionName).str(),
+               outABI->cType},
+           TCRVEmitCCallOpaqueOperand{
+               description.resultName.str(),
+               materializationFacts.resultVectorCType.str()},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                       materializationFacts.vlCType.str()}},
           description, context))
     return std::move(error);
@@ -28488,6 +28791,20 @@ getRVVSelectedBodyMigratedRouteStatementPlan(
                 StandaloneReduction,
             standaloneReductionPlan->preLoopSteps,
             standaloneReductionPlan->loop, description, context))
+      return std::move(error);
+  }
+
+  llvm::Expected<RVVSelectedBodyPlainMAccRouteStatementPlan> plainMAccPlan =
+      getRVVSelectedBodyPlainMAccRouteStatementPlan(
+          analysis, materializationFacts, mathOperandBindingFacts, context);
+  if (!plainMAccPlan)
+    return plainMAccPlan.takeError();
+  if (plainMAccPlan->plansPlainMAccRoute) {
+    if (llvm::Error error = setRVVSelectedBodyMigratedRouteStatementPlan(
+            migratedPlan, RVVSelectedBodyMigratedRouteStatementPlanFamily::
+                              PlainMAcc,
+            plainMAccPlan->preLoopSteps, plainMAccPlan->loop, description,
+            context))
       return std::move(error);
   }
 

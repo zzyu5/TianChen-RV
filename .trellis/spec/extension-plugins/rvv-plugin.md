@@ -1877,14 +1877,142 @@ verified computed-mask accumulation family plan
   -> provider attaches plan into TCRVEmitCLowerableRoute
 ```
 
+## Plain MAcc Statement-Plan Boundary
+
+### 1. Scope / Trigger
+
+For production-active plain `macc_add` selected-body routes,
+`RVVEmitCRouteProvider` must not locally recreate the setvl/load/load/
+accumulator-load/MAcc/store statement sequence from operation names, ABI
+strings, intrinsic mirrors, accumulator-layout mirrors, route ids, or artifact
+metadata after route materialization facts and math operand-binding facts have
+been validated. The RVV planning layer must expose one RVV-owned
+statement-plan boundary for the bounded typed `MAccAdd` route.
+
+The provider remains the owner that instantiates `TCRVEmitCLowerableRoute`,
+adds neutral headers, type mappings, ABI mappings, selected-boundary source
+provenance, and attaches the RVV-owned statement plan. It must not duplicate
+the included plain MAcc sequence in the central provider path.
+
+### 2. Signatures
+
+The durable planning/provider API is:
+
+```c++
+llvm::Expected<RVVSelectedBodyPlainMAccRouteStatementPlan>
+getRVVSelectedBodyPlainMAccRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    llvm::StringRef context);
+```
+
+`RVVEmitCRouteProvider` must call this boundary through
+`getRVVSelectedBodyMigratedRouteStatementPlan(...)` after
+`verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context)`, after
+obtaining route materialization facts, and after obtaining math operand-binding
+facts for the same analysis. Non-consumer route families receive an
+empty/default plain MAcc statement plan.
+
+### 3. Contracts
+
+`RVVSelectedBodyPlainMAccRouteStatementPlan` is RVV-local provider input. It
+may carry:
+
+- the verified math operand-binding plan pointer;
+- sub-family booleans for plain MAcc and `macc_add`;
+- provider-ready full-chunk `setvl` pre-loop steps;
+- one provider-ready `TCRVEmitCForLoop` with loop `setvl`, lhs load, rhs load,
+  accumulator load, active MAcc compute, and store steps.
+
+For the bounded i32/SEW32/LMUL m1 unit-stride route, the emitted MAcc step must
+use the RVV-owned compute leaf as `accumulator_vector, lhs_vector, rhs_vector,
+loop_vl`, and the store destination must advance by the loop induction
+(`out + induction`). The plan must be derived only from verified typed
+body/config/runtime facts, route materialization facts, and RVV-owned math
+operand-binding facts. It is not a common EmitC fact, not artifact metadata,
+not an acceptance/status mirror, and not a route-support declaration by itself.
+
+### 4. Validation & Error Matrix
+
+- A non plain-MAcc route requests the boundary -> return an empty plan without
+  changing unrelated route-family behavior.
+- An included plain MAcc route lacks `bindsPlainMAcc` math operand-binding
+  facts -> fail closed before route statement construction.
+- Required ABI roles `lhs`, `rhs`, `acc`, `out`, or runtime count `n` are
+  absent -> fail closed with the logical operand name and operation/memory-form
+  context.
+- Required materialization leaves `setvl`, vector load, MAcc compute, or store
+  are absent -> fail closed before common EmitC.
+- Required source operation provenance for configure/load/compute/store steps
+  is absent or reports the wrong EmitC source role -> fail closed before common
+  EmitC.
+- Accumulator/result layout, dtype, SEW, LMUL, policy, or runtime AVL facts
+  must already be validated from the typed body/config/runtime structure; the
+  statement plan must not repair those facts from route ids, artifact names,
+  ABI names, helper names, or harness constants.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed `tcrv_rvv.macc` body -> route-family provider verifier ->
+  materialization facts -> math operand-binding facts -> RVV-owned plain MAcc
+  statement plan -> provider-built route.
+- Base: computed-mask MAcc, widening MAcc, dot-reduction, memory, compare/
+  select, residual runtime scalar splat-store, and future families keep their
+  own statement construction surfaces and receive an empty plain MAcc plan.
+- Bad: central provider code branches on `MAccAdd` to rebuild
+  setvl/lhs-load/rhs-load/acc-load/MAcc/store after the statement-plan boundary
+  exists.
+- Bad: the store statement uses bare `out` instead of `out + induction` for a
+  vector result path.
+
+### 6. Tests Required
+
+- Focused C++ tests for positive plain MAcc statement-plan construction and
+  provider consumption.
+- Focused C++ fail-closed diagnostics for missing math facts, MAcc compute
+  leaf, vector load leaf, or source-role provenance before route statement
+  construction.
+- C++ default/empty-plan coverage for unrelated route families.
+- Representative lit/FileCheck coverage proving existing explicit and
+  pre-realized MAcc selected-body artifacts still pass.
+- Generated-bundle ABI evidence showing typed `tcrv_rvv.macc` body/config,
+  math operand-binding facts, RVV-owned plain MAcc statement plan, emitted
+  `vmacc` operands, and mirror-only artifact metadata.
+- Bounded authority scan over touched RVV dialect/realization/planning/
+  provider/target/script/fixture files for legacy i32/source-front-door/
+  descriptor/direct-C/source-export or mirror-only authority drift.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider body:
+  if operation is macc_add,
+  locally assemble setvl/load/load/acc-load/MAcc/store from operation names,
+  ABI strings, route ids, intrinsic mirrors, and accumulator mirrors
+```
+
+Correct:
+
+```text
+verified route-family provider plans
+  -> RVVSelectedBodyRouteMaterializationFacts
+  -> RVV-owned math operand-binding facts
+  -> RVVSelectedBodyPlainMAccRouteStatementPlan
+  -> provider attaches plan into TCRVEmitCLowerableRoute
+```
+
 ## Migrated Statement-Plan Provider Consumption Boundary
 
 ### 1. Scope / Trigger
 
-After elementwise arithmetic, compare/select, base memory, computed-mask
-memory, segment2 memory, and computed-mask accumulation have their own
-RVV-owned statement plans, the selected-body RVV provider must consume those
-migrated families through one shared provider-neutral boundary.
+After elementwise arithmetic, compare/select, widening conversion, standalone
+reduction, plain MAcc, base memory, computed-mask memory, segment2 memory, and
+computed-mask accumulation have their own RVV-owned statement plans, the
+selected-body RVV provider must consume those migrated families through one
+shared provider-neutral boundary.
 
 `RVVEmitCRouteProvider` remains the owner that instantiates
 `TCRVEmitCLowerableRoute`, records neutral headers/type mappings/ABI mappings,
@@ -1953,9 +2081,10 @@ an acceptance/status mirror, and not a route-support declaration by itself.
 - Good: verified route-family plans -> materialization facts -> RVV-owned
   operand-binding facts -> `RVVSelectedBodyMigratedRouteStatementPlan` ->
   provider attaches returned statements into `TCRVEmitCLowerableRoute`.
-- Base: standalone reductions, plain MAcc, widening/conversion/dot routes, and
-  residual runtime scalar splat-store remain outside this migrated aggregate
-  until their statement plans become migrated owners.
+- Base: widening MAcc, dot-reduction routes, computed-mask standalone reduction
+  variants, residual runtime scalar splat-store, and future families remain
+  outside this migrated aggregate until their statement plans become migrated
+  owners.
 - Bad: provider body manually calls each migrated family statement-plan getter
   and carries family-specific fallback diagnostics.
 - Bad: provider body branches on migrated operation names to rebuild

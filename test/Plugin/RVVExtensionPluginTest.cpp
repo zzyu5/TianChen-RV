@@ -7451,6 +7451,235 @@ module {
                 "reduction statement plan");
 }
 
+int runPlainMAccStatementPlanBoundaryTest(mlir::MLIRContext &context) {
+  using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMigratedRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyPlainMAccRouteStatementPlan;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMigratedRouteStatementPlanFamily;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyResidualRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyRouteFamilyProviderPlans;
+
+  constexpr llvm::StringLiteral source = R"mlir(
+module {
+  tcrv.exec.kernel @stmt_macc_add_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_macc_add attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_macc_add, sew = 32 : i64, source_kernel = "stmt_macc_add_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %acc_vec = tcrv_rvv.load %acc, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %sum = tcrv_rvv.macc %lhs_vec, %rhs_vec, %acc_vec, %vl {accumulator_layout = "separate-i32-vector-accumulator-input", kind = "add", result_layout = "store-multiply-accumulate-result-to-output-buffer"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> module = parseModule(context, source);
+  if (!module)
+    return fail("failed to parse plain MAcc statement-plan module");
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis> analysis =
+      analyzeRouteInModule(*module, "stmt_macc_add_kernel", "rvv_macc_add");
+  if (!analysis)
+    return fail("analyze plain MAcc statement-plan route: " +
+                llvm::toString(analysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(
+              *analysis, "plain MAcc statement plan provider unit test"),
+          "verify route-family plans before plain MAcc statement-plan "
+          "construction"))
+    return result;
+
+  auto materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+      *analysis, "plain MAcc statement plan provider unit test");
+  if (!materializationFacts)
+    return fail("plain MAcc statement-plan materialization facts: " +
+                llvm::toString(materializationFacts.takeError()));
+  auto mathFacts = getRVVSelectedBodyMathRouteOperandBindingFacts(
+      *analysis, "plain MAcc statement plan provider unit test");
+  if (!mathFacts)
+    return fail("plain MAcc statement-plan math facts: " +
+                llvm::toString(mathFacts.takeError()));
+
+  auto statementPlan = getRVVSelectedBodyPlainMAccRouteStatementPlan(
+      *analysis, *materializationFacts, *mathFacts,
+      "plain MAcc statement plan provider unit test");
+  if (!statementPlan)
+    return fail("plain MAcc statement-plan construction: " +
+                llvm::toString(statementPlan.takeError()));
+  if (int result = expect(
+          statementPlan->plansPlainMAccRoute &&
+              statementPlan->plansMAccAdd &&
+              statementPlan->bindingPlan == mathFacts->bindingPlan,
+          "statement plan exposes the expected macc_add sub-family and math "
+          "operand-binding plan"))
+    return result;
+
+  const char *expectedPreLoopCallees[] = {"__riscv_vsetvl_e32m1"};
+  if (int result = expect(
+          statementPlan->preLoopSteps.size() ==
+              std::size(expectedPreLoopCallees),
+          "plain MAcc statement plan owns the expected pre-loop step count"))
+    return result;
+  const char *expectedBodyCallees[] = {
+      "__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+      "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
+      "__riscv_vmacc_vv_i32m1", "__riscv_vse32_v_i32m1"};
+  if (int result = expect(
+          statementPlan->loop.bodySteps.size() ==
+              std::size(expectedBodyCallees),
+          "plain MAcc statement plan owns the expected loop step count"))
+    return result;
+  for (std::size_t index = 0; index < std::size(expectedBodyCallees);
+       ++index) {
+    if (int result =
+            expect(statementPlan->loop.bodySteps[index].callee ==
+                       expectedBodyCallees[index],
+                   llvm::Twine("plain MAcc statement plan loop step ") +
+                       llvm::Twine(index) + " uses RVV-owned callee '" +
+                       expectedBodyCallees[index] + "'"))
+      return result;
+  }
+  if (int result = expect(
+          statementPlan->loop.bodySteps[5].operands.size() >= 1 &&
+              llvm::StringRef(statementPlan->loop.bodySteps[5]
+                                  .operands[0]
+                                  .expression)
+                  .starts_with("out + "),
+          "plain MAcc statement plan advances the output pointer by the loop "
+          "induction"))
+    return result;
+
+  RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+      emptyElementwiseFacts;
+  RVVSelectedBodyMemoryRouteOperandBindingFacts emptyMemoryFacts;
+  RVVSelectedBodyResidualRouteOperandBindingFacts emptyResidualFacts;
+  auto migratedStatementPlan = getRVVSelectedBodyMigratedRouteStatementPlan(
+      *analysis, *materializationFacts, emptyElementwiseFacts, emptyMemoryFacts,
+      *mathFacts, emptyResidualFacts,
+      "migrated plain MAcc statement-plan unit test");
+  if (!migratedStatementPlan)
+    return fail("migrated plain MAcc statement-plan construction: " +
+                llvm::toString(migratedStatementPlan.takeError()));
+  if (int result = expect(
+          migratedStatementPlan->plansMigratedRoute &&
+              migratedStatementPlan->family ==
+                  RVVSelectedBodyMigratedRouteStatementPlanFamily::PlainMAcc &&
+              migratedStatementPlan->preLoopSteps.size() ==
+                  std::size(expectedPreLoopCallees) &&
+              migratedStatementPlan->loop.bodySteps.size() ==
+                  std::size(expectedBodyCallees),
+          "migrated statement-plan boundary exposes plain MAcc as one "
+          "provider-neutral plan"))
+    return result;
+
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for plain MAcc statement plan test"))
+    return result;
+  KernelOp kernel = findKernel(*module, "stmt_macc_add_kernel");
+  VariantOp variant = findVariant(kernel, "rvv_macc_add");
+  TCRVEmitCLowerableRoute route;
+  if (int result = expectSuccess(
+          registry.buildVariantEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(
+                  variant, kernel, TargetCapabilitySet::buildFromKernel(kernel),
+                  VariantEmissionRole::DirectVariant),
+              route),
+          "provider consumes plain MAcc statement plan"))
+    return result;
+  if (int result = expect(
+          route.getCallOpaqueSteps().size() ==
+              std::size(expectedPreLoopCallees) &&
+              route.getForLoops().size() == 1 &&
+              route.getForLoops().front().bodySteps.size() ==
+                  std::size(expectedBodyCallees),
+          "provider route attaches the RVV-owned plain MAcc statement-plan "
+          "steps"))
+    return result;
+  for (std::size_t index = 0; index < std::size(expectedBodyCallees);
+       ++index) {
+    if (int result =
+            expect(route.getForLoops().front().bodySteps[index].callee ==
+                       expectedBodyCallees[index],
+                   llvm::Twine("provider route plain MAcc loop step ") +
+                       llvm::Twine(index) + " uses RVV-owned callee '" +
+                       expectedBodyCallees[index] + "'"))
+      return result;
+  }
+
+  RVVSelectedBodyMathRouteOperandBindingFacts emptyMathFacts;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyPlainMAccRouteStatementPlan(
+              *analysis, *materializationFacts, emptyMathFacts,
+              "plain MAcc statement plan stale dependency unit test")
+              .takeError(),
+          {"plain MAcc statement plan requires plain MAcc math "
+           "operand-binding facts",
+           "before route statement construction"}))
+    return result;
+
+  auto staleMaterializationFacts = *materializationFacts;
+  staleMaterializationFacts.elementwiseComputeLeaf = "";
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyPlainMAccRouteStatementPlan(
+              *analysis, staleMaterializationFacts, *mathFacts,
+              "plain MAcc statement plan stale dependency unit test")
+              .takeError(),
+          {"plain MAcc statement plan requires macc callee",
+           "before route statement construction"}))
+    return result;
+
+  staleMaterializationFacts = *materializationFacts;
+  staleMaterializationFacts.vectorLoadLeaf = "";
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyPlainMAccRouteStatementPlan(
+              *analysis, staleMaterializationFacts, *mathFacts,
+              "plain MAcc statement plan stale dependency unit test")
+              .takeError(),
+          {"plain MAcc statement plan requires vector load callee",
+           "before route statement construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis unrelated;
+  unrelated.description.operation = RVVSelectedBodyOperationKind::Add;
+  auto emptyPlan = getRVVSelectedBodyPlainMAccRouteStatementPlan(
+      unrelated, {}, {}, "plain MAcc statement plan empty unit test");
+  if (!emptyPlan)
+    return fail("unrelated plain MAcc statement-plan empty result: " +
+                llvm::toString(emptyPlan.takeError()));
+  return expect(!emptyPlan->plansPlainMAccRoute &&
+                    emptyPlan->preLoopSteps.empty() &&
+                    emptyPlan->loop.bodySteps.empty(),
+                "unrelated route families receive an empty plain MAcc "
+                "statement plan");
+}
+
 int runMaskedAddSelectedBodyPolicyRouteTest(mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral source = R"mlir(
 module {
@@ -11249,6 +11478,8 @@ int main() {
     return result;
   if (int result =
           runStandaloneReductionStatementPlanBoundaryTest(context))
+    return result;
+  if (int result = runPlainMAccStatementPlanBoundaryTest(context))
     return result;
   if (int result = runMaskedAddSelectedBodyPolicyRouteTest(context))
     return result;

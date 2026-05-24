@@ -1380,6 +1380,14 @@ class OpExpectation:
         return f"__riscv_{op_leaf}_vv_{self.element_type}{self.lmul}"
 
     @property
+    def macc_compute_intrinsic(self) -> str:
+        if not self.is_macc_add:
+            raise EvidenceError(
+                f"{self.kind} has no plain multiply-accumulate intrinsic expectation"
+            )
+        return f"__riscv_vmacc_vv_{self.element_type}{self.lmul}"
+
+    @property
     def prototype(self) -> str:
         if self.is_strided_add:
             return (
@@ -4754,6 +4762,22 @@ REDUCTION_ACCUMULATION_METADATA_KEYS = (
     "tcrv_rvv.reduction_store_vl",
     "tcrv_rvv.runtime_abi_order",
 )
+MULTIPLY_ACCUMULATE_METADATA_KEYS = (
+    "tcrv_rvv.config_contract",
+    "tcrv_rvv.element_type",
+    "tcrv_rvv.sew",
+    "tcrv_rvv.lmul",
+    "tcrv_rvv.tail_policy",
+    "tcrv_rvv.mask_policy",
+    "tcrv_rvv.memory_form",
+    "tcrv_rvv.runtime_vl_contract",
+    "tcrv_rvv.runtime_avl_source",
+    "tcrv_rvv.route_operand_binding_plan",
+    "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.macc_accumulator_layout",
+    "tcrv_rvv.macc_result_layout",
+    "tcrv_rvv.runtime_abi_order",
+)
 FORBIDDEN_PUBLIC_RESIDUE_TOKENS = (
     "BinarySelfCheck",
     "binary self-check",
@@ -6834,6 +6858,7 @@ def verify_emitted_rvv_cpp(
     compare_select_predicate_boundary: dict[str, Any] = {}
     conversion_sew_policy_boundary: dict[str, Any] = {}
     reduction_accumulation_boundary: dict[str, Any] = {}
+    multiply_accumulate_boundary: dict[str, Any] = {}
     if expectation.is_plain_elementwise_arithmetic:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -6939,6 +6964,31 @@ def verify_emitted_rvv_cpp(
         runtime_avl_vl_boundary = reduction_accumulation_boundary[
             "runtime_avl_vl_control"
         ]
+    if expectation.is_macc_add:
+        vector_c_type = expectation.rvv_vector_c_type
+        intrinsics = [
+            expectation.setvl_intrinsic,
+            expectation.unit_load_intrinsic,
+            expectation.macc_compute_intrinsic,
+            expectation.unit_store_intrinsic,
+        ]
+        require_contains(
+            text,
+            vector_c_type,
+            "emitted RVV C/C++ multiply-accumulate vector C type",
+        )
+        for intrinsic in intrinsics:
+            require_contains(
+                text,
+                intrinsic,
+                "emitted RVV C/C++ multiply-accumulate intrinsic spelling",
+            )
+        multiply_accumulate_boundary = extract_plain_macc_emitc_boundary(
+            text, expectation
+        )
+        runtime_avl_vl_boundary = multiply_accumulate_boundary[
+            "runtime_avl_vl_control"
+        ]
     if expectation.is_masked_unit_store:
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
@@ -6982,6 +7032,7 @@ def verify_emitted_rvv_cpp(
         "compare_select_predicate_boundary": compare_select_predicate_boundary,
         "conversion_sew_policy_boundary": conversion_sew_policy_boundary,
         "reduction_accumulation_boundary": reduction_accumulation_boundary,
+        "multiply_accumulate_boundary": multiply_accumulate_boundary,
     }
 
 
@@ -7216,6 +7267,141 @@ def extract_standalone_reduction_emitc_boundary(
         "reduction_uses_loaded_source": True,
         "reduction_uses_loop_vl": True,
         "store_uses_reduction_result": True,
+    }
+
+
+def extract_plain_macc_emitc_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    code = re.sub(r"^[ \t]*//[^\n]*(?:\n|$)", "", text, flags=re.MULTILINE)
+    element_c_type = re.escape(expectation.element_c_type)
+    vector_c_type = re.escape(expectation.rvv_vector_c_type)
+    signature = require_regex(
+        code,
+        rf"extern \"C\" void {re.escape(expectation.function_name)}"
+        rf"\(const {element_c_type}\s*\*\s*(?P<lhs>v[0-9]+), "
+        rf"const {element_c_type}\s*\*\s*(?P<rhs>v[0-9]+), "
+        rf"const {element_c_type}\s*\*\s*(?P<acc>v[0-9]+), "
+        rf"{element_c_type}\s*\*\s*(?P<out>v[0-9]+), "
+        r"size_t (?P<runtime_n>v[0-9]+)\) \{",
+        "emitted RVV C/C++ macc_add ABI parameters",
+    )
+    lhs = signature.group("lhs")
+    rhs = signature.group("rhs")
+    acc = signature.group("acc")
+    out = signature.group("out")
+    runtime_n = signature.group("runtime_n")
+    setvl_intrinsic = re.escape(expectation.setvl_intrinsic)
+    full_chunk = require_regex(
+        code,
+        rf"size_t (?P<full_chunk_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\({runtime_n}\);",
+        "emitted RVV C/C++ macc_add full-chunk setvl",
+    )
+    full_chunk_vl = full_chunk.group("full_chunk_vl")
+    loop = require_regex(
+        code,
+        rf"for \(size_t (?P<offset>v[0-9]+) = 0; "
+        rf"(?P=offset) < {runtime_n}; "
+        rf"(?P=offset) \+= {full_chunk_vl}\) \{{",
+        "emitted RVV C/C++ macc_add runtime loop",
+    )
+    offset = loop.group("offset")
+    remaining = require_regex(
+        code,
+        rf"size_t (?P<remaining_avl>v[0-9]+) = {runtime_n} - {offset};\s*"
+        rf"size_t (?P<loop_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\((?P=remaining_avl)\);",
+        "emitted RVV C/C++ macc_add remaining AVL setvl",
+    )
+    remaining_avl = remaining.group("remaining_avl")
+    loop_vl = remaining.group("loop_vl")
+    lhs_load = require_regex(
+        code,
+        rf"const {element_c_type}\* (?P<lhs_ptr>v[0-9]+) = "
+        rf"{lhs} \+ {offset};\s*"
+        rf"{vector_c_type} (?P<lhs_vec>v[0-9]+) = "
+        rf"{re.escape(expectation.unit_load_intrinsic)}"
+        rf"\((?P=lhs_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ macc_add lhs load",
+    )
+    lhs_vec = lhs_load.group("lhs_vec")
+    rhs_load = require_regex(
+        code,
+        rf"const {element_c_type}\* (?P<rhs_ptr>v[0-9]+) = "
+        rf"{rhs} \+ {offset};\s*"
+        rf"{vector_c_type} (?P<rhs_vec>v[0-9]+) = "
+        rf"{re.escape(expectation.unit_load_intrinsic)}"
+        rf"\((?P=rhs_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ macc_add rhs load",
+    )
+    rhs_vec = rhs_load.group("rhs_vec")
+    accumulator_load = require_regex(
+        code,
+        rf"const {element_c_type}\* (?P<acc_ptr>v[0-9]+) = "
+        rf"{acc} \+ {offset};\s*"
+        rf"{vector_c_type} (?P<acc_vec>v[0-9]+) = "
+        rf"{re.escape(expectation.unit_load_intrinsic)}"
+        rf"\((?P=acc_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ macc_add accumulator load",
+    )
+    acc_vec = accumulator_load.group("acc_vec")
+    macc = require_regex(
+        code,
+        rf"{vector_c_type} (?P<result_vec>v[0-9]+) = "
+        rf"{re.escape(expectation.macc_compute_intrinsic)}"
+        rf"\({acc_vec}, {lhs_vec}, {rhs_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ macc_add multiply-accumulate intrinsic",
+    )
+    result_vec = macc.group("result_vec")
+    store = require_regex(
+        code,
+        rf"{element_c_type}\* (?P<out_ptr>v[0-9]+) = "
+        rf"{out} \+ {offset};\s*"
+        rf"{re.escape(expectation.unit_store_intrinsic)}"
+        rf"\((?P=out_ptr), {result_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ macc_add result store",
+    )
+    return {
+        "runtime_avl_vl_control": {
+            "runtime_abi_parameter": runtime_n,
+            "full_chunk_vl": full_chunk_vl,
+            "offset_induction": offset,
+            "remaining_avl": remaining_avl,
+            "loop_vl": loop_vl,
+            "setvl_intrinsic": expectation.setvl_intrinsic,
+            "full_chunk_setvl": f"{expectation.setvl_intrinsic}({runtime_n})",
+            "loop_remaining_avl": f"{runtime_n} - {offset}",
+            "loop_setvl": f"{expectation.setvl_intrinsic}({remaining_avl})",
+            "uses_runtime_remaining_avl": True,
+            "uses_loop_vl_for_intrinsics": True,
+        },
+        "lhs_abi_parameter": lhs,
+        "rhs_abi_parameter": rhs,
+        "accumulator_abi_parameter": acc,
+        "out_abi_parameter": out,
+        "lhs_pointer": lhs_load.group("lhs_ptr"),
+        "rhs_pointer": rhs_load.group("rhs_ptr"),
+        "accumulator_pointer": accumulator_load.group("acc_ptr"),
+        "out_pointer": store.group("out_ptr"),
+        "lhs_vector": lhs_vec,
+        "rhs_vector": rhs_vec,
+        "accumulator_vector": acc_vec,
+        "result_vector": result_vec,
+        "vector_c_type": expectation.rvv_vector_c_type,
+        "macc_kind": "add",
+        "accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
+        "result_layout": MACC_ADD_RESULT_LAYOUT,
+        "setvl_intrinsic": expectation.setvl_intrinsic,
+        "load_intrinsic": expectation.unit_load_intrinsic,
+        "macc_intrinsic": expectation.macc_compute_intrinsic,
+        "store_intrinsic": expectation.unit_store_intrinsic,
+        "macc_operand_order": "acc,lhs,rhs,vl",
+        "macc_uses_loaded_accumulator": True,
+        "macc_uses_loaded_lhs_rhs": True,
+        "macc_uses_loop_vl": True,
+        "store_uses_macc_result": True,
+        "store_advances_by_loop_induction": True,
     }
 
 
@@ -7668,6 +7854,7 @@ def verify_materialized_selected_body(
             extract_widening_conversion_materialized_boundary(text, expectation)
         )
     reduction_accumulation_boundary: dict[str, Any] = {}
+    multiply_accumulate_boundary: dict[str, Any] = {}
     if expectation.is_widen_i32_to_i64:
         require_contains(
             text,
@@ -9343,6 +9530,35 @@ def verify_materialized_selected_body(
             'result_layout = "store-multiply-accumulate-result-to-output-buffer"',
             "materialized selected-body MLIR macc result layout",
         )
+        require_contains(
+            text,
+            'kind = "add"',
+            "materialized selected-body MLIR macc kind",
+        )
+        require_contains(
+            text,
+            expectation.rvv_vector_type,
+            "materialized selected-body MLIR macc vector type",
+        )
+        multiply_accumulate_boundary = {
+            "typed_compute_op": "tcrv_rvv.macc",
+            "macc_kind": "add",
+            "source_vector_type": expectation.rvv_vector_type,
+            "lhs_element_type": expectation.element_type,
+            "rhs_element_type": expectation.element_type,
+            "accumulator_element_type": expectation.element_type,
+            "result_element_type": expectation.element_type,
+            "accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
+            "result_layout": MACC_ADD_RESULT_LAYOUT,
+            "selected_source_abi": {
+                "lhs": "lhs-input-buffer",
+                "rhs": "rhs-input-buffer",
+                "acc": "accumulator-input-buffer",
+                "out": "output-buffer",
+                "n": "runtime-element-count",
+            },
+            "runtime_avl_vl_control": runtime_avl_vl_boundary,
+        }
     if expectation.is_computed_masked_macc_add:
         require_contains(
             text,
@@ -9655,6 +9871,7 @@ def verify_materialized_selected_body(
         "compare_select_predicate_boundary": compare_select_predicate_boundary,
         "conversion_sew_policy_boundary": conversion_sew_policy_boundary,
         "reduction_accumulation_boundary": reduction_accumulation_boundary,
+        "multiply_accumulate_boundary": multiply_accumulate_boundary,
     }
 
 
@@ -15160,6 +15377,36 @@ def reduction_accumulation_metadata_from_bundle(
     return metadata
 
 
+def multiply_accumulate_metadata_from_bundle(
+    bundle_checks: dict[str, Any], expectation: OpExpectation
+) -> dict[str, str]:
+    records = bundle_checks["index"]["parsed"]["records"]
+    if len(records) != 2:
+        raise EvidenceError(
+            "multiply-accumulate evidence requires object and header records"
+        )
+    object_metadata = metadata_map(records[0])
+    header_metadata = metadata_map(records[1])
+    metadata: dict[str, str] = {}
+    expected_metadata = expected_metadata_for(expectation)
+    for key in MULTIPLY_ACCUMULATE_METADATA_KEYS:
+        expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        require_equal(
+            object_metadata.get(key),
+            expected,
+            f"{expectation.kind} object multiply-accumulate metadata {key}",
+        )
+        require_equal(
+            header_metadata.get(key),
+            expected,
+            f"{expectation.kind} header multiply-accumulate metadata {key}",
+        )
+        metadata[key] = expected
+    return metadata
+
+
 def runtime_avl_vl_boundary_summary(
     *,
     expectation: OpExpectation,
@@ -15412,6 +15659,87 @@ def reduction_accumulation_boundary_summary(
     }
 
 
+def multiply_accumulate_boundary_summary(
+    *,
+    expectation: OpExpectation,
+    materialized_checks: dict[str, Any],
+    emitted_cpp_checks: dict[str, Any],
+    bundle_checks: dict[str, Any],
+    runtime_counts: list[int],
+) -> dict[str, Any]:
+    if not expectation.is_macc_add:
+        return {}
+    return {
+        "source": (
+            "typed tcrv_rvv.macc body/config -> math operand-binding facts -> "
+            "RVV-owned plain MAcc statement plan -> emitted vmacc operands"
+        ),
+        "authority": (
+            "provider-derived typed tcrv_rvv multiply-accumulate "
+            "body/config/runtime facts"
+        ),
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "macc_kind": "add",
+        "source_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "sew": expectation.sew,
+            "lmul": expectation.lmul,
+            "vector_type": expectation.rvv_vector_type,
+            "vector_c_type": expectation.rvv_vector_c_type,
+        },
+        "accumulator_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "layout": MACC_ADD_ACCUMULATOR_LAYOUT,
+            "abi_role": "accumulator-input-buffer",
+        },
+        "result_type_policy": {
+            "element_type": expectation.element_type,
+            "element_c_type": expectation.element_c_type,
+            "layout": MACC_ADD_RESULT_LAYOUT,
+            "abi_role": "output-buffer",
+        },
+        "selected_source_abi": {
+            "lhs": "lhs-input-buffer",
+            "rhs": "rhs-input-buffer",
+            "acc": "accumulator-input-buffer",
+            "out": "output-buffer",
+            "n": "runtime-element-count",
+        },
+        "statement_plan": {
+            "family": "plain MAcc",
+            "pre_loop_callees": [expectation.setvl_intrinsic],
+            "loop_callees": [
+                expectation.setvl_intrinsic,
+                expectation.unit_load_intrinsic,
+                expectation.unit_load_intrinsic,
+                expectation.unit_load_intrinsic,
+                expectation.macc_compute_intrinsic,
+                expectation.unit_store_intrinsic,
+            ],
+            "macc_operand_order": "acc,lhs,rhs,vl",
+            "store_pointer": "out + loop_induction",
+        },
+        "materialized_body": materialized_checks.get(
+            "multiply_accumulate_boundary", {}
+        ),
+        "emitted_cpp": emitted_cpp_checks.get(
+            "multiply_accumulate_boundary", {}
+        ),
+        "route_metadata": multiply_accumulate_metadata_from_bundle(
+            bundle_checks, expectation
+        ),
+        "artifact_abi": {
+            "prototype": bundle_checks["header"]["prototype"],
+            "runtime_abi_order": expectation.runtime_abi_order,
+        },
+        "empty_count_behavior": "runtime loop skipped; output tail sentinel preserved",
+        "runtime_counts": runtime_counts,
+        "runtime_counts_are_execution_cases_not_macc_authority": True,
+    }
+
+
 def run_one_op_e2e(
     *,
     args: argparse.Namespace,
@@ -15561,6 +15889,18 @@ def run_one_op_e2e(
         if expectation.is_standalone_reduce_add:
             evidence["reduction_accumulation_boundary"] = (
                 reduction_accumulation_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks=evidence[
+                        "materialized_selected_body_checks"
+                    ],
+                    emitted_cpp_checks=evidence["emitted_rvv_cpp_checks"],
+                    bundle_checks=bundle_checks,
+                    runtime_counts=runtime_counts,
+                )
+            )
+        if expectation.is_macc_add:
+            evidence["multiply_accumulate_boundary"] = (
+                multiply_accumulate_boundary_summary(
                     expectation=expectation,
                     materialized_checks=evidence[
                         "materialized_selected_body_checks"
@@ -16019,6 +16359,9 @@ def root_op_result_summary(
         ),
         "reduction_accumulation_boundary": result.get(
             "reduction_accumulation_boundary", {}
+        ),
+        "multiply_accumulate_boundary": result.get(
+            "multiply_accumulate_boundary", {}
         ),
         "typed_config_artifact_closure": result.get(
             "typed_config_artifact_closure", {}
