@@ -3,6 +3,7 @@
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-i64-add --overwrite --op-kind i64_add --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-i64-add/evidence.json
 # RUN: FileCheck %s --check-prefix=I64 --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-i64-add/i64_add/evidence.json
+# RUN: FileCheck %s --check-prefix=CPP --implicit-check-not="__riscv_vadd_vv_i32m1" --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-i64-add/i64_add/materialized_rvv_emitc.cpp
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-i64-add/i64_add/rvv_generated_bundle_abi_i64_add_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -33,15 +34,41 @@
 # I64-DAG: "value": "tcrv_rvv.binary"
 # I64-DAG: "key": "tcrv_rvv.config_contract"
 # I64-DAG: "value": "rvv-selected-body-sew64-lmul-m1-tail-agnostic-mask-agnostic.v1"
+# I64-DAG: "key": "tcrv_rvv.element_type"
+# I64-DAG: "value": "i64"
 # I64-DAG: "key": "tcrv_rvv.sew"
 # I64-DAG: "value": "64"
+# I64-DAG: "key": "tcrv_rvv.lmul"
+# I64-DAG: "value": "m1"
 # I64-DAG: "key": "tcrv_rvv.memory_form"
 # I64-DAG: "value": "vector-rhs-load"
+# I64-DAG: "key": "tcrv_rvv.elementwise_arithmetic_route_family_plan"
+# I64-DAG: "value": "rvv-elementwise-arithmetic-route-family-plan.v1"
+# I64-DAG: "key": "tcrv_rvv.required_header_declarations"
+# I64-DAG: "value": "stddef.h,stdint.h,riscv_vector.h"
+# I64-DAG: "key": "tcrv_rvv.c_type_mapping"
+# I64-DAG: "value": "vl:size_t,lhs:typed-vector,rhs:typed-vector,result:typed-vector"
 # I64-DAG: "key": "tcrv_rvv.runtime_abi_order"
 # I64-DAG: "value": "lhs,rhs,out,n"
+# I64-DAG: "emitted_rvv_cpp_checks"
+# I64-DAG: "vector_c_type": "vint64m1_t"
+# I64-DAG: "__riscv_vsetvl_e64m1"
+# I64-DAG: "__riscv_vle64_v_i64m1"
+# I64-DAG: "__riscv_vadd_vv_i64m1"
+# I64-DAG: "__riscv_vse64_v_i64m1"
+# I64-DAG: "typed_config_artifact_closure"
+# I64-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
 # I64-DAG: "typed_compute_op": "tcrv_rvv.binary"
 # I64-DAG: "memory_form": "vector-rhs-load"
 # I64-DAG: "status": "dry_run_success"
+
+# CPP: #include <riscv_vector.h>
+# CPP: extern "C" void tcrv_emitc_pre_realized_body_i64_add_kernel_pre_realized_body_rvv_i64_add
+# CPP: __riscv_vsetvl_e64m1
+# CPP: vint64m1_t
+# CPP: __riscv_vle64_v_i64m1
+# CPP: __riscv_vadd_vv_i64m1
+# CPP: __riscv_vse64_v_i64m1
 
 # HARNESS: int64_t *lhs = (int64_t *)malloc(sizeof(int64_t) * alloc_n);
 # HARNESS: int64_t *rhs = (int64_t *)malloc(sizeof(int64_t) * alloc_n);

@@ -1508,3 +1508,65 @@ Closed RVV provider/emission consumption of typed config route facts for existin
 ### Next Steps
 
 - None - task complete
+
+
+## Session 199: Stage2 RVV typed config artifact executable closure
+
+**Date**: 2026-05-25
+**Task**: Stage2 RVV typed config artifact executable closure
+**Branch**: `main`
+
+### Summary
+
+Closed pre-realized i64_add generated-bundle typed-config artifact evidence through emitted RVV C++ source checks and real ssh rvv compile/run correctness. Commit is created after this journal entry.
+
+### Main Changes
+
+- Tightened `scripts/rvv_generated_bundle_abi_e2e.py` so generated-bundle
+  evidence exports the materialized RVV EmitC C++ source and checks
+  provider-derived typed `i64_add` facts through `vint64m1_t`,
+  `__riscv_vsetvl_e64m1`, `__riscv_vle64_v_i64m1`,
+  `__riscv_vadd_vv_i64m1`, and `__riscv_vse64_v_i64m1`.
+- Added explicit bundle/header metadata checks for `tcrv_rvv.element_type`,
+  SEW, LMUL, policy, required header declarations, C type mapping, and plain
+  non-RHS-broadcast elementwise family mirrors.
+- Added `typed_config_artifact_closure` evidence and a self-test stale
+  element-type metadata rejection for pre-realized `i64_add`.
+- Updated the focused pre-realized `i64_add` generated-bundle lit test to check
+  the emitted RVV C++ source and typed artifact closure evidence.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] task context validation for archived task.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] focused dry-runs for pre-realized `i64_add`, explicit `add`,
+  pre-realized `lmul_m2_add`, pre-realized `cmp_select`, RHS-broadcast `add`,
+  and LMUL m2 selected-body `add`.
+- [OK] focused lit filter from `build/test` for pre-realized `i64_add`,
+  RHS-broadcast, LMUL m2, and self-test scripts, 4/4 passed.
+- [OK] real `ssh rvv` generated-bundle run for pre-realized `i64_add`,
+  counts `7,16,23`; remote compile used `riscv64` and Ubuntu clang 18.1.3;
+  harness output ended with `PASS op=i64_add counts=7,16,23`.
+- [OK] first `check-tianchenrv` attempt caught an overbroad plain-elementwise
+  expectation on RHS-broadcast `add`; the check was narrowed and focused
+  regression tests passed.
+- [OK] bounded authority scan over touched task/script/test files showed only
+  PRD non-goals, negative FileCheck clauses, and existing negative/self-test
+  residue checks.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target check-tianchenrv -j2`, 365/365 passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

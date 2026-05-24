@@ -107,6 +107,28 @@ MASKED_ADD_MASK_SOURCE = "compare-produced-mask-same-vl-scope"
 MASKED_ADD_MASK_ROLE = "predicate-mask-produced-by-compare"
 MASKED_ADD_INACTIVE_LANE_CONTRACT = "masked-off-lanes-preserve-passthrough-vector"
 MASKED_ADD_PASSTHROUGH_LAYOUT = "passthrough-vector-preserves-inactive-lanes"
+PLAIN_ELEMENTWISE_ARITHMETIC_OP_KINDS = (
+    "add",
+    "sub",
+    "mul",
+    "i64_add",
+    "lmul_m2_add",
+)
+PLAIN_ELEMENTWISE_ARITHMETIC_ROUTE_FAMILY_PLAN = (
+    "rvv-elementwise-arithmetic-route-family-plan.v1"
+)
+PLAIN_ELEMENTWISE_ARITHMETIC_TARGET_LEAF_PROFILE = (
+    "rvv-v1-typed-plain-elementwise-arithmetic-leaf-profile.v1"
+)
+PLAIN_ELEMENTWISE_ARITHMETIC_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-plain-elementwise-arithmetic-plan-validated"
+)
+PLAIN_ELEMENTWISE_ARITHMETIC_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+PLAIN_ELEMENTWISE_ARITHMETIC_C_TYPE_MAPPING = (
+    "vl:size_t,lhs:typed-vector,rhs:typed-vector,result:typed-vector"
+)
 MACC_ADD_ACCUMULATOR_LAYOUT = "separate-i32-vector-accumulator-input"
 MACC_ADD_RESULT_LAYOUT = "store-multiply-accumulate-result-to-output-buffer"
 MACC_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
@@ -1284,6 +1306,41 @@ class OpExpectation:
     bounded_slice: str = "multi-vl-selected-body-sew32-lmul-m1"
 
     @property
+    def element_type(self) -> str:
+        if self.element_c_type == "int64_t":
+            return "i64"
+        if self.element_c_type == "int16_t":
+            return "i16"
+        return "i32"
+
+    @property
+    def rvv_vector_c_type(self) -> str:
+        return f"vint{self.sew}{self.lmul}_t"
+
+    @property
+    def setvl_intrinsic(self) -> str:
+        return f"__riscv_vsetvl_e{self.sew}{self.lmul}"
+
+    @property
+    def unit_load_intrinsic(self) -> str:
+        return f"__riscv_vle{self.sew}_v_{self.element_type}{self.lmul}"
+
+    @property
+    def unit_store_intrinsic(self) -> str:
+        return f"__riscv_vse{self.sew}_v_{self.element_type}{self.lmul}"
+
+    @property
+    def plain_binary_compute_intrinsic(self) -> str:
+        op_leaf = {"add": "vadd", "sub": "vsub", "mul": "vmul"}.get(
+            self.selected_body_operation
+        )
+        if not op_leaf:
+            raise EvidenceError(
+                f"{self.kind} has no plain binary compute intrinsic expectation"
+            )
+        return f"__riscv_{op_leaf}_vv_{self.element_type}{self.lmul}"
+
+    @property
     def prototype(self) -> str:
         if self.is_strided_add:
             return (
@@ -1654,6 +1711,13 @@ class OpExpectation:
     def supports_direct_pre_realized_route_entry(self) -> bool:
         return self.is_pre_realized and (
             self.is_cmp_select or self.is_strided_load_unit_store
+        )
+
+    @property
+    def is_plain_elementwise_arithmetic(self) -> bool:
+        return (
+            self.kind in PLAIN_ELEMENTWISE_ARITHMETIC_OP_KINDS
+            and not self.is_rhs_broadcast
         )
 
     @property
@@ -4809,6 +4873,7 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         "rvv_selected_body_operation": expectation.selected_body_operation,
         "rvv_selected_body_typed_compute_op": expectation.typed_compute_op,
         "tcrv_rvv.config_contract": expectation.config_contract,
+        "tcrv_rvv.element_type": expectation.element_type,
         "tcrv_rvv.sew": expectation.sew,
         "tcrv_rvv.lmul": expectation.lmul,
         "tcrv_rvv.tail_policy": "agnostic",
@@ -5062,10 +5127,28 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
-    if expectation.kind in {"add", "sub", "mul"}:
-        plan = f"rvv-route-operand-binding:{expectation.kind}.v1"
+    if expectation.is_plain_elementwise_arithmetic:
+        plan = f"rvv-route-operand-binding:{expectation.selected_body_operation}.v1"
         per_op_metadata.update(
             {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.source_memory_form": "unit-stride-load",
+                "tcrv_rvv.destination_memory_form": "unit-stride-store",
+                "tcrv_rvv.elementwise_arithmetic_route_family_plan": (
+                    PLAIN_ELEMENTWISE_ARITHMETIC_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    PLAIN_ELEMENTWISE_ARITHMETIC_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    PLAIN_ELEMENTWISE_ARITHMETIC_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    PLAIN_ELEMENTWISE_ARITHMETIC_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    PLAIN_ELEMENTWISE_ARITHMETIC_C_TYPE_MAPPING
+                ),
                 "tcrv_rvv.route_operand_binding_plan": plan,
                 "tcrv_rvv.route_operand_binding_operands": (
                     BINARY_ROUTE_OPERAND_BINDING_OPERANDS.format(plan=plan)
@@ -6439,6 +6522,26 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
     require_contains(text, "#include <stddef.h>", "generated header")
     require_contains(text, "#include <stdint.h>", "generated header")
     require_contains(text, expectation.prototype, "generated header")
+    expected_metadata = expected_metadata_for(expectation)
+    for key in (
+        "tcrv_rvv.config_contract",
+        "tcrv_rvv.element_type",
+        "tcrv_rvv.sew",
+        "tcrv_rvv.lmul",
+        "tcrv_rvv.tail_policy",
+        "tcrv_rvv.mask_policy",
+        "tcrv_rvv.required_header_declarations",
+        "tcrv_rvv.c_type_mapping",
+    ):
+        expected_value = expected_metadata.get(key)
+        if expected_value is None:
+            continue
+        comment_key = "tianchenrv.rvv." + key.removeprefix("tcrv_rvv.")
+        require_contains(
+            text,
+            f"{comment_key}: {expected_value}",
+            "generated header typed config mirror",
+        )
     open_guard = '#ifdef __cplusplus\nextern "C" {\n#endif'
     close_guard = '#ifdef __cplusplus\n} /* extern "C" */\n#endif'
     open_guard_index = text.find(open_guard)
@@ -6465,6 +6568,51 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
         "sha256": sha256_file(header_path),
         "prototype": expectation.prototype,
         "extern_c_guard": True,
+    }
+
+
+def verify_emitted_rvv_cpp(
+    source_path: Path, expectation: OpExpectation
+) -> dict[str, Any]:
+    if not source_path.exists():
+        raise EvidenceError(f"emitted RVV C/C++ source is missing: {source_path}")
+    text = source_path.read_text(encoding="utf-8")
+    require_contains(text, "#include <stddef.h>", "emitted RVV C/C++ source")
+    require_contains(text, "#include <stdint.h>", "emitted RVV C/C++ source")
+    require_contains(text, "#include <riscv_vector.h>", "emitted RVV C/C++ source")
+    require_contains(text, expectation.function_name, "emitted RVV C/C++ source")
+    require_contains(text, expectation.element_c_type, "emitted RVV C/C++ source")
+    require_no_forbidden_public_residue(text, "emitted RVV C/C++ source")
+
+    intrinsics: list[str] = []
+    vector_c_type = ""
+    if expectation.is_plain_elementwise_arithmetic:
+        vector_c_type = expectation.rvv_vector_c_type
+        intrinsics = [
+            expectation.setvl_intrinsic,
+            expectation.unit_load_intrinsic,
+            expectation.plain_binary_compute_intrinsic,
+            expectation.unit_store_intrinsic,
+        ]
+        require_contains(
+            text, vector_c_type, "emitted RVV C/C++ typed vector C type"
+        )
+        for intrinsic in intrinsics:
+            require_contains(
+                text, intrinsic, "emitted RVV C/C++ typed intrinsic spelling"
+            )
+
+    return {
+        "path": str(source_path),
+        "size": source_path.stat().st_size,
+        "sha256": sha256_file(source_path),
+        "element_type": expectation.element_type,
+        "element_c_type": expectation.element_c_type,
+        "sew": expectation.sew,
+        "lmul": expectation.lmul,
+        "vector_c_type": vector_c_type,
+        "intrinsics": intrinsics,
+        "required_header": "riscv_vector.h",
     }
 
 
@@ -13323,6 +13471,20 @@ def generate_bundle(
         "tcrv-opt explicit selected-body emission-plan materialization",
     )
 
+    emitted_source_path = bundle_dir.parent / "materialized_rvv_emitc.cpp"
+    emit_source_command = [
+        tcrv_translate,
+        "--tcrv-rvv-emitc-to-cpp",
+        str(materialized_path),
+        "-o",
+        str(emitted_source_path),
+    ]
+    emit_source_record = run_command(emit_source_command, timeout=timeout)
+    require_command_success(
+        emit_source_record,
+        "tcrv-translate selected typed-body RVV EmitC C/C++ export",
+    )
+
     translate_command = [
         tcrv_translate,
         "--tcrv-export-target-artifact-bundle",
@@ -13341,12 +13503,16 @@ def generate_bundle(
         "source_seed": expectation.source_seed,
         "target_export": "tcrv-export-target-artifact-bundle",
         "materialized_selected_body": str(materialized_path),
+        "emitted_rvv_cpp": str(emitted_source_path),
         "pipeline": (
             command_display(materialize_command)
+            + " && "
+            + command_display(emit_source_command)
             + " && "
             + command_display(translate_command)
         ),
         "tcrv_opt": materialize_record,
+        "tcrv_rvv_emitc_cpp": emit_source_record,
         "tcrv_translate": translate_record,
     }
     if expectation.is_pre_realized:
@@ -13753,8 +13919,27 @@ def run_one_op_e2e(
                 Path(local["materialized_selected_body"]), expectation
             )
         )
+        evidence["emitted_rvv_cpp_checks"] = verify_emitted_rvv_cpp(
+            Path(local["emitted_rvv_cpp"]), expectation
+        )
         bundle_checks = verify_bundle(bundle_dir, readobj, expectation)
         evidence["bundle_checks"] = bundle_checks
+        evidence["typed_config_artifact_closure"] = {
+            "source": "provider-derived typed tcrv_rvv body/config/runtime facts",
+            "element_type": expectation.element_type,
+            "sew": expectation.sew,
+            "lmul": expectation.lmul,
+            "config_contract": expectation.config_contract,
+            "element_c_type": expectation.element_c_type,
+            "vector_c_type": evidence["emitted_rvv_cpp_checks"].get(
+                "vector_c_type", ""
+            ),
+            "intrinsics": evidence["emitted_rvv_cpp_checks"].get(
+                "intrinsics", []
+            ),
+            "required_header": "riscv_vector.h",
+            "artifact_metadata_role": "mirror-only-after-provider-route",
+        }
 
         header_path = bundle_dir / bundle_checks["header_file"]
         object_path = bundle_dir / bundle_checks["object_file"]
@@ -14309,6 +14494,24 @@ def make_fake_bundle(root: Path, expectation: OpExpectation) -> Path:
         "artifact-1-runtime-callable-c-header-"
         "rvv-generic-typed-body-emitc-route-family.header.h"
     )
+    expected_metadata = expected_metadata_for(expectation)
+    header_required_metadata_keys = {
+        "tcrv_rvv.config_contract",
+        "tcrv_rvv.element_type",
+        "tcrv_rvv.sew",
+        "tcrv_rvv.lmul",
+        "tcrv_rvv.tail_policy",
+        "tcrv_rvv.mask_policy",
+        "tcrv_rvv.required_header_declarations",
+        "tcrv_rvv.c_type_mapping",
+        "tcrv_rvv.runtime_avl_source",
+        "tcrv_rvv.multi_vl",
+    }
+    header_metadata_comments = "\n".join(
+        f"/* tianchenrv.rvv.{key.removeprefix('tcrv_rvv.')}: {value} */"
+        for key, value in expected_metadata.items()
+        if key in header_required_metadata_keys
+    )
     (bundle_dir / object_name).write_bytes(b"\x7fELFfake-riscv-object")
     (bundle_dir / header_name).write_text(
         f"""
@@ -14316,6 +14519,7 @@ def make_fake_bundle(root: Path, expectation: OpExpectation) -> Path:
 #define TIANCHENRV_RVV_MATERIALIZED_EMITC_HEADER_H
 #include <stddef.h>
 #include <stdint.h>
+{header_metadata_comments}
 /* tianchenrv.rvv.runtime_avl_source: runtime_abi:n */
 /* tianchenrv.rvv.multi_vl: supported */
 #ifdef __cplusplus
@@ -14329,7 +14533,6 @@ extern "C" {{
 """.lstrip(),
         encoding="utf-8",
     )
-    expected_metadata = expected_metadata_for(expectation)
     metadata_lines = "\n".join(
         f"""  artifact_metadata[{index}]:
     key: "{key}"
@@ -14671,6 +14874,19 @@ def run_self_test() -> int:
         expect_self_test_failure(
             "stale arithmetic metadata",
             lambda: verify_bundle(stale_arithmetic, None, sub_expectation),
+        )
+
+        i64_expectation = PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS["i64_add"]
+        stale_typed_config = make_fake_bundle(
+            tmp / "stale-typed-config", i64_expectation
+        )
+        index_path = stale_typed_config / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace('value: "i64"', 'value: "i32"', 1)
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "stale typed config element type metadata",
+            lambda: verify_bundle(stale_typed_config, None, i64_expectation),
         )
 
         bad_header = make_fake_bundle(tmp / "bad-header", expectation)
