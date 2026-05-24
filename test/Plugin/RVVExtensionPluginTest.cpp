@@ -3095,8 +3095,14 @@ module {
 
 int runBaseMemoryMovementRouteFamilyProviderPlanTest(
     mlir::MLIRContext &context) {
+  using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyBaseMemoryMovementRouteStatementPlan;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
@@ -3302,6 +3308,114 @@ module {
   if (!module)
     return fail("failed to parse base memory provider test module");
 
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for base memory statement plan test"))
+    return result;
+
+  auto expectBaseMemoryStatementPlan =
+      [&](RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef kernelName,
+          llvm::StringRef variantName, bool stridedLoad, bool stridedStore,
+          bool indexedGather, bool indexedScatter, bool staticMaskLoad,
+          bool staticMaskStore,
+          std::initializer_list<llvm::StringRef> expectedBodyCallees) -> int {
+    if (int result = expectSuccess(
+            verifyRVVSelectedBodyRouteFamilyProviderPlans(
+                analysis, "base memory statement plan provider unit test"),
+            "verify route-family plans before base memory statement-plan "
+            "construction"))
+      return result;
+
+    auto materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+        analysis, "base memory statement plan provider unit test");
+    if (!materializationFacts)
+      return fail("base memory statement-plan materialization facts: " +
+                  llvm::toString(materializationFacts.takeError()));
+    auto memoryFacts = getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+        analysis, "base memory statement plan provider unit test");
+    if (!memoryFacts)
+      return fail("base memory statement-plan memory facts: " +
+                  llvm::toString(memoryFacts.takeError()));
+
+    llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteStatementPlan>
+        statementPlan = getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan(
+            analysis, *materializationFacts, *memoryFacts,
+            "base memory statement plan provider unit test");
+    if (!statementPlan)
+      return fail("base memory statement-plan construction: " +
+                  llvm::toString(statementPlan.takeError()));
+    if (int result = expect(
+            statementPlan->plansBaseMemoryMovementRoute &&
+                statementPlan->plansStridedLoadUnitStore == stridedLoad &&
+                statementPlan->plansUnitLoadStridedStore == stridedStore &&
+                statementPlan->plansIndexedGatherUnitStore == indexedGather &&
+                statementPlan->plansIndexedScatterUnitLoad == indexedScatter &&
+                statementPlan->plansStaticMaskUnitLoadStore ==
+                    staticMaskLoad &&
+                statementPlan->plansStaticMaskUnitStore == staticMaskStore,
+            "statement plan exposes the expected base memory movement "
+            "sub-family flags"))
+      return result;
+    if (int result = expect(
+            statementPlan->preLoopSteps.size() == 1 &&
+                statementPlan->preLoopSteps.front().callee ==
+                    "__riscv_vsetvl_e32m1",
+            "base memory movement statement plan owns the full-chunk setvl "
+            "call before the loop"))
+      return result;
+    if (int result =
+            expect(statementPlan->loop.bodySteps.size() ==
+                       expectedBodyCallees.size(),
+                   "base memory movement statement plan owns the expected "
+                   "loop step count"))
+      return result;
+    unsigned index = 0;
+    for (llvm::StringRef expected : expectedBodyCallees) {
+      if (int result = expect(
+              statementPlan->loop.bodySteps[index].callee == expected,
+              llvm::Twine("base memory statement plan loop step ") +
+                  llvm::Twine(index) + " uses RVV-owned callee '" + expected +
+                  "'"))
+        return result;
+      ++index;
+    }
+
+    KernelOp kernel = findKernel(*module, kernelName);
+    VariantOp variant = findVariant(kernel, variantName);
+    TCRVEmitCLowerableRoute route;
+    if (int result = expectSuccess(
+            registry.buildVariantEmitCLowerableRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel,
+                    TargetCapabilitySet::buildFromKernel(kernel),
+                    VariantEmissionRole::DirectVariant),
+                route),
+            "provider consumes base memory movement statement plan"))
+      return result;
+    if (int result = expect(
+            route.getCallOpaqueSteps().size() == 1 &&
+                route.getCallOpaqueSteps().front().callee ==
+                    "__riscv_vsetvl_e32m1" &&
+                route.getForLoops().size() == 1 &&
+                route.getForLoops().front().bodySteps.size() ==
+                    expectedBodyCallees.size(),
+            "provider route attaches the RVV-owned base memory movement "
+            "statement-plan steps"))
+      return result;
+    index = 0;
+    for (llvm::StringRef expected : expectedBodyCallees) {
+      if (int result = expect(
+              route.getForLoops().front().bodySteps[index].callee == expected,
+              llvm::Twine("provider base memory route loop step ") +
+                  llvm::Twine(index) + " matches statement-plan callee '" +
+                  expected + "'"))
+        return result;
+      ++index;
+    }
+    return 0;
+  };
+
   llvm::Expected<RVVSelectedBodyRouteAnalysis> stridedLoadAnalysis =
       analyzeRouteInModule(*module, "strided_load_unit_store_provider_kernel",
                            "rvv_strided_load_unit_store");
@@ -3345,6 +3459,33 @@ module {
               stridedLoadBindingFacts->runtimeElementCountABI->cName == "n",
           "strided memory binding facts expose source, destination, stride, "
           "and runtime count"))
+    return result;
+  if (int result = expectBaseMemoryStatementPlan(
+          *stridedLoadAnalysis, "strided_load_unit_store_provider_kernel",
+          "rvv_strided_load_unit_store", true, false, false, false, false,
+          false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vlse32_v_i32m1",
+           "__riscv_vse32_v_i32m1"}))
+    return result;
+
+  auto stridedLoadMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *stridedLoadAnalysis,
+          "base memory statement plan stale dependency unit test");
+  if (!stridedLoadMaterializationFacts)
+    return fail("stale base memory materialization facts: " +
+                llvm::toString(stridedLoadMaterializationFacts.takeError()));
+  auto staleBaseMemoryFacts = *stridedLoadMaterializationFacts;
+  staleBaseMemoryFacts.baseMemoryMovementPlan = nullptr;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan(
+              *stridedLoadAnalysis, staleBaseMemoryFacts,
+              *stridedLoadBindingFacts,
+              "base memory statement plan stale dependency unit test")
+              .takeError(),
+          {"base memory movement statement plan requires the verified base "
+           "memory movement route-family plan",
+           "before route statement construction"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis stale = *stridedLoadAnalysis;
@@ -3415,6 +3556,13 @@ module {
           "unit_load_strided_store plan must keep destination stride and "
           "binding facts isolated"))
     return result;
+  if (int result = expectBaseMemoryStatementPlan(
+          *stridedStoreAnalysis, "unit_load_strided_store_provider_kernel",
+          "rvv_unit_load_strided_store", false, true, false, false, false,
+          false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vsse32_v_i32m1"}))
+    return result;
 
   llvm::Expected<RVVSelectedBodyRouteAnalysis> indexedGatherAnalysis =
       analyzeRouteInModule(*module, "indexed_gather_unit_store_provider_kernel",
@@ -3456,6 +3604,14 @@ module {
               indexedGatherBindingFacts->destinationABI->cName == "out",
           "indexed memory binding facts expose data, index, and output "
           "operands"))
+    return result;
+  if (int result = expectBaseMemoryStatementPlan(
+          *indexedGatherAnalysis, "indexed_gather_unit_store_provider_kernel",
+          "rvv_indexed_gather_unit_store", false, false, true, false, false,
+          false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_u32m1",
+           "__riscv_vmul_vx_u32m1", "__riscv_vloxei32_v_i32m1",
+           "__riscv_vse32_v_i32m1"}))
     return result;
 
   stale = *indexedGatherAnalysis;
@@ -3500,6 +3656,14 @@ module {
           "indexed_scatter_unit_load plan must carry index/store layout and "
           "binding facts"))
     return result;
+  if (int result = expectBaseMemoryStatementPlan(
+          *indexedScatterAnalysis, "indexed_scatter_unit_load_provider_kernel",
+          "rvv_indexed_scatter_unit_load", false, false, false, true, false,
+          false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_u32m1", "__riscv_vmul_vx_u32m1",
+           "__riscv_vsoxei32_v_i32m1"}))
+    return result;
 
   llvm::Expected<RVVSelectedBodyRouteAnalysis> maskedLoadStoreAnalysis =
       analyzeRouteInModule(*module, "masked_unit_load_store_provider_kernel",
@@ -3543,6 +3707,14 @@ module {
           "masked base memory binding facts expose source, mask, passthrough, "
           "and destination operands"))
     return result;
+  if (int result = expectBaseMemoryStatementPlan(
+          *maskedLoadStoreAnalysis, "masked_unit_load_store_provider_kernel",
+          "rvv_masked_unit_load_store", false, false, false, false, true,
+          false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmsne_vx_i32m1_b32", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_i32m1_tumu", "__riscv_vse32_v_i32m1"}))
+    return result;
 
   stale = *maskedLoadStoreAnalysis;
   stale.description.maskRole = "metadata-selected-mask";
@@ -3573,7 +3745,7 @@ module {
               *maskedStoreAnalysis, "base memory provider unit test"),
           "valid masked_unit_store base memory family provider plan"))
     return result;
-  return expect(
+  if (int result = expect(
       maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan &&
           maskedStoreAnalysis->baseMemoryMovementRouteFamilyPlan
               ->usesStaticMaskStore &&
@@ -3583,7 +3755,16 @@ module {
           maskedStoreAnalysis->routeOperandBindingPlan.planID ==
               "rvv-route-operand-binding:masked_unit_store.v1",
       "masked_unit_store plan must carry masked store inactive-lane and "
-      "binding facts");
+      "binding facts"))
+    return result;
+  if (int result = expectBaseMemoryStatementPlan(
+          *maskedStoreAnalysis, "masked_unit_store_provider_kernel",
+          "rvv_masked_unit_store", false, false, false, false, false, true,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_i32m1", "__riscv_vmsne_vx_i32m1_b32",
+           "__riscv_vse32_v_i32m1_m"}))
+    return result;
+  return 0;
 }
 
 int runComputedMaskMemoryRouteFamilyProviderPlanTest(

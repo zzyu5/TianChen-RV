@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain and RVV stage order for implementation boundaries."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "Extension plugin pre-development checklist and RVV Stage1/Stage2 prioritization."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV-owned route family, materialization, memory operand-binding, and statement-plan ownership contracts."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Lowering/runtime checklist for plugin-owned EmitC route construction."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary and provider-built TCRVEmitCLowerableRoute rules."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Testing pre-development checklist for MLIR and C++ route-provider behavior."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck, C++ plugin tests, and RVV evidence policy."}
+{"file": ".trellis/tasks/archive/2026-05/05-24-stage2-rvv-compare-select-statement-plan-ownership/prd.md", "reason": "Previous statement-plan ownership pattern and validation precedent."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Added the RVV-owned base memory movement statement-plan type and public planning API."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Implemented base memory movement statement-plan derivation from verified route-family, materialization, and operand-binding facts for the six in-scope production routes."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Rewired selected-body route construction to consume the RVV-owned base memory movement statement plan before older provider-local statement assembly."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Added positive statement-plan/provider-consumption tests for all in-scope base memory movement routes and a fail-closed stale-dependency case."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Captured the durable base memory movement statement-plan boundary, validation matrix, and good/bad examples."}

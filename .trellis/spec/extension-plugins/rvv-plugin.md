@@ -1073,6 +1073,137 @@ verified route-family plans
   -> provider attaches plan into TCRVEmitCLowerableRoute
 ```
 
+## Base Memory Movement Statement-Plan Boundary
+
+### 1. Scope / Trigger
+
+For mature selected-body base memory movement routes,
+`RVVEmitCRouteProvider` must not locally recreate the route statement sequence
+from operation names, ABI strings, memory-form branches, or intrinsic mirrors
+after RVV-owned family plans, materialization facts, and memory operand-binding
+facts have been validated. The RVV planning layer must expose one RVV-owned
+statement-plan boundary for strided load/unit store, unit load/strided store,
+indexed gather/unit store, indexed scatter/unit load, static-mask unit
+load/store, and static-mask unit store where those routes are
+production-active.
+
+The provider remains the owner that instantiates `TCRVEmitCLowerableRoute`,
+adds neutral headers, type mappings, ABI mappings, selected-boundary source
+provenance, and attaches the RVV-owned statement plan. It must not duplicate
+the included base memory movement loop/setvl/load/index/scale/masked-load/
+store sequence in the central provider path.
+
+### 2. Signatures
+
+The durable planning/provider API is:
+
+```c++
+llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteStatementPlan>
+getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    llvm::StringRef context);
+```
+
+`RVVEmitCRouteProvider` must call this boundary after
+`verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context)`, after
+obtaining route materialization facts, and after obtaining the memory
+operand-binding facts for the same analysis. Non-consumer route families
+receive an empty/default statement plan.
+
+### 3. Contracts
+
+`RVVSelectedBodyBaseMemoryMovementRouteStatementPlan` is RVV-local provider
+input. It may carry:
+
+- a pointer to the verified base memory movement family plan that justifies the
+  statement sequence;
+- sub-family booleans for strided load/unit store, unit load/strided store,
+  indexed gather/unit store, indexed scatter/unit load, static-mask unit
+  load/store, and static-mask unit store;
+- provider-ready `TCRVEmitCCallOpaqueStep` entries for full-chunk `setvl`;
+- one provider-ready `TCRVEmitCForLoop` with loop `setvl`, load, strided
+  load/store, index load/scale, indexed gather/scatter, static-mask load and
+  passthrough handling where needed, and store steps.
+
+The plan must be derived only from verified typed body/config/runtime facts,
+route materialization facts, and RVV-owned memory operand-binding facts. It is
+not a common EmitC fact, not artifact metadata, not an acceptance/status
+mirror, and not a route-support declaration by itself.
+
+### 4. Validation & Error Matrix
+
+- A non base-memory movement route requests the boundary -> return an empty
+  plan without changing unrelated route-family behavior.
+- An included base memory movement route has no verified base memory movement
+  family plan -> fail closed before route statement construction.
+- An included route lacks required memory operand-binding facts -> fail closed
+  before route statement construction.
+- Required ABI roles such as `src`, `data`, `dst`, `out`, `index`, `mask`,
+  passthrough `dst`, runtime count, source stride, or destination stride are
+  absent -> fail closed with the logical operand name and operation/memory-form
+  context.
+- Required materialization leaves such as `setvl`, unit load/store, strided
+  load/store, index load/scale, indexed load/store, static-mask compare, or
+  masked load/store are absent -> fail closed before common EmitC.
+- Required source operation provenance for configure/load/store steps is absent
+  or reports the wrong EmitC source role -> fail closed before common EmitC.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed base memory `tcrv_rvv` body -> family plan verifier ->
+  materialization facts -> memory operand-binding facts -> RVV-owned statement
+  plan -> provider-built route.
+- Base: computed-mask memory, segment2 memory, elementwise/select, math,
+  residual runtime scalar splat-store, and future families keep their own
+  statement construction surfaces and receive an empty base memory movement
+  statement plan.
+- Bad: central provider code branches on `StridedLoadUnitStore`,
+  `IndexedGatherUnitStore`, `MaskedUnitLoadStore`, or related memory forms to
+  rebuild the included base memory movement setvl/load/index/mask/store
+  sequence after the statement-plan boundary exists.
+
+### 6. Tests Required
+
+- C++ tests for positive statement-plan construction and provider consumption
+  for strided load/unit store, unit load/strided store, indexed gather/unit
+  store, indexed scatter/unit load, static-mask unit load/store, and
+  static-mask unit store.
+- C++ fail-closed diagnostics for at least one missing or stale statement-plan
+  dependency before route statement construction.
+- C++ default/empty-plan coverage for unrelated route families.
+- Representative lit/FileCheck coverage proving existing explicit or
+  pre-realized base memory selected-body artifacts still pass.
+- Bounded provider scan showing included base memory movement statement
+  sequence construction is reached through the RVV-owned plan before the older
+  generic provider-local statement assembly path.
+- Active-authority scan over touched RVV planning/provider/test files for
+  legacy i32/source-front-door/descriptor/direct-C/source-export or
+  mirror-only authority drift.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider body:
+  if operation is strided_load_unit_store/indexed_gather/masked_unit_store,
+  locally assemble setvl/load/index/mask/store statements from operation names,
+  memory forms, ABI strings, and intrinsic mirrors
+```
+
+Correct:
+
+```text
+verified route-family plans
+  -> RVVSelectedBodyRouteMaterializationFacts
+  -> RVV-owned memory operand-binding facts
+  -> RVVSelectedBodyBaseMemoryMovementRouteStatementPlan
+  -> provider attaches plan into TCRVEmitCLowerableRoute
+```
+
 ## Emission Diagnostics And Artifacts
 
 Emission-plan diagnostics, route ids, artifact metadata, manifests, and

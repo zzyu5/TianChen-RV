@@ -394,6 +394,31 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
         "compare/select statement plan before generic provider-local "
         "statement assembly");
 
+  llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteStatementPlan>
+      baseMemoryMovementStatementPlanOrError =
+          getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan(
+              analysis, materializationFacts, memoryOperandBindingFacts,
+              "selected RVV EmitC route construction");
+  if (!baseMemoryMovementStatementPlanOrError)
+    return baseMemoryMovementStatementPlanOrError.takeError();
+  RVVSelectedBodyBaseMemoryMovementRouteStatementPlan
+      baseMemoryMovementStatementPlan =
+          std::move(*baseMemoryMovementStatementPlanOrError);
+  if (baseMemoryMovementStatementPlan.plansBaseMemoryMovementRoute) {
+    for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         baseMemoryMovementStatementPlan.preLoopSteps)
+      route.addCallOpaqueStep(std::move(step));
+    route.addForLoop(std::move(baseMemoryMovementStatementPlan.loop));
+    out = std::move(route);
+    return llvm::Error::success();
+  }
+  if (isRVVSelectedBodyBaseMemoryMovementRouteFamilyConsumer(
+          description.operation))
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV base memory movement provider requires the RVV-owned "
+        "base memory movement statement plan before generic provider-local "
+        "statement assembly");
+
   using conversion::emitc::TCRVEmitCCallOpaqueOperand;
   using conversion::emitc::TCRVEmitCCallOpaqueResult;
 
