@@ -953,6 +953,19 @@ struct RVVSelectedBodySegment2MemoryRouteStatementPlan {
   conversion::emitc::TCRVEmitCForLoop loop;
 };
 
+struct RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan {
+  const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan
+      *computedMaskAccumulationPlan = nullptr;
+
+  bool plansComputedMaskAccumulationRoute = false;
+  bool plansComputedMaskedMAccAdd = false;
+  bool plansRuntimeScalarComputedMaskedMAccAdd = false;
+
+  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
+      preLoopSteps;
+  conversion::emitc::TCRVEmitCForLoop loop;
+};
+
 struct RVVSelectedBodyMemoryRouteFamilyOwner {
   using ConsumerPredicate = bool (*)(RVVSelectedBodyOperationKind);
   using ProviderPlanVerifier = llvm::Error (*)(
@@ -1174,6 +1187,13 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMemoryRouteOperandBindingFacts
         &memoryOperandBindingFacts,
+    llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan>
+getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
     llvm::StringRef context);
 
 llvm::Error makeRVVEmitCRouteProviderError(llvm::Twine message);

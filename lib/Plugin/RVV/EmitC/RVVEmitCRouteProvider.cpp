@@ -34,10 +34,8 @@ bool isRVVSelectedBodyMaskedArithmeticRoute(RVVSelectedBodyOperationKind op) {
          op == RVVSelectedBodyOperationKind::MaskedMul;
 }
 
-bool isRVVSelectedBodyMAccRoute(RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::MAccAdd ||
-         op == RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd ||
-         op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd;
+bool isRVVSelectedBodyPlainMAccRoute(RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::MAccAdd;
 }
 
 bool isRVVSelectedBodyReductionRoute(RVVSelectedBodyOperationKind op) {
@@ -482,6 +480,32 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
         "segment2 memory statement plan before generic provider-local "
         "statement assembly");
 
+  llvm::Expected<RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan>
+      computedMaskAccumulationStatementPlanOrError =
+          getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
+              analysis, materializationFacts, mathOperandBindingFacts,
+              "selected RVV EmitC route construction");
+  if (!computedMaskAccumulationStatementPlanOrError)
+    return computedMaskAccumulationStatementPlanOrError.takeError();
+  RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan
+      computedMaskAccumulationStatementPlan =
+          std::move(*computedMaskAccumulationStatementPlanOrError);
+  if (computedMaskAccumulationStatementPlan
+          .plansComputedMaskAccumulationRoute) {
+    for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         computedMaskAccumulationStatementPlan.preLoopSteps)
+      route.addCallOpaqueStep(std::move(step));
+    route.addForLoop(std::move(computedMaskAccumulationStatementPlan.loop));
+    out = std::move(route);
+    return llvm::Error::success();
+  }
+  if (isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer(
+          description.operation))
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV computed-mask accumulation provider requires the "
+        "RVV-owned computed-mask accumulation statement plan before generic "
+        "provider-local statement assembly");
+
   using conversion::emitc::TCRVEmitCCallOpaqueOperand;
   using conversion::emitc::TCRVEmitCCallOpaqueResult;
 
@@ -647,31 +671,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
             "before route statement construction");
       boundLHSABI = mathOperandBindingFacts.lhsABI;
       boundRHSABI = mathOperandBindingFacts.rhsABI;
-      boundAccumulatorABI = mathOperandBindingFacts.accumulatorABI;
-      boundOutABI = mathOperandBindingFacts.outABI;
-    } else if (description.operation ==
-               RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd) {
-      if (!mathOperandBindingFacts.bindsComputedMaskMAcc)
-        return makeRVVEmitCRouteProviderError(
-            "computed-mask MAcc provider requires RVV-owned math "
-            "operand-binding facts before route statement construction");
-      boundLHSABI = mathOperandBindingFacts.lhsABI;
-      boundRHSABI = mathOperandBindingFacts.rhsABI;
-      boundDotLHSABI = mathOperandBindingFacts.dotLHSABI;
-      boundDotRHSABI = mathOperandBindingFacts.dotRHSABI;
-      boundAccumulatorABI = mathOperandBindingFacts.accumulatorABI;
-      boundOutABI = mathOperandBindingFacts.outABI;
-    } else if (description.operation ==
-               RVVSelectedBodyOperationKind::
-                   RuntimeScalarComputedMaskedMAccAdd) {
-      if (!mathOperandBindingFacts.bindsComputedMaskMAcc)
-        return makeRVVEmitCRouteProviderError(
-            "runtime scalar computed-mask MAcc provider requires RVV-owned "
-            "math operand-binding facts before route statement construction");
-      boundLHSABI = mathOperandBindingFacts.lhsABI;
-      boundRHSABI = mathOperandBindingFacts.rhsABI;
-      boundDotLHSABI = mathOperandBindingFacts.dotLHSABI;
-      boundDotRHSABI = mathOperandBindingFacts.dotRHSABI;
       boundAccumulatorABI = mathOperandBindingFacts.accumulatorABI;
       boundOutABI = mathOperandBindingFacts.outABI;
     } else if (description.operation ==
@@ -1197,9 +1196,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return makeRVVEmitCRouteProviderError(
         "plain segment2 memory provider requires the shared route-family plan "
         "before materializing deinterleave or interleave routes");
-  const bool isComputedMaskedMAcc =
-      isRVVSelectedBodyComputedMaskMAccAccumulationRouteFamilyConsumer(
-          description.operation);
   const bool isComputedMaskStridedStore =
       isRVVSelectedBodyComputedMaskStridedStoreRoute(description.operation);
   const bool isComputedMaskStridedLoad =
@@ -1606,34 +1602,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       description.vectorCType.str()}))
       return error;
   }
-  if (isComputedMaskedMAcc) {
-    if (llvm::Error error = addLoopStep(
-            slice->dotLHSLoadOperation, "load",
-            description.vectorLoadIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(boundDotLHSABI->cName) + " + " +
-                  inductionName)
-                     .str(),
-                 boundDotLHSABI->cType},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                        description.vlCType.str()}},
-            TCRVEmitCCallOpaqueResult{"macc_lhs_vec",
-                                      description.vectorCType.str()}))
-      return error;
-    if (llvm::Error error = addLoopStep(
-            slice->dotRHSLoadOperation, "load",
-            description.vectorLoadIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(boundDotRHSABI->cName) + " + " +
-                  inductionName)
-                     .str(),
-                 boundDotRHSABI->cType},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                        description.vlCType.str()}},
-            TCRVEmitCCallOpaqueResult{"macc_rhs_vec",
-                                      description.vectorCType.str()}))
-      return error;
-  }
   if (isRuntimeScalarComputedMaskStore || isComputedMaskStridedStore ||
       isComputedMaskIndexedScatterStore) {
     if (llvm::Error error = addLoopStep(
@@ -1676,7 +1644,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                       resultVectorCType.str()}))
       return error;
   }
-  if (isRVVSelectedBodyMAccRoute(description.operation)) {
+  if (isRVVSelectedBodyPlainMAccRoute(description.operation)) {
     if (llvm::Error error = addLoopStep(
             slice->accumulatorLoadOperation, "load",
             description.vectorLoadIntrinsic,
@@ -1903,46 +1871,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                                         description.vectorCType.str()}))
         return error;
     }
-  } else if (isComputedMaskedMAcc) {
-    if (llvm::Error error = addLoopStep(
-            slice->compareOp.getOperation(), "compute",
-            description.compareIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{"lhs_vec",
-                                        description.vectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{"rhs_vec",
-                                        description.vectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                        description.vlCType.str()}},
-            TCRVEmitCCallOpaqueResult{description.maskName.str(),
-                                      description.maskCType.str()}))
-      return error;
-    if (llvm::Error error = addLoopStep(
-            slice->arithmeticOp, "compute", description.intrinsic,
-            {TCRVEmitCCallOpaqueOperand{"acc_vec",
-                                        description.vectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{"macc_lhs_vec",
-                                        description.vectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{"macc_rhs_vec",
-                                        description.vectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                        description.vlCType.str()}},
-            TCRVEmitCCallOpaqueResult{"active_macc_vec",
-                                      description.vectorCType.str()}))
-      return error;
-    if (llvm::Error error = addLoopStep(
-            slice->arithmeticOp, "compute", description.maskedMergeIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{"acc_vec",
-                                        description.vectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{"active_macc_vec",
-                                        description.vectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{description.maskName.str(),
-                                        description.maskCType.str()},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                        description.vlCType.str()}},
-            TCRVEmitCCallOpaqueResult{description.resultName.str(),
-                                      description.vectorCType.str()}))
-      return error;
-  } else if (isRVVSelectedBodyMAccRoute(description.operation)) {
+  } else if (isRVVSelectedBodyPlainMAccRoute(description.operation)) {
     if (llvm::Error error = addLoopStep(
             slice->arithmeticOp, "compute", description.intrinsic,
             {TCRVEmitCCallOpaqueOperand{"acc_vec",

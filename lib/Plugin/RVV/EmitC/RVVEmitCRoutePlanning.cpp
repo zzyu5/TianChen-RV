@@ -24668,6 +24668,135 @@ llvm::Error addRVVSegment2MemoryStatementPlanLoopStep(
   return llvm::Error::success();
 }
 
+bool isRVVSelectedBodyComputedMaskAccumulationStatementPlanConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  switch (description.operation) {
+  case RVVSelectedBodyOperationKind::ComputedMaskedMAccAdd:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideMAcc;
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskUnitStrideMAcc;
+  default:
+    return false;
+  }
+}
+
+llvm::Error requireRVVComputedMaskAccumulationStatementPlanLeaf(
+    llvm::StringRef leaf, const llvm::Twine &leafName,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  if (!leaf.empty())
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " computed-mask accumulation statement plan requires " + leafName +
+      " before route statement construction for operation '" +
+      stringifyRVVSelectedBodyOperationKind(description.operation) +
+      "', memory_form '" +
+      stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
+}
+
+llvm::Error requireRVVComputedMaskAccumulationStatementPlanABI(
+    const support::RuntimeABIParameter *parameter, llvm::StringRef logicalName,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  if (parameter)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " computed-mask accumulation statement plan requires bound ABI operand '" +
+      logicalName + "' before route statement construction for operation '" +
+      stringifyRVVSelectedBodyOperationKind(description.operation) +
+      "', memory_form '" +
+      stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
+}
+
+llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance>
+getRVVComputedMaskAccumulationStatementPlanSourceProvenance(
+    mlir::Operation *op, llvm::StringRef expectedRole,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  if (!op)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask accumulation statement plan requires a materialized " +
+        expectedRole + " role op before route statement construction for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) +
+        "', memory_form '" +
+        stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
+  if (llvm::Error error = verifyRVVRoleOperationInterface(op, expectedRole))
+    return std::move(error);
+
+  auto lowerable =
+      llvm::dyn_cast<conversion::emitc::TCRVEmitCLowerableOpInterface>(op);
+  if (!lowerable)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " operation '" +
+        op->getName().getStringRef() + "' must implement " +
+        kRVVStatementPlanEmitCLowerableOpInterfaceName +
+        " before RVV computed-mask accumulation statement-plan construction");
+
+  llvm::StringRef sourceRole = lowerable.getTCRVEmitCLowerableSourceRole();
+  if (sourceRole != expectedRole)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " operation '" +
+        op->getName().getStringRef() + "' reports EmitC source role '" +
+        sourceRole +
+        "' but RVV computed-mask accumulation statement plan expected '" +
+        expectedRole + "'");
+
+  conversion::emitc::TCRVEmitCSourceOpProvenance source;
+  source.opName = lowerable.getTCRVEmitCLowerableSourceOpName().str();
+  source.role = sourceRole.str();
+  source.opInterface = kRVVStatementPlanEmitCLowerableOpInterfaceName.str();
+  return source;
+}
+
+llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep>
+makeRVVComputedMaskAccumulationStatementPlanStep(
+    mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef callee,
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context,
+    std::optional<conversion::emitc::TCRVEmitCCallOpaqueResult> result =
+        std::nullopt) {
+  if (llvm::Error error = requireRVVComputedMaskAccumulationStatementPlanLeaf(
+          callee, llvm::Twine(expectedRole) + " callee", description, context))
+    return std::move(error);
+  llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance> source =
+      getRVVComputedMaskAccumulationStatementPlanSourceProvenance(
+          op, expectedRole, description, context);
+  if (!source)
+    return source.takeError();
+
+  conversion::emitc::TCRVEmitCCallOpaqueStep step;
+  step.sourceOp = std::move(*source);
+  step.callee = callee.str();
+  step.operands.append(operands.begin(), operands.end());
+  step.result = std::move(result);
+  return step;
+}
+
+llvm::Error addRVVComputedMaskAccumulationStatementPlanLoopStep(
+    RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan &plan,
+    mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef callee,
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context,
+    std::optional<conversion::emitc::TCRVEmitCCallOpaqueResult> result =
+        std::nullopt) {
+  llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> step =
+      makeRVVComputedMaskAccumulationStatementPlanStep(
+          op, expectedRole, callee, operands, description, context,
+          std::move(result));
+  if (!step)
+    return step.takeError();
+  plan.loop.bodySteps.push_back(std::move(*step));
+  return llvm::Error::success();
+}
+
 } // namespace
 
 llvm::Expected<RVVSelectedBodyElementwiseArithmeticRouteStatementPlan>
@@ -27017,6 +27146,320 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
            TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
           description, context))
     return std::move(error);
+  return plan;
+}
+
+llvm::Expected<RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan>
+getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    llvm::StringRef context) {
+  RVVSelectedBodyRouteSlice &slice = analysis.slice;
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan plan;
+  if (!isRVVSelectedBodyComputedMaskAccumulationStatementPlanConsumer(
+          description))
+    return plan;
+
+  const bool isRuntimeScalar =
+      description.operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskedMAccAdd;
+
+  plan.plansComputedMaskAccumulationRoute = true;
+  plan.plansComputedMaskedMAccAdd = !isRuntimeScalar;
+  plan.plansRuntimeScalarComputedMaskedMAccAdd = isRuntimeScalar;
+  plan.computedMaskAccumulationPlan =
+      materializationFacts.computedMaskAccumulationPlan;
+
+  if (!materializationFacts.computedMaskAccumulationPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask accumulation statement plan requires the verified "
+        "computed-mask accumulation route-family plan before route statement "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const RVVSelectedBodyComputedMaskAccumulationRouteFamilyPlan
+      &accumulationPlan = *materializationFacts.computedMaskAccumulationPlan;
+  if (accumulationPlan.operation != description.operation ||
+      accumulationPlan.memoryForm != description.memoryForm ||
+      !accumulationPlan.usesVectorMAccSuffix ||
+      accumulationPlan.usesScalarHorizontalReductionSuffix ||
+      accumulationPlan.usesVectorCompareProducer != !isRuntimeScalar ||
+      accumulationPlan.usesRuntimeScalarProducer != isRuntimeScalar)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask accumulation statement plan requires the verified "
+        "route-family plan classification to match the selected MAcc "
+        "operation before route statement construction");
+
+  if (!mathOperandBindingFacts.bindsComputedMaskMAcc)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask accumulation statement plan requires computed-mask "
+        "MAcc math operand-binding facts before route statement construction");
+
+  const support::RuntimeABIParameter *compareLhsABI =
+      mathOperandBindingFacts.lhsABI;
+  const support::RuntimeABIParameter *compareRhsOrScalarABI =
+      mathOperandBindingFacts.rhsABI;
+  const support::RuntimeABIParameter *dotLHSABI =
+      mathOperandBindingFacts.dotLHSABI;
+  const support::RuntimeABIParameter *dotRHSABI =
+      mathOperandBindingFacts.dotRHSABI;
+  const support::RuntimeABIParameter *accumulatorABI =
+      mathOperandBindingFacts.accumulatorABI;
+  const support::RuntimeABIParameter *outABI = mathOperandBindingFacts.outABI;
+  const support::RuntimeABIParameter *runtimeElementCountABI =
+      mathOperandBindingFacts.runtimeElementCountABI;
+
+  if (llvm::Error error = requireRVVComputedMaskAccumulationStatementPlanABI(
+          compareLhsABI, "cmp_lhs", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVComputedMaskAccumulationStatementPlanABI(
+          compareRhsOrScalarABI, isRuntimeScalar ? "rhs_scalar" : "cmp_rhs",
+          description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVComputedMaskAccumulationStatementPlanABI(
+          dotLHSABI, "lhs", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVComputedMaskAccumulationStatementPlanABI(
+          dotRHSABI, "rhs", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVComputedMaskAccumulationStatementPlanABI(
+          accumulatorABI, "acc", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVComputedMaskAccumulationStatementPlanABI(
+          outABI, "out", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVComputedMaskAccumulationStatementPlanABI(
+          runtimeElementCountABI, "n", description, context))
+    return std::move(error);
+
+  if (llvm::Error error = requireRVVComputedMaskAccumulationStatementPlanLeaf(
+          accumulationPlan.setVLIntrinsic, "setvl callee", description,
+          context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVComputedMaskAccumulationStatementPlanLeaf(
+          accumulationPlan.vectorLoadIntrinsic, "vector load callee",
+          description, context))
+    return std::move(error);
+  if (isRuntimeScalar)
+    if (llvm::Error error =
+            requireRVVComputedMaskAccumulationStatementPlanLeaf(
+                accumulationPlan.rhsScalarSplatIntrinsic,
+                "rhs scalar splat callee", description, context))
+      return std::move(error);
+  if (llvm::Error error = requireRVVComputedMaskAccumulationStatementPlanLeaf(
+          accumulationPlan.compareIntrinsic, "compare callee", description,
+          context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVComputedMaskAccumulationStatementPlanLeaf(
+          materializationFacts.elementwiseComputeLeaf, "macc callee",
+          description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVComputedMaskAccumulationStatementPlanLeaf(
+          materializationFacts.maskedMergeLeaf, "masked merge callee",
+          description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVComputedMaskAccumulationStatementPlanLeaf(
+          accumulationPlan.storeIntrinsic, "store callee", description,
+          context))
+    return std::move(error);
+
+  using conversion::emitc::TCRVEmitCCallOpaqueOperand;
+  using conversion::emitc::TCRVEmitCCallOpaqueResult;
+  llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> fullChunkSetVL =
+      makeRVVComputedMaskAccumulationStatementPlanStep(
+          slice.setvl.getOperation(), "configure",
+          accumulationPlan.setVLIntrinsic,
+          {TCRVEmitCCallOpaqueOperand{runtimeElementCountABI->cName,
+                                      runtimeElementCountABI->cType}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{
+              description.emitCFullChunkVLName.str(),
+              accumulationPlan.vlCType.str()});
+  if (!fullChunkSetVL)
+    return fullChunkSetVL.takeError();
+  plan.preLoopSteps.push_back(std::move(*fullChunkSetVL));
+
+  llvm::StringRef inductionName = description.emitCLoopInductionName;
+  llvm::StringRef fullChunkVLName = description.emitCFullChunkVLName;
+  llvm::StringRef loopVLName = description.emitCLoopVLName;
+  plan.loop.inductionVarName = inductionName.str();
+  plan.loop.lowerBound =
+      TCRVEmitCCallOpaqueOperand{"0", accumulationPlan.vlCType.str()};
+  plan.loop.upperBound = TCRVEmitCCallOpaqueOperand{
+      runtimeElementCountABI->cName, runtimeElementCountABI->cType};
+  plan.loop.step =
+      TCRVEmitCCallOpaqueOperand{fullChunkVLName.str(),
+                                 accumulationPlan.vlCType.str()};
+
+  if (llvm::Error error =
+          addRVVComputedMaskAccumulationStatementPlanLoopStep(
+              plan, slice.setvl.getOperation(), "configure",
+              accumulationPlan.setVLIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{
+                  tcrv::rvv::getRVVSelectedBodyEmitCRemainingAVLExpression(
+                      runtimeElementCountABI->cName, inductionName),
+                  accumulationPlan.vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{loopVLName.str(),
+                                        accumulationPlan.vlCType.str()}))
+    return std::move(error);
+
+  if (llvm::Error error =
+          addRVVComputedMaskAccumulationStatementPlanLoopStep(
+              plan, slice.lhsLoadOperation, "load",
+              accumulationPlan.vectorLoadIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{
+                   (llvm::StringRef(compareLhsABI->cName) + " + " +
+                    inductionName)
+                       .str(),
+                   compareLhsABI->cType},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          accumulationPlan.vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{"lhs_vec",
+                                        accumulationPlan.vectorCType.str()}))
+    return std::move(error);
+
+  if (isRuntimeScalar) {
+    if (llvm::Error error =
+            addRVVComputedMaskAccumulationStatementPlanLoopStep(
+                plan, slice.rhsLoadOperation, "load",
+                accumulationPlan.rhsScalarSplatIntrinsic,
+                {TCRVEmitCCallOpaqueOperand{compareRhsOrScalarABI->cName,
+                                            compareRhsOrScalarABI->cType},
+                 TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                            accumulationPlan.vlCType.str()}},
+                description, context,
+                TCRVEmitCCallOpaqueResult{"rhs_vec",
+                                          accumulationPlan.vectorCType.str()}))
+      return std::move(error);
+  } else if (llvm::Error error =
+                 addRVVComputedMaskAccumulationStatementPlanLoopStep(
+                     plan, slice.rhsLoadOperation, "load",
+                     accumulationPlan.vectorLoadIntrinsic,
+                     {TCRVEmitCCallOpaqueOperand{
+                          (llvm::StringRef(compareRhsOrScalarABI->cName) +
+                           " + " + inductionName)
+                              .str(),
+                          compareRhsOrScalarABI->cType},
+                      TCRVEmitCCallOpaqueOperand{
+                          loopVLName.str(), accumulationPlan.vlCType.str()}},
+                     description, context,
+                     TCRVEmitCCallOpaqueResult{
+                         "rhs_vec", accumulationPlan.vectorCType.str()})) {
+    return std::move(error);
+  }
+
+  if (llvm::Error error =
+          addRVVComputedMaskAccumulationStatementPlanLoopStep(
+              plan, slice.dotLHSLoadOperation, "load",
+              accumulationPlan.vectorLoadIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{
+                   (llvm::StringRef(dotLHSABI->cName) + " + " + inductionName)
+                       .str(),
+                   dotLHSABI->cType},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          accumulationPlan.vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{"macc_lhs_vec",
+                                        accumulationPlan.vectorCType.str()}))
+    return std::move(error);
+  if (llvm::Error error =
+          addRVVComputedMaskAccumulationStatementPlanLoopStep(
+              plan, slice.dotRHSLoadOperation, "load",
+              accumulationPlan.vectorLoadIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{
+                   (llvm::StringRef(dotRHSABI->cName) + " + " + inductionName)
+                       .str(),
+                   dotRHSABI->cType},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          accumulationPlan.vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{"macc_rhs_vec",
+                                        accumulationPlan.vectorCType.str()}))
+    return std::move(error);
+  if (llvm::Error error =
+          addRVVComputedMaskAccumulationStatementPlanLoopStep(
+              plan, slice.accumulatorLoadOperation, "load",
+              accumulationPlan.vectorLoadIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{
+                   (llvm::StringRef(accumulatorABI->cName) + " + " +
+                    inductionName)
+                       .str(),
+                   accumulatorABI->cType},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          accumulationPlan.vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{"acc_vec",
+                                        accumulationPlan.vectorCType.str()}))
+    return std::move(error);
+  if (llvm::Error error =
+          addRVVComputedMaskAccumulationStatementPlanLoopStep(
+              plan, slice.compareOp.getOperation(), "compute",
+              accumulationPlan.compareIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{"lhs_vec",
+                                          accumulationPlan.vectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{"rhs_vec",
+                                          accumulationPlan.vectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          accumulationPlan.vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{description.maskName.str(),
+                                        accumulationPlan.maskCType.str()}))
+    return std::move(error);
+  if (llvm::Error error =
+          addRVVComputedMaskAccumulationStatementPlanLoopStep(
+              plan, slice.arithmeticOp, "compute",
+              materializationFacts.elementwiseComputeLeaf,
+              {TCRVEmitCCallOpaqueOperand{"acc_vec",
+                                          accumulationPlan.vectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{"macc_lhs_vec",
+                                          accumulationPlan.vectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{"macc_rhs_vec",
+                                          accumulationPlan.vectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          accumulationPlan.vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{"active_macc_vec",
+                                        accumulationPlan.vectorCType.str()}))
+    return std::move(error);
+  if (llvm::Error error =
+          addRVVComputedMaskAccumulationStatementPlanLoopStep(
+              plan, slice.arithmeticOp, "compute",
+              materializationFacts.maskedMergeLeaf,
+              {TCRVEmitCCallOpaqueOperand{"acc_vec",
+                                          accumulationPlan.vectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{"active_macc_vec",
+                                          accumulationPlan.vectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{description.maskName.str(),
+                                          accumulationPlan.maskCType.str()},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          accumulationPlan.vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                        accumulationPlan.vectorCType.str()}))
+    return std::move(error);
+  if (llvm::Error error =
+          addRVVComputedMaskAccumulationStatementPlanLoopStep(
+              plan, slice.storeOperation, "store",
+              accumulationPlan.storeIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{
+                   (llvm::StringRef(outABI->cName) + " + " + inductionName)
+                       .str(),
+                   outABI->cType},
+               TCRVEmitCCallOpaqueOperand{description.resultName.str(),
+                                          accumulationPlan.vectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                          accumulationPlan.vlCType.str()}},
+              description, context))
+    return std::move(error);
+
   return plan;
 }
 

@@ -7673,8 +7673,18 @@ module {
 
 int runComputedMaskAccumulationRouteFamilyProviderPlanTest(
     mlir::MLIRContext &context) {
+  using tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMathRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::
       isRVVSelectedBodyComputedMaskAccumulationRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
@@ -7805,11 +7815,174 @@ module {
     return fail("analyze computed-mask MAcc provider route: " +
                 llvm::toString(computedMaskedMAccAnalysis.takeError()));
 
+  ExtensionPluginRegistry registry;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::registerRVVExtensionPlugin(registry),
+          "register RVV plugin for computed-mask accumulation statement plan "
+          "test"))
+    return result;
+
+  auto expectComputedMaskAccumulationStatementPlan =
+      [&](RVVSelectedBodyRouteAnalysis &analysis, mlir::ModuleOp module,
+          llvm::StringRef kernelName, llvm::StringRef variantName,
+          bool runtimeScalar,
+          std::initializer_list<llvm::StringRef> expectedBodyCallees) -> int {
+    if (int result = expectSuccess(
+            verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
+                analysis,
+                "computed-mask accumulation statement plan provider unit "
+                "test"),
+            "verify computed-mask accumulation family plan before statement "
+            "plan construction"))
+      return result;
+
+    llvm::Expected<RVVSelectedBodyRouteMaterializationFacts>
+        materializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+            analysis,
+            "computed-mask accumulation statement plan provider unit test");
+    if (!materializationFacts)
+      return fail("computed-mask accumulation materialization facts: " +
+                  llvm::toString(materializationFacts.takeError()));
+    llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts> mathFacts =
+        getRVVSelectedBodyMathRouteOperandBindingFacts(
+            analysis,
+            "computed-mask accumulation statement plan provider unit test");
+    if (!mathFacts)
+      return fail("computed-mask accumulation math facts: " +
+                  llvm::toString(mathFacts.takeError()));
+
+    llvm::Expected<RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan>
+        statementPlan =
+            getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
+                analysis, *materializationFacts, *mathFacts,
+                "computed-mask accumulation statement plan provider unit "
+                "test");
+    if (!statementPlan)
+      return fail("computed-mask accumulation statement-plan construction: " +
+                  llvm::toString(statementPlan.takeError()));
+    if (int result =
+            expect(statementPlan->plansComputedMaskAccumulationRoute &&
+                       statementPlan->plansComputedMaskedMAccAdd ==
+                           !runtimeScalar &&
+                       statementPlan->plansRuntimeScalarComputedMaskedMAccAdd ==
+                           runtimeScalar &&
+                       statementPlan->computedMaskAccumulationPlan ==
+                           materializationFacts->computedMaskAccumulationPlan,
+                   "statement plan exposes the expected computed-mask "
+                   "accumulation sub-family flags and family-plan pointer"))
+      return result;
+    if (int result = expect(
+            statementPlan->preLoopSteps.size() == 1 &&
+                statementPlan->preLoopSteps.front().callee ==
+                    "__riscv_vsetvl_e32m1",
+            "computed-mask accumulation statement plan owns full-chunk setvl"))
+      return result;
+    if (int result =
+            expect(statementPlan->loop.bodySteps.size() ==
+                       expectedBodyCallees.size(),
+                   "computed-mask accumulation statement plan owns expected "
+                   "loop step count"))
+      return result;
+    unsigned index = 0;
+    for (llvm::StringRef expected : expectedBodyCallees) {
+      if (int result = expect(
+              statementPlan->loop.bodySteps[index].callee == expected,
+              llvm::Twine("computed-mask accumulation statement plan loop "
+                          "step ") +
+                  llvm::Twine(index) + " uses RVV-owned callee '" + expected +
+                  "'"))
+        return result;
+      ++index;
+    }
+
+    KernelOp kernel = findKernel(module, kernelName);
+    VariantOp variant = findVariant(kernel, variantName);
+    TCRVEmitCLowerableRoute route;
+    if (int result = expectSuccess(
+            registry.buildVariantEmitCLowerableRoute(
+                VariantEmitCLowerableRequest(
+                    variant, kernel,
+                    TargetCapabilitySet::buildFromKernel(kernel),
+                    VariantEmissionRole::DirectVariant),
+                route),
+            "provider consumes computed-mask accumulation statement plan"))
+      return result;
+    if (int result = expect(
+            route.getCallOpaqueSteps().size() == 1 &&
+                route.getCallOpaqueSteps().front().callee ==
+                    "__riscv_vsetvl_e32m1" &&
+                route.getForLoops().size() == 1 &&
+                route.getForLoops().front().bodySteps.size() ==
+                    expectedBodyCallees.size(),
+            "provider route attaches the RVV-owned computed-mask "
+            "accumulation statement-plan steps"))
+      return result;
+    return 0;
+  };
+
   if (int result = expectSuccess(
           verifyRVVSelectedBodyComputedMaskAccumulationRouteFamilyProviderPlans(
               *computedMaskedMAccAnalysis,
               "computed-mask MAcc provider unit test"),
           "valid computed-mask MAcc accumulation family provider plan"))
+    return result;
+  if (int result = expectComputedMaskAccumulationStatementPlan(
+          *computedMaskedMAccAnalysis, *computedMaskedMAccModule,
+          "cm_macc_provider_kernel", "rvv_cm_macc", false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmslt_vv_i32m1_b32", "__riscv_vmacc_vv_i32m1",
+           "__riscv_vmerge_vvm_i32m1", "__riscv_vse32_v_i32m1"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteMaterializationFacts>
+      missingPlanMaterializationFacts = getRVVSelectedBodyRouteMaterializationFacts(
+          *computedMaskedMAccAnalysis,
+          "computed-mask accumulation statement plan missing dependency test");
+  if (!missingPlanMaterializationFacts)
+    return fail("computed-mask MAcc materialization facts for missing-plan "
+                "test: " +
+                llvm::toString(missingPlanMaterializationFacts.takeError()));
+  llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
+      computedMAccMathFacts = getRVVSelectedBodyMathRouteOperandBindingFacts(
+          *computedMaskedMAccAnalysis,
+          "computed-mask accumulation statement plan missing dependency test");
+  if (!computedMAccMathFacts)
+    return fail("computed-mask MAcc math facts for missing-plan test: " +
+                llvm::toString(computedMAccMathFacts.takeError()));
+  missingPlanMaterializationFacts->computedMaskAccumulationPlan = nullptr;
+  if (int result = expectErrorContains(
+          getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
+              *computedMaskedMAccAnalysis, *missingPlanMaterializationFacts,
+              *computedMAccMathFacts,
+              "computed-mask accumulation statement plan missing dependency "
+              "test")
+              .takeError(),
+          {"computed-mask accumulation statement plan requires the verified "
+           "computed-mask accumulation route-family plan",
+           "before route statement construction"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis unrelatedAnalysis;
+  unrelatedAnalysis.description.operation = RVVSelectedBodyOperationKind::Add;
+  RVVSelectedBodyRouteMaterializationFacts unrelatedMaterializationFacts;
+  RVVSelectedBodyMathRouteOperandBindingFacts unrelatedMathFacts;
+  llvm::Expected<RVVSelectedBodyComputedMaskAccumulationRouteStatementPlan>
+      unrelatedStatementPlan =
+          getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
+              unrelatedAnalysis, unrelatedMaterializationFacts,
+              unrelatedMathFacts,
+              "computed-mask accumulation statement plan empty unit test");
+  if (!unrelatedStatementPlan)
+    return fail("computed-mask accumulation unrelated statement plan: " +
+                llvm::toString(unrelatedStatementPlan.takeError()));
+  if (int result = expect(
+          !unrelatedStatementPlan->plansComputedMaskAccumulationRoute &&
+              unrelatedStatementPlan->preLoopSteps.empty() &&
+              unrelatedStatementPlan->loop.bodySteps.empty(),
+          "unrelated route receives an empty computed-mask accumulation "
+          "statement plan"))
     return result;
 
   RVVSelectedBodyRouteAnalysis stale = *computedMaskedMAccAnalysis;
@@ -7941,6 +8114,15 @@ module {
               "runtime-scalar computed-mask MAcc provider unit test"),
           "valid runtime-scalar computed-mask MAcc accumulation family "
           "provider plan"))
+    return result;
+  if (int result = expectComputedMaskAccumulationStatementPlan(
+          *runtimeScalarMAccAnalysis, *runtimeScalarMAccModule,
+          "rt_scalar_cm_macc_provider_kernel", "rvv_rt_scalar_cm_macc", true,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmv_v_x_i32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmsle_vv_i32m1_b32", "__riscv_vmacc_vv_i32m1",
+           "__riscv_vmerge_vvm_i32m1", "__riscv_vse32_v_i32m1"}))
     return result;
 
   stale = *runtimeScalarMAccAnalysis;
